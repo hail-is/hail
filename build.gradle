@@ -10,7 +10,7 @@ repositories {
 
 dependencies {
     compile 'org.scala-lang:scala-library:2.10.5'
-    compile fileTree(dir: '/usr/local/spark-1.4.0-bin-hadoop2.6/lib', include: ['*.jar'])
+    compile fileTree(dir: '/usr/local/spark-1.4.1-bin-hadoop2.6/lib', include: ['*.jar'])
 }
 
 sourceCompatibility = 1.7

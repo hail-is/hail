@@ -1,5 +1,8 @@
 package org.broadinstitute.k3.methods
 
+import java.io.FileInputStream
+import java.util.zip.GZIPInputStream
+
 import scala.io.Source
 
 import org.apache.spark.SparkContext
@@ -53,7 +56,13 @@ object LoadVCF {
   }
 
   def apply(sc: SparkContext, file: String): RDD[((String, Variant), Genotype)] = {
-    val headerLine = Source.fromFile(file)
+    // FIXME move to util
+    val s = if (file.takeRight(3) == ".gz")
+      Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))
+    else
+      Source.fromFile(file)
+
+    val headerLine = s
       .getLines()
       .find(line => line(0) == '#' && line(1) != '#')
       .get

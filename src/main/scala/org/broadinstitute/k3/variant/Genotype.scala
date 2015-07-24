@@ -3,11 +3,12 @@ package org.broadinstitute.k3.variant
 import scala.language.implicitConversions
 
 case class Genotype(private val GT: Int,
-  val AD: (Int, Int),
-  val DP: Int,
+  AD: (Int, Int),
+  DP: Int,
   private val PL1: Int,
   private val PL2: Int,
   formatOther: Map[String, String]) {
+  require(GT >= -1 && GT <= 2)
 
   def PL(): (Int, Int, Int) = {
     GT match {
