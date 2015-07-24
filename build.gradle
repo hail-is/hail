@@ -1,0 +1,23 @@
+apply plugin: 'java'
+apply plugin: 'scala'
+apply plugin: 'idea'
+apply plugin: 'application'
+apply plugin: 'maven'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'org.scala-lang:scala-library:2.10.5'
+    compile fileTree(dir: '/usr/local/spark-1.4.0-bin-hadoop2.6/lib', include: ['*.jar'])
+}
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+//compileScala {
+//    scalaCompileOptions.useCompileDaemon = true
+//}
+
+// FIXME testng or ...?
