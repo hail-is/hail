@@ -18,7 +18,9 @@ object Main {
     val sampleVCF = "/Users/cseed/sample.vcf.gz"
     // val sampleVCF = "/Users/cseed/swedish_scz_exomes_chr20.vcf.gz"
     val variantRDD = LoadVCF(sc, sampleVCF)
-    
-    variantRDD.take(200).foreach(println)
+
+    val sampleNoCall = SampleNoCall(variantRDD)
+
+    println(sampleNoCall)
   }
 }

@@ -19,7 +19,9 @@ case class Genotype(private val GT: Int,
         (PL1, PL2, 0)
     }
   }
-
+  
+  def notCalled(): Boolean = GT == -1
+  def called(): Boolean = GT != -1
   def call(): Option[Call] = {
     if (GT == -1)
       None
