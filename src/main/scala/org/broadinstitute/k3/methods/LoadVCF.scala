@@ -57,10 +57,14 @@ object LoadVCF {
 
   def apply(sc: SparkContext, file: String): RDD[((String, Variant), Genotype)] = {
     // FIXME move to util
-    val s = if (file.takeRight(3) == ".gz")
+    val s = if (file.takeRight(7) == ".vcf.gz")
       Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))
-    else
+    else if (file.takeRight(5) == ".vcfd")
+      Source.fromFile(file + "/header")
+    else {
+      assert(file.takeRight(4) == ".vcf")
       Source.fromFile(file)
+    }
 
     val headerLine = s
       .getLines()
@@ -81,7 +85,13 @@ object LoadVCF {
         .map({ case (entry, sample) => ((sample, variant), parseGenotype(entry)) })
     }
 
-    val linesRDD = sc.textFile(file)
+    val loadFile =
+      if (file.takeRight(5) == ".vcfd")
+        file + "/shard*.gz"
+      else
+        file
+
+    val linesRDD = sc.textFile(loadFile)
     linesRDD
       .filter(_(0) != '#')
       .flatMap(parseLine)
