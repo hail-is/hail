@@ -8,8 +8,16 @@ repositories {
     mavenCentral()
 }
 
+mainClassName = "org.broadinstitute.k3.driver.Main"
+
+compileScala {
+    scalaCompileOptions.additionalParameters = ["-feature"]
+}
+
 dependencies {
     compile 'org.scala-lang:scala-library:2.10.5'
+    compile 'net.jpountz.lz4:lz4:1.3.0'
+    compile 'org.scala-lang:scala-pickling_2.10:0.9.1'
     compile fileTree(dir: '/usr/local/spark-1.4.1-bin-hadoop2.6/lib', include: ['*.jar'])
 }
 

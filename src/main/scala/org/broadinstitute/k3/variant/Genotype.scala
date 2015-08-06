@@ -1,70 +1,125 @@
 package org.broadinstitute.k3.variant
 
 import scala.language.implicitConversions
+import scala.collection.mutable.ArrayBuilder
 
-case class Genotype(private val GT: Int,
-  AD: (Int, Int),
-  DP: Int,
-  private val PL1: Int,
-  private val PL2: Int,
-  formatOther: Map[String, String]) {
-  require(GT >= -1 && GT <= 2)
+import org.broadinstitute.k3.utils.Utils._
+import org.broadinstitute.k3.utils.ByteStream
 
-  def PL(): (Int, Int, Int) = {
-    GT match {
-      case 0 => (0, PL1, PL2)
-      case 1 => (PL1, 0, PL2)
-      case _ =>
-        assert(GT == 2)
-        (PL1, PL2, 0)
+case class Genotype(private val gt: Int,
+                    ad: (Int, Int),
+                    dp: Int,
+                    private val pl: (Int, Int, Int)) {
+
+  require(gt >= -1 && gt <= 2)
+  // require(dp >= ad._1 + ad._2), what about dp == -1?
+  // FIXME require pl(gt) == 0?
+
+  private def minPl: (Int, Int) = {
+    gt match {
+      case 0 => (pl._2, pl._3)
+      case 1 => (pl._1, pl._3)
+      case 2 => (pl._1, pl._2)
     }
   }
-  
-  def notCalled(): Boolean = GT == -1
-  def called(): Boolean = GT != -1
-  def call(): Option[Call] = {
-    if (GT == -1)
-      None
-    else
-      Some(Call(GT, PL1 min PL2 min 99, PL))
+
+  def write(b: ArrayBuilder[Byte]) {
+    val writeDp = ad._1 + ad._2 == dp
+    b += ((if (writeDp) 8 else 0) | (gt & 7)).toByte
+    if (gt != -1) {
+      val (pl1, pl2) = minPl
+      writeULEB128(b, pl1)
+      writeULEB128(b, pl2)
+    }
+    writeULEB128(b, ad._1)
+    writeULEB128(b, ad._2)
+    if (writeDp)
+      writeULEB128(b, dp - (ad._1 + ad._2))
   }
 
-  override def toString(): String = {
+  def isHomRef: Boolean = gt == 0
+
+  def isHet: Boolean = gt == 1
+
+  def isHomVar: Boolean = gt == 2
+
+  def notCalled: Boolean = gt == -1
+
+  def called: Boolean = gt != -1
+
+  def call: Option[Call] = {
+    if (gt == -1)
+      None
+    else {
+      val (pl1, pl2) = minPl
+      Some(Call(gt, pl1 min pl2 min 99, pl))
+    }
+  }
+
+  override def toString: String = {
     val b = new StringBuilder
-    val c = call
     call match {
       case Some(c) =>
-        c.GT match {
+        c.gt match {
           case 0 => b.append("0/0")
           case 1 => b.append("0/1")
-          case _ =>
-            assert(c.GT == 2)
-            b.append("1/1")
+          case 2 => b.append("1/1")
         }
-      case None =>
-        b.append("./.")
-      case _ =>
-        assert(false)
+      case None => b.append("./.")
+      case _ => fail()
     }
     b += ':'
-    b.append(AD._1)
+    b.append(ad._1)
     b += ','
-    b.append(AD._2)
+    b.append(ad._2)
     b += ':'
-    b.append(DP)
+    b.append(dp)
     call match {
       case Some(c) =>
         b += ':'
-        b.append(c.GQ)
+        b.append(c.gq)
         b += ':'
-        b.append(c.PL._1)
+        b.append(c.pl._1)
         b += ','
-        b.append(c.PL._2)
+        b.append(c.pl._2)
         b += ','
-        b.append(c.PL._3)
+        b.append(c.pl._3)
       case None =>
     }
 
-    return b.result
+    b.result()
+  }
+}
+
+object Genotype {
+  def read(a: ByteStream): Genotype = {
+    val b = a.readByte()
+
+    val gt = (b << 29) >> 29
+    val writeDp = (b & 8) != 0
+
+    val pl =
+      if (gt != -1) {
+        val pl1 = a.readULEB128()
+        val pl2 = a.readULEB128()
+
+        gt match {
+          case 0 => (0, pl1, pl2)
+          case 1 => (pl1, 0, pl2)
+          case 2 => (pl1, pl2, 0)
+        }
+      } else
+        (0, 0, 0)
+
+    val ad1: Int = a.readULEB128()
+    val ad2: Int = a.readULEB128()
+
+    val dp =
+      if (writeDp)
+        a.readULEB128()
+      else
+        ad1 + ad2
+
+    Genotype(gt, (ad1, ad2), dp, pl)
   }
 }

@@ -10,15 +10,11 @@ import org.apache.spark.rdd._
 
 import org.broadinstitute.k3.variant._
 
-/**
- * Created by cseed on 7/24/15.
- */
 object LoadVCF {
   def parseGenotype(entry: String) = {
     val genotypeRegex =
       """([\d\.])[/|]([\d\.]):(\d+,\d+|\.):(\d+|\.):(\d+|\.):(\d+,\d+,\d+|\.)""".r
-    val genotypeRegex(gtStr1, gtStr2, adStr, dpStr, gqStr, plStr) =
-      entry
+    val genotypeRegex(gtStr1, gtStr2, adStr, dpStr, gqStr, plStr) = entry
 
     val gt =
       if (gtStr1 == ".")
@@ -31,6 +27,7 @@ object LoadVCF {
         (-1, -1)
       else {
         val adList = adStr.split(",").map(_.toInt)
+        assert(adList.length == 2)
         (adList(0), adList(1))
       }
 
@@ -40,23 +37,26 @@ object LoadVCF {
       else
         dpStr.toInt
 
-    val (pl1, pl2) =
+    val pl =
       if (plStr == ".")
-        (-1, -1)
+        (-1, -1, -1)
       else {
         val plList = plStr.split(",").map(_.toInt)
-        gt match {
-          case 0 => (plList(1), plList(2))
-          case 1 => (plList(0), plList(2))
-          case 2 => (plList(0), plList(1))
-        }
+        val minPl = plList.min
+        assert(plList.length == 3)
+        (plList(0) - minPl, plList(1) - minPl, plList(2) - minPl)
       }
 
-    Genotype(gt, ad, dp, pl1, pl2, null)
+    // println(entry)
+    Genotype(gt, ad,
+        // FIXME
+        dp max 0,
+        pl)
   }
 
-  def apply(sc: SparkContext, file: String): RDD[((String, Variant), Genotype)] = {
-    // FIXME move to util
+  // package Array[Byte] as type extending Iterator[Genotype]
+  // FIXME make VariantData type
+  def apply(sc: SparkContext, file: String): VariantDataset = {
     val s = if (file.takeRight(7) == ".vcf.gz")
       Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))
     else if (file.takeRight(5) == ".vcfd")
@@ -74,15 +74,23 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
-    def parseLine(line: String): Array[((String, Variant), Genotype)] = {
+    def parseLine(line: String): (Variant, GenotypeStream) = {
       val words: Array[String] = line.split("\t")
       val variant = Variant(words(0),
         words(1).toInt,
-        DNASeq(words(3)),
-        DNASeq(words(4)))
+        words(3),
+        words(4))
+
+      // FIXME foreach can't be right
+      val b = new GenotypeStreamBuilder
       words.drop(9)
-        .zip(sampleIds)
-        .map({ case (entry, sample) => ((sample, variant), parseGenotype(entry)) })
+        .map(parseGenotype)
+        .foreach(g => b.+=((0, g)))
+      val a = b.result()
+
+      // println("uncompLen = " + a.length)
+
+      (variant, b.result())
     }
 
     val loadFile =
@@ -92,8 +100,10 @@ object LoadVCF {
         file
 
     val linesRDD = sc.textFile(loadFile)
-    linesRDD
+    val variantRDD = linesRDD
       .filter(_(0) != '#')
-      .flatMap(parseLine)
+      .map(parseLine)
+
+    new VariantDataset(sampleIds, variantRDD)
   }
 }
