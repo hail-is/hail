@@ -8,6 +8,6 @@ object SampleNoCall {
   def apply(vds: VariantDataset): Map[Int, Int] = {
     vds
       .mapValues(g => if (g.notCalled) 1 else 0)
-      .reduceBySample(_ + _)
+      .foldBySample(0)(_ + _)
   }
 }

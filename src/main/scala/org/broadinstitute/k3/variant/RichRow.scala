@@ -20,8 +20,9 @@ class RichRow(r: Row) {
   }
 
   def toGenotypeStream: GenotypeStream = {
-    GenotypeStream(r.getAs[Int](0),
-      r.getAs[Array[Byte]](1))
+    GenotypeStream(r.getAs[Row](0).toVariant,
+      r.getAs[Int](1),
+      r.getAs[Array[Byte]](2))
   }
 
   def toVariantGenotypeStreamTuple: (Variant, GenotypeStream) = {

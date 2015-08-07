@@ -20,7 +20,7 @@ class GenotypeStreamIterator(b: ByteStream) extends Iterator[(Int, Genotype)] {
   }
 }
 
-case class GenotypeStream(decompLen: Int, a: Array[Byte])
+case class GenotypeStream(variant: Variant, decompLen: Int, a: Array[Byte])
   extends Iterable[(Int, Genotype)] {
 
   override def iterator: GenotypeStreamIterator = {
@@ -35,11 +35,12 @@ case class GenotypeStream(decompLen: Int, a: Array[Byte])
   }
 
   override def newBuilder: Builder[(Int, Genotype), GenotypeStream] = {
-    new GenotypeStreamBuilder
+    new GenotypeStreamBuilder(variant)
   }
 }
 
-class GenotypeStreamBuilder extends Builder[(Int, Genotype), GenotypeStream] {
+class GenotypeStreamBuilder(variant: Variant)
+  extends Builder[(Int, Genotype), GenotypeStream] {
   val b = new ArrayBuilder.ofByte
 
   override def +=(g: (Int, Genotype)): GenotypeStreamBuilder.this.type = {
@@ -62,6 +63,6 @@ class GenotypeStreamBuilder extends Builder[(Int, Genotype), GenotypeStream] {
     val compressed = Array.ofDim[Byte](maxLen)
     val compressedLen = compressor.compress(a, 0, a.length, compressed, 0, maxLen)
 
-    new GenotypeStream(decompLen, compressed.take(compressedLen))
+    new GenotypeStream(variant, decompLen, compressed.take(compressedLen))
   }
 }

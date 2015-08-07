@@ -12,45 +12,53 @@ import org.apache.spark.sql.SQLContext
 
 import scala.reflect.ClassTag
 
-// FIXME move to own file
-class VariantSampleMatrix[T : ClassTag](sampleIds: Array[String],
-                             rdd: RDD[(Variant, GenotypeStream)],
-                             mapFn: (Genotype) => T,
+import org.broadinstitute.k3.Utils._
+
+// FIXME implement variants WithKeys
+class VariantSampleMatrix[T](val sampleIds: Array[String],
+                             val rdd: RDD[(Variant, GenotypeStream)],
+                             mapFn: (Variant, Int, Genotype) => T,
                              samplePredicate: (Int) => Boolean) {
   def nSamples: Int = sampleIds.length
 
-  def write(sqlContext: SQLContext, dirname: String) {
-    require(dirname.endsWith(".vds"))
-
-    new File(dirname).mkdir()
-
-    val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
-    metadataOos.writeObject(sampleIds)
-
-    import sqlContext.implicits._
-
-    val df = rdd.toDF()
-    df.write.parquet(dirname + "/rdd.parquet")
+  def cache(): VariantSampleMatrix[T] = {
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+    new VariantSampleMatrix[T](sampleIds, rdd.cache(), localMapFn, localSamplePredicate)
   }
 
-  def cache(): VariantSampleMatrix[T] = new VariantSampleMatrix[T](sampleIds, rdd.cache(), mapFn, samplePredicate)
+  def count(): Long = rdd.count()
 
-  def mapValues[U : ClassTag](f: (T) => U) : VariantSampleMatrix[U] = {
-    new VariantSampleMatrix[U](sampleIds, rdd, f compose mapFn, samplePredicate)
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U): VariantSampleMatrix[U] = {
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+    new VariantSampleMatrix[U](sampleIds, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
   }
 
-  // FIXME push down into reader: Add VariantSampleDataframeMatrix
+  def mapValues[U](f: (T) => U): VariantSampleMatrix[U] = {
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+    new VariantSampleMatrix[U](sampleIds, rdd, (v, s, g) => f(localMapFn(v, s, g)), localSamplePredicate)
+  }
+
+  // FIXME push down into reader: add VariantSampleDataframeMatrix?
   def filterVariants(p: (Variant) => Boolean) = {
-    new VariantSampleMatrix(sampleIds, rdd.filter(t => p(t._1)), mapFn, samplePredicate)
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+    new VariantSampleMatrix(sampleIds, rdd.filter(t => p(t._1)), localMapFn, localSamplePredicate)
   }
 
   def filterSamples(p: (Int) => Boolean) = {
-    new VariantSampleMatrix(sampleIds, rdd, mapFn, id => samplePredicate(id) && p(id))
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+    new VariantSampleMatrix(sampleIds, rdd, localMapFn, id => localSamplePredicate(id) && p(id))
   }
 
-  def aggregateBySample[U : ClassTag](zeroValue: U)(
-    seqOp: (U, T) => U,
+  def aggregateBySampleWithKeys[U](zeroValue: U)(
+    seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U): Map[Int, U] = {
+    val localMapFn = mapFn
+
     val filteredNums = (0 until nSamples).filter(samplePredicate)
 
     val numFilteredNum = Array.fill[Int](nSamples)(-1)
@@ -58,86 +66,103 @@ class VariantSampleMatrix[T : ClassTag](sampleIds: Array[String],
       numFilteredNum(i) = j
     val numFilteredNumBroadcast = rdd.sparkContext.broadcast(numFilteredNum)
 
-    val a = rdd.aggregate(Array.fill[U](filteredNums.length)(zeroValue))(
-      (a: Array[U], t: (Variant, GenotypeStream)) => {
-        val gs = t._2
-        for ((i, g) <- gs) {
-          val j = numFilteredNumBroadcast.value(i)
-          if (j != -1)
-            a(j) = seqOp(a(j), mapFn(g))
-        }
-        a
-      },
-      (a1: Array[U], a2: Array[U]) => {
-        for (j <- a1.indices)
-          a1(j) = combOp(a1(j), a2(j))
-        a1
-      })
+    val a = rdd.aggregate(Vector.fill[U](filteredNums.length)(zeroValue))({
+      case (a, (v, gs)) => {
+        gs
+        .foldLeft(a)({
+          case (acc, (s, g)) => {
+            val j = numFilteredNumBroadcast.value(s)
+            if (j != -1)
+              acc.updated(j, seqOp(acc(j), v, s, localMapFn(v, s, g)))
+            else
+              acc
+          }
+        })
+      }
+    },
+    (v1: Vector[U], v2: Vector[U]) => v1.zipWith(v2, combOp))
 
     filteredNums
-      .zip(a)
-      .toMap
+    .zip(a)
+    .toMap
   }
 
-  def aggregateByVariant[U : ClassTag](zeroValue: U)(
+  def aggregateBySample[U](zeroValue: U)(
     seqOp: (U, T) => U,
-    combOp: (U, U) => U): Map[Variant, U] = {
+    combOp: (U, U) => U): Map[Int, U] =
+    aggregateBySampleWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
+
+  def aggregateByVariantWithKeys[U](zeroValue: U)(
+    seqOp: (U, Variant, Int, T) => U,
+    combOp: (U, U) => U)(implicit ut: ClassTag[U]): Map[Variant, U] = {
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+
     rdd.aggregateByKey(zeroValue)(
       (x, gs) => gs
-        .filter(sg => samplePredicate(sg._1))
-        .aggregate(x)((x2, sg) => seqOp(x2, mapFn(sg._2)), combOp),
+                 .iterator
+                 .filter({ case (s, g) => localSamplePredicate(s) })
+                 .aggregate(x)({ case (x2, (s, g)) => seqOp(x2, gs.variant, s, localMapFn(gs.variant, s, g)) }, combOp),
       combOp)
-      .collectAsMap()
+    .collectAsMap()
   }
 
-  def reduceBySample(combOp: (T, T) => T): Map[Int, T] = {
+  def aggregateByVariant[U](zeroValue: U)(
+    seqOp: (U, T) => U,
+    combOp: (U, U) => U)(implicit ut: ClassTag[U]): Map[Variant, U] =
+    aggregateByVariantWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
+
+  def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+
     val filteredNums = (0 until nSamples).filter(samplePredicate)
+    val nFilteredNums = filteredNums.length
+    println("nFilteredNums: " + nFilteredNums)
 
     val numFilteredNum = Array.fill[Int](nSamples)(-1)
     for ((i, j) <- filteredNums.zipWithIndex)
       numFilteredNum(i) = j
     val numFilteredNumBroadcast = rdd.sparkContext.broadcast(numFilteredNum)
 
+    val vCombOp: (Vector[T], Vector[T]) => Vector[T] =
+      (a1, a2) => a1.iterator.zip(a2.iterator).map(combOp.tupled).toVector
     val a = rdd
-      .map(t => t._2.filter(sg => samplePredicate(sg._1)).map(sg => mapFn(sg._2)).toArray)
-      .reduce((a1, a2) => {
-      for (i <- a1.indices)
-        a1(i) = combOp(a1(i), a2(i))
-      a1
-    })
+            .aggregate(Vector.fill[T](nFilteredNums)(zeroValue))({
+      case (a, (v, gs)) => a.iterator.zip(gs.iterator
+                                          .filter({ case (s, g) => localSamplePredicate(s) })
+                                          .map({ case (s, g) => localMapFn(v, s, g) }))
+                           .map(combOp.tupled)
+                           .toVector
+    },
+            vCombOp)
 
-    filteredNums
-      .zip(a)
-      .toMap
+    filteredNums.toVector.zip(a).toMap
   }
 
-  def reduceByVariant(combOp: (T, T) => T): Map[Variant, T] = {
+  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T]): Map[Variant, T] = {
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+
     rdd
-      .mapValues(gs => gs.filter(sg => samplePredicate(sg._1)).map(sg => mapFn(sg._2)).reduce(combOp))
-      .reduceByKey(combOp)
-      .collectAsMap()
+    .mapValues(gs => gs.iterator
+                     .filter({ case (s, g) => localSamplePredicate(s) })
+                     .map({ case (s, g) => localMapFn(gs.variant, s, g) })
+                     .reduce(combOp))
+    .reduceByKey(combOp)
+    .collectAsMap()
   }
-}
 
-class VariantDataset(val sampleIds: Array[String],
-                     val rdd: RDD[(Variant, GenotypeStream)])
-  extends VariantSampleMatrix[Genotype](sampleIds, rdd, x => x, _ => true)
+  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T]): Map[Variant, T] = {
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
 
-object VariantDataset {
-  def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
-    require(dirname.endsWith(".vds"))
-
-    val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
-
-    val sampleIdsObj = metadataOis.readObject()
-    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-
-    val sampleIds = sampleIdsObj match {
-      case t: Array[String] => t
-      case _ => throw new ClassCastException
-    }
-
-    import RichRow._
-    new VariantDataset(sampleIds, df.rdd.map(_.toVariantGenotypeStreamTuple))
+    rdd
+    .mapValues(gs => gs.iterator
+                     .filter({ case (s, g) => localSamplePredicate(s) })
+                     .map({ case (s, g) => localMapFn(gs.variant, s, g) })
+                     .fold(zeroValue)(combOp))
+    .foldByKey(zeroValue)(combOp)
+    .collectAsMap()
   }
 }
