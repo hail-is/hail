@@ -4,7 +4,7 @@ import scala.collection.Map
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.k3.variant._
 
-object SampleNoCall {
+object nNoCallPerSample {
   def apply(vds: VariantDataset): Map[Int, Int] = {
     vds
       .mapValues(g => if (g.notCalled) 1 else 0)

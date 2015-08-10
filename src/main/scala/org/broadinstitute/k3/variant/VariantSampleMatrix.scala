@@ -5,6 +5,7 @@ import java.io._
 import org.apache.spark.broadcast.Broadcast
 
 import scala.collection.Map
+import scala.io.Source
 import scala.language.implicitConversions
 
 import org.apache.spark.rdd.RDD
@@ -67,15 +68,15 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
     val numFilteredNumBroadcast = rdd.sparkContext.broadcast(numFilteredNum)
 
     val a = rdd.aggregate(Vector.fill[U](filteredNums.length)(zeroValue))({
-      case (a, (v, gs)) => {
+      case (acc, (v, gs)) => {
         gs
-        .foldLeft(a)({
-          case (acc, (s, g)) => {
+        .foldLeft(acc)({
+          case (acc2, (s, g)) => {
             val j = numFilteredNumBroadcast.value(s)
             if (j != -1)
-              acc.updated(j, seqOp(acc(j), v, s, localMapFn(v, s, g)))
+              acc2.updated(j, seqOp(acc2(j), v, s, localMapFn(v, s, g)))
             else
-              acc
+              acc2
           }
         })
       }
@@ -129,7 +130,7 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
       (a1, a2) => a1.iterator.zip(a2.iterator).map(combOp.tupled).toVector
     val a = rdd
             .aggregate(Vector.fill[T](nFilteredNums)(zeroValue))({
-      case (a, (v, gs)) => a.iterator.zip(gs.iterator
+      case (acc, (v, gs)) => acc.iterator.zip(gs.iterator
                                           .filter({ case (s, g) => localSamplePredicate(s) })
                                           .map({ case (s, g) => localMapFn(v, s, g) }))
                            .map(combOp.tupled)

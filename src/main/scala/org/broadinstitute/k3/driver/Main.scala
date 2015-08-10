@@ -39,12 +39,16 @@ object Main {
       System.exit(0)
     }
 
-    if (args.length < 3)
-      fatal("too few arguments")
+    //if (args.length < 3)
+    //  fatal("too few arguments")
 
-    val master = args(0)
-    val input = args(1)
-    val command = args(2)
+    //val master = args(0)
+    //val input = args(1)
+    //val command = args(2)
+
+    val master = "local[*]"
+    val input = "/Users/Jon/sampleVCF/sample.vds"
+    val command = "sample"
 
     val conf = new SparkConf().setAppName("K3").setMaster(master)
     conf.set("spark.sql.parquet.compression.codec", "uncompressed")
@@ -69,18 +73,37 @@ object Main {
     println("entries: " + vds.count())
 
     if (command == "write") {
-      if (args.length < 4)
-        fatal("write: too few arguments")
+      //if (args.length < 4)
+      //  fatal("write: too few arguments")
 
-      val output = args(3)
+      //val output = args(3)
+      val output = "/Users/Jon/sampleVCF/sample.vds"
       vds.write(sqlContext, output)
-    } else if (command == "nocall") {
-      if (args.length != 3)
-        fatal("nocall: unexpected arguments")
+    } else if (command == "sample") {
+      //if (args.length != 3)
+      //  fatal("nocall: unexpected arguments")
 
-      val sampleNoCall = SampleNoCall(vds)
-      for ((s, nc) <- sampleNoCall)
-        println(vds.sampleIds(s) + ": " + nc)
+      val nTransition = nTransitionPerSample(vds)
+      val nTransversion = nTransversionPerSample(vds)
+      //val nSNPs = nSnpPerSample(vds)
+      val nIndels = nIndelPerSample(vds)
+      val nInsertion = nInsertionPerSample(vds)
+      val nDeletion = nDeletionPerSample(vds)
+      val nTiTv = nTiTvPerSampleTuple(vds)
+      val tiTvRatio = rTiTvPerSampleTuple(vds)
+      val nGenotypeVector = nGenotypePerSampleVector(vds)
+      val nHwe = pHwePerSample(vds)
+      val rHetHom = rHetHomPerSample(vds)
+
+      for ((s, t) <- rHetHom)
+        println(vds.sampleIds(s) + ": " + t.toString)
+    } else if (command == "variant") {
+      //if (args.length != 3)
+      //  fatal("nocall: unexpected arguments")
+
+      val variantNoCall = nHomVarPerVariant(vds)
+      for ((v, nc) <- variantNoCall)
+        println(v + ": " + nc)
     } else
       fatal("unknown command: " + command)
   }
