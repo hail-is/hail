@@ -15,85 +15,62 @@ import scala.reflect.ClassTag
 import org.broadinstitute.k3.Utils._
 
 // FIXME implement variants WithKeys
-class VariantSampleMatrix[T](val sampleIds: Array[String],
-                             val rdd: RDD[(Variant, GenotypeStream)],
-                             mapFn: (Variant, Int, Genotype) => T,
-                             samplePredicate: (Int) => Boolean) {
+class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
+                                                      val rdd: RDD[(Variant, S)]) {
   def nSamples: Int = sampleIds.length
+  def nVariants: Long = rdd.count()
 
-  def cache(): VariantSampleMatrix[T] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-    new VariantSampleMatrix[T](sampleIds, rdd.cache(), localMapFn, localSamplePredicate)
+  def cache(): VariantSampleMatrix[T, S] = {
+    new VariantSampleMatrix[T, S](sampleIds, rdd.cache())
   }
 
   def count(): Long = rdd.count()
 
   def expand(): RDD[(Variant, Int, T)] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-
-    rdd.flatMap{ case (v, gs) => gs
-      .iterator
-      .filter{ case (s, g) => localSamplePredicate(s) }
-      .map{ case (s, g) => (v, s, localMapFn(v, s, g)) }}
+    rdd.flatMap { case (v, gs) =>
+      gs.map { case (s, g) => (v, s, g) }
+    }
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U): VariantSampleMatrix[U] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-    new VariantSampleMatrix[U](sampleIds, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U): VariantSampleMatrix[U, Vector[(Int, U)]] = {
+    new VariantSampleMatrix[U, Vector[(Int, U)]](sampleIds,
+      rdd
+      .map{ case (v, gs) => (v, gs.map{ case (s, t) => (s, f(v, s, t)) }.toVector) })
   }
 
-  def mapValues[U](f: (T) => U): VariantSampleMatrix[U] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-    new VariantSampleMatrix[U](sampleIds, rdd, (v, s, g) => f(localMapFn(v, s, g)), localSamplePredicate)
+  def mapValues[U](f: (T) => U): VariantSampleMatrix[U, Vector[(Int, U)]] = {
+    mapValuesWithKeys((v, s, g) => f(g))
   }
 
   // FIXME push down into reader: add VariantSampleDataframeMatrix?
   def filterVariants(p: (Variant) => Boolean) = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-    new VariantSampleMatrix(sampleIds, rdd.filter(t => p(t._1)), localMapFn, localSamplePredicate)
+    new VariantSampleMatrix[T, S](sampleIds,
+      rdd.filter { case (v, gs) => p(v) })
   }
 
   def filterSamples(p: (Int) => Boolean) = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-    new VariantSampleMatrix(sampleIds, rdd, localMapFn, id => localSamplePredicate(id) && p(id))
+    new VariantSampleMatrix[T, Vector[(Int, T)]](sampleIds,
+      rdd.map { case (v, gs) =>
+        (v, gs.filter { case (s, v) => p(s) }.toVector)
+      })
   }
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U): Map[Int, U] = {
-    val localMapFn = mapFn
 
-    val filteredNums = (0 until nSamples).filter(samplePredicate)
+    val zeroValueBySample = rdd.first()._2.map { case (s, g) => (s, zeroValue) }.toVector
 
-    val numFilteredNum = Array.fill[Int](nSamples)(-1)
-    for ((i, j) <- filteredNums.zipWithIndex)
-      numFilteredNum(i) = j
-    val numFilteredNumBroadcast = rdd.sparkContext.broadcast(numFilteredNum)
-
-    val a = rdd.aggregate(Vector.fill[U](filteredNums.length)(zeroValue))({
-      case (a, (v, gs)) => {
-        gs
-        .foldLeft(a)({
-          case (acc, (s, g)) => {
-            val j = numFilteredNumBroadcast.value(s)
-            if (j != -1)
-              acc.updated(j, seqOp(acc(j), v, s, localMapFn(v, s, g)))
-            else
-              acc
-          }
+    rdd
+    .aggregate(zeroValueBySample)({
+      case (acc, (v, gs)) =>
+        acc.zipWith[(Int, T), (Int, U)](gs, { case ((s1, a), (s2, g)) => {
+          assert(s1 == s2)
+          (s1, seqOp(a, v, s1, g))
+        }
         })
-      }
     },
-    (v1: Vector[U], v2: Vector[U]) => v1.zipWith(v2, combOp))
-
-    filteredNums
-    .zip(a)
+    (acc1, acc2) => acc1.zipWith[(Int, U), (Int, U)](acc2, { case ((s1, a1), (s2, a2)) => (s1, combOp(a1, a2)) }))
     .toMap
   }
 
@@ -105,15 +82,12 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
   def aggregateByVariantWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U)(implicit ut: ClassTag[U]): Map[Variant, U] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-
-    rdd.aggregateByKey(zeroValue)(
-      (x, gs) => gs
-                 .iterator
-                 .filter({ case (s, g) => localSamplePredicate(s) })
-                 .aggregate(x)({ case (x2, (s, g)) => seqOp(x2, gs.variant, s, localMapFn(gs.variant, s, g)) }, combOp),
-      combOp)
+    rdd
+    .map { case (v, gs) => (v, (v, gs)) }
+    .aggregateByKey(zeroValue)({
+      case (acc, (v, gs)) => gs.aggregate(acc)({ case (acc2, (s, g)) => seqOp(acc2, v, s, g) }, combOp)
+    },
+    combOp)
     .collectAsMap()
   }
 
@@ -123,55 +97,32 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
     aggregateByVariantWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-
-    val filteredNums = (0 until nSamples).filter(samplePredicate)
-    val nFilteredNums = filteredNums.length
-    println("nFilteredNums: " + nFilteredNums)
-
-    val numFilteredNum = Array.fill[Int](nSamples)(-1)
-    for ((i, j) <- filteredNums.zipWithIndex)
-      numFilteredNum(i) = j
-    val numFilteredNumBroadcast = rdd.sparkContext.broadcast(numFilteredNum)
-
-    val vCombOp: (Vector[T], Vector[T]) => Vector[T] =
-      (a1, a2) => a1.iterator.zip(a2.iterator).map(combOp.tupled).toVector
-    val a = rdd
-            .aggregate(Vector.fill[T](nFilteredNums)(zeroValue))({
-      case (a, (v, gs)) => a.iterator.zip(gs.iterator
-                                          .filter({ case (s, g) => localSamplePredicate(s) })
-                                          .map({ case (s, g) => localMapFn(v, s, g) }))
-                           .map(combOp.tupled)
-                           .toVector
-    },
-            vCombOp)
-
-    filteredNums.toVector.zip(a).toMap
+    val bySampleZeroValue = rdd.first()._2.map { case (s, g) => (s, zeroValue) }.toVector
+    rdd
+    .aggregate(bySampleZeroValue)({
+      case (acc, (v, gs)) => acc.zipWith[(Int, T), (Int, T)](gs, { case ((s1, a), (s2, g)) => {
+        assert(s1 == s2)
+        (s1, combOp(a, g))
+      }
+      })
+    }, (a1, a2) => a1.zipWith[(Int, T), (Int, T)](a2, { case ((s1, a1), (s2, a2)) => (s1, combOp(a1, a2)) }))
+    .toMap
   }
 
-  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T]): Map[Variant, T] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-
+  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): Map[Variant, T] = {
     rdd
-    .mapValues(gs => gs.iterator
-                     .filter({ case (s, g) => localSamplePredicate(s) })
-                     .map({ case (s, g) => localMapFn(gs.variant, s, g) })
-                     .reduce(combOp))
+    .mapValues(gs => gs.map {
+      case (s, gs) => gs
+    }.reduce(combOp))
     .reduceByKey(combOp)
     .collectAsMap()
   }
 
-  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T]): Map[Variant, T] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-
+  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): Map[Variant, T] = {
     rdd
-    .mapValues(gs => gs.iterator
-                     .filter({ case (s, g) => localSamplePredicate(s) })
-                     .map({ case (s, g) => localMapFn(gs.variant, s, g) })
-                     .fold(zeroValue)(combOp))
+    .mapValues(gs => gs.map {
+      case (s, gs) => gs
+    }.fold(zeroValue)(combOp))
     .foldByKey(zeroValue)(combOp)
     .collectAsMap()
   }

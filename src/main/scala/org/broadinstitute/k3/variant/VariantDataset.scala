@@ -7,7 +7,7 @@ import org.apache.spark.sql.SQLContext
 
 class VariantDataset(sampleIds: Array[String],
                      rdd: RDD[(Variant, GenotypeStream)])
-  extends VariantSampleMatrix[Genotype](sampleIds, rdd, (v, s, x) => x, _ => true) {
+  extends VariantSampleMatrix[Genotype, GenotypeStream](sampleIds, rdd) {
 
   def write(sqlContext: SQLContext, dirname: String) {
     require(dirname.endsWith(".vds"))
