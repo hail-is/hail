@@ -29,6 +29,16 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
 
   def count(): Long = rdd.count()
 
+  def expand(): RDD[(Variant, Int, T)] = {
+    val localSamplePredicate = samplePredicate
+    val localMapFn = mapFn
+
+    rdd.flatMap{ case (v, gs) => gs
+      .iterator
+      .filter{ case (s, g) => localSamplePredicate(s) }
+      .map{ case (s, g) => (v, s, localMapFn(v, s, g)) }}
+  }
+
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U): VariantSampleMatrix[U] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
