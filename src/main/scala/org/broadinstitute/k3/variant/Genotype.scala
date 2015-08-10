@@ -43,9 +43,11 @@ case class Genotype(private val gt: Int,
 
   def isHomVar: Boolean = gt == 2
 
-  def notCalled: Boolean = gt == -1
+  def isNonRef: Boolean = gt >= 1
 
-  def called: Boolean = gt != -1
+  def isNotCalled: Boolean = gt == -1
+
+  def isCalled: Boolean = gt != -1
 
   def call: Option[Call] = {
     if (gt == -1)
