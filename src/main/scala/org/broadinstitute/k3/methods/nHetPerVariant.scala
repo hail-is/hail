@@ -8,6 +8,6 @@ object nHetPerVariant {
   def apply(vds: VariantDataset): Map[Variant, Int] = {
     vds
       .mapValues(g => if (g.isHet) 1 else 0)
-      .foldByVariant(0)(_ + _)
+      .reduceByVariant(_ + _)
   }
 }

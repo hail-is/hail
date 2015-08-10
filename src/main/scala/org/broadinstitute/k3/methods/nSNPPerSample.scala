@@ -4,13 +4,10 @@ import org.broadinstitute.k3.variant._
 
 import scala.collection.Map
 
-object nInsertionPerSample {
+object nSNPPerSample {
   def apply(vds: VariantDataset): Map[Int, Int] = {
     vds
-      .mapValuesWithKeys((v, s, g) => if (g.isNonRef && v.isInsertion) 1 else 0)
+      .mapValuesWithKeys((v, s, g) => if (g.isNonRef && v.isSNP) 1 else 0)
       .foldBySample(0)(_ + _)
   }
 }
-
-
-

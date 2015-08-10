@@ -7,7 +7,7 @@ import scala.collection.Map
 object nCallPerVariant {
   def apply(vds: VariantDataset): Map[Variant, Int] = {
     vds
-      .mapValues(g => if (g.called) 1 else 0)
-      .foldByVariant(0)(_ + _)
+      .mapValues(g => if (g.isCalled) 1 else 0)
+      .reduceByVariant(_ + _)
   }
 }

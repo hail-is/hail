@@ -4,10 +4,9 @@ import org.broadinstitute.k3.variant._
 
 import scala.collection.Map
 
-object nSamplePerVariant {
+object nNonRefPerVariant {
   def apply(vds: VariantDataset): Map[Variant, Int] = {
-    vds
-      .mapValues(g => 1)
-      .foldByVariant(0)(_ + _)
+    nGenotypeVectorPerVariant(vds)
+      .mapValues(a => a(1) + a(2))
   }
 }
