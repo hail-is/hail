@@ -14,10 +14,10 @@ class GenotypeSuite extends TestNGSuite {
     val het = Genotype(1, (5, 5), 12, (100, 0, 1000))
     val homVar = Genotype(2, (2, 10), 12, (100, 1000, 0))
 
-    assert(noCall.notCalled)
-    assert(homRef.called && homRef.isHomRef)
-    assert(het.called && het.isHet)
-    assert(homVar.called && homVar.isHomVar)
+    assert(noCall.isNotCalled)
+    assert(homRef.isCalled && homRef.isHomRef)
+    assert(het.isCalled && het.isHet)
+    assert(homVar.isCalled && homVar.isHomVar)
 
     val b = new mutable.ArrayBuilder.ofByte
     noCall.write(b)
