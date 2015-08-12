@@ -1,11 +1,10 @@
 package org.broadinstitute.k3.variant
 
 case class Variant(contig: String,
-  // FIXME 0- or 1-based?
+  // FIXME: 0- or 1-based?
   start: Int,
   ref: String,
   alt: String) {
-
 
   // FIXME: these break down for multi-allelic and/or complex variants
 
