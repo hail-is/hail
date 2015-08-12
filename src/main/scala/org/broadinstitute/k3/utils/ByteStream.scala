@@ -12,12 +12,14 @@ class ByteStream(a: Array[Byte]) {
 
   def readULEB128(): Int = {
     var x: Int = 0
+    var shift: Int = 0
     do {
-      x = (x << 7) | (a(i) & 0x7f)
+      x = x | ((a(i) & 0x7f) << shift)
       i += 1
+      shift += 7
     } while ((a(i - 1) & 0x80) != 0)
     x
   }
 
-  def eos = (i == a.length)
+  def eos = i == a.length
 }

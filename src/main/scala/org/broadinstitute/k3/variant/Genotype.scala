@@ -2,8 +2,7 @@ package org.broadinstitute.k3.variant
 
 import scala.language.implicitConversions
 import scala.collection.mutable.ArrayBuilder
-
-import org.broadinstitute.k3.utils.Utils._
+import org.broadinstitute.k3.Utils._
 import org.broadinstitute.k3.utils.ByteStream
 
 case class Genotype(private val gt: Int,
@@ -12,9 +11,9 @@ case class Genotype(private val gt: Int,
                     private val pl: (Int, Int, Int)) {
 
   require(gt >= -1 && gt <= 2)
-
-  // require(dp >= ad._1 + ad._2), what about dp == -1?
-  // FIXME require pl(gt) == 0?
+  require(dp >= ad._1 + ad._2)
+  require(gt == -1 || pl.at(gt + 1) == 0)
+  require(gt != -1 || pl == null)
 
   private def minPl: (Int, Int) = {
     gt match {
@@ -115,7 +114,7 @@ object Genotype {
           case 2 => (pl1, pl2, 0)
         }
       } else
-        (0, 0, 0)
+        null
 
     val ad1: Int = a.readULEB128()
     val ad2: Int =
@@ -124,12 +123,12 @@ object Genotype {
       else
         0
 
-    val dp =
+    val dpDelta =
       if (writeDp)
         a.readULEB128()
       else
-        ad1 + ad2
+        0
 
-    Genotype(gt, (ad1, ad2), dp, pl)
+    Genotype(gt, (ad1, ad2), ad1 + ad2 + dpDelta, pl)
   }
 }
