@@ -24,7 +24,7 @@ object LoadVCF {
 
     val ad =
       if (adStr == ".")
-        (-1, -1)
+        (0, 0)
       else {
         val adList = adStr.split(",").map(_.toInt)
         assert(adList.length == 2)
@@ -33,13 +33,13 @@ object LoadVCF {
 
     val dp =
       if (dpStr == ".")
-        -1
+        0
       else
         dpStr.toInt
 
     val pl =
       if (plStr == ".")
-        (-1, -1, -1)
+        null
       else {
         val plList = plStr.split(",").map(_.toInt)
         val minPl = plList.min
@@ -47,15 +47,19 @@ object LoadVCF {
         (plList(0) - minPl, plList(1) - minPl, plList(2) - minPl)
       }
 
-    // println(entry)
+    val normalizedPl =
+      gt match {
+        case -1 => null
+        case 0 => (0, pl._2, pl._3)
+        case 1 => (pl._1, 0, pl._3)
+        case 2 => (pl._1, pl._2, 0)
+      }
+
     Genotype(gt, ad,
-        // FIXME
-        dp max 0,
-        pl)
+      dp max (ad._1 + ad._2),
+      normalizedPl)
   }
 
-  // package Array[Byte] as type extending Iterator[Genotype]
-  // FIXME make VariantData type
   def apply(sc: SparkContext, file: String): VariantDataset = {
     val s = if (file.takeRight(7) == ".vcf.gz")
       Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))
@@ -67,12 +71,12 @@ object LoadVCF {
     }
 
     val headerLine = s
-      .getLines()
-      .find(line => line(0) == '#' && line(1) != '#')
-      .get
+                     .getLines()
+                     .find(line => line(0) == '#' && line(1) != '#')
+                     .get
     val sampleIds = headerLine
-      .split("\t")
-      .drop(9)
+                    .split("\t")
+                    .drop(9)
 
     def parseLine(line: String): (Variant, GenotypeStream) = {
       val words: Array[String] = line.split("\t")
@@ -84,8 +88,8 @@ object LoadVCF {
       // FIXME foreach can't be right
       val b = new GenotypeStreamBuilder(variant)
       words.drop(9)
-        .map(parseGenotype)
-        .foreach(g => b.+=((0, g)))
+      .map(parseGenotype)
+      .foreach(g => b.+=((0, g)))
       val a = b.result()
 
       // println("uncompLen = " + a.length)
@@ -101,8 +105,8 @@ object LoadVCF {
 
     val linesRDD = sc.textFile(loadFile)
     val variantRDD = linesRDD
-      .filter(_(0) != '#')
-      .map(parseLine)
+                     .filter(_(0) != '#')
+                     .map(parseLine)
 
     new VariantDataset(sampleIds, variantRDD)
   }

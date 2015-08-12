@@ -53,21 +53,25 @@ object Main {
     val conf = new SparkConf().setAppName("K3").setMaster(master)
     conf.set("spark.sql.parquet.compression.codec", "uncompressed")
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    // FIXME why isn't this getting picked up by from the configuration?
+    conf.set("spark.executor.memory", "4g")
+
     val sc = new SparkContext(conf)
+    // FIXME add to command line or read from CLASSPATH
+    sc.addJar("/Users/cseed/k3/build/libs/k3.jar")
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
     val vds: VariantDataset =
       if (input.endsWith(".vds"))
-        VariantDataset.read(sqlContext, input).cache()
+        VariantDataset.read(sqlContext, input)
       else {
         if (!input.endsWith(".vcf")
           && !input.endsWith(".vcf.gz")
           && !input.endsWith(".vcfd"))
           fatal("unknown input file type")
 
-
-        LoadVCF(sc, input).cache()
+        LoadVCF(sc, input)
       }
 
     println("entries: " + vds.count())
