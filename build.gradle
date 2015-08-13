@@ -3,6 +3,7 @@ apply plugin: 'scala'
 apply plugin: 'idea'
 apply plugin: 'application'
 apply plugin: 'maven'
+apply plugin: 'jacoco'
 
 repositories {
     mavenCentral()
@@ -22,11 +23,27 @@ dependencies {
     compile 'org.scalatest:scalatest_2.10:2.2.4'
     compile 'org.apache.commons:commons-math3:3.5'
     compile 'org.scalacheck:scalacheck_2.10:1.12.4'
-    compile fileTree(dir: '/usr/local/spark-1.4.1-bin-hadoop2.6/lib', include: ['*.jar'])
+    compile 'org.apache.spark:spark-core_2.10:1.4.1'
+    compile 'org.apache.spark:spark-sql_2.10:1.4.1'
+    // compile fileTree(dir: '/usr/local/spark-1.4.1-bin-hadoop2.6/lib', include: ['*.jar'])
 }
 
 test {
     useTestNG {
+    }
+
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
+// FIXME how to rename?
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.enabled false
+        csv.enabled false
+        html.destination "${buildDir}/reports/coverage"
     }
 }
 

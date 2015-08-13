@@ -40,5 +40,17 @@ class LEB128Suite extends TestNGSuite {
     testReadWrite(0xe5)
     (0 until 31).foreach(i =>
       testReadWrite(0x7eadbeef >>> i))
+
+    val emptyBs = new ByteStream(Array.ofDim[Byte](0))
+    assert(emptyBs.eos)
+
+    val smallBs = new ByteStream(Array[Byte](5))
+    assert(!smallBs.eos)
+    assert(smallBs.readByte() == 5)
+    assert(smallBs.eos)
+
+    intercept[IllegalArgumentException] {
+      new ByteStream(null)
+    }
   }
 }
