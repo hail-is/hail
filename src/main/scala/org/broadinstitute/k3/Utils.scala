@@ -1,6 +1,6 @@
 package org.broadinstitute.k3
 
-import scala.collection.mutable.ArrayBuilder
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 // FIXME don't zip, write direct iterators
@@ -30,36 +30,65 @@ class RichVector[T](v: Vector[T]) {
   }
 }
 
-class RichTuple2[T](t: (T, T)) {
-  def at(i: Int): T = {
-    i match {
-      case 1 => t._1
-      case 2 => t._2
-    }
+class RichHomogenousTuple1[T](t: Tuple1[T]) {
+  def at(i: Int) = i match {
+    case 1 => t._1
+  }
+
+  def insert(i: Int, x: T): (T, T) = i match {
+    case 0 => (x, t._1)
+    case 1 => (t._1, x)
+  }
+
+  def remove(i: Int): Unit = {
+    require(i == 0)
   }
 }
 
-class RichTuple3[T](t: (T, T, T)) {
-  def at(i: Int): T = {
-    i match {
-      case 1 => t._1
-      case 2 => t._2
-      case 3 => t._3
-    }
+class RichHomogenousTuple2[T](t: (T, T)) {
+  def at(i: Int): T = i match {
+    case 1 => t._1
+    case 2 => t._2
+  }
+
+
+  def insert(i: Int, x: T): (T, T, T) = i match {
+    case 0 => (x, t._1, t._2)
+    case 1 => (t._1, x, t._2)
+    case 2 => (t._1, t._2, x)
+  }
+
+  def remove(i: Int): Tuple1[T] = i match {
+    case 1 => Tuple1(t._2)
+    case 2 => Tuple1(t._1)
   }
 }
 
-object Utils {
-  implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)
+class RichHomogenousTuple3[T](t: (T, T, T)) {
+  def at(i: Int): T = i match {
+    case 1 => t._1
+    case 2 => t._2
+    case 3 => t._3
+  }
 
-  implicit def toRichTuple2[T](t: (T, T)): RichTuple2[T] = new RichTuple2(t)
+  def insert(i: Int, x: T): (T, T, T, T) = i match {
+    case 0 => (x, t._1, t._2, t._3)
+    case 1 => (t._1, x, t._2, t._3)
+    case 2 => (t._1, t._2, x, t._3)
+    case 3 => (t._1, t._2, t._3, x)
+  }
 
-  implicit def toRichTuple3[T](t: (T, T, T)): RichTuple3[T] = new RichTuple3(t)
+  def remove(i: Int): (T, T) = i match {
+    case 1 => (t._2, t._3)
+    case 2 => (t._1, t._3)
+    case 3 => (t._1, t._2)
+  }
+}
 
-  def writeULEB128(b: ArrayBuilder[Byte], x0: Int) {
+class RichArrayBuilderOfByte(b: mutable.ArrayBuilder[Byte]) {
+  def writeULEB128(x0: Int) {
     require(x0 >= 0)
 
-    // FIXME functionalize
     var x = x0
     var more = true
     while (more) {
@@ -75,8 +104,37 @@ object Utils {
       b += c.toByte
     }
   }
+}
 
-  def fail(): Unit = {
+class RichIteratorOfByte(i: Iterator[Byte]) {
+  def readULEB128(): Int = {
+    var x: Int = 0
+    var shift: Int = 0
+    var b: Byte = 0
+    do {
+      b = i.next()
+      x = x | ((b & 0x7f) << shift)
+      shift += 7
+    } while ((b & 0x80) != 0)
+
+    x
+  }
+}
+
+object Utils {
+  implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)
+
+  implicit def toRichTuple2[T](t: (T, T)): RichHomogenousTuple2[T] = new RichHomogenousTuple2(t)
+
+  implicit def toRichTuple3[T](t: (T, T, T)): RichHomogenousTuple3[T] = new RichHomogenousTuple3(t)
+
+  implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
+    new RichArrayBuilderOfByte(t)
+
+  implicit def toRichIteratorOfByte(i: Iterator[Byte]): RichIteratorOfByte =
+    new RichIteratorOfByte(i)
+
+  def fail() {
     assert(false)
   }
 }

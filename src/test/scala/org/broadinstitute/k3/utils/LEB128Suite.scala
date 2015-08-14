@@ -13,9 +13,9 @@ object LEB128Suite {
   val b = new mutable.ArrayBuilder.ofByte
 
   def readWriteEqual(i: Int): Boolean = {
-    val b = new mutable.ArrayBuilder.ofByte
-    writeULEB128(b, i)
-    i == new ByteStream(b.result()).readULEB128()
+    b.clear()
+    b.writeULEB128(i)
+    i == b.result().iterator.readULEB128()
   }
 
   object Spec extends Properties("LEB128") {
@@ -32,8 +32,6 @@ class LEB128Suite extends TestNGSuite {
   }
 
   @Test def test() {
-    Spec.check
-
     testReadWrite(0)
     testReadWrite(0x7f)
     testReadWrite(0x80)
@@ -41,16 +39,6 @@ class LEB128Suite extends TestNGSuite {
     (0 until 31).foreach(i =>
       testReadWrite(0x7eadbeef >>> i))
 
-    val emptyBs = new ByteStream(Array.ofDim[Byte](0))
-    assert(emptyBs.eos)
-
-    val smallBs = new ByteStream(Array[Byte](5))
-    assert(!smallBs.eos)
-    assert(smallBs.readByte() == 5)
-    assert(smallBs.eos)
-
-    intercept[IllegalArgumentException] {
-      new ByteStream(null)
-    }
+    Spec.check
   }
 }

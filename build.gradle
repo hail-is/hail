@@ -37,7 +37,6 @@ test {
     }
 }
 
-// FIXME how to rename?
 jacocoTestReport {
     dependsOn test
     reports {
@@ -46,6 +45,8 @@ jacocoTestReport {
         html.destination "${buildDir}/reports/coverage"
     }
 }
+
+task coverage(dependsOn: jacocoTestReport)
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7

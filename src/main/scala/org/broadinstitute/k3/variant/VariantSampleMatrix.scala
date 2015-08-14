@@ -14,7 +14,6 @@ import scala.reflect.ClassTag
 
 import org.broadinstitute.k3.Utils._
 
-// FIXME implement variants WithKeys
 class VariantSampleMatrix[T](val sampleIds: Array[String],
                              val rdd: RDD[(Variant, GenotypeStream)],
                              mapFn: (Variant, Int, Genotype) => T,

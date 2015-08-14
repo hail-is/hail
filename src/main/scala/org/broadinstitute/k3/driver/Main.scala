@@ -1,6 +1,5 @@
 package org.broadinstitute.k3.driver
 
-import net.jpountz.lz4.LZ4Factory
 import org.broadinstitute.k3.variant.VariantDataset
 
 import scala.io.Source
@@ -11,8 +10,6 @@ import org.apache.spark.SparkConf
 import org.apache.spark.rdd._
 
 import org.broadinstitute.k3.methods._
-
-import scala.reflect.ClassTag
 
 object Main {
   def usage(): Unit = {
@@ -53,8 +50,9 @@ object Main {
     conf.set("spark.executor.memory", "4g")
 
     val sc = new SparkContext(conf)
-    // FIXME add to command line or read from CLASSPATH
-    sc.addJar("/Users/cseed/k3/build/libs/k3.jar")
+
+    val jar = getClass().getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+    sc.addJar(jar)
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 

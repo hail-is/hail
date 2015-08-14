@@ -85,14 +85,11 @@ object LoadVCF {
         words(3),
         words(4))
 
-      // FIXME foreach can't be right
       val b = new GenotypeStreamBuilder(variant)
       words.drop(9)
       .map(parseGenotype)
       .foreach(g => b.+=((0, g)))
       val a = b.result()
-
-      // println("uncompLen = " + a.length)
 
       (variant, b.result())
     }

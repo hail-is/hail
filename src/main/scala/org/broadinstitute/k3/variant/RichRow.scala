@@ -8,25 +8,21 @@ object RichRow {
   implicit def fromRow(r: Row): RichRow = new RichRow(r)
 }
 
-// FIXME switch to to get
 class RichRow(r: Row) {
   import RichRow._
 
-  implicit def toVariant: Variant = {
-    Variant(r.getAs[String](0),
-      r.getAs[Int](1),
-      r.getAs[String](2),
-      r.getAs[String](3))
+  implicit def getVariant(i: Int): Variant = {
+    val ir = r.getAs[Row](i)
+    Variant(ir.getAs[String](0),
+      ir.getAs[Int](1),
+      ir.getAs[String](2),
+      ir.getAs[String](3))
   }
 
-  def toGenotypeStream: GenotypeStream = {
-    GenotypeStream(r.getAs[Row](0).toVariant,
-      r.getAs[Int](1),
-      r.getAs[Array[Byte]](2))
-  }
-
-  def toVariantGenotypeStreamTuple: (Variant, GenotypeStream) = {
-    (r.getAs[Row](0).toVariant,
-      r.getAs[Row](1).toGenotypeStream)
+  def getGenotypeStream(i: Int): GenotypeStream = {
+    val ir = r.getAs[Row](i)
+    GenotypeStream(ir.getVariant(0),
+      ir.getInt(1),
+      ir.getAs[Array[Byte]](2))
   }
 }
