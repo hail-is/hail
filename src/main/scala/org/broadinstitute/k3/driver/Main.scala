@@ -76,6 +76,11 @@ object Main {
 
     println("entries: " + vds.count())
 
+    val sampleMethods = Array[SampleMethod](nNoCallPerSample)
+    WriteSampleQC("sampleQC.tsv", vds, sampleMethods)
+
+
+    /*
     if (command == "write") {
       //if (args.length < 4)
       //  fatal("write: too few arguments")
@@ -116,5 +121,8 @@ object Main {
         println(v + ": " + nc)
     } else
       fatal("unknown command: " + command)
+    */
+
+
   }
 }
