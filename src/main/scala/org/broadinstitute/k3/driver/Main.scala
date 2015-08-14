@@ -22,6 +22,7 @@ object Main {
     System.err.println("")
     System.err.println("commands:")
     System.err.println("  write <output>")
+    System.err.println("  sample")
     System.err.println("  nocall")
   }
 
@@ -76,13 +77,37 @@ object Main {
 
       val output = args(3)
       vds.write(sqlContext, output)
-    } else if (command == "nocall") {
+    } else if (command == "sample") {
+      if (args.length != 3)
+        fatal("sample: unexpected arguments")
+
+      val nTransition = nTransitionPerSample(vds)
+      val nTransversion = nTransversionPerSample(vds)
+      val nSNPs = nSNPPerSample(vds)
+      val nIndels = nIndelPerSample(vds)
+      val nInsertion = nInsertionPerSample(vds)
+      val nDeletion = nDeletionPerSample(vds)
+      val nTiTv = nTiTvPerSample(vds)
+      val tiTvRatio = rTiTvPerSample(vds)
+      val nGenotypeVector = nGenotypeVectorPerSample(vds)
+      val nHwe = pHwePerVariant(vds)
+      val rHetHom = rHetHomPerSample(vds)
+      val nHetOrHomVar = nNonRefPerVariant(vds)
+      val sSingletons = sSingletonVariants(vds)
+
+      for ((s, t) <- rHetHom)
+        println(vds.sampleIds(s) + ": " + t.toString)
+
+      for ((v, u) <- nHwe)
+        println(v + ":" + u)
+      println(sSingletons)
+    } else if (command == "variant") {
       if (args.length != 3)
         fatal("nocall: unexpected arguments")
 
-      val sampleNoCall = SampleNoCall(vds)
-      for ((s, nc) <- sampleNoCall)
-        println(vds.sampleIds(s) + ": " + nc)
+      val variantNoCall = nHomVarPerVariant(vds)
+      for ((v, nc) <- variantNoCall)
+        println(v + ": " + nc)
     } else
       fatal("unknown command: " + command)
   }

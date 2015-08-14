@@ -1,32 +1,66 @@
 package org.broadinstitute.k3
 
 import scala.collection.mutable
+import scala.collection.AbstractIterator
 import scala.language.implicitConversions
 
-// FIXME don't zip, write direct iterators
 class RichVector[T](v: Vector[T]) {
-  // FIXME add zipExactWith
+  def zipExact[T2](v2: Vector[T2]): Vector[(T, T2)] = {
+    val i = v.iterator
+    val i2 = v2.iterator
+    new Iterator[(T, T2)] {
+      def hasNext: Boolean = {
+        assert(i.hasNext == i2.hasNext)
+        i.hasNext
+      }
+
+      def next() = (i.next(), i2.next())
+    }.toVector
+  }
+
   def zipWith[T2, V](v2: Vector[T2], f: (T, T2) => V): Vector[V] = {
-    v.iterator
-    .zip(v2.iterator)
-    .map(f.tupled)
-    .toVector
+    val i = v.iterator
+    val i2 = v2.iterator
+    new Iterator[V] {
+      def hasNext = i.hasNext && i2.hasNext
+
+      def next() = f(i.next(), i2.next())
+    }.toVector
+  }
+
+  def zipWithExact[T2, V](v2: Vector[T2], f: (T, T2) => V): Vector[V] = {
+    val i = v.iterator
+    val i2 = v2.iterator
+    new Iterator[V] {
+      def hasNext: Boolean = {
+        assert(i.hasNext == i2.hasNext)
+        i.hasNext
+      }
+
+      def next() = f(i.next(), i2.next())
+    }.toVector
   }
 
   def zipWithAndIndex[T2, V](v2: Vector[T2], f: (T, T2, Int) => V): Vector[V] = {
-    v.iterator
-    .zip(v2.iterator)
-    .zipWithIndex
-    .map { case ((e1, e2), i) => f(e1, e2, i) }
-    .toVector
+    val i = v.iterator
+    val i2 = v2.iterator
+    val i3 = Iterator.from(0)
+    new Iterator[V] {
+      def hasNext = i.hasNext && i2.hasNext
+
+      def next() = f(i.next(), i2.next(), i3.next())
+    }.toVector
   }
 
   def zipWith[T2, T3, V](v2: Vector[T2], v3: Vector[T3], f: (T, T2, T3) => V): Vector[V] = {
-    v.iterator
-    .zip(v2.iterator)
-    .zip(v3.iterator)
-    .map { case ((e1, e2), e3) => f(e1, e2, e3) }
-    .toVector
+    val i = v.iterator
+    val i2 = v2.iterator
+    val i3 = v3.iterator
+    new Iterator[V] {
+      def hasNext = i.hasNext && i2.hasNext && i3.hasNext
+
+      def next() = f(i.next(), i2.next(), i3.next())
+    }.toVector
   }
 }
 

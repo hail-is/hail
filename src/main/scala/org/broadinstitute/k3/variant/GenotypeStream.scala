@@ -5,6 +5,7 @@ import net.jpountz.lz4.LZ4Factory
 import scala.collection.mutable.ArrayBuilder
 import scala.collection.mutable.Builder
 
+// FIXME use zipWithIndex
 class GenotypeStreamIterator(b: Iterator[Byte]) extends Iterator[(Int, Genotype)] {
   var i = 0
 

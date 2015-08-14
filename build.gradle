@@ -48,6 +48,11 @@ jacocoTestReport {
 
 task coverage(dependsOn: jacocoTestReport)
 
+task testJar(type: Jar) {
+    classifier = 'tests'
+    from sourceSets.test.output
+}
+
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
 
