@@ -41,6 +41,6 @@ object VariantDataset {
     }
 
     import RichRow._
-    new VariantDataset(sampleIds, df.rdd.map(_.toVariantGenotypeStreamTuple))
+    new VariantDataset(sampleIds, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 }

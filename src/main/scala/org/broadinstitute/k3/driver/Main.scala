@@ -1,6 +1,5 @@
 package org.broadinstitute.k3.driver
 
-import net.jpountz.lz4.LZ4Factory
 import org.broadinstitute.k3.variant.VariantDataset
 
 import scala.io.Source
@@ -11,8 +10,6 @@ import org.apache.spark.SparkConf
 import org.apache.spark.rdd._
 
 import org.broadinstitute.k3.methods._
-
-import scala.reflect.ClassTag
 
 object Main {
   def usage(): Unit = {
@@ -25,6 +22,7 @@ object Main {
     System.err.println("")
     System.err.println("commands:")
     System.err.println("  write <output>")
+    System.err.println("  sample")
     System.err.println("  nocall")
   }
 
@@ -50,10 +48,13 @@ object Main {
     conf.set("spark.sql.parquet.compression.codec", "uncompressed")
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
+    // FIXME why isn't this getting picked up by from the configuration?
+    conf.set("spark.executor.memory", "4g")
+
     val sc = new SparkContext(conf)
 
-    // FIXME take as argument or scan CLASSPATH
-    sc.addJar("/Users/cseed/k3/build/libs/k3.jar")
+    val jar = getClass().getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+    sc.addJar(jar)
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
@@ -66,7 +67,6 @@ object Main {
           && !input.endsWith(".vcfd"))
           fatal("unknown input file type")
 
-
         LoadVCF(sc, input)
       }
 
@@ -78,13 +78,37 @@ object Main {
 
       val output = args(3)
       vds.write(sqlContext, output)
-    } else if (command == "nocall") {
+    } else if (command == "sample") {
+      if (args.length != 3)
+        fatal("sample: unexpected arguments")
+
+      val nTransition = nTransitionPerSample(vds)
+      val nTransversion = nTransversionPerSample(vds)
+      val nSNPs = nSNPPerSample(vds)
+      val nIndels = nIndelPerSample(vds)
+      val nInsertion = nInsertionPerSample(vds)
+      val nDeletion = nDeletionPerSample(vds)
+      val nTiTv = nTiTvPerSample(vds)
+      val tiTvRatio = rTiTvPerSample(vds)
+      val nGenotypeVector = nGenotypeVectorPerSample(vds)
+      val nHwe = pHwePerVariant(vds)
+      val rHetHom = rHetHomPerSample(vds)
+      val nHetOrHomVar = nNonRefPerVariant(vds)
+      val sSingletons = sSingletonVariants(vds)
+
+      for ((s, t) <- rHetHom)
+        println(vds.sampleIds(s) + ": " + t.toString)
+
+      for ((v, u) <- nHwe)
+        println(v + ":" + u)
+      println(sSingletons)
+    } else if (command == "variant") {
       if (args.length != 3)
         fatal("nocall: unexpected arguments")
 
-      val sampleNoCall = SampleNoCall(vds)
-      for ((s, nc) <- sampleNoCall)
-        println(vds.sampleIds(s) + ": " + nc)
+      val variantNoCall = nHomVarPerVariant(vds)
+      for ((v, nc) <- variantNoCall)
+        println(v + ": " + nc)
     } else
       fatal("unknown command: " + command)
   }

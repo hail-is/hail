@@ -1,17 +1,15 @@
 package org.broadinstitute.k3.variant
 
 import net.jpountz.lz4.LZ4Factory
-import org.broadinstitute.k3.utils.ByteStream
 
 import scala.collection.mutable.ArrayBuilder
 import scala.collection.mutable.Builder
 
-class GenotypeStreamIterator(b: ByteStream) extends Iterator[(Int, Genotype)] {
+// FIXME use zipWithIndex
+class GenotypeStreamIterator(b: Iterator[Byte]) extends Iterator[(Int, Genotype)] {
   var i = 0
 
-  override def hasNext: Boolean = {
-    !b.eos
-  }
+  override def hasNext: Boolean = b.hasNext
 
   override def next(): (Int, Genotype) = {
     val prev = i
@@ -31,7 +29,7 @@ case class GenotypeStream(variant: Variant, decompLen: Int, a: Array[Byte])
     val compLen = decompressor.decompress(a, 0, decomp, 0, decompLen);
     assert(compLen == a.length)
 
-    new GenotypeStreamIterator(new ByteStream(decomp))
+    new GenotypeStreamIterator(decomp.iterator)
   }
 
   override def newBuilder: Builder[(Int, Genotype), GenotypeStream] = {

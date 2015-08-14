@@ -1,23 +1,15 @@
 package org.broadinstitute.k3.variant
 
-import java.io._
-
-import org.apache.spark.broadcast.Broadcast
-
 import scala.collection.Map
 import scala.language.implicitConversions
-
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
-
 import scala.reflect.ClassTag
-
 import org.broadinstitute.k3.Utils._
 
-// FIXME implement variants WithKeys
 class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
                                                       val rdd: RDD[(Variant, S)]) {
   def nSamples: Int = sampleIds.length
+
   def nVariants: Long = rdd.count()
 
   def cache(): VariantSampleMatrix[T, S] = {
@@ -35,7 +27,7 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U): VariantSampleMatrix[U, Vector[(Int, U)]] = {
     new VariantSampleMatrix[U, Vector[(Int, U)]](sampleIds,
       rdd
-      .map{ case (v, gs) => (v, gs.map{ case (s, t) => (s, f(v, s, t)) }.toVector) })
+      .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toVector) })
   }
 
   def mapValues[U](f: (T) => U): VariantSampleMatrix[U, Vector[(Int, U)]] = {
@@ -67,8 +59,7 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
         acc.zipWith[(Int, T), (Int, U)](gs, { case ((s1, a), (s2, g)) => {
           assert(s1 == s2)
           (s1, seqOp(a, v, s1, g))
-        }
-        })
+        }})
     },
     (acc1, acc2) => acc1.zipWith[(Int, U), (Int, U)](acc2, { case ((s1, a1), (s2, a2)) => (s1, combOp(a1, a2)) }))
     .toMap
