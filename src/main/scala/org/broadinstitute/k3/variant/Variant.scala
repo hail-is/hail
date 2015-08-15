@@ -5,9 +5,10 @@ case class Variant(contig: String,
                    start: Int,
                    ref: String,
                    alt: String) {
-  require(ref.length == 1 || alt.length == 1)
-  // FIXME do we need ref(0) == alt(0) for insertions and deletions?a
+  // require(ref.length == 1 || alt.length == 1, contig + "," + start + "," + ref + "," + alt)
+  // FIXME do we need ref(0) == alt(0) for insertions and deletions?
 
+  // FIXME
   def isSNP: Boolean = ref.length == alt.length
 
   def isIndel: Boolean = ref.length != alt.length

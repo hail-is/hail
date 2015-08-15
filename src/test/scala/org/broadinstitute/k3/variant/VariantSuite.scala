@@ -5,10 +5,6 @@ import org.testng.annotations.Test
 
 class VariantSuite extends TestNGSuite {
   @Test def testVariant() {
-    intercept[IllegalArgumentException] {
-      Variant("chr1", 1234, "ATG", "GTA")
-    }
-
     val tv = Variant("chr1", 1234, "A", "T")
     val ti = Variant("chr1", 1234, "A", "G")
 

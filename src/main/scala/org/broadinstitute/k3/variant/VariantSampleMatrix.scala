@@ -12,9 +12,11 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
 
   def nVariants: Long = rdd.count()
 
-  def cache(): VariantSampleMatrix[T, S] = {
+  def cache(): VariantSampleMatrix[T, S] =
     new VariantSampleMatrix[T, S](sampleIds, rdd.cache())
-  }
+
+  def repartition(nPartitions: Int) =
+    new VariantSampleMatrix[T, S](sampleIds, rdd.repartition(nPartitions))
 
   def count(): Long = rdd.count()
 
@@ -59,7 +61,8 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
         acc.zipWith[(Int, T), (Int, U)](gs, { case ((s1, a), (s2, g)) => {
           assert(s1 == s2)
           (s1, seqOp(a, v, s1, g))
-        }})
+        }
+        })
     },
     (acc1, acc2) => acc1.zipWith[(Int, U), (Int, U)](acc2, { case ((s1, a1), (s2, a2)) => (s1, combOp(a1, a2)) }))
     .toMap

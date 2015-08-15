@@ -13,7 +13,7 @@ import org.broadinstitute.k3.variant._
 object LoadVCF {
   def parseGenotype(entry: String) = {
     val genotypeRegex =
-      """([\d\.])[/|]([\d\.]):(\d+,\d+|\.):(\d+|\.):(\d+|\.):(\d+,\d+,\d+|\.)""".r
+      """([\d\.])[/|]([\d\.]):(\d+,\d+[^:]*|\.):(\d+|\.):(\d+|\.):(\d+,\d+,\d+|\.)""".r
     val genotypeRegex(gtStr1, gtStr2, adStr, dpStr, gqStr, plStr) = entry
 
     val gt =
@@ -27,7 +27,7 @@ object LoadVCF {
         (0, 0)
       else {
         val adList = adStr.split(",").map(_.toInt)
-        assert(adList.length == 2)
+        assert(adList.length >= 2)  // FIXME
         (adList(0), adList(1))
       }
 

@@ -24,6 +24,8 @@ class VariantDataset(sampleIds: Array[String],
   }
 
   override def cache(): VariantDataset = new VariantDataset(sampleIds, rdd.cache())
+  override def repartition(nPartitions: Int) =
+    new VariantDataset(sampleIds, rdd.repartition(nPartitions))
 }
 
 object VariantDataset {

@@ -21,9 +21,11 @@ object Main {
     System.err.println("  -h, --help: print usage")
     System.err.println("")
     System.err.println("commands:")
-    System.err.println("  write <output>")
+    System.err.println("  count")
+    System.err.println("  repartition")
     System.err.println("  sample")
-    System.err.println("  nocall")
+    System.err.println("  variant")
+    System.err.println("  write <output>")
   }
 
   def fatal(msg: String): Unit = {
@@ -49,7 +51,8 @@ object Main {
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     // FIXME why isn't this getting picked up by from the configuration?
-    conf.set("spark.executor.memory", "4g")
+    conf.set("spark.executor.memory", "8g")
+    conf.set("spark.driver.memory", "2g")
 
     val sc = new SparkContext(conf)
 
@@ -70,14 +73,22 @@ object Main {
         LoadVCF(sc, input)
       }
 
-    println("entries: " + vds.count())
-
     if (command == "write") {
       if (args.length < 4)
         fatal("write: too few arguments")
 
       val output = args(3)
       vds.write(sqlContext, output)
+    } else if (command == "repartition") {
+      if (args.length < 5)
+        fatal("repartition: too few arguments")
+
+      val nPartitions = args(3).toInt
+      val output = args(4)
+
+      vds
+      .repartition(nPartitions)
+      .write(sqlContext, output)
     } else if (command == "sample") {
       if (args.length != 3)
         fatal("sample: unexpected arguments")
@@ -102,9 +113,11 @@ object Main {
       for ((v, u) <- nHwe)
         println(v + ":" + u)
       println(sSingletons)
+    } else if (command == "count") {
+      println("nVariants = " + vds.nVariants)
     } else if (command == "variant") {
       if (args.length != 3)
-        fatal("nocall: unexpected arguments")
+        fatal("variant: unexpected arguments")
 
       val variantNoCall = nHomVarPerVariant(vds)
       for ((v, nc) <- variantNoCall)
