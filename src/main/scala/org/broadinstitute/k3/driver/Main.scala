@@ -1,6 +1,6 @@
 package org.broadinstitute.k3.driver
 
-import org.broadinstitute.k3.variant.VariantDataset
+import org.broadinstitute.k3.variant.{Variant, VariantDataset}
 
 import scala.io.Source
 
@@ -109,20 +109,24 @@ object Main {
 
       SampleQC(output, vds, sampleMethods)
     }
-    /*
-  else if (command == "variantqc") {
-    if (args.length != 4)
-      fatal("variantqc: unexpected arguments")
+    else if (command == "variantqc") {
+      if (args.length != 4)
+        fatal("variantqc: unexpected arguments")
 
-    val output = args(3)
+      val output = args(3)
 
-    val variantMethods: Array[VariantMethod[Any]] =
-      Array(nCalledPerVariant, nNotCalledPerVariant,
-        nHomRefPerVariant, nHetPerVariant, nHomVarPerVariant,
-        rHeterozygosityPerVariant, rHetHomPerVariant)
+      // FIXME
+      val variantMethods: Array[(String, Map[Variant, Any])] =
+        Array(nCalledPerVariant.collect(vds),
+          nNotCalledPerVariant.collect(vds),
+          nHomRefPerVariant.collect(vds),
+          nHetPerVariant.collect(vds),
+          nHomVarPerVariant.collect(vds),
+          rHeterozygosityPerVariant.collect(vds),
+          rHetHomPerVariant.collect(vds))
 
-    VariantQC(output, vds, variantMethods)
-  } */
+      VariantQC(output, vds, variantMethods)
+    }
     else
       fatal("unknown command: " + command)
   }
