@@ -4,7 +4,6 @@ import java.io._
 
 import org.apache.spark.broadcast.Broadcast
 
-import scala.collection.Map
 import scala.io.Source
 import scala.language.implicitConversions
 
@@ -21,13 +20,15 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
                              samplePredicate: (Int) => Boolean) {
   def nSamples: Int = sampleIds.length
 
+  def variants: Array[Variant] = rdd.map(_._1).collect()
+
   def cache(): VariantSampleMatrix[T] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
     new VariantSampleMatrix[T](sampleIds, rdd.cache(), localMapFn, localSamplePredicate)
   }
 
-  def count(): Long = rdd.count()
+  def count(): Long = rdd.count() // should this be nVariants instead?
 
   def expand(): RDD[(Variant, Int, T)] = {
     val localSamplePredicate = samplePredicate
@@ -114,7 +115,7 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
                  .filter({ case (s, g) => localSamplePredicate(s) })
                  .aggregate(x)({ case (x2, (s, g)) => seqOp(x2, gs.variant, s, localMapFn(gs.variant, s, g)) }, combOp),
       combOp)
-    .collectAsMap()
+    .collectAsMap().toMap
   }
 
   def aggregateByVariant[U](zeroValue: U)(
@@ -160,7 +161,7 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
                      .map({ case (s, g) => localMapFn(gs.variant, s, g) })
                      .reduce(combOp))
     .reduceByKey(combOp)
-    .collectAsMap()
+    .collectAsMap().toMap
   }
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T]): Map[Variant, T] = {
@@ -173,6 +174,6 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
                      .map({ case (s, g) => localMapFn(gs.variant, s, g) })
                      .fold(zeroValue)(combOp))
     .foldByKey(zeroValue)(combOp)
-    .collectAsMap()
+    .collectAsMap().toMap
   }
 }

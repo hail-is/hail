@@ -2,9 +2,9 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
+object nGenotypeVectorPerVariant extends VariantMethod[Vector[Int]] {
+  def name = "nGenotypeVector"
 
-object nGenotypeVectorPerVariant {
   def apply(vds: VariantDataset): Map[Variant, Vector[Int]] = {
     vds
       .mapValues(g =>
