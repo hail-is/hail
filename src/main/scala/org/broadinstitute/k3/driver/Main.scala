@@ -86,15 +86,17 @@ object Main {
           nSingletonPerSample, nTransitionPerSample, nTransversionPerSample,
           rTiTvPerSample, rHeterozygosityPerSample, rHetHomPerSample, rDeletionInsertionPerSample)
 
+      SampleQC("sampleQC.tsv", vds, sampleMethods)
+
+      /*
       val variantMethods: Array[VariantMethod[Any]] =
         Array(nCalledPerVariant, nNotCalledPerVariant,
           nHomRefPerVariant, nHetPerVariant, nHomVarPerVariant,
           rHeterozygosityPerVariant, rHetHomPerVariant)
 
-      SampleQC("sampleQC.tsv", vds, sampleMethods)
 
       VariantQC("variantQC.tsv", vds, variantMethods)
-
+*/
     } else
       fatal("unknown command: " + command)
   }

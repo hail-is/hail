@@ -8,6 +8,6 @@ object rDeletionInsertionPerSample extends SampleMethod[Double] {
 
   def apply(vds: VariantDataset): Map[Int, Double] = {
     nVariantTypeVectorPerSample(vds)
-      .mapValues( a => if (a(1) != 0) a(2).toDouble / a(1) else -1)
+      .mapValues( a => if (a._2 != 0) a._3.toDouble / a._2 else -1)
   }
 }

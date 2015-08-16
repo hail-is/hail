@@ -2,6 +2,7 @@ package org.broadinstitute.k3.variant
 
 import java.io._
 
+import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 
 import scala.io.Source
@@ -21,6 +22,8 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
   def nSamples: Int = sampleIds.length
 
   def variants: Array[Variant] = rdd.map(_._1).collect()
+
+  def sparkContext: SparkContext = rdd.sparkContext
 
   def cache(): VariantSampleMatrix[T] = {
     val localSamplePredicate = samplePredicate
@@ -105,7 +108,7 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U)(implicit ut: ClassTag[U]): Map[Variant, U] = {
+    combOp: (U, U) => U)(implicit ut: ClassTag[U]): RDD[(Variant, U)] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
 
@@ -115,12 +118,11 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
                  .filter({ case (s, g) => localSamplePredicate(s) })
                  .aggregate(x)({ case (x2, (s, g)) => seqOp(x2, gs.variant, s, localMapFn(gs.variant, s, g)) }, combOp),
       combOp)
-    .collectAsMap().toMap
   }
 
   def aggregateByVariant[U](zeroValue: U)(
     seqOp: (U, T) => U,
-    combOp: (U, U) => U)(implicit ut: ClassTag[U]): Map[Variant, U] =
+    combOp: (U, U) => U)(implicit ut: ClassTag[U]): RDD[(Variant, U)] =
     aggregateByVariantWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
@@ -151,7 +153,7 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
     filteredNums.toVector.zip(a).toMap
   }
 
-  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T]): Map[Variant, T] = {
+  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T]): RDD[(Variant, T)] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
 
@@ -161,10 +163,9 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
                      .map({ case (s, g) => localMapFn(gs.variant, s, g) })
                      .reduce(combOp))
     .reduceByKey(combOp)
-    .collectAsMap().toMap
   }
 
-  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T]): Map[Variant, T] = {
+  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T]): RDD[(Variant, T)] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
 
@@ -174,6 +175,5 @@ class VariantSampleMatrix[T](val sampleIds: Array[String],
                      .map({ case (s, g) => localMapFn(gs.variant, s, g) })
                      .fold(zeroValue)(combOp))
     .foldByKey(zeroValue)(combOp)
-    .collectAsMap().toMap
   }
 }

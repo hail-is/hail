@@ -1,5 +1,6 @@
 package org.broadinstitute.k3.methods
 
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.k3.variant._
 
 import org.broadinstitute.k3.Utils._
@@ -8,9 +9,9 @@ import org.broadinstitute.k3.Utils._
 object pHwePerVariant extends VariantMethod[Double] {
   def name = "nHWE"
 
-  def apply(vds: VariantDataset): Map[Variant, Double] = {
+  def apply(vds: VariantDataset): RDD[(Variant, Double)] = {
     nGenotypeVectorPerVariant(vds)
-      .mapValues(a => chiSq(Vector(a(0), a(1), a(2))))
+      .mapValues(a => chiSq(Vector(a._1, a._2, a._3)))
   }
 
   def chiSq(observed: Vector[Int]): Double = { // FIXME handle div by 0

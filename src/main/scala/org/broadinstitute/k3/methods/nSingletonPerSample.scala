@@ -6,10 +6,10 @@ object nSingletonPerSample extends SampleMethod[Int] {
   def name = "nSingleton"
 
   def apply(vds: VariantDataset): Map[Int, Int] = {
-    val singletons = sSingletonVariants(vds)
+    val singletons = vds.sparkContext.broadcast(sSingletonVariants(vds))
 
     vds
-      .mapValuesWithKeys((v,s,g) => if (g.isNonRef && singletons.contains(v)) 1 else 0)
+      .mapValuesWithKeys((v,s,g) => if (g.isNonRef && singletons.value.contains(v)) 1 else 0)
       .foldBySample(0)(_ + _)
   }
 }

@@ -8,6 +8,7 @@ object sSingletonVariants {
   def apply(vds: VariantDataset): Set[Variant] = {
     nNonRefPerVariant(vds)
       .filter(_._2 == 1)
-      .keySet
+      .keys
+      .collect().toSet
   }
 }
