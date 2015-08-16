@@ -9,7 +9,8 @@ object VariantQC {
   def apply(filename: String, vds: VariantDataset,
             variantMethods: Array[VariantMethod[Any]]): Unit = {
 
-    val variantResults = variantMethods.map(_.apply(vds))
+    // FIXME
+    val variantResults = variantMethods.map(_.apply(vds).collectAsMap().toMap)
 
     val header = "Chrom" + "\t" + "Pos" + "\t" + "Ref" + "\t" + "Alt" + "\t" + variantMethods.map(_.name).mkString("\t") + "\n"
 

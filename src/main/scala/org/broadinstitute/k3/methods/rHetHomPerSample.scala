@@ -8,8 +8,8 @@ object rHetHomPerSample extends SampleMethod[Double] {
 
   def apply(vds: VariantDataset): Map[Int, Double] = {
     nGenotypeVectorPerSample(vds).mapValues(a => {
-      val nHom = a(0) + a(2)
-      if (nHom != 0) a(1).toDouble / nHom else -1
+      val nHom = a._1 + a._3
+      if (nHom != 0) a._2.toDouble / nHom else -1
     })
   }
 }

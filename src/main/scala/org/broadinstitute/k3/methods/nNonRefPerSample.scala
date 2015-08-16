@@ -8,6 +8,6 @@ object nNonRefPerSample extends SampleMethod[Int] {
 
   def apply(vds: VariantDataset): Map[Int, Int] = {
     nGenotypeVectorPerSample(vds)
-      .mapValues(a => a(1) + a(2))
+      .mapValues(a => a._2 + a._3)
   }
 }

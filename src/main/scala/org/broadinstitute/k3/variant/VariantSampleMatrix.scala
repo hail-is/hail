@@ -1,5 +1,7 @@
 package org.broadinstitute.k3.variant
 
+import org.apache.spark.SparkContext
+
 import scala.language.implicitConversions
 import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
@@ -17,6 +19,8 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
     new VariantSampleMatrix[T, S](sampleIds, rdd.repartition(nPartitions))
 
   def variants: Array[Variant] = rdd.map(_._1).collect()
+
+  def sparkContext: SparkContext = rdd.sparkContext
 
   def count(): Long = rdd.count() // should this be nVariants instead?
 
@@ -75,19 +79,18 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U)(implicit ut: ClassTag[U]): Map[Variant, U] = {
+    combOp: (U, U) => U)(implicit ut: ClassTag[U]): RDD[(Variant, U)] = {
     rdd
     .map { case (v, gs) => (v, (v, gs)) }
     .aggregateByKey(zeroValue)({
       case (acc, (v, gs)) => gs.aggregate(acc)({ case (acc2, (s, g)) => seqOp(acc2, v, s, g) }, combOp)
     },
     combOp)
-    .collectAsMap().toMap
   }
 
   def aggregateByVariant[U](zeroValue: U)(
     seqOp: (U, T) => U,
-    combOp: (U, U) => U)(implicit ut: ClassTag[U]): Map[Variant, U] =
+    combOp: (U, U) => U)(implicit ut: ClassTag[U]): RDD[(Variant, U)] =
     aggregateByVariantWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
@@ -103,21 +106,19 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
     .toMap
   }
 
-  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): Map[Variant, T] = {
+  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): RDD[(Variant, T)] = {
     rdd
     .mapValues(gs => gs.map {
       case (s, gs) => gs
     }.reduce(combOp))
     .reduceByKey(combOp)
-    .collectAsMap().toMap
   }
 
-  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): Map[Variant, T] = {
+  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): RDD[(Variant, T)] = {
     rdd
     .mapValues(gs => gs.map {
       case (s, gs) => gs
     }.fold(zeroValue)(combOp))
     .foldByKey(zeroValue)(combOp)
-    .collectAsMap().toMap
   }
 }

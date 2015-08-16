@@ -108,19 +108,22 @@ object Main {
           rTiTvPerSample, rHeterozygosityPerSample, rHetHomPerSample, rDeletionInsertionPerSample)
 
       SampleQC(output, vds, sampleMethods)
-    } else if (command == "variantqc") {
-      if (args.length != 4)
-        fatal("variantqc: unexpected arguments")
+    }
+    /*
+  else if (command == "variantqc") {
+    if (args.length != 4)
+      fatal("variantqc: unexpected arguments")
 
-      val output = args(3)
+    val output = args(3)
 
-      val variantMethods: Array[VariantMethod[Any]] =
-        Array(nCalledPerVariant, nNotCalledPerVariant,
-          nHomRefPerVariant, nHetPerVariant, nHomVarPerVariant,
-          rHeterozygosityPerVariant, rHetHomPerVariant)
+    val variantMethods: Array[VariantMethod[Any]] =
+      Array(nCalledPerVariant, nNotCalledPerVariant,
+        nHomRefPerVariant, nHetPerVariant, nHomVarPerVariant,
+        rHeterozygosityPerVariant, rHetHomPerVariant)
 
-      VariantQC(output, vds, variantMethods)
-    } else
+    VariantQC(output, vds, variantMethods)
+  } */
+    else
       fatal("unknown command: " + command)
   }
 }
