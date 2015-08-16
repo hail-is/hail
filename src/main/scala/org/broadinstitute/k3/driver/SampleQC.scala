@@ -11,14 +11,16 @@ object SampleQC {
 
     val sampleResults = sampleMethods.map(_.apply(vds))
 
+    val header = "sampleID" + "\t" + sampleMethods.map(_.name).mkString("\t") + "\n"
+
     val fw = new FileWriter(new File(filename))
-    fw.write("sampleID" + "\t" + sampleMethods.map(_.name).mkString("\t") + "\n")
+    fw.write(header)
     for {
       sampleIndex <- 0 until vds.nSamples
     } yield {
       fw.write(vds.sampleIds(sampleIndex))
       for {
-        methodIndex <- 0 until sampleMethods.length
+        methodIndex <- sampleMethods.indices
       } yield {fw.write("\t" + sampleResults(methodIndex)(sampleIndex).toString)
       }
       fw.write("\n")
