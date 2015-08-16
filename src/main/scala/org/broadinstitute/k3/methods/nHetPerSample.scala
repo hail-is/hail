@@ -2,9 +2,9 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
+object nHetPerSample extends SampleMethod[Int] {
+  def name = "nHet"
 
-object nHetPerSample {
   def apply(vds: VariantDataset): Map[Int, Int] = {
     vds
       .mapValues(g => if (g.isHet) 1 else 0)

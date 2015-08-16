@@ -1,6 +1,5 @@
 package org.broadinstitute.k3.variant
 
-import scala.collection.Map
 import scala.language.implicitConversions
 import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
@@ -9,7 +8,6 @@ import org.broadinstitute.k3.Utils._
 class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
                                                       val rdd: RDD[(Variant, S)]) {
   def nSamples: Int = sampleIds.length
-
   def nVariants: Long = rdd.count()
 
   def cache(): VariantSampleMatrix[T, S] =
@@ -18,7 +16,9 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
   def repartition(nPartitions: Int) =
     new VariantSampleMatrix[T, S](sampleIds, rdd.repartition(nPartitions))
 
-  def count(): Long = rdd.count()
+  def variants: Array[Variant] = rdd.map(_._1).collect()
+
+  def count(): Long = rdd.count() // should this be nVariants instead?
 
   def expand(): RDD[(Variant, Int, T)] = {
     rdd.flatMap { case (v, gs) =>
@@ -82,7 +82,7 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
       case (acc, (v, gs)) => gs.aggregate(acc)({ case (acc2, (s, g)) => seqOp(acc2, v, s, g) }, combOp)
     },
     combOp)
-    .collectAsMap()
+    .collectAsMap().toMap
   }
 
   def aggregateByVariant[U](zeroValue: U)(
@@ -109,7 +109,7 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
       case (s, gs) => gs
     }.reduce(combOp))
     .reduceByKey(combOp)
-    .collectAsMap()
+    .collectAsMap().toMap
   }
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): Map[Variant, T] = {
@@ -118,6 +118,6 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
       case (s, gs) => gs
     }.fold(zeroValue)(combOp))
     .foldByKey(zeroValue)(combOp)
-    .collectAsMap()
+    .collectAsMap().toMap
   }
 }

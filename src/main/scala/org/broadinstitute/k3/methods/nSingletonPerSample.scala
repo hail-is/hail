@@ -2,9 +2,9 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
+object nSingletonPerSample extends SampleMethod[Int] {
+  def name = "nSingleton"
 
-object nSingletonPerSample {
   def apply(vds: VariantDataset): Map[Int, Int] = {
     val singletons = sSingletonVariants(vds)
 

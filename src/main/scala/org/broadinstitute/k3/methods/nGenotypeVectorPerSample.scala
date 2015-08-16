@@ -2,10 +2,10 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
-
 // FIXME: need to account for all HomRef
-object nGenotypeVectorPerSample {
+object nGenotypeVectorPerSample extends SampleMethod[Vector[Int]] {
+  def name = "nGenotypeVector"
+
   def apply(vds: VariantDataset): Map[Int, Vector[Int]] = {
     vds
       .mapValues(g =>

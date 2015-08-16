@@ -2,9 +2,9 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
+object nTiTvPerSample extends SampleMethod[Tuple2[Int, Int]] {
+  def name = "nTiTv"
 
-object nTiTvPerSample {
   def apply(vds: VariantDataset): Map[Int, (Int, Int)] = {
     vds
       .aggregateBySampleWithKeys((0,0))({ case ((nTi, nTv), v, s, g) =>

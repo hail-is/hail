@@ -2,9 +2,9 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
+object nTransitionPerSample extends SampleMethod[Int] {
+  def name = "nTransition"
 
-object nTransitionPerSample {
   def apply(vds: VariantDataset): Map[Int, Int] = {
     vds
       .mapValuesWithKeys((v, s, g) => if (g.isNonRef && v.isTransition) 1 else 0)

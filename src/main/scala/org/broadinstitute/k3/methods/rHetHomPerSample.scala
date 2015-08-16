@@ -2,10 +2,10 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
-
 // FIXME: need to account for all HomRef, can we pattern match (hr, het, hv, nc) against vector?
-object rHetHomPerSample {
+object rHetHomPerSample extends SampleMethod[Double] {
+  def name = "rHetHom"
+
   def apply(vds: VariantDataset): Map[Int, Double] = {
     nGenotypeVectorPerSample(vds).mapValues(a => {
       val nHom = a(0) + a(2)

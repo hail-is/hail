@@ -23,8 +23,7 @@ object Main {
     System.err.println("commands:")
     System.err.println("  count")
     System.err.println("  repartition")
-    System.err.println("  sample")
-    System.err.println("  variant")
+    System.err.println("  qt")
     System.err.println("  write <output>")
   }
 
@@ -89,39 +88,30 @@ object Main {
       vds
       .repartition(nPartitions)
       .write(sqlContext, output)
-    } else if (command == "sample") {
-      if (args.length != 3)
-        fatal("sample: unexpected arguments")
-
-      val nTransition = nTransitionPerSample(vds)
-      val nTransversion = nTransversionPerSample(vds)
-      val nSNPs = nSNPPerSample(vds)
-      val nIndels = nIndelPerSample(vds)
-      val nInsertion = nInsertionPerSample(vds)
-      val nDeletion = nDeletionPerSample(vds)
-      val nTiTv = nTiTvPerSample(vds)
-      val tiTvRatio = rTiTvPerSample(vds)
-      val nGenotypeVector = nGenotypeVectorPerSample(vds)
-      val nHwe = pHwePerVariant(vds)
-      val rHetHom = rHetHomPerSample(vds)
-      val nHetOrHomVar = nNonRefPerVariant(vds)
-      val sSingletons = sSingletonVariants(vds)
-
-      for ((s, t) <- rHetHom)
-        println(vds.sampleIds(s) + ": " + t.toString)
-
-      for ((v, u) <- nHwe)
-        println(v + ":" + u)
-      println(sSingletons)
     } else if (command == "count") {
-      println("nVariants = " + vds.nVariants)
-    } else if (command == "variant") {
       if (args.length != 3)
-        fatal("variant: unexpected arguments")
+        fatal("count: unexpected arguments")
 
-      val variantNoCall = nHomVarPerVariant(vds)
-      for ((v, nc) <- variantNoCall)
-        println(v + ": " + nc)
+      println("nVariants = " + vds.nVariants)
+    } else if (command == "qc") {
+      if (args.length != 3)
+        fatal("qc: unexpected arguments")
+
+      val sampleMethods: Array[SampleMethod[Any]] =
+        Array(nCalledPerSample, nNotCalledPerSample,
+          nHomRefPerSample, nHetPerSample, nHomVarPerSample,
+          nSNPPerSample, nIndelPerSample, nInsertionPerSample, nDeletionPerSample,
+          nSingletonPerSample, nTransitionPerSample, nTransversionPerSample,
+          rTiTvPerSample, rHeterozygosityPerSample, rHetHomPerSample, rDeletionInsertionPerSample)
+
+      val variantMethods: Array[VariantMethod[Any]] =
+        Array(nCalledPerVariant, nNotCalledPerVariant,
+          nHomRefPerVariant, nHetPerVariant, nHomVarPerVariant,
+          rHeterozygosityPerVariant, rHetHomPerVariant)
+
+      SampleQC("sampleQC.tsv", vds, sampleMethods)
+
+      VariantQC("variantQC.tsv", vds, variantMethods)
     } else
       fatal("unknown command: " + command)
   }
