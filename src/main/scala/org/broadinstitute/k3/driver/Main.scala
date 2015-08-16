@@ -23,7 +23,8 @@ object Main {
     System.err.println("commands:")
     System.err.println("  count")
     System.err.println("  repartition")
-    System.err.println("  qt")
+    System.err.println("  sampleqc")
+    System.err.println("  variantqc")
     System.err.println("  write <output>")
   }
 
@@ -93,9 +94,11 @@ object Main {
         fatal("count: unexpected arguments")
 
       println("nVariants = " + vds.nVariants)
-    } else if (command == "qc") {
-      if (args.length != 3)
-        fatal("qc: unexpected arguments")
+    } else if (command == "sampleqc") {
+      if (args.length != 4)
+        fatal("sampleqc: unexpected arguments")
+
+      val output = args(3)
 
       val sampleMethods: Array[SampleMethod[Any]] =
         Array(nCalledPerSample, nNotCalledPerSample,
@@ -104,14 +107,19 @@ object Main {
           nSingletonPerSample, nTransitionPerSample, nTransversionPerSample,
           rTiTvPerSample, rHeterozygosityPerSample, rHetHomPerSample, rDeletionInsertionPerSample)
 
+      SampleQC(output, vds, sampleMethods)
+    } else if (command == "variantqc") {
+      if (args.length != 4)
+        fatal("variantqc: unexpected arguments")
+
+      val output = args(3)
+
       val variantMethods: Array[VariantMethod[Any]] =
         Array(nCalledPerVariant, nNotCalledPerVariant,
           nHomRefPerVariant, nHetPerVariant, nHomVarPerVariant,
           rHeterozygosityPerVariant, rHetHomPerVariant)
 
-      SampleQC("sampleQC.tsv", vds, sampleMethods)
-
-      VariantQC("variantQC.tsv", vds, variantMethods)
+      VariantQC(output, vds, variantMethods)
     } else
       fatal("unknown command: " + command)
   }
