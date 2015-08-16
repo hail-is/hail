@@ -2,9 +2,9 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
+object nHomRefPerVariant extends VariantMethod[Int] {
+  def name = "nHomRef"
 
-object nHomRefPerVariant {
   def apply(vds: VariantDataset): Map[Variant, Int] = {
     vds
       .mapValues(g => if (g.isHomRef) 1 else 0)

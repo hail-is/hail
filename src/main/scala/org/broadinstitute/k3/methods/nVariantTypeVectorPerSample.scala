@@ -2,9 +2,9 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
-import scala.collection.Map
+object nVariantTypeVectorPerSample extends SampleMethod[Vector[Int]]{
+  def name = "nVariantTypeVector"
 
-object nVariantTypeVectorPerSample {
   def apply(vds: VariantDataset): Map[Int, Vector[Int]] = {
     vds
       .mapValuesWithKeys((v,s,g) =>

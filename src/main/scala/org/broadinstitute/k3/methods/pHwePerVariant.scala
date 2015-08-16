@@ -4,10 +4,10 @@ import org.broadinstitute.k3.variant._
 
 import org.broadinstitute.k3.Utils._
 
+// FIXME currently just compute chi2 stat, need tests
+object pHwePerVariant extends VariantMethod[Double] {
+  def name = "nHWE"
 
-import scala.collection.Map
-
-object pHwePerVariant {  // FIXME currently just compute chi2 stat, need tests
   def apply(vds: VariantDataset): Map[Variant, Double] = {
     nGenotypeVectorPerVariant(vds)
       .mapValues(a => chiSq(Vector(a(0), a(1), a(2))))

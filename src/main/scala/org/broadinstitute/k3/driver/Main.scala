@@ -12,7 +12,6 @@ import org.apache.spark.rdd._
 
 import org.broadinstitute.k3.methods._
 
-import scala.reflect.ClassTag
 
 object Main {
   def usage(): Unit = {
@@ -47,7 +46,8 @@ object Main {
     //val command = args(2)
 
     val master = "local[*]"
-    val input = "/Users/Jon/sampleVCF/sample.vds"
+    //val input = "/Users/Jon/sampleVCF/sample.vds"
+    val input = "/Users/Jon/SampleVCF/sample.vds"
     val command = "sample"
 
     val conf = new SparkConf().setAppName("K3").setMaster(master)
@@ -76,8 +76,24 @@ object Main {
 
     println("entries: " + vds.count())
 
-    val sampleMethods = Array[SampleMethod](nNoCallPerSample)
-    WriteSampleQC("sampleQC.tsv", vds, sampleMethods)
+    //val output = "/Users/Jon/sampleVCF/sample.vds"
+    //vds.write(sqlContext, output)
+
+    val sampleMethods: Array[SampleMethod[Any]] =
+      Array(nCalledPerSample, nNotCalledPerSample,
+        nHomRefPerSample, nHetPerSample, nHomVarPerSample,
+        nSNPPerSample, nIndelPerSample, nInsertionPerSample, nDeletionPerSample,
+        nSingletonPerSample, nTransitionPerSample, nTransversionPerSample,
+        rTiTvPerSample, rHeterozygosityPerSample, rHetHomPerSample, rDeletionInsertionPerSample)
+
+    val variantMethods: Array[VariantMethod[Any]] =
+      Array(nCalledPerVariant, nNotCalledPerVariant,
+        nHomRefPerVariant, nHetPerVariant, nHomVarPerVariant,
+        rHeterozygosityPerVariant, rHetHomPerVariant)
+
+    SampleQC("/Users/Jon/sampleVCF/sampleQC.tsv", vds, sampleMethods)
+
+    VariantQC("/Users/Jon/sampleVCF/variantQC.tsv", vds, variantMethods)
 
 
     /*
