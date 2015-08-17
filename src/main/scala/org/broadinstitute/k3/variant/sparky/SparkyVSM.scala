@@ -1,22 +1,25 @@
-package org.broadinstitute.k3.variant
+package org.broadinstitute.k3.variant.sparky
 
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
+import org.broadinstitute.k3.Utils._
+import org.broadinstitute.k3.variant.Variant
 
 import scala.language.implicitConversions
-import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
-import org.broadinstitute.k3.Utils._
 
-class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
-                                                      val rdd: RDD[(Variant, S)]) {
+class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
+                                            val rdd: RDD[(Variant, S)]) {
   def nSamples: Int = sampleIds.length
+
   def nVariants: Long = rdd.count()
 
-  def cache(): VariantSampleMatrix[T, S] =
-    new VariantSampleMatrix[T, S](sampleIds, rdd.cache())
+  def cache(): SparkyVSM[T, S] =
+    new SparkyVSM[T, S](sampleIds, rdd.cache())
 
   def repartition(nPartitions: Int) =
-    new VariantSampleMatrix[T, S](sampleIds, rdd.repartition(nPartitions))
+    new SparkyVSM[T, S](sampleIds, rdd.repartition(nPartitions))
+
   def nPartitions: Int = rdd.partitions.size
 
   def variants: Array[Variant] = rdd.map(_._1).collect()
@@ -31,24 +34,24 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
     }
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U): VariantSampleMatrix[U, Vector[(Int, U)]] = {
-    new VariantSampleMatrix[U, Vector[(Int, U)]](sampleIds,
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U): SparkyVSM[U, Vector[(Int, U)]] = {
+    new SparkyVSM[U, Vector[(Int, U)]](sampleIds,
       rdd
       .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toVector) })
   }
 
-  def mapValues[U](f: (T) => U): VariantSampleMatrix[U, Vector[(Int, U)]] = {
+  def mapValues[U](f: (T) => U): SparkyVSM[U, Vector[(Int, U)]] = {
     mapValuesWithKeys((v, s, g) => f(g))
   }
 
   // FIXME push down into reader: add VariantSampleDataframeMatrix?
   def filterVariants(p: (Variant) => Boolean) = {
-    new VariantSampleMatrix[T, S](sampleIds,
+    new SparkyVSM[T, S](sampleIds,
       rdd.filter { case (v, gs) => p(v) })
   }
 
   def filterSamples(p: (Int) => Boolean) = {
-    new VariantSampleMatrix[T, Vector[(Int, T)]](sampleIds,
+    new SparkyVSM[T, Vector[(Int, T)]](sampleIds,
       rdd.map { case (v, gs) =>
         (v, gs.filter { case (s, v) => p(s) }.toVector)
       })
