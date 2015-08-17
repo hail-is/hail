@@ -4,14 +4,25 @@ import org.broadinstitute.k3.variant.{Variant, VariantDataset}
 
 import scala.io.Source
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{HashPartitioner, SparkContext, SparkConf}
 import org.apache.spark.SparkContext._
-import org.apache.spark.SparkConf
 import org.apache.spark.rdd._
 
 import org.broadinstitute.k3.methods._
 
+import scala.reflect.ClassTag
+
 object Main {
+  // FIXME
+  def inject[T](r: (String, RDD[(Variant, T)]))(implicit tt: ClassTag[T]) =
+    (Array[String](r._1),
+      r._2.mapValues[Array[Any]](v => Array[Any](v)))
+  def join[T](r1: (Array[String], RDD[(Variant, Array[Any])]), r2: (String, RDD[(Variant, T)])): (Array[String], RDD[(Variant, Array[Any])]) =
+    (r1._1 :+ r2._1,
+      r1._2
+      .join(r2._2)
+      .mapValues({ case (a, x) => a :+ x }))
+
   def usage(): Unit = {
     System.err.println("usage:")
     System.err.println("")
@@ -62,9 +73,12 @@ object Main {
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
     val vds: VariantDataset =
-      if (input.endsWith(".vds"))
-        VariantDataset.read(sqlContext, input)
-      else {
+      if (input.endsWith(".vds")) {
+        val vds0 = VariantDataset.read(sqlContext, input)
+        vds0
+        .partitionBy(new HashPartitioner(vds0.nPartitions))
+        .cache()
+      } else {
         if (!input.endsWith(".vcf")
           && !input.endsWith(".vcf.gz")
           && !input.endsWith(".vcfd"))
@@ -108,24 +122,22 @@ object Main {
           rTiTvPerSample, rHeterozygosityPerSample, rHetHomPerSample, rDeletionInsertionPerSample)
 
       SampleQC(output, vds, sampleMethods)
-    }
-    else if (command == "variantqc") {
+    } else if (command == "variantqc") {
       if (args.length != 4)
         fatal("variantqc: unexpected arguments")
 
       val output = args(3)
 
-      // FIXME
-      val variantMethods: Array[(String, Map[Variant, Any])] =
-        Array(nCalledPerVariant.collect(vds),
-          nNotCalledPerVariant.collect(vds),
-          nHomRefPerVariant.collect(vds),
-          nHetPerVariant.collect(vds),
-          nHomVarPerVariant.collect(vds),
-          rHeterozygosityPerVariant.collect(vds),
-          rHetHomPerVariant.collect(vds))
+      // FIXME joins bad
+      val r0 = inject(nCalledPerVariant.run(vds))
+      val r1 = join(r0, nNotCalledPerVariant.run(vds))
+      val r2 = join(r1, nHomRefPerVariant.run(vds))
+      val r3 = join(r2, nHetPerVariant.run(vds))
+      val r4 = join(r3, nHomVarPerVariant.run(vds))
+      val r5 = join(r4, rHeterozygosityPerVariant.run(vds))
+      val r6 = join(r5, rHetHomPerVariant.run(vds))
 
-      VariantQC(output, vds, variantMethods)
+      VariantQC(output, vds, r6)
     }
     else
       fatal("unknown command: " + command)

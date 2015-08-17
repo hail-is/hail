@@ -2,6 +2,7 @@ package org.broadinstitute.k3.variant
 
 import java.io._
 
+import org.apache.spark.Partitioner
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 
@@ -24,8 +25,12 @@ class VariantDataset(sampleIds: Array[String],
   }
 
   override def cache(): VariantDataset = new VariantDataset(sampleIds, rdd.cache())
+
   override def repartition(nPartitions: Int) =
     new VariantDataset(sampleIds, rdd.repartition(nPartitions))
+
+  def partitionBy(p: Partitioner): VariantDataset =
+    new VariantDataset(sampleIds, rdd.partitionBy(p))
 }
 
 object VariantDataset {

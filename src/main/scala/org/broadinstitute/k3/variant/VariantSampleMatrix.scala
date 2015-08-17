@@ -17,6 +17,7 @@ class VariantSampleMatrix[T, S <: Iterable[(Int, T)]](val sampleIds: Array[Strin
 
   def repartition(nPartitions: Int) =
     new VariantSampleMatrix[T, S](sampleIds, rdd.repartition(nPartitions))
+  def nPartitions: Int = rdd.partitions.size
 
   def variants: Array[Variant] = rdd.map(_._1).collect()
 
