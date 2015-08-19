@@ -1,15 +1,40 @@
-package org.broadinstitute.k3.variant.sparky
+package org.broadinstitute.k3.variant.vsm
+
+import java.io._
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SQLContext
 import org.broadinstitute.k3.Utils._
-import org.broadinstitute.k3.variant.Variant
+import org.broadinstitute.k3.variant._
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
+
+object SparkyVSM {
+  def read(sqlContext: SQLContext, dirname: String): SparkyVSM[Genotype, GenotypeStream] = {
+    require(dirname.endsWith(".vds"))
+
+    val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
+
+    val sampleIdsObj = metadataOis.readObject()
+    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
+
+    val sampleIds = sampleIdsObj match {
+      case t: Array[String] => t
+      case _ => throw new ClassCastException
+    }
+
+    import RichRow._
+    new SparkyVSM(sampleIds, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
+  }
+}
 
 class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
-                                            val rdd: RDD[(Variant, S)]) {
+                                            val rdd: RDD[(Variant, S)])
+                                           (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S])
+  extends VariantSampleMatrix[T] {
   def nSamples: Int = sampleIds.length
 
   def nVariants: Long = rdd.count()
@@ -34,14 +59,24 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
     }
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U): SparkyVSM[U, Vector[(Int, U)]] = {
+  def write(sqlContext: SQLContext, dirname: String) {
+    require(dirname.endsWith(".vds"))
+
+    new File(dirname).mkdir()
+
+    val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
+    metadataOos.writeObject(sampleIds)
+
+    import sqlContext.implicits._
+
+    val df = rdd.toDF()
+    df.write.parquet(dirname + "/rdd.parquet")
+  }
+
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): SparkyVSM[U, Vector[(Int, U)]] = {
     new SparkyVSM[U, Vector[(Int, U)]](sampleIds,
       rdd
       .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toVector) })
-  }
-
-  def mapValues[U](f: (T) => U): SparkyVSM[U, Vector[(Int, U)]] = {
-    mapValuesWithKeys((v, s, g) => f(g))
   }
 
   // FIXME push down into reader: add VariantSampleDataframeMatrix?
@@ -59,7 +94,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U): Map[Int, U] = {
+    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): Map[Int, U] = {
 
     val zeroValueBySample = rdd.first()._2.map { case (s, g) => (s, zeroValue) }.toVector
 
@@ -76,14 +111,9 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
     .toMap
   }
 
-  def aggregateBySample[U](zeroValue: U)(
-    seqOp: (U, T) => U,
-    combOp: (U, U) => U): Map[Int, U] =
-    aggregateBySampleWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
-
   def aggregateByVariantWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U)(implicit ut: ClassTag[U]): RDD[(Variant, U)] = {
+    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] = {
     rdd
     .map { case (v, gs) => (v, (v, gs)) }
     .aggregateByKey(zeroValue)({
@@ -91,11 +121,6 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
     },
     combOp)
   }
-
-  def aggregateByVariant[U](zeroValue: U)(
-    seqOp: (U, T) => U,
-    combOp: (U, U) => U)(implicit ut: ClassTag[U]): RDD[(Variant, U)] =
-    aggregateByVariantWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
     val bySampleZeroValue = rdd.first()._2.map { case (s, g) => (s, zeroValue) }.toVector
@@ -110,15 +135,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
     .toMap
   }
 
-  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): RDD[(Variant, T)] = {
-    rdd
-    .mapValues(gs => gs.map {
-      case (s, gs) => gs
-    }.reduce(combOp))
-    .reduceByKey(combOp)
-  }
-
-  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T], st: ClassTag[S]): RDD[(Variant, T)] = {
+  def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {
     rdd
     .mapValues(gs => gs.map {
       case (s, gs) => gs

@@ -1,29 +1,59 @@
-package org.broadinstitute.k3.variant.managed
+package org.broadinstitute.k3.variant.vsm
+
+import java.io._
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SQLContext
 import org.broadinstitute.k3.Utils._
-import org.broadinstitute.k3.variant.{Genotype, GenotypeStream, Variant}
+import org.broadinstitute.k3.variant._
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
 
-class ManagedVSM[T, S](val sampleIds: Array[String],
-                    val rdd: RDD[(Variant, GenotypeStream)],
-                    mapFn: (Variant, Int, Genotype) => T,
-                    samplePredicate: (Int) => Boolean)(implicit sm: Manifest[S]) {
-  require(manifest[S] == manifest[GenotypeStream])
+object ManagedVSM {
+  def read(sqlContext: SQLContext, dirname: String): ManagedVSM[Genotype] = {
+    require(dirname.endsWith(".vds"))
+
+    val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
+
+    val sampleIdsObj = metadataOis.readObject()
+    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
+
+    val sampleIds = sampleIdsObj match {
+      case t: Array[String] => t
+      case _ => throw new ClassCastException
+    }
+
+    import RichRow._
+    new ManagedVSM(sampleIds, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))), (v, s, g) => g, _ => true)
+  }
+}
+
+class ManagedVSM[T](val sampleIds: Array[String],
+                       val rdd: RDD[(Variant, GenotypeStream)],
+                       mapFn: (Variant, Int, Genotype) => T,
+                       samplePredicate: (Int) => Boolean)(implicit ttt: TypeTag[T], tct: ClassTag[T])
+  extends VariantSampleMatrix[T] {
 
   def nSamples: Int = sampleIds.length
 
+  def nVariants: Long = rdd.count()
+
   def variants: Array[Variant] = rdd.map(_._1).collect()
+
+  def nPartitions: Int = rdd.partitions.size
+
+  def repartition(nPartitions: Int) =
+    new ManagedVSM[T](sampleIds, rdd.repartition(nPartitions), mapFn, samplePredicate)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
-  def cache(): ManagedVSM[T, S] = {
+  def cache(): ManagedVSM[T] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
-    new ManagedVSM[T, S](sampleIds, rdd.cache(), localMapFn, localSamplePredicate)
+    new ManagedVSM[T](sampleIds, rdd.cache(), localMapFn, localSamplePredicate)
   }
 
   def count(): Long = rdd.count() // should this be nVariants instead?
@@ -39,34 +69,41 @@ class ManagedVSM[T, S](val sampleIds: Array[String],
     }
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U): ManagedVSM[U, S] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-    new ManagedVSM[U, S](sampleIds, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
+  def write(sqlContext: SQLContext, dirname: String) {
+    require(dirname.endsWith(".vds"))
+
+    new File(dirname).mkdir()
+
+    val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
+    metadataOos.writeObject(sampleIds)
+
+    import sqlContext.implicits._
+
+    val df = rdd.toDF()
+    df.write.parquet(dirname + "/rdd.parquet")
   }
 
-  def mapValues[U](f: (T) => U): ManagedVSM[U, S] = {
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): ManagedVSM[U] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
-    new ManagedVSM[U, S](sampleIds, rdd, (v, s, g) => f(localMapFn(v, s, g)), localSamplePredicate)
+    new ManagedVSM[U](sampleIds, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
   }
 
-  // FIXME push down into reader: add VariantSampleDataframeMatrix?
   def filterVariants(p: (Variant) => Boolean) = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
-    new ManagedVSM[T, S](sampleIds, rdd.filter(t => p(t._1)), localMapFn, localSamplePredicate)
+    new ManagedVSM[T](sampleIds, rdd.filter(t => p(t._1)), localMapFn, localSamplePredicate)
   }
 
   def filterSamples(p: (Int) => Boolean) = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
-    new ManagedVSM[T, S](sampleIds, rdd, localMapFn, id => localSamplePredicate(id) && p(id))
+    new ManagedVSM[T](sampleIds, rdd, localMapFn, id => localSamplePredicate(id) && p(id))
   }
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U): Map[Int, U] = {
+    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): Map[Int, U] = {
     val localMapFn = mapFn
 
     val filteredNums = (0 until nSamples).filter(samplePredicate)
@@ -96,15 +133,10 @@ class ManagedVSM[T, S](val sampleIds: Array[String],
     .zip(a)
     .toMap
   }
-
-  def aggregateBySample[U](zeroValue: U)(
-    seqOp: (U, T) => U,
-    combOp: (U, U) => U): Map[Int, U] =
-    aggregateBySampleWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
-
+  
   def aggregateByVariantWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U)(implicit ut: ClassTag[U]): RDD[(Variant, U)] = {
+    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
 
@@ -115,12 +147,7 @@ class ManagedVSM[T, S](val sampleIds: Array[String],
                  .aggregate(x)({ case (x2, (s, g)) => seqOp(x2, gs.variant, s, localMapFn(gs.variant, s, g)) }, combOp),
       combOp)
   }
-
-  def aggregateByVariant[U](zeroValue: U)(
-    seqOp: (U, T) => U,
-    combOp: (U, U) => U)(implicit ut: ClassTag[U]): RDD[(Variant, U)] =
-    aggregateByVariantWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
-
+  
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
@@ -148,20 +175,8 @@ class ManagedVSM[T, S](val sampleIds: Array[String],
 
     filteredNums.toVector.zip(a).toMap
   }
-
-  def reduceByVariant(combOp: (T, T) => T)(implicit tt: ClassTag[T]): RDD[(Variant, T)] = {
-    val localSamplePredicate = samplePredicate
-    val localMapFn = mapFn
-
-    rdd
-    .mapValues(gs => gs.iterator
-                     .filter({ case (s, g) => localSamplePredicate(s) })
-                     .map({ case (s, g) => localMapFn(gs.variant, s, g) })
-                     .reduce(combOp))
-    .reduceByKey(combOp)
-  }
-
-  def foldByVariant(zeroValue: T)(combOp: (T, T) => T)(implicit tt: ClassTag[T]): RDD[(Variant, T)] = {
+  
+  def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
 

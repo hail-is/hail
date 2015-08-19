@@ -9,6 +9,6 @@ object nCalledPerVariant extends VariantMethod[Int] {
   def apply(vds: VariantDataset): RDD[(Variant, Int)] = {
     vds
       .mapValues(g => if (g.isCalled) 1 else 0)
-      .reduceByVariant(_ + _)
+      .foldByVariant(0)(_ + _)
   }
 }

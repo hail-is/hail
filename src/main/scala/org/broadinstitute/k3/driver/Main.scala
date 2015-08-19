@@ -1,6 +1,8 @@
 package org.broadinstitute.k3.driver
 
-import org.broadinstitute.k3.variant.{Variant, VariantDataset}
+import org.apache.spark.sql.SQLContext
+import org.broadinstitute.k3.variant.vsm.{ManagedVSM, SparkyVSM, TupleVSM}
+import org.broadinstitute.k3.variant.{Genotype, VariantSampleMatrix, Variant, VariantDataset}
 
 import scala.io.Source
 
@@ -13,17 +15,7 @@ import org.broadinstitute.k3.methods._
 import scala.reflect.ClassTag
 
 object Main {
-  // FIXME
-  def inject[T](r: (String, RDD[(Variant, T)]))(implicit tt: ClassTag[T]) =
-    (Array[String](r._1),
-      r._2.mapValues[Array[Any]](v => Array[Any](v)))
-  def join[T](r1: (Array[String], RDD[(Variant, Array[Any])]), r2: (String, RDD[(Variant, T)])): (Array[String], RDD[(Variant, Array[Any])]) =
-    (r1._1 :+ r2._1,
-      r1._2
-      .join(r2._2)
-      .mapValues({ case (a, x) => a :+ x }))
-
-  def usage(): Unit = {
+  def usage() {
     System.err.println("usage:")
     System.err.println("")
     System.err.println("  k3 <cluster> <input> <command> [options...]")
@@ -39,7 +31,7 @@ object Main {
     System.err.println("  write <output>")
   }
 
-  def fatal(msg: String): Unit = {
+  def fatal(msg: String) {
     System.err.println("k3: " + msg)
     System.exit(1)
   }
@@ -53,9 +45,49 @@ object Main {
     if (args.length < 3)
       fatal("too few arguments")
 
-    val master = args(0)
-    val input = args(1)
-    val command = args(2)
+    var vsmtype = "sparky"
+    var master = "local[*]"
+    var command: String = null
+    var input: String = null
+
+    var argi = 0
+    var mainArgsDone = false
+    do {
+      if (argi == args.length) {
+        fatal("too few arguments")
+        System.exit(0)
+      }
+
+      val arg = args(argi)
+      argi += 1
+      arg match {
+        case "--master" =>
+          if (argi == args.length)
+            fatal("--master: argument expected")
+          master = args(argi)
+          argi += 1
+        case "--vsmtype" =>
+          if (argi == args.length)
+            fatal("--vsmtype: argument expected")
+          vsmtype = args(argi)
+          argi += 1
+        case s: String if s(0) == '_' =>
+          fatal("unknown option `" + s + "'")
+        case s: String =>
+          if (input == null)
+            input = s
+          else if (command == null) {
+            command = s
+            mainArgsDone = true
+          }
+      }
+    } while (!mainArgsDone)
+    assert(command != null && input != null)
+
+    println("k3: master = " + master)
+    println("k3: vsmtype = " + vsmtype)
+    println("k3: command = " + command)
+    println("k3: input = " + input)
 
     val conf = new SparkConf().setAppName("K3").setMaster(master)
     conf.set("spark.sql.parquet.compression.codec", "uncompressed")
@@ -72,11 +104,11 @@ object Main {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
-    val vds: VariantDataset =
+    val vds: VariantSampleMatrix[Genotype] =
       if (input.endsWith(".vds")) {
-        val vds0 = VariantDataset.read(sqlContext, input)
+        val vds0 = VariantSampleMatrix.read(sqlContext, vsmtype, input)
         vds0
-        .partitionBy(new HashPartitioner(vds0.nPartitions))
+        // FIXME .partitionBy(new HashPartitioner(vds0.nPartitions))
         .cache()
       } else {
         if (!input.endsWith(".vcf")
@@ -84,35 +116,39 @@ object Main {
           && !input.endsWith(".vcfd"))
           fatal("unknown input file type")
 
-        LoadVCF(sc, input)
+        LoadVCF(sc, vsmtype, input)
       }
 
     if (command == "write") {
-      if (args.length < 4)
-        fatal("write: too few arguments")
+      if (argi != args.length - 1)
+        fatal("write: wrong number of arguments")
+      val output = args(argi)
+      argi += 1
 
-      val output = args(3)
       vds.write(sqlContext, output)
     } else if (command == "repartition") {
-      if (args.length < 5)
+      if (argi != args.length - 2)
         fatal("repartition: too few arguments")
 
-      val nPartitions = args(3).toInt
-      val output = args(4)
+      val nPartitions = args(argi).toInt
+      argi += 1
+      val output = args(argi)
+      argi += 1
 
       vds
       .repartition(nPartitions)
       .write(sqlContext, output)
     } else if (command == "count") {
-      if (args.length != 3)
+      if (argi != args.length)
         fatal("count: unexpected arguments")
 
       println("nVariants = " + vds.nVariants)
     } else if (command == "sampleqc") {
-      if (args.length != 4)
+      if (argi != args.length - 1)
         fatal("sampleqc: unexpected arguments")
 
-      val output = args(3)
+      val output = args(argi)
+      argi += 1
 
       val sampleMethods: Array[SampleMethod[Any]] =
         Array(nCalledPerSample, nNotCalledPerSample,
@@ -123,12 +159,22 @@ object Main {
 
       SampleQC(output, vds, sampleMethods)
     } else if (command == "variantqc") {
-      if (args.length != 4)
+      if (argi != args.length - 1)
         fatal("variantqc: unexpected arguments")
 
-      val output = args(3)
+      val output = args(argi)
+      argi += 1
 
       // FIXME joins bad
+      def inject[T](r: (String, RDD[(Variant, T)]))(implicit tt: ClassTag[T]) =
+        (Array[String](r._1),
+          r._2.mapValues[Array[Any]](v => Array[Any](v)))
+      def join[T](r1: (Array[String], RDD[(Variant, Array[Any])]), r2: (String, RDD[(Variant, T)])): (Array[String], RDD[(Variant, Array[Any])]) =
+        (r1._1 :+ r2._1,
+          r1._2
+          .join(r2._2)
+          .mapValues({ case (a, x) => a :+ x }))
+
       val r0 = inject(nCalledPerVariant.run(vds))
       val r1 = join(r0, nNotCalledPerVariant.run(vds))
       val r2 = join(r1, nHomRefPerVariant.run(vds))

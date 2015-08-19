@@ -19,6 +19,6 @@ object nGenotypeVectorPerVariant extends VariantMethod[(Int, Int, Int, Int)] {
         assert(g.isNotCalled)
         (0,0,0,1)
       })
-      .reduceByVariant((x, y) => (x._1 + y._1, x._2 + y._2, x._3 + y._3, x._4 + y._4))
+      .foldByVariant((0,0,0,0))((x, y) => (x._1 + y._1, x._2 + y._2, x._3 + y._3, x._4 + y._4))
   }
 }

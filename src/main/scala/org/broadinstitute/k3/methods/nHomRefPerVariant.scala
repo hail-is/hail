@@ -9,6 +9,6 @@ object nHomRefPerVariant extends VariantMethod[Int] {
   def apply(vds: VariantDataset): RDD[(Variant, Int)] = {
     vds
       .mapValues(g => if (g.isHomRef) 1 else 0)
-      .reduceByVariant(_ + _)
+      .foldByVariant(0)(_ + _)
   }
 }

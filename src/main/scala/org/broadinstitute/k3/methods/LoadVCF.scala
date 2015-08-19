@@ -2,6 +2,7 @@ package org.broadinstitute.k3.methods
 
 import java.io.FileInputStream
 import java.util.zip.GZIPInputStream
+import org.broadinstitute.k3.variant.vsm.{ManagedVSM, SparkyVSM, TupleVSM}
 
 import scala.io.Source
 
@@ -27,7 +28,7 @@ object LoadVCF {
         (0, 0)
       else {
         val adList = adStr.split(",").map(_.toInt)
-        assert(adList.length >= 2)  // FIXME
+        assert(adList.length >= 2) // FIXME
         (adList(0), adList(1))
       }
 
@@ -60,7 +61,7 @@ object LoadVCF {
       normalizedPl)
   }
 
-  def apply(sc: SparkContext, file: String): VariantDataset = {
+  def apply(sc: SparkContext, vsmtype: String, file: String): VariantDataset = {
     val s = if (file.takeRight(7) == ".vcf.gz")
       Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))
     else if (file.takeRight(5) == ".vcfd")
@@ -105,6 +106,6 @@ object LoadVCF {
                      .filter(_(0) != '#')
                      .map(parseLine)
 
-    new VariantDataset(sampleIds, variantRDD)
+    VariantSampleMatrix(vsmtype, sampleIds, variantRDD)
   }
 }
