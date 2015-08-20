@@ -1,3 +1,4 @@
+sudo: false
 language: java
 jdk:
 - oraclejdk7
@@ -7,3 +8,6 @@ cache:
   - ~/.gradle
 after_success:
 - gradle coverage
+branches:
+  except:
+    - dummy

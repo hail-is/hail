@@ -18,17 +18,21 @@ object Main {
   def usage() {
     System.err.println("usage:")
     System.err.println("")
-    System.err.println("  k3 <cluster> <input> <command> [options...]")
+    System.err.println("  k3 <input> <command> [options...]")
+    System.err.println("")
+    System.err.println("<input> can be a .vcf, .vcf.gz, .vcfd or .vds file.")
     System.err.println("")
     System.err.println("options:")
     System.err.println("  -h, --help: print usage")
+    System.err.println("  --master <master>: use Spark cluster master <master>")
+    System.err.println("  --vsmtype <type>: use VariantSampleMatrix implementation <type>")
     System.err.println("")
     System.err.println("commands:")
     System.err.println("  count")
-    System.err.println("  repartition")
-    System.err.println("  sampleqc")
-    System.err.println("  variantqc")
-    System.err.println("  write <output>")
+    System.err.println("  repartition <nPartitions> <output .vds>")
+    System.err.println("  sampleqc <output .tsv>")
+    System.err.println("  variantqc <output .tsv>")
+    System.err.println("  write <output .vds>")
   }
 
   def fatal(msg: String) {
@@ -142,7 +146,7 @@ object Main {
       if (argi != args.length)
         fatal("count: unexpected arguments")
 
-      println("nVariants = " + vds.nVariants)
+      println("count = " + vds.count)
     } else if (command == "sampleqc") {
       if (argi != args.length - 1)
         fatal("sampleqc: unexpected arguments")
