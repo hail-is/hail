@@ -7,12 +7,12 @@
 We use the following development tools:
  - git
  - Scala
- - Gradle
- - Travis-CI
+ - Gradle for build management
+ - TestNG and [ScalaCheck](https://www.scalacheck.org/) for testing
+ - Travis-CI for automated testing
  - Jacoco for code coverage
- - TestNG and [ScalaCheck](https://www.scalacheck.org/)
  - Spark
- - Apache Commons
+ - Apache Commons libraries
  - IntelliJ (but you can use whatever editor you want)
 
 For development, you only need to install git and gradle.  Gradle
