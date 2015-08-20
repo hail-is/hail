@@ -39,6 +39,19 @@ you can directly run `build/install/k3/bin/k3`.
 
 ## Running
 
+To run the tests, do:
+
+```
+~/k3 $ gradle check
+```
+
+To generate a code coverage report and view it, do:
+
+```
+~/k3 $ gradle coverage
+~/k3 $ open build/build/reports/coverage/index.html
+```
+
 To convert a .vcf.gz to a .vds, do:
 
 ```
