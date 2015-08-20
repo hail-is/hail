@@ -1,0 +1,9 @@
+language: java
+jdk:
+- oraclejdk7
+- oraclejdk8
+cache:
+  directories:
+  - ~/.gradle
+after_success:
+- gradle coverage
