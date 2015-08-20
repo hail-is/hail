@@ -25,16 +25,18 @@ object TupleVSM {
     val sampleIdsObj = metadataOis.readObject()
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
+    df.printSchema()
+
     val sampleIds = sampleIdsObj match {
       case t: Array[String] => t
       case _ => throw new ClassCastException
     }
 
     import RichRow._
-    this(sampleIds,
+    new TupleVSM[Genotype](sampleIds,
       df
       .rdd
-      .map(r => (r.getVariant(0), r.getGenotypeStream(1))))
+      .map(r => (r.getVariant(0), r.getInt(1), r.getGenotype(2))))
   }
 }
 

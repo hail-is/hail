@@ -9,14 +9,32 @@ object RichRow {
 }
 
 class RichRow(r: Row) {
+
   import RichRow._
 
-  implicit def getVariant(i: Int): Variant = {
+  def getVariant(i: Int): Variant = {
     val ir = r.getAs[Row](i)
     Variant(ir.getAs[String](0),
       ir.getAs[Int](1),
       ir.getAs[String](2),
       ir.getAs[String](3))
+  }
+
+  def getGenotype(i: Int): Genotype = {
+    val ir = r.getAs[Row](i)
+    val i1r = ir.getAs[Row](1)
+    val i3r = ir.getAs[Row](3)
+
+    Genotype(ir.getInt(0),
+      (i1r.getInt(0),
+        i1r.getInt(1)),
+      ir.getInt(2),
+      if (i3r != null)
+        (i3r.getInt(0),
+          i3r.getInt(1),
+          i3r.getInt(2))
+      else
+        null)
   }
 
   def getGenotypeStream(i: Int): GenotypeStream = {
