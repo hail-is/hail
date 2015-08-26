@@ -35,9 +35,10 @@ object Main {
     System.err.println("  write <output .vds>")
   }
 
-  def fatal(msg: String) {
+  def fatal(msg: String): Nothing = {
     System.err.println("k3: " + msg)
     System.exit(1)
+    throw new AssertionError
   }
 
   def main(args: Array[String]) {
@@ -46,13 +47,14 @@ object Main {
       System.exit(0)
     }
 
-    if (args.length < 3)
+    if (args.length < 2)
       fatal("too few arguments")
 
     var vsmtype = "sparky"
     var master = "local[*]"
     var command: String = null
     var input: String = null
+    var filter: String = null
 
     var argi = 0
     var mainArgsDone = false
@@ -75,7 +77,12 @@ object Main {
             fatal("--vsmtype: argument expected")
           vsmtype = args(argi)
           argi += 1
-        case s: String if s(0) == '_' =>
+        case "--filter" =>
+          if (argi == args.length)
+            fatal("--filter: argument expected")
+          filter = args(argi)
+          argi += 1
+        case s: String if s(0) == '-' =>
           fatal("unknown option `" + s + "'")
         case s: String =>
           if (input == null)
@@ -108,11 +115,9 @@ object Main {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
-    val vds: VariantSampleMatrix[Genotype] =
+    val rawVDS: VariantSampleMatrix[Genotype] =
       if (input.endsWith(".vds")) {
-        val vds0 = VariantSampleMatrix.read(sqlContext, vsmtype, input)
-        vds0
-        // FIXME .partitionBy(new HashPartitioner(vds0.nPartitions))
+        VariantSampleMatrix.read(sqlContext, vsmtype, input)
         .cache()
       } else {
         if (!input.endsWith(".vcf")
@@ -122,6 +127,20 @@ object Main {
 
         LoadVCF(sc, vsmtype, input)
       }
+
+    val vds: VariantDataset = if (filter != null) {
+      filter match {
+        case f if f.endsWith(".interval_list") =>
+          rawVDS.filterVariants(LoadIntervalList(filter))
+        case "isSNP" =>
+          rawVDS.filterVariants(v => v.isSNP)
+        case "isIndel" =>
+          rawVDS.filterVariants(v => v.isIndel)
+        case _ =>
+          fatal("unknown filter option")
+      }
+    } else
+      rawVDS
 
     if (command == "write") {
       if (argi != args.length - 1)
