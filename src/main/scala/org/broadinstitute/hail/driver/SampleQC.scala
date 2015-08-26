@@ -12,29 +12,29 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object SampleQCCombiner {
-  val header = "nCalled" + "\t" +
-    "nNotCalled" + "\t" +
-    "nHomRef" + "\t" +
-    "nHet" + "\t" +
-    "nHomVar" + "\t" +
-    "alleleBalance" + "\t" +
-    "nSNP" + "\t" +
-    "nInsertion" + "\t" +
-    "nDeletion" + "\t" +
-    "nSingleton" + "\t" +
-    "nTransition" + "\t" +
-    "nTransversion" + "\t" +
-    "dpMean" + "\t" + "dpStDev" + "\t" +
-    "dpMeanHomRef" + "\t" + "dpStDevHomRef" + "\t" +
-    "dpMeanHet" + "\t" + "dpStDevHet" + "\t" +
-    "dpMeanHomVar" + "\t" + "dpStDevHomVar" + "\t" +
-    "gqMean" + "\t" + "gqStDev" + "\t" +
-    "gqMeanHomRef" + "\t" + "gqStDevHomRef" + "\t" +
-    "gqMeanHet" + "\t" + "gqStDevHet" + "\t" +
-    "gqMeanHomVar" + "\t" + "gqStDevHomVar" + "\t" +
-    "nNonRef" + "\t" +
-    "rTiTv" + "\t" +
-    "rHetHomVar" + "\t" +
+  val header = "nCalled\t" +
+    "nNotCalled\t" +
+    "nHomRef\t" +
+    "nHet\t" +
+    "nHomVar\t" +
+    "alleleBalance\t" +
+    "nSNP\t" +
+    "nInsertion\t" +
+    "nDeletion\t" +
+    "nSingleton\t" +
+    "nTransition\t" +
+    "nTransversion\t" +
+    "dpMean\tdpStDev\t" +
+    "dpMeanHomRef\tdpStDevHomRef\t" +
+    "dpMeanHet\tdpStDevHet\t" +
+    "dpMeanHomVar\tdpStDevHomVar\t" +
+    "gqMean\tgqStDev\t" +
+    "gqMeanHomRef\tgqStDevHomRef\t" +
+    "gqMeanHet\tgqStDevHet\t" +
+    "gqMeanHomVar\tgqStDevHomVar\t" +
+    "nNonRef\t" +
+    "rTiTv\t" +
+    "rHetHomVar\t" +
     "rDeletionInsertion"
 }
 
@@ -221,7 +221,7 @@ class SampleQCCombiner extends Serializable {
     sb.append(nHet + nHomVar)
     sb += '\t'
 
-    // nTiTv
+    // nTiTvf
     sb.tsvAppend(divOption(nTi, nTv))
     sb += '\t'
 
@@ -231,7 +231,6 @@ class SampleQCCombiner extends Serializable {
 
     // rDeletionInsertion
     sb.tsvAppend(divOption(nDel, nIns))
-
   }
 }
 

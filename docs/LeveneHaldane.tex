@@ -1,0 +1,127 @@
+\documentclass[letterpaper, 10pt]{article}
+\usepackage[letterpaper,margin=1.25 in]{geometry}
+\pdfoutput=1
+\usepackage{amsmath, amsthm, amssymb}
+\usepackage{graphicx}
+\usepackage{epstopdf}
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+\usepackage{natbib}
+\bibpunct[ ]{(}{)}{,}{a}{}{,}
+
+%\usepackage[color]{showkeys}
+
+%\usepackage{setspace}
+%\onehalfspacing
+%\setstretch{1.2}
+
+\usepackage{enumerate}
+
+\allowdisplaybreaks[3]
+
+\newcommand{\e}{\varepsilon}
+\newcommand{\ph}{\varphi}
+\newcommand{\kap}{\kappa}
+\newcommand{\del}{\partial}
+\newcommand{\nequiv}{\not\equiv}
+\newcommand{\N}{\mathbb N}
+\newcommand{\Z}{\mathbb Z}
+\newcommand{\Q}{\mathbb Q}
+\newcommand{\R}{\mathbb R}
+\newcommand{\C}{\mathbb C}
+\newcommand{\Cc}{\mathcal C}
+\newcommand{\F}{\mathcal F}
+\newcommand{\Hc}{\mathcal H}
+\newcommand{\Dc}{\mathcal D}
+\newcommand{\Lc}{\mathcal L}
+\newcommand{\Pc}{\mathcal P}
+\newcommand{\io}{\ \text{i.o.}}
+\newcommand{\as}{\ \text{a.s.}}
+\newcommand{\half}{\tfrac{1}{2}}
+\newcommand{\abs}[1]{\left\lvert#1\right\rvert}
+\newcommand{\Abs}[1]{\bigl\lvert#1\bigr\rvert}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newcommand{\Norm}[1]{\bigl\lVert#1\bigr\rVert}
+\newcommand{\ip}[1]{\left\langle#1\right\rangle}
+\newcommand{\Ip}[1]{\bigl\langle#1\bigr\rangle}
+\DeclareMathOperator{\supp}{supp}
+\DeclareMathOperator{\diag}{diag}
+\newcommand{\loc}{\mathrm{loc}}
+\DeclareMathOperator{\vol}{vol}
+\DeclareMathOperator{\Spec}{Spec}
+\renewcommand{\P}{\operatorname{\mathbf{P}}}
+\newcommand{\1}{\mathbf{1}}
+\DeclareMathOperator{\E}{\mathbf E}
+\DeclareMathOperator{\Var}{\mathbf{Var}}
+\renewcommand{\Re}{\operatorname{Re}}
+\renewcommand{\Im}{\operatorname{Im}}
+
+\newcommand{\A}{\mathrm A}
+\newcommand{\B}{\mathrm B}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newtheorem{proposition}{Proposition}
+\newtheorem{conjecture}{Conjecture}
+\newtheorem{fact}{Fact}
+\newtheorem*{st}{Spectral theorem}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem*{problem}{Problem}
+\theoremstyle{remark}
+\newtheorem*{solution}{Solution}
+
+
+\title{The Levene-Haldane Distribution}
+\author{Alex Bloemendal}
+\date{September 30, 2015}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+Consider a sample of $n$ diploid individuals at a biallelic autosomal locus. The sample includes $2n$ alleles, $n_\A$ copies of the rarer allele A and $n_\B$ copies of the common allele B. Under the assumption of Hardy-Weinberg equilibrium the alleles are allocated to the individuals uniformly at random; what is the resulting distribution on genotypes, i.e.\ on the numbers of individuals $n_{\A\A}, n_{\A\B}, n_{\B\B}$ carrying  $\A\A, \A\B, \B\B$ respectively? Note that the number of heterozygotes $n_{\A\B}$ determines the numbers of homozygotes $n_{\A\A}, n_{\B\B}$ by the relations $2n_{\A\A} + n_{\A\B} = n_\A$, $2n_{\B\B} + n_{\A\B} = n_\B$.
+
+There are
+\[
+\begin{pmatrix}
+2n\\
+n_{\A}
+\end{pmatrix}
+\;=\; \frac{(2n)!}{n_{\A}! n_{\B}!}
+\]
+possible arrangements for the alleles in the sample, of which
+\[
+2^{n_{\A\B}}
+\begin{pmatrix}
+& n &\\
+n_{\A\A} & n_{\A\B} & n_{\B\B}
+\end{pmatrix} \;=\;
+\frac{2^{n_{\A\B}} n!}{n_{\A\A}! n_{\A\B}!  n_{\B\B}!}
+\]
+yield exactly $n_{\A\B}$ heterozygotes. The resulting conditional distribution
+\[
+p(n_{\A\B} \mid n, n_\A) \; = \; \frac{2^{n_{\A\B}} n!}{n_{\A\A}! n_{\A\B}!  n_{\B\B}!}\cdot\frac{n_{\A}! n_{\B}!}{(2n)!}
+\]
+is known as the Levene-Haldane distribution \citep{Weir, HWE_Wigginton, HWE_Graffelman}.
+
+The distribution is supported on those $n_{\A\B}$ such that $0\le n_{\A\B}\le n_\A$ and $n_\A - n_{\A\B}$ is even. It is unimodal, with mode equal to the integer of the correct parity nearest
+\[
+\frac{(n_\A + 1)(n_\B + 1)}{2n + 3}.
+\]
+One can show the latter by considering the ratio of probabilities at adjacent values, which in particular is monotonic. It also follows that the tails decay faster than geometrically. The mean and variance are
+\[
+\frac{n_\A n_\B}{2n - 1} \qquad \text{and}\qquad \frac{n_\A n_\B}{2n - 1}\left(1 + \frac{(n_\A - 1)(n_\B - 1)}{2n - 3}  - \frac{n_\A n_\B}{2n - 1}\right)
+\]
+respectively \citep{HWE_Okamoto}.
+
+The implementation is based on \cite{HWE_Wigginton}. The mid-$p$-value correction for the left, right and two-sided exact tests is proposed in \cite{HWE_Graffelman}. \cite{HWE_Rohlfs} study the behavior of these discrete statistics under null and alternative hypotheses. The extension to multiallelic loci is computationally expensive; \cite{HWE_Engels} describes several proposed Monte-Carlo methods. Finally, \cite{HWE_Wakefield} argues for a Bayesian approach, reviewing and extending existing work in this direction.
+
+\bigskip
+\bibliographystyle{dcu}
+\bibliography{bibfile}
+
+\end{document}
+
