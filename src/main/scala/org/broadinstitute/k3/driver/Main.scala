@@ -1,5 +1,7 @@
 package org.broadinstitute.k3.driver
 
+import java.io.{File, FileWriter}
+
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.k3.variant.vsm.{ManagedVSM, SparkyVSM, TupleVSM}
 import org.broadinstitute.k3.variant.{Genotype, VariantSampleMatrix, Variant, VariantDataset}
@@ -29,6 +31,7 @@ object Main {
     System.err.println("")
     System.err.println("commands:")
     System.err.println("  count")
+    System.err.println("  gqbydp <output .tsv>")
     System.err.println("  repartition <nPartitions> <output .vds>")
     System.err.println("  sampleqc <output .tsv>")
     System.err.println("  variantqc <output .tsv>")
@@ -188,8 +191,39 @@ object Main {
       val r6 = join(r5, rHetHomPerVariant.run(vds))
 
       VariantQC(output, vds, r6)
-    }
-    else
+    } else if (command == "gqbydp") {
+      if (argi != args.length - 1)
+        fatal("gqbydp: unexpected arguments")
+
+      val output = args(argi)
+      argi += 1
+
+      val fw = new FileWriter(new File(output))
+
+      val nBins = GQByDPBins.nBins
+      val binStep = GQByDPBins.binStep
+      val firstBinLow = GQByDPBins.firstBinLow
+
+      fw.write("sample")
+      for (b <- 0 until nBins) {
+        fw.write("\t" + GQByDPBins.binLow(b) + "-" + GQByDPBins.binHigh(b))
+      }
+      fw.write("\n")
+
+      val gqbydp = GQByDPBins(vds)
+      for (i <- vds.sampleIds.indices) {
+        fw.write(vds.sampleIds(i))
+        for (b <- 0 until GQByDPBins.nBins) {
+          gqbydp.get((i, b)) match {
+            case Some(percentGQ) => fw.write("\t" + percentGQ)
+            case None => fw.write("\t-")
+          }
+        }
+        fw.write("\n")
+      }
+
+      fw.close()
+    } else
       fatal("unknown command: " + command)
   }
 }

@@ -79,6 +79,11 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
       .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toVector) })
   }
 
+  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
+    rdd
+    .flatMap{ case (v, gs) => gs.flatMap{ case (s, g) => f(v, s, g) }}
+  }
+
   // FIXME push down into reader: add VariantSampleDataframeMatrix?
   def filterVariants(p: (Variant) => Boolean) = {
     new SparkyVSM[T, S](sampleIds,

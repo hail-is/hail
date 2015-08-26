@@ -48,13 +48,17 @@ case class Genotype(private val gt: Int,
 
   def isCalled: Boolean = gt != -1
 
+  def gq: Int = {
+    assert(gt != -1)
+    val (pl1, pl2) = minPl
+    pl1 min pl2 min 99
+  }
+
   def call: Option[Call] = {
     if (gt == -1)
       None
-    else {
-      val (pl1, pl2) = minPl
-      Some(Call(gt, pl1 min pl2 min 99, pl))
-    }
+    else
+      Some(Call(gt, gq, pl))
   }
 
   override def toString: String = {

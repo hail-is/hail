@@ -38,5 +38,7 @@ class VSMSuite extends TestNGSuite {
       })
 
     assert(singletons.tail.forall(s => s == singletons.head))
+
+    sc.stop()
   }
 }
