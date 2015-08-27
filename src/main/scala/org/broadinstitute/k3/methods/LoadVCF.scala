@@ -103,7 +103,7 @@ object LoadVCF {
 
     val linesRDD = sc.textFile(loadFile)
     val variantRDD = linesRDD
-                     .filter(_(0) != '#')
+                     .filter(line => !line.isEmpty && line(0) != '#')
                      .map(parseLine)
 
     VariantSampleMatrix(vsmtype, sampleIds, variantRDD)
