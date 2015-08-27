@@ -89,6 +89,11 @@ class ManagedVSM[T](val sampleIds: Array[String],
     new ManagedVSM[U](sampleIds, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
   }
 
+  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
+    // FIXME
+    throw new NotImplementedError()
+  }
+
   def filterVariants(p: (Variant) => Boolean) = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn

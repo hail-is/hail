@@ -54,6 +54,10 @@ abstract class VariantSampleMatrix[T] {
     mapValuesWithKeys((v, s, g) => f(g))
   }
 
+  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U]
+  def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
+    flatMapWithKeys((v, s, g) => f(g))
+
   def filterVariants(p: (Variant) => Boolean): VariantSampleMatrix[T]
 
   def filterSamples(p: (Int) => Boolean): VariantSampleMatrix[T]

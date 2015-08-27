@@ -84,6 +84,9 @@ class TupleVSM[T](val sampleIds: Array[String],
       rdd.map { case (v, s, g) => (v, s, f(v, s, g)) })
   }
 
+  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
+    rdd.flatMap[U](f.tupled)
+
   def filterVariants(p: (Variant) => Boolean) = {
     new TupleVSM[T](sampleIds,
       rdd.filter { case (v, s, g) => p(v) })
