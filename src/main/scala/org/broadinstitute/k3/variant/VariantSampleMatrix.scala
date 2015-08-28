@@ -59,6 +59,8 @@ abstract class VariantSampleMatrix[T] {
     flatMapWithKeys((v, s, g) => f(g))
 
   def filterVariants(p: (Variant) => Boolean): VariantSampleMatrix[T]
+  def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
+    filterVariants(v => ilist.contains(v.contig, v.start))
 
   def filterSamples(p: (Int) => Boolean): VariantSampleMatrix[T]
 
