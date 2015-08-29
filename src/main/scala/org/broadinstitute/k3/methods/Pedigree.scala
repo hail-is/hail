@@ -5,11 +5,12 @@ import java.io.{File, FileWriter}
 import scala.io.Source
 
 object TryOut {
+
   def main(args: Array[String]) {
-    val ped = Pedigree.read("/Users/Jon/sample.fam")
-    println(ped.pedMap.get("MIGFI_1014"))
-    println(ped.nTrio)
-    ped.write("/Users/Jon/sample_output.ped")
+    val ped = Pedigree.read("/Users/Jon/sample_quads.fam")
+    println(ped.trioMap.get("GR_073490"))
+    ped.writeSummary("/Users/Jon/quads_summary.sumfam")
+    ped.write("/Users/Jon/quads_output.fam")
   }
 }
 
@@ -26,7 +27,24 @@ object Phenotype extends Enumeration {
 import Sex._
 import Phenotype._
 
-case class TrioData(famID: String, dadID: Option[String], momID: Option[String], sex: Option[Sex], phenotype: Option[Phenotype])
+case class TrioData(famID: Option[String], kidID: String, dadID: Option[String], momID: Option[String],
+                    sex: Option[Sex], pheno: Option[Phenotype]) {
+
+  def write(fw: FileWriter) = {
+    val sexStr: String =
+      if (sex == Some(Male)) "1"
+      else if (sex == Some(Female)) "2"
+      else "0"
+
+    val phenoStr: String =
+      if (pheno == Some(Control)) "1"
+      else if (pheno == Some(Case)) "2"
+      else "0"
+
+    fw.write(famID.getOrElse("0") + " " + kidID + " " + dadID.getOrElse("0") + " " + momID.getOrElse("0") + " " +
+        sexStr + " " + phenoStr + "\n")
+  }
+}
 
 object Pedigree {
 
@@ -39,51 +57,64 @@ object Pedigree {
       .map{ line =>
       val fields: Array[String] = line.split(" ")
       assert(fields.length == 6)
-      val famID = fields(0)
+      val famID = if (fields(0) != "0") Some(fields(0)) else None
       val kidID = fields(1)
-      val dadID = if (fields(2) != "0") Some(fields(2)) else None  // '0' if father not in dataset  // FIXME: use Option
-      val momID = if (fields(3) != "0") Some(fields(2)) else None // '0' if mother not in dataset
-      val sex = if (fields(4) == "1") Some(Male)
+      val dadID = if (fields(2) != "0") Some(fields(2)) else None
+      val momID = if (fields(3) != "0") Some(fields(3)) else None
+      val sex =
+        if (fields(4) == "1") Some(Male)
         else if (fields(4) == "2") Some(Female)
         else None
-      val phenotype = if (fields(4) == "1") Some(Control) //FIXME: assuming binary phenotype
-        else if (fields(4) == "2") Some(Case)
+      val pheno = // FIXME: assuming binary phenotype
+        if (fields(5) == "1") Some(Control)
+        else if (fields(5) == "2") Some(Case)
         else None
 
-      (kidID, TrioData(famID, dadID, momID, sex, phenotype))}
+      (kidID, TrioData(famID, kidID, dadID, momID, sex, pheno))}
       .toMap)
   }
 }
 
-class Pedigree(val pedMap: Map[String, TrioData]) {
+class Pedigree(val trioMap: Map[String, TrioData]) {
 
-  def getFamID(kidID: String): String = pedMap(kidID).famID
-  def getDadID(kidID: String): Option[String] = pedMap(kidID).dadID
-  def getMomID(kidID: String): Option[String] = pedMap(kidID).momID
-  def getSex(kidID: String): Option[Sex]  = pedMap(kidID).sex
-  def getPhenotype(kidID: String): Option[Phenotype] = pedMap(kidID).phenotype
+  def isMale(kidID: String): Boolean = trioMap(kidID).sex == Some(Male)
+  def isFemale(kidID: String): Boolean = trioMap(kidID).sex == Some(Female)
+  def noSex(kidID: String): Boolean = trioMap(kidID).sex.isEmpty
+  def isCase(kidID: String): Boolean = trioMap(kidID).pheno == Some(Case)
+  def isControl(kidID: String): Boolean = trioMap(kidID).pheno == Some(Control)
+  def noPheno(kidID: String): Boolean = trioMap(kidID).pheno.isEmpty
+  def isTrio(kidID: String): Boolean = trioMap(kidID).dadID.isDefined && trioMap(kidID).momID.isDefined
 
-  def isTrio(kidID: String): Boolean =
-    getDadID(kidID).isDefined && getMomID(kidID).isDefined
+  def nSat(filters: (String => Boolean)*): Int = trioMap.count{ case (k,v) => filters.forall(_(k))}
 
-  def nMale: Int = pedMap.filterKeys(getSex(_) == Some(Male)).size
-  def nFemale: Int = pedMap.filterKeys(getSex(_) == Some(Female)).size
-  def nCase: Int = pedMap.filterKeys(getPhenotype(_) == Some(Case)).size
-  def nControl: Int = pedMap.filterKeys(getPhenotype(_) == Some(Control)).size
-  def nTrio: Int = pedMap.filterKeys(isTrio).size
+  // FIXME: nFam based on famID, but can do some inference even when famID's are missing
+  def nFam: Int = trioMap.map{ case (k,v) => v.famID }.filter(_.isDefined).toList.distinct.size
+  def nIndiv: Int = nSat()
+  def nTrio: Int = nSat(isTrio)
 
-  // FIXME: add support for distinct trios, quads, ... ?
+  def writeSummary(file: String) = {
+    val fw = new FileWriter(new File(file))
+
+    val fields = List("nFam", "nIndiv", "nMale", "nFemale",
+      "nTrio", "nMaleTrio", "nFemaleTrio",
+      "nCaseTrio", "nControlTrio",
+      "nCaseMaleTrio", "nCaseFemaleTrio",
+      "nControlMaleTrio", "nControlFemaleTrio")
+
+    val values = List(nFam, nIndiv, nSat(isMale), nSat(isFemale),
+      nTrio, nSat(isTrio, isMale), nSat(isTrio, isFemale),
+      nSat(isTrio, isCase), nSat(isTrio, isControl),
+      nSat(isTrio, isCase, isMale), nSat(isTrio, isCase, isFemale),
+      nSat(isTrio, isControl, isMale), nSat(isTrio, isControl, isFemale))
+
+    fw.write(fields.mkString("\t") + "\n")
+    fw.write(values.mkString("\t") + "\n")
+    fw.close() // FIXME
+  }
 
   def write(file: String) {
     val fw = new FileWriter(new File(file))
-
-    pedMap
-      .foreach { case (kidID, TrioData(famID, dadID, momID, sex, phenotype)) =>
-      fw.write(famID + " " + kidID + " " + dadID + " " + momID + " " + sex + " " + phenotype + "\n")
-      //fw.write(List(famID, kidID, dadID, momID, sex.toString, phenotype.toString).mkString(" ") + "\n")
-    }
-
-    // FIXME
-    fw.close()
+    trioMap.values.foreach(_.write(fw))
+    fw.close()  // FIXME
   }
 }
