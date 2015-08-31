@@ -7,10 +7,12 @@ import scala.io.Source
 object TryOut {
 
   def main(args: Array[String]) {
-    val ped = Pedigree.read("/Users/Jon/sample_quads.fam")
-    println(ped.trioMap.get("GR_073490"))
-    ped.writeSummary("/Users/Jon/quads_summary.sumfam")
-    ped.write("/Users/Jon/quads_output.fam")
+    val ped = Pedigree.read("/Users/Jon/sample_mendel.fam")
+    println(ped.trioMap.get("Son1"))
+    println(ped.trioMap.get("Mom1"))
+    println(ped.trios.trioMap)
+    ped.writeSummary("/Users/Jon/sample_mendel.sumfam")
+    ped.trios.write("/Users/Jon/sample_mendel_trios.sumfam")
   }
 }
 
@@ -24,8 +26,8 @@ object Phenotype extends Enumeration {
   val Case, Control = Value
 }
 
-import Sex._
-import Phenotype._
+import org.broadinstitute.k3.methods.Phenotype._
+import org.broadinstitute.k3.methods.Sex._
 
 case class TrioData(famID: Option[String], kidID: String, dadID: Option[String], momID: Option[String],
                     sex: Option[Sex], pheno: Option[Phenotype]) {
@@ -84,6 +86,8 @@ class Pedigree(val trioMap: Map[String, TrioData]) {
   def isControl(kidID: String): Boolean = trioMap(kidID).pheno == Some(Control)
   def noPheno(kidID: String): Boolean = trioMap(kidID).pheno.isEmpty
   def isTrio(kidID: String): Boolean = trioMap(kidID).dadID.isDefined && trioMap(kidID).momID.isDefined
+
+  def trios: Pedigree = new Pedigree(trioMap.filterKeys(isTrio))
 
   def nSat(filters: (String => Boolean)*): Int = trioMap.count{ case (k,v) => filters.forall(_(k))}
 
