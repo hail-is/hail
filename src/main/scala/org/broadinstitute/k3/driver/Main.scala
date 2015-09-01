@@ -5,7 +5,7 @@ import java.io.{File, FileWriter}
 import org.apache.spark.mllib.linalg.{Vector => SVector}
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.k3.variant.vsm.{ManagedVSM, SparkyVSM, TupleVSM}
-import org.broadinstitute.k3.variant.{Genotype, VariantSampleMatrix, Variant, VariantDataset}
+import org.broadinstitute.k3.variant._
 
 import scala.io.Source
 
@@ -136,7 +136,7 @@ object Main {
     val vds: VariantDataset = if (filter != null) {
       filter match {
         case f if f.endsWith(".interval_list") =>
-          rawVDS.filterVariants(LoadIntervalList(filter))
+          rawVDS.filterVariants(IntervalList.read(filter))
         case "isSNP" =>
           rawVDS.filterVariants(v => v.isSNP)
         case "isIndel" =>
