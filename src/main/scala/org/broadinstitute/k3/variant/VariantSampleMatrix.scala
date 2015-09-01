@@ -10,12 +10,12 @@ import scala.reflect.runtime.universe._
 
 object VariantSampleMatrix {
   def apply(vsmtype: String,
-            sampleIds: Array[String],
+            metadata: VariantMetadata,
             rdd: RDD[(Variant, GenotypeStream)]): VariantSampleMatrix[Genotype] = {
     vsmtype match {
-      case "managed" => new ManagedVSM(sampleIds, rdd, (v, s, g) => g, _ => true)
-      case "sparky" => new SparkyVSM(sampleIds, rdd)
-      case "tuple" => TupleVSM(sampleIds, rdd)
+      case "managed" => new ManagedVSM(metadata, rdd, (v, s, g) => g, _ => true)
+      case "sparky" => new SparkyVSM(metadata, rdd)
+      case "tuple" => TupleVSM(metadata, rdd)
     }
   }
 
@@ -28,9 +28,10 @@ object VariantSampleMatrix {
 
 // FIXME all maps should become RDDs
 abstract class VariantSampleMatrix[T] {
-  def sampleIds: Array[String]
+  def metadata: VariantMetadata
 
-  def nSamples: Int
+  def sampleIds: Array[String] = metadata.sampleIds
+  def nSamples: Int = metadata.nSamples
 
   def nVariants: Long
   def variants: RDD[Variant]

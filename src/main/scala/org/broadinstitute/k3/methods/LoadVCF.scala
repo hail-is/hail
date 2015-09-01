@@ -71,13 +71,24 @@ object LoadVCF {
       Source.fromFile(file)
     }
 
-    val headerLine = s
-                     .getLines()
-                     .find(line => line(0) == '#' && line(1) != '#')
-                     .get
+    val header = s.getLines().takeWhile(_(0) == '#').toArray
+
+    val contigRegex = """^##contig=<ID=([^,]*),length=(\d+)>$""".r
+    val contigLength = header
+      .flatMap(line => line match {
+      case contigRegex(contig, lengthStr) =>
+        Some((contig, lengthStr.toInt))
+      case _ =>
+        println(line)
+        assert(!line.startsWith("##contig="))
+        None
+    })
+      .toMap
+
+    val headerLine = header.last
     val sampleIds = headerLine
-                    .split("\t")
-                    .drop(9)
+      .split("\t")
+      .drop(9)
 
     def parseLine(line: String): (Variant, GenotypeStream) = {
       val words: Array[String] = line.split("\t")
@@ -88,8 +99,8 @@ object LoadVCF {
 
       val b = new GenotypeStreamBuilder(variant)
       words.drop(9)
-      .map(parseGenotype)
-      .foreach(g => b.+=((0, g)))
+        .map(parseGenotype)
+        .foreach(g => b.+=((0, g)))
       val a = b.result()
 
       (variant, b.result())
@@ -103,9 +114,9 @@ object LoadVCF {
 
     val linesRDD = sc.textFile(loadFile)
     val variantRDD = linesRDD
-                     .filter(line => !line.isEmpty && line(0) != '#')
-                     .map(parseLine)
+      .filter(line => !line.isEmpty && line(0) != '#')
+      .map(parseLine)
 
-    VariantSampleMatrix(vsmtype, sampleIds, variantRDD)
+    VariantSampleMatrix(vsmtype, VariantMetadata(contigLength, sampleIds, header), variantRDD)
   }
 }
