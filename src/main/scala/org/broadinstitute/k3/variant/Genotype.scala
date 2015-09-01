@@ -61,6 +61,8 @@ case class Genotype(private val gt: Int,
       Some(Call(gt, gq, pl))
   }
 
+  def nNonRef: Int = if (gt == -1) 0 else gt
+
   override def toString: String = {
     val b = new StringBuilder
     call match {

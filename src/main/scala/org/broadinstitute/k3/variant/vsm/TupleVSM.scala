@@ -46,8 +46,10 @@ class TupleVSM[T](val sampleIds: Array[String],
 
   def nSamples: Int = sampleIds.length
 
-  // FIXME wrong
-  def nVariants: Long = rdd.count()
+  def variants: RDD[Variant] = rdd.map(_._1).distinct
+
+  // FIXME should be stored
+  def nVariants: Long = variants.count()
 
   def cache(): TupleVSM[T] =
     new TupleVSM[T](sampleIds, rdd.cache())
@@ -56,8 +58,6 @@ class TupleVSM[T](val sampleIds: Array[String],
     new TupleVSM[T](sampleIds, rdd.repartition(nPartitions))
 
   def nPartitions: Int = rdd.partitions.size
-
-  def variants: Array[Variant] = rdd.map(_._1).collect()
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -83,6 +83,9 @@ class TupleVSM[T](val sampleIds: Array[String],
     new TupleVSM[U](sampleIds,
       rdd.map { case (v, s, g) => (v, s, f(v, s, g)) })
   }
+
+  def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] =
+    rdd.map[U](f.tupled)
 
   def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     rdd.flatMap[U](f.tupled)
