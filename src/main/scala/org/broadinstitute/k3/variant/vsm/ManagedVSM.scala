@@ -32,16 +32,16 @@ object ManagedVSM {
 }
 
 class ManagedVSM[T](val sampleIds: Array[String],
-                       val rdd: RDD[(Variant, GenotypeStream)],
-                       mapFn: (Variant, Int, Genotype) => T,
-                       samplePredicate: (Int) => Boolean)(implicit ttt: TypeTag[T], tct: ClassTag[T])
+                    val rdd: RDD[(Variant, GenotypeStream)],
+                    mapFn: (Variant, Int, Genotype) => T,
+                    samplePredicate: (Int) => Boolean)(implicit ttt: TypeTag[T], tct: ClassTag[T])
   extends VariantSampleMatrix[T] {
 
   def nSamples: Int = sampleIds.length
 
   def nVariants: Long = rdd.count()
 
-  def variants: Array[Variant] = rdd.map(_._1).collect()
+  def variants: RDD[Variant] = rdd.keys
 
   def nPartitions: Int = rdd.partitions.size
 
@@ -89,10 +89,14 @@ class ManagedVSM[T](val sampleIds: Array[String],
     new ManagedVSM[U](sampleIds, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
   }
 
-  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
-    // FIXME
+  def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] =
+  // FIXME
     throw new NotImplementedError()
-  }
+
+
+  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
+  // FIXME
+    throw new NotImplementedError()
 
   def filterVariants(p: (Variant) => Boolean) = {
     val localSamplePredicate = samplePredicate
@@ -138,7 +142,7 @@ class ManagedVSM[T](val sampleIds: Array[String],
     .zip(a)
     .toMap
   }
-  
+
   def aggregateByVariantWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] = {
@@ -152,7 +156,7 @@ class ManagedVSM[T](val sampleIds: Array[String],
                  .aggregate(x)({ case (x2, (s, g)) => seqOp(x2, gs.variant, s, localMapFn(gs.variant, s, g)) }, combOp),
       combOp)
   }
-  
+
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
@@ -180,7 +184,7 @@ class ManagedVSM[T](val sampleIds: Array[String],
 
     filteredNums.toVector.zip(a).toMap
   }
-  
+
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn

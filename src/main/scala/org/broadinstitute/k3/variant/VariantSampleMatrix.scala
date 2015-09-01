@@ -33,6 +33,7 @@ abstract class VariantSampleMatrix[T] {
   def nSamples: Int
 
   def nVariants: Long
+  def variants: RDD[Variant]
 
   def nPartitions: Int
 
@@ -53,6 +54,10 @@ abstract class VariantSampleMatrix[T] {
   def mapValues[U](f: (T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U] = {
     mapValuesWithKeys((v, s, g) => f(g))
   }
+
+  def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U]
+  def map[U](f: T => U)(implicit uct: ClassTag[U]): RDD[U] =
+    mapWithKeys((v, s, g) => f(g))
 
   def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U]
   def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =

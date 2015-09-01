@@ -38,6 +38,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
   def nSamples: Int = sampleIds.length
 
   def nVariants: Long = rdd.count()
+  def variants: RDD[Variant] = rdd.keys
 
   def cache(): SparkyVSM[T, S] =
     new SparkyVSM[T, S](sampleIds, rdd.cache())
@@ -46,8 +47,6 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
     new SparkyVSM[T, S](sampleIds, rdd.repartition(nPartitions))
 
   def nPartitions: Int = rdd.partitions.size
-
-  def variants: Array[Variant] = rdd.map(_._1).collect()
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -77,6 +76,11 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
     new SparkyVSM[U, Vector[(Int, U)]](sampleIds,
       rdd
       .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toVector) })
+  }
+
+  def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
+    rdd
+    .flatMap{ case (v, gs) => gs.map{ case (s, g) => f(v, s, g) }}
   }
 
   def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {

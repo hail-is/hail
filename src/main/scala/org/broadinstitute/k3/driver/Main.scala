@@ -2,6 +2,7 @@ package org.broadinstitute.k3.driver
 
 import java.io.{File, FileWriter}
 
+import org.apache.spark.mllib.linalg.{Vector => SVector}
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.k3.variant.vsm.{ManagedVSM, SparkyVSM, TupleVSM}
 import org.broadinstitute.k3.variant.{Genotype, VariantSampleMatrix, Variant, VariantDataset}
@@ -32,6 +33,7 @@ object Main {
     System.err.println("commands:")
     System.err.println("  count")
     System.err.println("  gqbydp <output .tsv>")
+    System.err.println("  pca <output .tsv>")
     System.err.println("  repartition <nPartitions> <output .vds>")
     System.err.println("  sampleqc <output .tsv>")
     System.err.println("  variantqc <output .tsv>")
@@ -238,6 +240,30 @@ object Main {
             case None => fw.write("\t-")
           }
         }
+        fw.write("\n")
+      }
+
+      fw.close()
+    } else if (command ==  "pca") {
+      if (argi != args.length - 1)
+        fatal("pca: unexpected arguments")
+
+      val output = args(argi)
+      argi += 1
+
+      val k = 10
+      val samplePCs = new SamplePCA(k)(vds)
+
+      val fw = new FileWriter(new File(output))
+      fw.write("sample")
+      for (i <- 0 until k)
+        fw.write("\t" + "PC" + i)
+      fw.write("\n")
+
+      for (i <- 0 until vds.nSamples) {
+        fw.write(vds.sampleIds(i))
+        for (j <- 0 until k)
+          fw.write("\t" + samplePCs(i)(j))
         fw.write("\n")
       }
 
