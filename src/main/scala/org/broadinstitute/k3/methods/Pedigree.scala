@@ -10,10 +10,7 @@ object TryOut {
 
   def main(args: Array[String]) {
     val ped = Pedigree.read("src/test/resources/sample_mendel.fam")
-    ped.write("src/test/resources/sample_mendel2.fam")
-    val ped2 = Pedigree.read("src/test/resources/sample_mendel2.fam")
-    println(ped)
-    println(ped == ped2)
+    ped.writeSummary("/tmp/sample_mendal.sumfam")
   }
 }
 
@@ -32,45 +29,54 @@ object Phenotype extends Enumeration {
 import org.broadinstitute.k3.methods.Phenotype._
 import org.broadinstitute.k3.methods.Sex._
 
-case class TrioData(famID: Option[String], kidID: String, dadID: Option[String], momID: Option[String],
-                    sex: Option[Sex], pheno: Option[Phenotype]) {
+case class Trio(famID: Option[String], kidID: String, dadID: Option[String], momID: Option[String],
+                sex: Option[Sex], pheno: Option[Phenotype]) {
 
   def write(fw: FileWriter) =
     fw.write(famID.getOrElse("0") + "\t" + kidID + "\t" + dadID.getOrElse("0") + "\t" + momID.getOrElse("0") + "\t" +
-        sex.getOrElse("0") + "\t" + pheno.getOrElse("0") + "\n")
+      sex.getOrElse("0") + "\t" + pheno.getOrElse("0") + "\n")
 
+  //
   def isMale: Boolean = sex == Some(Male)
   def isFemale: Boolean = sex == Some(Female)
   def noSex: Boolean = sex.isEmpty
   def isCase: Boolean = pheno == Some(Case)
   def isControl: Boolean = pheno == Some(Control)
   def noPheno: Boolean = pheno.isEmpty
-  def isTrio: Boolean = dadID.isDefined && momID.isDefined
+  def hasDad: Boolean = dadID.isDefined
+  def hasMom: Boolean = momID.isDefined
+  def hasDadMom: Boolean = hasDad && hasMom
 }
 
 object Pedigree {
-  def read(file: String): Pedigree = {  // FIXME: check for non-identical lines with same kidID
-    require(file.endsWith(".fam"))
+  def apply(trios: Traversable[Trio]): Pedigree = {
+    new Pedigree(trios.map(t => t.kidID -> t).toMap)
+  }
 
-    new Pedigree(Source.fromFile(new File(file))
+  def read(file: String): Pedigree = {
+    require(file.endsWith(".fam"))
+    def maybeField(s: String): Option[String] = if (s != "0") Some(s) else None
+
+    Pedigree(Source.fromFile(new File(file))
       .getLines()
       .filter(line => !line.isEmpty)
-      .map{ line =>
-      val fields: Array[String] = line.split("\\s+")
-      assert(fields.length == 6)
-      val famID = if (fields(0) != "0") Some(fields(0)) else None
-      val kidID = fields(1)
-      val dadID = if (fields(2) != "0") Some(fields(2)) else None
-      val momID = if (fields(3) != "0") Some(fields(3)) else None
-      val sex = Sex.maybeWithName(fields(4))
-      val pheno = Phenotype.maybeWithName(fields(5))
+      .map { line => // FIXME: proper input error handling (and possible conflicting trio handing)
+      val Array(famID, kidID, dadID, momID, sex, pheno) = line.split("\\s+")
 
-      (kidID, TrioData(famID, kidID, dadID, momID, sex, pheno))}
-      .toMap)
+      Trio(maybeField(famID), kidID, maybeField(dadID), maybeField(momID),
+        Sex.maybeWithName(sex), Phenotype.maybeWithName(pheno))
+      }
+      .toTraversable
+    )
   }
 }
 
-class Pedigree(val trioMap: Map[KidID, TrioData]) {
+class Pedigree(val trioMap: Map[String, Trio]) {
+
+  val kidsOfParent: Map[String, List[String]] =
+    trios.flatMap(t => t.momID.map(_ -> t.kidID).toList ++ t.dadID.map(_ -> t.kidID).toList)
+      .groupBy(_._1)   // FIXME: implement groupByKey
+      .map{ case (parentID, parentKidIDs) => (parentID, parentKidIDs.map(_._2).toList) }
 
   override def equals(that: Any): Boolean = that match {
     case that: Pedigree => this.trioMap == that.trioMap
@@ -79,37 +85,40 @@ class Pedigree(val trioMap: Map[KidID, TrioData]) {
 
   override def toString = trioMap.toString()
 
-  def trios: Pedigree = new Pedigree(trioMap.filter{ case (k,v) => v.isTrio })
+  def trios = trioMap.values
 
-  def nSat(filters: (TrioData => Boolean)*): Int = trioMap.count{ case (k,v) => filters.forall(_(v)) }
+  def nSatisfying(filters: (Trio => Boolean)*): Int = trioMap.count{ case (k,v) => filters.forall(_(v)) }
 
   // FIXME: nFam based on famID, but can do some inference even when famID's are missing
   def nFam: Int = trioMap.map{ case (k,v) => v.famID }.filter(_.isDefined).toSet.size  // FIXME: add distinct
   def nIndiv: Int = trioMap.size
-  def nTrio: Int = nSat(_.isTrio)
+  def nBothParents: Int = nSatisfying(_.hasDadMom)
 
   def writeSummary(file: String) = {
     val fw = new FileWriter(new File(file))
 
     val columns = List(
-      ("nFam", nFam), ("nIndiv", nIndiv), ("nTrio", nTrio),
-      ("nMale", nSat(_.isMale)), ("nFemale", nSat(_.isFemale)),
-      ("nCase", nSat(_.isCase)), ("nControl", nSat(_.isControl)),
-      ("nMaleTrio", nSat(_.isTrio, _.isMale)), ("nFemaleTrio", nSat(_.isTrio, _.isFemale)),
-      ("nCaseTrio", nSat(_.isTrio, _.isCase)), ("nControlTrio", nSat(_.isTrio, _.isControl)),
-      ("nCaseMaleTrio", nSat(_.isTrio, _.isCase, _.isMale)),
-      ("nCaseFemaleTrio", nSat(_.isTrio, _.isCase, _.isFemale)),
-      ("nControlMaleTrio", nSat(_.isTrio, _.isControl, _.isMale)),
-      ("nControlFemaleTrio", nSat(_.isTrio, _.isControl, _.isFemale)))
+      ("nFam", nFam), ("nIndiv", nIndiv), ("nTrio", nBothParents),
+      ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
+      ("nCase", nSatisfying(_.isCase)), ("nControl", nSatisfying(_.isControl)),
+      ("nMaleTrio", nSatisfying(_.hasDadMom, _.isMale)),
+      ("nFemaleTrio", nSatisfying(_.hasDadMom, _.isFemale)),
+      ("nCaseTrio", nSatisfying(_.hasDadMom, _.isCase)),
+      ("nControlTrio", nSatisfying(_.hasDadMom, _.isControl)),
+      ("nCaseMaleTrio", nSatisfying(_.hasDadMom, _.isCase, _.isMale)),
+      ("nCaseFemaleTrio", nSatisfying(_.hasDadMom, _.isCase, _.isFemale)),
+      ("nControlMaleTrio", nSatisfying(_.hasDadMom, _.isControl, _.isMale)),
+      ("nControlFemaleTrio", nSatisfying(_.hasDadMom, _.isControl, _.isFemale)))
 
     fw.write(columns.map(_._1).mkString("\t") + "\n")
     fw.write(columns.map(_._2).mkString("\t") + "\n")
     fw.close() // FIXME
   }
 
-  def write(file: String) {
-    val fw = new FileWriter(new File(file))
-    trioMap.values.foreach(_.write(fw))
-    fw.close()  // FIXME
+  def write(filename: String) {
+    cleanly[FileWriter, Unit](new FileWriter(new File(filename)),
+    fw => fw.close(), { fw =>
+      trioMap.values.foreach(_.write(fw))
+    })
   }
 }

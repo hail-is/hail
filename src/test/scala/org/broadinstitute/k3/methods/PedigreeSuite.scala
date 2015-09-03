@@ -6,26 +6,24 @@ import org.testng.annotations.Test
 class PedigreeSuite extends TestNGSuite {
   @Test def testPedigree() {
 
-    val file = "src/test/resources/sample_mendel.fam"
-    val file2 = "src/test/resources/sample_mendel2.fam"
-    val ped = Pedigree.read(file)
-    ped.write(file2)
-    val ped2 = Pedigree.read(file2)
-    assert(ped == ped2)
+    val ped = Pedigree.read("src/test/resources/sample_mendel.fam")
+    ped.write("/tmp/sample_mendel.fam")  // FIXME: this is not right
+    val pedwr = Pedigree.read("/tmp/sample_mendel.fam")
+    assert(ped == pedwr)
 
-    assert(ped.trios.nIndiv == ped.nTrio)
+    val pedBothParents = new Pedigree(ped.trioMap.filter{ case (k,t) => t.hasDadMom })
+    assert(pedBothParents.nIndiv == ped.nBothParents)
 
     assert(ped.nFam == 4 && ped.nIndiv == 11)
-
-    assert(ped.nSat(_.isMale) == 5 && ped.nSat(_.isFemale) == 5)
-
-    assert(ped.nSat(_.isCase) == 4 && ped.nSat(_.isControl) == 3)
-
-    assert(ped.nTrio == 3 && ped.nSat(_.isTrio, _.isMale) == 2 && ped.nSat(_.isTrio, _.isFemale) == 1 &&
-      ped.nSat(_.isTrio, _.isCase) == 2 && ped.nSat(_.isTrio, _.isControl) == 1)
-
-    assert(ped.nSat(_.isTrio, _.isCase, _.isMale) == 1 && ped.nSat(_.isTrio, _.isCase, _.isFemale) == 1 &&
-      ped.nSat(_.isTrio, _.isControl, _.isMale) == 1 && ped.nSat(_.isTrio, _.isControl, _.isFemale) == 0)
+    assert(ped.nSatisfying(_.isMale) == 5 && ped.nSatisfying(_.isFemale) == 5)
+    assert(ped.nSatisfying(_.isCase) == 4 && ped.nSatisfying(_.isControl) == 3)
+    assert(ped.nBothParents == 3 &&
+      ped.nSatisfying(_.hasDadMom, _.isMale) == 2 && ped.nSatisfying(_.hasDadMom, _.isFemale) == 1 &&
+      ped.nSatisfying(_.hasDadMom, _.isCase) == 2 && ped.nSatisfying(_.hasDadMom, _.isControl) == 1)
+    assert(ped.nSatisfying(_.hasDadMom, _.isCase, _.isMale) == 1 &&
+      ped.nSatisfying(_.hasDadMom, _.isCase, _.isFemale) == 1 &&
+      ped.nSatisfying(_.hasDadMom, _.isControl, _.isMale) == 1 &&
+      ped.nSatisfying(_.hasDadMom, _.isControl, _.isFemale) == 0)
 
   }
 }

@@ -245,4 +245,13 @@ object Utils {
   def fail() {
     assert(false)
   }
+
+  def cleanly[R, T](resource: => R, clean: R => Unit, body: R => T): T = {
+    val r = resource
+    try {
+      body(r)
+    } finally {
+      clean(r)
+    }
+  }
 }
