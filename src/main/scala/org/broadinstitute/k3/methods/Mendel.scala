@@ -25,7 +25,7 @@ case class lMendel()
 
 
 object Mendel {
-  def mendel(vds: VariantDataset, ped: Pedigree):  = {
+  def mendel(vds: VariantDataset, ped: Pedigree): Int = {
     7
   }
 }

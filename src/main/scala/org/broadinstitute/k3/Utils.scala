@@ -172,6 +172,11 @@ class RichIndexedRow(r: IndexedRow) {
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
 }
 
+class RichEnumeration[T <: Enumeration](e: T) {
+  def maybeWithName(name: String): Option[T#Value] =
+    e.values.find(_.toString == name)
+}
+
 object Utils {
   implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)
 
@@ -233,6 +238,9 @@ object Utils {
     def apply(a: BVector[Double], b: IndexedRow): IndexedRow =
       new IndexedRow(b.index, a + toBVector(b.vector))
   }
+
+  implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] =
+    new RichEnumeration(e)
 
   def fail() {
     assert(false)
