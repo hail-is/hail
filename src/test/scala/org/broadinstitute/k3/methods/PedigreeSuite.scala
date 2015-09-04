@@ -14,7 +14,7 @@ class PedigreeSuite extends TestNGSuite {
     val pedBothParents = new Pedigree(ped.trioMap.filter{ case (k,t) => t.hasDadMom })
     assert(pedBothParents.nIndiv == ped.nBothParents)
 
-    assert(ped.nFam == 4 && ped.nIndiv == 11)
+    assert(ped.nFam == 5 && ped.nIndiv == 11)
     assert(ped.nSatisfying(_.isMale) == 5 && ped.nSatisfying(_.isFemale) == 5)
     assert(ped.nSatisfying(_.isCase) == 4 && ped.nSatisfying(_.isControl) == 3)
     assert(ped.nBothParents == 3 &&

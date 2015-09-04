@@ -79,7 +79,7 @@ object Mendel {
     }
 
     def roleInTrio(id: String, t: Trio): Int = // dad = 1, mom = 2
-      if (Some(id) == t.dadID) 1 else 2
+      if (t.dadID.contains(id)) 1 else 2
 
     val sampleIds = vds.sparkContext.broadcast(vds.sampleIds)
     val localPed = vds.sparkContext.broadcast(ped)

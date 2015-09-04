@@ -37,11 +37,11 @@ case class Trio(famID: Option[String], kidID: String, dadID: Option[String], mom
       sex.getOrElse("0") + "\t" + pheno.getOrElse("0") + "\n")
 
   //
-  def isMale: Boolean = sex == Some(Male)
-  def isFemale: Boolean = sex == Some(Female)
+  def isMale: Boolean = sex.contains(Male)
+  def isFemale: Boolean = sex.contains(Female)
   def noSex: Boolean = sex.isEmpty
-  def isCase: Boolean = pheno == Some(Case)
-  def isControl: Boolean = pheno == Some(Control)
+  def isCase: Boolean = pheno.contains(Case)
+  def isControl: Boolean = pheno.contains(Control)
   def noPheno: Boolean = pheno.isEmpty
   def hasDad: Boolean = dadID.isDefined
   def hasMom: Boolean = momID.isDefined
@@ -71,7 +71,7 @@ object Pedigree {
   }
 }
 
-case class Pedigree(val trioMap: Map[String, Trio]) {
+case class Pedigree(trioMap: Map[String, Trio]) {
 
   override def equals(that: Any): Boolean = that match {
     case that: Pedigree => this.trioMap == that.trioMap
