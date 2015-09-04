@@ -29,7 +29,7 @@ case class Variant(contig: String,
     else
       Complex
   }
-
+  
   def onX: Boolean = contig == "X"
 
   def isSNP: Boolean = (ref.length == 1 && alt.length == 1) ||

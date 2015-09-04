@@ -95,6 +95,17 @@ case class Genotype(private val gt: Int,
 
     b.result()
   }
+
+  def gtString(v: Variant): String = {
+    if (isHomRef)
+      v.ref + "/" + v.ref
+    else if (isHet)
+      v.ref + "/" + v.alt
+    else if (isHomVar)
+      v.alt + "/" + v.alt
+    else
+      "./."
+  }
 }
 
 object Genotype {

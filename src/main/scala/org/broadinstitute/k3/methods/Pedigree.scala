@@ -6,7 +6,7 @@ import org.broadinstitute.k3.Utils._
 
 import scala.io.Source
 
-object TryOut {
+object TryOutPedigree {
 
   def main(args: Array[String]) {
     val ped = Pedigree.read("src/test/resources/sample_mendel.fam")
@@ -71,17 +71,18 @@ object Pedigree {
   }
 }
 
-class Pedigree(val trioMap: Map[String, Trio]) {
-
-  val kidsOfParent: Map[String, List[String]] =
-    trios.flatMap(t => t.momID.map(_ -> t.kidID).toList ++ t.dadID.map(_ -> t.kidID).toList)
-      .groupBy(_._1)   // FIXME: implement groupByKey
-      .map{ case (parentID, parentKidIDs) => (parentID, parentKidIDs.map(_._2).toList) }
+case class Pedigree(val trioMap: Map[String, Trio]) {
 
   override def equals(that: Any): Boolean = that match {
     case that: Pedigree => this.trioMap == that.trioMap
     case _ => false
   }
+
+  val kidsOfParent: Map[String, List[String]] =
+    trios.flatMap(t => t.momID.map(_ -> t.kidID).toList ++ t.dadID.map(_ -> t.kidID).toList)
+      .groupBy(_._1)   // FIXME: implement groupByKey
+      .map{ case (parentID, parentKidIDs) => (parentID, parentKidIDs.map(_._2).toList) }
+      .withDefaultValue(List())
 
   override def toString = trioMap.toString()
 
