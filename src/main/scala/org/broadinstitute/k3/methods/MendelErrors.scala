@@ -182,13 +182,13 @@ case class MendelErrors(ped:          Pedigree,
         nuclearFams.value((dad, mom)).size + "\t" + nError + "\n"
     }
     val lines = nErrorPerNuclearFamily.map((toLine _).tupled).collect()
-    writeTable(filename, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
+    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
   }
 
   def writeMendelI(filename: String) {
     def toLine(s: Int, nError: Int): String =
       famOf.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + nError + "\n"
     val lines = nErrorPerIndiv.map((toLine _).tupled).collect()
-    writeTable(filename, lines, "FID\tIID\tN\n")
+    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\n")
   }
 }

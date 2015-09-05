@@ -2,8 +2,12 @@ package org.broadinstitute.k3.variant
 
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
+import org.apache.hadoop
 
 class IntervalListSuite extends TestNGSuite {
+  // FIXME will this work?
+  val hConf = new hadoop.conf.Configuration()
+
   @Test def test() {
     val ilist = IntervalList(List(
       Interval("1", 10, 20),
@@ -23,8 +27,9 @@ class IntervalListSuite extends TestNGSuite {
     assert(!ilist.contains("3", 0))
 
     val ex1 = IntervalList.read("src/test/resources/example1.interval_list")
+
     // FIXME This is not the right way to handle tmp files.  See issue #60.
-    ex1.write("/tmp/example1.interval_list")
+    ex1.write("/tmp/example1.interval_list", hConf)
     val ex1wr = IntervalList.read("/tmp/example1.interval_list")
     assert(ex1wr == ex1)
 

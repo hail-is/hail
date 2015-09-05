@@ -1,11 +1,10 @@
 package org.broadinstitute.k3.variant.vsm
 
-import java.io._
-
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.k3.variant._
+import org.broadinstitute.k3.Utils._
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -13,40 +12,30 @@ import scala.reflect.runtime.universe._
 
 object TupleVSM {
   def apply(metadata: VariantMetadata,
-            rdd: RDD[(Variant, GenotypeStream)]) =
+    rdd: RDD[(Variant, GenotypeStream)]) =
     new TupleVSM(metadata,
       rdd.flatMap { case (v, gs) => gs.iterator.map { case (s, g) => (v, s, g) } })
 
-  def read(sqlContext: SQLContext, dirname: String): TupleVSM[Genotype] = {
+  def read(sqlContext: SQLContext, dirname: String, metadata: VariantMetadata): TupleVSM[Genotype] = {
+    import RichRow._
     require(dirname.endsWith(".vds"))
 
-    val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
-
-    val metadataObj = metadataOis.readObject()
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-
     df.printSchema()
-
-    val metadata = metadataObj match {
-      case t: VariantMetadata => t
-      case _ => throw new ClassCastException
-    }
-
-    import RichRow._
     new TupleVSM[Genotype](metadata,
       df
-      .rdd
-      .map(r => (r.getVariant(0), r.getInt(1), r.getGenotype(2))))
+        .rdd
+        .map(r => (r.getVariant(0), r.getInt(1), r.getGenotype(2))))
   }
 }
 
 class TupleVSM[T](val metadata: VariantMetadata,
-                  val rdd: RDD[(Variant, Int, T)])(implicit ttt: TypeTag[T], tct: ClassTag[T])
+  val rdd: RDD[(Variant, Int, T)])(implicit ttt: TypeTag[T], tct: ClassTag[T])
   extends VariantSampleMatrix[T] {
 
   override def nSamples: Int = sampleIds.length
 
-  def variants: RDD[Variant] = rdd.map(_._1).distinct
+  def variants: RDD[Variant] = rdd.map(_._1).distinct()
 
   def nVariants: Long = variants.count()
 
@@ -65,20 +54,20 @@ class TupleVSM[T](val metadata: VariantMetadata,
   def expand(): RDD[(Variant, Int, T)] = rdd
 
   def write(sqlContext: SQLContext, dirname: String) {
-    require(dirname.endsWith(".vds"))
-
-    new File(dirname).mkdir()
-
-    val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
-    metadataOos.writeObject(metadata)
-
     import sqlContext.implicits._
 
-    val df = rdd.toDF()
-    df.write.parquet(dirname + "/rdd.parquet")
+    require(dirname.endsWith(".vds"))
+
+    val hConf = sparkContext.hadoopConfiguration
+    hadoopMkdir(dirname, hConf)
+    writeObjectFile(dirname + "/metadata.ser", hConf)(
+      _.writeObject("tuple" -> metadata)
+    )
+
+    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): TupleVSM[U] = {
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): TupleVSM[U] = {
     new TupleVSM[U](metadata,
       rdd.map { case (v, s, g) => (v, s, f(v, s, g)) })
   }
@@ -104,9 +93,9 @@ class TupleVSM[T](val metadata: VariantMetadata,
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): Map[Int, U] = {
 
     rdd
-    .map { case (v, s, g) => (s, (v, s, g)) }
-    .aggregateByKey(zeroValue)({ case (u, (v, s, g)) => seqOp(u, v, s, g) }, combOp)
-    .collectAsMap().toMap
+      .map { case (v, s, g) => (s, (v, s, g)) }
+      .aggregateByKey(zeroValue)({ case (u, (v, s, g)) => seqOp(u, v, s, g) }, combOp)
+      .collectAsMap().toMap
   }
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
@@ -114,20 +103,20 @@ class TupleVSM[T](val metadata: VariantMetadata,
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] = {
 
     rdd
-    .map { case (v, s, g) => (v, (v, s, g)) }
-    .aggregateByKey(zeroValue)({ case (u, (v, s, g)) => seqOp(u, v, s, g) }, combOp)
+      .map { case (v, s, g) => (v, (v, s, g)) }
+      .aggregateByKey(zeroValue)({ case (u, (v, s, g)) => seqOp(u, v, s, g) }, combOp)
   }
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
     rdd
-    .map { case (v, s, g) => (s, g) }
-    .foldByKey(zeroValue)(combOp)
-    .collectAsMap().toMap
+      .map { case (v, s, g) => (s, g) }
+      .foldByKey(zeroValue)(combOp)
+      .collectAsMap().toMap
   }
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {
     rdd
-    .map { case (v, s, g) => (v, g) }
-    .foldByKey(zeroValue)(combOp)
+      .map { case (v, s, g) => (v, g) }
+      .foldByKey(zeroValue)(combOp)
   }
 }

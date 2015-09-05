@@ -16,6 +16,7 @@ object GenotypeType extends Enumeration {
 
 import org.broadinstitute.k3.variant.GenotypeType.{GenotypeType}
 
+// FIXME all optional...
 case class Genotype(private val gt: Int,
                     ad: (Int, Int),
                     dp: Int,

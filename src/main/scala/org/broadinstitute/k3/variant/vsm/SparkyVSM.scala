@@ -1,42 +1,36 @@
 package org.broadinstitute.k3.variant.vsm
 
-import java.io._
-
-import org.apache.spark.SparkContext
+import java.nio.ByteBuffer
+import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.k3.Utils._
 import org.broadinstitute.k3.variant._
-
+import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
 object SparkyVSM {
-  def read(sqlContext: SQLContext, dirname: String): SparkyVSM[Genotype, GenotypeStream] = {
+  def read(sqlContext: SQLContext, dirname: String, metadata: VariantMetadata): SparkyVSM[Genotype, GenotypeStream] = {
+    import RichRow._
+
     require(dirname.endsWith(".vds"))
 
-    val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
-
-    val metadataObj = metadataOis.readObject()
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-
-    val metadata = metadataObj match {
-      case t: VariantMetadata => t
-      case _ => throw new ClassCastException
-    }
-
-    import RichRow._
     new SparkyVSM(metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 }
 
 class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
-                                            val rdd: RDD[(Variant, S)])
-                                           (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S])
+  val rdd: RDD[(Variant, S)])
+  (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S],
+    atct: ClassTag[Array[T]], vct: ClassTag[Variant],
+    itct: ClassTag[(Int, T)])
   extends VariantSampleMatrix[T] {
 
   def nVariants: Long = rdd.count()
+
   def variants: RDD[Variant] = rdd.keys
 
   def cache(): SparkyVSM[T, S] =
@@ -51,52 +45,46 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
 
   def count(): Long = rdd.count() // should this be nVariants instead?
 
-  def expand(): RDD[(Variant, Int, T)] = {
-    rdd.flatMap { case (v, gs) =>
-      gs.map { case (s, g) => (v, s, g) }
-    }
-  }
+  def expand(): RDD[(Variant, Int, T)] =
+    mapWithKeys((v, s, g) => (v, s, g))
 
   def write(sqlContext: SQLContext, dirname: String) {
-    require(dirname.endsWith(".vds"))
-
-    new File(dirname).mkdir()
-
-    val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
-    metadataOos.writeObject(metadata)
-
     import sqlContext.implicits._
 
-    val df = rdd.toDF()
-    df.write.parquet(dirname + "/rdd.parquet")
+    require(dirname.endsWith(".vds"))
+
+    val hConf = sparkContext.hadoopConfiguration
+    hadoopMkdir(dirname, hConf)
+    writeObjectFile(dirname + "/metadata.ser", hConf)(
+    _.writeObject("sparky" -> metadata))
+
+    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): SparkyVSM[U, Vector[(Int, U)]] = {
-    new SparkyVSM[U, Vector[(Int, U)]](metadata,
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)
+    (implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): SparkyVSM[U, mutable.WrappedArray[(Int, U)]] = {
+    new SparkyVSM[U, mutable.WrappedArray[(Int, U)]](metadata,
       rdd
-      .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toVector) })
+        .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toArray(iuct): mutable.WrappedArray[(Int, U)]) })
   }
 
-  def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
+  def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] =
     rdd
-    .flatMap{ case (v, gs) => gs.map{ case (s, g) => f(v, s, g) }}
-  }
+      .flatMap { case (v, gs) => gs.iterator.map { case (s, g) => f(v, s, g) } }
 
-  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
+  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     rdd
-    .flatMap{ case (v, gs) => gs.flatMap{ case (s, g) => f(v, s, g) }}
-  }
+      .flatMap { case (v, gs) => gs.iterator.flatMap { case (s, g) => f(v, s, g) } }
 
-  // FIXME push down into reader: add VariantSampleDataframeMatrix?
-  def filterVariants(p: (Variant) => Boolean) = {
+  def filterVariants(p: (Variant) => Boolean) =
     new SparkyVSM[T, S](metadata,
       rdd.filter { case (v, gs) => p(v) })
-  }
 
   def filterSamples(p: (Int) => Boolean) = {
-    new SparkyVSM[T, Vector[(Int, T)]](metadata,
+    val localitct = itct
+    new SparkyVSM[T, mutable.WrappedArray[(Int, T)]](metadata,
       rdd.map { case (v, gs) =>
-        (v, gs.filter { case (s, v) => p(s) }.toVector)
+        (v, gs.iterator.filter { case (s, v) => p(s) }.toArray(localitct): mutable.WrappedArray[(Int, T)])
       })
   }
 
@@ -104,50 +92,56 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): Map[Int, U] = {
 
-    val zeroValueBySample = rdd.first()._2.map { case (s, g) => (s, zeroValue) }.toVector
+    val localSamples = rdd.first()._2.map(_._1)
+    val nLocalSamples = localSamples.size
 
-    rdd
-    .aggregate(zeroValueBySample)({
-      case (acc, (v, gs)) =>
-        acc.zipWith[(Int, T), (Int, U)](gs, { case ((s1, a), (s2, g)) => {
-          assert(s1 == s2)
-          (s1, seqOp(a, v, s1, g))
-        }
-        })
-    },
-    (acc1, acc2) => acc1.zipWith[(Int, U), (Int, U)](acc2, { case ((s1, a1), (s2, a2)) => (s1, combOp(a1, a2)) }))
-    .toMap
+    val rddZeroValue = Array.fill[U](nLocalSamples)(zeroValue)
+    val values = rdd.aggregate(rddZeroValue)({ case (acc, (v, gs)) =>
+      for (((s, g), i) <- gs.zipWithIndex)
+        acc(i) = seqOp(acc(i), v, s, g)
+      acc
+    }, (x, y) => x.zipWith(y, combOp)(uct))
+
+    localSamples.zip(values).toMap
   }
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] = {
     rdd
-    .map { case (v, gs) => (v, (v, gs)) }
-    .aggregateByKey(zeroValue)({
-      case (acc, (v, gs)) => gs.aggregate(acc)({ case (acc2, (s, g)) => seqOp(acc2, v, s, g) }, combOp)
-    },
-    combOp)
+      .map { case (v, gs) => (v, gs.foldLeft(zeroValue) { case (acc, (s, g)) =>
+      seqOp(acc, v, s, g)
+    })
+    }
   }
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
-    val bySampleZeroValue = rdd.first()._2.map { case (s, g) => (s, zeroValue) }.toVector
-    rdd
-    .aggregate(bySampleZeroValue)({
-      case (acc, (v, gs)) => acc.zipWith[(Int, T), (Int, T)](gs, { case ((s1, a), (s2, g)) => {
-        assert(s1 == s2)
-        (s1, combOp(a, g))
-      }
-      })
-    }, (a1, a2) => a1.zipWith[(Int, T), (Int, T)](a2, { case ((s1, a1), (s2, a2)) => (s1, combOp(a1, a2)) }))
-    .toMap
+    val localtct = tct
+
+    val localSamples = rdd.first()._2.map(_._1)
+
+    // Serialize the zero value to a byte array so that we can get a new clone of it on each key
+    val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
+    val zeroArray = new Array[Byte](zeroBuffer.limit)
+    zeroBuffer.get(zeroArray)
+
+    val serializer = SparkEnv.get.serializer.newInstance()
+    def createZero() = serializer.deserialize[T](ByteBuffer.wrap(zeroArray))
+
+    val byKeyZeroValue = Array.fill[T](localSamples.size)(createZero())
+
+    val values = rdd
+      .aggregate(byKeyZeroValue)((acc, vgs) => {
+      for ((sg, i) <- vgs._2.zipWithIndex)
+        acc(i) = combOp(acc(i), sg._2)
+      acc
+    }, (x, y) => x.zipWith(y, combOp)(localtct))
+
+    localSamples.zip(values).toMap
   }
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {
     rdd
-    .mapValues(gs => gs.map {
-      case (s, gs) => gs
-    }.fold(zeroValue)(combOp))
-    .foldByKey(zeroValue)(combOp)
+      .mapValues(_.foldLeft(zeroValue)((acc, ig) => combOp(acc, ig._2)))
   }
 }

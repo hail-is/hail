@@ -18,7 +18,7 @@ class SparkSuite extends TestNGSuite {
     // conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     sc = new SparkContext(conf)
-    val jar = getClass().getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     sc.addJar(jar)
 
     sqlContext = new org.apache.spark.sql.SQLContext(sc)

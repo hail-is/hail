@@ -3,6 +3,7 @@ package org.broadinstitute.k3.variant
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
+import org.broadinstitute.k3.Utils._
 import org.broadinstitute.k3.variant.vsm.{ManagedVSM, SparkyVSM, TupleVSM}
 
 import scala.reflect.ClassTag
@@ -19,10 +20,15 @@ object VariantSampleMatrix {
     }
   }
 
-  def read(sqlContext: SQLContext, vsmtype: String, dirname: String) = vsmtype match {
-    case "managed" => ManagedVSM.read(sqlContext, dirname)
-    case "sparky" => SparkyVSM.read(sqlContext, dirname)
-    case "tuple" => TupleVSM.read(sqlContext, dirname)
+  def read(sqlContext: SQLContext, dirname: String) = {
+    val (vsmType, metadata) = readObjectFile(dirname + "/metadata.ser", sqlContext.sparkContext.hadoopConfiguration)(
+      _.readObject().asInstanceOf[(String, VariantMetadata)])
+
+    vsmType match {
+      case "managed" => ManagedVSM.read(sqlContext, dirname, metadata)
+      case "sparky" => SparkyVSM.read(sqlContext, dirname, metadata)
+      case "tuple" => TupleVSM.read(sqlContext, dirname, metadata)
+    }
   }
 }
 
@@ -50,7 +56,7 @@ abstract class VariantSampleMatrix[T] {
 
   def write(sqlContext: SQLContext, dirname: String)
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U]
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): VariantSampleMatrix[U]
 
   def mapValues[U](f: (T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U] = {
     mapValuesWithKeys((v, s, g) => f(g))

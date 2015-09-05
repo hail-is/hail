@@ -1,274 +1,170 @@
 package org.broadinstitute.k3.driver
 
-import java.io.{File, FileWriter}
+import java.io.File
 
-import org.apache.spark.mllib.linalg.{Vector => SVector}
-import org.apache.spark.sql.SQLContext
-import org.broadinstitute.k3.variant.vsm.{ManagedVSM, SparkyVSM, TupleVSM}
-import org.broadinstitute.k3.variant._
-
-import scala.io.Source
-
-import org.apache.spark.{HashPartitioner, SparkContext, SparkConf}
-import org.apache.spark.SparkContext._
-import org.apache.spark.rdd._
-
-import org.broadinstitute.k3.methods._
-
+import org.apache.spark.{SparkContext, SparkConf}
+import org.broadinstitute.k3.Utils._
+import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
+import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.ClassTag
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
 
 object Main {
-  def usage() {
-    System.err.println("usage:")
-    System.err.println("")
-    System.err.println("  k3 <input> <command> [options...]")
-    System.err.println("")
-    System.err.println("<input> can be a .vcf, .vcf.gz, .vcfd or .vds file.")
-    System.err.println("")
-    System.err.println("options:")
-    System.err.println("  -h, --help: print usage")
-    System.err.println("  --master <master>: use Spark cluster master <master>")
-    System.err.println("  --vsmtype <type>: use VariantSampleMatrix implementation <type>")
-    System.err.println("")
-    System.err.println("commands:")
-    System.err.println("  count")
-    System.err.println("  gqbydp <output .tsv>")
-    System.err.println("  pca <output .tsv>")
-    System.err.println("  repartition <nPartitions> <output .vds>")
-    System.err.println("  sampleqc <output .tsv>")
-    System.err.println("  variantqc <output .tsv>")
-    System.err.println("  write <output .vds>")
-  }
 
-  def fatal(msg: String): Nothing = {
-    System.err.println("k3: " + msg)
-    System.exit(1)
-    throw new AssertionError
+  class Options {
+    @Args4jOption(required = false, name = "-h", aliases = Array("--help"), usage = "Print usage")
+    var printUsage: Boolean = false
+
+    @Args4jOption(required = false, name = "--master", usage = "Set Spark master (default: system default or local)")
+    var master: String = _
+
+    @Args4jOption(required = false, name = "--noisy", usage = "Enable Spark INFO messages")
+    var noisy = false
   }
 
   def main(args: Array[String]) {
-    if (args.exists(a => a == "-h" || a == "--help")) {
-      usage()
-      System.exit(0)
+
+    println("user.dir = " + System.getProperty("user.dir"))
+
+    def splitBefore[T](a: Array[T], p: (T) => Boolean)
+      (implicit tct: ClassTag[T]): Array[Array[T]] = {
+      val r = mutable.ArrayBuilder.make[Array[T]]()
+      val b = mutable.ArrayBuilder.make[T]()
+      a.foreach { (x: T) =>
+        if (p(x)) {
+          r += b.result()
+          b.clear()
+        }
+        b += x
+      }
+      r += b.result()
+      b.clear()
+      r.result()
+    }
+    /*
+    def splitBefore[T](a: Array[T], p: (T) => Boolean)
+      (implicit tct: ClassTag[T]): Array[Array[T]] =
+      a.foldLeft(Array[Array[T]](Array.empty[T])) {
+        (acc: Array[Array[T]], s: T) => if (p(s))
+          acc :+ Array(s)
+        else
+          acc.init :+ (acc.last :+ s)
+      }
+    */
+    val commands = Array(
+      Cache, Count, FilterVariants, GQByDP, PCA, Read, Repartition, SampleQC, VariantQC, Write
+    )
+
+    val nameCommand = commands
+      .map(c => (c.name, c))
+      .toMap
+
+    val splitArgs: Array[Array[String]] = splitBefore[String](args, (arg: String) => nameCommand.contains(arg))
+
+    val globalArgs = splitArgs(0)
+
+    val options = new Options
+    val parser = new CmdLineParser(options)
+    try {
+      parser.parseArgument((globalArgs: Iterable[String]).asJavaCollection)
+      if (options.printUsage) {
+        println("usage: k3 [<global options>] <cmd1> [<cmd1 args>]")
+        println("          [<cmd2> [<cmd2 args>] ... <cmdN> [<cmdN args>]]")
+        println("")
+        println("global options:")
+        new CmdLineParser(new Options).printUsage(System.out)
+        println("")
+        println("commands:")
+        val maxLen = commands.map(_.name.size).max
+        commands.foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.size + 2))
+          + cmd.description))
+        sys.exit(0)
+      }
+    } catch {
+      case e: CmdLineException =>
+        println(e.getMessage)
+        sys.exit(1)
     }
 
-    if (args.length < 2)
-      fatal("too few arguments")
+    if (splitArgs.size == 1)
+      fatal("no commands given")
+    val invocations = splitArgs.tail
 
-    var vsmtype = "sparky"
-    var master = "local[*]"
-    var command: String = null
-    var input: String = null
-    var filter: String = null
+    if (!options.noisy) {
+      Logger.getLogger("org").setLevel(Level.OFF)
+      Logger.getLogger("akka").setLevel(Level.OFF)
+    }
 
-    var argi = 0
-    var mainArgsDone = false
-    do {
-      if (argi == args.length) {
-        fatal("too few arguments")
-        System.exit(0)
-      }
+    val conf = new SparkConf().setAppName("K3")
+    if (options.master != null)
+      conf.setMaster(options.master)
+    else if (!conf.contains("spark.master"))
+      conf.setMaster("local")
 
-      val arg = args(argi)
-      argi += 1
-      arg match {
-        case "--master" =>
-          if (argi == args.length)
-            fatal("--master: argument expected")
-          master = args(argi)
-          argi += 1
-        case "--vsmtype" =>
-          if (argi == args.length)
-            fatal("--vsmtype: argument expected")
-          vsmtype = args(argi)
-          argi += 1
-        case "--filter" =>
-          if (argi == args.length)
-            fatal("--filter: argument expected")
-          filter = args(argi)
-          argi += 1
-        case s: String if s(0) == '-' =>
-          fatal("unknown option `" + s + "'")
-        case s: String =>
-          if (input == null)
-            input = s
-          else if (command == null) {
-            command = s
-            mainArgsDone = true
-          }
-      }
-    } while (!mainArgsDone)
-    assert(command != null && input != null)
-
-    println("k3: master = " + master)
-    println("k3: vsmtype = " + vsmtype)
-    println("k3: command = " + command)
-    println("k3: input = " + input)
-
-    val conf = new SparkConf().setAppName("K3").setMaster(master)
     conf.set("spark.sql.parquet.compression.codec", "uncompressed")
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    // FIXME why isn't this getting picked up by from the configuration?
-    conf.set("spark.executor.memory", "8g")
-    conf.set("spark.driver.memory", "2g")
-
     val sc = new SparkContext(conf)
 
-    val jar = getClass().getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+    val hadoopConf = sc.hadoopConfiguration
+
+    // FIXME: when writing to S3, edit configuration files
+    hadoopConf.set(
+      "spark.sql.parquet.output.committer.class",
+      "org.apache.spark.sql.parquet.DirectParquetOutputCommitter")
+
+    hadoopConf.set("io.compression.codecs",
+      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.k3.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
+
+    val accessKeyID = System.getenv("AWS_ACCESS_KEY_ID")
+    if (accessKeyID != null) {
+      hadoopConf.set("fs.s3a.access.key", accessKeyID)
+      hadoopConf.set("fs.s3n.access.key", accessKeyID)
+    }
+    val secretAccessKey = System.getenv("AWS_ACCESS_KEY_ID")
+    if (secretAccessKey != null) {
+      hadoopConf.set("fs.s3a.secret.key", secretAccessKey)
+      hadoopConf.set("fs.s3n.secret.key", secretAccessKey)
+    }
+
+    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     sc.addJar(jar)
+
+    val installDir = new File(jar).getParent + "/.."
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
-    val rawVDS: VariantSampleMatrix[Genotype] =
-      if (input.endsWith(".vds")) {
-        VariantSampleMatrix.read(sqlContext, vsmtype, input)
-        .cache()
-      } else {
-        if (!input.endsWith(".vcf")
-          && !input.endsWith(".vcf.gz")
-          && !input.endsWith(".vcfd"))
-          fatal("unknown input file type")
+    // FIXME remove
+    def time[A](f: => A): (A, Double) = {
+      val s = System.nanoTime
+      val ret = f
+      val time = (System.nanoTime - s) / 1e6
+      (ret, time)
+    }
 
-        LoadVCF(sc, vsmtype, input)
+    val times = mutable.ArrayBuffer.empty[(String, Double)]
+
+    invocations.foldLeft(State(installDir, sc, sqlContext, null)) { case (s, args) =>
+      println("running: " + args.mkString(" "))
+      val cmdName = args(0)
+      nameCommand.get(cmdName) match {
+        case Some(cmd) =>
+          val (newS, duration) = time {cmd.run(s, args.tail)}
+          times += cmdName -> duration
+          println(args.mkString(" ") + ": " + duration + "ms")
+          newS
+        case None =>
+          fatal("unknown command `" + cmdName + "'")
       }
+    }
 
-    val vds: VariantDataset = if (filter != null) {
-      filter match {
-        case f if f.endsWith(".interval_list") =>
-          rawVDS.filterVariants(IntervalList.read(filter))
-        case "isSNP" =>
-          rawVDS.filterVariants(v => v.isSNP)
-        case "isIndel" =>
-          rawVDS.filterVariants(v => v.isIndel)
-        case _ =>
-          fatal("unknown filter option")
-      }
-    } else
-      rawVDS
+    sc.stop()
 
-    if (command == "write") {
-      if (argi != args.length - 1)
-        fatal("write: wrong number of arguments")
-      val output = args(argi)
-      argi += 1
-
-      vds.write(sqlContext, output)
-    } else if (command == "repartition") {
-      if (argi != args.length - 2)
-        fatal("repartition: too few arguments")
-
-      val nPartitions = args(argi).toInt
-      argi += 1
-      val output = args(argi)
-      argi += 1
-
-      vds
-      .repartition(nPartitions)
-      .write(sqlContext, output)
-    } else if (command == "count") {
-      if (argi != args.length)
-        fatal("count: unexpected arguments")
-
-      println("count = " + vds.count)
-    } else if (command == "sampleqc") {
-      if (argi != args.length - 1)
-        fatal("sampleqc: unexpected arguments")
-
-      val output = args(argi)
-      argi += 1
-
-      val sampleMethods: Array[SampleMethod[Any]] =
-        Array(nCalledPerSample, nNotCalledPerSample,
-          nHomRefPerSample, nHetPerSample, nHomVarPerSample,
-          nSNPPerSample, nIndelPerSample, nInsertionPerSample, nDeletionPerSample,
-          nSingletonPerSample, nTransitionPerSample, nTransversionPerSample,
-          rTiTvPerSample, rHeterozygosityPerSample, rHetHomPerSample, rDeletionInsertionPerSample)
-
-      SampleQC(output, vds, sampleMethods)
-    } else if (command == "variantqc") {
-      if (argi != args.length - 1)
-        fatal("variantqc: unexpected arguments")
-
-      val output = args(argi)
-      argi += 1
-
-      // FIXME joins bad
-      def inject[T](r: (String, RDD[(Variant, T)]))(implicit tt: ClassTag[T]) =
-        (Array[String](r._1),
-          r._2.mapValues[Array[Any]](v => Array[Any](v)))
-      def join[T](r1: (Array[String], RDD[(Variant, Array[Any])]), r2: (String, RDD[(Variant, T)])): (Array[String], RDD[(Variant, Array[Any])]) =
-        (r1._1 :+ r2._1,
-          r1._2
-          .join(r2._2)
-          .mapValues({ case (a, x) => a :+ x }))
-
-      val r0 = inject(nCalledPerVariant.run(vds))
-      val r1 = join(r0, nNotCalledPerVariant.run(vds))
-      val r2 = join(r1, nHomRefPerVariant.run(vds))
-      val r3 = join(r2, nHetPerVariant.run(vds))
-      val r4 = join(r3, nHomVarPerVariant.run(vds))
-      val r5 = join(r4, rHeterozygosityPerVariant.run(vds))
-      val r6 = join(r5, rHetHomPerVariant.run(vds))
-
-      VariantQC(output, vds, r6)
-    } else if (command == "gqbydp") {
-      if (argi != args.length - 1)
-        fatal("gqbydp: unexpected arguments")
-
-      val output = args(argi)
-      argi += 1
-
-      val fw = new FileWriter(new File(output))
-
-      val nBins = GQByDPBins.nBins
-      val binStep = GQByDPBins.binStep
-      val firstBinLow = GQByDPBins.firstBinLow
-
-      fw.write("sample")
-      for (b <- 0 until nBins) {
-        fw.write("\t" + GQByDPBins.binLow(b) + "-" + GQByDPBins.binHigh(b))
-      }
-      fw.write("\n")
-
-      val gqbydp = GQByDPBins(vds)
-      for (i <- vds.sampleIds.indices) {
-        fw.write(vds.sampleIds(i))
-        for (b <- 0 until GQByDPBins.nBins) {
-          gqbydp.get((i, b)) match {
-            case Some(percentGQ) => fw.write("\t" + percentGQ)
-            case None => fw.write("\t-")
-          }
-        }
-        fw.write("\n")
-      }
-
-      fw.close()
-    } else if (command ==  "pca") {
-      if (argi != args.length - 1)
-        fatal("pca: unexpected arguments")
-
-      val output = args(argi)
-      argi += 1
-
-      val k = 10
-      val samplePCs = new SamplePCA(k)(vds)
-
-      val fw = new FileWriter(new File(output))
-      fw.write("sample")
-      for (i <- 0 until k)
-        fw.write("\t" + "PC" + i)
-      fw.write("\n")
-
-      for (i <- 0 until vds.nSamples) {
-        fw.write(vds.sampleIds(i))
-        for (j <- 0 until k)
-          fw.write("\t" + samplePCs(i)(j))
-        fw.write("\n")
-      }
-
-      fw.close()
-    } else
-      fatal("unknown command: " + command)
+    println("timing:")
+    times.foreach { case (name, duration) =>
+      println("  " + name + ": " + duration)
+    }
   }
 }

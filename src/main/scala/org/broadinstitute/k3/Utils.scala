@@ -1,8 +1,10 @@
 package org.broadinstitute.k3
 
-import java.io.{File, FileWriter}
+import java.io._
+import java.net.URI
 
 import breeze.linalg.operators.{OpSub, OpAdd}
+import org.apache.hadoop
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 
@@ -13,6 +15,8 @@ import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVe
 import org.apache.spark.SparkContext._
 
 import org.broadinstitute.k3.Utils._
+
+import scala.reflect.ClassTag
 
 import scala.reflect.ClassTag
 
@@ -169,6 +173,28 @@ class RichIteratorOfByte(i: Iterator[Byte]) {
 
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
+
+  // FIXME unify with Vector zipWith above
+  def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V)(implicit vct: ClassTag[V]): Array[V] = {
+    val i = a.iterator
+    val i2 = v2.iterator
+    new Iterator[V] {
+      def hasNext = i.hasNext && i2.hasNext
+
+      def next() = f(i.next(), i2.next())
+    }.toArray
+  }
+
+  def zipWith[T2, T3, V](v2: Iterable[T2], v3: Iterable[T3], f: (T, T2, T3) => V)(implicit vct: ClassTag[V]): Array[V] = {
+    val i = a.iterator
+    val i2 = v2.iterator
+    val i3 = v3.iterator
+    new Iterator[V] {
+      def hasNext = i.hasNext && i2.hasNext && i3.hasNext
+
+      def next() = f(i.next(), i2.next(), i3.next())
+    }.toArray
+  }
 }
 
 class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
@@ -176,7 +202,7 @@ class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
 
   def writeTable(filename: String, header: String = null) {
     if (header != null)
-      withFileWriter(filename + ".header"){ _.write(header) }
+      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
     r.saveAsTextFile(filename)
   }
 }
@@ -196,9 +222,9 @@ class RichEnumeration[T <: Enumeration](e: T) {
 }
 
 class RichMap[K, V](m: Map[K, V]) {
-  def mapValuesWithKeys[T](f: (K,V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
+  def mapValuesWithKeys[T](f: (K, V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
 
-  def groupByKey: Map[K, Iterable[V]] = m.groupBy(_._1).mapValues{ _.values }
+  def groupByKey: Map[K, Iterable[V]] = m.groupBy(_._1).mapValues {_.values}
 
   def force = m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
 }
@@ -270,15 +296,56 @@ object Utils {
       new IndexedRow(b.index, a + toBVector(b.vector))
   }
 
+
   implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] =
     new RichEnumeration(e)
+
+  def fatal(msg: String): Nothing = {
+    System.err.println("fatal: " + msg)
+    sys.exit(1)
+  }
 
   def fail() {
     assert(false)
   }
 
-  def withFileWriter[T](filename: String)(writer: (FileWriter) => T): T = {
-    val fw = new FileWriter(new File(filename))
+  def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
+    hadoop.fs.FileSystem.get(new URI(filename), hConf)
+
+  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FSDataOutputStream =
+    hadoopFS(filename, hConf).create(new hadoop.fs.Path(filename))
+
+  def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FSDataInputStream =
+    hadoopFS(filename, hConf).open(new hadoop.fs.Path(filename))
+
+  def hadoopMkdir(dirname: String, hConf: hadoop.conf.Configuration) {
+    hadoopFS(dirname, hConf).mkdirs(new hadoop.fs.Path(dirname))
+  }
+
+  def writeObjectFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
+    val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
+    try {
+      f(oos)
+    } finally {
+      oos.close()
+    }
+  }
+
+  def readObjectFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
+    val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
+    try {
+      f(ois)
+    } finally {
+      ois.close()
+    }
+  }
+
+  def writeTextFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
+    val oos = hadoopCreate(filename, hConf)
+    val fw = new OutputStreamWriter(oos)
     try {
       writer(fw)
     } finally {
@@ -286,10 +353,12 @@ object Utils {
     }
   }
 
-  def writeTable(filename: String, lines: Traversable[String], header: String = null) {
-    withFileWriter(filename){ fw =>
-      if (header != null) fw.write(header)
-      lines.foreach(fw.write)
+  def writeTable(filename: String, hConf: hadoop.conf.Configuration,
+    lines: Traversable[String], header: String = null) {
+    writeTextFile(filename, hConf) {
+      fw =>
+        if (header != null) fw.write(header)
+        lines.foreach(fw.write)
     }
   }
 }
