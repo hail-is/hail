@@ -78,19 +78,37 @@ case class Pedigree(trioMap: Map[String, Trio]) {
     case _ => false
   }
 
-  val kidsOfParent: Map[String, List[String]] =
+  def kidsOfParent: Map[String, List[String]] =
     trios.flatMap(t => t.momID.map(_ -> t.kidID).toList ++ t.dadID.map(_ -> t.kidID).toList)
       .groupBy(_._1)   // FIXME: implement groupByKey
       .map{ case (parentID, parentKidIDs) => (parentID, parentKidIDs.map(_._2).toList) }
       .withDefaultValue(List())
 
-  override def toString = trioMap.toString()
-
   def trios = trioMap.values
 
-  def nSatisfying(filters: (Trio => Boolean)*): Int = trioMap.count{ case (k,v) => filters.forall(_(v)) }
+  def dadOf(sampleIds: Array[String]): Map[Int, Int] = {
+    val sampleIndices = sampleIds.zipWithIndex.toMap
+    trios.flatMap( t => {
+      if (t.dadID.isDefined)
+        Some(sampleIndices(t.kidID), sampleIndices(t.dadID.get))
+      else
+        None
+    }).toMap
+  }
 
-  // FIXME: nFam based on famID, but can do some inference even when famID's are missing
+  def momOf(sampleIds: Array[String]): Map[Int, Int] = {
+    val sampleIndices = sampleIds.zipWithIndex.toMap
+    trios.flatMap( t => {
+      if (t.momID.isDefined)
+        Some(sampleIndices(t.kidID), sampleIndices(t.momID.get))
+      else
+        None
+    }).toMap
+  }
+
+  override def toString = trioMap.toString()
+
+  def nSatisfying(filters: (Trio => Boolean)*): Int = trioMap.count{ case (k,v) => filters.forall(_(v)) }
   def nFam: Int = trioMap.map{ case (k,v) => v.famID }.filter(_.isDefined).toSet.size  // FIXME: add distinct
   def nIndiv: Int = trioMap.size
   def nBothParents: Int = nSatisfying(_.hasDadMom)
