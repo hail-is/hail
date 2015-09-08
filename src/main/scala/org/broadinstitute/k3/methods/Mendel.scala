@@ -8,27 +8,6 @@ import org.broadinstitute.k3.variant._
 
 import org.apache.spark.{SparkConf, SparkContext}
 
-/*
-object TryOutMendel {
-
-  def main(args: Array[String]) {
-    val conf = new SparkConf().setMaster("local").setAppName("test")
-    conf.set("spark.sql.parquet.compression.codec", "uncompressed")
-    // FIXME KryoSerializer causes jacoco to throw IllegalClassFormatException exception
-    // conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-
-    val sc = new SparkContext(conf)
-
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam")
-    val vds = LoadVCF(sc, "sparky", "src/test/resources/sample_mendel.vcf")
-    val mendel = Mendel(vds, ped)
-    mendel.write("src/test/resources/sample_mendel.mendel")
-
-    sc.stop()
-
-  }
-}
-*/
 
 case class MendelError(variant: Variant, sample: Int, code: Int, kidGeno: Genotype, dadGeno: Genotype, momGeno: Genotype) {
   def errorString: String = dadGeno.gtString(variant) + " x " + momGeno.gtString(variant) + " -> " + kidGeno.gtString(variant)
@@ -112,6 +91,7 @@ object MendelDataSet {
 }
 
 case class MendelDataSet(ped: Pedigree, sampleIds: Array[String], mds: RDD[MendelError]) {
+  // FIXME: how to handle variants, families, and individuals in which their were no errors?
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
     mds

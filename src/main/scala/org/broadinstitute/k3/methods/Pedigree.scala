@@ -36,7 +36,6 @@ case class Trio(famID: Option[String], kidID: String, dadID: Option[String], mom
     fw.write(famID.getOrElse("0") + "\t" + kidID + "\t" + dadID.getOrElse("0") + "\t" + momID.getOrElse("0") + "\t" +
       sex.getOrElse("0") + "\t" + pheno.getOrElse("0") + "\n")
 
-  //
   def isMale: Boolean = sex.contains(Male)
   def isFemale: Boolean = sex.contains(Female)
   def noSex: Boolean = sex.isEmpty
@@ -87,7 +86,7 @@ case class Pedigree(trioMap: Map[String, Trio]) {
   def trios = trioMap.values
 
   def dadOf(sampleIds: Array[String]): Map[Int, Int] = {
-    val sampleIndices = sampleIds.zipWithIndex.toMap
+    val sampleIndices = sampleIds.zipWithIndex.toMap  // FIXME: make sampleIndices available more globally?
     trios.flatMap( t => {
       if (t.dadID.isDefined)
         Some(sampleIndices(t.kidID), sampleIndices(t.dadID.get))
