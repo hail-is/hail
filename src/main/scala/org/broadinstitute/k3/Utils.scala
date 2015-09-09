@@ -1,7 +1,10 @@
 package org.broadinstitute.k3
 
+import java.io.{File, FileWriter}
+
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
+import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -246,12 +249,31 @@ object Utils {
     assert(false)
   }
 
-  def cleanly[R, T](resource: => R, clean: R => Unit, body: R => T): T = {
-    val r = resource
+  def withFileWriter[T](filename: String)(writer: (FileWriter) => T): T = {
+    val fw = new FileWriter(new File(filename))
     try {
-      body(r)
+      writer(fw)
     } finally {
-      clean(r)
+      fw.close()
     }
+  }
+
+  // FIXME: is this the best way to handle optional parameters?
+  // FIXME: should I have a type parameter?
+  // FIXME: is traversable the right type here?  handles arrays, iterables, etc
+  def writeTableWithFileWriter(filename: String, lines: Traversable[String], header: String = null) {
+    withFileWriter(filename){ fw =>
+      if (header != null) fw.write(header)
+      lines.foreach(fw.write)
+    }
+  }
+
+  def writeTableWithSpark(filename: String, lines: RDD[String], header: String = null) {
+    if (header != null) {
+      val fw = new FileWriter(new File(filename + ".header"))
+      fw.write(header)
+      fw.close()
+    }
+    lines.saveAsTextFile(filename)
   }
 }

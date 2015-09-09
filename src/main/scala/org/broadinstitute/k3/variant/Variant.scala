@@ -32,6 +32,9 @@ case class Variant(contig: String,
   
   def onX: Boolean = contig == "X"
 
+  // FIXME: can this stay here?
+  def shortString: String = contig + ":" + start + ":" + ref + ":" + alt
+
   def isSNP: Boolean = (ref.length == 1 && alt.length == 1) ||
       (ref.length == alt.length && nMismatch == 1)
 
