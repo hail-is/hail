@@ -258,10 +258,7 @@ object Utils {
     }
   }
 
-  // FIXME: is this the best way to handle optional parameters?
-  // FIXME: should I have a type parameter?
-  // FIXME: is traversable the right type here?  handles arrays, iterables, etc
-  def writeTableWithFileWriter(filename: String, lines: Traversable[String], header: String = null) {
+  def writeTable(filename: String, lines: Traversable[String], header: String = null) {
     withFileWriter(filename){ fw =>
       if (header != null) fw.write(header)
       lines.foreach(fw.write)
@@ -269,11 +266,8 @@ object Utils {
   }
 
   def writeTableWithSpark(filename: String, lines: RDD[String], header: String = null) {
-    if (header != null) {
-      val fw = new FileWriter(new File(filename + ".header"))
-      fw.write(header)
-      fw.close()
-    }
+    if (header != null)
+      withFileWriter(filename + ".header"){ fw => fw.write(header) }
     lines.saveAsTextFile(filename)
   }
 }

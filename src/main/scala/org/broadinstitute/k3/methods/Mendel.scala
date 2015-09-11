@@ -6,11 +6,18 @@ import org.apache.spark.rdd.RDD
 import org.broadinstitute.k3.Utils._
 import org.broadinstitute.k3.variant._
 
-import org.broadinstitute.k3.variant.GenotypeCall._
-
+import org.broadinstitute.k3.variant.GenotypeType._
 
 import org.apache.spark.{SparkConf, SparkContext}
 
+object Role extends Enumeration {
+  type Role = Value
+  val Kid = Value("0")
+  val Dad = Value("1")
+  val Mom = Value("2")
+}
+
+import org.broadinstitute.k3.methods.Role._
 
 case class MendelError(variant: Variant, sample: Int, code: Int, kidGeno: Genotype, dadGeno: Genotype, momGeno: Genotype) {
   def errorString: String = dadGeno.gtString(variant) + " x " + momGeno.gtString(variant) + " -> " + kidGeno.gtString(variant)
@@ -56,7 +63,7 @@ object MendelErrors {
   }
 
   def matchCode(kidGeno: Genotype, dadGeno: Genotype, momGeno: Genotype, onX: Boolean): Int = {
-    (dadGeno.gtCall, momGeno.gtCall, kidGeno.gtCall, onX) match {
+    (dadGeno.gtType, momGeno.gtType, kidGeno.gtType, onX) match {
       case (HomRef, HomRef, HomRef,     _) => 0 // FIXME: does including these cases at the top speed things up?
       case (   Het,      _,    Het,     _) => 0
       case (     _,    Het,    Het,     _) => 0
@@ -80,8 +87,8 @@ object MendelErrors {
   }
 
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
-    def roleInTrio(id: String, t: Trio): Int = // dad = 1, mom = 2
-      if (t.dadID.contains(id)) 1 else 2
+    def roleOfParentInTrio(id: String, t: Trio): Role =
+      if (t.dadID.contains(id)) Dad else Mom
 
     val bcSampleIds = vds.sparkContext.broadcast(vds.sampleIds)
     val bcSampleIndices = vds.sparkContext.broadcast(vds.sampleIds.zipWithIndex.toMap)
@@ -95,21 +102,23 @@ object MendelErrors {
           (v, s, g) => {
             val id = bcSampleIds.value(s)
             val trio = bcPed.value.trioMap(id)
-            val triosAsKid = if (trio.hasDadMom) List((id, 0)) else Nil
-            val triosAsParent = bcPed.value.kidsOfParent(id)
+            val triosAsKid = if (trio.hasDadMom) List((id, Kid)) else Nil
+            val triosAsParent =
+              bcPed.value
+              .kidsOfParent(id)
               .map(bcPed.value.trioMap(_))
               .filter(_.hasDadMom)
-              .map(t => (t.kidID, roleInTrio(id, t)))
+              .map{ t => (t.kidID, roleOfParentInTrio(id, t)) }
 
             (triosAsKid ++ triosAsParent).map { case (k, role) => ((v, bcSampleIndices.value(k)), (role, g))
             }
           })
         .groupByKey()
         .mapValues(_.toMap)
-        .flatMap { case ((v, s), m) => {
-          val code = matchCode(m(0), m(1), m(2), v.onX)
+        .flatMap { case ((v, s), genoOf) => {
+          val code = matchCode(genoOf(Kid), genoOf(Dad), genoOf(Mom), v.onX)
           if (code != 0)
-            Some(new MendelError(v, s, code, m(0), m(1), m(2)))
+            Some(new MendelError(v, s, code, genoOf(Kid), genoOf(Dad), genoOf(Mom)))
           else
             None
         }
@@ -129,12 +138,12 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendalErrors: R
 
   def nErrorPerFamily: RDD[(String, Int)] = {
     mendalErrors
-      .flatMap(mdl => {
-      val kidID = sampleIds(mdl.sample)
-      val famID = ped.trioMap(kidID).famID
+      .flatMap{ mdl => {
+        val kidID = sampleIds(mdl.sample)
+        val famID = ped.trioMap(kidID).famID
 
-      famID.map((_, 1))
-    })
+        famID.map((_, 1)) }
+      }
       .reduceByKey(_ + _)
   }
 
@@ -189,7 +198,7 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendalErrors: R
       famID + "\t" + "Fix" + "\t" + "Fix" + "\t" + "Fix" + "\t" + nError + "\n"
     }
     val lines = nErrorPerFamily.map((famLine _).tupled).collect()
-    writeTableWithFileWriter(filename, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
+    writeTable(filename, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
   }
 
   def writeMendelI(filename: String) {
@@ -199,6 +208,6 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendalErrors: R
       famID.getOrElse("0") + "\t" + indivID + "\t" + nError + "\n"
     }
     val lines = nErrorPerIndiv.map((indivLine _).tupled).collect()
-    writeTableWithFileWriter(filename, lines, "FID\tIID\tN\n")
+    writeTable(filename, lines, "FID\tIID\tN\n")
   }
 }

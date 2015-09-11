@@ -24,10 +24,6 @@ import org.broadinstitute.k3.methods.Sex._
 case class Trio(kidID: String, famID: Option[String], dadID: Option[String], momID: Option[String],
                 sex: Option[Sex], pheno: Option[Phenotype]) {
 
-  def trioLine =
-    famID.getOrElse("0") + "\t" + kidID + "\t" + dadID.getOrElse("0") + "\t" +
-    momID.getOrElse("0") + "\t" + sex.getOrElse("0") + "\t" + pheno.getOrElse("0") + "\n"
-
   def isMale: Boolean = sex.contains(Male)
   def isFemale: Boolean = sex.contains(Female)
   def noSex: Boolean = sex.isEmpty
@@ -75,14 +71,14 @@ case class Pedigree(trioMap: Map[String, Trio]) {
   def dadOf(sampleIds: Array[String]): Map[Int, Int] = {
     val sampleIndices = sampleIds.zipWithIndex.toMap
     trios
-      .flatMap( t => t.dadID.map( id => (sampleIndices(t.kidID), sampleIndices(id)) ) )
+      .flatMap{ t => t.dadID.map{ id => (sampleIndices(t.kidID), sampleIndices(id)) } }
       .toMap
   }
 
   def momOf(sampleIds: Array[String]): Map[Int, Int] = {
     val sampleIndices = sampleIds.zipWithIndex.toMap
     trios
-      .flatMap( t => t.momID.map( id => (sampleIndices(t.kidID), sampleIndices(id)) ) )
+      .flatMap{ t => t.momID.map{ id => (sampleIndices(t.kidID), sampleIndices(id)) } }
       .toMap
   }
 
@@ -91,8 +87,8 @@ case class Pedigree(trioMap: Map[String, Trio]) {
   def nIndiv: Int = trioMap.size
   def nCompleteTrio: Int = nSatisfying(_.hasDadMom)
 
-  def writeSummary(file: String) = {
-    val fw = new FileWriter(new File(file))
+  def writeSummary(filename: String) = {
+    val fw = new FileWriter(new File(filename))
 
     val columns = List(
       ("nFam", nFam), ("nIndiv", nIndiv), ("nCompleteTrios", nCompleteTrio),
@@ -107,14 +103,19 @@ case class Pedigree(trioMap: Map[String, Trio]) {
       ("nControlMaleTrio", nSatisfying(_.hasDadMom, _.isControl, _.isMale)),
       ("nControlFemaleTrio", nSatisfying(_.hasDadMom, _.isControl, _.isFemale)))
 
-    fw.write(columns.map(_._1).mkString("\t") + "\n")
-    fw.write(columns.map(_._2).mkString("\t") + "\n")
-    fw.close() // FIXME
+    withFileWriter(filename){ fw =>
+      fw.write(columns.map(_._1).mkString("\t") + "\n")
+      fw.write(columns.map(_._2).mkString("\t") + "\n")
+    }
   }
 
   // FIXME: no header in plink fam file, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" sure seems appropriate
   def write(filename: String) {
-    val lines = trioMap.values.map(_.trioLine)
-    writeTableWithFileWriter(filename, lines)
+    def trioLine(t: Trio): String =
+      t.famID.getOrElse("0") + "\t" + t.kidID + "\t" + t.dadID.getOrElse("0") + "\t" +
+        t.momID.getOrElse("0") + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0") + "\n"
+    
+    val lines = trioMap.values.map(trioLine)
+    writeTable(filename, lines)
   }
 }

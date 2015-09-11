@@ -6,15 +6,15 @@ import scala.language.implicitConversions
 import scala.collection.mutable
 import org.broadinstitute.k3.Utils._
 
-object GenotypeCall extends Enumeration {
-  type GenotypeCall = Value
+object GenotypeType extends Enumeration {
+  type GenotypeType = Value
   val HomRef = Value(0)
   val Het = Value(1)
   val HomVar = Value(2)
   val NoCall = Value(-1)
 }
 
-import org.broadinstitute.k3.variant.GenotypeCall._
+import org.broadinstitute.k3.variant.GenotypeType._
 
 case class Genotype(private val gt: Int,
                     ad: (Int, Int),
@@ -53,7 +53,7 @@ case class Genotype(private val gt: Int,
   def isNotCalled: Boolean = gt == -1
   def isCalled: Boolean = gt != -1
 
-  def gtCall: GenotypeCall = GenotypeCall(gt)
+  def gtType: GenotypeType = GenotypeType(gt)
 
   def gq: Int = {
     assert(gt != -1)
