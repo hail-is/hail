@@ -1,14 +1,14 @@
 package org.broadinstitute.k3.methods
 
-import org.scalatest.testng.TestNGSuite
+import org.broadinstitute.k3.SparkSuite
 import org.testng.annotations.Test
 
-class PedigreeSuite extends TestNGSuite {
-  @Test def testPedigree() {
-
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam")
-    ped.write("/tmp/sample_mendel.fam")  // FIXME: this is not right
-    val pedwr = Pedigree.read("/tmp/sample_mendel.fam")
+class PedigreeSuite extends SparkSuite {
+  @Test def test() {
+    val vds = LoadVCF(sc, "sparky", "src/test/resources/sample_mendel.vcf")
+    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", vds.sampleIds)
+    ped.write("/tmp/sample_mendel.fam", vds.sampleIds)  // FIXME: this is not right
+    val pedwr = Pedigree.read("/tmp/sample_mendel.fam", vds.sampleIds)
     assert(ped == pedwr)
 
     val pedBothParents = new Pedigree(ped.trioMap.filter{ case (k,t) => t.hasDadMom })
