@@ -10,6 +10,7 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector, Vectors}
+import org.apache.spark.SparkContext._
 
 class RichVector[T](v: Vector[T]) {
   def zipExact[T2](v2: Iterable[T2]): Vector[(T, T2)] = {
@@ -166,6 +167,10 @@ class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 }
 
+class RichRDD[T](r: RDD[T]) {
+  def countByValueRDD(): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
+}
+
 class RichIndexedRow(r: IndexedRow) {
 
   import Utils._
@@ -176,11 +181,13 @@ class RichIndexedRow(r: IndexedRow) {
 }
 
 class RichEnumeration[T <: Enumeration](e: T) {
-  def maybeWithName(name: String): Option[T#Value] =
+  def withNameOption(name: String): Option[T#Value] =
     e.values.find(_.toString == name)
 }
 
 object Utils {
+  implicit def toRichRDD[T](r: RDD[T]): RichRDD[T] = new RichRDD(r)
+
   implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)
 
   implicit def toRichTuple2[T](t: (T, T)): RichHomogenousTuple2[T] = new RichHomogenousTuple2(t)

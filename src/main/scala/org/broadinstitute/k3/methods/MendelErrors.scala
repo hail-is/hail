@@ -23,24 +23,24 @@ object MendelErrors {
 
   // FIXME: Decide between getCode and matchCode
   def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
-    if        (gKid.isHomRef)
-      if      (onX && gMom.isHomVar)              9
-      else if (!gDad.isHomVar && !gMom.isHomVar)  0
-      else if (gDad.isHomVar && !gMom.isHomVar)   6
-      else if (!gDad.isHomVar && gMom.isHomVar)   7
-      else                                        8
-    else if   (gKid.isHet)
-      if      (gDad.isHet || gMom.isHet)          0
-      else if (gDad.isHomRef && gMom.isHomRef)    2
-      else if (gDad.isHomVar && gMom.isHomVar)    1
-      else                                        0
-    else if   (gKid.isHomVar)
-      if      (onX && gMom.isHomRef)             10
-      else if (!gDad.isHomRef && !gMom.isHomRef)  0
-      else if (gDad.isHomRef && !gMom.isHomRef)   3
-      else if (!gDad.isHomRef && gMom.isHomRef)   4
-      else                                        5
-    else                                          0
+    if (gKid.isHomRef)
+      if      (onX            &&  gMom.isHomVar) 9
+      else if (!gDad.isHomVar && !gMom.isHomVar) 0
+      else if ( gDad.isHomVar && !gMom.isHomVar) 6
+      else if (!gDad.isHomVar &&  gMom.isHomVar) 7
+      else                                       8
+    else if (gKid.isHet)
+      if      (gDad.isHet    || gMom.isHet)      0
+      else if (gDad.isHomRef && gMom.isHomRef)   2
+      else if (gDad.isHomVar && gMom.isHomVar)   1
+      else                                       0
+    else if (gKid.isHomVar)
+      if      (onX            &&  gMom.isHomRef) 10
+      else if (!gDad.isHomRef && !gMom.isHomRef) 0
+      else if ( gDad.isHomRef && !gMom.isHomRef) 3
+      else if (!gDad.isHomRef &&  gMom.isHomRef) 4
+      else                                       5
+    else                                         0
   }
 
   def matchCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
@@ -69,24 +69,21 @@ object MendelErrors {
 
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
     val bcPed = vds.sparkContext.broadcast(ped)
-    val bcSampleIds = vds.sparkContext.broadcast(vds.sampleIds)
 
-    new MendelErrors(
-      bcPed.value,
-      bcSampleIds.value,
-      vds
-        .flatMapWithKeys( (v, s, g) =>
-            bcPed.value
-              .completeTriosContaining(s)
-              .map( t => ((v, t.kid), (t.role(s), g))) )
-        .groupByKey()
-        .mapValues(_.toMap)
-        .flatMap{ case ((v, s), gOf) => {
-          val code = matchCode(gOf(Kid), gOf(Dad), gOf(Mom), v.onX)
-          if (code != 0)
-            Some(new MendelError(v, s, code, gOf(Kid), gOf(Dad), gOf(Mom)))
-          else
-            None
+    new MendelErrors(ped, vds.sampleIds, vds
+      .flatMapWithKeys{ (v, s, g) =>
+        bcPed.value
+          .completeTriosContaining(s)
+          .map(t => ((v, t.kid), (t.role(s).get, g)))
+       }
+      .groupByKey()
+      .mapValues(_.toMap)
+      .flatMap { case ((v, s), gOf) => {
+        val code = matchCode(gOf(Kid), gOf(Dad), gOf(Mom), v.onX)
+        if (code != 0)
+          Some(new MendelError(v, s, code, gOf(Kid), gOf(Dad), gOf(Mom)))
+        else
+          None
         }
       }
     )
@@ -98,33 +95,31 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
     mendelErrors
-      .map(me => (me.variant, 1))
-      .reduceByKey(_ + _)
+      .map(_.variant)
+      .countByValueRDD()
   }
 
   def nErrorPerFamily: RDD[(String, Int)] = {
+    val bcPed = mendelErrors.sparkContext.broadcast(ped)
+
     mendelErrors
-      .flatMap{ me => ped.trioMap(me.sample).fam.map((_, 1)) }
-      .reduceByKey(_ + _)
+      .flatMap(me => ped.famOf.get(me.sample))
+      .countByValueRDD()
   }
 
-  def nErrorPerIndiv: RDD[(Int, Int)] = {
-    val dadOf = mendelErrors.sparkContext.broadcast(ped.dadOf)
-    val momOf = mendelErrors.sparkContext.broadcast(ped.momOf)
-
-    def samplesImplicated(me: MendelError): List[Int] = {
+  def nErrorPerIndiv: RDD[(Int, Int)] = { // FIXME: how to broadcast the def?
+    def implicatedSamples(me: MendelError): List[Int] = {
       val s = me.sample
       val c = me.code
-      if      (c == 2 || c == 1)                       List(s, dadOf.value(s), momOf.value(s))
-      else if (c == 6 || c == 3)                       List(s, dadOf.value(s))
-      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(s, momOf.value(s))
+      if      (c == 2 || c == 1)                       List(s, ped.dadOf(s), ped.momOf(s))
+      else if (c == 6 || c == 3)                       List(s, ped.dadOf(s))
+      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(s, ped.momOf(s))
       else                                             List(s)
     }
 
     mendelErrors
-      .flatMap(samplesImplicated)
-      .map((_, 1))
-      .reduceByKey(_ + _)
+      .flatMap(implicatedSamples)
+      .countByValueRDD()
   }
 
   def writeMendel(filename: String) {
