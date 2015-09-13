@@ -1,11 +1,5 @@
 package org.broadinstitute.k3.variant
 
-import org.scalacheck.{Gen, Arbitrary}
-
-import scala.language.implicitConversions
-import scala.collection.mutable
-import org.broadinstitute.k3.Utils._
-
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
   val HomRef = Value(0)
@@ -13,6 +7,13 @@ object GenotypeType extends Enumeration {
   val HomVar = Value(2)
   val NoCall = Value(-1)
 }
+
+import org.scalacheck.{Gen, Arbitrary}
+
+import scala.language.implicitConversions
+import scala.collection.mutable
+import org.broadinstitute.k3.Utils._
+
 
 import org.broadinstitute.k3.variant.GenotypeType._
 

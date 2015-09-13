@@ -4,32 +4,26 @@ import java.io.{File, FileWriter}
 
 import org.broadinstitute.k3.Utils._
 import org.broadinstitute.k3.methods.Role._
+import org.broadinstitute.k3.variant.{Phenotype, Sex}
 
 import scala.io.Source
 
-object Sex extends Enumeration {
-  type Sex = Value
-  val Male = Value("1")
-  val Female = Value("2")
-}
 
-object Phenotype extends Enumeration {
-  type Phenotype = Value
-  val Control = Value("1")
-  val Case = Value("2")
-}
 
-import org.broadinstitute.k3.methods.Phenotype._
-import org.broadinstitute.k3.methods.Sex._
+
+
+import Phenotype._
+import Sex._
 
 case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int],
                 sex: Option[Sex], pheno: Option[Phenotype]) {
 
   def contains(s: Int): Boolean = kid == s || dad.contains(s) || mom.contains(s)
-  def role(s: Int): Role =
-    if      (s == kid)        Kid
-    else if (dad.contains(s)) Dad
-    else                      Mom
+  def role(s: Int): Option[Role] =
+    if      (s == kid)        Some(Kid)
+    else if (dad.contains(s)) Some(Dad)
+    else if (mom.contains(s)) Some(Mom)
+    else                      None
   def isMale: Boolean = sex.contains(Male)
   def isFemale: Boolean = sex.contains(Female)
   def noSex: Boolean = sex.isEmpty
@@ -61,7 +55,7 @@ object Pedigree {
       val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
 
       Trio(indexOfSample(kid), maybeFam(fam), maybeIndiv(dad), maybeIndiv(mom),
-        Sex.maybeWithName(sex), Phenotype.maybeWithName(pheno))
+        Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
       }
       .toTraversable
     )
@@ -71,11 +65,11 @@ object Pedigree {
 case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def trios = trioMap.values
-
   def completeTriosContaining(s: Int) = trios.filter(t => t.hasDadMom && t.contains(s))
 
-  def dadOf: Map[Int, Int] = trios.flatMap{ t => t.dad.map{ id => (t.kid, id) } }.toMap
+  def dadOf: Map[Int, Int] = trios.flatMap{ t => t.dad.map{ id => (t.kid, id) }}.toMap
   def momOf: Map[Int, Int] = trios.flatMap{ t => t.mom.map{ id => (t.kid, id) } }.toMap
+  def famOf: Map[Int, String] = trios.flatMap{ t => t.fam.map{ id => (t.kid, id) } }.toMap
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trioMap.count{ case (k,v) => filters.forall(_(v)) }
   def nFam: Int = trioMap.flatMap{ case (k,v) => v.fam }.toSet.size  // FIXME: add distinct
@@ -106,11 +100,11 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   // FIXME: no header in plink fam file, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" sure seems appropriate
   def write(filename: String, sampleIds: Array[String]) {
-    def stringIdOrElse(i: Option[Int]) = if (i.isDefined) sampleIds(i.get) else "0"
+    def sampleIdOrElse(i: Option[Int]) = if (i.isDefined) sampleIds(i.get) else "0"
 
     def trioLine(t: Trio): String =
-      t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + stringIdOrElse(t.dad) + "\t" +
-        stringIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0") + "\n"
+      t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + sampleIdOrElse(t.dad) + "\t" +
+        sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0") + "\n"
 
     val lines = trioMap.values.map(trioLine)
     writeTable(filename, lines)

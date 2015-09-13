@@ -108,12 +108,14 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
   }
 
   def nErrorPerIndiv: RDD[(Int, Int)] = { // FIXME: how to broadcast the def?
+    val bcPed = mendelErrors.sparkContext.broadcast(ped)
+
     def implicatedSamples(me: MendelError): List[Int] = {
       val s = me.sample
       val c = me.code
-      if      (c == 2 || c == 1)                       List(s, ped.dadOf(s), ped.momOf(s))
-      else if (c == 6 || c == 3)                       List(s, ped.dadOf(s))
-      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(s, ped.momOf(s))
+      if      (c == 2 || c == 1)                       List(s, bcPed.value.dadOf(s), bcPed.value.momOf(s))
+      else if (c == 6 || c == 3)                       List(s, bcPed.value.dadOf(s))
+      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(s, bcPed.value.momOf(s))
       else                                             List(s)
     }
 

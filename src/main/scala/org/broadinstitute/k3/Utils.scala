@@ -12,6 +12,8 @@ import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVect
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector, Vectors}
 import org.apache.spark.SparkContext._
 
+import scala.reflect.ClassTag
+
 class RichVector[T](v: Vector[T]) {
   def zipExact[T2](v2: Iterable[T2]): Vector[(T, T2)] = {
     val i = v.iterator
@@ -167,7 +169,7 @@ class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 }
 
-class RichRDD[T](r: RDD[T]) {
+class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
   def countByValueRDD(): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 }
 
@@ -186,7 +188,7 @@ class RichEnumeration[T <: Enumeration](e: T) {
 }
 
 object Utils {
-  implicit def toRichRDD[T](r: RDD[T]): RichRDD[T] = new RichRDD(r)
+  implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)
 
