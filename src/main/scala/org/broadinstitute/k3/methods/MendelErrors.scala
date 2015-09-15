@@ -6,13 +6,6 @@ import org.broadinstitute.k3.variant._
 
 import org.broadinstitute.k3.variant.GenotypeType._
 
-object Role extends Enumeration {
-  type Role = Value
-  val Kid = Value("0")
-  val Dad = Value("1")
-  val Mom = Value("2")
-}
-
 import org.broadinstitute.k3.methods.Role._
 
 case class MendelError(variant: Variant, sample: Int, code: Int, gKid: Genotype, gDad: Genotype, gMom: Genotype) {
@@ -21,7 +14,7 @@ case class MendelError(variant: Variant, sample: Int, code: Int, gKid: Genotype,
 
 object MendelErrors {
 
-  // FIXME: Decide between getCode and matchCode
+  // FIXME: Decide between getCode, matchCode, and nestedMatchCode
   def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
     if (gKid.isHomRef)
       if      (onX            &&  gMom.isHomVar) 9
@@ -67,13 +60,43 @@ object MendelErrors {
     }
   }
 
+  def nestedMatchCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
+    (gDad.gtType, gMom.gtType, gKid.gtType, onX) match {
+      case (HomRef, HomRef, HomRef, _) => 0
+
+      case   (dad, mom, Het, x) => (dad, mom, x) match {
+        case (     _,    Het,     _)   => 0
+        case (Het   ,      _,     _)   => 0
+        case (HomRef, HomRef, false)   => 2
+        case (HomVar, HomVar, false)   => 1
+        case _                         => 0
+      }
+      case (dad, mom, HomVar, x) => (dad, mom, x) match {
+        case (HomRef, HomRef, false)   => 5
+        case (HomRef,      _, false)   => 3
+        case (     _, HomRef, false)   => 4
+        case (     _, HomRef,  true)   => 10
+        case _                         => 0
+      }
+      case (dad, mom, HomRef, x) => (dad, mom, x) match {
+        case (HomVar, HomVar, false)   => 8
+        case (HomVar,      _, false)   => 6
+        case (     _, HomVar, false)   => 7
+        case (     _, HomVar,  true)   => 9
+        case _                         => 0
+      }
+      case _                           => 0
+    }
+  }
+
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
-    val bcPed = vds.sparkContext.broadcast(ped)
+    // FIXME is this an okay use of broadcasting?
+    val completeTrios = vds.sparkContext.broadcast(ped.trios.filter(_.isComplete))
 
     new MendelErrors(ped, vds.sampleIds, vds
       .flatMapWithKeys{ (v, s, g) =>
-        bcPed.value
-          .completeTriosContaining(s)
+        completeTrios.value
+          .filter(_.contains(s))
           .map(t => ((v, t.kid), (t.role(s).get, g)))
        }
       .groupByKey()
@@ -99,38 +122,44 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
       .countByValueRDD()
   }
 
-  def nErrorPerFamily: RDD[(String, Int)] = {
-    val bcPed = mendelErrors.sparkContext.broadcast(ped)
-
+  def nErrorPerNuclearFamily: RDD[((Int, Int), Int)] = {
+    val dadOf = mendelErrors.sparkContext.broadcast(ped.dadOf)
+    val momOf = mendelErrors.sparkContext.broadcast(ped.momOf)
     mendelErrors
-      .flatMap(me => ped.famOf.get(me.sample))
+      .map(me => (dadOf.value(me.sample), momOf.value(me.sample)))
+      .countByValueRDD()
+  }
+
+  def nErrorPerFamilyID: RDD[(String, Int)] = {  // FIXME: Consider removing entirely
+    val famOf = mendelErrors.sparkContext.broadcast(ped.famOf)
+    mendelErrors
+      .flatMap(me => famOf.value.get(me.sample))
       .countByValueRDD()
   }
 
   def nErrorPerIndiv: RDD[(Int, Int)] = { // FIXME: how to broadcast the def?
-    val bcPed = mendelErrors.sparkContext.broadcast(ped)
-
+    val dadOf = mendelErrors.sparkContext.broadcast(ped.dadOf)
+    val momOf = mendelErrors.sparkContext.broadcast(ped.momOf)
     def implicatedSamples(me: MendelError): List[Int] = {
       val s = me.sample
       val c = me.code
-      if      (c == 2 || c == 1)                       List(s, bcPed.value.dadOf(s), bcPed.value.momOf(s))
-      else if (c == 6 || c == 3)                       List(s, bcPed.value.dadOf(s))
-      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(s, bcPed.value.momOf(s))
+      if      (c == 2 || c == 1)                       List(s, dadOf.value(s), momOf.value(s))
+      else if (c == 6 || c == 3)                       List(s, dadOf.value(s))
+      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(s, momOf.value(s))
       else                                             List(s)
     }
-
     mendelErrors
       .flatMap(implicatedSamples)
       .countByValueRDD()
   }
 
   def writeMendel(filename: String) {
+    val famOf = mendelErrors.sparkContext.broadcast(ped.famOf)
     def toLine(me: MendelError): String = {
       val v = me.variant
       val s = me.sample
       val errorString = me.gDad.gtString(v) + " x " + me.gMom.gtString(v) + " -> " + me.gKid.gtString(v)
-
-      ped.trioMap(s).fam.getOrElse("0") + "\t" + sampleIds(s) + "\t" + v.contig + "\t" +
+      famOf.value.getOrElse(s, "0") + "\t" + sampleIds(s) + "\t" + v.contig + "\t" +
         v.shortString + "\t" + me.code + "\t" + errorString
     }
     val lines = mendelErrors.map(toLine)
@@ -144,8 +173,12 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
   }
 
   def writeMendelF(filename: String) {
-    def toLine(fam: String, nError: Int): String = fam + "\t" + "Fix" + "\t" + "Fix" + "\t" + "Fix" + "\t" + nError + "\n"
-    val lines = nErrorPerFamily.map((toLine _).tupled).collect()
+    val nuclearFams = mendelErrors.sparkContext.broadcast(ped.nuclearFams)
+    def toLine(parents: (Int, Int), nError: Int): String = {
+      val (dad, mom) = parents
+      "0" + "\t" + sampleIds(dad) + "\t" + sampleIds(mom) + "\t" + ped.nuclearFams((dad, mom)).size + "\t" + nError + "\n"
+    }
+    val lines = nErrorPerNuclearFamily.map((toLine _).tupled).collect()
     writeTable(filename, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
   }
 
