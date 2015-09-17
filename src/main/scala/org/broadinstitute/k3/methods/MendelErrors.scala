@@ -8,9 +8,7 @@ import org.broadinstitute.k3.variant.GenotypeType._
 
 import org.broadinstitute.k3.methods.Role._
 
-case class MendelError(variant: Variant, sample: Int, code: Int, gKid: Genotype, gDad: Genotype, gMom: Genotype) {
-  def errorString: String = gDad.gtString(variant) + " x " + gMom.gtString(variant) + " -> " + gKid.gtString(variant)
-}
+case class MendelError(variant: Variant, sample: Int, code: Int, gKid: Genotype, gDad: Genotype, gMom: Genotype)
 
 object MendelErrors {
 
@@ -90,8 +88,7 @@ object MendelErrors {
   }
 
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
-    // FIXME is this an okay use of broadcasting?
-    val completeTrios = vds.sparkContext.broadcast(ped.trios.filter(_.isComplete))
+    val completeTrios = vds.sparkContext.broadcast(ped.completeTrios)
 
     new MendelErrors(ped, vds.sampleIds, vds
       .flatMapWithKeys{ (v, s, g) =>
@@ -101,8 +98,8 @@ object MendelErrors {
        }
       .groupByKey()
       .mapValues(_.toMap)
-      .flatMap { case ((v, s), gOf) => {
-        val code = matchCode(gOf(Kid), gOf(Dad), gOf(Mom), v.onX)
+      .flatMap { case ((v, s), gOf) => { //FIXME: IntelliJ wants me to remove this unnecessary pair of braces.  Thoughts?
+        val code = getCode(gOf(Kid), gOf(Dad), gOf(Mom), v.onX)
         if (code != 0)
           Some(new MendelError(v, s, code, gOf(Kid), gOf(Dad), gOf(Mom)))
         else
@@ -114,7 +111,7 @@ object MendelErrors {
 }
 
 case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: RDD[MendelError]) {
-  // FIXME: how to handle variants, families, and individuals in which their were no errors?
+  // FIXME: how to handle variants, families, and individuals in which there were no errors?
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
     mendelErrors
@@ -130,14 +127,16 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
       .countByValueRDD()
   }
 
-  def nErrorPerFamilyID: RDD[(String, Int)] = {  // FIXME: Consider removing entirely
+  //FIXME: I think I should remove this entirely as it's become an "arbitrary" grouping
+  // that would be better handled by a higher level method of aggregating sample statistics over groups of samples
+  def nErrorPerFamilyID: RDD[(String, Int)] = {
     val famOf = mendelErrors.sparkContext.broadcast(ped.famOf)
     mendelErrors
       .flatMap(me => famOf.value.get(me.sample))
       .countByValueRDD()
   }
 
-  def nErrorPerIndiv: RDD[(Int, Int)] = { // FIXME: how to broadcast the def?
+  def nErrorPerIndiv: RDD[(Int, Int)] = {
     val dadOf = mendelErrors.sparkContext.broadcast(ped.dadOf)
     val momOf = mendelErrors.sparkContext.broadcast(ped.momOf)
     def implicatedSamples(me: MendelError): List[Int] = {
@@ -154,12 +153,13 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
   }
 
   def writeMendel(filename: String) {
+    val bcSampleIds = mendelErrors.sparkContext.broadcast(sampleIds)
     val famOf = mendelErrors.sparkContext.broadcast(ped.famOf)
     def toLine(me: MendelError): String = {
       val v = me.variant
       val s = me.sample
       val errorString = me.gDad.gtString(v) + " x " + me.gMom.gtString(v) + " -> " + me.gKid.gtString(v)
-      famOf.value.getOrElse(s, "0") + "\t" + sampleIds(s) + "\t" + v.contig + "\t" +
+      famOf.value.getOrElse(s, "0") + "\t" + bcSampleIds.value(s) + "\t" + v.contig + "\t" +
         v.shortString + "\t" + me.code + "\t" + errorString
     }
     val lines = mendelErrors.map(toLine)
@@ -173,17 +173,26 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
   }
 
   def writeMendelF(filename: String) {
-    val nuclearFams = mendelErrors.sparkContext.broadcast(ped.nuclearFams)
+    val bcSampleIds = nErrorPerNuclearFamily.sparkContext.broadcast(sampleIds)
+    val famOf = nErrorPerNuclearFamily.sparkContext.broadcast(ped.famOf)
+    val nuclearFams = nErrorPerNuclearFamily.sparkContext.broadcast(ped.nuclearFams)
+
     def toLine(parents: (Int, Int), nError: Int): String = {
       val (dad, mom) = parents
-      "0" + "\t" + sampleIds(dad) + "\t" + sampleIds(mom) + "\t" + ped.nuclearFams((dad, mom)).size + "\t" + nError + "\n"
+      //FIXME if we only want nCHLD, then nuclearFams doesn't need list of kids, but it seems useful to have around
+      famOf.value.getOrElse(dad, "0") + "\t" + bcSampleIds.value(dad) + "\t" + bcSampleIds.value(mom) + "\t" +
+        nuclearFams.value((dad, mom)).size + "\t" + nError + "\n"
     }
     val lines = nErrorPerNuclearFamily.map((toLine _).tupled).collect()
     writeTable(filename, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
   }
 
   def writeMendelI(filename: String) {
-    def toLine(s: Int, nError: Int): String = ped.trioMap(s).fam.getOrElse("0") + "\t" + sampleIds(s) + "\t" + nError + "\n"
+    val bcSampleIds = nErrorPerIndiv.sparkContext.broadcast(sampleIds)
+    val famOf = nErrorPerIndiv.sparkContext.broadcast(ped.famOf)
+
+    def toLine(s: Int, nError: Int): String =
+      famOf.value.getOrElse(s, "0") + "\t" + bcSampleIds.value(s) + "\t" + nError + "\n"
     val lines = nErrorPerIndiv.map((toLine _).tupled).collect()
     writeTable(filename, lines, "FID\tIID\tN\n")
   }

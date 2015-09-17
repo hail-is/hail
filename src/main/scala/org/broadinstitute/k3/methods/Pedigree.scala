@@ -67,12 +67,12 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def trios = trioMap.values
   def completeTrios = trios.filter(_.isComplete)
-
   def nuclearFams: Map[(Int, Int), List[Int]] =
     completeTrios
       .map(t => ((t.dad.get, t.mom.get), t.kid))
       .groupBy(_._1) // FIXME: add groupByKey
       .mapValues(_.map(_._2).toList)
+      .map(identity)
 
   def dadOf: Map[Int, Int] = trios.flatMap{ t => t.dad.map(s => (t.kid, s)) }.toMap
   def momOf: Map[Int, Int] = trios.flatMap{ t => t.mom.map(s => (t.kid, s)) }.toMap
