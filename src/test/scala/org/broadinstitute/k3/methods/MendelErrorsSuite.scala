@@ -4,7 +4,7 @@ import org.broadinstitute.k3.SparkSuite
 import org.broadinstitute.k3.variant.Variant
 import org.testng.annotations.Test
 
-class MendelSuite extends SparkSuite {
+class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "sparky", "src/test/resources/sample_mendel.vcf")
     val ped = Pedigree.read("src/test/resources/sample_mendel.fam", vds.sampleIds)
@@ -23,7 +23,7 @@ class MendelSuite extends SparkSuite {
     val variant2 = Variant("1", 2, "C", "T")
     val variant3 = Variant("X", 17, "C", "T")
 
-    //assert(nPerFam("Fam1") == 29)
+    assert(nPerFam((dad, mom)) == 29)
 
     assert(nPerInd(son) == 18)
     assert(nPerInd(dtr) == 11)
@@ -34,9 +34,10 @@ class MendelSuite extends SparkSuite {
     assert(nPerVar(variant2) == 1)
     assert(nPerVar(variant3) == 2)
 
-    men.writeMendel("src/test/resources/sample_mendel.mendel")
-    men.writeMendelL("src/test/resources/sample_mendel.lmendel")
-    men.writeMendelF("src/test/resources/sample_mendel.fmendel")
-    men.writeMendelI("src/test/resources/sample_mendel.imendel")
+    // FIXME: How to test these?  They all look right.
+    // men.writeMendel("src/test/resources/sample_mendel.mendel")
+    // men.writeMendelL("src/test/resources/sample_mendel.lmendel")
+    // men.writeMendelF("src/test/resources/sample_mendel.fmendel")
+    // men.writeMendelI("src/test/resources/sample_mendel.imendel")
   }
 }
