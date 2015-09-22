@@ -74,18 +74,15 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
       .mapValues(_.map(_._2).toList)
       .map(identity)
 
-  def dadOf: Map[Int, Int] = trios.flatMap{ t => t.dad.map(s => (t.kid, s)) }.toMap
-  def momOf: Map[Int, Int] = trios.flatMap{ t => t.mom.map(s => (t.kid, s)) }.toMap
-  def famOf: Map[Int, String] = trios.flatMap{ t => t.fam.map(s => (t.kid, s)) }.toMap
+  def dadOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.dad.get)).toMap
+  def momOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.mom.get)).toMap
+  def famOf: Map[Int, String] = completeTrios.map(t => (t.kid, t.fam.get)).toMap
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
-  def nFam: Int = trios.flatMap(_.fam).toSet.size  // FIXME: add distinct
-  def nIndiv: Int = trios.size
-  def nCompleteTrio: Int = nSatisfying(_.isComplete)
 
   def writeSummary(filename: String) = {
     val columns = List(
-      ("nFam", nFam), ("nIndiv", nIndiv), ("nCompleteTrios", nCompleteTrio),
+      ("nIndiv", trios.size), ("nCompleteTrios", completeTrios.size), ("nNuclearFams", nuclearFams.size),
       ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
       ("nCase", nSatisfying(_.isCase)), ("nControl", nSatisfying(_.isControl)),
       ("nMaleTrio", nSatisfying(_.isComplete, _.isMale)),
