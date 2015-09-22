@@ -90,7 +90,8 @@ object MendelErrors {
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
     val completeTrios = vds.sparkContext.broadcast(ped.completeTrios)
 
-    new MendelErrors(ped, vds.sampleIds, vds
+    new MendelErrors(ped, vds.sampleIds, vds.variants,
+      vds
       .flatMapWithKeys{ (v, s, g) =>
         completeTrios.value
           .filter(_.contains(s))
@@ -110,35 +111,34 @@ object MendelErrors {
   }
 }
 
-case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: RDD[MendelError]) {
-  // FIXME: how to handle variants, families, and individuals in which there were no errors?
+case class MendelErrors(ped:          Pedigree,
+                        sampleIds:    Array[String],
+                        variants:     RDD[Variant],
+                        mendelErrors: RDD[MendelError]) {
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
     mendelErrors
       .map(_.variant)
       .countByValueRDD()
+      .union(variants.map((_, 0)))
+      .reduceByKey(_ + _)
   }
 
   def nErrorPerNuclearFamily: RDD[((Int, Int), Int)] = {
     val dadOf = mendelErrors.sparkContext.broadcast(ped.dadOf)
     val momOf = mendelErrors.sparkContext.broadcast(ped.momOf)
+    val parentsRDD = mendelErrors.sparkContext.parallelize(ped.nuclearFams.keys.toSeq)
     mendelErrors
       .map(me => (dadOf.value(me.sample), momOf.value(me.sample)))
       .countByValueRDD()
-  }
-
-  //FIXME: I think I should remove this entirely as it's become an "arbitrary" grouping
-  // that would be better handled by a higher level method of aggregating sample statistics over groups of samples
-  def nErrorPerFamilyID: RDD[(String, Int)] = {
-    val famOf = mendelErrors.sparkContext.broadcast(ped.famOf)
-    mendelErrors
-      .flatMap(me => famOf.value.get(me.sample))
-      .countByValueRDD()
+      .union(parentsRDD.map((_, 0)))
+      .reduceByKey(_ + _)
   }
 
   def nErrorPerIndiv: RDD[(Int, Int)] = {
     val dadOf = mendelErrors.sparkContext.broadcast(ped.dadOf)
     val momOf = mendelErrors.sparkContext.broadcast(ped.momOf)
+    val indivRDD = mendelErrors.sparkContext.parallelize(ped.trioMap.keys.toSeq)
     def implicatedSamples(me: MendelError): List[Int] = {
       val s = me.sample
       val c = me.code
@@ -150,6 +150,8 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
     mendelErrors
       .flatMap(implicatedSamples)
       .countByValueRDD()
+      .union(indivRDD.map((_, 0)))
+      .reduceByKey(_ + _)
   }
 
   def writeMendel(filename: String) {
@@ -172,14 +174,15 @@ case class MendelErrors(ped: Pedigree, sampleIds: Array[String], mendelErrors: R
     writeTableWithSpark(filename, lines, "CHR\tSNP\tN\n")
   }
 
+  //FIXME: this is
   def writeMendelF(filename: String) {
     val bcSampleIds = nErrorPerNuclearFamily.sparkContext.broadcast(sampleIds)
     val famOf = nErrorPerNuclearFamily.sparkContext.broadcast(ped.famOf)
     val nuclearFams = nErrorPerNuclearFamily.sparkContext.broadcast(ped.nuclearFams)
 
+    //FIXME: plink only prints nCHLD, but the list of kids may be useful, currently not used anywhere else
     def toLine(parents: (Int, Int), nError: Int): String = {
       val (dad, mom) = parents
-      //FIXME if we only want nCHLD, then nuclearFams doesn't need list of kids, but it seems useful to have around
       famOf.value.getOrElse(dad, "0") + "\t" + bcSampleIds.value(dad) + "\t" + bcSampleIds.value(mom) + "\t" +
         nuclearFams.value((dad, mom)).size + "\t" + nError + "\n"
     }

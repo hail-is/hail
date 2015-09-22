@@ -11,21 +11,18 @@ class PedigreeSuite extends SparkSuite {
     val pedwr = Pedigree.read("/tmp/sample_mendel.fam", vds.sampleIds)
     assert(ped == pedwr)
 
-    println(ped.nuclearFams)
+    assert(ped.nuclearFams.size == 2 && ped.completeTrios.size == 3 && ped.trios.size == 11)
 
-    val pedComplete = Pedigree(ped.trios.filter(_.isComplete))
-    assert(pedComplete.nIndiv == ped.nCompleteTrio)
-
-    assert(ped.nFam == 5 && ped.nIndiv == 11)
     assert(ped.nSatisfying(_.isMale) == 5 && ped.nSatisfying(_.isFemale) == 5)
+
     assert(ped.nSatisfying(_.isCase) == 4 && ped.nSatisfying(_.isControl) == 3)
-    assert(ped.nCompleteTrio == 3 &&
-      ped.nSatisfying(_.isComplete, _.isMale) == 2 && ped.nSatisfying(_.isComplete, _.isFemale) == 1 &&
+
+    assert(ped.nSatisfying(_.isComplete, _.isMale) == 2 && ped.nSatisfying(_.isComplete, _.isFemale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isCase) == 2 && ped.nSatisfying(_.isComplete, _.isControl) == 1)
+
     assert(ped.nSatisfying(_.isComplete, _.isCase, _.isMale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isCase, _.isFemale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isMale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isFemale) == 0)
-
   }
 }
