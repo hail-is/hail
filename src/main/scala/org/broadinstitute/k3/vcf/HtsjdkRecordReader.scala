@@ -9,6 +9,7 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   override def hasNext: Boolean = bit.hasNext
 
   override def next(): String = bit.next()
+
   override def remove() { throw new UnsupportedOperationException }
 }
 

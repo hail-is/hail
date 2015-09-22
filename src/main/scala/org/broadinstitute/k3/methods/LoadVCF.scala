@@ -9,11 +9,11 @@ import org.broadinstitute.k3.vcf
 object LoadVCF {
   // FIXME move to VariantDataset
   def apply(sc: SparkContext,
-    file: String,
-    readerBuilder: vcf.AbstractRecordReaderBuilder = vcf.HtsjdkRecordReaderBuilder,
-    vsmtype: String = "sparky",
-    compress: Boolean = true,
-    nPartitions: Option[Int] = None): VariantDataset = {
+            file: String,
+            readerBuilder: vcf.AbstractRecordReaderBuilder = vcf.HtsjdkRecordReaderBuilder,
+            vsmtype: String = "sparky",
+            compress: Boolean = true,
+            nPartitions: Option[Int] = None): VariantDataset = {
 
     require(file.endsWith(".vcf")
       || file.endsWith(".vcf.bgz")
