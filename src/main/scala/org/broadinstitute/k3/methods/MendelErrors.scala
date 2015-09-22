@@ -6,11 +6,13 @@ import org.broadinstitute.k3.variant._
 
 import org.broadinstitute.k3.variant.GenotypeType._
 
-import org.broadinstitute.k3.methods.Role._
+import org.broadinstitute.k3.methods.Role.{Kid, Dad, Mom}
 
 case class MendelError(variant: Variant, sample: Int, code: Int, gKid: Genotype, gDad: Genotype, gMom: Genotype)
 
 object MendelErrors {
+
+  def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
   // FIXME: Decide between getCode, matchCode, and nestedMatchCode
   def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
@@ -99,13 +101,12 @@ object MendelErrors {
        }
       .groupByKey()
       .mapValues(_.toMap)
-      .flatMap { case ((v, s), gOf) => { //FIXME: IntelliJ wants me to remove this unnecessary pair of braces.  Thoughts?
+      .flatMap { case ((v, s), gOf) =>
         val code = getCode(gOf(Kid), gOf(Dad), gOf(Mom), v.onX)
         if (code != 0)
           Some(new MendelError(v, s, code, gOf(Kid), gOf(Dad), gOf(Mom)))
         else
           None
-        }
       }
     )
   }
@@ -116,29 +117,30 @@ case class MendelErrors(ped:          Pedigree,
                         variants:     RDD[Variant],
                         mendelErrors: RDD[MendelError]) {
 
+  def sc = mendelErrors.sparkContext
+
+  val dadOf = sc.broadcast(ped.dadOf)
+  val momOf = sc.broadcast(ped.momOf)
+  val famOf = sc.broadcast(ped.famOf)
+  val sampleIdsBc = sc.broadcast(sampleIds)
+
   def nErrorPerVariant: RDD[(Variant, Int)] = {
     mendelErrors
-      .map(_.variant)
-      .countByValueRDD()
+      .map(me => (me.variant, 1))
       .union(variants.map((_, 0)))
       .reduceByKey(_ + _)
   }
 
   def nErrorPerNuclearFamily: RDD[((Int, Int), Int)] = {
-    val dadOf = mendelErrors.sparkContext.broadcast(ped.dadOf)
-    val momOf = mendelErrors.sparkContext.broadcast(ped.momOf)
-    val parentsRDD = mendelErrors.sparkContext.parallelize(ped.nuclearFams.keys.toSeq)
+    val parentsRDD = sc.parallelize(ped.nuclearFams.keys.toSeq)
     mendelErrors
-      .map(me => (dadOf.value(me.sample), momOf.value(me.sample)))
-      .countByValueRDD()
+      .map(me => ((dadOf.value(me.sample), momOf.value(me.sample)), 1))
       .union(parentsRDD.map((_, 0)))
       .reduceByKey(_ + _)
   }
 
   def nErrorPerIndiv: RDD[(Int, Int)] = {
-    val dadOf = mendelErrors.sparkContext.broadcast(ped.dadOf)
-    val momOf = mendelErrors.sparkContext.broadcast(ped.momOf)
-    val indivRDD = mendelErrors.sparkContext.parallelize(ped.trioMap.keys.toSeq)
+    val indivRDD = sc.parallelize(ped.trioMap.keys.toSeq)
     def implicatedSamples(me: MendelError): List[Int] = {
       val s = me.sample
       val c = me.code
@@ -149,41 +151,34 @@ case class MendelErrors(ped:          Pedigree,
     }
     mendelErrors
       .flatMap(implicatedSamples)
-      .countByValueRDD()
+      .map((_, 1))
       .union(indivRDD.map((_, 0)))
       .reduceByKey(_ + _)
   }
 
   def writeMendel(filename: String) {
-    val bcSampleIds = mendelErrors.sparkContext.broadcast(sampleIds)
-    val famOf = mendelErrors.sparkContext.broadcast(ped.famOf)
     def toLine(me: MendelError): String = {
       val v = me.variant
       val s = me.sample
       val errorString = me.gDad.gtString(v) + " x " + me.gMom.gtString(v) + " -> " + me.gKid.gtString(v)
-      famOf.value.getOrElse(s, "0") + "\t" + bcSampleIds.value(s) + "\t" + v.contig + "\t" +
-        v.shortString + "\t" + me.code + "\t" + errorString
+      famOf.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + v.contig + "\t" +
+        MendelErrors.variantString(v) + "\t" + me.code + "\t" + errorString
     }
-    val lines = mendelErrors.map(toLine)
-    writeTableWithSpark(filename, lines, "FID\tKID\tCHR\tSNP\tCODE\tERROR\n")
+    mendelErrors.map(toLine)
+      .writeTable(filename, "FID\tKID\tCHR\tSNP\tCODE\tERROR\n")
   }
 
   def writeMendelL(filename: String) {
-    def toLine(v: Variant, nError: Int) = v.contig + "\t" + v.shortString + "\t" + nError
-    val lines = nErrorPerVariant.map((toLine _).tupled)
-    writeTableWithSpark(filename, lines, "CHR\tSNP\tN\n")
+    def toLine(v: Variant, nError: Int) = v.contig + "\t" + MendelErrors.variantString(v) + "\t" + nError
+    nErrorPerVariant.map((toLine _).tupled)
+      .writeTable(filename, "CHR\tSNP\tN\n")
   }
 
-  //FIXME: this is
   def writeMendelF(filename: String) {
-    val bcSampleIds = nErrorPerNuclearFamily.sparkContext.broadcast(sampleIds)
-    val famOf = nErrorPerNuclearFamily.sparkContext.broadcast(ped.famOf)
-    val nuclearFams = nErrorPerNuclearFamily.sparkContext.broadcast(ped.nuclearFams)
-
-    //FIXME: plink only prints nCHLD, but the list of kids may be useful, currently not used anywhere else
+    val nuclearFams = sc.broadcast(ped.nuclearFams)
     def toLine(parents: (Int, Int), nError: Int): String = {
       val (dad, mom) = parents
-      famOf.value.getOrElse(dad, "0") + "\t" + bcSampleIds.value(dad) + "\t" + bcSampleIds.value(mom) + "\t" +
+      famOf.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
         nuclearFams.value((dad, mom)).size + "\t" + nError + "\n"
     }
     val lines = nErrorPerNuclearFamily.map((toLine _).tupled).collect()
@@ -191,11 +186,8 @@ case class MendelErrors(ped:          Pedigree,
   }
 
   def writeMendelI(filename: String) {
-    val bcSampleIds = nErrorPerIndiv.sparkContext.broadcast(sampleIds)
-    val famOf = nErrorPerIndiv.sparkContext.broadcast(ped.famOf)
-
     def toLine(s: Int, nError: Int): String =
-      famOf.value.getOrElse(s, "0") + "\t" + bcSampleIds.value(s) + "\t" + nError + "\n"
+      famOf.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + nError + "\n"
     val lines = nErrorPerIndiv.map((toLine _).tupled).collect()
     writeTable(filename, lines, "FID\tIID\tN\n")
   }

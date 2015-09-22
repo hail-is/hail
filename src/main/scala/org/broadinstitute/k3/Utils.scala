@@ -12,6 +12,8 @@ import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVect
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector, Vectors}
 import org.apache.spark.SparkContext._
 
+import org.broadinstitute.k3.Utils._
+
 import scala.reflect.ClassTag
 
 class RichVector[T](v: Vector[T]) {
@@ -171,6 +173,12 @@ class RichArray[T](a: Array[T]) {
 
 class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
   def countByValueRDD(): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
+
+  def writeTable(filename: String, header: String = null) {
+    if (header != null)
+      withFileWriter(filename + ".header"){ fw => fw.write(header) }
+    r.saveAsTextFile(filename)
+  }
 }
 
 class RichIndexedRow(r: IndexedRow) {
@@ -272,11 +280,5 @@ object Utils {
       if (header != null) fw.write(header)
       lines.foreach(fw.write)
     }
-  }
-
-  def writeTableWithSpark(filename: String, lines: RDD[String], header: String = null) {
-    if (header != null)
-      withFileWriter(filename + ".header"){ fw => fw.write(header) }
-    lines.saveAsTextFile(filename)
   }
 }

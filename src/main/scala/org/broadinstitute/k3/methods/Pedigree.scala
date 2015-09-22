@@ -1,5 +1,15 @@
 package org.broadinstitute.k3.methods
 
+import java.io.{File, FileWriter}
+
+import org.broadinstitute.k3.Utils._
+import org.broadinstitute.k3.variant.{Sex, Phenotype}
+
+import org.broadinstitute.k3.variant.Phenotype.{Phenotype, Case, Control}
+import org.broadinstitute.k3.variant.Sex.{Sex, Male, Female}
+
+import scala.io.Source
+
 object Role extends Enumeration {
   type Role = Value
   val Kid = Value("0")
@@ -7,16 +17,7 @@ object Role extends Enumeration {
   val Mom = Value("2")
 }
 
-import java.io.{File, FileWriter}
-
-import org.broadinstitute.k3.Utils._
-import org.broadinstitute.k3.methods.Role._
-import org.broadinstitute.k3.variant.{Phenotype, Sex}
-
-import scala.io.Source
-
-import Phenotype._
-import Sex._
+import org.broadinstitute.k3.methods.Role.{Role, Kid, Dad, Mom}
 
 case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int],
                 sex: Option[Sex], pheno: Option[Phenotype]) {
@@ -67,6 +68,8 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def trios = trioMap.values
   def completeTrios = trios.filter(_.isComplete)
+
+  // plink only prints nCHLD, but the list of kids may be useful, currently not used anywhere else
   def nuclearFams: Map[(Int, Int), List[Int]] =
     completeTrios
       .map(t => ((t.dad.get, t.mom.get), t.kid))
@@ -100,7 +103,7 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
     }
   }
 
-  // FIXME: no header in plink fam file, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" sure seems appropriate
+  // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
   def write(filename: String, sampleIds: Array[String]) {
     def sampleIdOrElse(s: Option[Int]) = if (s.isDefined) sampleIds(s.get) else "0"
     def toLine(t: Trio): String =

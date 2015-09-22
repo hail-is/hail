@@ -1,5 +1,11 @@
 package org.broadinstitute.k3.variant
 
+import org.scalacheck.{Gen, Arbitrary}
+
+import scala.language.implicitConversions
+import scala.collection.mutable
+import org.broadinstitute.k3.Utils._
+
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
   val HomRef = Value(0)
@@ -8,14 +14,7 @@ object GenotypeType extends Enumeration {
   val NoCall = Value(-1)
 }
 
-import org.scalacheck.{Gen, Arbitrary}
-
-import scala.language.implicitConversions
-import scala.collection.mutable
-import org.broadinstitute.k3.Utils._
-
-
-import org.broadinstitute.k3.variant.GenotypeType._
+import org.broadinstitute.k3.variant.GenotypeType.{GenotypeType}
 
 case class Genotype(private val gt: Int,
                     ad: (Int, Int),
@@ -62,7 +61,7 @@ case class Genotype(private val gt: Int,
     pl1 min pl2 min 99
   }
 
-  def call: Option[Call] = { // FIXME we should talk about name. perhaps call should only refer to GT, I used gtCall above but would rather use call
+  def call: Option[Call] = {
     if (gt == -1)
       None
     else
