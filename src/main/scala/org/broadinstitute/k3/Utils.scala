@@ -176,7 +176,7 @@ class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
 
   def writeTable(filename: String, header: String = null) {
     if (header != null)
-      withFileWriter(filename + ".header"){ fw => fw.write(header) }
+      withFileWriter(filename + ".header"){ _.write(header) }
     r.saveAsTextFile(filename)
   }
 }
