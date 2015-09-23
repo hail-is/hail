@@ -53,5 +53,5 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+sourceCompatibility = 1.7
+targetCompatibility = 1.7

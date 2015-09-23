@@ -1,12 +1,20 @@
 package org.broadinstitute.k3
 
+import java.io.{File, FileWriter}
+
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
+import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector, Vectors}
+import org.apache.spark.SparkContext._
+
+import org.broadinstitute.k3.Utils._
+
+import scala.reflect.ClassTag
 
 class RichVector[T](v: Vector[T]) {
   def zipExact[T2](v2: Iterable[T2]): Vector[(T, T2)] = {
@@ -163,6 +171,16 @@ class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 }
 
+class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
+  def countByValueRDD(): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
+
+  def writeTable(filename: String, header: String = null) {
+    if (header != null)
+      withFileWriter(filename + ".header"){ _.write(header) }
+    r.saveAsTextFile(filename)
+  }
+}
+
 class RichIndexedRow(r: IndexedRow) {
 
   import Utils._
@@ -172,7 +190,25 @@ class RichIndexedRow(r: IndexedRow) {
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
 }
 
+class RichEnumeration[T <: Enumeration](e: T) {
+  def withNameOption(name: String): Option[T#Value] =
+    e.values.find(_.toString == name)
+}
+
+class RichMap[K, V](m: Map[K, V]) {
+  def mapValuesWithKeys[T](f: (K,V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
+
+  def groupByKey: Map[K, Iterable[V]] = m.groupBy(_._1).mapValues{ _.values }
+
+  def force = m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
+}
+
 object Utils {
+
+  implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
+
+  implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
+
   implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)
 
   implicit def toRichTuple2[T](t: (T, T)): RichHomogenousTuple2[T] = new RichHomogenousTuple2(t)
@@ -234,7 +270,26 @@ object Utils {
       new IndexedRow(b.index, a + toBVector(b.vector))
   }
 
+  implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] =
+    new RichEnumeration(e)
+
   def fail() {
     assert(false)
+  }
+
+  def withFileWriter[T](filename: String)(writer: (FileWriter) => T): T = {
+    val fw = new FileWriter(new File(filename))
+    try {
+      writer(fw)
+    } finally {
+      fw.close()
+    }
+  }
+
+  def writeTable(filename: String, lines: Traversable[String], header: String = null) {
+    withFileWriter(filename){ fw =>
+      if (header != null) fw.write(header)
+      lines.foreach(fw.write)
+    }
   }
 }

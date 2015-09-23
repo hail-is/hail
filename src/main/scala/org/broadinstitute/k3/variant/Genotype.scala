@@ -6,6 +6,16 @@ import scala.language.implicitConversions
 import scala.collection.mutable
 import org.broadinstitute.k3.Utils._
 
+object GenotypeType extends Enumeration {
+  type GenotypeType = Value
+  val HomRef = Value(0)
+  val Het = Value(1)
+  val HomVar = Value(2)
+  val NoCall = Value(-1)
+}
+
+import org.broadinstitute.k3.variant.GenotypeType.{GenotypeType}
+
 case class Genotype(private val gt: Int,
                     ad: (Int, Int),
                     dp: Int,
@@ -20,7 +30,7 @@ case class Genotype(private val gt: Int,
 
   def write(b: mutable.ArrayBuilder[Byte]) {
     val writeDp = ad._1 + ad._2 != dp
-    val writeAd2 = (gt != 0 || ad._2 != 0)
+    val writeAd2 = gt != 0 || ad._2 != 0
     b += ((if (writeDp) 0x08 else 0)
       | (if (writeAd2) 0x10 else 0)
       | (gt & 7)).toByte
@@ -37,16 +47,13 @@ case class Genotype(private val gt: Int,
   }
 
   def isHomRef: Boolean = gt == 0
-
   def isHet: Boolean = gt == 1
-
   def isHomVar: Boolean = gt == 2
-
   def isNonRef: Boolean = gt >= 1
-
   def isNotCalled: Boolean = gt == -1
-
   def isCalled: Boolean = gt != -1
+
+  def gtType: GenotypeType = GenotypeType(gt)
 
   def gq: Int = {
     assert(gt != -1)
@@ -94,6 +101,17 @@ case class Genotype(private val gt: Int,
     }
 
     b.result()
+  }
+
+  def gtString(v: Variant): String = {
+    if (isHomRef)
+      v.ref + "/" + v.ref
+    else if (isHet)
+      v.ref + "/" + v.alt
+    else if (isHomVar)
+      v.alt + "/" + v.alt
+    else
+      "./."
   }
 }
 
