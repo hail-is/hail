@@ -175,7 +175,7 @@ case class MendelErrors(ped:          Pedigree,
   }
 
   def writeMendelF(filename: String) {
-    val nuclearFams = sc.broadcast(ped.nuclearFams)
+    val nuclearFams = sc.broadcast(ped.nuclearFams.force)
     def toLine(parents: (Int, Int), nError: Int): String = {
       val (dad, mom) = parents
       famOf.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +

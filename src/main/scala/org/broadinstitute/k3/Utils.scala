@@ -195,7 +195,18 @@ class RichEnumeration[T <: Enumeration](e: T) {
     e.values.find(_.toString == name)
 }
 
+class RichMap[K, V](m: Map[K, V]) {
+  def mapValuesWithKeys[T](f: (K,V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
+
+  def groupByKey: Map[K, Iterable[V]] = m.groupBy(_._1).mapValues{ _.values }
+
+  def force = m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
+}
+
 object Utils {
+
+  implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
+
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)

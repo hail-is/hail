@@ -66,16 +66,15 @@ object Pedigree {
 
 case class Pedigree(trioMap: Map[Int, Trio]) {
 
-  def trios = trioMap.values
+  def trios = trioMap.values.toArray
   def completeTrios = trios.filter(_.isComplete)
 
-  // plink only prints nCHLD, but the list of kids may be useful, currently not used anywhere else
-  def nuclearFams: Map[(Int, Int), List[Int]] =
+  // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
+  def nuclearFams: Map[(Int, Int), Iterable[Int]] =
     completeTrios
       .map(t => ((t.dad.get, t.mom.get), t.kid))
-      .groupBy(_._1) // FIXME: add groupByKey
-      .mapValues(_.map(_._2).toList)
-      .map(identity)
+      .toMap
+      .groupByKey
 
   def dadOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.dad.get)).toMap
   def momOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.mom.get)).toMap
@@ -85,7 +84,7 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def writeSummary(filename: String) = {
     val columns = List(
-      ("nIndiv", trios.size), ("nCompleteTrios", completeTrios.size), ("nNuclearFams", nuclearFams.size),
+      ("nIndiv", trios.length), ("nCompleteTrios", completeTrios.length), ("nNuclearFams", nuclearFams.size),
       ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
       ("nCase", nSatisfying(_.isCase)), ("nControl", nSatisfying(_.isControl)),
       ("nMaleTrio", nSatisfying(_.isComplete, _.isMale)),

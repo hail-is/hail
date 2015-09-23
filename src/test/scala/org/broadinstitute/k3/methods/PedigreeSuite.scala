@@ -11,7 +11,7 @@ class PedigreeSuite extends SparkSuite {
     val pedwr = Pedigree.read("/tmp/sample_mendel.fam", vds.sampleIds)
     assert(ped == pedwr)
 
-    assert(ped.nuclearFams.size == 2 && ped.completeTrios.size == 3 && ped.trios.size == 11)
+    assert(ped.nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 11)
 
     assert(ped.nSatisfying(_.isMale) == 5 && ped.nSatisfying(_.isFemale) == 5)
 
