@@ -1,22 +1,47 @@
 package org.broadinstitute.k3.variant
 
+import java.io.{FileWriter, File}
 import java.util.TreeMap
 import scala.collection.mutable
+import scala.io.Source
+import scala.collection.JavaConverters._
+import org.broadinstitute.k3.Utils._
+
+case class Interval(contig: String, start: Int, end: Int)
 
 object IntervalList {
-  def apply(): IntervalList = {
-    new IntervalList(mutable.Map.empty)
+  def apply(intervals: Traversable[Interval]): IntervalList = {
+    val m = mutable.Map[String, TreeMap[Int, Int]]()
+    intervals.foreach { case Interval(contig, start, end) =>
+      m.getOrElseUpdate(contig, new TreeMap[Int, Int]()).put(start, end)
+    }
+    new IntervalList(m)
+  }
+
+  def read(filename: String): IntervalList = {
+    require(filename.endsWith(".interval_list"))
+
+    val intervalRegex = """([^:]*):(\d+)-(\d+)""".r
+
+    IntervalList(
+      Source
+        .fromFile(new File(filename))
+        .getLines() // Iterator[String]
+        .filter(line => !line.isEmpty && line(0) != '@')
+        .map {
+        case intervalRegex(contig, start_str, end_str) =>
+          Interval(contig, start_str.toInt, end_str.toInt)
+        case line =>
+          val Array(contig, start, end, direction, target) = line.split("\t")
+          // FIXME proper input error handling
+          assert(direction == "+" || direction == "-")
+          Interval(contig, start.toInt, end.toInt)
+      }
+        .toTraversable)
   }
 }
 
-// FIXME immutable?
-// FIXME val
-case class IntervalList(m: mutable.Map[String, TreeMap[Int, Int]]) {
-  def +=(kv: (String, (Int, Int))) {
-    val (contig, (start, end)) = kv
-    m.getOrElseUpdate(contig, new TreeMap[Int, Int]()).put(start, end)
-  }
-
+class IntervalList(private val m: mutable.Map[String, TreeMap[Int, Int]]) {
   def contains(p: (String, Int)): Boolean = {
     val (contig, pos) = p
     m.get(contig) match {
@@ -28,5 +53,18 @@ case class IntervalList(m: mutable.Map[String, TreeMap[Int, Int]]) {
           false
       case None => false
     }
+  }
+
+  def write(filename: String) {
+    withFileWriter(filename){ fw =>
+      for ((contig, t) <- m;
+        entry <- t.entrySet().asScala)
+        fw.write(contig + ":" + entry.getKey() + "-" + entry.getValue() + "\n")
+    }
+  }
+
+  override def equals(that: Any) = that match {
+    case ilist: IntervalList => m == ilist.m
+    case _ => false
   }
 }
