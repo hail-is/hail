@@ -18,26 +18,24 @@ object ManagedVSM {
 
     val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
 
-    val sampleIdsObj = metadataOis.readObject()
+    val metadataObj = metadataOis.readObject()
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
-    val sampleIds = sampleIdsObj match {
-      case t: Array[String] => t
+    val metadata = metadataObj match {
+      case t: VariantMetadata => t
       case _ => throw new ClassCastException
     }
 
     import RichRow._
-    new ManagedVSM(sampleIds, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))), (v, s, g) => g, _ => true)
+    new ManagedVSM(metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))), (v, s, g) => g, _ => true)
   }
 }
 
-class ManagedVSM[T](val sampleIds: Array[String],
+class ManagedVSM[T](val metadata: VariantMetadata,
                     val rdd: RDD[(Variant, GenotypeStream)],
                     mapFn: (Variant, Int, Genotype) => T,
                     samplePredicate: (Int) => Boolean)(implicit ttt: TypeTag[T], tct: ClassTag[T])
   extends VariantSampleMatrix[T] {
-
-  def nSamples: Int = sampleIds.length
 
   def nVariants: Long = rdd.count()
 
@@ -46,14 +44,14 @@ class ManagedVSM[T](val sampleIds: Array[String],
   def nPartitions: Int = rdd.partitions.size
 
   def repartition(nPartitions: Int) =
-    new ManagedVSM[T](sampleIds, rdd.repartition(nPartitions), mapFn, samplePredicate)
+    new ManagedVSM[T](metadata, rdd.repartition(nPartitions), mapFn, samplePredicate)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
   def cache(): ManagedVSM[T] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
-    new ManagedVSM[T](sampleIds, rdd.cache(), localMapFn, localSamplePredicate)
+    new ManagedVSM[T](metadata, rdd.cache(), localMapFn, localSamplePredicate)
   }
 
   def count(): Long = rdd.count() // should this be nVariants instead?
@@ -75,7 +73,7 @@ class ManagedVSM[T](val sampleIds: Array[String],
     new File(dirname).mkdir()
 
     val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
-    metadataOos.writeObject(sampleIds)
+    metadataOos.writeObject(metadata)
 
     import sqlContext.implicits._
 
@@ -86,7 +84,7 @@ class ManagedVSM[T](val sampleIds: Array[String],
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): ManagedVSM[U] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
-    new ManagedVSM[U](sampleIds, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
+    new ManagedVSM[U](metadata, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
   }
 
   def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] =
@@ -101,13 +99,13 @@ class ManagedVSM[T](val sampleIds: Array[String],
   def filterVariants(p: (Variant) => Boolean) = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
-    new ManagedVSM[T](sampleIds, rdd.filter(t => p(t._1)), localMapFn, localSamplePredicate)
+    new ManagedVSM[T](metadata, rdd.filter(t => p(t._1)), localMapFn, localSamplePredicate)
   }
 
   def filterSamples(p: (Int) => Boolean) = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
-    new ManagedVSM[T](sampleIds, rdd, localMapFn, id => localSamplePredicate(id) && p(id))
+    new ManagedVSM[T](metadata, rdd, localMapFn, id => localSamplePredicate(id) && p(id))
   }
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(

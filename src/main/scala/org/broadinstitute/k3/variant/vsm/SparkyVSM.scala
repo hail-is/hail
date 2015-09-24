@@ -18,33 +18,32 @@ object SparkyVSM {
 
     val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
 
-    val sampleIdsObj = metadataOis.readObject()
+    val metadataObj = metadataOis.readObject()
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
-    val sampleIds = sampleIdsObj match {
-      case t: Array[String] => t
+    val metadata = metadataObj match {
+      case t: VariantMetadata => t
       case _ => throw new ClassCastException
     }
 
     import RichRow._
-    new SparkyVSM(sampleIds, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
+    new SparkyVSM(metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 }
 
-class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
+class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
                                             val rdd: RDD[(Variant, S)])
                                            (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S])
   extends VariantSampleMatrix[T] {
-  def nSamples: Int = sampleIds.length
 
   def nVariants: Long = rdd.count()
   def variants: RDD[Variant] = rdd.keys
 
   def cache(): SparkyVSM[T, S] =
-    new SparkyVSM[T, S](sampleIds, rdd.cache())
+    new SparkyVSM[T, S](metadata, rdd.cache())
 
   def repartition(nPartitions: Int) =
-    new SparkyVSM[T, S](sampleIds, rdd.repartition(nPartitions))
+    new SparkyVSM[T, S](metadata, rdd.repartition(nPartitions))
 
   def nPartitions: Int = rdd.partitions.size
 
@@ -64,7 +63,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
     new File(dirname).mkdir()
 
     val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
-    metadataOos.writeObject(sampleIds)
+    metadataOos.writeObject(metadata)
 
     import sqlContext.implicits._
 
@@ -73,7 +72,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
   }
 
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): SparkyVSM[U, Vector[(Int, U)]] = {
-    new SparkyVSM[U, Vector[(Int, U)]](sampleIds,
+    new SparkyVSM[U, Vector[(Int, U)]](metadata,
       rdd
       .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toVector) })
   }
@@ -90,12 +89,12 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val sampleIds: Array[String],
 
   // FIXME push down into reader: add VariantSampleDataframeMatrix?
   def filterVariants(p: (Variant) => Boolean) = {
-    new SparkyVSM[T, S](sampleIds,
+    new SparkyVSM[T, S](metadata,
       rdd.filter { case (v, gs) => p(v) })
   }
 
   def filterSamples(p: (Int) => Boolean) = {
-    new SparkyVSM[T, Vector[(Int, T)]](sampleIds,
+    new SparkyVSM[T, Vector[(Int, T)]](metadata,
       rdd.map { case (v, gs) =>
         (v, gs.filter { case (s, v) => p(s) }.toVector)
       })

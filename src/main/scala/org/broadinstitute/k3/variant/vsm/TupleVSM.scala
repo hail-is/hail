@@ -12,9 +12,9 @@ import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
 object TupleVSM {
-  def apply(sampleIds: Array[String],
+  def apply(metadata: VariantMetadata,
             rdd: RDD[(Variant, GenotypeStream)]) =
-    new TupleVSM(sampleIds,
+    new TupleVSM(metadata,
       rdd.flatMap { case (v, gs) => gs.iterator.map { case (s, g) => (v, s, g) } })
 
   def read(sqlContext: SQLContext, dirname: String): TupleVSM[Genotype] = {
@@ -22,40 +22,39 @@ object TupleVSM {
 
     val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
 
-    val sampleIdsObj = metadataOis.readObject()
+    val metadataObj = metadataOis.readObject()
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
     df.printSchema()
 
-    val sampleIds = sampleIdsObj match {
-      case t: Array[String] => t
+    val metadata = metadataObj match {
+      case t: VariantMetadata => t
       case _ => throw new ClassCastException
     }
 
     import RichRow._
-    new TupleVSM[Genotype](sampleIds,
+    new TupleVSM[Genotype](metadata,
       df
       .rdd
       .map(r => (r.getVariant(0), r.getInt(1), r.getGenotype(2))))
   }
 }
 
-class TupleVSM[T](val sampleIds: Array[String],
+class TupleVSM[T](val metadata: VariantMetadata,
                   val rdd: RDD[(Variant, Int, T)])(implicit ttt: TypeTag[T], tct: ClassTag[T])
   extends VariantSampleMatrix[T] {
 
-  def nSamples: Int = sampleIds.length
+  override def nSamples: Int = sampleIds.length
 
   def variants: RDD[Variant] = rdd.map(_._1).distinct
 
-  // FIXME should be stored
   def nVariants: Long = variants.count()
 
   def cache(): TupleVSM[T] =
-    new TupleVSM[T](sampleIds, rdd.cache())
+    new TupleVSM[T](metadata, rdd.cache())
 
   def repartition(nPartitions: Int) =
-    new TupleVSM[T](sampleIds, rdd.repartition(nPartitions))
+    new TupleVSM[T](metadata, rdd.repartition(nPartitions))
 
   def nPartitions: Int = rdd.partitions.size
 
@@ -71,7 +70,7 @@ class TupleVSM[T](val sampleIds: Array[String],
     new File(dirname).mkdir()
 
     val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
-    metadataOos.writeObject(sampleIds)
+    metadataOos.writeObject(metadata)
 
     import sqlContext.implicits._
 
@@ -80,7 +79,7 @@ class TupleVSM[T](val sampleIds: Array[String],
   }
 
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): TupleVSM[U] = {
-    new TupleVSM[U](sampleIds,
+    new TupleVSM[U](metadata,
       rdd.map { case (v, s, g) => (v, s, f(v, s, g)) })
   }
 
@@ -91,12 +90,12 @@ class TupleVSM[T](val sampleIds: Array[String],
     rdd.flatMap[U](f.tupled)
 
   def filterVariants(p: (Variant) => Boolean) = {
-    new TupleVSM[T](sampleIds,
+    new TupleVSM[T](metadata,
       rdd.filter { case (v, s, g) => p(v) })
   }
 
   def filterSamples(p: (Int) => Boolean) = {
-    new TupleVSM[T](sampleIds,
+    new TupleVSM[T](metadata,
       rdd.filter { case (v, s, g) => p(s) })
   }
 
