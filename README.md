@@ -11,6 +11,7 @@ We use the following development tools:
  - TestNG and [ScalaCheck](https://www.scalacheck.org/) for testing
  - Travis-CI for automated testing
  - Jacoco for code coverage
+ - args4j for command line parsing
  - Spark
  - Apache Commons libraries
  - IntelliJ (but you can use whatever editor you want)
@@ -55,16 +56,16 @@ To generate a code coverage report and view it, do:
 To convert a .vcf.gz to a .vds, do:
 
 ```
-~/k3 $ ./build/install/k3/bin/k3 src/test/resources/sample.vcf.gz write ~/sample.vds
+~/k3 $ ./build/install/k3/bin/k3 read -i src/test/resources/sample.vcf.gz write -o ~/sample.vds
 ```
 
 `sample.vcf.gz` is a 182KB test `.vcf.gz` with a hundred or so samples
-and variants.  This creates `~/sample.vcf`.
+and variants.  This creates `~/sample.vds`.
 
 To run sampleqc, do:
 
 ```
-~/k3 $ ./build/install/k3/bin/k3 ~/sample.vds sampleqc ~/sampleqc.tsv
+~/k3 $ ./build/install/k3/bin/k3 read -i ~/sample.vds sampleqc -o ~/sampleqc.tsv
 ```
 
-For more options and commands, do `k3 -help`.
+For more options and commands, do `k3 -h`.

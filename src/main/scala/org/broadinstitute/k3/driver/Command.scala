@@ -9,6 +9,7 @@ import scala.collection.JavaConverters._
 case class State(installDir: String,
   sc: SparkContext,
   sqlContext: SQLContext,
+  // FIXME make option
   vds: VariantDataset) {
   def hadoopConf = vds.sparkContext.hadoopConfiguration
 }
@@ -23,7 +24,7 @@ abstract class Command {
 
   type Options <: BaseOptions
 
-  // HACK
+  // FIXME HACK
   def newOptions: Options
 
   def name: String
