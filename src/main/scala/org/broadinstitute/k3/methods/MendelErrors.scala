@@ -108,6 +108,7 @@ object MendelErrors {
         else
           None
       }
+      .cache()
     )
   }
 }
