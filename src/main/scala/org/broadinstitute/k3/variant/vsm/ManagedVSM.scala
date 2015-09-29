@@ -13,28 +13,20 @@ import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
 object ManagedVSM {
-  def read(sqlContext: SQLContext, dirname: String): ManagedVSM[Genotype] = {
+  def read(sqlContext: SQLContext, dirname: String, metadata: VariantMetadata): ManagedVSM[Genotype] = {
+    import RichRow._
+
     require(dirname.endsWith(".vds"))
 
-    val metadataOis = new ObjectInputStream(new FileInputStream(dirname + "/metadata.ser"))
-
-    val metadataObj = metadataOis.readObject()
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-
-    val metadata = metadataObj match {
-      case t: VariantMetadata => t
-      case _ => throw new ClassCastException
-    }
-
-    import RichRow._
     new ManagedVSM(metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))), (v, s, g) => g, _ => true)
   }
 }
 
 class ManagedVSM[T](val metadata: VariantMetadata,
-                    val rdd: RDD[(Variant, GenotypeStream)],
-                    mapFn: (Variant, Int, Genotype) => T,
-                    samplePredicate: (Int) => Boolean)(implicit ttt: TypeTag[T], tct: ClassTag[T])
+  val rdd: RDD[(Variant, GenotypeStream)],
+  mapFn: (Variant, Int, Genotype) => T,
+  samplePredicate: (Int) => Boolean)(implicit ttt: TypeTag[T], tct: ClassTag[T])
   extends VariantSampleMatrix[T] {
 
   def nVariants: Long = rdd.count()
@@ -61,27 +53,26 @@ class ManagedVSM[T](val metadata: VariantMetadata,
     val localMapFn = mapFn
 
     rdd.flatMap { case (v, gs) => gs
-                                  .iterator
-                                  .filter { case (s, g) => localSamplePredicate(s) }
-                                  .map { case (s, g) => (v, s, localMapFn(v, s, g)) }
+      .iterator
+      .filter { case (s, g) => localSamplePredicate(s) }
+      .map { case (s, g) => (v, s, localMapFn(v, s, g)) }
     }
   }
 
   def write(sqlContext: SQLContext, dirname: String) {
-    require(dirname.endsWith(".vds"))
-
-    new File(dirname).mkdir()
-
-    val metadataOos = new ObjectOutputStream(new FileOutputStream(dirname + "/metadata.ser"))
-    metadataOos.writeObject(metadata)
-
     import sqlContext.implicits._
 
-    val df = rdd.toDF()
-    df.write.parquet(dirname + "/rdd.parquet")
+    require(dirname.endsWith(".vds"))
+
+    val hConf = sparkContext.hadoopConfiguration
+    hadoopMkdir(dirname, hConf)
+    writeObjectFile(dirname + "/metadata.ser", hConf)(
+      _.writeObject("managed" -> metadata))
+
+    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): ManagedVSM[U] = {
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): ManagedVSM[U] = {
     val localSamplePredicate = samplePredicate
     val localMapFn = mapFn
     new ManagedVSM[U](metadata, rdd, (v, s, g) => f(v, s, localMapFn(v, s, g)), localSamplePredicate)
@@ -123,7 +114,7 @@ class ManagedVSM[T](val metadata: VariantMetadata,
     val a = rdd.aggregate(Vector.fill[U](filteredNums.length)(zeroValue))({
       case (acc, (v, gs)) => {
         gs
-        .foldLeft(acc)({
+          .foldLeft(acc)({
           case (acc2, (s, g)) => {
             val j = numFilteredNumBroadcast.value(s)
             if (j != -1)
@@ -137,8 +128,8 @@ class ManagedVSM[T](val metadata: VariantMetadata,
     (v1: Vector[U], v2: Vector[U]) => v1.zipWith(v2, combOp))
 
     filteredNums
-    .zip(a)
-    .toMap
+      .zip(a)
+      .toMap
   }
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
@@ -149,9 +140,9 @@ class ManagedVSM[T](val metadata: VariantMetadata,
 
     rdd.aggregateByKey(zeroValue)(
       (x, gs) => gs
-                 .iterator
-                 .filter({ case (s, g) => localSamplePredicate(s) })
-                 .aggregate(x)({ case (x2, (s, g)) => seqOp(x2, gs.variant, s, localMapFn(gs.variant, s, g)) }, combOp),
+        .iterator
+        .filter({ case (s, g) => localSamplePredicate(s) })
+        .aggregate(x)({ case (x2, (s, g)) => seqOp(x2, gs.variant, s, localMapFn(gs.variant, s, g)) }, combOp),
       combOp)
   }
 
@@ -171,14 +162,14 @@ class ManagedVSM[T](val metadata: VariantMetadata,
     val vCombOp: (Vector[T], Vector[T]) => Vector[T] =
       (a1, a2) => a1.iterator.zip(a2.iterator).map(combOp.tupled).toVector
     val a = rdd
-            .aggregate(Vector.fill[T](nFilteredNums)(zeroValue))({
+      .aggregate(Vector.fill[T](nFilteredNums)(zeroValue))({
       case (acc, (v, gs)) => acc.iterator.zip(gs.iterator
-                                              .filter({ case (s, g) => localSamplePredicate(s) })
-                                              .map({ case (s, g) => localMapFn(v, s, g) }))
-                             .map(combOp.tupled)
-                             .toVector
+        .filter({ case (s, g) => localSamplePredicate(s) })
+        .map({ case (s, g) => localMapFn(v, s, g) }))
+        .map(combOp.tupled)
+        .toVector
     },
-            vCombOp)
+    vCombOp)
 
     filteredNums.toVector.zip(a).toMap
   }
@@ -188,10 +179,10 @@ class ManagedVSM[T](val metadata: VariantMetadata,
     val localMapFn = mapFn
 
     rdd
-    .mapValues(gs => gs.iterator
-                     .filter({ case (s, g) => localSamplePredicate(s) })
-                     .map({ case (s, g) => localMapFn(gs.variant, s, g) })
-                     .fold(zeroValue)(combOp))
-    .foldByKey(zeroValue)(combOp)
+      .mapValues(gs => gs.iterator
+      .filter({ case (s, g) => localSamplePredicate(s) })
+      .map({ case (s, g) => localMapFn(gs.variant, s, g) })
+      .fold(zeroValue)(combOp))
+      .foldByKey(zeroValue)(combOp)
   }
 }

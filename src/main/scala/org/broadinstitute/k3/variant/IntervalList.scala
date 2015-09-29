@@ -1,10 +1,11 @@
 package org.broadinstitute.k3.variant
 
-import java.io.{FileWriter, File}
+import java.io.File
 import java.util.TreeMap
 import scala.collection.mutable
 import scala.io.Source
 import scala.collection.JavaConverters._
+import org.apache.hadoop
 import org.broadinstitute.k3.Utils._
 
 case class Interval(contig: String, start: Int, end: Int)
@@ -55,8 +56,8 @@ class IntervalList(private val m: mutable.Map[String, TreeMap[Int, Int]]) {
     }
   }
 
-  def write(filename: String) {
-    withFileWriter(filename){ fw =>
+  def write(filename: String, hConf: hadoop.conf.Configuration) {
+    writeTextFile(filename, hConf){ fw =>
       for ((contig, t) <- m;
         entry <- t.entrySet().asScala)
         fw.write(contig + ":" + entry.getKey() + "-" + entry.getValue() + "\n")

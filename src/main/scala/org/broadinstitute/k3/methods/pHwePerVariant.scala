@@ -6,12 +6,15 @@ import org.broadinstitute.k3.variant._
 import org.broadinstitute.k3.Utils._
 
 // FIXME currently just compute chi2 stat, need tests
-object pHwePerVariant extends VariantMethod[Double] {
+object pHwePerVariant extends DerivedMethod {
+  type T = Double
   def name = "nHWE"
 
-  def apply(vds: VariantDataset): RDD[(Variant, Double)] = {
-    nGenotypeVectorPerVariant(vds)
-      .mapValues(a => chiSq(Vector(a._1, a._2, a._3)))
+  def map(values: MethodValues) = {
+    val nHomRef = values.get(nHomRefPer)
+    val nHet = values.get(nHetPer)
+    val nHomVar = values.get(nHomVarPer)
+    chiSq(Vector(nHomRef, nHet, nHomVar))
   }
 
   def chiSq(observed: Vector[Int]): Double = { // FIXME handle div by 0

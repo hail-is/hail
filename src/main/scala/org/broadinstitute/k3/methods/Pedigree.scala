@@ -1,13 +1,11 @@
 package org.broadinstitute.k3.methods
 
-import java.io.{File, FileWriter}
-
+import java.io.File
+import org.apache.hadoop
 import org.broadinstitute.k3.Utils._
 import org.broadinstitute.k3.variant.{Sex, Phenotype}
-
 import org.broadinstitute.k3.variant.Phenotype.{Phenotype, Case, Control}
 import org.broadinstitute.k3.variant.Sex.{Sex, Male, Female}
-
 import scala.io.Source
 
 object Role extends Enumeration {
@@ -82,7 +80,7 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
 
-  def writeSummary(filename: String) = {
+  def writeSummary(filename: String, hConf: hadoop.conf.Configuration) = {
     val columns = List(
       ("nIndiv", trios.length), ("nCompleteTrios", completeTrios.length), ("nNuclearFams", nuclearFams.size),
       ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
@@ -96,19 +94,19 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
       ("nControlMaleTrio", nSatisfying(_.isComplete, _.isControl, _.isMale)),
       ("nControlFemaleTrio", nSatisfying(_.isComplete, _.isControl, _.isFemale)))
 
-    withFileWriter(filename){ fw =>
+    writeTextFile(filename, hConf){ fw =>
       fw.write(columns.map(_._1).mkString("\t") + "\n")
       fw.write(columns.map(_._2).mkString("\t") + "\n")
     }
   }
 
   // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
-  def write(filename: String, sampleIds: Array[String]) {
+  def write(filename: String, hConf: hadoop.conf.Configuration, sampleIds: Array[String]) {
     def sampleIdOrElse(s: Option[Int]) = if (s.isDefined) sampleIds(s.get) else "0"
     def toLine(t: Trio): String =
       t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + sampleIdOrElse(t.dad) + "\t" +
         sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0") + "\n"
     val lines = trios.map(toLine)
-    writeTable(filename, lines)
+    writeTable(filename, hConf, lines)
   }
 }

@@ -15,14 +15,17 @@ library(reshape)
 
 #filename <- "G77318RH_PASS_NLC_split.gqbydp.tsv"
 
-Plot_gq20bydp <- function(filename, plotname=".gqbydp.png", widthres=8, heightres=6, title="% of variants with GQ >= 20", xlab="% of variants with GQ >= 20", ylab="DP Bins")
+args <- commandArgs(trailingOnly = TRUE)
+filename = as.character(args[1])
+
+Plot_gq20bydp <- function(filename, plotname=".png", widthres=8, heightres=6, title="% of variants with GQ >= 20", xlab="% of variants with GQ >= 20", ylab="DP Bins")
 {
 	# Read header and data
 	headerd <- read.table(filename, nrows = 1, header = FALSE, sep="\t", stringsAsFactors = FALSE)
 	d <- read.table(filename, header=F, stringsAsFactor=F, sep="\t", skip=2)
 	colnames(d) <- unlist(headerd)
 
-	prefix <- strsplit(filename,"\\.")[[1]][-(2:3)]
+	prefix <- paste(head(strsplit(filename,"\\.")[[1]],n=-1), collapse=".")
 
 	# Create the data for plotting
 	meltd <- melt(d)
