@@ -46,7 +46,7 @@ class MendelErrorsSuite extends SparkSuite {
     assert(nPerVariant.get(variant4).isEmpty)
     assert(nPerVariant.get(variant5).isEmpty)
 
-    //FIXME: How to test these? They all look right
+    //FIXME: How to test these?
     //men.writeMendel("/tmp/sample_mendel.mendel")
     //men.writeMendelL("/tmp/sample_mendel.lmendel")
     //men.writeMendelF("/tmp/sample_mendel.fmendel")
