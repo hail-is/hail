@@ -14,85 +14,26 @@ object MendelErrors {
 
   def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
-  // FIXME: Decide between getCode, matchCode, and nestedMatchCode
   def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
-    if (gKid.isHomRef)
-      if      (onX            &&  gMom.isHomVar) 9
-      else if (!gDad.isHomVar && !gMom.isHomVar) 0
-      else if ( gDad.isHomVar && !gMom.isHomVar) 6
-      else if (!gDad.isHomVar &&  gMom.isHomVar) 7
-      else                                       8
-    else if (gKid.isHet)
-      if      (gDad.isHet    || gMom.isHet)      0
-      else if (gDad.isHomRef && gMom.isHomRef)   2
-      else if (gDad.isHomVar && gMom.isHomVar)   1
-      else                                       0
-    else if (gKid.isHomVar)
-      if      (onX            &&  gMom.isHomRef) 10
-      else if (!gDad.isHomRef && !gMom.isHomRef) 0
-      else if ( gDad.isHomRef && !gMom.isHomRef) 3
-      else if (!gDad.isHomRef &&  gMom.isHomRef) 4
-      else                                       5
-    else                                         0
-  }
-
-  def matchCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
     (gDad.gtType, gMom.gtType, gKid.gtType, onX) match {
-      case (HomRef, HomRef, HomRef,     _) => 0 // FIXME: does including these cases at the top speed things up?
-      case (   Het,      _,    Het,     _) => 0
-      case (     _,    Het,    Het,     _) => 0
-
-      case (HomRef, HomRef,    Het, false) => 2
+      case (HomRef, HomRef,    Het, false) => 2  // Autosome, Het
       case (HomVar, HomVar,    Het, false) => 1
-
-      case (HomRef, HomRef, HomVar, false) => 5
+      case (HomRef, HomRef, HomVar, false) => 5  // Autosome, HomVar
       case (HomRef,      _, HomVar, false) => 3
       case (     _, HomRef, HomVar, false) => 4
-
-      case (HomVar, HomVar, HomRef, false) => 8
+      case (HomVar, HomVar, HomRef, false) => 8  // Autosome, HomRef
       case (HomVar,      _, HomRef, false) => 6
       case (     _, HomVar, HomRef, false) => 7
-
-      case (     _, HomVar, HomRef,  true) => 9
-      case (     _, HomRef, HomVar,  true) => 10
-
-      case _                               => 0
-    }
-  }
-
-  def nestedMatchCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
-    (gDad.gtType, gMom.gtType, gKid.gtType, onX) match {
-      case (HomRef, HomRef, HomRef, _) => 0
-
-      case   (dad, mom, Het, x) => (dad, mom, x) match {
-        case (     _,    Het,     _)   => 0
-        case (Het   ,      _,     _)   => 0
-        case (HomRef, HomRef, false)   => 2
-        case (HomVar, HomVar, false)   => 1
-        case _                         => 0
-      }
-      case (dad, mom, HomVar, x) => (dad, mom, x) match {
-        case (HomRef, HomRef, false)   => 5
-        case (HomRef,      _, false)   => 3
-        case (     _, HomRef, false)   => 4
-        case (     _, HomRef,  true)   => 10
-        case _                         => 0
-      }
-      case (dad, mom, HomRef, x) => (dad, mom, x) match {
-        case (HomVar, HomVar, false)   => 8
-        case (HomVar,      _, false)   => 6
-        case (     _, HomVar, false)   => 7
-        case (     _, HomVar,  true)   => 9
-        case _                         => 0
-      }
-      case _                           => 0
+      case (     _, HomVar, HomRef,  true) => 9  // X, HomRef
+      case (     _, HomRef, HomVar,  true) => 10 // X, HomVar
+      case _                               => 0  // No error
     }
   }
 
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
     val completeTrios = vds.sparkContext.broadcast(ped.completeTrios)
 
-    new MendelErrors(ped, vds.sampleIds, vds.variants,
+    new MendelErrors(ped, vds.sampleIds,
       vds
       .flatMapWithKeys{ (v, s, g) =>
         completeTrios.value
@@ -115,7 +56,6 @@ object MendelErrors {
 
 case class MendelErrors(ped:          Pedigree,
                         sampleIds:    Array[String],
-                        variants:     RDD[Variant],
                         mendelErrors: RDD[MendelError]) {
 
   def sc = mendelErrors.sparkContext
@@ -127,9 +67,8 @@ case class MendelErrors(ped:          Pedigree,
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
     mendelErrors
-      .map(me => (me.variant, 1))
-      .union(variants.map((_, 0)))
-      .reduceByKey(_ + _)
+      .map(_.variant)
+      .countByValueRDD()
   }
 
   def nErrorPerNuclearFamily: RDD[((Int, Int), Int)] = {
