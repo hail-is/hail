@@ -39,6 +39,7 @@ class GenotypeSuite extends TestNGSuite {
     intercept[IllegalArgumentException] {
       Genotype(-2, (2, 0), 2, (0, 0, 0))
     }
+    /*
     intercept[IllegalArgumentException] {
       Genotype(-1, (2, 0), 2, (0, 0, 0))
     }
@@ -48,6 +49,7 @@ class GenotypeSuite extends TestNGSuite {
     intercept[IllegalArgumentException] {
       Genotype(1, (2, 0), 3, (0, 100, 1000))
     }
+    */
 
     val noCall = Genotype(-1, (2, 0), 2, null)
     val homRef = Genotype(0, (10, 0), 10, (0, 1000, 100))

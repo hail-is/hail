@@ -2,8 +2,7 @@ package org.broadinstitute.k3.variant
 
 import net.jpountz.lz4.LZ4Factory
 
-import scala.collection.mutable.ArrayBuilder
-import scala.collection.mutable.Builder
+import scala.collection.mutable
 
 // FIXME use zipWithIndex
 class GenotypeStreamIterator(b: Iterator[Byte]) extends Iterator[(Int, Genotype)] {
@@ -18,28 +17,66 @@ class GenotypeStreamIterator(b: Iterator[Byte]) extends Iterator[(Int, Genotype)
   }
 }
 
-case class GenotypeStream(variant: Variant, decompLen: Int, a: Array[Byte])
-  extends Iterable[(Int, Genotype)] {
+object LZ4Utils {
+  val factory = LZ4Factory.fastestInstance()
+  val compressor = factory.highCompressor()
+  val decompressor = factory.fastDecompressor()
 
-  override def iterator: GenotypeStreamIterator = {
-    var factory = LZ4Factory.fastestInstance()
-    val decompressor = factory.fastDecompressor()
+  def compress(a: Array[Byte]): Array[Byte] = {
+    val decompLen = a.size
 
+    val maxLen = compressor.maxCompressedLength(decompLen)
+    val compressed = Array.ofDim[Byte](maxLen)
+    val compressedLen = compressor.compress(a, 0, a.size, compressed, 0, maxLen)
+
+    compressed.take(compressedLen)
+  }
+
+  def decompress(decompLen: Int, a: Array[Byte]) = {
     val decomp = Array.ofDim[Byte](decompLen)
     val compLen = decompressor.decompress(a, 0, decomp, 0, decompLen);
     assert(compLen == a.length)
 
-    new GenotypeStreamIterator(decomp.iterator)
-  }
-
-  override def newBuilder: Builder[(Int, Genotype), GenotypeStream] = {
-    new GenotypeStreamBuilder(variant)
+    decomp
   }
 }
 
-class GenotypeStreamBuilder(variant: Variant)
-  extends Builder[(Int, Genotype), GenotypeStream] {
-  val b = new ArrayBuilder.ofByte
+case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Array[Byte])
+  extends Iterable[(Int, Genotype)] {
+
+  override def iterator: GenotypeStreamIterator = {
+    decompLenOption match {
+      case Some(decompLen) =>
+        new GenotypeStreamIterator(LZ4Utils.decompress(decompLen, a).iterator)
+      case None =>
+        new GenotypeStreamIterator(a.iterator)
+    }
+  }
+
+  override def newBuilder: mutable.Builder[(Int, Genotype), GenotypeStream] = {
+    new GenotypeStreamBuilder(variant)
+  }
+
+  def decompressed: GenotypeStream = {
+    decompLenOption match {
+      case Some(decompLen) =>
+        GenotypeStream(variant, None, LZ4Utils.decompress(decompLen, a))
+      case None => this
+    }
+  }
+
+  def compressed: GenotypeStream = {
+    decompLenOption match {
+      case Some(_) => this
+      case None =>
+        GenotypeStream(variant, Some(a.size), LZ4Utils.compress(a))
+    }
+  }
+}
+
+class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
+  extends mutable.Builder[(Int, Genotype), GenotypeStream] {
+  val b = new mutable.ArrayBuilder.ofByte
 
   override def +=(g: (Int, Genotype)): GenotypeStreamBuilder.this.type = {
     g._2.write(b)
@@ -51,16 +88,10 @@ class GenotypeStreamBuilder(variant: Variant)
   }
 
   override def result(): GenotypeStream = {
-    val factory = LZ4Factory.fastestInstance()
-    val compressor = factory.highCompressor()
-
     val a = b.result()
-    val decompLen = a.length
-
-    val maxLen = compressor.maxCompressedLength(decompLen)
-    val compressed = Array.ofDim[Byte](maxLen)
-    val compressedLen = compressor.compress(a, 0, a.length, compressed, 0, maxLen)
-
-    new GenotypeStream(variant, decompLen, compressed.take(compressedLen))
+    if (compress)
+      GenotypeStream(variant, Some(a.size), LZ4Utils.compress(a))
+    else
+      GenotypeStream(variant, None, a)
   }
 }

@@ -40,7 +40,7 @@ class RichRow(r: Row) {
   def getGenotypeStream(i: Int): GenotypeStream = {
     val ir = r.getAs[Row](i)
     GenotypeStream(ir.getVariant(0),
-      ir.getInt(1),
+      if (ir.isNullAt(1)) None else Some(ir.getInt(1)),
       ir.getAs[Array[Byte]](2))
   }
 }

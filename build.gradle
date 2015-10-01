@@ -23,10 +23,10 @@ repositories {
 
 mainClassName = "org.broadinstitute.k3.driver.Main"
 
-// String scalaVersion = '2.10.5'
-// String scalaMajorVersion = '2.10'
-String scalaVersion = '2.11.7'
-String scalaMajorVersion = '2.11'
+String scalaVersion = '2.10.5'
+String scalaMajorVersion = '2.10'
+// String scalaVersion = '2.11.7'
+// String scalaMajorVersion = '2.11'
 
 compileScala {
     scalaCompileOptions.additionalParameters = ["-feature"]
@@ -61,6 +61,7 @@ dependencies {
     compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
     // compile 'org.apache.hadoop:hadoop-aws:2.7.1'
+    compile 'com.github.samtools:htsjdk:1.139'
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':1.4.1') {
         exclude module: 'hadoop-client'
     }

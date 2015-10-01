@@ -22,6 +22,9 @@ object Main {
 
     @Args4jOption(required = false, name = "--noisy", usage = "Enable Spark INFO messages")
     var noisy = false
+
+    @Args4jOption(required = false, name = "--parquet-compression", usage = "Parquet compression codec")
+    var parquetCompression = "uncompressed"
   }
 
   def main(args: Array[String]) {
@@ -103,7 +106,7 @@ object Main {
     else if (!conf.contains("spark.master"))
       conf.setMaster("local")
 
-    conf.set("spark.sql.parquet.compression.codec", "uncompressed")
+    conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     val sc = new SparkContext(conf)

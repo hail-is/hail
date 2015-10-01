@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 
 class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
-    val vds = LoadVCF(sc, "sparky", "src/test/resources/sample_mendel.vcf")
+    val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
     val ped = Pedigree.read("src/test/resources/sample_mendel.fam", vds.sampleIds)
     val men = MendelErrors(vds, ped)
 

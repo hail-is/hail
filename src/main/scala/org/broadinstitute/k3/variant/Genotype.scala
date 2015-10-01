@@ -14,7 +14,7 @@ object GenotypeType extends Enumeration {
   val NoCall = Value(-1)
 }
 
-import org.broadinstitute.k3.variant.GenotypeType.{GenotypeType}
+import org.broadinstitute.k3.variant.GenotypeType.GenotypeType
 
 // FIXME all optional...
 case class Genotype(private val gt: Int,
@@ -23,9 +23,11 @@ case class Genotype(private val gt: Int,
                     private val pl: (Int, Int, Int)) {
 
   require(gt >= -1 && gt <= 2)
+  /*
   require(dp >= ad._1 + ad._2)
   require(gt == -1 || pl.at(gt + 1) == 0)
   require(gt != -1 || pl == null)
+  */
 
   private def minPl: (Int, Int) = pl.remove(gt + 1)
 
