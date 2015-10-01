@@ -5,10 +5,12 @@ import java.net.URI
 
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
+import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
+import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector, Vectors}
@@ -229,6 +231,10 @@ class RichMap[K, V](m: Map[K, V]) {
   def force = m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
 }
 
+class RichOption[T](o: Option[T]) {
+  def contains(v: T): Boolean = o.isDefined && o.get == v
+}
+
 object Utils {
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -296,9 +302,11 @@ object Utils {
       new IndexedRow(b.index, a + toBVector(b.vector))
   }
 
-
   implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] =
     new RichEnumeration(e)
+
+  implicit def toRichOption[T](o: Option[T]): RichOption[T] =
+    new RichOption[T](o)
 
   def fatal(msg: String): Nothing = {
     System.err.println("fatal: " + msg)
@@ -315,8 +323,17 @@ object Utils {
   def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FSDataOutputStream =
     hadoopFS(filename, hConf).create(new hadoop.fs.Path(filename))
 
-  def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FSDataInputStream =
-    hadoopFS(filename, hConf).open(new hadoop.fs.Path(filename))
+  def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    val is = fs.open(hPath)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = codecFactory.getCodec(hPath)
+    if (codec != null)
+      codec.createInputStream(is)
+    else
+      is
+  }
 
   def hadoopMkdir(dirname: String, hConf: hadoop.conf.Configuration) {
     hadoopFS(dirname, hConf).mkdirs(new hadoop.fs.Path(dirname))
@@ -350,6 +367,16 @@ object Utils {
       writer(fw)
     } finally {
       fw.close()
+    }
+  }
+
+  def readFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
+    val is = hadoopOpen(filename, hConf)
+    try {
+      reader(is)
+    } finally {
+      is.close()
     }
   }
 

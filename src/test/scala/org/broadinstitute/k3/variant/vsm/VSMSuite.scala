@@ -4,9 +4,7 @@ import org.broadinstitute.k3.SparkSuite
 import org.broadinstitute.k3.variant.{Variant, VariantSampleMatrix}
 import sys.process._
 import scala.language.postfixOps
-import org.apache.spark.{SparkContext, SparkConf}
-import org.broadinstitute.k3.methods.{sSingletonVariants, nSingletonPerSample, LoadVCF}
-import org.scalatest.testng.TestNGSuite
+import org.broadinstitute.k3.methods.{sSingletonVariants, LoadVCF}
 import org.testng.annotations.Test
 
 class VSMSuite extends SparkSuite {
@@ -21,7 +19,7 @@ class VSMSuite extends SparkSuite {
         val result = "rm -rf " + vdsdir !;
         assert(result == 0)
 
-        LoadVCF(sc, vsmtype, "src/test/resources/sample.vcf.gz")
+        LoadVCF(sc, "src/test/resources/sample.vcf.gz", vsmtype = vsmtype)
           .write(sqlContext, vdsdir)
 
         val vds = VariantSampleMatrix.read(sqlContext, vdsdir)
