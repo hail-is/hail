@@ -23,21 +23,21 @@ class MendelErrorsSuite extends SparkSuite {
 
     val variant1 = Variant("1", 1, "C", "T")
     val variant2 = Variant("1", 2, "C", "T")
-    val variant3 = Variant("X", 17, "C", "T")
-    val variant4 = Variant("X", 19, "C", "T")
+    val variant3 = Variant("X", 1, "C", "T")
+    val variant4 = Variant("X", 3, "C", "T")
     val variant5 = Variant("20", 1, "C", "T")
 
     assert(nPerFam.size == 2)
     assert(nPerIndiv.size == 11)
-    assert(nPerVariant.size == 18)
+    assert(nPerVariant.size == 21)
 
-    assert(nPerFam((dad, mom)) == 29)
+    assert(nPerFam((dad, mom)) == 33)
     assert(nPerFam((dad2, mom2)) == 0)
 
-    assert(nPerIndiv(son) == 18)
-    assert(nPerIndiv(dtr) == 11)
-    assert(nPerIndiv(dad) == 12)
-    assert(nPerIndiv(mom) == 15)
+    assert(nPerIndiv(son) == 20)
+    assert(nPerIndiv(dtr) == 13)
+    assert(nPerIndiv(dad) == 14)
+    assert(nPerIndiv(mom) == 17)
     assert(nPerIndiv(dad2) == 0)
 
     assert(nPerVariant(variant1) == 2)

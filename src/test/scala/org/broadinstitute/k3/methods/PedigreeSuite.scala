@@ -13,7 +13,7 @@ class PedigreeSuite extends SparkSuite {
 
     assert(ped.nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 11)
 
-    assert(ped.nSatisfying(_.isMale) == 5 && ped.nSatisfying(_.isFemale) == 5)
+    assert(ped.nSatisfying(_.isMale) == 6 && ped.nSatisfying(_.isFemale) == 5)
 
     assert(ped.nSatisfying(_.isCase) == 4 && ped.nSatisfying(_.isControl) == 3)
 

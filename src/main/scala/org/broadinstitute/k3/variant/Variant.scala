@@ -30,7 +30,11 @@ case class Variant(contig: String,
       Complex
   }
 
-  def isHemizygous: Boolean = true
+  // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
+  // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
+  def inParX(pos: Int): Boolean = (60001 <= pos && pos <= 2699520) || (154931044 <= pos && pos <= 155260560)
+  def inParY(pos: Int): Boolean = (10001 <= pos && pos <= 2649520) || ( 59034050 <= pos && pos <=  59363566)
+  def isHemizygous(sex: Sex.Sex): Boolean = (contig == "X" && !inParX(start)) || (contig == "Y" && !inParY(start))
 
   def isSNP: Boolean = (ref.length == 1 && alt.length == 1) ||
       (ref.length == alt.length && nMismatch == 1)
