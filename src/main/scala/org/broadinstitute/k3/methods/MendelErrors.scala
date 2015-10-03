@@ -14,8 +14,8 @@ object MendelErrors {
 
   def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
-  def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
-    (gDad.gtType, gMom.gtType, gKid.gtType, onX) match {
+  def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, isHemi: Boolean): Int = {
+    (gDad.gtType, gMom.gtType, gKid.gtType, isHemi) match {
       case (HomRef, HomRef,    Het, false) => 2  // Autosome, Het
       case (HomVar, HomVar,    Het, false) => 1
       case (HomRef, HomRef, HomVar, false) => 5  // Autosome, HomVar
@@ -43,7 +43,7 @@ object MendelErrors {
       .groupByKey()
       .mapValues(_.toMap)
       .flatMap { case ((v, s), gOf) =>
-        val code = getCode(gOf(Kid), gOf(Dad), gOf(Mom), v.onX)
+        val code = getCode(gOf(Kid), gOf(Dad), gOf(Mom), v.isHemizygous)
         if (code != 0)
           Some(new MendelError(v, s, code, gOf(Kid), gOf(Dad), gOf(Mom)))
         else
