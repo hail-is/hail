@@ -68,7 +68,6 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
   def completeTrios = trios.filter(_.isComplete)
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
-  // note that children with undefined sex are dropped
   def nuclearFams: Map[(Int, Int), Iterable[Int]] =
     completeTrios
       .map(t => ((t.dad.get, t.mom.get), t.kid))
