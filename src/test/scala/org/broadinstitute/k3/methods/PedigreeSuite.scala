@@ -25,4 +25,8 @@ class PedigreeSuite extends SparkSuite {
       ped.nSatisfying(_.isComplete, _.isControl, _.isMale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isFemale) == 0)
   }
+
+  //FIXME: How to test
+  //ped.writeSummary("/tmp/sample_mendel.sumfam", sc.hadoopConfiguration)
+
 }

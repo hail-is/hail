@@ -85,7 +85,7 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def writeSummary(filename: String, hConf: hadoop.conf.Configuration) = {
     val columns = List(
-      ("nIndiv", trios.length), ("nCompleteTrios", completeTrios.length), ("nNuclearFams", nuclearFams.size),
+      ("nIndiv", trios.length), ("nTrios", completeTrios.length), ("nNuclearFams", nuclearFams.size),
       ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
       ("nCase", nSatisfying(_.isCase)), ("nControl", nSatisfying(_.isControl)),
       ("nMaleTrio", nSatisfying(_.isComplete, _.isMale)),
