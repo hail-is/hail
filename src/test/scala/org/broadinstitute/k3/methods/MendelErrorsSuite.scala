@@ -29,21 +29,21 @@ class MendelErrorsSuite extends SparkSuite {
 
     assert(nPerFam.size == 2)
     assert(nPerIndiv.size == 11)
-    assert(nPerVariant.size == 21)
+    assert(nPerVariant.size == 22)
 
-    assert(nPerFam((dad, mom)) == 33)
+    assert(nPerFam((dad, mom)) == 34)
     assert(nPerFam((dad2, mom2)) == 0)
 
     assert(nPerIndiv(son) == 20)
-    assert(nPerIndiv(dtr) == 13)
-    assert(nPerIndiv(dad) == 14)
-    assert(nPerIndiv(mom) == 17)
+    assert(nPerIndiv(dtr) == 14)
+    assert(nPerIndiv(dad) == 15)
+    assert(nPerIndiv(mom) == 18)
     assert(nPerIndiv(dad2) == 0)
 
     assert(nPerVariant(variant1) == 2)
     assert(nPerVariant(variant2) == 1)
     assert(nPerVariant(variant3) == 2)
-    assert(nPerVariant.get(variant4).isEmpty)
+    assert(nPerVariant(variant4) == 1)
     assert(nPerVariant.get(variant5).isEmpty)
 
     //FIXME: How to test these?
