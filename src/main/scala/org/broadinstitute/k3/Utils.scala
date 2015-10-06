@@ -2,24 +2,16 @@ package org.broadinstitute.k3
 
 import java.io._
 import java.net.URI
-
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-
 import scala.collection.mutable
-import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
-import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector, Vectors}
-import org.apache.spark.SparkContext._
-
+import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import org.broadinstitute.k3.Utils._
-
-import scala.reflect.ClassTag
-
 import scala.reflect.ClassTag
 
 class RichVector[T](v: Vector[T]) {

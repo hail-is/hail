@@ -19,6 +19,23 @@ object SampleQC extends Command {
 
   def description = "Compute per-sample QC metrics"
 
+  def results(vds: VariantDataset,
+    methods: Array[AggregateMethod],
+    derivedMethods: Array[DerivedMethod]): Map[Int, Array[Any]] = {
+    val methodIndex = methods.zipWithIndex.toMap
+
+    val methodsBc = vds.sparkContext.broadcast(methods)
+
+    vds
+      .aggregateBySampleWithKeys(methods.map(_.aggZeroValue: Any))(
+        (acc, v, s, g) => methodsBc.value.zipWith[Any, Any](acc, (m, acci) =>
+            m.seqOpWithKeys(v, s, g, acci.asInstanceOf[m.T])),
+        (x, y) => methodsBc.value.zipWith[Any, Any, Any](x, y, (m, xi, yi) =>
+            m.combOp(xi.asInstanceOf[m.T], yi.asInstanceOf[m.T])))
+      .mapValues(values =>
+        values ++ derivedMethods.map(_.map(MethodValues(methodIndex, values))))
+  }
+
   def run(state: State, options: Options): State = {
     val sc = state.sc
     val vds = state.vds
@@ -36,27 +53,14 @@ object SampleQC extends Command {
       nNonRefPer, rTiTvPerSample, rHetHomPer, rDeletionInsertionPerSample
     )
 
-    val methodIndex = methods.zipWithIndex.toMap
-
-    val methodsBc = vds.sparkContext.broadcast(methods)
-
-    val results: Map[Int, Array[Any]] =
-      vds
-        .aggregateBySampleWithKeys(methods.map(_.aggZeroValue: Any))(
-          (acc, v, s, g) => methodsBc.value.zipWith[Any, Any](acc, (m, acci) =>
-            m.seqOpWithKeys(v, s, g, acci.asInstanceOf[m.T])),
-          (x, y) => methodsBc.value.zipWith[Any, Any, Any](x, y, (m, xi, yi) =>
-            m.combOp(xi.asInstanceOf[m.T], yi.asInstanceOf[m.T])))
-        .mapValues(values =>
-        values ++ derivedMethods.map(_.map(MethodValues(methodIndex, values))))
-
+    val r = results(vds, methods, derivedMethods)
     writeTextFile(options.output, state.hadoopConf) { s =>
       val allMethods = methods ++ derivedMethods
       val header = "sampleID" + "\t" + allMethods.map(_.name).mkString("\t") + "\n"
       s.write(header)
 
       for ((id, i) <- vds.sampleIds.zipWithIndex) {
-        s.write(id + "\t" + results(i).mkString("\t") + "\n")
+        s.write(id + "\t" + r(i).mkString("\t") + "\n")
       }
     }
 

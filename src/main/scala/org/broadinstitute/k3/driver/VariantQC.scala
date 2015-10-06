@@ -19,6 +19,24 @@ object VariantQC extends Command {
 
   def description = "Compute per-variant QC metrics"
 
+  def results(vds: VariantDataset,
+    methods: Array[AggregateMethod],
+    derivedMethods: Array[DerivedMethod]): RDD[(Variant, Array[Any])] = {
+
+    val methodIndex = methods.zipWithIndex.toMap
+
+    val methodsBc = vds.sparkContext.broadcast(methods)
+
+    vds
+      .aggregateByVariantWithKeys(methods.map(_.aggZeroValue: Any))(
+        (acc, v, s, g) => methodsBc.value.zipWith[Any, Any](acc, (m, acci) =>
+            m.seqOpWithKeys(v, s, g, acci.asInstanceOf[m.T])),
+        (x, y) => methodsBc.value.zipWith[Any, Any, Any](x, y, (m, xi, yi) =>
+            m.combOp(xi.asInstanceOf[m.T], yi.asInstanceOf[m.T])))
+      .mapValues(values =>
+        values ++ derivedMethods.map(_.map(MethodValues(methodIndex, values))))
+  }
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -31,21 +49,9 @@ object VariantQC extends Command {
       nNonRefPer, rHetrozygosityPer, rHetHomPer, pHwePerVariant
     )
 
+    val r = results(vds, methods, derivedMethods)
+
     val allMethods = methods ++ derivedMethods
-
-    val methodIndex = methods.zipWithIndex.toMap
-
-    val methodsBc = vds.sparkContext.broadcast(methods)
-
-    val results: RDD[(Variant, Array[Any])] =
-      vds
-        .aggregateByVariantWithKeys(methods.map(_.aggZeroValue: Any))(
-          (acc, v, s, g) => methodsBc.value.zipWith[Any, Any](acc, (m, acci) =>
-            m.seqOpWithKeys(v, s, g, acci.asInstanceOf[m.T])),
-          (x, y) => methodsBc.value.zipWith[Any, Any, Any](x, y, (m, xi, yi) =>
-            m.combOp(xi.asInstanceOf[m.T], yi.asInstanceOf[m.T])))
-        .mapValues(values =>
-            values ++ derivedMethods.map(_.map(MethodValues(methodIndex, values))))
 
     writeTextFile(options.output + ".header", state.hadoopConf) { s =>
       val header = "Chrom" + "\t" + "Pos" + "\t" + "Ref" + "\t" + "Alt" + "\t" +
@@ -53,7 +59,7 @@ object VariantQC extends Command {
       s.write(header)
     }
 
-    results.map { case (v, a) =>
+    r.map { case (v, a) =>
       (Array[Any](v.contig, v.start, v.ref, v.alt) ++ a).mkString("\t")
     }.saveAsTextFile(options.output)
 
