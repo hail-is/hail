@@ -1,7 +1,6 @@
 package org.broadinstitute.k3.methods
 import breeze.linalg._
 import breeze.stats._
-import breeze.numerics._
 
 object LinRegBreeze {
   def main(args: Array[String]): Unit = {
@@ -9,50 +8,60 @@ object LinRegBreeze {
     val X = DenseMatrix(
       (0.0, 1.0, 0.0, 0.0, 0.0),
       (1.0, 2.0, 1.0, 0.0, 1.0),
-      (0.0, 1.0, 1.0, 0.0, 1.0))
+      (0.0, 1.0, 1.0, 0.0, 1.0),
+      (0.0, 2.0, 1.0, 1.0, 2.0))
 
-    val y = DenseVector(0.0, 1.0, 1.0)
+    val y = DenseVector(0.0, 0.0, 1.0, 1.0)
 
     val C = DenseMatrix(
-      (0.0, 1.0),
-      (2.0, 3.0),
-      (4.0, 5.0))
+      ( 0.0, -1.0),
+      ( 2.0,  3.0),
+      ( 1.0,  5.0),
+      (-2.0,  0.0))
 
     val mv = meanAndVariance(X(::, *))
     val mu = mv.map(_.mean).toDenseVector
     val sigma = mv.map(_.stdDev).toDenseVector
-    val Xstd = ((X(*, ::) - mu): DenseMatrix[Double])(*,::) :/ sigma
-
-    println("X")
-    println(X)
-    println("Xstd")
-    println(Xstd)
-    println("y")
-    println(y)
-
-    val b = X \ y
-    println("b")
-    println(b)
-
-    println("C")
-    println(C)
+    val Xstd = (X(*, ::) - mu: DenseMatrix[Double])(*,::) :/ sigma
 
     var i = 0
     for (i <- 0 until X.cols) {
-      println(X(::, i))
+      val Xi = X(::, i to i)
+      val XiC = DenseMatrix.horzcat(Xi, C)
+      println(XiC \ y)
     }
+
     val Q = qr.reduced.justQ(C)
 
-    println("Q")
-    println(Q)
+    val yp = y - Q * (Q.t * y)
+    val Xp = X - Q * (Q.t * X)
 
+    for (i <- 0 until Xp.cols) {
+      val Xpi = Xp(::, i to i).copy
+      println(Xpi \ yp)
+    }
 
   }
 }
 
-//  Breeze bug
-//  val X = DenseMatrix((1.0, 0.0), (0.0, 1.0))
-//  val y = DenseVector(0.0, 1.0)
-//  val X0 = X(::, 0).toDenseMatrix.t
-//  val b = X \ y
-//  println(X0.majorStride)
+/*
+  Breeze bug
+  val X = DenseMatrix((1.0, 0.0), (0.0, 1.0))
+  val y = DenseVector(0.0, 1.0)
+  val X0 = X(::, 0).toDenseMatrix.t
+  val b = X \ y
+  println(X0.majorStride)
+
+val X0 = X(::, 0 to 0)
+val b0 = X(::, 0 to 0) \ y
+println(X0.offset)
+println("b0")
+println(b0)
+
+val X1 = X(::, 1 to 1).copy
+println(X1)
+println(X1.offset)
+val b1 = X1 \ y
+println("b1")
+println(b1)
+*/
