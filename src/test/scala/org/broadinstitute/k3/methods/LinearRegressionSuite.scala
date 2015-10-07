@@ -12,8 +12,8 @@ class LinearRegressionSuite extends SparkSuite {
     val ped = Pedigree.read("src/test/resources/linearRegression.fam", vds.sampleIds)
     val cov = CovariateData.read("src/test/resources/linearRegression.cov", vds.sampleIds)
 
-    println(cov.covIds.mkString(" "))
-    println(cov.rowIds.mkString(" "))
+    println(cov.covariateOfCol.mkString(" "))
+    println(cov.sampleOfRow.mkString(" "))
     println(cov.data)
 
     val linReg = LinearRegression(vds, ped, cov)

@@ -3,6 +3,7 @@ package org.broadinstitute.k3.methods
 import scala.io.Source
 import java.io.File
 import breeze.linalg._
+import breeze.stats.{mean, meanAndVariance}
 import org.apache.spark.rdd.RDD
 
 import org.broadinstitute.k3.variant._
@@ -15,11 +16,11 @@ object CovariateData {
     val (header, lines) = src.getLines().filter(line => !line.isEmpty).toList.splitAt(1)
     src.close()
 
-    val covIds = header.head.split("\\s+").tail
-    val nCov = covIds.length
+    val covOfCol = header.head.split("\\s+").tail
+    val nCov = covOfCol.length
     val nSamples = lines.length
 
-    val rowIds = Array.ofDim[Int](nSamples)
+    val sampleOfRow = Array.ofDim[Int](nSamples)
     val data = DenseMatrix.zeros[Double](nSamples, nCov)
 
     val indexOfSample: Map[String, Int] = sampleIds.zipWithIndex.toMap
@@ -27,16 +28,16 @@ object CovariateData {
     var row = Array.ofDim[String](nCov)
     for (i <- 0 until nSamples) {
       val line = lines(i).split("\\s+")
-      rowIds(i) = indexOfSample(line(0))
+      sampleOfRow(i) = indexOfSample(line(0))
       for (j <- 0 until nCov) {
         data(i, j) = line(j+1).toDouble
       }
     }
-    CovariateData(rowIds, covIds, data)
+    CovariateData(sampleOfRow, covOfCol, data)
   }
 }
 
-case class CovariateData(rowIds: Array[Int], covIds: Array[String], data: DenseMatrix[Double])
+case class CovariateData(sampleOfRow: Array[Int], covariateOfCol: Array[String], data: DenseMatrix[Double])
 
 object LinearRegression {
   def name = "LinearRegression"
@@ -44,7 +45,36 @@ object LinearRegression {
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
     require(vds.sampleIds.length == cov.data.rows)
 
-    LinearRegression(vds.variants.map((_, 0.0)))
+    val nSamples = cov.data.rows
+    val y = DenseVector.zeros[Double](nSamples)
+
+    for (i <- 0 until nSamples)
+     y(i) = ped.phenoOf(cov.sampleOfRow(i)).toString.toDouble
+
+    val allOnes = DenseMatrix.ones[Double](nSamples, 1)
+
+    val q = qr.reduced.justQ(DenseMatrix.horzcat(allOnes, cov.data))
+
+    val yp = y - q * (q.t * y)
+
+    val sc = vds.sparkContext
+    val qBc = sc.broadcast(q)
+    val ypBc = sc.broadcast(yp)
+    val nSamplesBc = sc.broadcast(nSamples)
+
+    new LinearRegression(vds
+      .mapWithKeys{ (v, s, g) => (v, g.call.get.gt) }
+      .groupByKey()
+      .mapValues{
+        gs => {
+          val x = new DenseMatrix(nSamplesBc.value, 1, gs.map(_.toDouble).toArray)
+          val q = qBc.value
+          val xp: DenseMatrix[Double] = x - q * (q.t * x)
+          val r = xp \ (ypBc.value: DenseVector[Double])
+          r(0)
+        }
+      }
+    )
   }
 }
 

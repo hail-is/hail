@@ -77,6 +77,8 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
   def dadOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.dad.get)).toMap
   def momOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.mom.get)).toMap
   def famOf: Map[Int, String] = trios.map(t => (t.kid, t.fam.get)).toMap
+  def phenoOf: Map[Int, Phenotype] = trios.map(t => (t.kid, t.pheno.get)).toMap
+
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
 
