@@ -42,11 +42,12 @@ object VariantQC extends Command {
 
     val methods: Array[AggregateMethod] = Array(
       nCalledPer, nNotCalledPer,
-      nHomRefPer, nHetPer, nHomVarPer
+      nHomRefPer, nHetPer, nHomVarPer,
+      AlleleDepthPerVariant
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(
-      nNonRefPer, rHetrozygosityPer, rHetHomPer, pHwePerVariant
+      nNonRefPer, rHetrozygosityPer, rHetHomPer, AlleleBalancePerVariant, pHwePerVariant
     )
 
     val r = results(vds, methods, derivedMethods)
