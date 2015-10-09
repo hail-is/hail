@@ -11,7 +11,7 @@ object LinRegBreeze {
       (0.0, 1.0, 1.0, 0.0, 1.0),
       (0.0, 2.0, 1.0, 1.0, 2.0))
 
-    val y = DenseVector(0.0, 0.0, 1.0, 1.0)
+    val y = DenseVector(1.0, 1.0, 2.0, 2.0)
 
     val C = DenseMatrix(
       ( 0.0, -1.0),
@@ -19,26 +19,29 @@ object LinRegBreeze {
       ( 1.0,  5.0),
       (-2.0,  0.0))
 
-    val mv = meanAndVariance(X(::, *))
-    val mu = mv.map(_.mean).toDenseVector
-    val sigma = mv.map(_.stdDev).toDenseVector
-    val Xstd = (X(*, ::) - mu: DenseMatrix[Double])(*,::) :/ sigma
+    val allOnes = DenseMatrix.ones[Double](4, 1)
+
+    val C1 = DenseMatrix.horzcat(C, allOnes)
 
     var i = 0
     for (i <- 0 until X.cols) {
       val Xi = X(::, i to i)
-      val XiC = DenseMatrix.horzcat(Xi, C)
+      val XiC = DenseMatrix.horzcat(Xi, C1)
       println(XiC \ y)
     }
 
-    val Q = qr.reduced.justQ(C)
+    val Q = qr.reduced.justQ(C1)
 
     val yp = y - Q * (Q.t * y)
     val Xp = X - Q * (Q.t * X)
 
     for (i <- 0 until Xp.cols) {
       val Xpi = Xp(::, i to i).copy
-      println(Xpi \ yp)
+      val b = Xpi \ yp
+      println(b(0))
+      val Xpi2 = Xp(::, i)
+      val b2 = (yp dot Xpi2) / (Xpi2 dot Xpi2)
+      println(b2)
     }
 
   }
