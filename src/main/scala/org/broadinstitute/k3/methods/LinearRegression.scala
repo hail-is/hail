@@ -4,6 +4,7 @@ import scala.collection.mutable.ListBuffer
 import scala.io.Source
 import java.io.File
 import breeze.linalg._
+import breeze.stats.meanAndVariance
 import org.apache.spark.rdd.RDD
 
 import org.broadinstitute.k3.variant._
@@ -43,27 +44,34 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    require(vds.sampleIds.length == cov.data.rows)
     require(ped.phenoDefinedForAll)
 
-    val nPhenotypedSamples = cov.data.rows
+    val n = cov.data.rows
+    val k = cov.data.cols
+    require(n - k - 2 > 0)
+
     val rowOfSample = cov.sampleOfRow.zipWithIndex.toMap
 
-    val y = DenseVector.zeros[Double](nPhenotypedSamples)
-    for (i <- 0 until nPhenotypedSamples)
+    // extract the phenotype vector y
+    val y = DenseVector.zeros[Double](n)
+    for (i <- 0 until n)
      y(i) = ped.phenoOf(cov.sampleOfRow(i)).toString.toDouble
 
-    val allOnes = DenseMatrix.ones[Double](nPhenotypedSamples, 1)
-    val q = qr.reduced.justQ(DenseMatrix.horzcat(allOnes, cov.data))
+    println(y)
+
+    // augment the covariate matrix and compute q
+    val q = qr.reduced.justQ(DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), cov.data))
+
+    //project y to yp, automatically mean centered, then normalize yp
     val yp = y - q * (q.t * y)
-    // FIXME: divide yp by sample standard dev, 1 / (n - 1)
+//    val ypNorm = norm(yp)
 
     val sc = vds.sparkContext
-    val nPhenotypedSamplesBc = sc.broadcast(nPhenotypedSamples)
     val rowOfSampleBc = sc.broadcast(rowOfSample)
     val isPhenotypedBc = sc.broadcast((0 until vds.nSamples).map(rowOfSample.isDefinedAt).toArray)
     val qBc = sc.broadcast(q)
     val ypBc = sc.broadcast(yp)
+//    val ypNormBc = sc.broadcast(ypNorm)
 
     new LinearRegression(vds
       .filterSamples(s => isPhenotypedBc.value(s))
@@ -71,31 +79,42 @@ object LinearRegression {
       .groupByKey()
       .mapValues{
         gts => {
-          val n = nPhenotypedSamplesBc.value
+          val n = qBc.value.rows
+          val k = qBc.value.cols
           val x = SparseVector.zeros[Double](n)
 
           // replace missing values with mean
           val missingRowsBuffer = new ListBuffer[Int]()
           var gtSum = 0
+          var gtSumSq = 0
           gts.foreach{
             case (row, gt) =>
               if (gt.isDefined) {
                 if (gt.get != 0) {
                   gtSum += gt.get
+                  gtSumSq += gt.get * gt.get
                   x(row) = gt.get.toDouble
                 }
               }
               else
                 missingRowsBuffer += row
           }
+          assert(gtSum > 0)
+
+          // fill in missing gt with mean
           val missingRows = missingRowsBuffer.toList
-          val mu = gtSum.toDouble / (n - missingRows.length)
+          val nMissing = missingRows.length
+          val mu = gtSum.toDouble / (n - nMissing)
           missingRows.foreach(row => x(row) = mu)
 
-          // FIXME: standardize x, 1 / n
+          val sum = gtSum + nMissing * mu // could stick to integer arithmetic longer
+          val sumSq = gtSumSq + nMissing * mu * mu
+          val normOfCenteredX = math.sqrt(sumSq - sum * sum / n)
+          x :-= mu
+          x :/= normOfCenteredX  // could push sparse vectors to the end
 
           val xp = x - qBc.value * (qBc.value.t * x)
-          (xp dot ypBc.value) / (xp dot xp)  //may be able to take further advantage of sparsity in x
+          (xp dot ypBc.value) / (xp dot xp)  // FIXME: need to normalize statistic based on y as well
         }
       }
     )

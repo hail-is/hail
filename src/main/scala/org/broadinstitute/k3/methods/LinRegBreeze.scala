@@ -1,6 +1,6 @@
 package org.broadinstitute.k3.methods
 import breeze.linalg._
-import breeze.stats._
+import breeze.stats.mean
 
 object LinRegBreeze {
   def main(args: Array[String]): Unit = {
@@ -9,19 +9,42 @@ object LinRegBreeze {
       (0.0, 1.0, 0.0, 0.0, 0.0),
       (1.0, 2.0, 1.0, 0.0, 1.0),
       (0.0, 1.0, 1.0, 0.0, 1.0),
-      (0.0, 2.0, 1.0, 1.0, 2.0))
+      (0.0, 2.0, 1.0, 1.0, 2.0),
+      (0.0, 0.0, 1.0, 1.0, 0.0),
+      (1.0, 0.0, 2.0, 1.0, 0.0))
 
-    val y = DenseVector(1.0, 1.0, 2.0, 2.0)
+    val y = DenseVector(1.0, 1.0, 2.0, 2.0, 2.0, 2.0)
+
+    val mu = mean(y)
+    y :-= mu
+    //y :/= norm(y)
 
     val C = DenseMatrix(
       ( 0.0, -1.0),
       ( 2.0,  3.0),
       ( 1.0,  5.0),
-      (-2.0,  0.0))
+      (-2.0,  0.0),
+      (-2.0, -4.0),
+      ( 4.0,  3.0))
 
-    val allOnes = DenseMatrix.ones[Double](4, 1)
+    val allOnes = DenseMatrix.ones[Double](6, 1)
 
     val C1 = DenseMatrix.horzcat(C, allOnes)
+
+    def standardizeInPlace(m: DenseMatrix[Double]) = {
+      val mu = mean(m(::, *))
+      println(mu)
+      for (j <- 0 until m.cols)
+        m(::, j) :-= mu(0, j)
+      val nm = norm(m(::, *))
+      println(nm)
+      for (j <- 0 until m.cols)
+        m(::, j) :/= nm(0, j)
+    }
+
+    standardizeInPlace(X)
+
+    println(X)
 
     var i = 0
     for (i <- 0 until X.cols) {
@@ -33,6 +56,8 @@ object LinRegBreeze {
     val Q = qr.reduced.justQ(C1)
 
     val yp = y - Q * (Q.t * y)
+    //yp :/= norm(yp)
+
     val Xp = X - Q * (Q.t * X)
 
     for (i <- 0 until Xp.cols) {

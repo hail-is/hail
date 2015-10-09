@@ -13,7 +13,6 @@ class LinearRegressionSuite extends SparkSuite {
     val cov = CovariateData.read("src/test/resources/linearRegression.cov", vds.sampleIds)
 
     println(cov.covariateOfCol.mkString(" "))
-    println(cov.sampleOfRow.mkString(" "))
     println(cov.data)
 
     val linReg = LinearRegression(vds, ped, cov)
