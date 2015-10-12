@@ -121,10 +121,9 @@ object LinearRegression {
           val yy = ypYpBc.value
           
           val d = n - k - 2
+          val t = math.sqrt(d * xy * xy / (xx * yy - xy * xy)) //direct formula, d degrees of freedom
           val b = xy / xx
-          val se = math.sqrt((yy - 2 * b * xy + b * b * xx) / (d * xx))
-          val t = b / se
-          //val t = math.sqrt(d * xy * xy / (xx * yy - xy * xy)) //direct formula, d degrees of freedom
+          val se = b / t // = math.sqrt((yy - 2 * b * xy + b * b * xx) / (d * xx))
           t
 
           // FIXME: need to normalize statistic based on y as well
