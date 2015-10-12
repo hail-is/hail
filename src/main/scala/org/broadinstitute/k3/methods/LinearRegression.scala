@@ -57,20 +57,19 @@ object LinearRegression {
     for (i <- 0 until n)
      y(i) = ped.phenoOf(cov.sampleOfRow(i)).toString.toDouble
 
-    println(y)
-
     // augment the covariate matrix and compute q
     val q = qr.reduced.justQ(DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), cov.data))
 
     //project y to yp, automatically mean centered, then normalize yp
     val yp = y - q * (q.t * y)
-//    val ypNorm = norm(yp)
+    val ypYp = yp dot yp
 
     val sc = vds.sparkContext
     val rowOfSampleBc = sc.broadcast(rowOfSample)
     val isPhenotypedBc = sc.broadcast((0 until vds.nSamples).map(rowOfSample.isDefinedAt).toArray)
     val qBc = sc.broadcast(q)
     val ypBc = sc.broadcast(yp)
+    val ypYpBc = sc.broadcast(ypYp)
 //    val ypNormBc = sc.broadcast(ypNorm)
 
     new LinearRegression(vds
@@ -99,7 +98,7 @@ object LinearRegression {
               else
                 missingRowsBuffer += row
           }
-          assert(gtSum > 0)
+          assert(gtSum > 0) //FIXME: better error handling
 
           // fill in missing gt with mean
           val missingRows = missingRowsBuffer.toList
@@ -111,10 +110,24 @@ object LinearRegression {
           val sumSq = gtSumSq + nMissing * mu * mu
           val normOfCenteredX = math.sqrt(sumSq - sum * sum / n)
           x :-= mu
-          x :/= normOfCenteredX  // could push sparse vectors to the end
+          x :/= normOfCenteredX  // FIXME: push sparse vectors down to computation of xx, xy
 
-          val xp = x - qBc.value * (qBc.value.t * x)
-          (xp dot ypBc.value) / (xp dot xp)  // FIXME: need to normalize statistic based on y as well
+          val q = qBc.value
+          val yp = ypBc.value
+          val xp = x - q * (q.t * x)
+
+          val xx = xp dot xp
+          val xy = xp dot yp
+          val yy = ypYpBc.value
+          
+          val d = n - k - 2
+          val b = xy / xx
+          val se = math.sqrt((yy - 2 * b * xy + b * b * xx) / (d * xx))
+          val t = b / se
+          //val t = math.sqrt(d * xy * xy / (xx * yy - xy * xy)) //direct formula, d degrees of freedom
+          t
+
+          // FIXME: need to normalize statistic based on y as well
         }
       }
     )
