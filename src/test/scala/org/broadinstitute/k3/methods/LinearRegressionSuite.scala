@@ -16,7 +16,7 @@ class LinearRegressionSuite extends SparkSuite {
     println(cov.data)
 
     val linReg = LinearRegression(vds, ped, cov)
-    linReg.betas.collect().foreach{ case (v, b) => println(v + " " + b) }
+    linReg.lr.collect().foreach{ case (v, b) => println(v + " " + b) }
 
     //val result = "rm -rf /tmp/linearRegression" !;
     //linReg.write("/tmp/linearRegression")

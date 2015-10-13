@@ -40,6 +40,8 @@ object CovariateData {
 
 case class CovariateData(sampleOfRow: Array[Int], covariateOfCol: Array[String], data: DenseMatrix[Double])
 
+case class LinRegOutput(nMissing: Int, beta: Double, stdError: Double, t: Double)
+
 object LinearRegression {
   def name = "LinearRegression"
 
@@ -57,20 +59,17 @@ object LinearRegression {
     for (i <- 0 until n)
      y(i) = ped.phenoOf(cov.sampleOfRow(i)).toString.toDouble
 
-    // augment the covariate matrix and compute q
-    val q = qr.reduced.justQ(DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), cov.data))
-
-    //project y to yp, automatically mean centered, then normalize yp
-    val yp = y - q * (q.t * y)
-    val ypYp = yp dot yp
+    // augment the covariate matrix with ones vector, and compute q.t, project y
+    val qt = qr.reduced.justQ(DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), cov.data)).t
+    val qty = qt * y
+    val yy = (y dot y) - (qty dot qty) // = yp dot yp for yp = (I - q * q.t) y
 
     val sc = vds.sparkContext
     val rowOfSampleBc = sc.broadcast(rowOfSample)
     val isPhenotypedBc = sc.broadcast((0 until vds.nSamples).map(rowOfSample.isDefinedAt).toArray)
-    val qBc = sc.broadcast(q)
-    val ypBc = sc.broadcast(yp)
-    val ypYpBc = sc.broadcast(ypYp)
-//    val ypNormBc = sc.broadcast(ypNorm)
+    val qtBc = sc.broadcast(qt)
+    val qtyBc = sc.broadcast(qty)
+    val yyBc = sc.broadcast(yy)
 
     new LinearRegression(vds
       .filterSamples(s => isPhenotypedBc.value(s))
@@ -78,8 +77,9 @@ object LinearRegression {
       .groupByKey()
       .mapValues{
         gts => {
-          val n = qBc.value.rows
-          val k = qBc.value.cols
+          val qt = qtBc.value
+          val n = qt.cols
+          val k = qt.rows
           val x = SparseVector.zeros[Double](n)
 
           // replace missing values with mean
@@ -106,38 +106,43 @@ object LinearRegression {
           val mu = gtSum.toDouble / (n - nMissing)
           missingRows.foreach(row => x(row) = mu)
 
-          val sum = gtSum + nMissing * mu // could stick to integer arithmetic longer
+          val sum = gtSum + nMissing * mu
           val sumSq = gtSumSq + nMissing * mu * mu
-          val normOfCenteredX = math.sqrt(sumSq - sum * sum / n)
-          x :-= mu
-          x :/= normOfCenteredX  // FIXME: push sparse vectors down to computation of xx, xy
+          println(x)
+          x :/= math.sqrt(sumSq - sum * sum / n)
 
-          val q = qBc.value
-          val yp = ypBc.value
-          val xp = x - q * (q.t * x)
+          val qtx = qt * x
+          val qty = qtyBc.value
 
-          val xx = xp dot xp
-          val xy = xp dot yp
-          val yy = ypYpBc.value
-          
+          // these turn out to be unnecessary!
+          // val xp = x - qt.t * (qt * x)
+          // val yp = y - qt.t * (qt * y)
+
+          val xx = (x dot x) - (qtx dot qtx) // = xp dot xp for xp = (I - q * q.t) x
+          val xy = (x dot y) - (qtx dot qty) // = xp dot yp
+          val yy = yyBc.value                // = yp dot yp
+
+
+          val sign = if (xy > 0) 1 else -1
           val d = n - k - 2
-          val t = math.sqrt(d * xy * xy / (xx * yy - xy * xy)) //direct formula, d degrees of freedom
+          val chi2 = d * xy * xy / (xx * yy - xy * xy)
+          val t = sign * math.sqrt(chi2)
           val b = xy / xx
-          val se = b / t // = math.sqrt((yy - 2 * b * xy + b * b * xx) / (d * xx))
-          t
+          val se = b / t // = math.sqrt(|y - bx|^2 / (d * xx))
 
-          // FIXME: need to normalize statistic based on y as well
+          LinRegOutput(nMissing, b, se, t)
         }
       }
     )
   }
 }
 
-case class LinearRegression(betas: RDD[(Variant, Double)]) {
+case class LinearRegression(lr: RDD[(Variant, LinRegOutput)]) {
 
   def write(filename: String) {
-    def toLine(v: Variant, beta: Double) = v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + beta
-    betas.map((toLine _).tupled)
-      .writeTable(filename, "CHR\tPOS\tREF\tALT\tBETA\n")
+    def toLine(v: Variant, lro: LinRegOutput) = v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt +
+      "\t" + lro.nMissing + "\t" + lro.beta + lro.stdError + "\t" + lro.t
+    lr.map((toLine _).tupled)
+      .writeTable(filename, "CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\n")
   }
 }

@@ -17,7 +17,6 @@ object LinRegBreeze {
 
     val mu = mean(y)
     y :-= mu
-    //y :/= norm(y)
 
     val C = DenseMatrix(
       ( 0.0, -1.0),
@@ -29,15 +28,13 @@ object LinRegBreeze {
 
     val allOnes = DenseMatrix.ones[Double](6, 1)
 
-    val C1 = DenseMatrix.horzcat(C, allOnes)
+    val C1 = DenseMatrix.horzcat(allOnes, C)
 
     def standardizeInPlace(m: DenseMatrix[Double]) = {
       val mu = mean(m(::, *))
-      println(mu)
       for (j <- 0 until m.cols)
         m(::, j) :-= mu(0, j)
       val nm = norm(m(::, *))
-      println(nm)
       for (j <- 0 until m.cols)
         m(::, j) :/= nm(0, j)
     }
@@ -49,7 +46,7 @@ object LinRegBreeze {
     var i = 0
     for (i <- 0 until X.cols) {
       val Xi = X(::, i to i)
-      val XiC = DenseMatrix.horzcat(Xi, C1)
+      val XiC = DenseMatrix.horzcat(allOnes, Xi, C)
       println(XiC \ y)
     }
 
