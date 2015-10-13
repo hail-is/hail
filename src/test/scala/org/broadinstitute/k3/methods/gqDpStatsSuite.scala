@@ -35,7 +35,10 @@ class gqDpStatsSuite extends SparkSuite {
 
     dpVariantR.collect().foreach {
       case (v, a) =>
-        println("Mean: %.2f/%.2f, Dev: %.2f/%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
+        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double],
+          variantMeans(v
+          .start),
+          a(2)
           .asInstanceOf[Double], variantDevs(v.start)))
         assert(closeEnough(a(1).asInstanceOf[Double], variantMeans(v.start)))
         assert(closeEnough(a(2).asInstanceOf[Double], variantDevs(v.start)))
@@ -45,7 +48,7 @@ class gqDpStatsSuite extends SparkSuite {
 
       dpSampleR.foreach {
       case (s, a) =>
-        println("Mean: %.2f/%.2f, Dev: %.2f/%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
+        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
           .asInstanceOf[Double], sampleDevs(s)))
         assert(closeEnough(a(1).asInstanceOf[Double], sampleMeans(s)))
         assert(closeEnough(a(2).asInstanceOf[Double], sampleDevs(s)))
@@ -62,7 +65,7 @@ class gqDpStatsSuite extends SparkSuite {
 
     gqVariantR.collect().foreach {
       case (v, a) =>
-        println("Mean: %.2f/%.2f, Dev: %.2f/%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
+        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
           .asInstanceOf[Double], variantDevs(v.start)))
 
         assert(closeEnough(a(1).asInstanceOf[Double], variantMeans(v.start)))
@@ -73,7 +76,7 @@ class gqDpStatsSuite extends SparkSuite {
 
     gqSampleR.foreach {
       case (s, a) =>
-        println("Mean: %.2f/%.2f, Dev: %.2f/%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
+        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
           .asInstanceOf[Double], sampleDevs(s)))
         assert(closeEnough(a(1).asInstanceOf[Double], sampleMeans(s)))
         assert(closeEnough(a(2).asInstanceOf[Double], sampleDevs(s)))

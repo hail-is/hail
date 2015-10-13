@@ -25,8 +25,7 @@ object gqStDevPer extends DerivedMethod {
 
 object gqStatCounterPer extends AggregateMethod {
 
-  // FIXME - double underscore to indicate not to be called directly
-  def name = "__gqStatCounter"
+  def name = "gqStatCounter"
 
   type T = StatCounter
 
