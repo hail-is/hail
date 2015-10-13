@@ -29,6 +29,10 @@ class gqDpStatsSuite extends SparkSuite {
       Array(dpMeanPer, dpStDevPer))
     val dpSampleR = SampleQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer),
       Array(dpMeanPer, dpStDevPer))
+
+    println("DP: Variants...")
+
+
     dpVariantR.collect().foreach {
       case (v, a) =>
         println("Mean: %.2f/%.2f, Dev: %.2f/%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
@@ -36,58 +40,43 @@ class gqDpStatsSuite extends SparkSuite {
         assert(closeEnough(a(1).asInstanceOf[Double], variantMeans(v.start)))
         assert(closeEnough(a(2).asInstanceOf[Double], variantDevs(v.start)))
     }
-    dpSampleR.foreach {
+
+    println("DP: Samples...")
+
+      dpSampleR.foreach {
       case (s, a) =>
-//          .asInstanceOf[Double], sampleDevs(s)))
+        println("Mean: %.2f/%.2f, Dev: %.2f/%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
+          .asInstanceOf[Double], sampleDevs(s)))
         assert(closeEnough(a(1).asInstanceOf[Double], sampleMeans(s)))
         assert(closeEnough(a(2).asInstanceOf[Double], sampleDevs(s)))
     }
 
     // now test GQ
-    val gqVds = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=Some(arr), gqArray=None)
-    val gqVariantR = VariantQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer),
-      Array(dpMeanPer, dpStDevPer))
-    val gqSampleR = SampleQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer),
-      Array(dpMeanPer, dpStDevPer))
-    println(dpVariantR)
-    dpVariantR.collect().foreach {
+    val gqVds = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=None, gqArray=Some(arr))
+    val gqVariantR = VariantQC.results(gqVds, Array[AggregateMethod](gqStatCounterPer),
+      Array(gqMeanPer, gqStDevPer))
+    val gqSampleR = SampleQC.results(gqVds, Array[AggregateMethod](gqStatCounterPer),
+      Array(gqMeanPer, gqStDevPer))
+
+    println("GQ: Variants...")
+
+    gqVariantR.collect().foreach {
       case (v, a) =>
+        println("Mean: %.2f/%.2f, Dev: %.2f/%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
+          .asInstanceOf[Double], variantDevs(v.start)))
+
         assert(closeEnough(a(1).asInstanceOf[Double], variantMeans(v.start)))
         assert(closeEnough(a(2).asInstanceOf[Double], variantDevs(v.start)))
     }
-    dpSampleR.foreach {
+
+    println("GQ: Samples...")
+
+    gqSampleR.foreach {
       case (s, a) =>
+        println("Mean: %.2f/%.2f, Dev: %.2f/%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
+          .asInstanceOf[Double], sampleDevs(s)))
         assert(closeEnough(a(1).asInstanceOf[Double], sampleMeans(s)))
         assert(closeEnough(a(2).asInstanceOf[Double], sampleDevs(s)))
     }
-
-  //    // check sample-wise
-  //    for (i <- 0 until 8) {
-  //      closeEnough(dpStatsBySample(i)._1, sampleMeans(i))
-  //      closeEnough(dpStatsBySample(i)._2, sampleDevs(i))
-  //    }
-  //
-  //    // check variant-wise
-  //    dpStatsByVariant.collect().foreach { case (variant, (mean, dev)) =>
-  //      assert(closeEnough(variantMeans(variant.start), mean))
-  //      assert(closeEnough(variantDevs(variant.start), dev))
-  //    }
-  //
-  //    // test GQ, let's use the same array for GQs instead of DP
-  //    val vdsGQ = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=None, gqArray=Some(arr))
-  //    val gqStatsBySample = GQStatsPerSample(vdsGQ)
-  //    val gqStatsByVariant = GQStatsPerVariant(vdsGQ)
-  //
-  //    // check sample-wise
-  //    for (i <- 0 until 8) {
-  //      closeEnough(gqStatsBySample(i)._1, sampleMeans(i))
-  //      closeEnough(gqStatsBySample(i)._2, sampleDevs(i))
-  //    }
-  //
-  //    // check variant-wise
-  //    gqStatsByVariant.collect().foreach { case (variant, (mean, dev)) =>
-  //      assert(closeEnough(variantMeans(variant.start), mean))
-  //      assert(closeEnough(variantDevs(variant.start), dev))
-  //    }
-}
+  }
 }

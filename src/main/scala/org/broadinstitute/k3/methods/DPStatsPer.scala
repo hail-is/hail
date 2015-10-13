@@ -32,6 +32,7 @@ object dpStatCounterPer extends AggregateMethod {
   override def aggZeroValue = StatCounter()
 
   override def seqOpWithKeys(v: Variant, s: Int, g: Genotype, sc: StatCounter): StatCounter = {
+    val mean = sc.mean
     if (g.isCalled)
       sc.merge(g.dp)
     sc

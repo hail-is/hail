@@ -23,10 +23,10 @@ object SparkyVSM {
 }
 
 class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
-  val rdd: RDD[(Variant, S)])
-  (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S],
-    atct: ClassTag[Array[T]], vct: ClassTag[Variant],
-    itct: ClassTag[(Int, T)])
+                                            val rdd: RDD[(Variant, S)])
+                                           (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S],
+                                            atct: ClassTag[Array[T]], vct: ClassTag[Variant],
+                                            itct: ClassTag[(Int, T)])
   extends VariantSampleMatrix[T] {
 
   def nVariants: Long = rdd.count()
@@ -56,13 +56,13 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
     val hConf = sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
     writeObjectFile(dirname + "/metadata.ser", hConf)(
-    _.writeObject("sparky" -> metadata))
+      _.writeObject("sparky" -> metadata))
 
     rdd.toDF().write.parquet(dirname + "/rdd.parquet")
   }
 
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U)
-    (implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): SparkyVSM[U, mutable.WrappedArray[(Int, U)]] = {
+                          (implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): SparkyVSM[U, mutable.WrappedArray[(Int, U)]] = {
     new SparkyVSM[U, mutable.WrappedArray[(Int, U)]](metadata,
       rdd
         .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toArray(iuct): mutable.WrappedArray[(Int, U)]) })
@@ -95,7 +95,15 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
     val localSamples = rdd.first()._2.map(_._1)
     val nLocalSamples = localSamples.size
 
-    val rddZeroValue = Array.fill[U](nLocalSamples)(zeroValue)
+    // Serialize the zero value to a byte array so that we can get a new clone of it on each key
+    val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
+    val zeroArray = new Array[Byte](zeroBuffer.limit)
+    zeroBuffer.get(zeroArray)
+
+    val serializer = SparkEnv.get.serializer.newInstance()
+    def createZero() = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+
+    val rddZeroValue = Array.fill[U](nLocalSamples)(createZero())
     val values = rdd.aggregate(rddZeroValue)({ case (acc, (v, gs)) =>
       for (((s, g), i) <- gs.zipWithIndex)
         acc(i) = seqOp(acc(i), v, s, g)
@@ -108,10 +116,20 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
   def aggregateByVariantWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] = {
+
+    // Serialize the zero value to a byte array so that we can get a new clone of it on each key
+    val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
+    val zeroArray = new Array[Byte](zeroBuffer.limit)
+    zeroBuffer.get(zeroArray)
+
     rdd
-      .map { case (v, gs) => (v, gs.foldLeft(zeroValue) { case (acc, (s, g)) =>
-      seqOp(acc, v, s, g)
-    })
+      .map { case (v, gs) =>
+      val serializer = SparkEnv.get.serializer.newInstance()
+      val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+
+      (v, gs.foldLeft(zeroValue) { case (acc, (s, g)) =>
+        seqOp(acc, v, s, g)
+      })
     }
   }
 
