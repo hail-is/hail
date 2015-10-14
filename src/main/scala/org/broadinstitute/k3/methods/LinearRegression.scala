@@ -136,7 +136,7 @@ case class LinearRegression(lr: RDD[(Variant, LinRegOutput)]) {
 
   def write(filename: String) {
     def toLine(v: Variant, lro: LinRegOutput) = v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt +
-      "\t" + lro.nMissing + "\t" + lro.beta + lro.stdError + "\t" + lro.t + "\t" + lro.p
+      "\t" + lro.nMissing + "\t" + lro.beta + "\t" + lro.stdError + "\t" + lro.t + "\t" + lro.p
     lr.map((toLine _).tupled)
       .writeTable(filename, "CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP\n")
   }
