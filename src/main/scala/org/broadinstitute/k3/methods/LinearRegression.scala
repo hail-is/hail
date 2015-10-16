@@ -50,7 +50,8 @@ object LinearRegression {
 
     val n = cov.data.rows
     val k = cov.data.cols
-    require(n - k - 2 > 0)
+    val d = n - k - 2
+    require(d > 0)
 
     // extract the phenotype vector y
     val rowOfSample = cov.sampleOfRow.zipWithIndex.toMap
@@ -72,6 +73,8 @@ object LinearRegression {
     val qtyBc = sc.broadcast(qty)
     val yypBc = sc.broadcast(yyp)
 
+    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
+
     new LinearRegression(vds
       .filterSamples(s => isPhenotypedBc.value(s))
       .mapWithKeys{ (v, s, g) => (v, (rowOfSampleBc.value(s), g.call.map(_.gt))) }
@@ -80,7 +83,7 @@ object LinearRegression {
         gts => {
           val qt = qtBc.value
           val n = qt.cols
-          val k = qt.rows - 1 // do not count vector of 1s
+          val d = n - qt.rows - 1 // qt includes vector of 1s
 
           // replace missing values with mean
           val y = yBc.value
@@ -123,12 +126,10 @@ object LinearRegression {
           val xyp = xy - (qtx dot qty)
           val yyp = yypBc.value
 
-          val d = n - k - 2
           val b = xyp / xxp
           val se = math.sqrt((yyp / xxp - b * b) / d)
           val t = b / se
-          val tDist = new TDistribution(null, d.toDouble)
-          val p = 2 * tDist.cumulativeProbability(t)
+          val p = 2 * tDistBc.value.cumulativeProbability(- math.abs(t))
 
           LinRegOutput(nMissing, b, se, t, p)
         }
