@@ -55,21 +55,22 @@ object LinearRegression {
     // extract the phenotype vector y
     val rowOfSample = cov.sampleOfRow.zipWithIndex.toMap
     val y = DenseVector.zeros[Double](n)
-    for (i <- 0 until n)
-     y(i) = ped.phenoOf(cov.sampleOfRow(i)).toString.toDouble
+    for (row <- 0 until n)
+     y(row) = ped.phenoOf(cov.sampleOfRow(row)).toString.toDouble
 
-    // augment the covariate matrix with ones vector, and compute q.t, and yy = yp dot yp
+    // augment covariate matrix with 1s vector, compute q.t and yyp = yp dot yp
     val qt = qr.reduced.justQ(DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), cov.data)).t
     val qty = qt * y
-    val yy = (y dot y) - (qty dot qty) // = yp dot yp for yp = (I - q * q.t) y
+    val yyp = (y dot y) - (qty dot qty)
 
     val sc = vds.sparkContext
     val rowOfSampleBc = sc.broadcast(rowOfSample)
     val isPhenotypedBc = sc.broadcast((0 until vds.nSamples).map(rowOfSample.isDefinedAt).toArray)
 
+    val yBc = sc.broadcast(y)
     val qtBc = sc.broadcast(qt)
     val qtyBc = sc.broadcast(qty)
-    val yyBc = sc.broadcast(yy)
+    val yypBc = sc.broadcast(yyp)
 
     new LinearRegression(vds
       .filterSamples(s => isPhenotypedBc.value(s))
@@ -79,51 +80,55 @@ object LinearRegression {
         gts => {
           val qt = qtBc.value
           val n = qt.cols
-          val k = qt.rows
+          val k = qt.rows - 1 // do not count vector of 1s
 
           // replace missing values with mean
+          val y = yBc.value
           val x = SparseVector.zeros[Double](n)
           val missingRowsBuffer = new ListBuffer[Int]()
-          var gtSum = 0
-          var gtSumSq = 0
+          var sumX = 0
+          var sumXX = 0
+          var sumXY = 0.0
           gts.foreach{
             case (row, gt) =>
               if (gt.isDefined) {
                 if (gt.get != 0) {
-                  gtSum += gt.get
-                  gtSumSq += gt.get * gt.get
+                  sumX += gt.get
+                  sumXX += gt.get * gt.get
+                  sumXY += gt.get * y(row)
                   x(row) = gt.get.toDouble
                 }
               }
               else
                 missingRowsBuffer += row
           }
-          assert(gtSum > 0) //FIXME: better error handling
+          assert(sumX > 0) //FIXME: better error handling
           val missingRows = missingRowsBuffer.toList
           val nMissing = missingRows.length
-          val mu = gtSum.toDouble / (n - nMissing)
+          val mu = sumX.toDouble / (n - nMissing)
           missingRows.foreach(row => x(row) = mu)
 
-          // divide x by norm of centered x
-          val sum = gtSum + nMissing * mu
-          val sumSq = gtSumSq + nMissing * mu * mu
-          x :/= math.sqrt(sumSq - sum * sum / n)
-
-          // calculate dot products between xp and yp
-          val qtx = qt * x
-          val qty = qtyBc.value
-          val xx = (x dot x) - (qtx dot qtx) // = xp dot xp for xp = (I - q * q.t) x
-          val xy = (x dot y) - (qtx dot qty) // = xp dot yp
-          val yy = yyBc.value                // = yp dot yp
+          // these are lines useful for normalization, unnecessary for regression
+          // val sum = gtSum + nMissing * mu
+          // val sumSqCentered = math.sqrt(sumSq - sum * sum / n) // = (x - mu) dot (x - mu)
 
           // compute regression coef and stats for 2-sided t test with d degrees of freedom
-          val signT = if (xy > 0) 1 else -1
+          val xx = sumXX + mu * mu * nMissing
+          val xy = sumXY + mu * missingRows.map(row => y(row)).sum
+
+          val qtx = qt * x
+          val qty = qtyBc.value
+
+          val xxp = xx - (qtx dot qtx)
+          val xyp = xy - (qtx dot qty)
+          val yyp = yypBc.value
+
           val d = n - k - 2
-          val b = xy / xx
-          val t = signT * math.sqrt(d * xy * xy / (xx * yy - xy * xy))
-          val se = b / t // = sqrt( 1/d * |y - bx|^2 / xx )
+          val b = xyp / xxp
+          val se = math.sqrt((yyp / xxp - b * b) / d)
+          val t = b / se
           val tDist = new TDistribution(null, d.toDouble)
-          val p = 2 * tDist.cumulativeProbability(-1 * signT * t)
+          val p = 2 * tDist.cumulativeProbability(t)
 
           LinRegOutput(nMissing, b, se, t, p)
         }
