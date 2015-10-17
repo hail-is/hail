@@ -13,6 +13,7 @@ import org.broadinstitute.k3.Utils._
 object CovariateData {
 
   def read(filename: String, sampleIds: Array[String]): CovariateData = {
+    println("Reading covariates... " + System.currentTimeMillis())
     val src = Source.fromFile(new File(filename))
     val (header, lines) = src.getLines().filter(line => !line.isEmpty).toList.splitAt(1)
     src.close()
@@ -53,14 +54,21 @@ object LinearRegression {
     val d = n - k - 2
     require(d > 0)
 
+    println("Reading phenotypes... " + System.currentTimeMillis())
+
     // extract the phenotype vector y
     val rowOfSample = cov.sampleOfRow.zipWithIndex.toMap
     val y = DenseVector.zeros[Double](n)
     for (row <- 0 until n)
      y(row) = ped.phenoOf(cov.sampleOfRow(row)).toString.toDouble
 
+    println("Computing q... " + System.currentTimeMillis())
+
     // augment covariate matrix with 1s vector, compute q.t and yyp = yp dot yp
     val qt = qr.reduced.justQ(DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), cov.data)).t
+
+    println("Computing stats... " + System.currentTimeMillis())
+
     val qty = qt * y
     val yyp = (y dot y) - (qty dot qty)
 
@@ -141,6 +149,7 @@ object LinearRegression {
 case class LinearRegression(lr: RDD[(Variant, LinRegOutput)]) {
 
   def write(filename: String) {
+    println("Writing output... " + System.currentTimeMillis())
     def toLine(v: Variant, lro: LinRegOutput) = v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt +
       "\t" + lro.nMissing + "\t" + lro.beta + "\t" + lro.stdError + "\t" + lro.t + "\t" + lro.p
     lr.map((toLine _).tupled)
