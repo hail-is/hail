@@ -41,7 +41,7 @@ object CovariateData {
 
 case class CovariateData(sampleOfRow: Array[Int], covariateOfCol: Array[String], data: DenseMatrix[Double])
 
-case class LinRegOutput(nMissing: Int, beta: Double, stdError: Double, t: Double, p: Double)
+case class LinRegOutput(nMissing: Int, beta: Double, t: Double, p: Double)
 
 object LinearRegression {
   def name = "LinearRegression"
@@ -54,21 +54,14 @@ object LinearRegression {
     val d = n - k - 2
     require(d > 0)
 
-    println("Reading phenotypes... " + System.currentTimeMillis())
-
     // extract the phenotype vector y
     val rowOfSample = cov.sampleOfRow.zipWithIndex.toMap
     val y = DenseVector.zeros[Double](n)
     for (row <- 0 until n)
      y(row) = ped.phenoOf(cov.sampleOfRow(row)).toString.toDouble
 
-    println("Computing q... " + System.currentTimeMillis())
-
     // augment covariate matrix with 1s vector, compute q.t and yyp = yp dot yp
     val qt = qr.reduced.justQ(DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), cov.data)).t
-
-    println("Computing stats... " + System.currentTimeMillis())
-
     val qty = qt * y
     val yyp = (y dot y) - (qty dot qty)
 
@@ -119,7 +112,7 @@ object LinearRegression {
           val mu = sumX.toDouble / (n - nMissing)
           missingRows.foreach(row => x(row) = mu)
 
-          // these are lines useful for normalization, unnecessary for regression
+          // these lines are useful for normalization, unnecessary for regression
           // val sum = gtSum + nMissing * mu
           // val sumSqCentered = math.sqrt(sumSq - sum * sum / n) // = (x - mu) dot (x - mu)
 
@@ -139,7 +132,7 @@ object LinearRegression {
           val t = b / se
           val p = 2 * tDistBc.value.cumulativeProbability(- math.abs(t))
 
-          LinRegOutput(nMissing, b, se, t, p)
+          LinRegOutput(nMissing, b, t, p)
         }
       }
     )
@@ -149,10 +142,9 @@ object LinearRegression {
 case class LinearRegression(lr: RDD[(Variant, LinRegOutput)]) {
 
   def write(filename: String) {
-    println("Writing output... " + System.currentTimeMillis())
     def toLine(v: Variant, lro: LinRegOutput) = v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt +
-      "\t" + lro.nMissing + "\t" + lro.beta + "\t" + lro.stdError + "\t" + lro.t + "\t" + lro.p
+      "\t" + lro.nMissing + "\t" + lro.beta + "\t" + lro.t + "\t" + lro.p
     lr.map((toLine _).tupled)
-      .writeTable(filename, "CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP\n")
+      .writeTable(filename, "CHR\tPOS\tREF\tALT\tMISS\tBETA\tT\tP\n")
   }
 }
