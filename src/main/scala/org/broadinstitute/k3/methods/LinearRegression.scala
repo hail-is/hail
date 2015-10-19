@@ -13,7 +13,6 @@ import org.broadinstitute.k3.Utils._
 object CovariateData {
 
   def read(filename: String, sampleIds: Array[String]): CovariateData = {
-    println("Reading covariates... " + System.currentTimeMillis())
     val src = Source.fromFile(new File(filename))
     val (header, lines) = src.getLines().filter(line => !line.isEmpty).toList.splitAt(1)
     src.close()
