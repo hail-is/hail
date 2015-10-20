@@ -14,24 +14,27 @@ object MendelErrors {
 
   def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
-  def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, onX: Boolean): Int = {
-    (gDad.gtType, gMom.gtType, gKid.gtType, onX) match {
-      case (HomRef, HomRef,    Het, false) => 2  // Autosome, Het
+  def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, isHemizygous: Boolean): Int = {
+    (gDad.gtType, gMom.gtType, gKid.gtType, isHemizygous) match {
+      case (HomRef, HomRef,    Het, false) => 2  // Kid is het and not hemizygous
       case (HomVar, HomVar,    Het, false) => 1
-      case (HomRef, HomRef, HomVar, false) => 5  // Autosome, HomVar
+      case (HomRef, HomRef, HomVar, false) => 5  // Kid is homvar and not hemizygous
       case (HomRef,      _, HomVar, false) => 3
       case (     _, HomRef, HomVar, false) => 4
-      case (HomVar, HomVar, HomRef, false) => 8  // Autosome, HomRef
+      case (HomVar, HomVar, HomRef, false) => 8  // Kid is homref and not hemizygous
       case (HomVar,      _, HomRef, false) => 6
       case (     _, HomVar, HomRef, false) => 7
-      case (     _, HomVar, HomRef,  true) => 9  // X, HomRef
-      case (     _, HomRef, HomVar,  true) => 10 // X, HomVar
+      case (     _, HomVar, HomRef,  true) => 9  // Kid is homref and hemizygous
+      case (     _, HomRef, HomVar,  true) => 10 // Kid is homvar and hemizygous
       case _                               => 0  // No error
     }
   }
 
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
+    require(ped.sexDefinedForAll)
+
     val completeTrios = vds.sparkContext.broadcast(ped.completeTrios)
+    val sexOf = vds.sparkContext.broadcast(ped.sexOf)
 
     new MendelErrors(ped, vds.sampleIds,
       vds
@@ -43,7 +46,7 @@ object MendelErrors {
       .groupByKey()
       .mapValues(_.toMap)
       .flatMap { case ((v, s), gOf) =>
-        val code = getCode(gOf(Kid), gOf(Dad), gOf(Mom), v.onX)
+        val code = getCode(gOf(Kid), gOf(Dad), gOf(Mom), v.isHemizygous(sexOf.value(s)))
         if (code != 0)
           Some(new MendelError(v, s, code, gOf(Kid), gOf(Dad), gOf(Mom)))
         else
@@ -57,6 +60,7 @@ object MendelErrors {
 case class MendelErrors(ped:          Pedigree,
                         sampleIds:    Array[String],
                         mendelErrors: RDD[MendelError]) {
+  require(ped.sexDefinedForAll)
 
   def sc = mendelErrors.sparkContext
 
