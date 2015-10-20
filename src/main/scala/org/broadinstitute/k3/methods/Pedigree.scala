@@ -45,6 +45,12 @@ object Pedigree {
 
     val indexOfSample: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
+//    def indexOfSample2(id: String): Int =
+//      if (indexOfSample.keySet.contains(id))
+//        indexOfSample(id)
+//      else
+//        -1
+
     def maybeId(id: String): Option[Int] = if (id != "0") indexOfSample.get(id) else None
     def maybeFam(fam: String): Option[String] = if (fam != "0") Some(fam) else None
 
@@ -106,9 +112,13 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
   // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
   def write(filename: String, hConf: hadoop.conf.Configuration, sampleIds: Array[String]) {
     def sampleIdOrElse(s: Option[Int]) = if (s.isDefined) sampleIds(s.get) else "0"
-    def toLine(t: Trio): String =
-      t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + sampleIdOrElse(t.dad) + "\t" +
-        sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0") + "\n"
+    def toLine(t: Trio): String = {
+//      if (t.kid == -1)
+//        "\n"
+//      else
+        t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + sampleIdOrElse(t.dad) + "\t" +
+          sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0") + "\n"
+    }
     val lines = trios.map(toLine)
     writeTable(filename, hConf, lines)
   }
