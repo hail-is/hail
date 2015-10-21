@@ -46,11 +46,12 @@ object SampleQC extends Command {
       nCalledPer, nNotCalledPer,
       nHomRefPer, nHetPer, nHomVarPer,
       nSNPPerSample, nInsertionPerSample, nDeletionPerSample,
-      new nSingletonPerSample(singletons), nTransitionPerSample, nTransversionPerSample
+      new nSingletonPerSample(singletons), nTransitionPerSample, nTransversionPerSample,
+      dpStatCounterPer, gqStatCounterPer
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(
-      nNonRefPer, rTiTvPerSample, rHetHomPer, rDeletionInsertionPerSample
+      nNonRefPer, rTiTvPerSample, rHetHomPer, rDeletionInsertionPerSample, dpMeanPer, dpStDevPer, gqMeanPer, gqStDevPer
     )
 
     val r = results(vds, methods, derivedMethods)

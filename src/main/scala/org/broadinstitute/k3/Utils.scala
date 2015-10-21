@@ -7,12 +7,13 @@ import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import Numeric.Implicits._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
-import org.broadinstitute.k3.Utils._
 import scala.reflect.ClassTag
+import org.broadinstitute.k3.Utils._
 
 class RichVector[T](v: Vector[T]) {
   def zipExact[T2](v2: Iterable[T2]): Vector[(T, T2)] = {
@@ -203,8 +204,6 @@ class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
 
 class RichIndexedRow(r: IndexedRow) {
 
-  import Utils._
-
   def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
@@ -226,7 +225,6 @@ class RichMap[K, V](m: Map[K, V]) {
 class RichOption[T](o: Option[T]) {
   def contains(v: T): Boolean = o.isDefined && o.get == v
 }
-
 object Utils {
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -379,5 +377,15 @@ object Utils {
         if (header != null) fw.write(header)
         lines.foreach(fw.write)
     }
+
+    def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
+
+    def simpleAssert(p: Boolean) {
+      if (!p) throw new AssertionError
+    }
+  }
+  // FIXME This should be replaced by AB's version that assesses relative difference as well
+  def closeEnough(a: Double, b: Double, cutoff: Double = 0.0001) = {
+    math.abs(a - b) < cutoff
   }
 }

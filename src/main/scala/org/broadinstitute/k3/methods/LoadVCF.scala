@@ -37,16 +37,16 @@ object LoadVCF {
     val headerLinesBc = sc.broadcast(headerLines)
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
       .mapPartitions { lines =>
-      val reader = readerBuilder.result(headerLinesBc.value)
-      lines.filter(line => !line.isEmpty && line(0) != '#')
-        .flatMap(reader.readRecord)
-        .map { case (v, gs) =>
-        val b = new GenotypeStreamBuilder(v, compress)
-        for (g <- gs)
-          b += 0 -> g
-        (v, b.result())
+        val reader = readerBuilder.result(headerLinesBc.value)
+        lines.filter(line => !line.isEmpty && line(0) != '#')
+          .flatMap(reader.readRecord)
+          .map { case (v, gs) =>
+            val b = new GenotypeStreamBuilder(v, compress)
+            for (g <- gs)
+              b += 0 -> g
+            (v, b.result())
+          }
       }
-    }
 
     // FIXME null should be contig lengths
     VariantSampleMatrix(vsmtype, VariantMetadata(null, sampleIds, headerLines), genotypes)
