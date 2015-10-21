@@ -25,49 +25,47 @@ class gqDpStatsSuite extends SparkSuite {
 
     // DP test first
     val dpVds = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=Some(arr), gqArray=None)
-    val dpVariantR = VariantQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer),
-      Array(dpMeanPer, dpStDevPer))
-    val dpSampleR = SampleQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer),
-      Array(dpMeanPer, dpStDevPer))
-
+    val dpVariantR = VariantQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer))
+    val dpSampleR = SampleQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer))
+    
     dpVariantR.collect().foreach {
       case (v, a) =>
-//        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double],
-//          variantMeans(v.start),a(2).asInstanceOf[Double], variantDevs(v.start)))
-        assert(closeEnough(a(1).asInstanceOf[Double], variantMeans(v.start)))
-        assert(closeEnough(a(2).asInstanceOf[Double], variantDevs(v.start)))
+//        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].get,
+//          variantMeans(v.start),a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
+        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, variantMeans(v.start)))
+        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
     }
 
       dpSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        assert(closeEnough(a(1).asInstanceOf[Double], sampleMeans(s)))
-        assert(closeEnough(a(2).asInstanceOf[Double], sampleDevs(s)))
+        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, sampleMeans(s)))
+        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, sampleDevs(s)))
     }
 
     // now test GQ
     val gqVds = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=None, gqArray=Some(arr))
     val gqVariantR = VariantQC.results(gqVds, Array[AggregateMethod](gqStatCounterPer),
-      Array(gqMeanPer, gqStDevPer))
+      Array())
     val gqSampleR = SampleQC.results(gqVds, Array[AggregateMethod](gqStatCounterPer),
-      Array(gqMeanPer, gqStDevPer))
+      Array())
 
     gqVariantR.collect().foreach {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
 //          .asInstanceOf[Double], variantDevs(v.start)))
 
-        assert(closeEnough(a(1).asInstanceOf[Double], variantMeans(v.start)))
-        assert(closeEnough(a(2).asInstanceOf[Double], variantDevs(v.start)))
+        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, variantMeans(v.start)))
+        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
     }
 
     gqSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        assert(closeEnough(a(1).asInstanceOf[Double], sampleMeans(s)))
-        assert(closeEnough(a(2).asInstanceOf[Double], sampleDevs(s)))
+        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, sampleMeans(s)))
+        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, sampleDevs(s)))
     }
   }
 }

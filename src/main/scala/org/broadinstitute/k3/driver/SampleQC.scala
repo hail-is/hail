@@ -6,6 +6,8 @@ import org.broadinstitute.k3.variant._
 import org.broadinstitute.k3.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
+import scala.collection.mutable
+
 object SampleQC extends Command {
 
   class Options extends BaseOptions {
@@ -21,7 +23,7 @@ object SampleQC extends Command {
 
   def results(vds: VariantDataset,
     methods: Array[AggregateMethod],
-    derivedMethods: Array[DerivedMethod]): Map[Int, Array[Any]] = {
+    derivedMethods: Array[DerivedMethod] = Array()): Map[Int, Array[Any]] = {
     val methodIndex = methods.zipWithIndex.toMap
 
     val methodsBc = vds.sparkContext.broadcast(methods)
@@ -32,8 +34,13 @@ object SampleQC extends Command {
             m.seqOpWithKeys(v, s, g, acci.asInstanceOf[m.T])),
         (x, y) => methodsBc.value.zipWith[Any, Any, Any](x, y, (m, xi, yi) =>
             m.combOp(xi.asInstanceOf[m.T], yi.asInstanceOf[m.T])))
-      .mapValues(values =>
-        values ++ derivedMethods.map(_.map(MethodValues(methodIndex, values))))
+      .mapValues(values => {
+        val b = mutable.ArrayBuilder.make[Any]()
+        values.foreach2[AggregateMethod](methodsBc.value, (v, m) => m.emit(v.asInstanceOf[m.T], b))
+        val methodValues = MethodValues(methodIndex, values)
+        derivedMethods.foreach(_.emit(methodValues, b))
+        b.result()
+      })
   }
 
   def run(state: State, options: Options): State = {
@@ -44,25 +51,24 @@ object SampleQC extends Command {
 
     val methods: Array[AggregateMethod] = Array(
       nCalledPer, nNotCalledPer,
-      nHomRefPer, nHetPer, nHomVarPer,
+      nHomRefPer, nHetPer, nHomVarPer, AlleleBalancePer,
       nSNPPerSample, nInsertionPerSample, nDeletionPerSample,
       new nSingletonPerSample(singletons), nTransitionPerSample, nTransversionPerSample,
-      dpStatCounterPer, gqStatCounterPer
+      dpStatCounterPer, dpStatCounterPerGenotype, gqStatCounterPer, gqStatCounterPerGenotype
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(
-      nNonRefPer, rTiTvPerSample, rHetHomPer, rDeletionInsertionPerSample, dpMeanPer, dpStDevPer, gqMeanPer, gqStDevPer
+      nNonRefPer, rTiTvPerSample, rHetHomVarPer, rDeletionInsertionPerSample
     )
 
     val r = results(vds, methods, derivedMethods)
     writeTextFile(options.output, state.hadoopConf) { s =>
       val allMethods = methods ++ derivedMethods
-      val header = "sampleID" + "\t" + allMethods.map(_.name).mkString("\t") + "\n"
+      val header = "sampleID" + "\t" + allMethods.map(_.name).filter(_ != null).mkString("\t") + "\n"
       s.write(header)
 
-      for ((id, i) <- vds.sampleIds.zipWithIndex) {
-        s.write(id + "\t" + r(i).mkString("\t") + "\n")
-      }
+      for (i <- r.keys)
+        s.write(vds.sampleIds(i) + "\t" + r(i).map(toTSVString).mkString("\t") + "\n")
     }
 
     state

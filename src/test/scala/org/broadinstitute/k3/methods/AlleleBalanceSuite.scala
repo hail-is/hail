@@ -7,8 +7,8 @@ import org.testng.annotations.Test
 class AlleleBalanceSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/ab_test.vcf")
-    val results = VariantQC.results(vds, Array(AlleleDepthPerVariant), Array(AlleleBalancePerVariant))
-      .map { case (v, a) => (v.start, (a(0).asInstanceOf[(Int, Int)], a(1).asInstanceOf[Double])) }
+    val results = VariantQC.results(vds, Array(AlleleBalancePer), Array())
+      .map { case (v, a) => (v.start, (a(0).asInstanceOf[Double])) }
       .collect()
       .toMap
     val expected = Map(1 ->((0, 0), 1.0),
@@ -18,8 +18,7 @@ class AlleleBalanceSuite extends SparkSuite {
     for ((k, v) <- expected) {
       val u = results(k)
 
-      assert(u._1 == v._1)
-      assert((u._2 - v._2).abs < 1e-6)
+      assert((u - v._2).abs < 1e-6)
     }
   }
 }

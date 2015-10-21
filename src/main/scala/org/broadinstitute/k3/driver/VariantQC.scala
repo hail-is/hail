@@ -6,6 +6,8 @@ import org.broadinstitute.k3.variant._
 import org.broadinstitute.k3.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
+import scala.collection.mutable
+
 object VariantQC extends Command {
 
   class Options extends BaseOptions {
@@ -21,7 +23,7 @@ object VariantQC extends Command {
 
   def results(vds: VariantDataset,
     methods: Array[AggregateMethod],
-    derivedMethods: Array[DerivedMethod]): RDD[(Variant, Array[Any])] = {
+    derivedMethods: Array[DerivedMethod] = Array()): RDD[(Variant, Array[Any])] = {
 
     val methodIndex = methods.zipWithIndex.toMap
 
@@ -33,8 +35,13 @@ object VariantQC extends Command {
             m.seqOpWithKeys(v, s, g, acci.asInstanceOf[m.T])),
         (x, y) => methodsBc.value.zipWith[Any, Any, Any](x, y, (m, xi, yi) =>
             m.combOp(xi.asInstanceOf[m.T], yi.asInstanceOf[m.T])))
-      .mapValues(values =>
-        values ++ derivedMethods.map(_.map(MethodValues(methodIndex, values))))
+      .mapValues(values => {
+        val b = mutable.ArrayBuilder.make[Any]()
+        values.foreach2[AggregateMethod](methodsBc.value, (v, m) => m.emit(v.asInstanceOf[m.T], b))
+        val methodValues = MethodValues(methodIndex, values)
+        derivedMethods.foreach(_.emit(methodValues, b))
+        b.result()
+      })
   }
 
   def run(state: State, options: Options): State = {
@@ -43,12 +50,11 @@ object VariantQC extends Command {
     val methods: Array[AggregateMethod] = Array(
       nCalledPer, nNotCalledPer,
       nHomRefPer, nHetPer, nHomVarPer,
-      AlleleDepthPerVariant,
-      dpStatCounterPer, gqStatCounterPer
+      AlleleBalancePer, dpStatCounterPer, dpStatCounterPerGenotype, gqStatCounterPer, gqStatCounterPerGenotype
     )
 
     val derivedMethods: Array[DerivedMethod] = Array(
-      nNonRefPer, rHetrozygosityPer, rHetHomPer, AlleleBalancePerVariant, pHwePerVariant, dpMeanPer, dpStDevPer, gqMeanPer, gqStDevPer
+      minorAlleleFrequencyPer, nNonRefPer, rHeterozygosityPer, rHetHomVarPer, pHwePerVariant
     )
 
     val r = results(vds, methods, derivedMethods)
@@ -57,13 +63,16 @@ object VariantQC extends Command {
 
     writeTextFile(options.output + ".header", state.hadoopConf) { s =>
       val header = "Chrom" + "\t" + "Pos" + "\t" + "Ref" + "\t" + "Alt" + "\t" +
-        allMethods.map(_.name).mkString("\t") + "\n"
+        allMethods.map(_.name).filter(_ != null).mkString("\t") + "\n"
       s.write(header)
     }
 
+    val output = options.output
+
+    hadoopDelete(output, vds.sparkContext.hadoopConfiguration, true)
     r.map { case (v, a) =>
-      (Array[Any](v.contig, v.start, v.ref, v.alt) ++ a).mkString("\t")
-    }.saveAsTextFile(options.output)
+      (Array[Any](v.contig, v.start, v.ref, v.alt) ++ a).map(toTSVString).mkString("\t")
+    }.saveAsTextFile(output)
 
     state
   }

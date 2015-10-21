@@ -2,6 +2,8 @@ package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant._
 
+import scala.collection.mutable
+
 abstract class BaseMethod extends Serializable {
   type T
 
@@ -16,6 +18,10 @@ abstract class AggregateMethod extends BaseMethod {
   def seqOpWithKeys(v: Variant, s: Int, g: Genotype, acc: T): T = seqOp(g, acc)
 
   def combOp(x: T, y: T): T
+
+  def emit(x: T, b: mutable.ArrayBuilder[Any]) {
+    b += x
+  }
 }
 
 case class MethodValues(methods: Map[AggregateMethod, Int],
@@ -52,5 +58,8 @@ abstract class SumMethod extends MapRedMethod {
 }
 
 abstract class DerivedMethod extends BaseMethod {
-  def map(values: MethodValues): T
+  def map(values: MethodValues): T = throw new UnsupportedOperationException
+  def emit(values: MethodValues, b: mutable.ArrayBuilder[Any]) {
+    b += map(values)
+  }
 }

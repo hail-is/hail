@@ -1,6 +1,7 @@
 package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant.Genotype
+import org.broadinstitute.k3.Utils._
 
 // FIXME need to account for all HomRef?
 object nCalledPer extends SumMethod {
@@ -34,7 +35,7 @@ object nNonRefPer extends DerivedMethod {
 
   def name = "nNonRef"
 
-  def map(values: MethodValues) =
+  override def map(values: MethodValues) =
     values.get(nHetPer) + values.get(nHomVarPer)
 }
 
@@ -45,28 +46,27 @@ object nNotCalledPer extends SumMethod {
   override def map(g: Genotype) = if (g.isNotCalled) 1 else 0
 }
 
-object rHetrozygosityPer extends DerivedMethod {
-  type T = Double
+object rHeterozygosityPer extends DerivedMethod {
+  type T = Option[Double]
 
   def name = "rHeterozygosity"
 
-  def map(values: MethodValues) = {
+  override def map(values: MethodValues) = {
     val nCalled = values.get(nCalledPer)
     val nHet = values.get(nHetPer)
-    // FIXME Option
-    if (nCalled != 0) nHet.toDouble / nCalled else -1
+    divOption(nHet, nCalled)
   }
 }
 
 // FIXME: need to account for all HomRef
-object rHetHomPer extends DerivedMethod {
-  type T = Double
+object rHetHomVarPer extends DerivedMethod {
+  type T = Option[Double]
 
-  def name = "rHetHom"
+  def name = "rHetHomVar"
 
-  def map(values: MethodValues) = {
-    val nHom = values.get(nHomRefPer) + values.get(nHomVarPer)
+  override def map(values: MethodValues) = {
+    val nHomVar = values.get(nHomVarPer)
     val nHet = values.get(nHetPer)
-    if (nHom != 0) nHet.toDouble / nHom else -1
+    divOption(nHet, nHomVar)
   }
 }
