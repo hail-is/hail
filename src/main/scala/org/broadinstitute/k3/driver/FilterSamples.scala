@@ -36,7 +36,7 @@ object FilterSamples extends Command {
       .getLines()
       .filter(line => !line.isEmpty)
       .map(indexOfSample)
-      .toArray
+      .toSet
 
     val p: (Int) => Boolean = (s) => samples.contains(s)
 
