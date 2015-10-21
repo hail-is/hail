@@ -23,10 +23,10 @@ object SparkyVSM {
 }
 
 class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
-                                            val rdd: RDD[(Variant, S)])
-                                           (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S],
-                                            atct: ClassTag[Array[T]], vct: ClassTag[Variant],
-                                            itct: ClassTag[(Int, T)])
+  val rdd: RDD[(Variant, S)])
+  (implicit ttt: TypeTag[T], stt: TypeTag[S], tct: ClassTag[T], sct: ClassTag[S],
+    atct: ClassTag[Array[T]], vct: ClassTag[Variant],
+    itct: ClassTag[(Int, T)])
   extends VariantSampleMatrix[T] {
 
   def nVariants: Long = rdd.count()
@@ -62,7 +62,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
   }
 
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U)
-                          (implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): SparkyVSM[U, mutable.WrappedArray[(Int, U)]] = {
+    (implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): SparkyVSM[U, mutable.WrappedArray[(Int, U)]] = {
     new SparkyVSM[U, mutable.WrappedArray[(Int, U)]](metadata,
       rdd
         .map { case (v, gs) => (v, gs.map { case (s, t) => (s, f(v, s, t)) }.toArray(iuct): mutable.WrappedArray[(Int, U)]) })
@@ -124,13 +124,13 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
 
     rdd
       .map { case (v, gs) =>
-      val serializer = SparkEnv.get.serializer.newInstance()
-      val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+        val serializer = SparkEnv.get.serializer.newInstance()
+        val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
 
-      (v, gs.foldLeft(zeroValue) { case (acc, (s, g)) =>
-        seqOp(acc, v, s, g)
-      })
-    }
+        (v, gs.foldLeft(zeroValue) { case (acc, (s, g)) =>
+          seqOp(acc, v, s, g)
+        })
+      }
   }
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
@@ -150,10 +150,10 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
 
     val values = rdd
       .aggregate(byKeyZeroValue)((acc, vgs) => {
-      for ((sg, i) <- vgs._2.zipWithIndex)
-        acc(i) = combOp(acc(i), sg._2)
-      acc
-    }, (x, y) => x.zipWith(y, combOp)(localtct))
+        for ((sg, i) <- vgs._2.zipWithIndex)
+          acc(i) = combOp(acc(i), sg._2)
+        acc
+      }, (x, y) => x.zipWith(y, combOp)(localtct))
 
     localSamples.zip(values).toMap
   }
