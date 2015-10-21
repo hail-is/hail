@@ -30,11 +30,15 @@ object FilterSamples extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
+    val indexOfSample: Map[String, Int] = state.vds.sampleIds.zipWithIndex.toMap
+
     val samples = Source.fromFile(new File(options.samples))
       .getLines()
       .filter(line => !line.isEmpty)
+      .map(indexOfSample)
+      .toArray
 
-    val p: (Int) => Boolean = (s) => samples.contains(state.vds.sampleIds(s))
+    val p: (Int) => Boolean = (s) => samples.contains(s)
 
     val newVDS = vds.filterSamples(if (options.keep)
       p
