@@ -29,7 +29,7 @@ object TestRDDBuilder {
   def normInt[T](mean: T, stDev: T, floor: Option[Int] = None, ceil: Option[Int] = None)
                 (implicit ev: T => Double): Int = {
     // pulls a random normal variable defined by a mean, stDev, floor, and ceiling, and returns an Int
-    val pull = (Random.nextGaussian() * stDev.toDouble + mean.toDouble).toInt
+    val pull = (Random.nextGaussian() * stDev + mean).toInt
     var result = floor match {
       case Some(x) => math.max(pull, x)
       case None => pull
@@ -95,14 +95,9 @@ object TestRDDBuilder {
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>
       (Variant("1", i, defaultRef, defaultAlt),
-        (gqArray match {
-          case Some(arr) => Option(arr(i))
-          case None => None },
-          dpArray match {
-            case Some(arr) => Option(arr(i))
-            case None => None } ) ) )
+        (gqArray.map(_(i)),
+          dpArray.map(_(i)))))
       .toArray
-
 
     val variantRDD = sc.parallelize(variantArray)
     val streamRDD = variantRDD.map {
