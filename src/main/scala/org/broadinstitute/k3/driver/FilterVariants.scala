@@ -18,7 +18,7 @@ object FilterVariants extends Command {
   }
   def newOptions = new Options
 
-  def name = "filter"
+  def name = "filtervariants"
   def description = "Filter variants in current dataset"
 
   def run(state: State, options: Options): State = {
