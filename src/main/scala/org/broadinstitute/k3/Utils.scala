@@ -330,7 +330,7 @@ object Utils {
   }
 
   def writeObjectFile[T](filename: String,
-                         hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
     try {
       f(oos)
@@ -340,7 +340,7 @@ object Utils {
   }
 
   def readObjectFile[T](filename: String,
-                        hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
     try {
       f(ois)
@@ -350,7 +350,7 @@ object Utils {
   }
 
   def writeTextFile[T](filename: String,
-                       hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
+    hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
     val fw = new OutputStreamWriter(oos)
     try {
@@ -361,7 +361,7 @@ object Utils {
   }
 
   def readFile[T](filename: String,
-                  hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
     val is = hadoopOpen(filename, hConf)
     try {
       reader(is)
@@ -371,7 +371,7 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-                 lines: Traversable[String], header: String = null) {
+    lines: Traversable[String], header: String = null) {
     writeTextFile(filename, hConf) {
       fw =>
         if (header != null) fw.write(header)
@@ -384,8 +384,8 @@ object Utils {
       if (!p) throw new AssertionError
     }
   }
-    // FIXME This should be replaced by AB's version that assesses relative difference as well
+  // FIXME This should be replaced by AB's version that assesses relative difference as well
   def closeEnough(a: Double, b: Double, cutoff: Double = 0.0001) = {
-      math.abs(a - b) < cutoff
-    }
+    math.abs(a - b) < cutoff
+  }
 }
