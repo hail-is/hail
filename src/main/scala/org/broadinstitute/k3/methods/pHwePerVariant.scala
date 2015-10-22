@@ -10,7 +10,7 @@ object pHwePerVariant extends DerivedMethod {
   type T = Double
   def name = "nHWE"
 
-  def map(values: MethodValues) = {
+  override def map(values: MethodValues) = {
     val nHomRef = values.get(nHomRefPer)
     val nHet = values.get(nHetPer)
     val nHomVar = values.get(nHomVarPer)

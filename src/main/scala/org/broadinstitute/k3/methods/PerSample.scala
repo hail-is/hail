@@ -1,6 +1,7 @@
 package org.broadinstitute.k3.methods
 
 import org.broadinstitute.k3.variant.{Genotype, Variant}
+import org.broadinstitute.k3.Utils._
 
 object nDeletionPerSample extends SumMethod {
   def name = "nDeletion"
@@ -15,12 +16,12 @@ object nInsertionPerSample extends SumMethod {
 }
 
 object rDeletionInsertionPerSample extends DerivedMethod {
-  type T = Double
+  type T = Option[Double]
   def name = "rDeletionInsertion"
-  def map(values: MethodValues) = {
+  override def map(values: MethodValues) = {
     val nDel = values.get(nDeletionPerSample)
     val nIns = values.get(nInsertionPerSample)
-    if (nIns != 0) nDel.toDouble / nIns else -1
+    divOption(nDel, nIns)
   }
 }
 
@@ -37,12 +38,12 @@ object nTransitionPerSample extends SumMethod {
 }
 
 object rTiTvPerSample extends DerivedMethod {
-  type T = Double
+  type T = Option[Double]
   def name = "rTiTv"
-  def map(values: MethodValues) = {
+  override def map(values: MethodValues) = {
     val nTi = values.get(nTransitionPerSample)
     val nTv = values.get(nTransversionPerSample)
-    if (nTv != 0) nTi.toDouble / nTv else -1
+    divOption(nTi, nTv)
   }
 }
 

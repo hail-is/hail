@@ -32,7 +32,7 @@ object FilterSamples extends Command {
 
     val indexOfSample: Map[String, Int] = state.vds.sampleIds.zipWithIndex.toMap
 
-    val samples = Source.fromFile(new File(options.samples))
+    val samples = Source.fromInputStream(hadoopOpen(options.samples, state.hadoopConf))
       .getLines()
       .filter(line => !line.isEmpty)
       .map(indexOfSample)

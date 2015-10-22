@@ -169,6 +169,13 @@ class RichIteratorOfByte(i: Iterator[Byte]) {
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
+  def foreach2[T2](v2: Iterable[T2], f: (T, T2) => Unit) {
+    val i = a.iterator
+    val i2 = v2.iterator
+    while (i.hasNext && i2.hasNext)
+      f(i.next(), i2.next())
+  }
+
   // FIXME unify with Vector zipWith above
   def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V)(implicit vct: ClassTag[V]): Array[V] = {
     val i = a.iterator
@@ -225,6 +232,7 @@ class RichMap[K, V](m: Map[K, V]) {
 class RichOption[T](o: Option[T]) {
   def contains(v: T): Boolean = o.isDefined && o.get == v
 }
+
 object Utils {
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -329,6 +337,10 @@ object Utils {
     hadoopFS(dirname, hConf).mkdirs(new hadoop.fs.Path(dirname))
   }
 
+  def hadoopDelete(filename: String, hConf: hadoop.conf.Configuration, recursive: Boolean) {
+    hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
+  }
+
   def writeObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
@@ -384,8 +396,32 @@ object Utils {
       if (!p) throw new AssertionError
     }
   }
+
   // FIXME This should be replaced by AB's version that assesses relative difference as well
   def closeEnough(a: Double, b: Double, cutoff: Double = 0.0001) = {
     math.abs(a - b) < cutoff
   }
+
+  // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
+  def time[T](block: => T) = {
+    val t0 = System.nanoTime()
+    val result = block
+    val t1 = System.nanoTime()
+    println("time: " + (t1 - t0) / 1e6 + "ms")
+    result
+  }
+
+  def toTSVString(a: Any): String = a match {
+    case o: Option[Any] => o.map(toTSVString).getOrElse("NA")
+    case _ => a.toString
+  }
+
+  def someIf[T](p: Boolean, x: => T): Option[T] =
+    if (p)
+      Some(x)
+    else
+      None
+
+  def divOption[T](num: T, denom: T)(implicit ev: T => Double): Option[Double] =
+    someIf(denom != 0, ev(num) / denom)
 }
