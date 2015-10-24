@@ -78,6 +78,108 @@ object LinearRegression {
     new LinearRegression(vds
       .filterSamples(s => isPhenotypedBc.value(s))
       .mapWithKeys{ (v, s, g) => (v, (rowOfSampleBc.value(s), g.call.map(_.gt))) }
+      .combineByKey[(List[(Int, Int)], Int, Int, Double, List[Int])](
+        (rowGt: (Int, Option[Int])) => {
+        val (row, gt) = rowGt
+        val missingRows: List[Int] = List()
+        if (gt.isDefined)
+          if (gt.get != 0)
+            (List((row, gt.get)), gt.get, gt.get * gt.get, gt.get * yBc.value(row), List())
+          else
+            (List(), 0, 0, 0.0, List())
+        else
+          (List(), 0, 0, 0.0, List(row))
+      },
+      (t: (List[(Int, Int)], Int, Int, Double, List[Int]), rowGt: (Int, Option[Int])) => {
+        val (x0, sumX, sumXX, sumXY, missingRows) = t
+        val (row, gt) = rowGt
+        if (gt.isDefined)
+          if (gt.get != 0)
+            ((row, gt.get) :: x0, sumX + gt.get, sumXX + gt.get * gt.get, sumXY + gt.get * yBc.value(row), missingRows)
+          else
+            (x0, sumX, sumXX, sumXY, missingRows)
+        else
+          (x0, sumX, sumXX, sumXY, row :: missingRows)
+        },
+      (t: (List[(Int, Int)], Int, Int, Double, List[Int]), u: (List[(Int, Int)], Int, Int, Double, List[Int])) => (t._1 ++ u._1, t._2 + u._2, t._3 + u._3, t._4 + u._4, t._5 ++ u._5))
+      .mapValues{ case (x0, sumX, sumXX, sumXY, missingRows) => {
+        assert(sumX > 0) //FIXME: better error handling
+        val n = qtBc.value.cols
+        val d = n - qtBc.value.rows - 1 // qt includes vector of 1s
+
+        val nMissing = missingRows.length
+        val mu = sumX.toDouble / (n - nMissing)
+        val xSort = x0.sortBy(_._1)
+        val (index, data) = xSort.unzip
+        val x = new SparseVector[Double](index.toArray, data.map(_.toDouble).toArray, n)
+
+        missingRows.foreach(row => x(row) = mu)
+
+        // these lines are useful for normalization, unnecessary for regression
+        // val sum = gtSum + nMissing * mu
+        // val sumSqCentered = math.sqrt(sumSq - sum * sum / n) // = (x - mu) dot (x - mu)
+
+        // compute regression coef and stats for 2-sided t test with d degrees of freedom
+        val xx = sumXX + mu * mu * nMissing
+        val xy = sumXY + mu * missingRows.map(row => yBc.value(row)).sum
+
+        val qtx = qtBc.value * x
+        val qty = qtyBc.value
+
+        val xxp = xx - (qtx dot qtx)
+        val xyp = xy - (qtx dot qty)
+        val yyp = yypBc.value
+
+        val b = xyp / xxp
+        val se = math.sqrt((yyp / xxp - b * b) / d)
+        val t = b / se
+        val p = 2 * tDistBc.value.cumulativeProbability(- math.abs(t))
+
+        LinRegOutput(nMissing, b, t, p)
+        }
+      }
+    )
+  }
+}
+
+
+// FIXME: Deprecated!
+object LinearRegressionGroupByKey {
+  def name = "LinearRegression"
+
+  def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
+    require(ped.phenoDefinedForAll)
+
+    val n = cov.data.rows
+    val k = cov.data.cols
+    val d = n - k - 2
+    require(d > 0)
+
+    // extract the phenotype vector y
+    val rowOfSample = cov.sampleOfRow.zipWithIndex.toMap
+    val y = DenseVector.zeros[Double](n)
+    for (row <- 0 until n)
+      y(row) = ped.phenoOf(cov.sampleOfRow(row)).toString.toDouble
+
+    // augment covariate matrix with 1s vector, compute q.t and yyp = yp dot yp
+    val qt = qr.reduced.justQ(DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), cov.data)).t
+    val qty = qt * y
+    val yyp = (y dot y) - (qty dot qty)
+
+    val sc = vds.sparkContext
+    val rowOfSampleBc = sc.broadcast(rowOfSample)
+    val isPhenotypedBc = sc.broadcast((0 until vds.nSamples).map(rowOfSample.isDefinedAt).toArray)
+
+    val yBc = sc.broadcast(y)
+    val qtBc = sc.broadcast(qt)
+    val qtyBc = sc.broadcast(qty)
+    val yypBc = sc.broadcast(yyp)
+
+    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
+
+    new LinearRegression(vds
+      .filterSamples(s => isPhenotypedBc.value(s))
+      .mapWithKeys{ (v, s, g) => (v, (rowOfSampleBc.value(s), g.call.map(_.gt))) }
       .groupByKey()
       .mapValues{
         gts => {
