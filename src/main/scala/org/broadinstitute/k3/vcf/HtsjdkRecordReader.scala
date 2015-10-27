@@ -45,9 +45,12 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec)
           else
             0
 
-          val pl = if (g.hasPL) {
-            val gpl = g.getPL
-            (gpl(0), gpl(1), gpl(2))
+          val pl = if (g.isCalled) {
+            if (g.hasPL) {
+              val gpl = g.getPL
+              (gpl(0), gpl(1), gpl(2))
+            } else
+              (0, 0, 0) // FIXME
           } else
             null
 
