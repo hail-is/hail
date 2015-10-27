@@ -139,15 +139,7 @@ object Main {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
-    // FIXME remove
-    def time[A](f: => A): (A, Double) = {
-      val s = System.nanoTime
-      val ret = f
-      val time = (System.nanoTime - s) / 1e6
-      (ret, time)
-    }
-
-    val times = mutable.ArrayBuffer.empty[(String, Double)]
+    val times = mutable.ArrayBuffer.empty[(String, Long)]
 
     invocations.foldLeft(State(installDir, sc, sqlContext, null)) { case (s, args) =>
       println("running: " + args.mkString(" "))
@@ -156,7 +148,6 @@ object Main {
         case Some(cmd) =>
           val (newS, duration) = time {cmd.run(s, args.tail)}
           times += cmdName -> duration
-          println(args.mkString(" ") + ": " + duration + "ms")
           newS
         case None =>
           fatal("unknown command `" + cmdName + "'")
@@ -167,7 +158,7 @@ object Main {
 
     println("timing:")
     times.foreach { case (name, duration) =>
-      println("  " + name + ": " + duration)
+      println("  " + name + ": " + formatTime(duration))
     }
   }
 }

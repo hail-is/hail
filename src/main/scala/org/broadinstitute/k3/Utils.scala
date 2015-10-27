@@ -403,12 +403,39 @@ object Utils {
   }
 
   // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
-  def time[T](block: => T) = {
+  def printTime[T](block: => T) = {
+    val timed = time(block)
+    println("time: " + formatTime(timed._2))
+    timed._1
+  }
+
+  def time[A](f: => A): (A, Long) = {
     val t0 = System.nanoTime()
-    val result = block
+    val result = f
     val t1 = System.nanoTime()
-    println("time: " + (t1 - t0) / 1e6 + "ms")
-    result
+    (result, t1 - t0)
+  }
+
+  final val msPerMinute = 60 * 1e3
+  final val msPerHour = 60 * msPerMinute
+  final val msPerDay = 24 * msPerHour
+
+  def formatTime(dt: Long): String = {
+    val tMilliseconds = dt / 1e6
+    if (tMilliseconds < 1000)
+      ("%.3f"+"ms").format(tMilliseconds)
+    else if (tMilliseconds < msPerMinute)
+      ("%.3f"+"s").format(tMilliseconds / 1e3)
+    else if (tMilliseconds < msPerHour) {
+      val tMins = (tMilliseconds / msPerMinute).toInt
+      ("%d"+"m, %.1f"+"s").format(tMins, tMilliseconds % msPerMinute)
+    }
+    else {
+      val tHrs = (tMilliseconds / msPerHour).toInt
+      val tMins = ((tMilliseconds % msPerHour) / msPerMinute).toInt
+      val tSec = ((tMilliseconds % msPerMinute) / 1e3).toInt
+      ("%d"+"h, %d"+"m, %d"+"s").format(tHrs, tMins, tSec)
+    }
   }
 
   def toTSVString(a: Any): String = a match {
