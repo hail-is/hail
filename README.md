@@ -1,6 +1,6 @@
 [![Build Status](https://magnum.travis-ci.com/cseed/k3.svg?token=BppUSW8Cb2YatFa34Fpx&branch=master)](https://magnum.travis-ci.com/cseed/k3)
 
-# k3
+# Hail
 
 ## Tools
 
@@ -22,41 +22,41 @@ handles the other dependencies.  On OSX, you can install gradle with
 
 ## Terminology
 
- - .vds: A .vds directory stores a `VariantDataset`, k3's internal
+ - .vds: A .vds directory stores a `VariantDataset`, hail's internal
 representation of the information in a .vcf file.  It is stored
-(mostly) as parquet files.  You can use the k3 `write` command to
+(mostly) as parquet files.  You can use the hail `write` command to
 create a .vds file from a a .vcf\[.gz\] file.
 
 ## Building
 
-To build k3, just do:
+To build hail, just do:
 
 ```
-~/k3 $ gradle installDist
+~/hail $ gradle installDist
 ```
 
-This will populate `build/install` with an installation of k3.  Then
-you can directly run `build/install/k3/bin/k3`.
+This will populate `build/install` with an installation of hail.  Then
+you can directly run `build/install/hail/bin/hail`.
 
 ## Running
 
 To run the tests, do:
 
 ```
-~/k3 $ gradle check
+~/hail $ gradle check
 ```
 
 To generate a code coverage report and view it, do:
 
 ```
-~/k3 $ gradle coverage
-~/k3 $ open build/build/reports/coverage/index.html
+~/hail $ gradle coverage
+~/hail $ open build/build/reports/coverage/index.html
 ```
 
 To convert a .vcf.gz to a .vds, do:
 
 ```
-~/k3 $ ./build/install/k3/bin/k3 read -i src/test/resources/sample.vcf.gz write -o ~/sample.vds
+~/hail $ ./build/install/hail/bin/hail read -i src/test/resources/sample.vcf.gz write -o ~/sample.vds
 ```
 
 `sample.vcf.gz` is a 182KB test `.vcf.gz` with a hundred or so samples
@@ -65,7 +65,7 @@ and variants.  This creates `~/sample.vds`.
 To run sampleqc, do:
 
 ```
-~/k3 $ ./build/install/k3/bin/k3 read -i ~/sample.vds sampleqc -o ~/sampleqc.tsv
+~/hail $ ./build/install/hail/bin/hail read -i ~/sample.vds sampleqc -o ~/sampleqc.tsv
 ```
 
-For more options and commands, do `k3 -h`.
+For more options and commands, do `hail -h`.
