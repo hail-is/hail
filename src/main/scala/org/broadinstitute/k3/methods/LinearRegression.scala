@@ -1,6 +1,5 @@
 package org.broadinstitute.k3.methods
 
-import scala.collection.mutable.ListBuffer
 import scala.io.Source
 import java.io.File
 import breeze.linalg._
@@ -10,37 +9,32 @@ import org.apache.commons.math3.distribution.TDistribution
 import org.broadinstitute.k3.variant._
 import org.broadinstitute.k3.Utils._
 
+case class CovariateData(sampleOfRow: Array[Int], covariateOfColumn: Array[String], data: DenseMatrix[Double])
+
 object CovariateData {
 
   def read(filename: String, sampleIds: Array[String]): CovariateData = {
     val src = Source.fromFile(new File(filename))
-    val (header, lines) = src.getLines().filter(line => !line.isEmpty).toList.splitAt(1)
+    val header :: lines = src.getLines().filterNot(_.isEmpty).toList
     src.close()
 
-    val covOfCol = header.head.split("\\s+").tail
-    val nCov = covOfCol.length
+    val covariateOfColumn = header.split("\\s+").tail
+    val nCov = covariateOfColumn.length
     val nSamples = lines.length
-
     val sampleOfRow = Array.ofDim[Int](nSamples)
-    val data = DenseMatrix.zeros[Double](nSamples, nCov)
-
     val indexOfSample: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
-    var row = Array.ofDim[String](nCov)
+    val data = DenseMatrix.zeros[Double](nSamples, nCov)
     for (i <- 0 until nSamples) {
-      val line = lines(i).split("\\s+")
-      sampleOfRow(i) = indexOfSample(line(0))
-      for (j <- 0 until nCov) {
-        data(i, j) = line(j+1).toDouble
-      }
+      val (sample, sampleCovs) = lines(i).split("\\s+").splitAt(1)
+      sampleOfRow(i) = indexOfSample(sample(0))
+      data(i to i, ::) := DenseVector(sampleCovs.map(_.toDouble))
     }
-    CovariateData(sampleOfRow, covOfCol, data)
+    CovariateData(sampleOfRow, covariateOfColumn, data)
   }
 }
 
-case class CovariateData(sampleOfRow: Array[Int], covariateOfCol: Array[String], data: DenseMatrix[Double])
-
-case class LinRegStat(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
+case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
 
 object LinearRegression {
   def name = "LinearRegression"
@@ -53,8 +47,9 @@ object LinearRegression {
     val n = cov.data.rows
     val k = cov.data.cols
     val d = n - k - 2
-    require(d > 0)
-    
+    if (d < 1)
+      throw new IllegalArgumentException(n + " samples and " + k + " covariates implies " + d + " degrees of freedom.")
+
     val sc = vds.sparkContext
     val rowOfSampleBc = sc.broadcast(rowOfSample)
     val isPhenotypedBc = sc.broadcast(isPhenotyped)
@@ -105,10 +100,8 @@ object LinearRegression {
 
         val xx = sumXX + meanX * meanX * nMiss
         val xy = sumXY + meanX * missRows.map(row => yBc.value(row)).sum
-
         val qtx = qtBc.value * x
         val qty = qtyBc.value
-
         val xxp = xx - (qtx dot qtx)
         val xyp = xy - (qtx dot qty)
         val yyp = yypBc.value
@@ -118,16 +111,15 @@ object LinearRegression {
         val t = b / se
         val p = 2 * tDistBc.value.cumulativeProbability(- math.abs(t))
 
-        LinRegStat(nMiss, b, se, t, p)
+        LinRegStats(nMiss, b, se, t, p)
       }
     )
   }
 }
 
-case class LinearRegression(lr: RDD[(Variant, LinRegStat)]) {
-
+case class LinearRegression(lr: RDD[(Variant, LinRegStats)]) {
   def write(filename: String) {
-    def toLine(v: Variant, lrs: LinRegStat) = v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt +
+    def toLine(v: Variant, lrs: LinRegStats) = v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt +
       "\t" + lrs.nMissing + "\t" + lrs.beta + "\t" + lrs.se + "\t" + lrs.t + "\t" + lrs.p
     lr.map((toLine _).tupled)
       .writeTable(filename, "CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP\n")
