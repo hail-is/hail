@@ -67,13 +67,14 @@ object LinearRegression {
     val qtyBc = sc.broadcast(qty)
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
     
-    type LinRegBuilder = (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int])
+    //type LinRegBuilder = (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int])
 
-    def zeroValue: LinRegBuilder = (new ArrayBuffer[(Int, Int)], 0, 0, 0.0, new ArrayBuffer[Int])
+    def zeroValue: (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]) = (new ArrayBuffer[(Int, Int)], 0, 0, 0.0, new ArrayBuffer[Int])
 
-    def seqOp(l: LinRegBuilder, rowGt: (Int, Option[Int])): LinRegBuilder = {
+    def seqOp(l: (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]), v: Variant, s: Int, g: Genotype): (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]) = {
       val (sparseX, sumX, sumXX, sumXY, missRows) = l
-      val (row, gt) = rowGt
+      val row = rowOfSampleBc.value(s)
+      val gt = g.call.map(_.gt)
       gt match {
         case Some(0) => (sparseX            , sumX    , sumXX    , sumXY                     , missRows       )
         case Some(1) => (sparseX :+ (row, 1), sumX + 1, sumXX + 1, sumXY +     yBc.value(row), missRows       )
@@ -82,13 +83,12 @@ object LinearRegression {
       }
     }
 
-    def combOp(l1: LinRegBuilder, l2: LinRegBuilder): LinRegBuilder =
+    def combOp(l1: (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]), l2: (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int])): (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]) =
       (l1._1 ++ l2._1, l1._2 + l2._2, l1._3 + l2._3, l1._4 + l2._4, l1._5 ++ l2._5)
 
     new LinearRegression(vds
       .filterSamples(s => isPhenotypedBc.value(s))
-      .mapWithKeys[(Variant, (Int, Option[Int]))]{ (v, s, g) => (v, (rowOfSampleBc.value(s), g.call.map(_.gt))) }
-      .aggregateByKey[LinRegBuilder](zeroValue)(seqOp, combOp)
+      .aggregateByVariantWithKeys[(ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int])](zeroValue)(seqOp, combOp)
       .mapValues{ case (sparseX, sumX, sumXX, sumXY, missRows) =>
         assert(sumX > 0) //FIXME: better error handling
 
