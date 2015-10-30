@@ -92,7 +92,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): Map[Int, U] = {
+    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Int, U)] = {
 
     val localSamples = rdd.first()._2.map(_._1)
     val nLocalSamples = localSamples.size
@@ -112,7 +112,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
       acc
     }, (x, y) => x.zipWith(y, combOp)(uct))
 
-    localSamples.zip(values).toMap
+    sparkContext.parallelize(localSamples.zip(values).toSeq)
   }
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
@@ -135,7 +135,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
       }
   }
 
-  def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
+  def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)] = {
     val localtct = tct
 
     val localSamples = rdd.first()._2.map(_._1)
@@ -157,7 +157,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
         acc
       }, (x, y) => x.zipWith(y, combOp)(localtct))
 
-    localSamples.zip(values).toMap
+    sparkContext.parallelize(localSamples.zip(values).toSeq)
   }
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {

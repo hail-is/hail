@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
@@ -23,7 +24,7 @@ object SampleQC extends Command {
 
   def results(vds: VariantDataset,
     methods: Array[AggregateMethod],
-    derivedMethods: Array[DerivedMethod] = Array()): Map[Int, Array[Any]] = {
+    derivedMethods: Array[DerivedMethod] = Array()): RDD[(Int, Array[Any])] = {
     val methodIndex = methods.zipWithIndex.toMap
 
     val methodsBc = vds.sparkContext.broadcast(methods)
@@ -62,14 +63,17 @@ object SampleQC extends Command {
     )
 
     val r = results(vds, methods, derivedMethods)
-    writeTextFile(options.output, state.hadoopConf) { s =>
+
+    writeTextFile(options.output + ".header", state.hadoopConf) { s =>
       val allMethods = methods ++ derivedMethods
       val header = "sampleID" + "\t" + allMethods.map(_.name).filter(_ != null).mkString("\t") + "\n"
       s.write(header)
-
-      for (i <- r.keys)
-        s.write(vds.sampleIds(i) + "\t" + r(i).map(toTSVString).mkString("\t") + "\n")
     }
+
+    val localSampleIds = vds.sampleIds
+    r.map { case (s, a) =>
+      localSampleIds(s) + "\t" + a.map(toTSVString).mkString("\t")
+    }.saveAsTextFile(options.output)
 
     state
   }
