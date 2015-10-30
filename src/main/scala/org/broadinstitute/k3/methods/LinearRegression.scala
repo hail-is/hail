@@ -1,5 +1,6 @@
 package org.broadinstitute.k3.methods
 
+import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 import java.io.File
 import breeze.linalg._
@@ -66,18 +67,18 @@ object LinearRegression {
     val qtyBc = sc.broadcast(qty)
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
     
-    type LinRegBuilder = (List[(Int, Int)], Int, Int, Double, List[Int])
+    type LinRegBuilder = (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int])
 
-    def zeroValue: LinRegBuilder = (List(), 0, 0, 0.0, List())
+    def zeroValue: LinRegBuilder = (new ArrayBuffer[(Int, Int)], 0, 0, 0.0, new ArrayBuffer[Int])
 
     def seqOp(l: LinRegBuilder, rowGt: (Int, Option[Int])): LinRegBuilder = {
       val (sparseX, sumX, sumXX, sumXY, missRows) = l
       val (row, gt) = rowGt
       gt match {
-        case Some(0) => (                 sparseX, sumX    , sumXX    , sumXY                     ,        missRows)
-        case Some(1) => ((row, gt.get) :: sparseX, sumX + 1, sumXX + 1, sumXY +     yBc.value(row),        missRows)
-        case Some(2) => ((row, gt.get) :: sparseX, sumX + 2, sumXX + 4, sumXY + 2 * yBc.value(row),        missRows)
-        case None    => (                 sparseX, sumX    , sumXX    , sumXY                     , row :: missRows)
+        case Some(0) => (sparseX            , sumX    , sumXX    , sumXY                     , missRows       )
+        case Some(1) => (sparseX :+ (row, 1), sumX + 1, sumXX + 1, sumXY +     yBc.value(row), missRows       )
+        case Some(2) => (sparseX :+ (row, 2), sumX + 2, sumXX + 4, sumXY + 2 * yBc.value(row), missRows       )
+        case None    => (sparseX            , sumX    , sumXX    , sumXY                     , missRows :+ row)
       }
     }
 
@@ -92,7 +93,7 @@ object LinearRegression {
         assert(sumX > 0) //FIXME: better error handling
 
         val (rows, gts) = sparseX.sortBy(_._1).unzip
-        val x = new SparseVector[Double](rows.toArray, gts.map(_.toDouble).toArray, n)
+        val x = new SparseVector[Double](rows.toArray, gts.toArray.map(_.toDouble), n)
 
         val nMiss = missRows.length
         val meanX = sumX.toDouble / (n - nMiss)
