@@ -1,5 +1,6 @@
 package org.broadinstitute.k3.methods
 
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 import java.io.File
@@ -37,6 +38,47 @@ object CovariateData {
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
 
+class LinRegBuilder extends Serializable {
+  var rowsX: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
+  var valsX: mutable.ArrayBuilder.ofDouble = new mutable.ArrayBuilder.ofDouble()
+  var sumX: Int = 0
+  var sumXX: Int = 0
+  var sumXY: Double = 0.0
+  var missingRows: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
+
+  def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
+    g.call.map(_.gt) match {
+      case Some(0) =>
+      case Some(1) =>
+        rowsX += row
+        valsX += 1.0
+        sumX += 1
+        sumXX += 1
+        sumXY += y(row)
+      case Some(2) =>
+        rowsX += row
+        valsX += 2.0
+        sumX += 2
+        sumXX += 4
+        sumXY += 2 * y(row)
+      case None =>
+        missingRows += row
+    }
+    this
+  }
+
+  def merge(that: LinRegBuilder): LinRegBuilder = {
+    rowsX ++= that.rowsX.result()
+    valsX ++= that.valsX.result()
+    sumX += that.sumX
+    sumXX += that.sumXX
+    sumXY += that.sumXY
+    missingRows ++= that.missingRows.result()
+
+    this
+  }
+}
+
 object LinearRegression {
   def name = "LinearRegression"
 
@@ -44,7 +86,7 @@ object LinearRegression {
     require(ped.phenoDefinedForAll)
     val rowOfSample = cov.sampleOfRow.zipWithIndex.toMap
     val isPhenotyped: Array[Boolean] = (0 until vds.nSamples).map(rowOfSample.isDefinedAt).toArray
-    
+
     val n = cov.data.rows
     val k = cov.data.cols
     val d = n - k - 2
@@ -61,46 +103,43 @@ object LinearRegression {
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
     val qty = qt * y
-    
-    val yBc =   sc.broadcast(y)
-    val qtBc =  sc.broadcast(qt)
+
+    val yBc = sc.broadcast(y)
+    val qtBc = sc.broadcast(qt)
     val qtyBc = sc.broadcast(qty)
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
-    
-    //type LinRegBuilder = (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int])
-
-    def zeroValue: (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]) = (new ArrayBuffer[(Int, Int)], 0, 0, 0.0, new ArrayBuffer[Int])
-
-    def seqOp(l: (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]), v: Variant, s: Int, g: Genotype): (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]) = {
-      val (sparseX, sumX, sumXX, sumXY, missRows) = l
-      val row = rowOfSampleBc.value(s)
-      val gt = g.call.map(_.gt)
-      gt match {
-        case Some(0) => (sparseX            , sumX    , sumXX    , sumXY                     , missRows       )
-        case Some(1) => (sparseX :+ (row, 1), sumX + 1, sumXX + 1, sumXY +     yBc.value(row), missRows       )
-        case Some(2) => (sparseX :+ (row, 2), sumX + 2, sumXX + 4, sumXY + 2 * yBc.value(row), missRows       )
-        case None    => (sparseX            , sumX    , sumXX    , sumXY                     , missRows :+ row)
-      }
-    }
-
-    def combOp(l1: (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]), l2: (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int])): (ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int]) =
-      (l1._1 ++ l2._1, l1._2 + l2._2, l1._3 + l2._3, l1._4 + l2._4, l1._5 ++ l2._5)
 
     new LinearRegression(vds
       .filterSamples(s => isPhenotypedBc.value(s))
-      .aggregateByVariantWithKeys[(ArrayBuffer[(Int, Int)], Int, Int, Double, ArrayBuffer[Int])](zeroValue)(seqOp, combOp)
-      .mapValues{ case (sparseX, sumX, sumXX, sumXY, missRows) =>
-        assert(sumX > 0) //FIXME: better error handling
+      .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
+        (lrb, v, s, g) => lrb.merge(rowOfSampleBc.value(s),g, yBc.value),
+        (lrb1, lrb2) => lrb1.merge(lrb2))
+      .mapValues{ lrb =>
+        assert(lrb.sumX > 0) //FIXME: better error handling
 
-        val (rows, gts) = sparseX.sortBy(_._1).unzip //SparseVector constructor expects sorted indices
-        val x = new SparseVector[Double](rows.toArray, gts.toArray.map(_.toDouble), n)
+        val missingRows = lrb.missingRows.result()
+        val nMissing = missingRows.size
+        val meanX = lrb.sumX.toDouble / (n - nMissing)
+        lrb.rowsX ++= missingRows
+        lrb.valsX ++= Array.fill[Double](nMissing)(meanX)
 
-        val nMiss = missRows.length
-        val meanX = sumX.toDouble / (n - nMiss)
-        missRows.foreach(row => x(row) = meanX)
+        val rowsX = lrb.rowsX.result()
+        val valsX = lrb.valsX.result()
 
-        val xx = sumXX + meanX * meanX * nMiss
-        val xy = sumXY + meanX * missRows.map(row => yBc.value(row)).sum
+        rowsX.foreach(r => print(r + " "))
+        println(" -")
+        valsX.foreach(v => print(v + " "))
+        println(" -")
+
+        //SparseVector constructor expects sorted indices
+        val indices = Array.range(0, rowsX.size)
+        indices.sortBy(i => rowsX(i))
+        val x = new SparseVector[Double](indices.map(rowsX(_)), indices.map(valsX(_)), n)
+
+        println(x)
+
+        val xx = lrb.sumXX + meanX * meanX * nMissing
+        val xy = lrb.sumXY + meanX * missingRows.map(row => yBc.value(row)).sum
         val qtx = qtBc.value * x
         val qty = qtyBc.value
         val xxp = xx - (qtx dot qtx)
@@ -110,9 +149,9 @@ object LinearRegression {
         val b = xyp / xxp
         val se = math.sqrt((yyp / xxp - b * b) / d)
         val t = b / se
-        val p = 2 * tDistBc.value.cumulativeProbability(- math.abs(t))
+        val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-        LinRegStats(nMiss, b, se, t, p)
+        LinRegStats(nMissing, b, se, t, p)
       }
     )
   }

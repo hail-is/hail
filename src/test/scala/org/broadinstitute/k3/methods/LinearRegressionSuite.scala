@@ -20,6 +20,9 @@ class LinearRegressionSuite extends SparkSuite {
     val statsOfVariant: Map[Variant, LinRegStats] = linReg.lr.collect().toMap
     val eps = .001 //FIXME: upgrade to compare Double
 
+
+    linReg.lr.collect().foreach{ case (v, lrs) => println(v + " " + lrs) }
+
     /* comparing to output of R code:
     y = c(1, 1, 2, 2, 2, 2)
     x = c(0, 1, 0, 0, 0, 1)
@@ -44,7 +47,7 @@ class LinearRegressionSuite extends SparkSuite {
     assert(math.abs(statsOfVariant(v2).t    - -1.617 ) < eps)
     assert(math.abs(statsOfVariant(v2).p    -  0.2473) < eps)
 
-    //linReg.lr.collect().foreach{ case (v, lrs) => println(v + " " + lrs) }
+
     //val result = "rm -rf /tmp/linearRegression" !;
     //linReg.write("/tmp/linearRegression") //FIXME: How to test?
   }
