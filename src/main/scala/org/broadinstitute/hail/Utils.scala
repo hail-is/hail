@@ -389,12 +389,12 @@ object Utils {
         if (header != null) fw.write(header)
         lines.foreach(fw.write)
     }
+  }
 
-    def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
+  def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
-    def simpleAssert(p: Boolean) {
-      if (!p) throw new AssertionError
-    }
+  def simpleAssert(p: Boolean) {
+    if (!p) throw new AssertionError
   }
 
   // FIXME This should be replaced by AB's version that assesses relative difference as well
@@ -423,18 +423,18 @@ object Utils {
   def formatTime(dt: Long): String = {
     val tMilliseconds = dt / 1e6
     if (tMilliseconds < 1000)
-      ("%.3f"+"ms").format(tMilliseconds)
+      ("%.3f" + "ms").format(tMilliseconds)
     else if (tMilliseconds < msPerMinute)
-      ("%.3f"+"s").format(tMilliseconds / 1e3)
+      ("%.3f" + "s").format(tMilliseconds / 1e3)
     else if (tMilliseconds < msPerHour) {
       val tMins = (tMilliseconds / msPerMinute).toInt
-      ("%d"+"m, %.1f"+"s").format(tMins, tMilliseconds % msPerMinute)
+      ("%d" + "m, %.1f" + "s").format(tMins, tMilliseconds % msPerMinute)
     }
     else {
       val tHrs = (tMilliseconds / msPerHour).toInt
       val tMins = ((tMilliseconds % msPerHour) / msPerMinute).toInt
       val tSec = ((tMilliseconds % msPerMinute) / 1e3).toInt
-      ("%d"+"h, %d"+"m, %d"+"s").format(tHrs, tMins, tSec)
+      ("%d" + "h, %d" + "m, %d" + "s").format(tHrs, tMins, tSec)
     }
   }
 

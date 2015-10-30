@@ -1,7 +1,5 @@
 package org.broadinstitute.hail.methods
 
-import math.abs
-import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.SparkSuite
 import org.testng.annotations.Test
 import org.broadinstitute.hail.utils.TestRDDBuilder
@@ -32,16 +30,16 @@ class gqDpStatsSuite extends SparkSuite {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].get,
 //          variantMeans(v.start),a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
-        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, variantMeans(v.start)))
-        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
+        simpleAssert(closeEnough(a(0).asInstanceOf[Option[Double]].get, variantMeans(v.start)))
+        simpleAssert(closeEnough(a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
     }
 
       dpSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, sampleMeans(s)))
-        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, sampleDevs(s)))
+        simpleAssert(closeEnough(a(0).asInstanceOf[Option[Double]].get, sampleMeans(s)))
+        simpleAssert(closeEnough(a(1).asInstanceOf[Option[Double]].get, sampleDevs(s)))
     }
 
     // now test GQ
@@ -56,16 +54,16 @@ class gqDpStatsSuite extends SparkSuite {
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
 //          .asInstanceOf[Double], variantDevs(v.start)))
 
-        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, variantMeans(v.start)))
-        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
+        simpleAssert(closeEnough(a(0).asInstanceOf[Option[Double]].get, variantMeans(v.start)))
+        simpleAssert(closeEnough(a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
     }
 
     gqSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, sampleMeans(s)))
-        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, sampleDevs(s)))
+        simpleAssert(closeEnough(a(0).asInstanceOf[Option[Double]].get, sampleMeans(s)))
+        simpleAssert(closeEnough(a(1).asInstanceOf[Option[Double]].get, sampleDevs(s)))
     }
   }
 }
