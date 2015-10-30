@@ -92,7 +92,7 @@ object LinearRegression {
       .mapValues{ case (sparseX, sumX, sumXX, sumXY, missRows) =>
         assert(sumX > 0) //FIXME: better error handling
 
-        val (rows, gts) = sparseX.sortBy(_._1).unzip
+        val (rows, gts) = sparseX.sortBy(_._1).unzip //SparseVector constructor expects sorted indices
         val x = new SparseVector[Double](rows.toArray, gts.toArray.map(_.toDouble), n)
 
         val nMiss = missRows.length
