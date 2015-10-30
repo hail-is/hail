@@ -427,13 +427,14 @@ object Utils {
       ("%.3f" + "s").format(tMilliseconds / 1e3)
     else if (tMilliseconds < msPerHour) {
       val tMins = (tMilliseconds / msPerMinute).toInt
-      ("%d" + "m, %.1f" + "s").format(tMins, tMilliseconds % msPerMinute)
+      val tSec = (tMilliseconds % msPerMinute) / 1e3
+      ("%d"+"m"+"%.1f"+"s").format(tMins, tSec)
     }
     else {
       val tHrs = (tMilliseconds / msPerHour).toInt
       val tMins = ((tMilliseconds % msPerHour) / msPerMinute).toInt
-      val tSec = ((tMilliseconds % msPerMinute) / 1e3).toInt
-      ("%d" + "h, %d" + "m, %d" + "s").format(tHrs, tMins, tSec)
+      val tSec = (tMilliseconds % msPerMinute) / 1e3
+      ("%d"+"h"+"%d"+"m"+"%.1f"+"s").format(tHrs, tMins, tSec)
     }
   }
 
