@@ -77,7 +77,6 @@ dependencies {
     compile 'org.scalacheck:scalacheck_' + scalaMajorVersion + ':1.12.4'
     compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
     compile 'args4j:args4j:2.32'
-    compile 'com.github.fommil.netlib:all:1.1.2'
 }
 
 test {
