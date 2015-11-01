@@ -32,8 +32,7 @@ object VariantQCCombiner {
     "pHWE"
 }
 
-class VariantQCCombiner {
-  private var nCalled: Int = 0
+class VariantQCCombiner extends Serializable {
   private var nNotCalled: Int = 0
   private var nHomRef: Int = 0
   private var nHet: Int = 0
@@ -57,14 +56,12 @@ class VariantQCCombiner {
     g.call.map(_.gt) match {
       case Some(0) =>
         nHomRef += 1
-        nCalled += 1
         dpSC.merge(g.dp)
         dpHomRefSC.merge(g.dp)
         gqSC.merge(g.gq)
         gqHomRefSC.merge(g.gq)
       case Some(1) =>
         nHet += 1
-        nCalled += 1
         refDepth += g.ad._1
         altDepth += g.ad._2
         dpSC.merge(g.dp)
@@ -73,7 +70,6 @@ class VariantQCCombiner {
         gqHetSC.merge(g.gq)
       case Some(2) =>
         nHomVar += 1
-        nCalled += 1
         dpSC.merge(g.dp)
         dpHomVarSC.merge(g.dp)
         gqSC.merge(g.gq)
@@ -86,7 +82,6 @@ class VariantQCCombiner {
   }
 
   def merge(that: VariantQCCombiner): VariantQCCombiner = {
-    nCalled += that.nCalled
     nNotCalled += that.nNotCalled
     nHomRef += that.nHomRef
     nHet += that.nHet
@@ -128,12 +123,14 @@ class VariantQCCombiner {
   }
 
   def emitSC(sb: mutable.StringBuilder, sc: StatCounter) {
-    sb.append(toTSVString(someIf(sc.count > 0, sc.mean)))
+    sb.tsvAppend(someIf(sc.count > 0, sc.mean))
     sb += '\t'
-    sb.append(toTSVString(someIf(sc.count > 0, sc.stdev)))
+    sb.tsvAppend(someIf(sc.count > 0, sc.stdev))
   }
 
   def emit(sb: mutable.StringBuilder) {
+    val nCalled = nHomRef + nHet + nHomVar
+
     sb.append(nCalled)
     sb += '\t'
     sb.append(nNotCalled)
@@ -169,7 +166,7 @@ class VariantQCCombiner {
     // MAF
     val refAlleles = nHomRef * 2 + nHet
     val altAlleles = nHomVar * 2 + nHet
-    sb.append(toTSVString(divOption(altAlleles, refAlleles + altAlleles)))
+    sb.tsvAppend(divOption(altAlleles, refAlleles + altAlleles))
     sb += '\t'
 
     // nNonRef
@@ -177,11 +174,11 @@ class VariantQCCombiner {
     sb += '\t'
 
     // rHeterozygosity
-    sb.append(toTSVString(divOption(nHet, nCalled)))
+    sb.tsvAppend(divOption(nHet, nCalled))
     sb += '\t'
 
     // rHetHomVar
-    sb.append(toTSVString(divOption(nHet, nHomVar)))
+    sb.tsvAppend(divOption(nHet, nHomVar))
     sb += '\t'
 
     // pHWE
