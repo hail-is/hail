@@ -4,7 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.vsm.{ManagedVSM, SparkyVSM, TupleVSM}
+import org.broadinstitute.hail.variant.vsm.{SparkyVSM, TupleVSM}
 
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
@@ -14,7 +14,6 @@ object VariantSampleMatrix {
             metadata: VariantMetadata,
             rdd: RDD[(Variant, GenotypeStream)]): VariantSampleMatrix[Genotype] = {
     vsmtype match {
-      case "managed" => new ManagedVSM(metadata, rdd, (v, s, g) => g, _ => true)
       case "sparky" => new SparkyVSM(metadata, rdd)
       case "tuple" => TupleVSM(metadata, rdd)
     }
@@ -25,7 +24,6 @@ object VariantSampleMatrix {
       _.readObject().asInstanceOf[(String, VariantMetadata)])
 
     vsmType match {
-      case "managed" => ManagedVSM.read(sqlContext, dirname, metadata)
       case "sparky" => SparkyVSM.read(sqlContext, dirname, metadata)
       case "tuple" => TupleVSM.read(sqlContext, dirname, metadata)
     }
@@ -78,11 +76,11 @@ abstract class VariantSampleMatrix[T] {
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): Map[Int, U]
+    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Int, U)]
 
   def aggregateBySample[U](zeroValue: U)(
     seqOp: (U, T) => U,
-    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): Map[Int, U] =
+    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Int, U)] =
     aggregateBySampleWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
@@ -94,7 +92,7 @@ abstract class VariantSampleMatrix[T] {
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] =
     aggregateByVariantWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
 
-  def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T]
+  def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)]
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)]
 }

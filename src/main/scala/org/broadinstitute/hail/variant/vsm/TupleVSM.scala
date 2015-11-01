@@ -92,12 +92,11 @@ class TupleVSM[T](val metadata: VariantMetadata,
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): Map[Int, U] = {
+    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Int, U)] = {
 
     rdd
       .map { case (v, s, g) => (s, (v, s, g)) }
       .aggregateByKey(zeroValue)({ case (u, (v, s, g)) => seqOp(u, v, s, g) }, combOp)
-      .collectAsMap().toMap
   }
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
@@ -109,11 +108,10 @@ class TupleVSM[T](val metadata: VariantMetadata,
       .aggregateByKey(zeroValue)({ case (u, (v, s, g)) => seqOp(u, v, s, g) }, combOp)
   }
 
-  def foldBySample(zeroValue: T)(combOp: (T, T) => T): Map[Int, T] = {
+  def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)] = {
     rdd
       .map { case (v, s, g) => (s, g) }
       .foldByKey(zeroValue)(combOp)
-      .collectAsMap().toMap
   }
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {
