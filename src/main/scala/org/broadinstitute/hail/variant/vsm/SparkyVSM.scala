@@ -96,20 +96,15 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
 
     val localSamplesBc = sparkContext.broadcast(rdd.first()._2.map(_._1))
 
-    // Serialize the zero value to a byte array so that we can get a new clone of it on each key
-    val serializer = SparkEnv.get.serializer.newInstance()
-    val zeroBuffer = serializer.serialize(zeroValue)
-    val zeroArray = new Array[Byte](zeroBuffer.limit)
-    zeroBuffer.get(zeroArray)
-
     rdd
       .mapPartitions { (it: Iterator[(Variant, S)]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
-        def createZero() = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-        val byKeyZeroValue = Array.fill[U](localSamplesBc.value.size)(createZero())
+        val zeroBuffer = serializer.serialize(zeroValue)
+        def copyZeroValue() = serializer.deserialize[U](zeroBuffer)
+        val arrayZeroValue = Array.fill[U](localSamplesBc.value.size)(copyZeroValue())
 
         localSamplesBc.value.iterator
-          .zip(it.foldLeft(byKeyZeroValue) { case (acc, (v, gs)) =>
+          .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, gs)) =>
             for ((sg, i) <- gs.zipWithIndex)
               acc(i) = seqOp(acc(i), v, sg._1, sg._2)
             acc
@@ -140,21 +135,16 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)] = {
 
     val localSamplesBc = sparkContext.broadcast(rdd.first()._2.map(_._1))
-
-    // Serialize the zero value to a byte array so that we can get a new clone of it on each key
-    val serializer = SparkEnv.get.serializer.newInstance()
-    val zeroBuffer = serializer.serialize(zeroValue)
-    val zeroArray = new Array[Byte](zeroBuffer.limit)
-    zeroBuffer.get(zeroArray)
+    val localtct = tct
 
     rdd
       .mapPartitions { (it: Iterator[(Variant, S)]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
-        def createZero() = serializer.deserialize[T](ByteBuffer.wrap(zeroArray))
-        val byKeyZeroValue = Array.fill[T](localSamplesBc.value.size)(createZero())
-
+        val zeroBuffer = serializer.serialize(zeroValue)(localtct)
+        def copyZeroValue() = serializer.deserialize[T](zeroBuffer)(localtct)
+        val arrayZeroValue = Array.fill[T](localSamplesBc.value.size)(copyZeroValue())
         localSamplesBc.value.iterator
-          .zip(it.foldLeft(byKeyZeroValue) { case (acc, (v, gs)) =>
+          .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, gs)) =>
             for ((sg, i) <- gs.zipWithIndex)
               acc(i) = combOp(acc(i), sg._2)
             acc
