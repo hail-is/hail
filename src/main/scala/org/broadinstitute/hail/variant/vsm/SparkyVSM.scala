@@ -96,11 +96,15 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
 
     val localSamplesBc = sparkContext.broadcast(rdd.first()._2.map(_._1))
 
+    val serializer = SparkEnv.get.serializer.newInstance()
+    val zeroBuffer = serializer.serialize(zeroValue)
+    val zeroArray = new Array[Byte](zeroBuffer.limit)
+    zeroBuffer.get(zeroArray)
+
     rdd
       .mapPartitions { (it: Iterator[(Variant, S)]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
-        val zeroBuffer = serializer.serialize(zeroValue)
-        def copyZeroValue() = serializer.deserialize[U](zeroBuffer)
+        def copyZeroValue() = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
         val arrayZeroValue = Array.fill[U](localSamplesBc.value.size)(copyZeroValue())
 
         localSamplesBc.value.iterator
@@ -137,11 +141,15 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
     val localSamplesBc = sparkContext.broadcast(rdd.first()._2.map(_._1))
     val localtct = tct
 
+    val serializer = SparkEnv.get.serializer.newInstance()
+    val zeroBuffer = serializer.serialize(zeroValue)
+    val zeroArray = new Array[Byte](zeroBuffer.limit)
+    zeroBuffer.get(zeroArray)
+
     rdd
       .mapPartitions { (it: Iterator[(Variant, S)]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
-        val zeroBuffer = serializer.serialize(zeroValue)(localtct)
-        def copyZeroValue() = serializer.deserialize[T](zeroBuffer)(localtct)
+        def copyZeroValue() = serializer.deserialize[T](ByteBuffer.wrap(zeroArray))(localtct)
         val arrayZeroValue = Array.fill[T](localSamplesBc.value.size)(copyZeroValue())
         localSamplesBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, gs)) =>
