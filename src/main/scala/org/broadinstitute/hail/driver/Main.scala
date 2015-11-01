@@ -1,9 +1,9 @@
-package org.broadinstitute.k3.driver
+package org.broadinstitute.hail.driver
 
 import java.io.File
 
 import org.apache.spark.{SparkContext, SparkConf}
-import org.broadinstitute.k3.Utils._
+import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -70,7 +70,7 @@ object Main {
     try {
       parser.parseArgument((globalArgs: Iterable[String]).asJavaCollection)
       if (options.printUsage) {
-        println("usage: k3 [<global options>] <cmd1> [<cmd1 args>]")
+        println("usage: hail [<global options>] <cmd1> [<cmd1 args>]")
         println("          [<cmd2> [<cmd2 args>] ... <cmdN> [<cmdN args>]]")
         println("")
         println("global options:")
@@ -97,7 +97,7 @@ object Main {
       Logger.getLogger("akka").setLevel(Level.OFF)
     }
 
-    val conf = new SparkConf().setAppName("K3")
+    val conf = new SparkConf().setAppName("Hail")
     if (options.master != null)
       conf.setMaster(options.master)
     else if (!conf.contains("spark.master"))
@@ -116,7 +116,7 @@ object Main {
       "org.apache.spark.sql.parquet.DirectParquetOutputCommitter")
 
     hadoopConf.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.k3.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
+      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
 
     val accessKeyID = System.getenv("AWS_ACCESS_KEY_ID")
     if (accessKeyID != null) {

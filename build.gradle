@@ -21,7 +21,7 @@ repositories {
     jcenter()
 }
 
-mainClassName = "org.broadinstitute.k3.driver.Main"
+mainClassName = "org.broadinstitute.hail.driver.Main"
 
 // String scalaVersion = '2.10.5'
 // String scalaMajorVersion = '2.10'
@@ -35,9 +35,9 @@ compileScala {
 
 shadowJar {
     manifest {
-        attributes 'Implementation-Title': 'k3',
+        attributes 'Implementation-Title': 'hail',
                 'Implementation-Version': '0.0.1-SNAPSHOT',
-                'Main-Class': 'org.broadinstitute.k3.driver.Main'
+                'Main-Class': 'org.broadinstitute.hail.driver.Main'
     }
     baseName = project.name + '-all'
     classifier = 'spark'
@@ -48,6 +48,7 @@ shadowJar {
         include(dependency('org.apache.commons:commons-math3:.*'))
         include(dependency('org.scalanlp:breeze_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
+        include(dependency('com.github.samtools:htsjdk:.*'))
 
         // for GC
         // include(dependency('org.scala-lang:scala-compiler:.*'))
@@ -77,6 +78,7 @@ dependencies {
     compile 'org.scalacheck:scalacheck_' + scalaMajorVersion + ':1.12.4'
     compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
     compile 'args4j:args4j:2.32'
+    compile 'com.github.samtools:htsjdk:1.139'
 }
 
 test {

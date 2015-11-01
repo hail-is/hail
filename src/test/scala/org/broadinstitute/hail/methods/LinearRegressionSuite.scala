@@ -8,7 +8,7 @@ import scala.language.postfixOps
 
 class LinearRegressionSuite extends SparkSuite {
   @Test def test() {
-    val vds = LoadVCF(sc, "sparky", "src/test/resources/linearRegression.vcf")
+    val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
     val ped = Pedigree.read("src/test/resources/linearRegression.fam", vds.sampleIds)
     val cov = CovariateData.read("src/test/resources/linearRegression.cov", vds.sampleIds)
 
@@ -20,7 +20,7 @@ class LinearRegressionSuite extends SparkSuite {
     val eps = .001 //FIXME: upgrade to compare Double
 
 
-    linReg.lr.collect().foreach{ case (v, lrs) => println(v + " " + lrs) }
+    //linReg.lr.collect().foreach{ case (v, lrs) => println(v + " " + lrs) }
 
     /* comparing to output of R code:
     y = c(1, 1, 2, 2, 2, 2)

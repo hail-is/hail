@@ -63,6 +63,7 @@ class LinRegBuilder extends Serializable {
         sumXY += 2 * y(row)
       case None =>
         missingRows += row
+      case _ => throw new IllegalArgumentException("Genotype value " + g.call.map(_.gt).get + " must be 0, 1, or 2.")
     }
     this
   }
@@ -76,6 +77,28 @@ class LinRegBuilder extends Serializable {
     missingRows ++= that.missingRows.result()
 
     this
+  }
+
+  def stats(y: DenseVector[Double], n: Int): (SparseVector[Double], Double, Double, Int) = {
+    assert(sumX > 0) //FIXME: better error handling
+
+    val missingRowsArray = missingRows.result()
+    val nMissing = missingRowsArray.size
+    val meanX = sumX.toDouble / (n - nMissing)
+    rowsX ++= missingRowsArray
+    valsX ++= Array.fill[Double](nMissing)(meanX)
+
+    val rowsXarray = rowsX.result()
+    val valsXarray = valsX.result()
+
+    //SparseVector constructor expects sorted indices
+    val indices = Array.range(0, rowsXarray.size)
+    indices.sortBy(i => rowsXarray(i))
+    val x = new SparseVector[Double](indices.map(rowsXarray(_)), indices.map(valsXarray(_)), n)
+    val xx = sumXX + meanX * meanX * nMissing
+    val xy = sumXY + meanX * missingRowsArray.map(row => y(row)).sum
+
+    (x, xx, xy, nMissing)
   }
 }
 
@@ -115,24 +138,8 @@ object LinearRegression {
         (lrb, v, s, g) => lrb.merge(rowOfSampleBc.value(s),g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues{ lrb =>
-        assert(lrb.sumX > 0) //FIXME: better error handling
+        val (x, xx, xy, nMissing) = lrb.stats(yBc.value, n)
 
-        val missingRows = lrb.missingRows.result()
-        val nMissing = missingRows.size
-        val meanX = lrb.sumX.toDouble / (n - nMissing)
-        lrb.rowsX ++= missingRows
-        lrb.valsX ++= Array.fill[Double](nMissing)(meanX)
-
-        val rowsX = lrb.rowsX.result()
-        val valsX = lrb.valsX.result()
-
-        //SparseVector constructor expects sorted indices
-        val indices = Array.range(0, rowsX.size)
-        indices.sortBy(i => rowsX(i))
-        val x = new SparseVector[Double](indices.map(rowsX(_)), indices.map(valsX(_)), n)
-
-        val xx = lrb.sumXX + meanX * meanX * nMissing
-        val xy = lrb.sumXY + meanX * missingRows.map(row => yBc.value(row)).sum
         val qtx = qtBc.value * x
         val qty = qtyBc.value
         val xxp = xx - (qtx dot qtx)

@@ -1,11 +1,11 @@
-package org.broadinstitute.k3.methods
+package org.broadinstitute.hail.methods
 
 import java.io.File
 import org.apache.hadoop
-import org.broadinstitute.k3.Utils._
-import org.broadinstitute.k3.variant.{Sex, Phenotype}
-import org.broadinstitute.k3.variant.Phenotype.{Phenotype, Case, Control}
-import org.broadinstitute.k3.variant.Sex.{Sex, Male, Female}
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.variant.{Sex, Phenotype}
+import org.broadinstitute.hail.variant.Phenotype.{Phenotype, Case, Control}
+import org.broadinstitute.hail.variant.Sex.{Sex, Male, Female}
 import scala.io.Source
 
 object Role extends Enumeration {
@@ -15,7 +15,7 @@ object Role extends Enumeration {
   val Mom = Value("2")
 }
 
-import org.broadinstitute.k3.methods.Role.{Role, Kid, Dad, Mom}
+import org.broadinstitute.hail.methods.Role.{Role, Kid, Dad, Mom}
 
 case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int],
                 sex: Option[Sex], pheno: Option[Phenotype]) {

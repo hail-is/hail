@@ -19,7 +19,7 @@ object ManagedVSM {
     require(dirname.endsWith(".vds"))
 
     // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-    val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
+    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     new ManagedVSM(metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))), (v, s, g) => g, _ => true)
   }
 }
@@ -71,7 +71,7 @@ class ManagedVSM[T](val metadata: VariantMetadata,
       _.writeObject("managed" -> metadata))
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
-    rdd.toDF().saveAsParquetFile(dirname + "/rdd.parquet")
+    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
   }
 
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): ManagedVSM[U] = {
