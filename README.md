@@ -1,4 +1,4 @@
-[![Build Status](https://magnum.travis-ci.com/cseed/k3.svg?token=BppUSW8Cb2YatFa34Fpx&branch=master)](https://magnum.travis-ci.com/cseed/k3)
+[![Build Status](https://magnum.travis-ci.com/broadinstitute/hail.svg?token=BppUSW8Cb2YatFa34Fpx&branch=master)](https://magnum.travis-ci.com/broadinstitute/hail)
 
 # Hail
 

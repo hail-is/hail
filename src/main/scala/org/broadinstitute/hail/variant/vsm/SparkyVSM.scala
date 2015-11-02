@@ -18,7 +18,7 @@ object SparkyVSM {
     require(dirname.endsWith(".vds"))
 
     // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-    val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
+    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     new SparkyVSM(metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 }
@@ -60,7 +60,7 @@ class SparkyVSM[T, S <: Iterable[(Int, T)]](val metadata: VariantMetadata,
       _.writeObject("sparky" -> metadata))
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
-    rdd.toDF().saveAsParquetFile(dirname + "/rdd.parquet")
+    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
   }
 
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U)

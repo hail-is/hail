@@ -62,6 +62,7 @@ object Main {
       FilterVariants,
       FilterSamples,
       GQByDP,
+      LinearRegressionCommand,
       MendelErrorsCommand,
       PCA,
       Read,

@@ -74,18 +74,21 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
       .toMap
       .groupByKey
 
-  def famOf: Map[Int, String] = trios.map(t => (t.kid, t.fam.get)).toMap
   def dadOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.dad.get)).toMap
   def momOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.mom.get)).toMap
   def sexOf: Map[Int, Sex] = completeTrios.map(t => (t.kid, t.sex.get)).toMap
+  def famOf: Map[Int, String] = trios.map(t => (t.kid, t.fam.get)).toMap
+  def phenoOf: Map[Int, Phenotype] = trios.map(t => (t.kid, t.pheno.get)).toMap
 
   def sexDefinedForAll: Boolean = trios.forall(_.sex.isDefined)
+
+  def phenoDefinedForAll: Boolean = trios.forall(_.pheno.isDefined)
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
 
   def writeSummary(filename: String, hConf: hadoop.conf.Configuration) = {
     val columns = List(
-      ("nIndiv", trios.length), ("nTrios", completeTrios.length), ("nNuclearFams", nuclearFams.size),
+      ("nIndiv", trios.length), ("nCompleteTrios", completeTrios.length), ("nNuclearFams", nuclearFams.size),
       ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
       ("nCase", nSatisfying(_.isCase)), ("nControl", nSatisfying(_.isControl)),
       ("nMaleTrio", nSatisfying(_.isComplete, _.isMale)),
