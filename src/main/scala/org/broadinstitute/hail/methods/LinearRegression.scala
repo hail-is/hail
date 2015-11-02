@@ -11,7 +11,7 @@ import org.broadinstitute.hail.variant._
 import scala.collection.mutable
 import scala.io.Source
 
-case class CovariateData(covSample: Array[Int], covName: Array[String], data: DenseMatrix[Double])
+case class CovariateData(covRow: Array[Int], covName: Array[String], data: DenseMatrix[Double])
 
 object CovariateData {
 
@@ -22,19 +22,19 @@ object CovariateData {
     val lines = linesIterator.toArray
     src.close()
 
-    val csName = header.split("\\s+").tail // cs is short for covariateSample
-    val nCov = csName.length
-    val nCs = lines.length
-    val csSample = Array.ofDim[Int](nCs)
+    val covRowName = header.split("\\s+").tail // cs is short for covariateSample
+    val nCov = covRowName.length
+    val nCovRow = lines.length
+    val csSample = Array.ofDim[Int](nCovRow)
     val sampleNameIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
-    val data = DenseMatrix.zeros[Double](nCs, nCov)
-    for (cs <- 0 until nCs) {
-      val (csName, csCovValues) = lines(cs).split("\\s+").splitAt(1)
-      csSample(cs) = sampleNameIndex(csName(0))
-      data(cs to cs, ::) := DenseVector(csCovValues.map(_.toDouble))
+    val data = DenseMatrix.zeros[Double](nCovRow, nCov)
+    for (covRow <- 0 until nCovRow) {
+      val entries = lines(covRow).split("\\s+")
+      csSample(covRow) = sampleNameIndex(entries(0))
+      data(covRow to covRow, ::) := DenseVector(entries.iterator.drop(1).map(_.toDouble).toArray)
     }
-    CovariateData(csSample, csName, data)
+    CovariateData(csSample, covRowName, data)
   }
 }
 
@@ -90,13 +90,13 @@ class LinRegBuilder extends Serializable {
     rowsX ++= missingRowsArray
     (0 until nMissing).foreach(_ => valsX += meanX)
 
-    val rowsXarray = rowsX.result()
-    val valsXarray = valsX.result()
+    val rowsXArray = rowsX.result()
+    val valsXArray = valsX.result()
 
     //SparseVector constructor expects sorted indices
-    val indices = Array.range(0, rowsXarray.size)
-    indices.sortBy(i => rowsXarray(i))
-    val x = new SparseVector[Double](indices.map(rowsXarray(_)), indices.map(valsXarray(_)), n)
+    val indices = Array.range(0, rowsXArray.size)
+    indices.sortBy(i => rowsXArray(i))
+    val x = new SparseVector[Double](indices.map(rowsXArray(_)), indices.map(valsXArray(_)), n)
     val xx = sumXX + meanX * meanX * nMissing
     val xy = sumXY + meanX * missingRowsArray.iterator.map(row => y(row)).sum
 
@@ -109,8 +109,7 @@ object LinearRegression {
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
     require(ped.phenoDefinedForAll)
-    val sampleCs = cov.covSample.zipWithIndex.toMap
-    val hasCovData: Array[Boolean] = (0 until vds.nSamples).map(sampleCs.isDefinedAt).toArray
+    val sampleCovRow = cov.covRow.zipWithIndex.toMap
 
     val n = cov.data.rows
     val k = cov.data.cols
@@ -119,11 +118,11 @@ object LinearRegression {
       throw new IllegalArgumentException(n + " samples and " + k + " covariates implies " + d + " degrees of freedom.")
 
     val sc = vds.sparkContext
-    val covSampleOfSampleBc = sc.broadcast(sampleCs)
-    val isPhenotypedBc = sc.broadcast(hasCovData)
+    val sampleCovRowBc = sc.broadcast(sampleCovRow)
+    val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    val yArray = (0 until n).map(cs => ped.phenoOf(cov.covSample(cs)).toString.toDouble).toArray
+    val yArray = (0 until n).map(cs => ped.phenoOf(cov.covRow(cs)).toString.toDouble).toArray
     val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
@@ -135,9 +134,9 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
 
     new LinearRegression(vds
-      .filterSamples(s => isPhenotypedBc.value(s))
+      .filterSamples(samplesWithCovDataBc.value.contains)
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
-        (lrb, v, s, g) => lrb.merge(covSampleOfSampleBc.value(s),g, yBc.value),
+        (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s),g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues{ lrb =>
         val (x, xx, xy, nMissing) = lrb.stats(yBc.value, n)
