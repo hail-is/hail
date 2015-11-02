@@ -57,7 +57,18 @@ object Main {
       }
     */
     val commands = Array(
-      Cache, Count, FilterVariants, FilterSamples, GQByDP, MendelErrorsCommand, PCA, Read, Repartition, SampleQC, VariantQC, Write
+      Cache,
+      Count,
+      FilterVariants,
+      FilterSamples,
+      GQByDP,
+      MendelErrorsCommand,
+      PCA,
+      Read,
+      Repartition,
+      SampleQC,
+      VariantQC,
+      Write
     )
 
     val nameCommand = commands

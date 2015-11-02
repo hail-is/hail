@@ -23,10 +23,10 @@ repositories {
 
 mainClassName = "org.broadinstitute.hail.driver.Main"
 
-String scalaVersion = '2.10.5'
-String scalaMajorVersion = '2.10'
-// String scalaVersion = '2.11.7'
-// String scalaMajorVersion = '2.11'
+// String scalaVersion = '2.10.5'
+// String scalaMajorVersion = '2.10'
+String scalaVersion = '2.11.7'
+String scalaMajorVersion = '2.11'
 
 compileScala {
     scalaCompileOptions.additionalParameters = ["-feature"]
