@@ -1,7 +1,7 @@
-IID Cov1    Cov2
-Alex    0.0 -1.0
-Ben 2.0 3.0
-Carla   1.0 5.0
-Daniel  -2.0	0.0
-Elise -2.0  -4.0
-Fengmei 4.0 3.0
+IID Cov1 Cov2
+A 0.0 -1.0
+B 2.0 3.0
+C 1.0 5.0
+D -2.0 0.0
+E -2.0 -4.0
+F 4.0 3.0

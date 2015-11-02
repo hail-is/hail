@@ -117,6 +117,8 @@ class SampleQCCombiner extends Serializable {
         gqHomVarSC.merge(g.gq)
       case None =>
         nNotCalled += 1
+      case _ =>
+        throw new IllegalArgumentException("Genotype value " + g.call.map(_.gt).get + " must be 0, 1, or 2.")
     }
 
     this

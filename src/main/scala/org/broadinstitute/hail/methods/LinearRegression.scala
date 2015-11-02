@@ -11,7 +11,7 @@ import org.broadinstitute.hail.variant._
 import scala.collection.mutable
 import scala.io.Source
 
-case class CovariateData(sampleOfRow: Array[Int], covariateOfColumn: Array[String], data: DenseMatrix[Double])
+case class CovariateData(covSample: Array[Int], covName: Array[String], data: DenseMatrix[Double])
 
 object CovariateData {
 
@@ -22,19 +22,19 @@ object CovariateData {
     val lines = linesIterator.toArray
     src.close()
 
-    val covariateOfColumn = header.split("\\s+").tail
-    val nCov = covariateOfColumn.length
-    val nSamples = lines.length
-    val sampleOfRow = Array.ofDim[Int](nSamples)
-    val indexOfSample: Map[String, Int] = sampleIds.zipWithIndex.toMap
+    val covName = header.split("\\s+").tail
+    val nCov = covName.length
+    val nCovSample = lines.length
+    val covSample = Array.ofDim[Int](nCovSample)
+    val sampleOfCovSampleName: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
-    val data = DenseMatrix.zeros[Double](nSamples, nCov)
-    for (i <- 0 until nSamples) {
-      val (sample, sampleCovs) = lines(i).split("\\s+").splitAt(1)
-      sampleOfRow(i) = indexOfSample(sample(0))
-      data(i to i, ::) := DenseVector(sampleCovs.map(_.toDouble))
+    val data = DenseMatrix.zeros[Double](nCovSample, nCov)
+    for (cs <- 0 until nCovSample) {
+      val (covSampleName, sampleCovValues) = lines(cs).split("\\s+").splitAt(1)
+      covSample(cs) = sampleOfCovSampleName(covSampleName(0))
+      data(cs to cs, ::) := DenseVector(sampleCovValues.map(_.toDouble))
     }
-    CovariateData(sampleOfRow, covariateOfColumn, data)
+    CovariateData(covSample, covName, data)
   }
 }
 
@@ -109,8 +109,8 @@ object LinearRegression {
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
     require(ped.phenoDefinedForAll)
-    val rowOfSample = cov.sampleOfRow.zipWithIndex.toMap
-    val isPhenotyped: Array[Boolean] = (0 until vds.nSamples).map(rowOfSample.isDefinedAt).toArray
+    val covSampleOfSample = cov.covSample.zipWithIndex.toMap
+    val hasCovData: Array[Boolean] = (0 until vds.nSamples).map(covSampleOfSample.isDefinedAt).toArray
 
     val n = cov.data.rows
     val k = cov.data.cols
@@ -119,11 +119,11 @@ object LinearRegression {
       throw new IllegalArgumentException(n + " samples and " + k + " covariates implies " + d + " degrees of freedom.")
 
     val sc = vds.sparkContext
-    val rowOfSampleBc = sc.broadcast(rowOfSample)
-    val isPhenotypedBc = sc.broadcast(isPhenotyped)
+    val covSampleOfSampleBc = sc.broadcast(covSampleOfSample)
+    val isPhenotypedBc = sc.broadcast(hasCovData)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    val yArray = (0 until n).map(row => ped.phenoOf(cov.sampleOfRow(row)).toString.toDouble).toArray
+    val yArray = (0 until n).map(cs => ped.phenoOf(cov.covSample(cs)).toString.toDouble).toArray
     val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
@@ -137,7 +137,7 @@ object LinearRegression {
     new LinearRegression(vds
       .filterSamples(s => isPhenotypedBc.value(s))
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
-        (lrb, v, s, g) => lrb.merge(rowOfSampleBc.value(s),g, yBc.value),
+        (lrb, v, s, g) => lrb.merge(covSampleOfSampleBc.value(s),g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues{ lrb =>
         val (x, xx, xy, nMissing) = lrb.stats(yBc.value, n)
