@@ -11,30 +11,30 @@ import org.broadinstitute.hail.variant._
 import scala.collection.mutable
 import scala.io.Source
 
-case class CovariateData(covRow: Array[Int], covName: Array[String], data: DenseMatrix[Double])
+case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: DenseMatrix[Double])
 
 object CovariateData {
 
   def read(filename: String, sampleIds: Array[String]): CovariateData = {
     val src = Source.fromFile(new File(filename))
-    val linesIterator = src.getLines().filterNot(_.isEmpty)
-    val header = linesIterator.next()
-    val lines = linesIterator.toArray
+    val linesIt = src.getLines().filterNot(_.isEmpty)
+    val header = linesIt.next()
+    val lines = linesIt.toArray
     src.close()
 
-    val covRowName = header.split("\\s+").tail // cs is short for covariateSample
+    val covRowName = header.split("\\s+").tail
     val nCov = covRowName.length
     val nCovRow = lines.length
-    val csSample = Array.ofDim[Int](nCovRow)
+    val covRowSample = Array.ofDim[Int](nCovRow)
     val sampleNameIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
     val data = DenseMatrix.zeros[Double](nCovRow, nCov)
     for (covRow <- 0 until nCovRow) {
       val entries = lines(covRow).split("\\s+")
-      csSample(covRow) = sampleNameIndex(entries(0))
+      covRowSample(covRow) = sampleNameIndex(entries(0))
       data(covRow to covRow, ::) := DenseVector(entries.iterator.drop(1).map(_.toDouble).toArray)
     }
-    CovariateData(csSample, covRowName, data)
+    CovariateData(covRowSample, covRowName, data)
   }
 }
 
@@ -98,7 +98,7 @@ class LinRegBuilder extends Serializable {
     indices.sortBy(i => rowsXArray(i))
     val x = new SparseVector[Double](indices.map(rowsXArray(_)), indices.map(valsXArray(_)), n)
     val xx = sumXX + meanX * meanX * nMissing
-    val xy = sumXY + meanX * missingRowsArray.iterator.map(row => y(row)).sum
+    val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
 
     (x, xx, xy, nMissing)
   }
@@ -109,7 +109,7 @@ object LinearRegression {
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
     require(ped.phenoDefinedForAll)
-    val sampleCovRow = cov.covRow.zipWithIndex.toMap
+    val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
     val n = cov.data.rows
     val k = cov.data.cols
@@ -122,7 +122,7 @@ object LinearRegression {
     val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    val yArray = (0 until n).map(cs => ped.phenoOf(cov.covRow(cs)).toString.toDouble).toArray
+    val yArray = (0 until n).map(covRow => ped.phenoOf(cov.covRowSample(covRow)).toString.toDouble).toArray
     val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
