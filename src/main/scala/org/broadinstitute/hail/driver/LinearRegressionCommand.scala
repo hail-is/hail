@@ -3,9 +3,6 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.methods.{CovariateData, LinearRegression, Pedigree}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-import scala.language.postfixOps
-import scala.sys.process._
-
 object LinearRegressionCommand extends Command {
 
   def name = "linreg"
@@ -28,8 +25,6 @@ object LinearRegressionCommand extends Command {
     val ped = Pedigree.read(options.famFilename, vds.sampleIds)
     val cov = CovariateData.read(options.covFilename, vds.sampleIds)
     val linreg = LinearRegression(vds, ped, cov)
-
-    val result = "rm -rf " + options.output !;
 
     linreg.write(options.output)
 

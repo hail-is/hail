@@ -17,7 +17,9 @@ object CovariateData {
 
   def read(filename: String, sampleIds: Array[String]): CovariateData = {
     val src = Source.fromFile(new File(filename))
-    val header :: lines = src.getLines().filterNot(_.isEmpty).toList
+    val linesIterator = src.getLines().filterNot(_.isEmpty)
+    val header = linesIterator.next()
+    val lines = linesIterator.toArray
     src.close()
 
     val covariateOfColumn = header.split("\\s+").tail
@@ -39,12 +41,12 @@ object CovariateData {
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
 
 class LinRegBuilder extends Serializable {
-  var rowsX: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
-  var valsX: mutable.ArrayBuilder.ofDouble = new mutable.ArrayBuilder.ofDouble()
-  var sumX: Int = 0
-  var sumXX: Int = 0
-  var sumXY: Double = 0.0
-  var missingRows: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
+  private val rowsX: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
+  private val valsX: mutable.ArrayBuilder.ofDouble = new mutable.ArrayBuilder.ofDouble()
+  private var sumX: Int = 0
+  private var sumXX: Int = 0
+  private var sumXY: Double = 0.0
+  private val missingRows: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.call.map(_.gt) match {
@@ -86,7 +88,7 @@ class LinRegBuilder extends Serializable {
     val nMissing = missingRowsArray.size
     val meanX = sumX.toDouble / (n - nMissing)
     rowsX ++= missingRowsArray
-    valsX ++= Array.fill[Double](nMissing)(meanX)
+    (0 until nMissing).foreach(_ => valsX += meanX)
 
     val rowsXarray = rowsX.result()
     val valsXarray = valsX.result()
@@ -96,7 +98,7 @@ class LinRegBuilder extends Serializable {
     indices.sortBy(i => rowsXarray(i))
     val x = new SparseVector[Double](indices.map(rowsXarray(_)), indices.map(valsXarray(_)), n)
     val xx = sumXX + meanX * meanX * nMissing
-    val xy = sumXY + meanX * missingRowsArray.map(row => y(row)).sum
+    val xy = sumXY + meanX * missingRowsArray.iterator.map(row => y(row)).sum
 
     (x, xx, xy, nMissing)
   }
@@ -121,7 +123,7 @@ object LinearRegression {
     val isPhenotypedBc = sc.broadcast(isPhenotyped)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    val yArray = (0 until n).toArray.map(row => ped.phenoOf(cov.sampleOfRow(row)).toString.toDouble)
+    val yArray = (0 until n).map(row => ped.phenoOf(cov.sampleOfRow(row)).toString.toDouble).toArray
     val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t

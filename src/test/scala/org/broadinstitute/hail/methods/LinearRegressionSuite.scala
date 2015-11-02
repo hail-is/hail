@@ -4,7 +4,7 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.variant.Variant
 import org.testng.annotations.Test
 
-import scala.language.postfixOps
+//import scala.language.postfixOps
 
 class LinearRegressionSuite extends SparkSuite {
   @Test def test() {
@@ -17,7 +17,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val linReg = LinearRegression(vds, ped, cov)
     val statsOfVariant: Map[Variant, LinRegStats] = linReg.lr.collect().toMap
-    val eps = .001 //FIXME: upgrade to compare Double
+    val eps = .001 //FIXME: use D_== when it is ready
 
 
     //linReg.lr.collect().foreach{ case (v, lrs) => println(v + " " + lrs) }
