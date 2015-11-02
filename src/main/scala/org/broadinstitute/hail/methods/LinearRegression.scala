@@ -30,9 +30,9 @@ object CovariateData {
 
     val data = DenseMatrix.zeros[Double](nCovSample, nCov)
     for (cs <- 0 until nCovSample) {
-      val (covSampleName, sampleCovValues) = lines(cs).split("\\s+").splitAt(1)
+      val (covSampleName, covSampleCovValues) = lines(cs).split("\\s+").splitAt(1)
       covSample(cs) = sampleOfCovSampleName(covSampleName(0))
-      data(cs to cs, ::) := DenseVector(sampleCovValues.map(_.toDouble))
+      data(cs to cs, ::) := DenseVector(covSampleCovValues.map(_.toDouble))
     }
     CovariateData(covSample, covName, data)
   }
