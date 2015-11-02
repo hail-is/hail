@@ -67,9 +67,7 @@ object Main {
       Read,
       Repartition,
       SampleQC,
-      SampleQC2,
       VariantQC,
-      VariantQC2,
       Write
     )
 

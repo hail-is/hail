@@ -3,7 +3,6 @@ package org.broadinstitute.hail.driver
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -18,13 +17,13 @@ object VariantQCCombiner {
     "nHomVar" + "\t" +
     "alleleBalance" + "\t" +
     "dpMean" + "\t" + "dpStDev" + "\t" +
-    "dpHomRefMean" + "\t" + "dpHomRefStDev" + "\t" +
-    "dpHetMean" + "\t" + "dpHetStDev" + "\t" +
-    "dpHomVarMean" + "\t" + "dpHomVarStDev" + "\t" +
+    "dpMeanHomRef" + "\t" + "dpStDevHomRef" + "\t" +
+    "dpMeanHet" + "\t" + "dpStDevHet" + "\t" +
+    "dpMeanHomVar" + "\t" + "dpStDevHomVar" + "\t" +
     "gqMean" + "\t" + "gqStDev" + "\t" +
-    "gqHomRefMean" + "\t" + "gqHomRefStDev" + "\t" +
-    "gqHetMean" + "\t" + "gqHetStDev" + "\t" +
-    "gqHomVarMean" + "\t" + "gqHomVarStDev" + "\t" +
+    "gqMeanHomRef" + "\t" + "gqStDevHomRef" + "\t" +
+    "gqMeanHet" + "\t" + "gqStDevHet" + "\t" +
+    "gqMeanHomVar" + "\t" + "gqStDevHomVar" + "\t" +
     "MAF" + "\t" +
     "nNonRef" + "\t" +
     "rHeterozygosity" + "\t" +
@@ -33,22 +32,22 @@ object VariantQCCombiner {
 }
 
 class VariantQCCombiner extends Serializable {
-  private var nNotCalled: Int = 0
-  private var nHomRef: Int = 0
-  private var nHet: Int = 0
-  private var nHomVar: Int = 0
-  private var refDepth: Int = 0
-  private var altDepth: Int = 0
+  var nNotCalled: Int = 0
+  var nHomRef: Int = 0
+  var nHet: Int = 0
+  var nHomVar: Int = 0
+  var refDepth: Int = 0
+  var altDepth: Int = 0
 
-  private val dpSC = new StatCounter()
-  private val dpHomRefSC = new StatCounter()
-  private val dpHetSC = new StatCounter()
-  private val dpHomVarSC = new StatCounter()
+  val dpSC = new StatCounter()
+  val dpHomRefSC = new StatCounter()
+  val dpHetSC = new StatCounter()
+  val dpHomVarSC = new StatCounter()
 
-  private val gqSC: StatCounter = new StatCounter()
-  private val gqHomRefSC: StatCounter = new StatCounter()
-  private val gqHetSC: StatCounter = new StatCounter()
-  private val gqHomVarSC: StatCounter = new StatCounter()
+  val gqSC: StatCounter = new StatCounter()
+  val gqHomRefSC: StatCounter = new StatCounter()
+  val gqHetSC: StatCounter = new StatCounter()
+  val gqHomVarSC: StatCounter = new StatCounter()
 
   // FIXME per-genotype
 
@@ -186,51 +185,6 @@ class VariantQCCombiner extends Serializable {
   }
 }
 
-object VariantQC2 extends Command {
-
-  class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
-    var output: String = _
-  }
-
-  def newOptions = new Options
-
-  def name = "variantqc2"
-
-  def description = "Compute per-variant QC metrics"
-
-  def run(state: State, options: Options): State = {
-    val vds = state.vds
-
-    val output = options.output
-
-    writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write("Chrom\tPos\tRef\tAlt\t")
-      s.write(VariantQCCombiner.header)
-      s.write("\n")
-    }
-
-    val r = vds
-      .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
-        (comb1, comb2) => comb1.merge(comb2))
-      .map { case (v, comb) =>
-        val sb = new StringBuilder()
-        sb.append(v.contig)
-        sb += '\t'
-        sb.append(v.start)
-        sb += '\t'
-        sb.append(v.ref)
-        sb += '\t'
-        sb.append(v.alt)
-        sb += '\t'
-        comb.emit(sb)
-        sb.result()
-      }.saveAsTextFile(output)
-
-    state
-  }
-}
-
 object VariantQC extends Command {
 
   class Options extends BaseOptions {
@@ -244,58 +198,37 @@ object VariantQC extends Command {
 
   def description = "Compute per-variant QC metrics"
 
-  def results(vds: VariantDataset,
-    methods: Array[AggregateMethod],
-    derivedMethods: Array[DerivedMethod] = Array()): RDD[(Variant, Array[Any])] = {
-
-    val methodIndex = methods.zipWithIndex.toMap
-
-    val methodsBc = vds.sparkContext.broadcast(methods)
-
+  def results(vds: VariantDataset): RDD[(Variant, VariantQCCombiner)] =
     vds
-      .aggregateByVariantWithKeys(methods.map(_.aggZeroValue: Any))(
-        (acc, v, s, g) => methodsBc.value.zipWith[Any, Any](acc, (m, acci) =>
-            m.seqOpWithKeys(v, s, g, acci.asInstanceOf[m.T])),
-        (x, y) => methodsBc.value.zipWith[Any, Any, Any](x, y, (m, xi, yi) =>
-            m.combOp(xi.asInstanceOf[m.T], yi.asInstanceOf[m.T])))
-      .mapValues(values => {
-        val b = mutable.ArrayBuilder.make[Any]()
-        values.foreach2[AggregateMethod](methodsBc.value, (v, m) => m.emit(v.asInstanceOf[m.T], b))
-        val methodValues = MethodValues(methodIndex, values)
-        derivedMethods.foreach(_.emit(methodValues, b))
-        b.result()
-      })
-  }
+      .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
+        (comb1, comb2) => comb1.merge(comb2))
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val methods: Array[AggregateMethod] = Array(
-      nCalledPer, nNotCalledPer,
-      nHomRefPer, nHetPer, nHomVarPer,
-      AlleleBalancePer, dpStatCounterPer, dpStatCounterPerGenotype, gqStatCounterPer, gqStatCounterPerGenotype
-    )
-
-    val derivedMethods: Array[DerivedMethod] = Array(
-      minorAlleleFrequencyPer, nNonRefPer, rHeterozygosityPer, rHetHomVarPer, pHwePerVariant
-    )
-
-    val r = results(vds, methods, derivedMethods)
-
-    val allMethods = methods ++ derivedMethods
-
-    writeTextFile(options.output + ".header", state.hadoopConf) { s =>
-      val header = "Chrom" + "\t" + "Pos" + "\t" + "Ref" + "\t" + "Alt" + "\t" +
-        allMethods.map(_.name).filter(_ != null).mkString("\t") + "\n"
-      s.write(header)
-    }
-
     val output = options.output
 
-    hadoopDelete(output, vds.sparkContext.hadoopConfiguration, true)
-    r.map { case (v, a) =>
-      (Array[Any](v.contig, v.start, v.ref, v.alt) ++ a).map(toTSVString).mkString("\t")
-    }.saveAsTextFile(output)
+    writeTextFile(output + ".header", state.hadoopConf) { s =>
+      s.write("Chrom\tPos\tRef\tAlt\t")
+      s.write(VariantQCCombiner.header)
+      s.write("\n")
+    }
+
+    hadoopDelete(output, state.hadoopConf, true)
+    val r = results(vds)
+      .map { case (v, comb) =>
+        val sb = new StringBuilder()
+        sb.append(v.contig)
+        sb += '\t'
+        sb.append(v.start)
+        sb += '\t'
+        sb.append(v.ref)
+        sb += '\t'
+        sb.append(v.alt)
+        sb += '\t'
+        comb.emit(sb)
+        sb.result()
+      }.saveAsTextFile(output)
 
     state
   }

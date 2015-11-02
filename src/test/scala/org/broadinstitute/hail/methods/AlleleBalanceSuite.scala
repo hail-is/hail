@@ -7,14 +7,14 @@ import org.testng.annotations.Test
 class AlleleBalanceSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/ab_test.vcf")
-    val results = VariantQC.results(vds, Array(AlleleBalancePer), Array())
-      .map { case (v, a) => (v.start, (a(0).asInstanceOf[Double])) }
+    val results = VariantQC.results(vds)
+      .map { case (v, a) => (v.start, a.pAB) }
       .collect()
       .toMap
-    val expected = Map(1 ->((0, 0), 1.0),
-      2 ->((0, 0), 1.0),
-      3 ->((16, 16), 1.0),
-      4 ->((5, 8), 0.423950))
+    val expected = Map(1 -> ((0, 0), 1.0),
+      2 -> ((0, 0), 1.0),
+      3 -> ((16, 16), 1.0),
+      4 -> ((5, 8), 0.423950))
     for ((k, v) <- expected) {
       val u = results(k)
 
