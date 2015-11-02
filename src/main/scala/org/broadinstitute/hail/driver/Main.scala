@@ -22,6 +22,9 @@ object Main {
 
     @Args4jOption(required = false, name = "--noisy", usage = "Enable Spark INFO messages")
     var noisy = false
+
+    @Args4jOption(required = false, name = "--parquet-compression", usage = "Parquet compression codec")
+    var parquetCompression = "uncompressed"
   }
 
   def main(args: Array[String]) {
@@ -54,7 +57,18 @@ object Main {
       }
     */
     val commands = Array(
-      Cache, Count, FilterVariants, FilterSamples, GQByDP, LinearRegressionCommand, MendelErrorsCommand, PCA, Read, Repartition, SampleQC, VariantQC, Write
+      Cache,
+      Count,
+      FilterVariants,
+      FilterSamples,
+      GQByDP,
+      MendelErrorsCommand,
+      PCA,
+      Read,
+      Repartition,
+      SampleQC,
+      VariantQC,
+      Write
     )
 
     val nameCommand = commands
@@ -71,7 +85,7 @@ object Main {
       parser.parseArgument((globalArgs: Iterable[String]).asJavaCollection)
       if (options.printUsage) {
         println("usage: hail [<global options>] <cmd1> [<cmd1 args>]")
-        println("          [<cmd2> [<cmd2 args>] ... <cmdN> [<cmdN args>]]")
+        println("            [<cmd2> [<cmd2 args>] ... <cmdN> [<cmdN args>]]")
         println("")
         println("global options:")
         new CmdLineParser(new Options).printUsage(System.out)
@@ -103,7 +117,7 @@ object Main {
     else if (!conf.contains("spark.master"))
       conf.setMaster("local")
 
-    conf.set("spark.sql.parquet.compression.codec", "uncompressed")
+    conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     val sc = new SparkContext(conf)
@@ -136,15 +150,7 @@ object Main {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
-    // FIXME remove
-    def time[A](f: => A): (A, Double) = {
-      val s = System.nanoTime
-      val ret = f
-      val time = (System.nanoTime - s) / 1e6
-      (ret, time)
-    }
-
-    val times = mutable.ArrayBuffer.empty[(String, Double)]
+    val times = mutable.ArrayBuffer.empty[(String, Long)]
 
     invocations.foldLeft(State(installDir, sc, sqlContext, null)) { case (s, args) =>
       println("running: " + args.mkString(" "))
@@ -153,7 +159,6 @@ object Main {
         case Some(cmd) =>
           val (newS, duration) = time {cmd.run(s, args.tail)}
           times += cmdName -> duration
-          println(args.mkString(" ") + ": " + duration + "ms")
           newS
         case None =>
           fatal("unknown command `" + cmdName + "'")
@@ -164,7 +169,7 @@ object Main {
 
     println("timing:")
     times.foreach { case (name, duration) =>
-      println("  " + name + ": " + duration)
+      println("  " + name + ": " + formatTime(duration))
     }
   }
 }

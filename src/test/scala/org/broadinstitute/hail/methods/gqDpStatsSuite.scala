@@ -1,7 +1,5 @@
 package org.broadinstitute.hail.methods
 
-import math.abs
-import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.SparkSuite
 import org.testng.annotations.Test
 import org.broadinstitute.hail.utils.TestRDDBuilder
@@ -25,47 +23,47 @@ class gqDpStatsSuite extends SparkSuite {
 
     // DP test first
     val dpVds = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=Some(arr), gqArray=None)
-    val dpVariantR = VariantQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer))
-    val dpSampleR = SampleQC.results(dpVds, Array[AggregateMethod](dpStatCounterPer))
+    val dpSingletons = sSingletonVariants(dpVds)
+    val dpVariantR = VariantQC.results(dpVds)
+    val dpSampleR = SampleQC.results(dpVds, dpSingletons)
     
     dpVariantR.collect().foreach {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].get,
 //          variantMeans(v.start),a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
-        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, variantMeans(v.start)))
-        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
+        simpleAssert(closeEnough(a.dpSC.mean, variantMeans(v.start)))
+        simpleAssert(closeEnough(a.dpSC.stdev, variantDevs(v.start)))
     }
 
       dpSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, sampleMeans(s)))
-        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, sampleDevs(s)))
+        simpleAssert(closeEnough(a.dpSC.mean, sampleMeans(s)))
+        simpleAssert(closeEnough(a.dpSC.stdev, sampleDevs(s)))
     }
 
     // now test GQ
     val gqVds = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=None, gqArray=Some(arr))
-    val gqVariantR = VariantQC.results(gqVds, Array[AggregateMethod](gqStatCounterPer),
-      Array())
-    val gqSampleR = SampleQC.results(gqVds, Array[AggregateMethod](gqStatCounterPer),
-      Array())
+    val gqSingletons = sSingletonVariants(gqVds)
+    val gqVariantR = VariantQC.results(gqVds)
+    val gqSampleR = SampleQC.results(gqVds, gqSingletons)
 
     gqVariantR.collect().foreach {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
 //          .asInstanceOf[Double], variantDevs(v.start)))
 
-        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, variantMeans(v.start)))
-        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
+        simpleAssert(closeEnough(a.gqSC.mean, variantMeans(v.start)))
+        simpleAssert(closeEnough(a.gqSC.stdev, variantDevs(v.start)))
     }
 
     gqSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        assert(closeEnough(a(0).asInstanceOf[Option[Double]].get, sampleMeans(s)))
-        assert(closeEnough(a(1).asInstanceOf[Option[Double]].get, sampleDevs(s)))
+        simpleAssert(closeEnough(a.gqSC.mean, sampleMeans(s)))
+        simpleAssert(closeEnough(a.gqSC.stdev, sampleDevs(s)))
     }
   }
 }

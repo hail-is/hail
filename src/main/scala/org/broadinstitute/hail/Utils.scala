@@ -7,7 +7,6 @@ import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import Numeric.Implicits._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
@@ -15,7 +14,7 @@ import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVe
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
 
-class RichVector[T](v: Vector[T]) {
+class RichVector[T](val v: Vector[T]) extends AnyVal {
   def zipExact[T2](v2: Iterable[T2]): Vector[(T, T2)] = {
     val i = v.iterator
     val i2 = v2.iterator
@@ -32,7 +31,7 @@ class RichVector[T](v: Vector[T]) {
   def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V): Vector[V] = {
     val i = v.iterator
     val i2 = v2.iterator
-    new Iterator[V] {
+    new Iterator[V]() {
       def hasNext = i.hasNext && i2.hasNext
 
       def next() = f(i.next(), i2.next())
@@ -75,7 +74,7 @@ class RichVector[T](v: Vector[T]) {
   }
 }
 
-class RichHomogenousTuple1[T](t: Tuple1[T]) {
+class RichHomogenousTuple1[T](val t: Tuple1[T]) extends AnyVal {
   def at(i: Int) = i match {
     case 1 => t._1
   }
@@ -90,7 +89,7 @@ class RichHomogenousTuple1[T](t: Tuple1[T]) {
   }
 }
 
-class RichHomogenousTuple2[T](t: (T, T)) {
+class RichHomogenousTuple2[T](val t: (T, T)) extends AnyVal {
   def at(i: Int): T = i match {
     case 1 => t._1
     case 2 => t._2
@@ -109,7 +108,7 @@ class RichHomogenousTuple2[T](t: (T, T)) {
   }
 }
 
-class RichHomogenousTuple3[T](t: (T, T, T)) {
+class RichHomogenousTuple3[T](val t: (T, T, T)) extends AnyVal {
   def at(i: Int): T = i match {
     case 1 => t._1
     case 2 => t._2
@@ -130,7 +129,7 @@ class RichHomogenousTuple3[T](t: (T, T, T)) {
   }
 }
 
-class RichArrayBuilderOfByte(b: mutable.ArrayBuilder[Byte]) {
+class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
   def writeULEB128(x0: Int) {
     require(x0 >= 0)
 
@@ -151,7 +150,7 @@ class RichArrayBuilderOfByte(b: mutable.ArrayBuilder[Byte]) {
   }
 }
 
-class RichIteratorOfByte(i: Iterator[Byte]) {
+class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
   def readULEB128(): Int = {
     var x: Int = 0
     var shift: Int = 0
@@ -166,7 +165,7 @@ class RichIteratorOfByte(i: Iterator[Byte]) {
   }
 }
 
-class RichArray[T](a: Array[T]) {
+class RichArray[T](val a: Array[T]) extends AnyVal {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
   def foreach2[T2](v2: Iterable[T2], f: (T, T2) => Unit) {
@@ -199,8 +198,8 @@ class RichArray[T](a: Array[T]) {
   }
 }
 
-class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
-  def countByValueRDD(): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
+class RichRDD[T](val r: RDD[T]) extends AnyVal {
+  def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
   def writeTable(filename: String, header: String = null) {
     if (header != null)
@@ -209,19 +208,19 @@ class RichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]) {
   }
 }
 
-class RichIndexedRow(r: IndexedRow) {
+class RichIndexedRow(val r: IndexedRow) extends AnyVal {
 
   def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
 }
 
-class RichEnumeration[T <: Enumeration](e: T) {
+class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
   def withNameOption(name: String): Option[T#Value] =
     e.values.find(_.toString == name)
 }
 
-class RichMap[K, V](m: Map[K, V]) {
+class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
   def mapValuesWithKeys[T](f: (K, V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
 
   def groupByKey: Map[K, Iterable[V]] = m.groupBy(_._1).mapValues {_.values}
@@ -229,8 +228,17 @@ class RichMap[K, V](m: Map[K, V]) {
   def force = m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
 }
 
-class RichOption[T](o: Option[T]) {
+class RichOption[T](val o: Option[T]) extends AnyVal {
   def contains(v: T): Boolean = o.isDefined && o.get == v
+}
+
+class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
+  def tsvAppend[T](v: Option[T]) {
+    v match {
+      case Some(x) => sb.append(x)
+      case None => sb.append("NA")
+    }
+  }
 }
 
 object Utils {
@@ -389,12 +397,12 @@ object Utils {
         if (header != null) fw.write(header)
         lines.foreach(fw.write)
     }
+  }
 
-    def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
+  def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
-    def simpleAssert(p: Boolean) {
-      if (!p) throw new AssertionError
-    }
+  def simpleAssert(p: Boolean) {
+    if (!p) throw new AssertionError
   }
 
   // FIXME This should be replaced by AB's version that assesses relative difference as well
@@ -423,18 +431,19 @@ object Utils {
   def formatTime(dt: Long): String = {
     val tMilliseconds = dt / 1e6
     if (tMilliseconds < 1000)
-      ("%.3f"+"ms").format(tMilliseconds)
+      ("%.3f" + "ms").format(tMilliseconds)
     else if (tMilliseconds < msPerMinute)
-      ("%.3f"+"s").format(tMilliseconds / 1e3)
+      ("%.3f" + "s").format(tMilliseconds / 1e3)
     else if (tMilliseconds < msPerHour) {
       val tMins = (tMilliseconds / msPerMinute).toInt
-      ("%d"+"m, %.1f"+"s").format(tMins, tMilliseconds % msPerMinute)
+      val tSec = (tMilliseconds % msPerMinute) / 1e3
+      ("%d" + "m" + "%.1f" + "s").format(tMins, tSec)
     }
     else {
       val tHrs = (tMilliseconds / msPerHour).toInt
       val tMins = ((tMilliseconds % msPerHour) / msPerMinute).toInt
-      val tSec = ((tMilliseconds % msPerMinute) / 1e3).toInt
-      ("%d"+"h, %d"+"m, %d"+"s").format(tHrs, tMins, tSec)
+      val tSec = (tMilliseconds % msPerMinute) / 1e3
+      ("%d" + "h" + "%d" + "m" + "%.1f" + "s").format(tHrs, tMins, tSec)
     }
   }
 
@@ -451,4 +460,7 @@ object Utils {
 
   def divOption[T](num: T, denom: T)(implicit ev: T => Double): Option[Double] =
     someIf(denom != 0, ev(num) / denom)
+
+  implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder =
+    new RichStringBuilder(sb)
 }
