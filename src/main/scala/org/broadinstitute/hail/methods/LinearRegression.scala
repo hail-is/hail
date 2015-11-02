@@ -22,19 +22,19 @@ object CovariateData {
     val lines = linesIterator.toArray
     src.close()
 
-    val covName = header.split("\\s+").tail
-    val nCov = covName.length
-    val nCovSample = lines.length
-    val covSample = Array.ofDim[Int](nCovSample)
-    val sampleOfCovSampleName: Map[String, Int] = sampleIds.zipWithIndex.toMap
+    val csName = header.split("\\s+").tail
+    val nCov = csName.length
+    val nCs = lines.length
+    val csSample = Array.ofDim[Int](nCs)
+    val sampleNameIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
-    val data = DenseMatrix.zeros[Double](nCovSample, nCov)
-    for (cs <- 0 until nCovSample) {
-      val (covSampleName, covSampleCovValues) = lines(cs).split("\\s+").splitAt(1)
-      covSample(cs) = sampleOfCovSampleName(covSampleName(0))
-      data(cs to cs, ::) := DenseVector(covSampleCovValues.map(_.toDouble))
+    val data = DenseMatrix.zeros[Double](nCs, nCov)
+    for (cs <- 0 until nCs) {
+      val (csName, csCovValues) = lines(cs).split("\\s+").splitAt(1)
+      csSample(cs) = sampleNameIndex(csName(0))
+      data(cs to cs, ::) := DenseVector(csCovValues.map(_.toDouble))
     }
-    CovariateData(covSample, covName, data)
+    CovariateData(csSample, csName, data)
   }
 }
 
@@ -109,8 +109,8 @@ object LinearRegression {
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
     require(ped.phenoDefinedForAll)
-    val covSampleOfSample = cov.covSample.zipWithIndex.toMap
-    val hasCovData: Array[Boolean] = (0 until vds.nSamples).map(covSampleOfSample.isDefinedAt).toArray
+    val sampleCs = cov.covSample.zipWithIndex.toMap
+    val hasCovData: Array[Boolean] = (0 until vds.nSamples).map(sampleCs.isDefinedAt).toArray
 
     val n = cov.data.rows
     val k = cov.data.cols
@@ -119,7 +119,7 @@ object LinearRegression {
       throw new IllegalArgumentException(n + " samples and " + k + " covariates implies " + d + " degrees of freedom.")
 
     val sc = vds.sparkContext
-    val covSampleOfSampleBc = sc.broadcast(covSampleOfSample)
+    val covSampleOfSampleBc = sc.broadcast(sampleCs)
     val isPhenotypedBc = sc.broadcast(hasCovData)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
