@@ -22,8 +22,8 @@ object CovariateData {
     val lines = linesIt.toArray
     src.close()
 
-    val covRowName = header.split("\\s+").tail
-    val nCov = covRowName.length
+    val covName = header.split("\\s+").tail
+    val nCov = covName.length
     val nCovRow = lines.length
     val covRowSample = Array.ofDim[Int](nCovRow)
     val sampleNameIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
@@ -34,7 +34,7 @@ object CovariateData {
       covRowSample(covRow) = sampleNameIndex(entries(0))
       data(covRow to covRow, ::) := DenseVector(entries.iterator.drop(1).map(_.toDouble).toArray)
     }
-    CovariateData(covRowSample, covRowName, data)
+    CovariateData(covRowSample, covName, data)
   }
 }
 
