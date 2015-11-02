@@ -29,10 +29,10 @@ object CovariateData {
     val sampleNameIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
     val data = DenseMatrix.zeros[Double](nCovRow, nCov)
-    for (covRow <- 0 until nCovRow) {
-      val entries = lines(covRow).split("\\s+")
-      covRowSample(covRow) = sampleNameIndex(entries(0))
-      data(covRow to covRow, ::) := DenseVector(entries.iterator.drop(1).map(_.toDouble).toArray)
+    for (cr <- 0 until nCovRow) {
+      val entries = lines(cr).split("\\s+")
+      covRowSample(cr) = sampleNameIndex(entries(0))
+      data(cr to cr, ::) := DenseVector(entries.iterator.drop(1).map(_.toDouble).toArray)
     }
     CovariateData(covRowSample, covName, data)
   }
@@ -122,7 +122,7 @@ object LinearRegression {
     val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    val yArray = (0 until n).map(covRow => ped.phenoOf(cov.covRowSample(covRow)).toString.toDouble).toArray
+    val yArray = (0 until n).map(cr => ped.phenoOf(cov.covRowSample(cr)).toString.toDouble).toArray
     val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
@@ -136,7 +136,7 @@ object LinearRegression {
     new LinearRegression(vds
       .filterSamples(samplesWithCovDataBc.value.contains)
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
-        (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s),g, yBc.value),
+        (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues{ lrb =>
         val (x, xx, xy, nMissing) = lrb.stats(yBc.value, n)
