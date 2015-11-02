@@ -22,7 +22,7 @@ object CovariateData {
     val lines = linesIterator.toArray
     src.close()
 
-    val csName = header.split("\\s+").tail
+    val csName = header.split("\\s+").tail // cs is short for covariateSample
     val nCov = csName.length
     val nCs = lines.length
     val csSample = Array.ofDim[Int](nCs)
