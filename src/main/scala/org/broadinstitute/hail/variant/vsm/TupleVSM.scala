@@ -21,7 +21,7 @@ object TupleVSM {
     require(dirname.endsWith(".vds"))
 
     // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
+    val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
     df.printSchema()
     new TupleVSM[Genotype](metadata,
       df
@@ -66,7 +66,7 @@ class TupleVSM[T](val metadata: VariantMetadata,
     )
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
-    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
+    rdd.toDF().saveAsParquetFile(dirname + "/rdd.parquet")
   }
 
   def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): TupleVSM[U] = {
