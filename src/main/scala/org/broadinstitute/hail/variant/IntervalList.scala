@@ -42,7 +42,7 @@ object IntervalList {
   }
 }
 
-class IntervalList(private val m: mutable.Map[String, TreeMap[Int, Int]]) {
+class IntervalList(private val m: mutable.Map[String, TreeMap[Int, Int]]) extends Serializable {
   def contains(p: (String, Int)): Boolean = {
     val (contig, pos) = p
     m.get(contig) match {
