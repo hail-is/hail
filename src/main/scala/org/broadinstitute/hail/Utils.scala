@@ -14,7 +14,8 @@ import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVe
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
 
-class RichVector[T](val v: Vector[T]) extends AnyVal {
+// FIXME AnyVal in Scala 2.11
+class RichVector[T](v: Vector[T]) {
   def zipExact[T2](v2: Iterable[T2]): Vector[(T, T2)] = {
     val i = v.iterator
     val i2 = v2.iterator
@@ -165,7 +166,8 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
   }
 }
 
-class RichArray[T](val a: Array[T]) extends AnyVal {
+// FIXME AnyVal in Scala 2.11
+class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
   def foreach2[T2](v2: Iterable[T2], f: (T, T2) => Unit) {
