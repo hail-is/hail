@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.driver
 
+import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object Write extends Command {
@@ -13,6 +14,7 @@ object Write extends Command {
   def description = "Write current dataset as .vds file"
 
   def run(state: State, options: Options): State = {
+    hadoopDelete(options.output, state.hadoopConf, true)
     state.vds.write(state.sqlContext, options.output)
     state
   }

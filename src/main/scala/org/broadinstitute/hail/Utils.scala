@@ -316,8 +316,12 @@ object Utils {
   implicit def toRichOption[T](o: Option[T]): RichOption[T] =
     new RichOption[T](o)
 
+  def warning(msg: String) {
+    System.err.println("hail: warning: " + msg)
+  }
+
   def fatal(msg: String): Nothing = {
-    System.err.println("fatal: " + msg)
+    System.err.println("hail: fatal: " + msg)
     sys.exit(1)
   }
 
