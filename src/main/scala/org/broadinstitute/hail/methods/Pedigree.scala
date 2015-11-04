@@ -74,9 +74,9 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
       .toMap
       .groupByKey
 
-  def dadOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.dad.get)).toMap
-  def momOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.mom.get)).toMap
-  def sexOf: Map[Int, Sex] = completeTrios.flatMap(t => t.sex.map(s => (t.kid, s))).toMap
+  def dadOf: Map[Int, Int] = completeTrios.flatMap(t => t.dad.map(d => (t.kid, d))).toMap
+  def momOf: Map[Int, Int] = completeTrios.flatMap(t => t.mom.map(m => (t.kid, m))).toMap
+  def sexOf: Map[Int, Sex] = trios.flatMap(t => t.sex.map(s => (t.kid, s))).toMap
   def famOf: Map[Int, String] = trios.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
   def phenoOf: Map[Int, Phenotype] = trios.flatMap(t => t.pheno.map(p => (t.kid, p))).toMap
 
