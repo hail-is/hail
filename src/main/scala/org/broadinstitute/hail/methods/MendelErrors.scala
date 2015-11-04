@@ -6,7 +6,7 @@ import org.broadinstitute.hail.variant._
 
 import org.broadinstitute.hail.variant.GenotypeType._
 
-import org.broadinstitute.hail.methods.Role.{Kid, Dad, Mom}
+import org.broadinstitute.hail.methods.Role._
 
 case class MendelError(variant: Variant, sample: Int, code: Int, gKid: Genotype, gDad: Genotype, gMom: Genotype)
 
@@ -32,17 +32,26 @@ object MendelErrors {
 
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
     require(ped.sexDefinedForAll)
-
-    val completeTrios = vds.sparkContext.broadcast(ped.completeTrios)
+    
     val sexOf = vds.sparkContext.broadcast(ped.sexOf)
+
+    val sampleKidRole: Map[Int, Array[(Int, Role)]] =
+      ped.completeTrios.flatMap{
+        t => List((t.kid, (t.kid, Kid)), (t.mom.get, (t.kid, Mom)), (t.dad.get, (t.kid, Dad)))
+      }
+      .groupBy(_._1)
+      .mapValues(a => a.map(_._2))
+      .map(identity)
+
+    val sampleKidRoleBc = vds.sparkContext.broadcast(sampleKidRole)
 
     new MendelErrors(ped, vds.sampleIds,
       vds
-      .flatMapWithKeys{ (v, s, g) =>
-        completeTrios.value
-          .filter(_.contains(s))
-          .map(t => ((v, t.kid), (t.role(s).get, g)))
-       }
+      .flatMapWithKeys { (v, s, g) => sampleKidRoleBc.value.get(s) match {
+        case Some(arr) => arr.map { case (k, r) => ((v, k), (r, g)) }
+        case None => None
+        }
+      }
       .groupByKey()
       .mapValues(_.toMap)
       .flatMap { case ((v, s), gOf) =>
