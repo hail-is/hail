@@ -143,11 +143,11 @@ object LinearRegression {
 
         val qtx = qtBc.value * x
         val qty = qtyBc.value
-        val xxp = xx - (qtx dot qtx)
-        val xyp = xy - (qtx dot qty)
-        val yyp = yypBc.value
+        val xxp: Double = xx - (qtx dot qtx)
+        val xyp: Double = xy - (qtx dot qty)
+        val yyp: Double = yypBc.value
 
-        val b = xyp / xxp
+        val b: Double = xyp / xxp
         val se = math.sqrt((yyp / xxp - b * b) / d)
         val t = b / se
         val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
