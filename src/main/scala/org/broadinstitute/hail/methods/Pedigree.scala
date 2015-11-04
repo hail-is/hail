@@ -76,12 +76,11 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def dadOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.dad.get)).toMap
   def momOf: Map[Int, Int] = completeTrios.map(t => (t.kid, t.mom.get)).toMap
-  def sexOf: Map[Int, Sex] = completeTrios.map(t => (t.kid, t.sex.get)).toMap
-  def famOf: Map[Int, Option[String]] = trios.map(t => (t.kid, t.fam)).toMap
-  def phenoOf: Map[Int, Phenotype] = trios.map(t => (t.kid, t.pheno.get)).toMap
+  def sexOf: Map[Int, Sex] = completeTrios.filter(_.sex.isDefined).map(t => (t.kid, t.sex.get)).toMap
+  def famOf: Map[Int, String] = trios.filter(_.fam.isDefined).map(t => (t.kid, t.fam.get)).toMap
+  def phenoOf: Map[Int, Phenotype] = trios.filter(_.pheno.isDefined).map(t => (t.kid, t.pheno.get)).toMap
 
   def sexDefinedForAll: Boolean = trios.forall(_.sex.isDefined)
-
   def phenoDefinedForAll: Boolean = trios.forall(_.pheno.isDefined)
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
