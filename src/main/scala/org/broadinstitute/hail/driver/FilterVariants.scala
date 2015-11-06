@@ -31,24 +31,27 @@ object FilterVariants extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val keep = options.keep
     val cond = options.condition
     val p: (Variant) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition)
-        (v) => ilist.contains(v.contig, v.start)
+        (v: Variant) => ilist.contains(v.contig, v.start)
       case c: String =>
         try {
           val cf = new ConditionPredicate[Variant]("v", c)
           cf.compile(true)
-          cf(_)
+          cf.apply
         } catch {
           case e: scala.tools.reflect.ToolBoxError =>
+            /* e.message looks like:
+               reflective compilation has failed:
+
+               ';' expected but '.' found. */
             fatal("parse error in condition: " + e.message.split("\n").last)
         }
     }
 
-    val newVDS = vds.filterVariants(if (keep)
+    val newVDS = vds.filterVariants(if (options.keep)
       p
     else
       (v: Variant) => !p(v))

@@ -31,20 +31,26 @@ object FilterGenotypes extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val p: (Variant, Int, Genotype) => Boolean = try {
+    val p: (Variant, Sample, Genotype) => Boolean = try {
       val cf = new GenotypeConditionPredicate(options.condition)
       cf.compile(true)
       if (options.keep)
         cf.apply
       else
-        (v: Variant, s: Int, g: Genotype) => !cf(v, s, g)
+        (v: Variant, s: Sample, g: Genotype) => !cf(v, s, g)
     } catch {
       case e: scala.tools.reflect.ToolBoxError =>
+        /* e.message looks like:
+           reflective compilation has failed:
+
+           ';' expected but '.' found. */
         fatal("parse error in condition: " + e.message.split("\n").last)
     }
 
+    val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
+
     val newVDS = vds.mapValuesWithKeys((v: Variant, s: Int, g: Genotype) =>
-      if (p(v, s, g))
+      if (p(v, Sample(sampleIdsBc.value(s)), g))
         g
       else
         Genotype(-1, (0, 0), 0, null))

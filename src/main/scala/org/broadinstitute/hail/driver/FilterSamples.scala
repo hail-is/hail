@@ -38,8 +38,6 @@ object FilterSamples extends Command {
 
     val indexOfSample: Map[String, Int] = state.vds.sampleIds.zipWithIndex.toMap
 
-    val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-
     val p = options.condition match {
       case f if f.endsWith(".sample_list") =>
         val samples = Source.fromInputStream(hadoopOpen(f, state.hadoopConf))
@@ -52,10 +50,15 @@ object FilterSamples extends Command {
         try {
           val cf = new ConditionPredicate[Sample]("s", c)
           cf.compile(true)
+
+          val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
           (s: Int) => cf(Sample(sampleIdsBc.value(s)))
         } catch {
           case e: scala.tools.reflect.ToolBoxError =>
-            println(e.message)
+            /* e.message looks like:
+               reflective compilation has failed:
+
+               ';' expected but '.' found. */
             fatal("parse error in condition: " + e.message.split("\n").last)
         }
     }

@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.driver.Sample
 import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
 import org.broadinstitute.hail.Utils._
@@ -42,25 +43,25 @@ class ConditionPredicate[T](sym: String,
 }
 
 class GenotypeConditionPredicate[T](condition: String) extends Serializable {
-  @transient var p: (Variant, Int, Genotype) => Boolean = null
+  @transient var p: (Variant, Sample, Genotype) => Boolean = null
 
   def compile(typeCheck: Boolean) {
     if (p == null) {
       printTime {
         val toolbox = currentMirror.mkToolBox()
         val ast = toolbox.parse("(v: org.broadinstitute.hail.variant.Variant, " +
-          "s: Int, " +
+          "s: Sample, " +
           "g: org.broadinstitute.hail.variant.Genotype) => { " +
           "import org.broadinstitute.hail.driver.FilterUtils._; " +
           condition + " }: Boolean")
         if (typeCheck)
           toolbox.typeCheck(ast)
-        p = toolbox.eval(ast).asInstanceOf[(Variant, Int, Genotype) => Boolean]
+        p = toolbox.eval(ast).asInstanceOf[(Variant, Sample, Genotype) => Boolean]
       }
     }
   }
 
-  def apply(v: Variant, s: Int, g: Genotype): Boolean = {
+  def apply(v: Variant, s: Sample, g: Genotype): Boolean = {
     compile(false)
     val r = p(v, s, g)
     // println("v = " + v + " " + r)
