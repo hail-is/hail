@@ -44,7 +44,6 @@ public class BGzipCodec implements SplittableCompressionCodec {
     public SplitCompressionInputStream createInputStream(InputStream seekableIn,
                                                          Decompressor decompressor, long start, long end, READ_MODE readMode)
             throws IOException {
-        assert(start <= end);
         return new BGzipInputStream(seekableIn, start, end, readMode);
     }
 
