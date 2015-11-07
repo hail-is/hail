@@ -68,7 +68,7 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def trios = trioMap.values.toArray
   def completeTrios = trios.filter(_.isComplete)
-  def samplesInCompleteTrios: Array[Int] = completeTrios.flatMap(_.samples)
+  def samplesInCompleteTrios: Array[Int] = completeTrios.flatMap(_.samples).distinct
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
   def nuclearFams: Map[(Int, Int), Iterable[Int]] =

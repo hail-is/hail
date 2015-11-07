@@ -14,7 +14,7 @@ object MendelErrors {
   def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
   def getCode(gts: Array[GenotypeType], isHemizygous: Boolean): Int = {
-    (gts(0), gts(1), gts(2), isHemizygous) match {
+    (gts(1), gts(2), gts(0), isHemizygous) match {
       case (HomRef, HomRef,    Het, false) => 2  // Kid is het and not hemizygous
       case (HomVar, HomVar,    Het, false) => 1
       case (HomRef, HomRef, HomVar, false) => 5  // Kid is homvar and not hemizygous
@@ -32,53 +32,61 @@ object MendelErrors {
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
     require(ped.sexDefinedForAll)
 
-    val nCompleteTrios = ped.completeTrios.size
-    val completeTrioIndex: Map[Trio, Int] = ped.completeTrios.zipWithIndex.toMap
-
-    val sampleIndex: Map[Int, Int] = ped.samplesInCompleteTrios.zipWithIndex.toMap
-    val nSamplesInCompleteTrios = sampleIndex.size
+    val trios = ped.completeTrios
+    val nTrios = trios.size
+    val trioSamples = ped.samplesInCompleteTrios
+    val nTrioSamples = trioSamples.size
+    val trioSampleIndex: Map[Int, Int] = trioSamples.zipWithIndex.toMap
+    val isTrioSample = (0 to vds.nSamples).map(trioSamples.contains(_)).toArray
 
     val sampleIndexTrioRoles: Array[List[(Int, Int)]] = {
-      val a: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](nSamplesInCompleteTrios)(List())
-      ped.completeTrios.flatMap { t => {
-          val ti = completeTrioIndex(t)
-          List((sampleIndex(t.kid), (ti, 0)), (sampleIndex(t.dad.get), (ti, 1)), (sampleIndex(t.mom.get), (ti, 2)))
+      val a: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](nTrioSamples)(List())
+      trios.indices.flatMap { ti => {
+          val t = trios(ti)
+          List((trioSampleIndex(t.kid), (ti, 0)), (trioSampleIndex(t.dad.get), (ti, 1)), (trioSampleIndex(t.mom.get), (ti, 2)))
         }
       }
       .foreach{ case (si, tiri) => a(si) ::= tiri }
       a
     }
 
+    val sc = vds.sparkContext
+    val trioSamplesBc = sc.broadcast(trioSamples)
+    val trioSampleIndexBc = sc.broadcast(trioSampleIndex)
+    val trioSexBc = sc.broadcast(trios.flatMap(t => t.sex))
+    val sampleIndexTrioRolesBc = sc.broadcast(sampleIndexTrioRoles)
+    val trioKidBc = sc.broadcast(trios.zipWithIndex.map{ case (t, ti) => (ti, t.kid) }.toMap)
+
     val zeroVal: Array[Array[GenotypeType]] =
-      Array.fill[Array[GenotypeType]](nSamplesInCompleteTrios)(Array.fill[GenotypeType](3)(NoCall))
+      Array.fill[Array[GenotypeType]](nTrios)(Array.fill[GenotypeType](3)(NoCall))
 
     def seqOp(a: Array[Array[GenotypeType]], s: Int, g: Genotype): Array[Array[GenotypeType]] = {
-      sampleIndexTrioRoles(sampleIndex(s)).foreach { case (ti, ri) => a(ti)(ri) = g.gtType }
+      sampleIndexTrioRolesBc.value(trioSampleIndexBc.value(s)).foreach { case (ti, ri) => a(ti)(ri) = g.gtType }
       a
     }
 
     def mergeOp(a: Array[Array[GenotypeType]], b: Array[Array[GenotypeType]]): Array[Array[GenotypeType]] = {
-      for (si <- a.indices)
+      for (ti <- a.indices)
         for (ri <- 0 to 2)
-          if (b(si)(ri) != NoCall)
-            a(si)(ri) = b(si)(ri)
+          if (b(ti)(ri) != NoCall)
+            a(ti)(ri) = b(ti)(ri)
       a
     }
 
-
-    val sexOfBc = vds.sparkContext.broadcast(ped.sexOf)
-
     new MendelErrors(ped, vds.sampleIds,
       vds
+      .filterSamples(isTrioSample)
       .aggregateByVariantWithKeys(zeroVal)(
         (a, v, s, g) => seqOp(a, s, g),
         mergeOp)
       .flatMap{ case (v, a) =>
         a.indices.flatMap{
-          si => {
-            val code = getCode(a(si), v.isHemizygous(sexOfBc.value(si)))
-            if (code != 0)
-              Some(new MendelError(v, ped.samplesInCompleteTrios(si), code, a(si)(0), a(si)(1), a(si)(2)))
+          ti => {
+            val code = getCode(a(ti), v.isHemizygous(trioSexBc.value(ti)))
+            if (code != 0) {
+              val s = trioKidBc.value(ti)
+              Some(new MendelError(v, s, code, a(ti)(0), a(ti)(1), a(ti)(2)))
+            }
             else
               None
           }

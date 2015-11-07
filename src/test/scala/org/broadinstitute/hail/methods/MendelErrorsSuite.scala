@@ -10,6 +10,8 @@ class MendelErrorsSuite extends SparkSuite {
     val ped = Pedigree.read("src/test/resources/sample_mendel.fam", vds.sampleIds)
     val men = MendelErrors(vds, ped)
 
+    men.mendelErrors.collect().foreach(println)
+
     val nPerFam = men.nErrorPerNuclearFamily.collectAsMap()
     val nPerIndiv = men.nErrorPerIndiv.collectAsMap()
     val nPerVariant = men.nErrorPerVariant.collectAsMap()
