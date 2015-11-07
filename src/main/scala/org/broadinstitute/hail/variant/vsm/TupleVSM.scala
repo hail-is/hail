@@ -12,9 +12,13 @@ import scala.reflect.runtime.universe._
 
 object TupleVSM {
   def apply(metadata: VariantMetadata,
-    rdd: RDD[(Variant, GenotypeStream)]) =
+    rdd: RDD[(Variant, GenotypeStream)]) = {
+    val nSamples = metadata.nSamples
     new TupleVSM(metadata,
-      rdd.flatMap { case (v, gs) => gs.iterator.map { case (s, g) => (v, s, g) } })
+      rdd.flatMap { case (v, gs) => Iterator.range(0, nSamples).zip(gs.iterator)
+        .map { case (s, g) => (v, s, g) }
+      })
+  }
 
   def read(sqlContext: SQLContext, dirname: String, metadata: VariantMetadata): TupleVSM[Genotype] = {
     import RichRow._
@@ -30,27 +34,32 @@ object TupleVSM {
   }
 }
 
-class TupleVSM[T](val metadata: VariantMetadata,
+class TupleVSM[T](metadata: VariantMetadata,
+  localSamples: Array[Int],
   val rdd: RDD[(Variant, Int, T)])(implicit ttt: TypeTag[T], tct: ClassTag[T])
-  extends VariantSampleMatrix[T] {
+  extends VariantSampleMatrix[T](metadata, localSamples) {
 
-  override def nSamples: Int = sampleIds.length
+  def this(metadata: VariantMetadata, rdd: RDD[(Variant, Int, T)])
+    (implicit ttt: TypeTag[T], tct: ClassTag[T]) =
+    this(metadata, metadata.sampleIds.indices.toArray, rdd)
 
-  def variants: RDD[Variant] = rdd.map(_._1).distinct()
-
-  def nVariants: Long = variants.count()
-
-  def cache(): TupleVSM[T] =
-    new TupleVSM[T](metadata, rdd.cache())
-
-  def repartition(nPartitions: Int) =
-    new TupleVSM[T](metadata, rdd.repartition(nPartitions))
-
-  def nPartitions: Int = rdd.partitions.size
+  def copy[U](metadata: VariantMetadata = this.metadata,
+    localSamples: Array[Int] = this.localSamples,
+    rdd: RDD[(Variant, Int, U)] = this.rdd)
+    (implicit utt: TypeTag[U], uct: ClassTag[U]): TupleVSM[U] =
+    new TupleVSM[U](metadata, localSamples, rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
-  def count(): Long = rdd.count() // should this be nVariants instead?
+  def cache(): TupleVSM[T] = copy(rdd = rdd.cache())
+
+  def repartition(nPartitions: Int) = copy(rdd = rdd.repartition(nPartitions))
+
+  def nPartitions: Int = rdd.partitions.length
+
+  def count(): Long = rdd.count()
+
+  def variants: RDD[Variant] = rdd.map(_._1).distinct()
 
   def expand(): RDD[(Variant, Int, T)] = rdd
 
@@ -69,10 +78,8 @@ class TupleVSM[T](val metadata: VariantMetadata,
     rdd.toDF().saveAsParquetFile(dirname + "/rdd.parquet")
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): TupleVSM[U] = {
-    new TupleVSM[U](metadata,
-      rdd.map { case (v, s, g) => (v, s, f(v, s, g)) })
-  }
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): TupleVSM[U] =
+    copy(rdd = rdd.map { case (v, s, g) => (v, s, f(v, s, g)) })
 
   def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] =
     rdd.map[U](f.tupled)
@@ -80,23 +87,28 @@ class TupleVSM[T](val metadata: VariantMetadata,
   def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     rdd.flatMap[U](f.tupled)
 
-  def filterVariants(p: (Variant) => Boolean) = {
-    new TupleVSM[T](metadata,
-      rdd.filter { case (v, s, g) => p(v) })
-  }
+  def filterVariants(p: (Variant) => Boolean) =
+    copy(rdd = rdd.filter {
+      case (v, s, g) => p(v)
+    })
 
-  def filterSamples(p: (Int) => Boolean) = {
-    new TupleVSM[T](metadata,
-      rdd.filter { case (v, s, g) => p(s) })
-  }
+  def filterSamples(p: (Int) => Boolean) =
+    copy(localSamples = localSamples.filter((s) => p(s)),
+      rdd = rdd.filter {
+        case (v, s, g) => p(s)
+      })
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Int, U)] = {
 
     rdd
-      .map { case (v, s, g) => (s, (v, s, g)) }
-      .aggregateByKey(zeroValue)({ case (u, (v, s, g)) => seqOp(u, v, s, g) }, combOp)
+      .map {
+        case (v, s, g) => (s, (v, s, g))
+      }
+      .aggregateByKey(zeroValue)({
+        case (u, (v, s, g)) => seqOp(u, v, s, g)
+      }, combOp)
   }
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
@@ -104,19 +116,27 @@ class TupleVSM[T](val metadata: VariantMetadata,
     combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] = {
 
     rdd
-      .map { case (v, s, g) => (v, (v, s, g)) }
-      .aggregateByKey(zeroValue)({ case (u, (v, s, g)) => seqOp(u, v, s, g) }, combOp)
+      .map {
+        case (v, s, g) => (v, (v, s, g))
+      }
+      .aggregateByKey(zeroValue)({
+        case (u, (v, s, g)) => seqOp(u, v, s, g)
+      }, combOp)
   }
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)] = {
     rdd
-      .map { case (v, s, g) => (s, g) }
+      .map {
+        case (v, s, g) => (s, g)
+      }
       .foldByKey(zeroValue)(combOp)
   }
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {
     rdd
-      .map { case (v, s, g) => (v, g) }
+      .map {
+        case (v, s, g) => (v, g)
+      }
       .foldByKey(zeroValue)(combOp)
   }
 }

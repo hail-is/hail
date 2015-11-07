@@ -11,9 +11,9 @@ object GenotypeStreamSuite {
   object Spec extends Properties("GenotypeStream") {
     property("iterateBuild") = forAll { a: Array[Genotype] =>
       b.clear()
-      b ++= a.zipWithIndex.map{ case (a, b) => (b, a) }
+      b ++= a
       val gs = b.result()
-      val a2 = gs.map(_._2).toArray
+      val a2 = gs.toArray
       a.sameElements(a2)
     }
   }

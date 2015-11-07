@@ -5,15 +5,11 @@ import net.jpountz.lz4.LZ4Factory
 import scala.collection.mutable
 
 // FIXME use zipWithIndex
-class GenotypeStreamIterator(b: Iterator[Byte]) extends Iterator[(Int, Genotype)] {
-  var i = 0
-
+class GenotypeStreamIterator(b: Iterator[Byte]) extends Iterator[Genotype] {
   override def hasNext: Boolean = b.hasNext
 
-  override def next(): (Int, Genotype) = {
-    val prev = i
-    i += 1
-    (prev, Genotype.read(b))
+  override def next(): Genotype = {
+    Genotype.read(b)
   }
 }
 
@@ -34,7 +30,7 @@ object LZ4Utils {
 
   def decompress(decompLen: Int, a: Array[Byte]) = {
     val decomp = Array.ofDim[Byte](decompLen)
-    val compLen = decompressor.decompress(a, 0, decomp, 0, decompLen);
+    val compLen = decompressor.decompress(a, 0, decomp, 0, decompLen)
     assert(compLen == a.length)
 
     decomp
@@ -42,7 +38,7 @@ object LZ4Utils {
 }
 
 case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Array[Byte])
-  extends Iterable[(Int, Genotype)] {
+  extends Iterable[Genotype] {
 
   override def iterator: GenotypeStreamIterator = {
     decompLenOption match {
@@ -53,7 +49,7 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
     }
   }
 
-  override def newBuilder: mutable.Builder[(Int, Genotype), GenotypeStream] = {
+  override def newBuilder: mutable.Builder[Genotype, GenotypeStream] = {
     new GenotypeStreamBuilder(variant)
   }
 
@@ -75,11 +71,11 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
 }
 
 class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
-  extends mutable.Builder[(Int, Genotype), GenotypeStream] {
+  extends mutable.Builder[Genotype, GenotypeStream] {
   val b = new mutable.ArrayBuilder.ofByte
 
-  override def +=(g: (Int, Genotype)): GenotypeStreamBuilder.this.type = {
-    g._2.write(b)
+  override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
+    g.write(b)
     this
   }
 

@@ -116,7 +116,7 @@ object TestRDDBuilder {
           val ad = adFromDP(dp, gt)
           val pl = plFromGQ(gq, gt)
 
-          b += 0 -> Genotype(gt, ad, dp, pl)
+          b += Genotype(gt, ad, dp, pl)
         }
         (variant, b.result())
     }

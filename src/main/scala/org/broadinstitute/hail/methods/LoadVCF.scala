@@ -43,7 +43,7 @@ object LoadVCF {
           .map { case (v, gs) =>
             val b = new GenotypeStreamBuilder(v, compress)
             for (g <- gs)
-              b += 0 -> g
+              b += g
             (v, b.result())
           }
       }
