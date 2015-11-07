@@ -37,7 +37,6 @@ object MendelErrors {
     val trioSamples = ped.samplesInCompleteTrios
     val nTrioSamples = trioSamples.size
     val trioSampleIndex: Map[Int, Int] = trioSamples.zipWithIndex.toMap
-    val isTrioSample = (0 to vds.nSamples).map(trioSamples.contains(_)).toArray
 
     val sampleIndexTrioRoles: Array[List[(Int, Int)]] = {
       val a: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](nTrioSamples)(List())
@@ -56,6 +55,7 @@ object MendelErrors {
     val trioSexBc = sc.broadcast(trios.flatMap(t => t.sex))
     val sampleIndexTrioRolesBc = sc.broadcast(sampleIndexTrioRoles)
     val trioKidBc = sc.broadcast(trios.zipWithIndex.map{ case (t, ti) => (ti, t.kid) }.toMap)
+    val isTrioSampleBc = sc.broadcast((0 until vds.nSamples).map(s => trioSamples.contains(s)).toArray)
 
     val zeroVal: Array[Array[GenotypeType]] =
       Array.fill[Array[GenotypeType]](nTrios)(Array.fill[GenotypeType](3)(NoCall))
@@ -75,7 +75,7 @@ object MendelErrors {
 
     new MendelErrors(ped, vds.sampleIds,
       vds
-      .filterSamples(isTrioSample)
+      .filterSamples(isTrioSampleBc.value)
       .aggregateByVariantWithKeys(zeroVal)(
         (a, v, s, g) => seqOp(a, s, g),
         mergeOp)
