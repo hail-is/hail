@@ -6,8 +6,6 @@ import org.broadinstitute.hail.variant._
 
 import org.broadinstitute.hail.variant.GenotypeType._
 
-import org.broadinstitute.hail.methods.Role._
-
 case class MendelError(variant: Variant, sample: Int, code: Int,
                        gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType)
 

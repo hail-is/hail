@@ -29,6 +29,8 @@ case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int
     else if (mom.contains(s)) Some(Mom)
     else                      None
 
+  def samples: List[Int] = this.kid :: List(this.dad, this.mom).flatMap(x => x)
+
   def isMale: Boolean = sex.contains(Male)
   def isFemale: Boolean = sex.contains(Female)
   def isCase: Boolean = pheno.contains(Case)
@@ -66,6 +68,7 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
 
   def trios = trioMap.values.toArray
   def completeTrios = trios.filter(_.isComplete)
+  def samplesInCompleteTrios: Array[Int] = completeTrios.flatMap(_.samples)
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
   def nuclearFams: Map[(Int, Int), Iterable[Int]] =
