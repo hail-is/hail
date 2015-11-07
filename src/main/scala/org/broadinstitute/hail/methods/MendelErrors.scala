@@ -8,14 +8,15 @@ import org.broadinstitute.hail.variant.GenotypeType._
 
 import org.broadinstitute.hail.methods.Role._
 
-case class MendelError(variant: Variant, sample: Int, code: Int, gKid: Genotype, gDad: Genotype, gMom: Genotype)
+case class MendelError(variant: Variant, sample: Int, code: Int,
+                       gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType)
 
 object MendelErrors {
 
   def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
-  def getCode(gKid: Genotype, gDad: Genotype, gMom: Genotype, isHemizygous: Boolean): Int = {
-    (gDad.gtType, gMom.gtType, gKid.gtType, isHemizygous) match {
+  def getCode(gts: Array[GenotypeType], isHemizygous: Boolean): Int = {
+    (gts(0), gts(1), gts(2), isHemizygous) match {
       case (HomRef, HomRef,    Het, false) => 2  // Kid is het and not hemizygous
       case (HomVar, HomVar,    Het, false) => 1
       case (HomRef, HomRef, HomVar, false) => 5  // Kid is homvar and not hemizygous
@@ -32,34 +33,58 @@ object MendelErrors {
 
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
     require(ped.sexDefinedForAll)
-    
-    val sexOf = vds.sparkContext.broadcast(ped.sexOf)
 
-    val sampleKidRole: Map[Int, Array[(Int, Role)]] =
-      ped.completeTrios.flatMap{
-        t => List((t.kid, (t.kid, Kid)), (t.mom.get, (t.kid, Mom)), (t.dad.get, (t.kid, Dad)))
+    val nCompleteTrios = ped.completeTrios.size
+    val completeTrioIndex: Map[Trio, Int] = ped.completeTrios.zipWithIndex.toMap
+
+    val sampleIndex: Map[Int, Int] = ped.samplesInCompleteTrios.zipWithIndex.toMap
+    val nSamplesInCompleteTrios = sampleIndex.size
+
+    val sampleIndexTrioRoles: Array[List[(Int, Int)]] = {
+      val a: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](nSamplesInCompleteTrios)(List())
+      ped.completeTrios.flatMap { t => {
+          val ti = completeTrioIndex(t)
+          List((sampleIndex(t.kid), (ti, 0)), (sampleIndex(t.dad.get), (ti, 1)), (sampleIndex(t.mom.get), (ti, 2)))
+        }
       }
-      .groupBy(_._1)
-      .mapValues(a => a.map(_._2))
-      .map(identity)
+      .foreach{ case (si, tiri) => a(si) ::= tiri }
+      a
+    }
 
-    val sampleKidRoleBc = vds.sparkContext.broadcast(sampleKidRole)
+    val zeroVal: Array[Array[GenotypeType]] =
+      Array.fill[Array[GenotypeType]](nSamplesInCompleteTrios)(Array.fill[GenotypeType](3)(NoCall))
+
+    def seqOp(a: Array[Array[GenotypeType]], s: Int, g: Genotype): Array[Array[GenotypeType]] = {
+      sampleIndexTrioRoles(sampleIndex(s)).foreach { case (ti, ri) => a(ti)(ri) = g.gtType }
+      a
+    }
+
+    def mergeOp(a: Array[Array[GenotypeType]], b: Array[Array[GenotypeType]]): Array[Array[GenotypeType]] = {
+      for (si <- a.indices)
+        for (ri <- 0 to 2)
+          if (b(si)(ri) != NoCall)
+            a(si)(ri) = b(si)(ri)
+      a
+    }
+
+
+    val sexOfBc = vds.sparkContext.broadcast(ped.sexOf)
 
     new MendelErrors(ped, vds.sampleIds,
       vds
-      .flatMapWithKeys { (v, s, g) => sampleKidRoleBc.value.get(s) match {
-        case Some(arr) => arr.map { case (k, r) => ((v, k), (r, g)) }
-        case None => None
+      .aggregateByVariantWithKeys(zeroVal)(
+        (a, v, s, g) => seqOp(a, s, g),
+        mergeOp)
+      .flatMap{ case (v, a) =>
+        a.indices.flatMap{
+          si => {
+            val code = getCode(a(si), v.isHemizygous(sexOfBc.value(si)))
+            if (code != 0)
+              Some(new MendelError(v, ped.samplesInCompleteTrios(si), code, a(si)(0), a(si)(1), a(si)(2)))
+            else
+              None
+          }
         }
-      }
-      .groupByKey()
-      .mapValues(_.toMap)
-      .flatMap { case ((v, s), gOf) =>
-        val code = getCode(gOf(Kid), gOf(Dad), gOf(Mom), v.isHemizygous(sexOf.value(s)))
-        if (code != 0)
-          Some(new MendelError(v, s, code, gOf(Kid), gOf(Dad), gOf(Mom)))
-        else
-          None
       }
       .cache()
     )
@@ -110,10 +135,20 @@ case class MendelErrors(ped:          Pedigree,
   }
 
   def writeMendel(filename: String) {
+    def gtString(v: Variant, gt: GenotypeType): String = {
+      if (gt == HomRef)
+        v.ref + "/" + v.ref
+      else if (gt == Het)
+        v.ref + "/" + v.alt
+      else if (gt == HomVar)
+        v.alt + "/" + v.alt
+      else
+        "./."
+    }
     def toLine(me: MendelError): String = {
       val v = me.variant
       val s = me.sample
-      val errorString = me.gDad.gtString(v) + " x " + me.gMom.gtString(v) + " -> " + me.gKid.gtString(v)
+      val errorString = gtString(v, me.gtDad) + " x " + gtString(v, me.gtMom) + " -> " + gtString(v, me.gtKid)
       famOf.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + v.contig + "\t" +
         MendelErrors.variantString(v) + "\t" + me.code + "\t" + errorString
     }
