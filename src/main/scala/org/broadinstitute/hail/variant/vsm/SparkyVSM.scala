@@ -93,14 +93,14 @@ class SparkyVSM[T, S <: Iterable[T]](metadata: VariantMetadata,
   }
 
   def filterVariants(p: (Variant) => Boolean) =
-    copy(rdd = rdd.filter { case (v, gs) => p(v) })
+    copy(rdd = rdd.filter { case (v, _) => p(v) })
 
   def filterSamples(p: (Int) => Boolean) = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
-    copy(rdd =
-      rdd.map { case (v, gs) =>
+    copy(localSamples = localSamples.filter(p),
+      rdd = rdd.map { case (v, gs) =>
         (v, localSamplesBc.value.view.zip(gs.view)
-          .filter { case (s, v) => p(s) }
+          .filter { case (s, _) => p(s) }
           .map(_._2))
       })
   }
