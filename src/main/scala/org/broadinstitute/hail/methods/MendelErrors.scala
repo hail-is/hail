@@ -3,7 +3,6 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
-
 import org.broadinstitute.hail.variant.GenotypeType._
 
 case class MendelError(variant: Variant, sample: Int, code: Int,
@@ -30,39 +29,27 @@ object MendelErrors {
   }
 
   def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
-    require(ped.sexDefinedForAll)
+    require(ped.completeTrios.forall(_.sex.isDefined))
 
-    val trios = ped.completeTrios
-    val trioSamples = ped.samplesInCompleteTrios
-    val trioSampleIndex: Map[Int, Int] = trioSamples.zipWithIndex.toMap
+    val trios = ped.completeTrios // all incomplete trios are discarded
 
-    val sampleIndexTrioIndexRoleIndex: Array[List[(Int, Int)]] = {
-      val arr: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](trioSamples.size)(List())
-      trios
-        .zipWithIndex
-        .flatMap{ case (t, ti) =>
-          List((trioSampleIndex(t.kid    ), (ti, 0)),
-               (trioSampleIndex(t.dad.get), (ti, 1)),
-               (trioSampleIndex(t.mom.get), (ti, 2)))
-        }
-        .foreach{ case (si, tiri) => arr(si) ::= tiri }
-      arr
+    val sampleTrioRoles: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](vds.nSamples)(List())
+    trios.zipWithIndex.foreach { case (t, ti) =>
+      sampleTrioRoles(t.kid) ::= (ti, 0)
+      sampleTrioRoles(t.dad) ::= (ti, 1)
+      sampleTrioRoles(t.mom) ::= (ti, 2)
     }
 
     val sc = vds.sparkContext
-    val trioSamplesBc = sc.broadcast(trioSamples)
-    val trioSampleIndexBc = sc.broadcast(trioSampleIndex)
-    val sampleIndexTrioIndexRoleIndexBc = sc.broadcast(sampleIndexTrioIndexRoleIndex)
+    val sampleTrioRolesBc = sc.broadcast(sampleTrioRoles)
     val trioSexBc = sc.broadcast(trios.flatMap(_.sex))
     val trioKidBc = sc.broadcast(trios.zipWithIndex.map{ case (t, ti) => (ti, t.kid) }.toMap)
-    val isTrioSampleBc = sc.broadcast((0 until vds.nSamples).map(s => trioSamples.contains(s)).toArray)
 
     val zeroVal: Array[Array[GenotypeType]] =
       Array.fill[Array[GenotypeType]](trios.size)(Array.fill[GenotypeType](3)(NoCall))
 
     def seqOp(a: Array[Array[GenotypeType]], s: Int, g: Genotype): Array[Array[GenotypeType]] = {
-      sampleIndexTrioIndexRoleIndexBc.value(trioSampleIndexBc.value(s))
-        .foreach{ case (ti, ri) => a(ti)(ri) = g.gtType }
+      sampleTrioRolesBc.value(s).foreach{ case (ti, ri) => a(ti)(ri) = g.gtType }
       a
     }
 
@@ -76,7 +63,6 @@ object MendelErrors {
 
     new MendelErrors(ped, vds.sampleIds,
       vds
-      .filterSamples(isTrioSampleBc.value)
       .aggregateByVariantWithKeys(zeroVal)(
         (a, v, s, g) => seqOp(a, s, g),
         mergeOp)
@@ -99,13 +85,11 @@ object MendelErrors {
 case class MendelErrors(ped:          Pedigree,
                         sampleIds:    Array[String],
                         mendelErrors: RDD[MendelError]) {
-  require(ped.sexDefinedForAll)
 
-  def sc = mendelErrors.sparkContext
-
-  val dadOf = sc.broadcast(ped.dadOf)
-  val momOf = sc.broadcast(ped.momOf)
-  val famOf = sc.broadcast(ped.famOf)
+  val sc = mendelErrors.sparkContext
+  val dadOf = sc.broadcast(ped.completeTrios.map(t => (t.kid, t.dad)).toMap)
+  val momOf = sc.broadcast(ped.completeTrios.map(t => (t.kid, t.mom)).toMap)
+  val famOf = sc.broadcast(ped.completeTrios.map(t => (t.kid, t.fam)).toMap)
   val sampleIdsBc = sc.broadcast(sampleIds)
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
