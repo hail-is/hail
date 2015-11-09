@@ -14,18 +14,18 @@ object MendelErrors {
   def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
   def getCode(gts: Array[GenotypeType], isHemizygous: Boolean): Int = {
-    (gts(1), gts(2), gts(0), isHemizygous) match {
-      case (HomRef, HomRef,    Het, false) => 2  // Kid is het and not hemizygous
+    (gts(1), gts(2), gts(0), isHemizygous) match { // gtDad, gtMom, gtKid, isHemizygous
+      case (HomRef, HomRef,    Het, false) => 2    // Kid is het and not hemizygous
       case (HomVar, HomVar,    Het, false) => 1
-      case (HomRef, HomRef, HomVar, false) => 5  // Kid is homvar and not hemizygous
+      case (HomRef, HomRef, HomVar, false) => 5    // Kid is homvar and not hemizygous
       case (HomRef,      _, HomVar, false) => 3
       case (     _, HomRef, HomVar, false) => 4
-      case (HomVar, HomVar, HomRef, false) => 8  // Kid is homref and not hemizygous
+      case (HomVar, HomVar, HomRef, false) => 8    // Kid is homref and not hemizygous
       case (HomVar,      _, HomRef, false) => 6
       case (     _, HomVar, HomRef, false) => 7
-      case (     _, HomVar, HomRef,  true) => 9  // Kid is homref and hemizygous
-      case (     _, HomRef, HomVar,  true) => 10 // Kid is homvar and hemizygous
-      case _                               => 0  // No error
+      case (     _, HomVar, HomRef,  true) => 9    // Kid is homref and hemizygous
+      case (     _, HomRef, HomVar,  true) => 10   // Kid is homvar and hemizygous
+      case _                               => 0    // No error
     }
   }
 
@@ -33,35 +33,36 @@ object MendelErrors {
     require(ped.sexDefinedForAll)
 
     val trios = ped.completeTrios
-    val nTrios = trios.size
     val trioSamples = ped.samplesInCompleteTrios
-    val nTrioSamples = trioSamples.size
     val trioSampleIndex: Map[Int, Int] = trioSamples.zipWithIndex.toMap
 
-    val sampleIndexTrioRoles: Array[List[(Int, Int)]] = {
-      val a: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](nTrioSamples)(List())
-      trios.indices.flatMap { ti => {
-          val t = trios(ti)
-          List((trioSampleIndex(t.kid), (ti, 0)), (trioSampleIndex(t.dad.get), (ti, 1)), (trioSampleIndex(t.mom.get), (ti, 2)))
+    val sampleIndexTrioIndexRoleIndex: Array[List[(Int, Int)]] = {
+      val arr: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](trioSamples.size)(List())
+      trios
+        .zipWithIndex
+        .flatMap{ case (t, ti) =>
+          List((trioSampleIndex(t.kid    ), (ti, 0)),
+               (trioSampleIndex(t.dad.get), (ti, 1)),
+               (trioSampleIndex(t.mom.get), (ti, 2)))
         }
-      }
-      .foreach{ case (si, tiri) => a(si) ::= tiri }
-      a
+        .foreach{ case (si, tiri) => arr(si) ::= tiri }
+      arr
     }
 
     val sc = vds.sparkContext
     val trioSamplesBc = sc.broadcast(trioSamples)
     val trioSampleIndexBc = sc.broadcast(trioSampleIndex)
-    val trioSexBc = sc.broadcast(trios.flatMap(t => t.sex))
-    val sampleIndexTrioRolesBc = sc.broadcast(sampleIndexTrioRoles)
+    val sampleIndexTrioIndexRoleIndexBc = sc.broadcast(sampleIndexTrioIndexRoleIndex)
+    val trioSexBc = sc.broadcast(trios.flatMap(_.sex))
     val trioKidBc = sc.broadcast(trios.zipWithIndex.map{ case (t, ti) => (ti, t.kid) }.toMap)
     val isTrioSampleBc = sc.broadcast((0 until vds.nSamples).map(s => trioSamples.contains(s)).toArray)
 
     val zeroVal: Array[Array[GenotypeType]] =
-      Array.fill[Array[GenotypeType]](nTrios)(Array.fill[GenotypeType](3)(NoCall))
+      Array.fill[Array[GenotypeType]](trios.size)(Array.fill[GenotypeType](3)(NoCall))
 
     def seqOp(a: Array[Array[GenotypeType]], s: Int, g: Genotype): Array[Array[GenotypeType]] = {
-      sampleIndexTrioRolesBc.value(trioSampleIndexBc.value(s)).foreach { case (ti, ri) => a(ti)(ri) = g.gtType }
+      sampleIndexTrioIndexRoleIndexBc.value(trioSampleIndexBc.value(s))
+        .foreach{ case (ti, ri) => a(ti)(ri) = g.gtType }
       a
     }
 
@@ -83,10 +84,8 @@ object MendelErrors {
         a.indices.flatMap{
           ti => {
             val code = getCode(a(ti), v.isHemizygous(trioSexBc.value(ti)))
-            if (code != 0) {
-              val s = trioKidBc.value(ti)
-              Some(new MendelError(v, s, code, a(ti)(0), a(ti)(1), a(ti)(2)))
-            }
+            if (code != 0)
+              Some(new MendelError(v, trioKidBc.value(ti), code, a(ti)(0), a(ti)(1), a(ti)(2)))
             else
               None
           }
