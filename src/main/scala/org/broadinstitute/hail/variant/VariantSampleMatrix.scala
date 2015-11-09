@@ -31,30 +31,28 @@ object VariantSampleMatrix {
 }
 
 // FIXME all maps should become RDDs
-abstract class VariantSampleMatrix[T] {
-  def metadata: VariantMetadata
+abstract class VariantSampleMatrix[T](val metadata: VariantMetadata,
+  val localSamples: Array[Int]) {
 
   def sampleIds: Array[String] = metadata.sampleIds
-  def nSamples: Int = metadata.nSamples
-
-  def nVariants: Long
-  def variants: RDD[Variant]
-
-  def nPartitions: Int
+  def nSamples: Int = metadata.sampleIds.length
+  def nLocalSamples: Int = localSamples.length
 
   def sparkContext: SparkContext
 
+  // underlying RDD
+  def nPartitions: Int
   def cache(): VariantSampleMatrix[T]
-
   def repartition(nPartitions: Int): VariantSampleMatrix[T]
 
-  def count(): Long
+  def variants: RDD[Variant]
+  def nVariants: Long = variants.count()
 
   def expand(): RDD[(Variant, Int, T)]
 
   def write(sqlContext: SQLContext, dirname: String)
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U], iuct: ClassTag[(Int, U)]): VariantSampleMatrix[U]
+  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U]
 
   def mapValues[U](f: (T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U] = {
     mapValuesWithKeys((v, s, g) => f(g))
