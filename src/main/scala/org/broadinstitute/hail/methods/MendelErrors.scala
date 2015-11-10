@@ -86,11 +86,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
 
   val sc = mendelErrors.sparkContext
 
-  val nuclearFams: Map[(Int, Int), Iterable[Int]] =
-    trios
-      .map(t => ((t.dad, t.mom), t.kid))
-      .toMap
-      .groupByKey
+  val nuclearFams = trios.map(t => ((t.dad, t.mom), t.kid)).toMap.groupByKey.force
 
   val triosBc = sc.broadcast(trios)
   val famOfBc = sc.broadcast(trios.flatMap(t => t.fam.map(f => (t.kid, f))).toMap)
@@ -156,7 +152,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   }
 
   def writeMendelF(filename: String) {
-    val nuclearFamsBc = sc.broadcast(nuclearFams.force)
+    val nuclearFamsBc = sc.broadcast(nuclearFams)
     def toLine(parents: (Int, Int), nError: Int): String = {
       val (dad, mom) = parents
       famOfBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +

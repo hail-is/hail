@@ -28,7 +28,7 @@ class MendelErrorsSuite extends SparkSuite {
     val variant5 = Variant("20", 1, "C", "T")
 
     assert(nPerFam.size == 2)
-    assert(nPerIndiv.size == 11)
+    assert(nPerIndiv.size == 7)
     assert(nPerVariant.size == 22)
 
     assert(nPerFam((dad, mom)) == 34)
@@ -47,9 +47,9 @@ class MendelErrorsSuite extends SparkSuite {
     assert(nPerVariant.get(variant5).isEmpty)
 
     //FIXME: How to test these?
-    //men.writeMendel("/tmp/sample_mendel.mendel")
-    //men.writeMendelL("/tmp/sample_mendel.lmendel")
-    //men.writeMendelF("/tmp/sample_mendel.fmendel")
-    //men.writeMendelI("/tmp/sample_mendel.imendel")
+    men.writeMendel("/tmp/sample_mendel.mendel")
+    men.writeMendelL("/tmp/sample_mendel.lmendel")
+    men.writeMendelF("/tmp/sample_mendel.fmendel")
+    men.writeMendelI("/tmp/sample_mendel.imendel")
   }
 }
