@@ -23,7 +23,7 @@ object MendelErrorsCommand extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val ped = Pedigree.read(options.famFilename, vds.sampleIds)
-    val men = MendelErrors(vds, ped)
+    val men = MendelErrors(vds, ped.completeTrios)
 
     val result1 = "rm -rf " + options.output + ".mendel" !;
     val result2 = "rm -rf " + options.output + ".lmendel" !;
