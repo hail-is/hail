@@ -5,7 +5,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
 
-case class MendelError(variant: Variant, sample: Int, code: Int,
+case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
                        gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType)
 
 object MendelErrors {
@@ -28,10 +28,8 @@ object MendelErrors {
     }
   }
 
-  def apply(vds: VariantDataset, ped: Pedigree): MendelErrors = {
-    require(ped.completeTrios.forall(_.sex.isDefined))
-
-    val trios = ped.completeTrios // all incomplete trios are discarded
+  def apply(vds: VariantDataset, trios: Array[CompleteTrio]): MendelErrors = {
+    require(trios.forall(_.sex.isDefined))
 
     val sampleTrioRoles: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](vds.nSamples)(List())
     trios.zipWithIndex.foreach { case (t, ti) =>
@@ -42,8 +40,8 @@ object MendelErrors {
 
     val sc = vds.sparkContext
     val sampleTrioRolesBc = sc.broadcast(sampleTrioRoles)
+    val triosBc = sc.broadcast(trios)
     val trioSexBc = sc.broadcast(trios.flatMap(_.sex))
-    val trioKidBc = sc.broadcast(trios.zipWithIndex.map{ case (t, ti) => (ti, t.kid) }.toMap)
 
     val zeroVal: Array[Array[GenotypeType]] =
       Array.fill[Array[GenotypeType]](trios.size)(Array.fill[GenotypeType](3)(NoCall))
@@ -61,7 +59,7 @@ object MendelErrors {
       a
     }
 
-    new MendelErrors(ped, vds.sampleIds,
+    new MendelErrors(trios, vds.sampleIds,
       vds
       .aggregateByVariantWithKeys(zeroVal)(
         (a, v, s, g) => seqOp(a, s, g),
@@ -71,7 +69,7 @@ object MendelErrors {
           ti => {
             val code = getCode(a(ti), v.isHemizygous(trioSexBc.value(ti)))
             if (code != 0)
-              Some(new MendelError(v, trioKidBc.value(ti), code, a(ti)(0), a(ti)(1), a(ti)(2)))
+              Some(new MendelError(v, triosBc.value(ti), code, a(ti)(0), a(ti)(1), a(ti)(2)))
             else
               None
           }
@@ -82,14 +80,20 @@ object MendelErrors {
   }
 }
 
-case class MendelErrors(ped:          Pedigree,
+case class MendelErrors(trios:        Array[CompleteTrio],
                         sampleIds:    Array[String],
                         mendelErrors: RDD[MendelError]) {
 
   val sc = mendelErrors.sparkContext
-  val dadOf = sc.broadcast(ped.completeTrios.map(t => (t.kid, t.dad)).toMap)
-  val momOf = sc.broadcast(ped.completeTrios.map(t => (t.kid, t.mom)).toMap)
-  val famOf = sc.broadcast(ped.completeTrios.map(t => (t.kid, t.fam)).toMap)
+
+  val nuclearFams: Map[(Int, Int), Iterable[Int]] =
+    trios
+      .map(t => ((t.dad, t.mom), t.kid))
+      .toMap
+      .groupByKey
+
+  val triosBc = sc.broadcast(trios)
+  val famOfBc = sc.broadcast(trios.flatMap(t => t.fam.map(f => (t.kid, f))).toMap)
   val sampleIdsBc = sc.broadcast(sampleIds)
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
@@ -99,22 +103,22 @@ case class MendelErrors(ped:          Pedigree,
   }
 
   def nErrorPerNuclearFamily: RDD[((Int, Int), Int)] = {
-    val parentsRDD = sc.parallelize(ped.nuclearFams.keys.toSeq)
+    val parentsRDD = sc.parallelize(nuclearFams.keys.toSeq)
     mendelErrors
-      .map(me => ((dadOf.value(me.sample), momOf.value(me.sample)), 1))
+      .map(me => ((me.trio.dad, me.trio.mom), 1))
       .union(parentsRDD.map((_, 0)))
       .reduceByKey(_ + _)
   }
 
   def nErrorPerIndiv: RDD[(Int, Int)] = {
-    val indivRDD = sc.parallelize(ped.trioMap.keys.toSeq)
+    val indivRDD = sc.parallelize(trios.flatMap(t => List(t.kid, t.dad, t.mom)).distinct)
     def implicatedSamples(me: MendelError): List[Int] = {
-      val s = me.sample
+      val t = me.trio
       val c = me.code
-      if      (c == 2 || c == 1)                       List(s, dadOf.value(s), momOf.value(s))
-      else if (c == 6 || c == 3)                       List(s, dadOf.value(s))
-      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(s, momOf.value(s))
-      else                                             List(s)
+      if      (c == 2 || c == 1)                       List(t.kid, t.dad, t.mom)
+      else if (c == 6 || c == 3)                       List(t.kid, t.dad)
+      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(t.kid, t.mom)
+      else                                             List(t.kid)
     }
     mendelErrors
       .flatMap(implicatedSamples)
@@ -136,9 +140,9 @@ case class MendelErrors(ped:          Pedigree,
     }
     def toLine(me: MendelError): String = {
       val v = me.variant
-      val s = me.sample
+      val t = me.trio
       val errorString = gtString(v, me.gtDad) + " x " + gtString(v, me.gtMom) + " -> " + gtString(v, me.gtKid)
-      famOf.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + v.contig + "\t" +
+      t.fam.getOrElse("0") + "\t" + sampleIdsBc.value(t.kid) + "\t" + v.contig + "\t" +
         MendelErrors.variantString(v) + "\t" + me.code + "\t" + errorString
     }
     mendelErrors.map(toLine)
@@ -152,11 +156,11 @@ case class MendelErrors(ped:          Pedigree,
   }
 
   def writeMendelF(filename: String) {
-    val nuclearFams = sc.broadcast(ped.nuclearFams.force)
+    val nuclearFamsBc = sc.broadcast(nuclearFams.force)
     def toLine(parents: (Int, Int), nError: Int): String = {
       val (dad, mom) = parents
-      famOf.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
-        nuclearFams.value((dad, mom)).size + "\t" + nError + "\n"
+      famOfBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
+        nuclearFamsBc.value((dad, mom)).size + "\t" + nError + "\n"
     }
     val lines = nErrorPerNuclearFamily.map((toLine _).tupled).collect()
     writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
@@ -164,7 +168,7 @@ case class MendelErrors(ped:          Pedigree,
 
   def writeMendelI(filename: String) {
     def toLine(s: Int, nError: Int): String =
-      famOf.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + nError + "\n"
+      famOfBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + nError + "\n"
     val lines = nErrorPerIndiv.map((toLine _).tupled).collect()
     writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\n")
   }
