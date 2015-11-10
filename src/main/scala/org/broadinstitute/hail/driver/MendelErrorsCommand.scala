@@ -21,12 +21,8 @@ object MendelErrorsCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    val vds = state.vds
-    val ped = Pedigree.read(options.famFilename, vds.sampleIds)
-    val men = MendelErrors(vds, ped.completeTrios)
-
-    val result1 = "rm -rf " + options.output + ".mendel" !;
-    val result2 = "rm -rf " + options.output + ".lmendel" !;
+    val ped = Pedigree.read(options.famFilename, state.vds.sampleIds)
+    val men = MendelErrors(state.vds, ped.completeTrios)
 
     men.writeMendel(options.output + ".mendel")
     men.writeMendelL(options.output + ".lmendel")

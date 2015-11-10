@@ -34,8 +34,6 @@ case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int
 case class CompleteTrio(kid: Int, fam: Option[String], dad: Int, mom: Int, sex: Option[Sex], pheno: Option[Phenotype])
 
 object Pedigree {
-  def apply(trios: Traversable[Trio]): Pedigree =
-    new Pedigree(trios.map(t => t.kid -> t).toMap)
 
   def read(filename: String, sampleIds: Array[String]): Pedigree = {
     require(filename.endsWith(".fam"))
@@ -53,22 +51,18 @@ object Pedigree {
       Trio(sampleIndex(kid), maybeFam(fam), maybeId(dad), maybeId(mom),
         Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
       }
-      .toTraversable
+      .toArray
     )
   }
 }
 
-case class Pedigree(trioMap: Map[Int, Trio]) {
+case class Pedigree(trios: Array[Trio]) {
 
-  def trios = trioMap.values.toArray
-  def completeTrios = trios.flatMap(_.toCompleteTrio)
+  def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
   def nuclearFams: Map[(Int, Int), Iterable[Int]] =
-    completeTrios
-      .map(t => ((t.dad, t.mom), t.kid))
-      .toMap
-      .groupByKey
+    completeTrios.map(t => ((t.dad, t.mom), t.kid)).toMap.groupByKey
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
 
