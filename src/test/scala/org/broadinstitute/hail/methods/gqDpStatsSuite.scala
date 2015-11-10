@@ -31,16 +31,16 @@ class gqDpStatsSuite extends SparkSuite {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].get,
 //          variantMeans(v.start),a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
-        simpleAssert(closeEnough(a.dpSC.mean, variantMeans(v.start)))
-        simpleAssert(closeEnough(a.dpSC.stdev, variantDevs(v.start)))
+        assert(closeEnough(a.dpSC.mean, variantMeans(v.start)))
+        assert(closeEnough(a.dpSC.stdev, variantDevs(v.start)))
     }
 
-      dpSampleR.foreach {
+      dpSampleR.collect().foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        simpleAssert(closeEnough(a.dpSC.mean, sampleMeans(s)))
-        simpleAssert(closeEnough(a.dpSC.stdev, sampleDevs(s)))
+        assert(closeEnough(a.dpSC.mean, sampleMeans(s)))
+        assert(closeEnough(a.dpSC.stdev, sampleDevs(s)))
     }
 
     // now test GQ
@@ -54,16 +54,16 @@ class gqDpStatsSuite extends SparkSuite {
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
 //          .asInstanceOf[Double], variantDevs(v.start)))
 
-        simpleAssert(closeEnough(a.gqSC.mean, variantMeans(v.start)))
-        simpleAssert(closeEnough(a.gqSC.stdev, variantDevs(v.start)))
+        assert(closeEnough(a.gqSC.mean, variantMeans(v.start)))
+        assert(closeEnough(a.gqSC.stdev, variantDevs(v.start)))
     }
 
-    gqSampleR.foreach {
+    gqSampleR.collect().foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        simpleAssert(closeEnough(a.gqSC.mean, sampleMeans(s)))
-        simpleAssert(closeEnough(a.gqSC.stdev, sampleDevs(s)))
+        assert(closeEnough(a.gqSC.mean, sampleMeans(s)))
+        assert(closeEnough(a.gqSC.stdev, sampleDevs(s)))
     }
   }
 }

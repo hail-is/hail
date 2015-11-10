@@ -1,13 +1,14 @@
 package org.broadinstitute.hail.variant.vsm
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.io.LoadVCF
 import org.broadinstitute.hail.variant.{Variant, VariantSampleMatrix}
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
 import scala.util.Random
 import sys.process._
 import scala.language.postfixOps
-import org.broadinstitute.hail.methods.{sSingletonVariants, LoadVCF}
+import org.broadinstitute.hail.methods.sSingletonVariants
 import org.testng.annotations.Test
 
 class VSMSuite extends SparkSuite {

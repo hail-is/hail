@@ -1,10 +1,11 @@
-package org.broadinstitute.hail.methods
+package org.broadinstitute.hail.io
+
+import org.apache.spark.SparkContext
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.vcf
 
 import scala.io.Source
-import org.apache.spark.{SparkConf, SparkContext}
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.vcf
 
 object LoadVCF {
   // FIXME move to VariantDataset
