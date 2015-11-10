@@ -105,9 +105,9 @@ class BgenLoader(file: String, sc: SparkContext) {
       val b = new GenotypeStreamBuilder(variant, compress = false)
 
       for (i <- 0 until localNSamples) {
-        val pAA = bar.readShort() / 32768.0
-        val pAB = bar.readShort() / 32768.0
-        val pBB = bar.readShort() / 32768.0
+        val pAA = bar.readShort()
+        val pAB = bar.readShort()
+        val pBB = bar.readShort()
         var PLs = {
           if (!flip)
             BgenLoader.phredScalePPs(pAA, pAB, pBB)
@@ -233,15 +233,25 @@ object BgenLoader {
     }
   }
 
-  def phredScale(x: Double): Int = ((-10 * math.log10(math.max(x, math.pow(10, -10)))) + .5).toInt
+  def phredScalePPs(probAA: Int, probAB: Int, probBB: Int): (Int, Int, Int) = {
+    if (probAA == 32768 || probBB == 32768 || probAB == 32768) {
+      (if (probAA == 32768) 0 else 48, if (probAB == 32768) 0 else 48, if (probBB == 32768) 0 else 48)
+    }
+    else {
+      val phredDoubles: (Double, Double, Double) = (
+        if (probAA == 0) 48 else -10 * math.log10(probAA),
+        if (probAB == 0) 48 else  -10 * math.log10(probAB),
+        if (probBB == 0) 48 else  -10 * math.log10(probBB))
 
-  def phredScalePPs(probAA: Double, probAB: Double, probBB: Double): (Int, Int, Int) = {
-    val maxValue = math.max(math.max(probAA, probAB), probBB)
-    (phredScale(probAA / maxValue), phredScale(probAB / maxValue), phredScale(probBB / maxValue))
+      val minValue = math.min(math.min(phredDoubles._1, phredDoubles._2), phredDoubles._3)
+      ((phredDoubles._1 - minValue + .5).toInt,
+        (phredDoubles._2 - minValue + .5).toInt,
+        (phredDoubles._3 - minValue + .5).toInt)
+    }
   }
 
   def apply(file: String, sc: SparkContext, vsmType: String = "sparky"): VariantDataset = {
-    require(vsmType == "sparky" | vsmType == "tuple")
+    require(vsmType == "sparky" || vsmType == "tuple")
     val bl = new BgenLoader(file, sc)
 
     val sampleIDs = bl.parseHeaderAndIndex()

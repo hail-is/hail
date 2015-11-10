@@ -12,7 +12,10 @@ import scala.io.Source
 case class SampleInfo(sampleIds: Array[String], pedigree: Pedigree)
 
 object PlinkLoader {
-  def sparseGt(gt: Int): Genotype = Genotype(gt, (0, 0), 0, (0, 0, 0))
+  val sparseGt = Array(Genotype(-1, (0, 0), 0, (0,0,0)),
+    Genotype(0, (0, 0), 0, (0,0,0)),
+    Genotype(1, (0, 0), 0, (0,0,0)),
+    Genotype(2, (0, 0), 0, (0,0,0)))
 
   private def parseFam(famPath: String): SampleInfo = {
     val famFile = new File(famPath)
@@ -86,10 +89,11 @@ object PlinkLoader {
       val bar = new ByteArrayReader(bb.getArray)
       val b = new GenotypeStreamBuilder(variant, compress = false)
       bar.readBytes(bar.length)
-        .flatMap { i => Array(i & 3, (i >> 2) & 3, (i >> 4) & 3, (i >> 6) & 3) }
+        .iterator
+        .flatMap { i => Iterator(i & 3, (i >> 2) & 3, (i >> 4) & 3, (i >> 6) & 3) }
         .map(plinkToHail)
         .take(nSamples)
-        .map(i => b += sparseGt(i))
+        .foreach(i => b += sparseGt(i+1))
       (variant, b.result())
     }
 
