@@ -19,11 +19,11 @@ object LZ4Utils {
   val decompressor = factory.fastDecompressor()
 
   def compress(a: Array[Byte]): Array[Byte] = {
-    val decompLen = a.size
+    val decompLen = a.length
 
     val maxLen = compressor.maxCompressedLength(decompLen)
     val compressed = Array.ofDim[Byte](maxLen)
-    val compressedLen = compressor.compress(a, 0, a.size, compressed, 0, maxLen)
+    val compressedLen = compressor.compress(a, 0, a.length, compressed, 0, maxLen)
 
     compressed.take(compressedLen)
   }
@@ -65,7 +65,7 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
     decompLenOption match {
       case Some(_) => this
       case None =>
-        GenotypeStream(variant, Some(a.size), LZ4Utils.compress(a))
+        GenotypeStream(variant, Some(a.length), LZ4Utils.compress(a))
     }
   }
 }
@@ -91,7 +91,7 @@ class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
   override def result(): GenotypeStream = {
     val a = b.result()
     if (compress)
-      GenotypeStream(variant, Some(a.size), LZ4Utils.compress(a))
+      GenotypeStream(variant, Some(a.length), LZ4Utils.compress(a))
     else
       GenotypeStream(variant, None, a)
   }

@@ -61,48 +61,57 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         }))
     } else {
 
-      // build one biallelic variant and set of genotypes for each alternate allele (except spanning deletions)
+//      build one biallelic variant and set of genotypes for each alternate allele (except spanning deletions)
       val ref = vc.getReference
       val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
-      val altIndices = alts.map(vc.getAlleleIndex) // index in the VCF, used to access AD and PL fields
-      val biVs = alts.map{ alt => Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString) } //FixMe: need to normalize strings
-      val biGBs = alts.map{ _ => new ArrayBuffer[Genotype] }
+//      index in the VCF, used to access AD and PL fields:
+      val altIndices = alts.map(vc.getAlleleIndex)
+//      FIXME: need to normalize strings
+      val biVs = alts.map{ alt => Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true) }
+      val n = vc.getNAlleles
+      val biGBs = Array.fill(n - 1){ new ArrayBuffer[Genotype] }
 
       for (g <- vc.getGenotypes.iterator.asScala) {
+
+        val gadSum = if (g.hasAD) g.getAD.sum else 0
+        val dp = if (g.hasDP) g.getDP else 0
+
         for (((alt, j), i) <- alts.zip(altIndices).zipWithIndex) {
 
-          val gt = if (g.isNoCall)
-            -1
+          val gt = if (g.isCalled)
+//            downcode other alts to ref, preserving the count of this alt:
+            g.getAlleles.asScala.count(_ == alt)
           else
-            g.getAlleles.asScala.count(_ == alt) // downcode other alts to ref, preserving the count of this alt
+            -1
 
           val ad = if (g.hasAD) {
             val gad = g.getAD
-            (gad.sum - gad(j), gad(j)) // consistent with downcoding other alts to the ref
-//            (gad(0), gad(j))  // what bcftools does
-
+//            consistent with downcoding other alts to the ref:
+            (gadSum - gad(j), gad(j))
+//            what bcftools does:
+//            (gad(0), gad(j))
           } else
             (0, 0)
 
-          val dp = if (g.hasDP)
-            g.getDP
-          else
-            0
-
           val pl = if (g.isCalled) {
             if (g.hasPL) {
-              val n = vc.getNAlleles
-              val gpl = g.getPL
+//              for each downcoded genotype, minimum PL among original genotypes that downcode to it:
               def pl(gt: Int) = (for (k <- 0 until n; l <- k until n; if List(k, l).count(_ == j) == gt)
-                yield l * (l + 1) / 2 + k).map(gpl).min
-              (pl(0), pl(1), pl(2))  // for each downcoded genotype, minimum PL among original genotypes that downcode to it
-//            (gpl(0), gpl(j * (j + 1) / 2), gpl(j * (j + 1) / 2 + j))  // what bcftools does; ignores all het-non-ref PLs
+                yield l * (l + 1) / 2 + k).map(g.getPL.apply).min
+              (pl(0), pl(1), pl(2))
+//            what bcftools does; ignores all het-non-ref PLs
+//            val gpl = g.getPL
+//            (gpl(0), gpl(j * (j + 1) / 2), gpl(j * (j + 1) / 2 + j))
             } else
               (0,0,0)
           } else
             null
 
-          biGBs(i) += Genotype(gt, ad, dp, pl)
+
+          val fakeRef: Boolean =
+            g.isCalled && g.getAlleles.asScala.count(_ == ref) != 2 - gt
+
+          biGBs(i) += Genotype(gt, ad, dp, pl, fakeRef)
         }
       }
       biVs.iterator.zip(biGBs.iterator.map(_.iterator))

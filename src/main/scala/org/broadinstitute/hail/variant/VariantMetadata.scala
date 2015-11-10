@@ -8,12 +8,12 @@ object VariantMetadata {
     vcfHeader: Array[String]): VariantMetadata = VariantMetadata(contigLength, sampleIds, Some(vcfHeader))
 }
 
-case class VariantMetadata(val contigLength: Map[String, Int],
-  val sampleIds: Array[String],
-  val vcfHeader: Option[Array[String]]) {
+case class VariantMetadata(contigLength: Map[String, Int],
+  sampleIds: Array[String],
+  vcfHeader: Option[Array[String]]) {
 
   def nContigs: Int = contigLength.size
-  def nSamples: Int = sampleIds.size
+  def nSamples: Int = sampleIds.length
   def vcfVersion: Option[String] = vcfHeader
   .map(lines => {
     val versionRegex = """^##fileformat=(.*)$""".r
