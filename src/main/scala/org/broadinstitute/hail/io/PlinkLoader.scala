@@ -84,12 +84,12 @@ object PlinkLoader {
     (Variant, GenotypeStream) = {
       val variant = variantsBc.value(bb.getIndex)
       val bar = new ByteArrayReader(bb.getArray)
-      val b = new GenotypeStreamBuilder(variant)
+      val b = new GenotypeStreamBuilder(variant, compress = false)
       bar.readBytes(bar.length)
         .flatMap { i => Array(i & 3, (i >> 2) & 3, (i >> 4) & 3, (i >> 6) & 3) }
         .map(plinkToHail)
         .take(nSamples)
-        .map(i => b.+=(sparseGt(i)))
+        .map(i => b += sparseGt(i))
       (variant, b.result())
     }
 

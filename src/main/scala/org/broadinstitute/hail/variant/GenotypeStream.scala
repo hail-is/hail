@@ -79,8 +79,6 @@ class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
     this
   }
 
-  def += (g: Genotype): GenotypeStreamBuilder.this.type = { g.write(b); this }
-
   override def clear() {
     b.clear()
   }

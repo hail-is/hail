@@ -102,7 +102,7 @@ class BgenLoader(file: String, sc: SparkContext) {
       assert(bytes.length == nRow * 6)
 
       val bar = new ByteArrayReader(bytes)
-      val b = new GenotypeStreamBuilder(variant)
+      val b = new GenotypeStreamBuilder(variant, compress = false)
 
       for (i <- 0 until localNSamples) {
         val pAA = bar.readShort() / 32768.0
@@ -118,7 +118,7 @@ class BgenLoader(file: String, sc: SparkContext) {
         val gtCall = BgenLoader.parseGenotype(PLs)
         PLs = if (gtCall == -1) null else PLs
         val gt = Genotype(gtCall, (0, 0), 0, PLs) // FIXME missing data for stuff
-        b.+=((0, gt))
+        b += gt
       }
       (variant, b.result())
     }
