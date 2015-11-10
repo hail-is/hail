@@ -6,11 +6,34 @@ import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
 
 case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
-                       gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType)
+                       gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType) {
+
+  def gtString(v: Variant, gt: GenotypeType): String =
+    if (gt == HomRef)
+      v.ref + "/" + v.ref
+    else if (gt == Het)
+      v.ref + "/" + v.alt
+    else if (gt == HomVar)
+      v.alt + "/" + v.alt
+    else
+      "./."
+
+  def implicatedSamples: List[Int] =
+    if      (code == 2 || code == 1)                             List(trio.kid, trio.dad, trio.mom)
+    else if (code == 6 || code == 3)                             List(trio.kid, trio.dad)
+    else if (code == 4 || code == 7 || code == 9 || code == 10)  List(trio.kid, trio.mom)
+    else                                                         List(trio.kid)
+
+  def toLineMendel(sampleIds: Array[String]): String = {
+    val v = variant
+    val t = trio
+    val errorString = gtString(v, gtDad) + " x " + gtString(v, gtMom) + " -> " + gtString(v, gtKid)
+    t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + v.contig + "\t" +
+      v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + code + "\t" + errorString
+  }
+}
 
 object MendelErrors {
-
-  def variantString(v: Variant): String = v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt
 
   def getCode(gts: Array[GenotypeType], isHemizygous: Boolean): Int = {
     (gts(1), gts(2), gts(0), isHemizygous) match { // gtDad, gtMom, gtKid, isHemizygous
@@ -88,9 +111,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
 
   val nuclearFams = trios.map(t => ((t.dad, t.mom), t.kid)).toMap.groupByKey.force
 
-  val triosBc = sc.broadcast(trios)
-  val famOfBc = sc.broadcast(trios.flatMap(t => t.fam.map(f => (t.kid, f))).toMap)
-  val sampleIdsBc = sc.broadcast(sampleIds)
+  val famOf = trios.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
     mendelErrors
@@ -108,64 +129,43 @@ case class MendelErrors(trios:        Array[CompleteTrio],
 
   def nErrorPerIndiv: RDD[(Int, Int)] = {
     val indivRDD = sc.parallelize(trios.flatMap(t => List(t.kid, t.dad, t.mom)).distinct)
-    def implicatedSamples(me: MendelError): List[Int] = {
-      val t = me.trio
-      val c = me.code
-      if      (c == 2 || c == 1)                       List(t.kid, t.dad, t.mom)
-      else if (c == 6 || c == 3)                       List(t.kid, t.dad)
-      else if (c == 4 || c == 7 || c == 9 || c == 10)  List(t.kid, t.mom)
-      else                                             List(t.kid)
-    }
     mendelErrors
-      .flatMap(implicatedSamples)
+      .flatMap(_.implicatedSamples)
       .map((_, 1))
       .union(indivRDD.map((_, 0)))
       .reduceByKey(_ + _)
   }
 
   def writeMendel(filename: String) {
-    def gtString(v: Variant, gt: GenotypeType): String = {
-      if (gt == HomRef)
-        v.ref + "/" + v.ref
-      else if (gt == Het)
-        v.ref + "/" + v.alt
-      else if (gt == HomVar)
-        v.alt + "/" + v.alt
-      else
-        "./."
-    }
-    def toLine(me: MendelError): String = {
-      val v = me.variant
-      val t = me.trio
-      val errorString = gtString(v, me.gtDad) + " x " + gtString(v, me.gtMom) + " -> " + gtString(v, me.gtKid)
-      t.fam.getOrElse("0") + "\t" + sampleIdsBc.value(t.kid) + "\t" + v.contig + "\t" +
-        MendelErrors.variantString(v) + "\t" + me.code + "\t" + errorString
-    }
-    mendelErrors.map(toLine)
+    val sampleIdsBc = sc.broadcast(sampleIds)
+    mendelErrors.map(_.toLineMendel(sampleIdsBc.value))
       .writeTable(filename, "FID\tKID\tCHR\tSNP\tCODE\tERROR\n")
   }
 
   def writeMendelL(filename: String) {
-    def toLine(v: Variant, nError: Int) = v.contig + "\t" + MendelErrors.variantString(v) + "\t" + nError
-    nErrorPerVariant.map((toLine _).tupled)
+    nErrorPerVariant.map{ case (v, n) =>
+      v.contig + "\t" + v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + n
+      }
       .writeTable(filename, "CHR\tSNP\tN\n")
   }
 
   def writeMendelF(filename: String) {
+    val famOfBc = sc.broadcast(famOf)
     val nuclearFamsBc = sc.broadcast(nuclearFams)
-    def toLine(parents: (Int, Int), nError: Int): String = {
-      val (dad, mom) = parents
+    val sampleIdsBc = sc.broadcast(sampleIds)
+    val lines = nErrorPerNuclearFamily.map{ case ((dad, mom), n) =>
       famOfBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
-        nuclearFamsBc.value((dad, mom)).size + "\t" + nError + "\n"
-    }
-    val lines = nErrorPerNuclearFamily.map((toLine _).tupled).collect()
+        nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\n"
+      }.collect()
     writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
   }
 
   def writeMendelI(filename: String) {
-    def toLine(s: Int, nError: Int): String =
-      famOfBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + nError + "\n"
-    val lines = nErrorPerIndiv.map((toLine _).tupled).collect()
+    val famOfBc = sc.broadcast(famOf)
+    val sampleIdsBc = sc.broadcast(sampleIds)
+    val lines = nErrorPerIndiv.map { case (s, n) =>
+      famOfBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + n + "\n"
+      }.collect()
     writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\n")
   }
 }

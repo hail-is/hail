@@ -208,6 +208,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def writeTable(filename: String, header: String = null) {
     if (header != null)
       writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
     r.saveAsTextFile(filename)
   }
 }
