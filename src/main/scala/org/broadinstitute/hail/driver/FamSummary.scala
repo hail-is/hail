@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.methods.Pedigree
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object FamSummaryCommand extends Command {
+object FamSummary extends Command {
   def name = "famsummary"
   def description = "Summarize a .fam file"
 

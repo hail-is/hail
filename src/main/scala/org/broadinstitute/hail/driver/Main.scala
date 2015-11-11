@@ -60,7 +60,7 @@ object Main {
       Cache,
       Count,
       FilterGenotypes,
-      FamSummaryCommand,
+      FamSummary,
       FilterVariants,
       FilterSamples,
       GQByDP,
