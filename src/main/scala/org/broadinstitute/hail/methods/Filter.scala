@@ -1,15 +1,13 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.driver.Sample
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.{Genotype, Variant}
+import org.broadinstitute.hail.Utils
+import org.broadinstitute.hail.variant.{Sample, Genotype, Variant}
 import scala.reflect.ClassTag
 import scala.language.implicitConversions
 
 class FilterString(val s: String) extends AnyVal {
   def ~(t: String): Boolean = s.r.findFirstIn(t).isDefined
+
   def !~(t: String): Boolean = !this.~(t)
 }
 
@@ -17,54 +15,47 @@ object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
 }
 
-class ConditionPredicate[T](sym: String,
-  condition: String)(implicit tct: ClassTag[T]) extends Serializable {
-  @transient var p: (T) => Boolean = null
+class Evaluator[T <: Serializable](t: String)(implicit tct: ClassTag[T])
+  extends Serializable {
+  @transient var p: Option[T] = None
 
-  def compile(typeCheck: Boolean) {
-    if (p == null) {
-      printTime {
-        val toolbox = currentMirror.mkToolBox()
-        val ast = toolbox.parse("(" + sym + ": " + tct.runtimeClass.getCanonicalName + ") => { " +
-          "import org.broadinstitute.hail.driver.FilterUtils._; " + condition + " }: Boolean")
-        if (typeCheck)
-          toolbox.typeCheck(ast)
-        p = toolbox.eval(ast).asInstanceOf[(T) => Boolean]
-      }
-    }
+  def typeCheck() {
+    require(p.isEmpty)
+    p = Some(Utils.eval[T](t))
   }
 
-  def apply(v: T): Boolean = {
-    compile(false)
-    val r = p(v)
-    // println("v = " + v + " " + r)
-    r
+  def eval(): T = p match {
+    case Some(v) => v
+    case None =>
+      val v = Utils.eval[T](t)
+      p = Some(v)
+      v
   }
 }
 
-class GenotypeConditionPredicate[T](condition: String) extends Serializable {
-  @transient var p: (Variant, Sample, Genotype) => Boolean = null
+class FilterVariantCondition(cond: String)
+  extends Evaluator[(Variant) => Boolean](
+    "(v: Variant) => { " +
+      "import org.broadinstitute.hail.driver.FilterUtils._; " +
+      cond + " }: Boolean") {
+  def apply(v: Variant): Boolean = eval()(v)
+}
 
-  def compile(typeCheck: Boolean) {
-    if (p == null) {
-      printTime {
-        val toolbox = currentMirror.mkToolBox()
-        val ast = toolbox.parse("(v: org.broadinstitute.hail.variant.Variant, " +
-          "s: Sample, " +
-          "g: org.broadinstitute.hail.variant.Genotype) => { " +
-          "import org.broadinstitute.hail.driver.FilterUtils._; " +
-          condition + " }: Boolean")
-        if (typeCheck)
-          toolbox.typeCheck(ast)
-        p = toolbox.eval(ast).asInstanceOf[(Variant, Sample, Genotype) => Boolean]
-      }
-    }
-  }
+class FilterSampleCondition(cond: String)
+  extends Evaluator[(Sample) => Boolean](
+    "(s: Sample) => { " +
+      "import org.broadinstitute.hail.driver.FilterUtils._; " +
+      cond + " }: Boolean") {
+  def apply(s: Sample): Boolean = eval()(s)
+}
 
-  def apply(v: Variant, s: Sample, g: Genotype): Boolean = {
-    compile(false)
-    val r = p(v, s, g)
-    // println("v = " + v + " " + r)
-    r
-  }
+class FilterGenotypeCondition(cond: String)
+  extends Evaluator[(Variant, Sample, Genotype) => Boolean](
+    "(v: org.broadinstitute.hail.variant.Variant, " +
+      "s: Sample, " +
+      "g: org.broadinstitute.hail.variant.Genotype) => { " +
+      "import org.broadinstitute.hail.driver.FilterUtils._; " +
+      cond + " }: Boolean") {
+  def apply(v: Variant, s: Sample, g: Genotype): Boolean =
+    eval()(v, s, g)
 }

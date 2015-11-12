@@ -38,8 +38,8 @@ object FilterVariants extends Command {
         (v: Variant) => ilist.contains(v.contig, v.start)
       case c: String =>
         try {
-          val cf = new ConditionPredicate[Variant]("v", c)
-          cf.compile(true)
+          val cf = new FilterVariantCondition(c)
+          cf.typeCheck()
           cf.apply
         } catch {
           case e: scala.tools.reflect.ToolBoxError =>

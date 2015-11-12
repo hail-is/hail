@@ -1,14 +1,11 @@
 package org.broadinstitute.hail.driver
 
-import java.io.File
-
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.io.Source
-
-case class Sample(id: String)
 
 object FilterSamples extends Command {
 
@@ -48,8 +45,8 @@ object FilterSamples extends Command {
         samples.contains(_)
       case c: String =>
         try {
-          val cf = new ConditionPredicate[Sample]("s", c)
-          cf.compile(true)
+          val cf = new FilterSampleCondition(c)
+          cf.typeCheck()
 
           val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
           (s: Int) => cf(Sample(sampleIdsBc.value(s)))

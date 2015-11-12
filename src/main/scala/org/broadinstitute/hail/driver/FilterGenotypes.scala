@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant.{Variant, Genotype}
+import org.broadinstitute.hail.variant.{Variant, Genotype, Sample}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object FilterGenotypes extends Command {
@@ -32,8 +32,8 @@ object FilterGenotypes extends Command {
       fatal(name + ": one of `--keep' or `--remove' required")
 
     val p: (Variant, Sample, Genotype) => Boolean = try {
-      val cf = new GenotypeConditionPredicate(options.condition)
-      cf.compile(true)
+      val cf = new FilterGenotypeCondition(options.condition)
+      cf.typeCheck()
       if (options.keep)
         cf.apply
       else

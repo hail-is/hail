@@ -13,6 +13,8 @@ import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVect
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
+import scala.reflect.runtime.currentMirror
+import scala.tools.reflect.ToolBox
 
 // FIXME AnyVal in Scala 2.11
 class RichVector[T](v: Vector[T]) {
@@ -489,4 +491,11 @@ object Utils {
 
   def flushDouble(a: Double):Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
+
+  def eval[T](t: String): T = {
+    val toolbox = currentMirror.mkToolBox()
+    val ast = toolbox.parse(t)
+    toolbox.typeCheck(ast)
+    toolbox.eval(ast).asInstanceOf[T]
+  }
 }
