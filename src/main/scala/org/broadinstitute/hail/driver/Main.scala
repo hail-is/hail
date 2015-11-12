@@ -59,6 +59,7 @@ object Main {
     val commands = Array(
       Cache,
       Count,
+      FilterGenotypes,
       FilterVariants,
       FilterSamples,
       GQByDP,
