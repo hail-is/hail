@@ -54,21 +54,22 @@ object Pedigree {
       .toArray
     )
   }
+
+  // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
+  def nuclearFams(completeTrios: Array[CompleteTrio]): Map[(Int, Int), Array[Int]] =
+    completeTrios.map(t => ((t.dad, t.mom), t.kid)).groupBy(_._1).mapValues(_.map(_._2)).force
 }
 
 case class Pedigree(trios: Array[Trio]) {
 
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
-  // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
-  def nuclearFams: Map[(Int, Int), Iterable[Int]] =
-    completeTrios.map(t => ((t.dad, t.mom), t.kid)).toMap.groupByKey
-
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
 
   def writeSummary(filename: String, hConf: hadoop.conf.Configuration) = {
     val columns = List(
-      ("nIndiv", trios.length), ("nCompleteTrios", completeTrios.length), ("nNuclearFams", nuclearFams.size),
+      ("nIndiv", trios.length), ("nTrios", completeTrios.length),
+      ("nNuclearFams", Pedigree.nuclearFams(completeTrios).size),
       ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
       ("nCase", nSatisfying(_.isCase)), ("nControl", nSatisfying(_.isControl)),
       ("nMaleTrio", nSatisfying(_.isComplete, _.isMale)),

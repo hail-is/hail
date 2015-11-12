@@ -66,7 +66,7 @@ object MendelErrors {
     val triosBc = sc.broadcast(trios)
     val trioSexBc = sc.broadcast(trios.flatMap(_.sex))
 
-    val zeroVal: Array[Array[GenotypeType]] =
+    val zeroVal: Array[Array[GenotypeType]] = // FIXME: change to MultiArray2 once available
       Array.fill[Array[GenotypeType]](trios.size)(Array.fill[GenotypeType](3)(NoCall))
 
     def seqOp(a: Array[Array[GenotypeType]], s: Int, g: Genotype): Array[Array[GenotypeType]] = {
@@ -75,8 +75,7 @@ object MendelErrors {
     }
 
     def mergeOp(a: Array[Array[GenotypeType]], b: Array[Array[GenotypeType]]): Array[Array[GenotypeType]] = {
-      for (ti <- a.indices)
-        for (ri <- 0 to 2)
+      for (ti <- a.indices; ri <- 0 until 3)
           if (b(ti)(ri) != NoCall)
             a(ti)(ri) = b(ti)(ri)
       a
@@ -88,14 +87,12 @@ object MendelErrors {
         (a, v, s, g) => seqOp(a, s, g),
         mergeOp)
       .flatMap{ case (v, a) =>
-        a.indices.flatMap{
-          ti => {
-            val code = getCode(a(ti), v.isHemizygous(trioSexBc.value(ti)))
-            if (code != 0)
-              Some(new MendelError(v, triosBc.value(ti), code, a(ti)(0), a(ti)(1), a(ti)(2)))
-            else
-              None
-          }
+        a.zipWithIndex.flatMap{ case (ati, ti) =>
+          val code = getCode(ati, v.isHemizygous(trioSexBc.value(ti)))
+          if (code != 0)
+            Some(new MendelError(v, triosBc.value(ti), code, ati(0), ati(1), ati(2)))
+          else
+            None
         }
       }
       .cache()
@@ -108,10 +105,8 @@ case class MendelErrors(trios:        Array[CompleteTrio],
                         mendelErrors: RDD[MendelError]) {
 
   val sc = mendelErrors.sparkContext
-
-  val nuclearFams = trios.map(t => ((t.dad, t.mom), t.kid)).toMap.groupByKey.force
-
   val famOf = trios.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
+  val nuclearFams = Pedigree.nuclearFams(trios)
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
     mendelErrors
