@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.variant
 
+import org.apache.commons.math3.distribution.BinomialDistribution
 import org.scalacheck.{Gen, Arbitrary}
 
 import scala.language.implicitConversions
@@ -104,6 +105,15 @@ case class Genotype(private val gt: Int,
     }
 
     b.result()
+  }
+
+  def pAB(theta: Double = 0.5): Double = {
+    val (refDepth, altDepth) = ad
+    val d = new BinomialDistribution(refDepth + altDepth, theta)
+    val minDepth = refDepth.min(altDepth)
+    val minp = d.probability(minDepth)
+    val mincp = d.cumulativeProbability(minDepth)
+    (2 * mincp - minp).min(1.0).max(0.0)
   }
 
   def gtString(v: Variant): String = {

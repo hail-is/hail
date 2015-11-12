@@ -17,7 +17,6 @@ object SampleQCCombiner {
     "nHomRef\t" +
     "nHet\t" +
     "nHomVar\t" +
-    "alleleBalance\t" +
     "nSNP\t" +
     "nInsertion\t" +
     "nDeletion\t" +
@@ -152,14 +151,6 @@ class SampleQCCombiner extends Serializable {
     this
   }
 
-  def pAB: Double = {
-    val d = new BinomialDistribution(refDepth + altDepth, 0.5)
-    val minDepth = refDepth.min(altDepth)
-    val minp = d.probability(minDepth)
-    val mincp = d.cumulativeProbability(minDepth)
-    (2 * mincp - minp).min(1.0).max(0.0)
-  }
-
   def emitSC(sb: mutable.StringBuilder, sc: StatCounter) {
     sb.tsvAppend(someIf(sc.count > 0, sc.mean))
     sb += '\t'
@@ -178,9 +169,6 @@ class SampleQCCombiner extends Serializable {
     sb.append(nHet)
     sb += '\t'
     sb.append(nHomVar)
-    sb += '\t'
-
-    sb.append(pAB)
     sb += '\t'
 
     sb.append(nSNP)

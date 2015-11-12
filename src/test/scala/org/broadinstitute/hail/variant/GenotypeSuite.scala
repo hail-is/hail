@@ -4,6 +4,7 @@ import org.scalacheck.Properties
 import org.scalacheck.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
+import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 
@@ -61,7 +62,7 @@ class GenotypeSuite extends TestNGSuite {
     assert(!het.isNotCalled && het.isCalled && !het.isHomRef && het.isHet && !het.isHomVar)
     assert(!homVar.isNotCalled && homVar.isCalled && !homVar.isHomRef && !homVar.isHet && homVar.isHomVar)
 
-    assert(noCall.call == None)
+    assert(noCall.call.isEmpty)
     assert(homRef.call.isDefined)
     assert(het.call.isDefined)
     assert(homVar.call.isDefined)
@@ -70,6 +71,10 @@ class GenotypeSuite extends TestNGSuite {
     testReadWrite(homRef)
     testReadWrite(het)
     testReadWrite(homVar)
+
+    assert(D_==(Genotype(-1, (0, 0), 0, null).pAB(), 1.0))
+    assert(D_==(Genotype(1, (16, 16), 33, (100, 0, 100)).pAB(), 1.0))
+    assert(D_==(Genotype(1, (5, 8), 13, (200, 0, 100)).pAB(), 0.423950))
 
     Spec.check
   }
