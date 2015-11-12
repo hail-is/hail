@@ -15,7 +15,7 @@ object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
 }
 
-class Evaluator[T <: Serializable](t: String)(implicit tct: ClassTag[T])
+class Evaluator[T](t: String)(implicit tct: ClassTag[T])
   extends Serializable {
   @transient var p: Option[T] = None
 
