@@ -105,7 +105,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
                         mendelErrors: RDD[MendelError]) {
 
   val sc = mendelErrors.sparkContext
-  val famOf = trios.iterator.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
+  val trioFam = trios.iterator.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
   val nuclearFams = Pedigree.nuclearFams(trios)
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {
@@ -145,21 +145,21 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   }
 
   def writeMendelF(filename: String) {
-    val famOfBc = sc.broadcast(famOf)
+    val trioFamBc = sc.broadcast(trioFam)
     val nuclearFamsBc = sc.broadcast(nuclearFams)
     val sampleIdsBc = sc.broadcast(sampleIds)
     val lines = nErrorPerNuclearFamily.map{ case ((dad, mom), n) =>
-      famOfBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
+      trioFamBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
         nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\n"
       }.collect()
     writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
   }
 
   def writeMendelI(filename: String) {
-    val famOfBc = sc.broadcast(famOf)
+    val trioFamBc = sc.broadcast(trioFam)
     val sampleIdsBc = sc.broadcast(sampleIds)
     val lines = nErrorPerIndiv.map { case (s, n) =>
-      famOfBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + n + "\n"
+      trioFamBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + n + "\n"
       }.collect()
     writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\n")
   }
