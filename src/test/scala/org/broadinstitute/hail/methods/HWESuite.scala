@@ -11,7 +11,7 @@ class HWESuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/HWE_test.vcf")
 
-    val r = VariantQC.results(vds).map { case (v, a) => (v.start, a.levineHaldaneStats) }.collectAsMap()
+    val r = VariantQC.results(vds).map { case (v, a) => (v.start, a.HWEStats) }.collectAsMap()
 
     assert(r(1) == (Some(0.0), 0.5))
     assert(r(2) == (Some(0.25), 0.5))

@@ -107,7 +107,7 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(someIf(sc.count > 0, sc.stdev))
   }
 
-  def levineHaldaneStats: (Option[Double], Double) = {
+  def HWEStats: (Option[Double], Double) = {
     // rExpectedHetFrequency, pHWE
     val n = nHomRef + nHet + nHomVar
     val nAB = nHet
@@ -167,9 +167,9 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nHet, nHomVar))
     sb += '\t'
 
-    val lh = levineHaldaneStats
-    sb.tsvAppend(lh._1)
-    sb.append(lh._2)
+    val hwe = HWEStats
+    sb.tsvAppend(hwe._1)
+    sb.append(hwe._2)
   }
 }
 
