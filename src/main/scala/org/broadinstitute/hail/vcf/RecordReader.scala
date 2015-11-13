@@ -39,7 +39,7 @@ case class VCFGenotype(gt: Option[Array[Int]] = None,
     // FIXME
     val gt2 = gt match {
       case Some(a) =>
-        assert(a.size == 2)
+        assert(a.length == 2)
         (if (a(0) != 0) 1 else 0) +
           (if (a(1) != 0) 1 else 0)
       case None => -1
@@ -47,7 +47,7 @@ case class VCFGenotype(gt: Option[Array[Int]] = None,
 
     val ad2 = ad match {
       case Some(a) =>
-        assert(a.size == 2)
+        assert(a.length == 2)
         (a(0), a(1))
       case None => (0, 0)
     }
@@ -56,7 +56,7 @@ case class VCFGenotype(gt: Option[Array[Int]] = None,
 
     val pl2 = pl match {
       case Some(a) =>
-        assert(a.size == 3)
+        assert(a.length == 3)
         (a(0), a(1), a(2))
       case None =>
         null
@@ -212,7 +212,7 @@ class RecordReader(header: Header) extends AbstractRecordReader {
     }
   }
 
-  override def readRecord(line: String): Option[(Variant, Iterator[Genotype])] = {
+  override def readRecord(line: String): Iterator[(Variant, Iterator[Genotype])] = {
     var i = 0
     var tabs = 0
     while (tabs < 9) {
@@ -236,11 +236,11 @@ class RecordReader(header: Header) extends AbstractRecordReader {
 
       val variant = vcfVariant.toVariant
 
-      Some((variant,
+      Iterator.single((variant,
         for (g <- vcfGenotypes)
           yield g.toGenotype))
     } else
-      None
+      Iterator.empty
   }
 }
 
