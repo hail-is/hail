@@ -105,7 +105,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
                         mendelErrors: RDD[MendelError]) {
 
   val sc = mendelErrors.sparkContext
-  val famOf = trios.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
+  val famOf = trios.iterator.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
   val nuclearFams = Pedigree.nuclearFams(trios)
 
   def nErrorPerVariant: RDD[(Variant, Int)] = {

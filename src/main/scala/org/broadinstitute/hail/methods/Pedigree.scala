@@ -57,7 +57,7 @@ object Pedigree {
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
   def nuclearFams(completeTrios: Array[CompleteTrio]): Map[(Int, Int), Array[Int]] =
-    completeTrios.map(t => ((t.dad, t.mom), t.kid)).groupBy(_._1).mapValues(_.map(_._2)).force
+    completeTrios.groupBy(t => (t.dad, t.mom)).mapValues(_.map(_.kid)).force
 }
 
 case class Pedigree(trios: Array[Trio]) {
