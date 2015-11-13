@@ -108,7 +108,7 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    require(ped.phenoDefinedForAll)
+    require(ped.trios.forall(_.pheno.isDefined))
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
     val n = cov.data.rows
@@ -122,7 +122,8 @@ object LinearRegression {
     val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    val yArray = (0 until n).map(cr => ped.phenoOf(cov.covRowSample(cr)).toString.toDouble).toArray
+    val samplePheno = ped.samplePheno
+    val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
     val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
