@@ -33,10 +33,11 @@ case class Genotype(private val gt: Int,
   private def minPl: (Int, Int) = pl.remove(gt + 1)
 
   def write(b: mutable.ArrayBuilder[Byte]) {
-    val writeDp = ad._1 + ad._2 != dp
+    // val writeDp = ad._1 + ad._2 != dp
     val writeAd2 = gt != 0 || ad._2 != 0
-    b += ((if (writeDp) 0x08 else 0)
-      | (if (writeAd2) 0x10 else 0)
+
+    // (if (writeDp) 0x08 else 0)
+    b += ((if (writeAd2) 0x10 else 0)
       | (gt & 7)).toByte
     if (gt != -1) {
       val (pl1, pl2) = minPl
@@ -46,8 +47,7 @@ case class Genotype(private val gt: Int,
     b.writeULEB128(ad._1)
     if (writeAd2)
       b.writeULEB128(ad._2)
-    if (writeDp)
-      b.writeULEB128(dp - (ad._1 + ad._2))
+    b.writeULEB128(dp - (ad._1 + ad._2))
   }
 
   def isHomRef: Boolean = gt == 0
@@ -133,7 +133,7 @@ object Genotype {
     val b = a.next()
 
     val gt = (b << 29) >> 29
-    val writeDp = (b & 0x08) != 0
+    // val writeDp = (b & 0x08) != 0
     val writeAd2 = (b & 0x10) != 0
 
     val pl =
@@ -152,11 +152,8 @@ object Genotype {
       else
         0
 
-    val dpDelta =
-      if (writeDp)
-        a.readULEB128()
-      else
-        0
+    // if (writeDp)
+    val dpDelta = a.readULEB128()
 
     Genotype(gt, (ad1, ad2), ad1 + ad2 + dpDelta, pl)
   }
