@@ -47,7 +47,7 @@ case class Genotype(private val gt: Int,
     b.writeULEB128(ad._1)
     if (writeAd2)
       b.writeULEB128(ad._2)
-    b.writeULEB128(dp - (ad._1 + ad._2))
+    b.writeULEB128(dp)
   }
 
   def isHomRef: Boolean = gt == 0
@@ -152,10 +152,10 @@ object Genotype {
       else
         0
 
-    // if (writeDp)
-    val dpDelta = a.readULEB128()
+    // val dpDelta = if (writeDp) ...
+    val dp = a.readULEB128()
 
-    Genotype(gt, (ad1, ad2), ad1 + ad2 + dpDelta, pl)
+    Genotype(gt, (ad1, ad2), dp, pl)
   }
 
   implicit def arbGenotype: Arbitrary[Genotype] = Arbitrary {
