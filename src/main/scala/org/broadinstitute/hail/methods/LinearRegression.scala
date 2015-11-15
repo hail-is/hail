@@ -135,7 +135,7 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
 
     new LinearRegression(vds
-      .filterSamples(samplesWithCovDataBc.value.contains)
+      .filterSamples { case (s, sa) => samplesWithCovDataBc.value.contains(s) }
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
         (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))

@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object FilterVariants extends Command {
@@ -32,13 +33,14 @@ object FilterVariants extends Command {
       fatal(name + ": one of `--keep' or `--remove' required")
 
     val cond = options.condition
-    val p: (Variant) => Boolean = cond match {
+    val vas = vds.metadata.variantAnnotationSignatures
+    val p: (Variant, Annotations[String]) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition)
-        (v: Variant) => ilist.contains(v.contig, v.start)
+        (v: Variant, va: Annotations[String]) => ilist.contains(v.contig, v.start)
       case c: String =>
         try {
-          val cf = new FilterVariantCondition(c)
+          val cf = new FilterVariantCondition(c, vas)
           cf.typeCheck()
           cf.apply
         } catch {
@@ -54,8 +56,7 @@ object FilterVariants extends Command {
     val newVDS = vds.filterVariants(if (options.keep)
       p
     else
-      (v: Variant) => !p(v))
-
+      (v: Variant, va: Annotations[String]) => !p(v, va))
     state.copy(vds = newVDS)
   }
 }

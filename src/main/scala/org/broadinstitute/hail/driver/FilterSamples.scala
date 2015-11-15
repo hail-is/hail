@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.io.Source
@@ -29,6 +30,7 @@ object FilterSamples extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+    val sas: AnnotationSignatures = state.vds.metadata.sampleAnnotationSignatures
 
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
@@ -42,14 +44,14 @@ object FilterSamples extends Command {
           .filter(line => !line.isEmpty)
           .map(indexOfSample)
           .toSet
-        samples.contains(_)
+        (s: Int, sa: AnnotationData) => samples.contains(s)
       case c: String =>
         try {
-          val cf = new FilterSampleCondition(c)
+          val cf = new FilterSampleCondition(c, sas)
           cf.typeCheck()
 
           val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-          (s: Int) => cf(Sample(sampleIdsBc.value(s)))
+          (s: Int, sa: AnnotationData) => cf(Sample(sampleIdsBc.value(s)), state.vds.metadata.sampleAnnotations(s))
         } catch {
           case e: scala.tools.reflect.ToolBoxError =>
             /* e.message looks like:
@@ -63,7 +65,7 @@ object FilterSamples extends Command {
     val newVDS = vds.filterSamples(if (options.keep)
       p
     else
-      (s: Int) => !p(s))
+      (s: Int, sa: AnnotationData) => !p(s, sa))
 
     state.copy(vds = newVDS)
   }

@@ -489,7 +489,6 @@ object Utils {
   def D_>=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
     a - b >= -D_epsilon(a, b, tolerance)
 
-
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 

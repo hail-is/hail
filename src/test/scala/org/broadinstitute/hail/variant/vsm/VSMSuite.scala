@@ -111,7 +111,7 @@ class VSMSuite extends SparkSuite {
 
       val localKeep = keep
       val filtered = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
-        .filterSamples(s => localKeep(s))
+        .filterSamples((s, sa) => localKeep(s))
 
       val filteredAsMap = filtered.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
       filteredAsMap.foreach { case (k, g) => simpleAssert(vdsAsMap(k) == g) }
