@@ -18,11 +18,11 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     else
       "./."
 
-  def implicatedSamples: List[Int] =
-    if      (code == 2 || code == 1)                             List(trio.kid, trio.dad, trio.mom)
-    else if (code == 6 || code == 3)                             List(trio.kid, trio.dad)
-    else if (code == 4 || code == 7 || code == 9 || code == 10)  List(trio.kid, trio.mom)
-    else                                                         List(trio.kid)
+  def implicatedSamples: Iterator[Int] =
+    if      (code == 2 || code == 1)                             Iterator(trio.kid, trio.dad, trio.mom)
+    else if (code == 6 || code == 3)                             Iterator(trio.kid, trio.dad)
+    else if (code == 4 || code == 7 || code == 9 || code == 10)  Iterator(trio.kid, trio.mom)
+    else                                                         Iterator(trio.kid)
 
   def toLineMendel(sampleIds: Array[String]): String = {
     val v = variant
@@ -64,7 +64,8 @@ object MendelErrors {
     val sc = vds.sparkContext
     val sampleTrioRolesBc = sc.broadcast(sampleTrioRoles)
     val triosBc = sc.broadcast(trios)
-    val trioSexBc = sc.broadcast(trios.flatMap(_.sex))
+    // all trios have defined sex, see require above
+    val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
     val zeroVal: Array[Array[GenotypeType]] = // FIXME: change to MultiArray2 once available
       Array.fill[Array[GenotypeType]](trios.size)(Array.fill[GenotypeType](3)(NoCall))
@@ -123,7 +124,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   }
 
   def nErrorPerIndiv: RDD[(Int, Int)] = {
-    val indivRDD = sc.parallelize(trios.flatMap(t => List(t.kid, t.dad, t.mom)).distinct)
+    val indivRDD = sc.parallelize(trios.flatMap(t => Iterator(t.kid, t.dad, t.mom)).distinct)
     mendelErrors
       .flatMap(_.implicatedSamples)
       .map((_, 1))
@@ -140,8 +141,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def writeMendelL(filename: String) {
     nErrorPerVariant.map{ case (v, n) =>
       v.contig + "\t" + v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + n
-      }
-      .writeTable(filename, "CHR\tSNP\tN\n")
+    }.writeTable(filename, "CHR\tSNP\tN\n")
   }
 
   def writeMendelF(filename: String) {
@@ -160,7 +160,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
     val sampleIdsBc = sc.broadcast(sampleIds)
     val lines = nErrorPerIndiv.map { case (s, n) =>
       trioFamBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + n + "\n"
-      }.collect()
+    }.collect()
     writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\n")
   }
 }

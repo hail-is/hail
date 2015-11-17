@@ -67,7 +67,7 @@ case class Pedigree(trios: Array[Trio]) {
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
 
   def writeSummary(filename: String, hConf: hadoop.conf.Configuration) = {
-    val columns = List(
+    val columns = Array(
       ("nIndiv", trios.length), ("nTrios", completeTrios.length),
       ("nNuclearFams", Pedigree.nuclearFams(completeTrios).size),
       ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
@@ -82,8 +82,8 @@ case class Pedigree(trios: Array[Trio]) {
       ("nControlFemaleTrio", nSatisfying(_.isComplete, _.isControl, _.isFemale)))
 
     writeTextFile(filename, hConf){ fw =>
-      fw.write(columns.map(_._1).mkString("\t") + "\n")
-      fw.write(columns.map(_._2).mkString("\t") + "\n")
+      fw.write(columns.iterator.map(_._1).mkString("\t") + "\n")
+      fw.write(columns.iterator.map(_._2).mkString("\t") + "\n")
     }
   }
 
