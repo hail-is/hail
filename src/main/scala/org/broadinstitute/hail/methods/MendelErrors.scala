@@ -151,7 +151,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
     val lines = nErrorPerNuclearFamily.map{ case ((dad, mom), n) =>
       trioFamBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
         nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\n"
-      }.collect()
+    }.collect()
     writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\n")
   }
 
