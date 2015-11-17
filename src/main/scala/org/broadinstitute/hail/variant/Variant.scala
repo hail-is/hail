@@ -69,4 +69,5 @@ case class Variant(contig: String,
     require(isSNP)
     (ref,alt).zipped.dropWhile{ case (a, b) => a == b }.head
   }
+
 }

@@ -20,14 +20,9 @@ import org.broadinstitute.hail.methods.Role.{Role, Kid, Dad, Mom}
 case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int],
                 sex: Option[Sex], pheno: Option[Phenotype]) {
 
-  def contains(s: Int): Boolean =
-    kid == s || dad.contains(s) || mom.contains(s)
-
-  def role(s: Int): Option[Role] =
-    if      (s == kid)        Some(Kid)
-    else if (dad.contains(s)) Some(Dad)
-    else if (mom.contains(s)) Some(Mom)
-    else                      None
+  def toCompleteTrio: Option[CompleteTrio] =
+    dad.flatMap(d =>
+      mom.map(m => CompleteTrio(kid, fam, d, m, sex, pheno)))
 
   def isMale: Boolean = sex.contains(Male)
   def isFemale: Boolean = sex.contains(Female)
@@ -36,16 +31,15 @@ case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int
   def isComplete: Boolean = dad.isDefined && mom.isDefined
 }
 
+case class CompleteTrio(kid: Int, fam: Option[String], dad: Int, mom: Int, sex: Option[Sex], pheno: Option[Phenotype])
+
 object Pedigree {
-  def apply(trios: Traversable[Trio]): Pedigree =
-    new Pedigree(trios.map(t => t.kid -> t).toMap)
 
   def read(filename: String, sampleIds: Array[String]): Pedigree = {
     require(filename.endsWith(".fam"))
 
-    val indexOfSample: Map[String, Int] = sampleIds.zipWithIndex.toMap
-
-    def maybeId(id: String): Option[Int] = if (id != "0") indexOfSample.get(id) else None
+    val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
+    def maybeId(id: String): Option[Int] = if (id != "0") sampleIndex.get(id) else None
     def maybeFam(fam: String): Option[String] = if (fam != "0") Some(fam) else None
 
     Pedigree(Source.fromFile(new File(filename))
@@ -54,40 +48,28 @@ object Pedigree {
       .map { line => // FIXME: proper input error handling (and possible conflicting trio handing)
       val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
 
-      Trio(indexOfSample(kid), maybeFam(fam), maybeId(dad), maybeId(mom),
+      Trio(sampleIndex(kid), maybeFam(fam), maybeId(dad), maybeId(mom),
         Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
       }
-      .toTraversable
+      .toArray
     )
   }
-}
-
-case class Pedigree(trioMap: Map[Int, Trio]) {
-
-  def trios = trioMap.values.toArray
-  def completeTrios = trios.filter(_.isComplete)
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
-  def nuclearFams: Map[(Int, Int), Iterable[Int]] =
-    completeTrios
-      .map(t => ((t.dad.get, t.mom.get), t.kid))
-      .toMap
-      .groupByKey
+  def nuclearFams(completeTrios: Array[CompleteTrio]): Map[(Int, Int), Array[Int]] =
+    completeTrios.groupBy(t => (t.dad, t.mom)).mapValues(_.map(_.kid)).force
+}
 
-  def dadOf: Map[Int, Int] = completeTrios.flatMap(t => t.dad.map(d => (t.kid, d))).toMap
-  def momOf: Map[Int, Int] = completeTrios.flatMap(t => t.mom.map(m => (t.kid, m))).toMap
-  def sexOf: Map[Int, Sex] = trios.flatMap(t => t.sex.map(s => (t.kid, s))).toMap
-  def famOf: Map[Int, String] = trios.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
-  def phenoOf: Map[Int, Phenotype] = trios.flatMap(t => t.pheno.map(p => (t.kid, p))).toMap
+case class Pedigree(trios: Array[Trio]) {
 
-  def sexDefinedForAll: Boolean = trios.forall(_.sex.isDefined)
-  def phenoDefinedForAll: Boolean = trios.forall(_.pheno.isDefined)
-
+  def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
+  def samplePheno: Map[Int, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
 
   def writeSummary(filename: String, hConf: hadoop.conf.Configuration) = {
-    val columns = List(
-      ("nIndiv", trios.length), ("nCompleteTrios", completeTrios.length), ("nNuclearFams", nuclearFams.size),
+    val columns = Array(
+      ("nIndiv", trios.length), ("nTrios", completeTrios.length),
+      ("nNuclearFams", Pedigree.nuclearFams(completeTrios).size),
       ("nMale", nSatisfying(_.isMale)), ("nFemale", nSatisfying(_.isFemale)),
       ("nCase", nSatisfying(_.isCase)), ("nControl", nSatisfying(_.isControl)),
       ("nMaleTrio", nSatisfying(_.isComplete, _.isMale)),
@@ -100,8 +82,8 @@ case class Pedigree(trioMap: Map[Int, Trio]) {
       ("nControlFemaleTrio", nSatisfying(_.isComplete, _.isControl, _.isFemale)))
 
     writeTextFile(filename, hConf){ fw =>
-      fw.write(columns.map(_._1).mkString("\t") + "\n")
-      fw.write(columns.map(_._2).mkString("\t") + "\n")
+      fw.write(columns.iterator.map(_._1).mkString("\t") + "\n")
+      fw.write(columns.iterator.map(_._2).mkString("\t") + "\n")
     }
   }
 

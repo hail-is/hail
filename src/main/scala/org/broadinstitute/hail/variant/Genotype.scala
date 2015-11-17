@@ -115,17 +115,6 @@ case class Genotype(private val gt: Int,
     val mincp = d.cumulativeProbability(minDepth)
     (2 * mincp - minp).min(1.0).max(0.0)
   }
-
-  def gtString(v: Variant): String = {
-    if (isHomRef)
-      v.ref + "/" + v.ref
-    else if (isHet)
-      v.ref + "/" + v.alt
-    else if (isHomVar)
-      v.alt + "/" + v.alt
-    else
-      "./."
-  }
 }
 
 object Genotype {
