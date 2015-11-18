@@ -52,27 +52,41 @@ class VariantQCCombiner extends Serializable {
   // FIXME per-genotype
 
   def merge(g: Genotype): VariantQCCombiner = {
-    (g.call.map(_.gt): @unchecked) match {
+    (g.gt: @unchecked) match {
       case Some(0) =>
         nHomRef += 1
-        dpSC.merge(g.dp)
-        dpHomRefSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomRefSC.merge(g.gq)
+        g.dp.map { v =>
+          dpSC.merge(v)
+          dpHomRefSC.merge(v)
+        }
+        g.gq.map { v =>
+          gqSC.merge(v)
+          gqHomRefSC.merge(v)
+        }
       case Some(1) =>
         nHet += 1
-        refDepth += g.ad._1
-        altDepth += g.ad._2
-        dpSC.merge(g.dp)
-        dpHetSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHetSC.merge(g.gq)
+        g.ad.map { a =>
+          refDepth += a(0)
+          altDepth += a(1)
+        }
+        g.dp.map { v =>
+          dpSC.merge(v)
+          dpHetSC.merge(v)
+        }
+        g.gq.map { v =>
+          gqSC.merge(v)
+          gqHetSC.merge(v)
+        }
       case Some(2) =>
         nHomVar += 1
-        dpSC.merge(g.dp)
-        dpHomVarSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomVarSC.merge(g.gq)
+        g.dp.map { v =>
+          dpSC.merge(v)
+          dpHomVarSC.merge(v)
+        }
+        g.gq.map { v =>
+          gqSC.merge(v)
+          gqHomVarSC.merge(v)
+        }
       case None =>
         nNotCalled += 1
     }

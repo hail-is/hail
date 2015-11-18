@@ -65,17 +65,23 @@ class SampleQCCombiner extends Serializable {
   // FIXME per-genotype
 
   def merge(v: Variant, g: Genotype, singletons: Set[Variant]): SampleQCCombiner = {
-    g.call.map(_.gt) match {
+    g.gt match {
       case Some(0) =>
         nHomRef += 1
-        dpSC.merge(g.dp)
-        dpHomRefSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomRefSC.merge(g.gq)
+        g.dp.map { v =>
+          dpSC.merge(v)
+          dpHomRefSC.merge(v)
+        }
+        g.gq.map { v =>
+          gqSC.merge(v)
+          gqHomRefSC.merge(v)
+        }
       case Some(1) =>
         nHet += 1
-        refDepth += g.ad._1
-        altDepth += g.ad._2
+        g.ad.map { a =>
+          refDepth += a(0)
+          altDepth += a(1)
+        }
         if (v.isSNP) {
           nSNP += 1
           if (v.isTransition)
@@ -90,10 +96,14 @@ class SampleQCCombiner extends Serializable {
           nDel += 1
         if (singletons.contains(v))
           nSingleton += 1
-        dpSC.merge(g.dp)
-        dpHetSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHetSC.merge(g.gq)
+        g.dp.map { v =>
+          dpSC.merge(v)
+          dpHetSC.merge(v)
+        }
+        g.gq.map { v =>
+          gqSC.merge(v)
+          gqHetSC.merge(v)
+        }
       case Some(2) =>
         nHomVar += 1
         if (v.isSNP) {
@@ -110,14 +120,18 @@ class SampleQCCombiner extends Serializable {
           nDel += 1
         if (singletons.contains(v))
           nSingleton += 1
-        dpSC.merge(g.dp)
-        dpHomVarSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomVarSC.merge(g.gq)
+        g.dp.map { v =>
+          dpSC.merge(v)
+          dpHomVarSC.merge(v)
+        }
+        g.gq.map { v =>
+          gqSC.merge(v)
+          gqHomVarSC.merge(v)
+        }
       case None =>
         nNotCalled += 1
       case _ =>
-        throw new IllegalArgumentException("Genotype value " + g.call.map(_.gt).get + " must be 0, 1, or 2.")
+        throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
 
     this

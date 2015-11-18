@@ -34,41 +34,7 @@ case class VCFGenotype(gt: Option[Array[Int]] = None,
       .mkString(":")
   }
 
-  // FIXME this makes me want to puke
-  def toGenotype: Genotype = {
-    // FIXME
-    val gt2 = gt match {
-      case Some(a) =>
-        assert(a.length == 2)
-        (if (a(0) != 0) 1 else 0) +
-          (if (a(1) != 0) 1 else 0)
-      case None => -1
-    }
-
-    val ad2 = ad match {
-      case Some(a) =>
-        assert(a.length == 2)
-        (a(0), a(1))
-      case None => (0, 0)
-    }
-
-    val dp2 = dp.getOrElse(0) max (ad2._1 + ad2._2)
-
-    val pl2 = pl match {
-      case Some(a) =>
-        assert(a.length == 3)
-        (a(0), a(1), a(2))
-      case None =>
-        null
-    }
-
-    Genotype(gt2, ad2, dp2, gt2 match {
-      case -1 => null
-      case 0 => (0, pl2._2, pl2._3)
-      case 1 => (pl2._1, 0, pl2._3)
-      case 2 => (pl2._1, pl2._2, 0)
-    })
-  }
+  def toGenotype: Genotype = throw new UnsupportedOperationException
 }
 
 class GenotypeFieldParser[+T](parsef: String => Option[T],

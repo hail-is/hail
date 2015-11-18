@@ -17,10 +17,10 @@ class FilterSuite extends SparkSuite {
     assert(FilterVariants.run(state, Array("--remove", "-c", "v.start >= 14066228"))
       .vds.nVariants == 173)
 
-    val highGQ = FilterGenotypes.run(state, Array("--remove", "-c", "g.call.exists(c => c.gq < 20)"))
+    val highGQ = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq.exists(_ < 20)"))
       .vds.expand().collect()
 
-    assert(!highGQ.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
-    assert(highGQ.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
+    assert(!highGQ.exists { case (v, s, g) => g.gq.exists(_ < 20) })
+    assert(highGQ.count{ case (v, s, g) => g.gq.exists(_ >= 20) } == 31102)
   }
 }

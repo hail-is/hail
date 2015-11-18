@@ -12,6 +12,12 @@ class RichRow(r: Row) {
 
   import RichRow._
 
+  def getIntOption(i: Int): Option[Int] =
+    if (r.isNullAt(i))
+      None
+    else
+      Some(r.getInt(i))
+
   def getVariant(i: Int): Variant = {
     val ir = r.getAs[Row](i)
     Variant(ir.getAs[String](0),
@@ -20,22 +26,7 @@ class RichRow(r: Row) {
       ir.getAs[String](3))
   }
 
-  def getGenotype(i: Int): Genotype = {
-    val ir = r.getAs[Row](i)
-    val i1r = ir.getAs[Row](1)
-    val i3r = ir.getAs[Row](3)
-
-    Genotype(ir.getInt(0),
-      (i1r.getInt(0),
-        i1r.getInt(1)),
-      ir.getInt(2),
-      if (i3r != null)
-        (i3r.getInt(0),
-          i3r.getInt(1),
-          i3r.getInt(2))
-      else
-        null)
-  }
+  def getGenotype(i: Int): Genotype = throw new UnsupportedOperationException
 
   def getGenotypeStream(i: Int): GenotypeStream = {
     val ir = r.getAs[Row](i)

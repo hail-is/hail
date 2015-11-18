@@ -49,7 +49,7 @@ class LinRegBuilder extends Serializable {
   private val missingRows: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
-    g.call.map(_.gt) match {
+    g.gt match {
       case Some(0) =>
       case Some(1) =>
         rowsX += row
@@ -65,7 +65,7 @@ class LinRegBuilder extends Serializable {
         sumXY += 2 * y(row)
       case None =>
         missingRows += row
-      case _ => throw new IllegalArgumentException("Genotype value " + g.call.map(_.gt).get + " must be 0, 1, or 2.")
+      case _ => throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
     this
   }

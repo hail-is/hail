@@ -53,26 +53,26 @@ object TestRDDBuilder {
     }
   }
 
-  def plFromGQ(gq: Int, gt: Int): (Int, Int, Int) = {
+  def plFromGQ(gq: Int, gt: Option[Int]): Option[IndexedSeq[Int]] = {
     // supplies example PL values from a GQ and genotype
     gt match {
-      case 0 => (0, gq, plMax)
-      case 1 => (gq, 0, plDefault)
-      case 2 => (plMax, gq, 0)
-      case -1 => (0, 0, plDefault)
+      case Some(0) => Some(Array(0, gq, plMax))
+      case Some(1) => Some(Array(gq, 0, plDefault))
+      case Some(2) => Some(Array(plMax, gq, 0))
+      case None => None
     }
   }
 
-  def adFromDP(dp: Int, gt: Int): (Int, Int) = {
+  def adFromDP(dp: Int, gt: Option[Int]): Option[IndexedSeq[Int]] = {
     // if a homozygous genotype is supplied, assigns all reads to that allele.  If het, 50/50.  If uncalled, (0, 0)
     gt match {
-      case 0 => (dp, 0)
-      case 2 => (0, dp)
-      case 1 =>
+      case Some(0) => Some(Array(dp, 0))
+      case Some(2) => Some(Array(0, dp))
+      case Some(1) =>
         val refReads = dp / 2
         val altReads = dp - refReads
-        (refReads, altReads)
-      case -1 => (0, 0)
+        Some(Array(refReads, altReads))
+      case None => None
     }
   }
 
@@ -104,7 +104,7 @@ object TestRDDBuilder {
       case (variant, (gqArr, dpArr)) =>
         val b = new GenotypeStreamBuilder(variant)
         for (sample <- 0 until nSamples) {
-          val gt = pullGT()
+          val gt = Some(pullGT())
           val gq = gqArr match {
             case Some(arr) => arr(sample)
             case None => normInt(gqMean, gqStDev, floor=gqMin, ceil=gqMax)
@@ -116,7 +116,8 @@ object TestRDDBuilder {
           val ad = adFromDP(dp, gt)
           val pl = plFromGQ(gq, gt)
 
-          b += Genotype(gt, ad, dp, pl)
+          // FIXME
+          b += Genotype(gt, ad, Some(dp), Some(gq), pl)
         }
         (variant, b.result())
     }
