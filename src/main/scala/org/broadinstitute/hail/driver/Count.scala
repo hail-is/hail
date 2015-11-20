@@ -7,6 +7,7 @@ object Count extends Command {
   def description = "Print number of samples and variants in current dataset"
   def run(state: State, options: Options): State = {
     println("nSamples = " + state.vds.nSamples)
+    println("nLocalSamples = " + state.vds.nLocalSamples)
     println("nVariants = " + state.vds.nVariants)
     state
   }
