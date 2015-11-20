@@ -11,13 +11,14 @@ class MultiArray2[T](val n1: Int,
 
   class rowSlice(val i:Int) {
     def indices: Iterable[(Int,Int)] = for (j <- 0 until n2) yield (i,j)
+    def data: Iterable[T] = for ((i,j) <- indices) yield a(i*n2 + j)
   }
 
   class columnSlice(val j:Int) {
     def indices: Iterable[(Int,Int)] = for (i <- 0 until n1) yield (i,j)
+    def data: Iterable[T] = for ((i,j) <- indices) yield a(i*n2 + j)
   }
 
-  def rowSlice(i:Int): Array[T] = a.slice(i*n2 + 0, i*n2 + 3)
 
   def indices: Iterable[(Int,Int)] = for (i <- 0 until n1; j <- 0 until n2) yield (i, j)
 
@@ -49,8 +50,6 @@ class MultiArray2[T](val n1: Int,
 
   def rows: Iterable[rowSlice] = for (i <- rowIndices) yield new rowSlice(i)
   def columns: Iterable[columnSlice] = for (j <- columnIndices) yield new columnSlice(j)
-
-/*  def columns: Iterable[Array[T]] = for (j <- columnIndices) yield columnSlice(j)*/
 
   def iterator: Iterator[T] = a.iterator
 }

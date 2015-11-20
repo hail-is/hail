@@ -32,5 +32,14 @@ class MultiArray2Suite extends SparkSuite{
     assert(ma5(2,2) == (4,"foo"))
     assert(ma5(0,0) == (0,"foo"))
 
+    for (row <- ma5.rows) {
+      assert(row.data == Iterable((row.i*0,"foo"),(row.i*1,"foo"),(row.i*2,"foo")))
+    }
+
+    for (column <- ma5.columns) {
+      assert(column.data == Iterable((column.j*0,"foo"),(column.j*1,"foo"),(column.j*2,"foo"),(column.j*3,"foo"),
+        (column.j*4,"foo"),(column.j*5,"foo"),(column.j*6,"foo"),(column.j*7,"foo"),(column.j*8,"foo"),
+        (column.j*9,"foo")))
+    }
   }
 }

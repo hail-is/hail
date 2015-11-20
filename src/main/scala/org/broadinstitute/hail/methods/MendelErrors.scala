@@ -68,32 +68,37 @@ object MendelErrors {
     // all trios have defined sex, see require above
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
-    val zeroVal = MultiArray2.fill[GenotypeType](trios.size,3)(NoCall)
+    val zeroVal: Array[Array[GenotypeType]] = // FIXME: change to MultiArray2 once available
+      Array.fill[Array[GenotypeType]](trios.size)(Array.fill[GenotypeType](3)(NoCall))
 
-    def seqOp(a: MultiArray2[GenotypeType], s: Int, g: Genotype): MultiArray2[GenotypeType] = {
-      sampleTrioRolesBc.value(s).foreach{ case (ti, ri) => a(ti,ri) = g.gtType }
+    def seqOp(a: Array[Array[GenotypeType]], s: Int, g: Genotype): Array[Array[GenotypeType]] = {
+      sampleTrioRolesBc.value(s).foreach{ case (ti, ri) => a(ti)(ri) = g.gtType }
       a
     }
 
-    def mergeOp(a: MultiArray2[GenotypeType], b: MultiArray2[GenotypeType]): MultiArray2[GenotypeType] = {
-      for ((ti,ri) <- a.indices if b(ti,ri) != NoCall) {
-        a(ti,ri) = b(ti,ri)
-      }
+    def mergeOp(a: Array[Array[GenotypeType]], b: Array[Array[GenotypeType]]): Array[Array[GenotypeType]] = {
+      for (ti <- a.indices; ri <- 0 until 3)
+        if (b(ti)(ri) != NoCall)
+          a(ti)(ri) = b(ti)(ri)
       a
     }
 
     new MendelErrors(trios, vds.sampleIds,
-      vds.aggregateByVariantWithKeys(zeroVal)((a,v,s,g) => seqOp(a,s,g),(a,b) => mergeOp(a,b))
-         .flatMap{case (v,ma2) =>
-            ma2.rows.zipWithIndex.flatMap{case (a,i) =>
-              val code = getCode(a,v.isHemizygous(trioSexBc.value(i)))
-              if (code != 0)
-                Some(new MendelError(v,triosBc.value(i),code,a(0),a(1),a(2)))
-              else
-                None
-            }
-         }
-      )
+      vds
+        .aggregateByVariantWithKeys(zeroVal)(
+          (a, v, s, g) => seqOp(a, s, g),
+          mergeOp)
+        .flatMap{ case (v, a) =>
+          a.zipWithIndex.flatMap{ case (ati, ti) =>
+            val code = getCode(ati, v.isHemizygous(trioSexBc.value(ti)))
+            if (code != 0)
+              Some(new MendelError(v, triosBc.value(ti), code, ati(0), ati(1), ati(2)))
+            else
+              None
+          }
+        }
+        .cache()
+    )
   }
 }
 
