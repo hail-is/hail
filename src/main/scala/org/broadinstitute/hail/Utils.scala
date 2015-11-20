@@ -497,31 +497,3 @@ object Utils {
     toolbox.eval(ast).asInstanceOf[T]
   }
 }
-
-class MultiArray2[T](val n1: Int,
-                     val n2: Int,
-                     a: Array[T]) extends Serializable {
-  require(a.length == n1*n2)
-
-  def indices: Iterable[(Int,Int)] = for (i <- 0 until n1; j <- 0 until n2) yield (i, j)
-
-  def apply(i: Int, j: Int): T = a(i*n2 + j)
-
-  def update(i: Int, j: Int, x:T): Unit = a.update(i*n2 + j,x)
-
-  def update(t: (Int,Int), x:T): Unit = update(t._1,t._2,x)
-
-  def toArray: Array[T] = a
-
-  def zip(other: MultiArray2[T]): Array[(T,T)] = a.zip(other.toArray)
-
-  def iterator: Iterator[T] = a.iterator
-
-
-  // FIXME def reshape(...): MultiArrayM[T]
-}
-
-object MultiArray2 {
-  def fill[T](n1: Int, n2: Int)(elem: => T)(implicit tct: ClassTag[T]): MultiArray2[T] =
-    new MultiArray2[T](n1, n2, Array.fill[T](n1 * n2)(elem))
-}
