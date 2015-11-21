@@ -32,10 +32,15 @@ class FilterStringOption(val os: Option[String]) extends AnyVal {
 
 class FilterArrayOption[T](val oa: Option[Array[T]]) extends AnyVal {
   def apply(i: Int): Option[T] = oa.map(_(i))
+  def size: Option[Int] = oa.map(_.size)
+  def ++(oa2: Option[Array[T]]): Option[Array[T]] = oa.flatMap(a => oa2.map(a ++ _))
 }
 
 class FilterOrderedOption[T <: Ordered[T]](val ot: Option[T]) extends AnyVal {
   def >(ot2: Option[T]): Option[Boolean] = ot.flatMap(t => ot2.map(t > _))
+  def <(ot2: Option[T]): Option[Boolean] = ot.flatMap(t => ot2.map(t < _))
+  def >=(ot2: Option[T]): Option[Boolean] = ot.flatMap(t => ot2.map(t >= _))
+  def <=(ot2: Option[T]): Option[Boolean] = ot.flatMap(t => ot2.map(t <= _))
 }
 
 class FilterNumericOption[T <: scala.math.Numeric[T]#Ops](val ot: Option[T]) extends AnyVal {
@@ -50,11 +55,6 @@ class FilterNumericOption[T <: scala.math.Numeric[T]#Ops](val ot: Option[T]) ext
   def toFloat: Option[Float] = ot.map(_.toFloat())
   def toDouble: Option[Double] = ot.map(_.toDouble())
 
-
-//  def /(rhs: FilterNumericOption[T]) =
-//    if (o.isDefined && rhs.o.isDefined && rhs.o.get != 0) new FilterNumericOption[T](Some(o.get / rhs.o.get))
-//    else new FilterNumericOption[T](None)
-
 }
 
 object FilterUtils {
@@ -66,8 +66,6 @@ object FilterUtils {
   implicit def toFilterArrayOption[T](a: Array[T]): FilterArrayOption[T] = new FilterArrayOption[T](Some(a))
   implicit def toFilterOrderedOption[T <: Ordered[T]](t: T): FilterOrderedOption[T] = new FilterOrderedOption[T](Some(t))
   implicit def toFilterNumericOption[T <: scala.math.Numeric[T]#Ops](t: T): FilterNumericOption[T] = new FilterNumericOption[T](Some(t))
-
-
 
 }
 
