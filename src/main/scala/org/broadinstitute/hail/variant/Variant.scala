@@ -1,20 +1,18 @@
 package org.broadinstitute.hail.variant
 
-object VariantType extends Enumeration {
-  type VariantType = Value
+object AltAlleleType extends Enumeration {
+  type AltAlleleType = Value
+  // FIXME add "*"
   val SNP, MNP, Insertion, Deletion, Complex = Value
 }
 
-case class Variant(contig: String,
-                   // FIXME: 0- or 1-based?
-                   start: Int,
-                   ref: String,
-                   alt: String) {
+case class AltAllele(ref: String,
+  alt: String) {
   require(ref != alt)
 
-  import VariantType._
+  import AltAlleleType._
 
-  def variantType: VariantType = {
+  def altAlleleType: AltAlleleType = {
     if (ref.length == 1 && alt.length == 1)
       SNP
     else if (ref.length == alt.length)
@@ -30,19 +28,12 @@ case class Variant(contig: String,
       Complex
   }
 
-  // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
-  // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
-  def inParX(pos: Int): Boolean = (60001 <= pos && pos <= 2699520) || (154931044 <= pos && pos <= 155260560)
-  def inParY(pos: Int): Boolean = (10001 <= pos && pos <= 2649520) || ( 59034050 <= pos && pos <=  59363566)
-  def isHemizygous(sex: Sex.Sex): Boolean = (sex == Sex.Male) &&
-      (contig == "X" && !inParX(start)) || (contig == "Y" && !inParY(start))
-
   def isSNP: Boolean = (ref.length == 1 && alt.length == 1) ||
-      (ref.length == alt.length && nMismatch == 1)
+    (ref.length == alt.length && nMismatch == 1)
 
   def isMNP: Boolean = ref.length > 1 &&
-      ref.length == alt.length &&
-      nMismatch > 1
+    ref.length == alt.length &&
+    nMismatch > 1
 
   def isInsertion: Boolean = ref.length < alt.length && alt.startsWith(ref)
 
@@ -53,20 +44,64 @@ case class Variant(contig: String,
   def isComplex: Boolean = ref.length != alt.length && !isInsertion && !isDeletion
 
   def isTransition: Boolean = isSNP && {
-      val (refChar, altChar) = strippedSNP
-      (refChar == 'A' && altChar == 'G') || (refChar == 'G' && altChar == 'A') ||
-        (refChar == 'C' && altChar == 'T') || (refChar == 'T' && altChar == 'C')
+    val (refChar, altChar) = strippedSNP
+    (refChar == 'A' && altChar == 'G') || (refChar == 'G' && altChar == 'A') ||
+      (refChar == 'C' && altChar == 'T') || (refChar == 'T' && altChar == 'C')
   }
 
   def isTransversion: Boolean = isSNP && !isTransition
 
   def nMismatch: Int = {
     require(ref.length == alt.length)
-    (ref,alt).zipped.map((a, b) => if (a == b) 0 else 1).sum
+    (ref, alt).zipped.map((a, b) => if (a == b) 0 else 1).sum
   }
 
   def strippedSNP: (Char, Char) = {
     require(isSNP)
-    (ref,alt).zipped.dropWhile{ case (a, b) => a == b }.head
+    (ref, alt).zipped.dropWhile { case (a, b) => a == b }.head
   }
+}
+
+object Variant {
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
+}
+
+case class Variant(contig: String,
+  start: Int,
+  ref: String,
+  altAlleles: IndexedSeq[AltAllele]) {
+  require(start >= 1)
+
+  def nAltAlleles: Int = altAlleles.length
+
+  def isBiallelic: Boolean = nAltAlleles == 1
+
+  // FIXME altAllele, alt to be deprecated
+  def altAllele: AltAllele = {
+    require(isBiallelic)
+    altAlleles(0)
+  }
+
+  def alt: String = altAllele.alt
+
+  def nAlleles: Int = 1 + nAltAlleles
+
+  def alllele(i: Int): String = if (i == 0)
+    ref
+  else
+    altAlleles(i - 1).alt
+
+  def nGenotypes = nAlleles * (nAlleles + 1) / 2
+
+  // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
+  // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
+  def inParX(pos: Int): Boolean = (60001 <= pos && pos <= 2699520) || (154931044 <= pos && pos <= 155260560)
+
+  def inParY(pos: Int): Boolean = (10001 <= pos && pos <= 2649520) || (59034050 <= pos && pos <= 59363566)
+
+  def isHemizygous(sex: Sex.Sex): Boolean = (sex == Sex.Male) &&
+    (contig == "X" && !inParX(start)) || (contig == "Y" && !inParY(start))
 }

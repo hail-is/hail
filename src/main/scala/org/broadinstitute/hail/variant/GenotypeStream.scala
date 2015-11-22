@@ -75,7 +75,7 @@ class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
   val b = new mutable.ArrayBuilder.ofByte
 
   override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
-    g.write(b)
+    g.write(variant, b)
     this
   }
 

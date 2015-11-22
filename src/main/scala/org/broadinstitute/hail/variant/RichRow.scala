@@ -18,6 +18,8 @@ class RichRow(r: Row) {
     else
       Some(r.getInt(i))
 
+  def getVariant(i: Int): Variant = throw new UnsupportedOperationException
+  /*
   def getVariant(i: Int): Variant = {
     val ir = r.getAs[Row](i)
     Variant(ir.getAs[String](0),
@@ -25,6 +27,7 @@ class RichRow(r: Row) {
       ir.getAs[String](2),
       ir.getAs[String](3))
   }
+  */
 
   def getGenotype(i: Int): Genotype = throw new UnsupportedOperationException
 

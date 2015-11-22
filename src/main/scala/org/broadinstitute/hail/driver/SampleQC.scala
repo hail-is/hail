@@ -82,17 +82,17 @@ class SampleQCCombiner extends Serializable {
           refDepth += a(0)
           altDepth += a(1)
         }
-        if (v.isSNP) {
+        if (v.altAllele.isSNP) {
           nSNP += 1
-          if (v.isTransition)
+          if (v.altAllele.isTransition)
             nTi += 1
           else {
-            assert(v.isTransversion)
+            assert(v.altAllele.isTransversion)
             nTv += 1
           }
-        } else if (v.isInsertion)
+        } else if (v.altAllele.isInsertion)
           nIns += 1
-        else if (v.isDeletion)
+        else if (v.altAllele.isDeletion)
           nDel += 1
         if (singletons.contains(v))
           nSingleton += 1
@@ -106,17 +106,17 @@ class SampleQCCombiner extends Serializable {
         }
       case Some(2) =>
         nHomVar += 1
-        if (v.isSNP) {
+        if (v.altAllele.isSNP) {
           nSNP += 1
-          if (v.isTransition)
+          if (v.altAllele.isTransition)
             nTi += 1
           else {
-            assert(v.isTransversion)
+            assert(v.altAllele.isTransversion)
             nTv += 1
           }
-        } else if (v.isInsertion)
+        } else if (v.altAllele.isInsertion)
           nIns += 1
-        else if (v.isDeletion)
+        else if (v.altAllele.isDeletion)
           nDel += 1
         if (singletons.contains(v))
           nSingleton += 1

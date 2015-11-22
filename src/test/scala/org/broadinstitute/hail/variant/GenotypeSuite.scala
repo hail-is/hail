@@ -10,10 +10,11 @@ import scala.collection.mutable
 
 object GenotypeSuite {
   val b = new mutable.ArrayBuilder.ofByte
+  val v = Variant("1", 1, "A", "T")
 
   def readWriteEqual(g: Genotype): Boolean = {
     b.clear()
-    g.write(b)
+    g.write(v, b)
     g == Genotype.read(b.result().iterator)
   }
 

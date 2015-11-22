@@ -24,17 +24,20 @@ case class Genotype(gt: Option[Int],
   gq: Option[Int],
   pl: Option[IndexedSeq[Int]]) {
 
-  require(gt.forall(v => v >= 0 && v <= 2))
-  require(ad.forall(a => a.length == 2))
-  require(pl.forall(a => a.length == 3))
+  def check(v: Variant) {
+    assert(gt.forall(i => i >= 0 && i < v.nGenotypes))
+    assert(ad.forall(a => a.length == v.nAlleles))
+    assert(pl.forall(a => a.length == v.nGenotypes))
+  }
 
-  def write(b: mutable.ArrayBuilder[Byte]) {
-    b += ((gt.getOrElse(-1) & 7)
+  def write(v: Variant, b: mutable.ArrayBuilder[Byte]) {
+    b += ((if (gt.isDefined) 0x4 else 0)
       | (if (ad.isDefined) 0x8 else 0)
       | (if (dp.isDefined) 0x10 else 0)
       | (if (gq.isDefined) 0x20 else 0)
       | (if (pl.isDefined) 0x40 else 0)).toByte
 
+    gt.foreach(b.writeULEB128)
     ad.foreach(_.foreach(b.writeULEB128))
     dp.foreach(b.writeULEB128)
     gq.foreach(b.writeULEB128)
@@ -54,7 +57,6 @@ case class Genotype(gt: Option[Int],
   def isCalled: Boolean = gt.isDefined
 
   def gtType: GenotypeType = GenotypeType(gt.getOrElse(-1))
-
 
   def nNonRef: Int = gt.getOrElse(0)
 
@@ -101,6 +103,17 @@ case class Genotype(gt: Option[Int],
 }
 
 object Genotype {
+  def gtPair(t: Int): (Int, Int) = {
+    def f(i: Int, j: Int): (Int, Int) = if (j <= i)
+      (i, j)
+    else
+      f(i + 1, j - i - 1)
+
+    f(0, t)
+  }
+
+  def gtIndex(i: Int, j: Int): Int = j * (j + 1) / 2 + i
+
   def read(a: Iterator[Byte]): Genotype = {
     val flags = a.next()
 
