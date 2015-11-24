@@ -10,7 +10,6 @@ object LoadVCF {
   // FIXME move to VariantDataset
   def apply(sc: SparkContext,
     file: String,
-    readerBuilder: vcf.AbstractRecordReaderBuilder = vcf.HtsjdkRecordReaderBuilder,
     vsmtype: String = "sparky",
     compress: Boolean = true,
     nPartitions: Option[Int] = None): VariantDataset = {
@@ -37,7 +36,7 @@ object LoadVCF {
     val headerLinesBc = sc.broadcast(headerLines)
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
       .mapPartitions { lines =>
-        val reader = readerBuilder.result(headerLinesBc.value)
+        val reader = vcf.HtsjdkRecordReaderBuilder.result(headerLinesBc.value)
         lines.filter(line => !line.isEmpty && line(0) != '#')
           .flatMap(reader.readRecord)
           .map { case (v, gs) =>
