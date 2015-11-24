@@ -40,8 +40,6 @@ object Import extends Command {
     println("parser = " + parser)
     val readerBuilder = if (parser == "htsjdk")
       vcf.HtsjdkRecordReaderBuilder
-    else if (parser == "native")
-      vcf.RecordReaderBuilder
     else
       fatal("unknown parser `" + parser + "'")
 
