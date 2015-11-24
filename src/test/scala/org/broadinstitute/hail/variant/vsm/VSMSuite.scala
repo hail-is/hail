@@ -11,7 +11,7 @@ import org.broadinstitute.hail.methods.{sSingletonVariants, LoadVCF}
 import org.testng.annotations.Test
 
 class VSMSuite extends SparkSuite {
-  val vsmTypes = List("sparky", "tuple")
+  val vsmTypes = List("sparky")
 
   @Test def testsSingletonVariants() {
     val singletons: List[Set[Variant]] =
