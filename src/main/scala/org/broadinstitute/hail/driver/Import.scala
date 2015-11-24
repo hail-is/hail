@@ -33,8 +33,6 @@ object Import extends Command {
   def run(state: State, options: Options): State = {
     val input = options.input
 
-    val readerBuilder = vcf.HtsjdkRecordReaderBuilder
-
     val newVDS =
       if (input.endsWith(".vcf")
         || input.endsWith(".vcf.bgz")
@@ -44,7 +42,7 @@ object Import extends Command {
           fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
         }
 
-        LoadVCF(state.sc, input, readerBuilder, options.vsmtype, !options.noCompress,
+        LoadVCF(state.sc, input, options.vsmtype, !options.noCompress,
           if (options.nPartitions != 0)
             Some(options.nPartitions)
           else
