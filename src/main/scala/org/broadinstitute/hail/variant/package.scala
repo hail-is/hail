@@ -4,7 +4,7 @@ import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
 
 package object variant {
-  type VariantDataset = VariantSampleMatrix[Genotype]
+  type VariantDataset = VariantSampleMatrix[Genotype, Iterable[Genotype]]
 
   // type VariantSampleMatrix[T, S] = managed.ManagedVSM[T, S]
   // type VariantSampleMatrix[T, S <: Iterable[(Int, T)]] = sparky.SparkyVSM[T, S]

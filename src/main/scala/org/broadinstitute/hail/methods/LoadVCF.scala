@@ -10,7 +10,6 @@ object LoadVCF {
   // FIXME move to VariantDataset
   def apply(sc: SparkContext,
     file: String,
-    vsmtype: String = "sparky",
     compress: Boolean = true,
     nPartitions: Option[Int] = None): VariantDataset = {
 
@@ -48,6 +47,6 @@ object LoadVCF {
       }
 
     // FIXME null should be contig lengths
-    VariantSampleMatrix(vsmtype, VariantMetadata(null, sampleIds, headerLines), genotypes)
+    VariantSampleMatrix(VariantMetadata(null, sampleIds, headerLines), genotypes)
   }
 }
