@@ -2,6 +2,7 @@ package org.broadinstitute.hail.variant.vsm
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.variant.{Variant, VariantSampleMatrix}
+import org.broadinstitute.hail.variant.VSMUtils._
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
 import scala.util.Random
@@ -22,7 +23,7 @@ class VSMSuite extends SparkSuite {
           val result = "rm -rf " + vdsdir !;
           assert(result == 0)
 
-          LoadVCF(sc, "src/test/resources/sample.vcf.gz", vsmtype = vsmtype)
+          LoadVCF(sc, "src/test/resources/sample.vcf.gz")
             .write(sqlContext, vdsdir)
 
           val vds = VariantSampleMatrix.read(sqlContext, vdsdir)
@@ -55,7 +56,7 @@ class VSMSuite extends SparkSuite {
 
       vsmTypes.foreach { vsmtype =>
         val localKeep = keep
-        val filtered = LoadVCF(sc, "src/test/resources/sample.vcf.gz", vsmtype = vsmtype)
+        val filtered = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
           .filterSamples(s => localKeep(s))
 
         val filteredAsMap = filtered.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()

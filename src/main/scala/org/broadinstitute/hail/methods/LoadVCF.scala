@@ -42,7 +42,7 @@ object LoadVCF {
             val b = new GenotypeStreamBuilder(v, compress)
             for (g <- gs)
               b += g
-            (v, b.result())
+            (v, b.result(): Iterable[Genotype])
           }
       }
 

@@ -15,9 +15,6 @@ object Import extends Command {
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"), usage = "Input file")
     var input: String = _
 
-    @Args4jOption(required = false, name = "-m", aliases = Array("--vsm-type"), usage = "Select VariantSampleMatrix implementation")
-    var vsmtype: String = "sparky"
-
     @Args4jOption(required = false, name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
     var noCompress: Boolean = false
 
@@ -42,7 +39,7 @@ object Import extends Command {
           fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
         }
 
-        LoadVCF(state.sc, input, options.vsmtype, !options.noCompress,
+        LoadVCF(state.sc, input, !options.noCompress,
           if (options.nPartitions != 0)
             Some(options.nPartitions)
           else
