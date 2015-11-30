@@ -2,7 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.Utils
 import org.broadinstitute.hail.variant.{Sample, Genotype, Variant}
-import scala.math
+import org.scalacheck.Prop.True
 import scala.reflect.ClassTag
 import scala.language.implicitConversions
 
@@ -13,8 +13,8 @@ class FilterString(val s: String) extends AnyVal {
 
 class FilterOption[T](val ot: Option[T]) extends AnyVal {
   //override def toString: Option[String] = ot.map(_.toString)
-  def ==(ot2: Option[T]): Option[Boolean] = ot.flatMap(t => ot2.map(_ == t))
-  def !=(ot2: Option[T]): Option[Boolean] = ot.flatMap(t => ot2.map(_ != t))
+  def ===(that: FilterOption[T]): FilterOption[Boolean] = this.ot.flatMap(t => new FilterOption[Boolean](that.ot.map(_ == t)))
+  def !==(that: FilterOption[T]): FilterOption[Boolean] = new FilterOption[Boolean]((this === that).ot.map(!_))
 }
 
 class FilterBooleanOption(val ob: Option[Boolean]) extends AnyVal {
@@ -32,8 +32,8 @@ class FilterStringOption(val os: Option[String]) extends AnyVal {
 
 class FilterArrayOption[T](val oa: Option[Array[T]]) extends AnyVal {
   def apply(i: Int): Option[T] = oa.map(_(i))
-  def size: Option[Int] = oa.map(_.size)
-  def ++(oa2: Option[Array[T]]): Option[Array[T]] = oa.flatMap(a => oa2.map(a ++ _))
+  def size2: Option[Int] = oa.map(_.size)
+//  def ++(oa2: Option[Array[T]]): Option[Array[T]] = oa.flatMap(a => oa2.map(a ++ _))
 }
 
 class FilterOrderedOption[T <: Ordered[T]](val ot: Option[T]) extends AnyVal {
@@ -57,16 +57,19 @@ class FilterNumericOption[T <: scala.math.Numeric[T]#Ops](val ot: Option[T]) ext
 
 }
 
-object FilterUtils {
 
-  implicit def toFilterString(s: String): FilterString = new FilterString(s)
-  implicit def toFilterOption[T](t: T): FilterOption[T] = new FilterOption[T](Some(t))
+
+
+object FilterUtils {
+/*  implicit def toFilterString(s: String): FilterString = new FilterString(s)
+  implicit def toFilterOption[T](t: T): FilterOption[T] = {println("converted a thing: " + t); new FilterOption[T](Some(t))}
   implicit def toFilterStringOption(s: String): FilterStringOption = new FilterStringOption(Some(s))
-  implicit def toFilterBooleanOption(b: Boolean): FilterBooleanOption = new FilterBooleanOption(Some(b))
-  implicit def toFilterArrayOption[T](a: Array[T]): FilterArrayOption[T] = new FilterArrayOption[T](Some(a))
+  implicit def toFilterBooleanOption(b: Boolean): FilterBooleanOption = {println("converted a thing: " + b); new FilterBooleanOption(Some(b))}
+  implicit def toFilterArrayOption[T](a: Array[T]): FilterArrayOption[T] = {println("converted a thing: " + a); new FilterArrayOption[T](Some(a))}
+  implicit def toFilterArrayOption[T](a: Option[Array[T]]): FilterArrayOption[T] = {println("converted a thing: " + a); new FilterArrayOption[T](a)}
   implicit def toFilterOrderedOption[T <: Ordered[T]](t: T): FilterOrderedOption[T] = new FilterOrderedOption[T](Some(t))
   implicit def toFilterNumericOption[T <: scala.math.Numeric[T]#Ops](t: T): FilterNumericOption[T] = new FilterNumericOption[T](Some(t))
-
+*/
 }
 
 class Evaluator[T](t: String)(implicit tct: ClassTag[T])
@@ -92,6 +95,7 @@ class FilterVariantCondition(cond: String)
     "(v: org.broadinstitute.hail.variant.Variant) => { " +
       "import org.broadinstitute.hail.methods.FilterUtils._; " +
       cond + " }: Boolean") {
+
   def apply(v: Variant): Boolean = eval()(v)
 }
 
