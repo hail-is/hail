@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.VSMUtils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object Write extends Command {

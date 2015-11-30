@@ -2,7 +2,6 @@ package org.broadinstitute.hail.variant.vsm
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.variant.{Variant, VariantSampleMatrix}
-import org.broadinstitute.hail.variant.VSMUtils._
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
 import scala.util.Random

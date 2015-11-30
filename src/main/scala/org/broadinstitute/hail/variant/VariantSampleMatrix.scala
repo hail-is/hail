@@ -6,8 +6,6 @@ import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant._
-import scala.collection.mutable
 import scala.language.implicitConversions
 
 import scala.reflect.ClassTag
@@ -21,13 +19,11 @@ object VariantSampleMatrix {
   }
 
   def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
+    require(dirname.endsWith(".vds"))
+    import RichRow._
 
     val metadata = readObjectFile(dirname + "/metadata.ser", sqlContext.sparkContext.hadoopConfiguration)(
       _.readObject().asInstanceOf[VariantMetadata])
-
-    import RichRow._
-
-    require(dirname.endsWith(".vds"))
 
     // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
@@ -206,10 +202,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }.foldByKey(zeroValue)(combOp)
   }
 
-  def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] = {
-    rdd
-      .mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
-  }
+  def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
+    rdd.mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
 
 }
 
@@ -217,7 +211,6 @@ class RichVDS(vds: VariantDataset) {
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
     import sqlContext.implicits._
-    import VSMUtils.toRichIterableGenotype
 
     require(dirname.endsWith(".vds"))
 
@@ -225,7 +218,6 @@ class RichVDS(vds: VariantDataset) {
     hadoopMkdir(dirname, hConf)
     writeObjectFile(dirname + "/metadata.ser", hConf)(
       _.writeObject(vds.metadata))
-    //      _.writeObject("sparky" -> metadata))
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
     vds.rdd
@@ -233,24 +225,4 @@ class RichVDS(vds: VariantDataset) {
       .toDF()
       .saveAsParquetFile(dirname + "/rdd.parquet")
   }
-}
-
-
-class RichIterableGenotype(val it: Iterable[Genotype]) extends AnyVal {
-
-  def toGenotypeStream(v: Variant, compress: Boolean): GenotypeStream = {
-    it match {
-      case gs: GenotypeStream => gs
-      case _ =>
-        val b: GenotypeStreamBuilder = new GenotypeStreamBuilder(v, compress = compress)
-        b ++= it
-        b.result()
-    }
-  }
-
-}
-
-object VSMUtils {
-  implicit def toRichIterableGenotype(it: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(it)
-  implicit def toRichVDS(vsm: VariantDataset): RichVDS = new RichVDS(vsm)
 }
