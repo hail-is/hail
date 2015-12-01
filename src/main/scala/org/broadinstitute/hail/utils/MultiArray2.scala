@@ -2,23 +2,38 @@ package org.broadinstitute.hail.utils
 
 import java.io.Serializable
 import scala.reflect.ClassTag
+import scala.collection.immutable.IndexedSeq
 
 
 class MultiArray2[T](val n1: Int,
                      val n2: Int,
-                     val a: Array[T]) extends Serializable {
+                     val a: Array[T]) extends Serializable with Iterable[T] {
+
   require(a.length == n1*n2)
 
-  class rowSlice(val i:Int) {
-    def indices: Iterable[(Int,Int)] = for (j <- 0 until n2) yield (i,j)
-    def data: Iterable[T] = for ((i,j) <- indices) yield a(i*n2 + j)
+  class RowSlice(val i:Int) extends IndexedSeq[T] {
+    require(i >= 0 && i < n1)
+    def apply(idx:Int): T = {
+      require(idx >= 0 && idx < length)
+      a(i*n2 + idx)
+    }
+    def length: Int = n2
   }
 
-  class columnSlice(val j:Int) {
-    def indices: Iterable[(Int,Int)] = for (i <- 0 until n1) yield (i,j)
-    def data: Iterable[T] = for ((i,j) <- indices) yield a(i*n2 + j)
+  class ColumnSlice(val j:Int) extends IndexedSeq[T] {
+    require(j >= 0 && j < n2)
+    def apply(idx:Int): T = {
+      require(idx >= 0 && idx < length)
+      a(idx*n2 + j)
+    }
+    def length: Int = n1
   }
 
+  def rowSlice(i:Int) = new RowSlice(i)
+  def columnSlice(j:Int) = new ColumnSlice(j)
+
+  def rows: Iterable[RowSlice] = for (i <- rowIndices) yield rowSlice(i)
+  def columns: Iterable[ColumnSlice] = for (j <- columnIndices) yield columnSlice(j)
 
   def indices: Iterable[(Int,Int)] = for (i <- 0 until n1; j <- 0 until n2) yield (i, j)
 
@@ -47,9 +62,6 @@ class MultiArray2[T](val n1: Int,
     require(n1 == other.n1 && n2 == other.n2)
     new MultiArray2(n1,n2,a.zip(other.a))
   }
-
-  def rows: Iterable[rowSlice] = for (i <- rowIndices) yield new rowSlice(i)
-  def columns: Iterable[columnSlice] = for (j <- columnIndices) yield new columnSlice(j)
 
   def iterator: Iterator[T] = a.iterator
 }
