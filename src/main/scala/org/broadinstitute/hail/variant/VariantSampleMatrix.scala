@@ -4,7 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.vsm.{SparkyVSM, TupleVSM}
+import org.broadinstitute.hail.variant.vsm.SparkyVSM
 
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
@@ -15,7 +15,6 @@ object VariantSampleMatrix {
             rdd: RDD[(Variant, GenotypeStream)]): VariantSampleMatrix[Genotype] = {
     vsmtype match {
       case "sparky" => new SparkyVSM(metadata, rdd)
-      case "tuple" => TupleVSM(metadata, rdd)
     }
   }
 
@@ -25,7 +24,6 @@ object VariantSampleMatrix {
 
     vsmType match {
       case "sparky" => SparkyVSM.read(sqlContext, dirname, metadata)
-      case "tuple" => TupleVSM.read(sqlContext, dirname, metadata)
     }
   }
 }

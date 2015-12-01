@@ -18,9 +18,6 @@ object Import extends Command {
     @Args4jOption(required = false, name = "-m", aliases = Array("--vsm-type"), usage = "Select VariantSampleMatrix implementation")
     var vsmtype: String = "sparky"
 
-    @Args4jOption(required = false, name = "-p", aliases = Array("--parser"), usage = "Select parser, one of htsjdk or native")
-    var parser: String = "htsjdk"
-
     @Args4jOption(required = false, name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
     var noCompress: Boolean = false
 
@@ -36,15 +33,6 @@ object Import extends Command {
   def run(state: State, options: Options): State = {
     val input = options.input
 
-    val parser = options.parser
-    println("parser = " + parser)
-    val readerBuilder = if (parser == "htsjdk")
-      vcf.HtsjdkRecordReaderBuilder
-    else if (parser == "native")
-      vcf.RecordReaderBuilder
-    else
-      fatal("unknown parser `" + parser + "'")
-
     val newVDS =
       if (input.endsWith(".vcf")
         || input.endsWith(".vcf.bgz")
@@ -54,7 +42,7 @@ object Import extends Command {
           fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
         }
 
-        LoadVCF(state.sc, input, readerBuilder, options.vsmtype, !options.noCompress,
+        LoadVCF(state.sc, input, options.vsmtype, !options.noCompress,
           if (options.nPartitions != 0)
             Some(options.nPartitions)
           else
