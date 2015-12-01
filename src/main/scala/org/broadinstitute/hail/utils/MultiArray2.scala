@@ -9,6 +9,7 @@ class MultiArray2[T](val n1: Int,
                      val n2: Int,
                      val a: Array[T]) extends Serializable with Iterable[T] {
 
+  require(n1 > 0 && n2 > 0)
   require(a.length == n1*n2)
 
   class RowSlice(val i:Int) extends IndexedSeq[T] {
