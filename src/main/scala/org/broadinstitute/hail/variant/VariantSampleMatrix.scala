@@ -207,6 +207,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
 }
 
+// FIXME AnyVal Scala 2.11
 class RichVDS(vds: VariantDataset) {
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
