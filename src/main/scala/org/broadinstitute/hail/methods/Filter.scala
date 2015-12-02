@@ -5,6 +5,8 @@ import org.broadinstitute.hail.variant.{Sample, Genotype, Variant}
 import org.scalacheck.Prop.True
 import scala.reflect.ClassTag
 import scala.language.implicitConversions
+import org.broadinstitute.hail.methods.FilterUtils._
+import scala.runtime.RichInt
 
 class FilterString(val s: String) extends AnyVal {
   def ~(t: String): Boolean = s.r.findFirstIn(t).isDefined
@@ -21,6 +23,7 @@ class FilterOptionBoolean(val ob: Option[Boolean]) extends AnyVal {
   def &&(that: FilterOptionBoolean): FilterOption[Boolean] = new FilterOption(this.ob.flatMap(b => that.ob.map(b && _)))
   def ||(that: FilterOptionBoolean): FilterOption[Boolean] = new FilterOption(this.ob.flatMap(b => that.ob.map(b || _)))
   def unary_!(): FilterOption[Boolean] = new FilterOption(this.ob.map(! _))
+  def toBoolean: Boolean = if (this.ob.isDefined) this.ob.get else false //FIXME: need to condition on keep or remove
 }
 
 class FilterOptionString(val os: Option[String]) extends AnyVal {
@@ -37,14 +40,16 @@ class FilterOptionArray[T](val oa: Option[Array[T]]) extends AnyVal {
 }
 
 // FIXME: replace with compare
-class FilterOptionOrdered[T <: Ordered[T]](val ot: Option[T]) extends AnyVal {
+class FilterOptionOrdered[T](val ot: Option[T])(implicit order: (T) => Ordered[T]) {
   def >(that: FilterOptionOrdered[T]): FilterOption[Boolean] = new FilterOption(this.ot.flatMap(t => that.ot.map(t > _)))
+  def >(that: T): FilterOption[Boolean] = new FilterOption(this.ot.map(t => t > that))
   def <(that: FilterOptionOrdered[T]): FilterOption[Boolean] = new FilterOption(this.ot.flatMap(t => that.ot.map(t < _)))
+  def <(that: T): FilterOption[Boolean] = new FilterOption(this.ot.map(t => t < that))
   def >=(that: FilterOptionOrdered[T]): FilterOption[Boolean] = new FilterOption(this.ot.flatMap(t => that.ot.map(t >= _)))
   def <=(that: FilterOptionOrdered[T]): FilterOption[Boolean] = new FilterOption(this.ot.flatMap(t => that.ot.map(t <= _)))
 }
 
-class FilterOptionNumeric[T <: scala.math.Numeric[T]#Ops](val ot: Option[T]) extends AnyVal {
+class FilterOptionNumeric[T](val ot: Option[T])(implicit order: (T) => scala.math.Numeric[T]#Ops) {
   def +(that: FilterOptionNumeric[T]): FilterOption[T] = new FilterOption(this.ot.flatMap(t => that.ot.map(t + _)))
   def -(that: FilterOptionNumeric[T]): FilterOption[T] = new FilterOption(this.ot.flatMap(t => that.ot.map(t - _)))
   def *(that: FilterOptionNumeric[T]): FilterOption[T] = new FilterOption(this.ot.flatMap(t => that.ot.map(t * _)))
@@ -60,11 +65,17 @@ class FilterOptionNumeric[T <: scala.math.Numeric[T]#Ops](val ot: Option[T]) ext
 object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
   implicit def toFilterOption[T](t: T): FilterOption[T] = {println("converted to FO: " + t); new FilterOption(Some(t))}
+  implicit def toFilterOption[T](t: Option[T]): FilterOption[T] = {println("converted to FO: " + t); new FilterOption(t)}
   implicit def toFilterOptionBoolean(fo: FilterOption[Boolean]): FilterOptionBoolean = {println("converted to FOB: " + fo); new FilterOptionBoolean(fo.ot)}
   implicit def toFilterOptionString(fo: FilterOption[String]): FilterOptionString = {println("converted to FOS: " + fo); new FilterOptionString(fo.ot)}
   implicit def toFilterOptionArray[T](fo: FilterOption[Array[T]]): FilterOptionArray[T] = {println("converted to FOA: " + fo); new FilterOptionArray[T](fo.ot)}
-  implicit def toFilterOptionOrdered[T <: Ordered[T]](fo: FilterOption[T]): FilterOptionOrdered[T] = {println("converted to FOO: " + fo); new FilterOptionOrdered[T](fo.ot)}
-  implicit def toFilterOptionNumeric[T <: scala.math.Numeric[T]#Ops](fo: FilterOption[T]): FilterOptionNumeric[T] = {println("converted to FON: " + fo); new FilterOptionNumeric[T](fo.ot)}
+
+  implicit def toFilterOptionOrdered[T](fo: FilterOption[T])(implicit order: (T) => Ordered[T]): FilterOptionOrdered[T] = {println("converted to FOO: " + fo); new FilterOptionOrdered[T](fo.ot)}
+  implicit def toFilterOptionOrdered[T](t: T)(implicit order: (T) => Ordered[T]): FilterOptionOrdered[T] = {println("converted to FOO: " + t); new FilterOptionOrdered[T](Some(t))}
+
+  implicit def toFilterOptionNumeric[T](fo: FilterOption[T])(implicit order: (T) => scala.math.Numeric[T]#Ops): FilterOptionNumeric[T] = {println("converted to FON: " + fo); new FilterOptionNumeric[T](fo.ot)}
+  implicit def toFilterOptionNumeric[T](t: T)(implicit order: (T) => scala.math.Numeric[T]#Ops): FilterOptionNumeric[T] = {println("converted to FON: " + t); new FilterOptionNumeric[T](Some(t))}
+
 }
 
 class Evaluator[T](t: String)(implicit tct: ClassTag[T])
@@ -85,28 +96,21 @@ class Evaluator[T](t: String)(implicit tct: ClassTag[T])
   }
 }
 
-
 class FilterVariantCondition(cond: String)
   extends Evaluator[(Variant) => FilterOption[Boolean]](
     "(v: org.broadinstitute.hail.variant.Variant) => { " +
-      "import org.broadinstitute.hail.methods.FilterUtils._; " +
-      cond + " }: Boolean") {
+      "import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods._;" +
+      cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]") {
 
-  def apply(v: Variant): Boolean = {
-    val fo = eval()(v)
-    if (fo.ot.isDefined) fo.ot.get else false
-  }
+  def apply(v: Variant) = eval()(v).toBoolean
 }
 
 class FilterSampleCondition(cond: String)
   extends Evaluator[(Sample) => FilterOption[Boolean]](
     "(s: org.broadinstitute.hail.variant.Sample) => { " +
       "import org.broadinstitute.hail.methods.FilterUtils._; " +
-      cond + " }: Boolean") {
-  def apply(s: Sample): Boolean = {
-    val fo = eval()(s)
-    if (fo.ot.isDefined) fo.ot.get else false
-  }
+      cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]") {
+  def apply(s: Sample) = eval()(s).toBoolean
 }
 
 class FilterGenotypeCondition(cond: String)
@@ -115,10 +119,6 @@ class FilterGenotypeCondition(cond: String)
       "s: org.broadinstitute.hail.variant.Sample, " +
       "g: org.broadinstitute.hail.variant.Genotype) => { " +
       "import org.broadinstitute.hail.methods.FilterUtils._; " +
-      cond + " }: Boolean") {
-  def apply(v: Variant, s: Sample, g: Genotype): Boolean =
-  {
-    val fo = eval()(v, s, g)
-    if (fo.ot.isDefined) fo.ot.get else false
-  }
+      cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]") {
+  def apply(v: Variant, s: Sample, g: Genotype) = eval()(v, s, g).toBoolean
 }
