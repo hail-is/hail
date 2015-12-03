@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.utils.MultiArray2
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
@@ -35,7 +36,7 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 
 object MendelErrors {
 
-  def getCode(gts: Array[GenotypeType], isHemizygous: Boolean): Int = {
+  def getCode(gts: IndexedSeq[GenotypeType], isHemizygous: Boolean): Int = {
     (gts(1), gts(2), gts(0), isHemizygous) match { // gtDad, gtMom, gtKid, isHemizygous
       case (HomRef, HomRef,    Het, false) => 2    // Kid is het and not hemizygous
       case (HomVar, HomVar,    Het, false) => 1
@@ -67,36 +68,34 @@ object MendelErrors {
     // all trios have defined sex, see require above
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
-    val zeroVal: Array[Array[GenotypeType]] = // FIXME: change to MultiArray2 once available
-      Array.fill[Array[GenotypeType]](trios.size)(Array.fill[GenotypeType](3)(NoCall))
+    val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length,3)(NoCall)
 
-    def seqOp(a: Array[Array[GenotypeType]], s: Int, g: Genotype): Array[Array[GenotypeType]] = {
-      sampleTrioRolesBc.value(s).foreach{ case (ti, ri) => a(ti)(ri) = g.gtType }
+    def seqOp(a: MultiArray2[GenotypeType], s: Int, g: Genotype): MultiArray2[GenotypeType] = {
+      sampleTrioRolesBc.value(s).foreach{ case (ti, ri) => a.update(ti,ri,g.gtType) }
       a
     }
 
-    def mergeOp(a: Array[Array[GenotypeType]], b: Array[Array[GenotypeType]]): Array[Array[GenotypeType]] = {
-      for (ti <- a.indices; ri <- 0 until 3)
-          if (b(ti)(ri) != NoCall)
-            a(ti)(ri) = b(ti)(ri)
+    def mergeOp(a: MultiArray2[GenotypeType], b: MultiArray2[GenotypeType]): MultiArray2[GenotypeType] = {
+      for ((i,j) <- a.indices)
+        if (b(i,j) != NoCall)
+          a(i,j) = b(i,j)
       a
     }
 
     new MendelErrors(trios, vds.sampleIds,
       vds
-      .aggregateByVariantWithKeys(zeroVal)(
-        (a, v, s, g) => seqOp(a, s, g),
-        mergeOp)
-      .flatMap{ case (v, a) =>
-        a.zipWithIndex.flatMap{ case (ati, ti) =>
-          val code = getCode(ati, v.isHemizygous(trioSexBc.value(ti)))
-          if (code != 0)
-            Some(new MendelError(v, triosBc.value(ti), code, ati(0), ati(1), ati(2)))
-          else
-            None
+        .aggregateByVariantWithKeys(zeroVal)(
+          (a, v, s, g) => seqOp(a, s, g),
+          mergeOp)
+        .flatMap { case (v, a) =>
+          a.rows.flatMap { case (row) => val code = getCode(row, v.isHemizygous(trioSexBc.value(row.i)))
+            if (code != 0)
+              Some(new MendelError(v, triosBc.value(row.i), code, row(0), row(1), row(2)))
+            else
+              None
+          }
         }
-      }
-      .cache()
+        .cache()
     )
   }
 }
