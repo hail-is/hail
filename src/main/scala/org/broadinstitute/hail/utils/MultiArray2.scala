@@ -15,10 +15,8 @@ class MultiArray2[T](val n1: Int,
   class Row(val i:Int) extends IndexedSeq[T] {
     require(i >= 0 && i < n1)
     def apply(j:Int): T = {
-      if (j >= 0 && j < length)
-        a(i*n2 + j)
-      else
-        throw new ArrayIndexOutOfBoundsException
+      if (j < 0 || j >= length) throw new ArrayIndexOutOfBoundsException
+      a(i*n2 + j)
     }
     def length: Int = n2
   }
@@ -26,10 +24,8 @@ class MultiArray2[T](val n1: Int,
   class Column(val j:Int) extends IndexedSeq[T] {
     require(j >= 0 && j < n2)
     def apply(i:Int): T = {
-      if (i >= 0 && i < length)
-        a(i*n2 + j)
-      else
-        throw new ArrayIndexOutOfBoundsException
+      if (i < 0 || i >= length) throw new ArrayIndexOutOfBoundsException
+      a(i*n2 + j)
     }
     def length: Int = n1
   }
