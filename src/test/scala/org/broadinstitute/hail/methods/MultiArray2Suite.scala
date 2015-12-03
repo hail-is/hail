@@ -7,9 +7,13 @@ import org.testng.annotations.Test
 class MultiArray2Suite extends SparkSuite{
   @Test def test() = {
 
-    // bad multiarray of size 0
+    // test multiarray of size 0 will be created
+    val ma0 = MultiArray2.fill[Int](0, 0)(0)
+
+    // test multiarray of size 0 that get nothing out
     intercept[IllegalArgumentException] {
-      val a = MultiArray2.fill[Int](0,0)(0)
+      val ma0 = MultiArray2.fill[Int](0, 0)(0)
+      ma0(0,0)
     }
 
     // bad multiarray initiation -- negative number
@@ -63,7 +67,7 @@ class MultiArray2Suite extends SparkSuite{
       val x = ma5.rowSlice(100)
     }
 
-    intercept[IllegalArgumentException] {
+    intercept[ArrayIndexOutOfBoundsException] {
       val x = ma5.rowSlice(0)
       val y = x(100)
     }
@@ -80,7 +84,7 @@ class MultiArray2Suite extends SparkSuite{
       val x = ma5.columnSlice(-5)
     }
 
-    intercept[IllegalArgumentException] {
+    intercept[ArrayIndexOutOfBoundsException] {
       val x = ma5.columnSlice(0)
       val y = x(100)
     }

@@ -36,7 +36,7 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 
 object MendelErrors {
 
-  def getCode(gts: Array[GenotypeType], isHemizygous: Boolean): Int = {
+  def getCode(gts: IndexedSeq[GenotypeType], isHemizygous: Boolean): Int = {
     (gts(1), gts(2), gts(0), isHemizygous) match { // gtDad, gtMom, gtKid, isHemizygous
       case (HomRef, HomRef,    Het, false) => 2    // Kid is het and not hemizygous
       case (HomVar, HomVar,    Het, false) => 1
@@ -88,7 +88,7 @@ object MendelErrors {
           (a, v, s, g) => seqOp(a, s, g),
           mergeOp)
         .flatMap { case (v, a) =>
-          a.rows.flatMap { case (row) => val code = getCode(row.toArray, v.isHemizygous(trioSexBc.value(row.i)))
+          a.rows.flatMap { case (row) => val code = getCode(row, v.isHemizygous(trioSexBc.value(row.i)))
             if (code != 0)
               Some(new MendelError(v, triosBc.value(row.i), code, row(0), row(1), row(2)))
             else
