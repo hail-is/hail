@@ -14,16 +14,22 @@ class MultiArray2[T](val n1: Int,
 
   class RowSlice(val i:Int) extends IndexedSeq[T] {
     require(i >= 0 && i < n1)
-    def apply(j:Int): T = {
-      a(i*n2 + j)
+    def apply(columnidx:Int): T = {
+      if (columnidx >= 0 && columnidx < length)
+        a(i*n2 + columnidx)
+      else
+        throw new ArrayIndexOutOfBoundsException
     }
     def length: Int = n2
   }
 
   class ColumnSlice(val j:Int) extends IndexedSeq[T] {
     require(j >= 0 && j < n2)
-    def apply(i:Int): T = {
-      a(i*n2 + j)
+    def apply(rowidx:Int): T = {
+      if (rowidx >= 0 && rowidx < length)
+        a(rowidx*n2 + j)
+      else
+        throw new ArrayIndexOutOfBoundsException
     }
     def length: Int = n1
   }
