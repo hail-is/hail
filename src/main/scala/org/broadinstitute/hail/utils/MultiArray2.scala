@@ -12,33 +12,33 @@ class MultiArray2[T](val n1: Int,
   require(n1 >= 0 && n2 >= 0)
   require(a.length == n1*n2)
 
-  class RowSlice(val i:Int) extends IndexedSeq[T] {
+  class Row(val i:Int) extends IndexedSeq[T] {
     require(i >= 0 && i < n1)
-    def apply(columnidx:Int): T = {
-      if (columnidx >= 0 && columnidx < length)
-        a(i*n2 + columnidx)
+    def apply(j:Int): T = {
+      if (j >= 0 && j < length)
+        a(i*n2 + j)
       else
         throw new ArrayIndexOutOfBoundsException
     }
     def length: Int = n2
   }
 
-  class ColumnSlice(val j:Int) extends IndexedSeq[T] {
+  class Column(val j:Int) extends IndexedSeq[T] {
     require(j >= 0 && j < n2)
-    def apply(rowidx:Int): T = {
-      if (rowidx >= 0 && rowidx < length)
-        a(rowidx*n2 + j)
+    def apply(i:Int): T = {
+      if (i >= 0 && i < length)
+        a(i*n2 + j)
       else
         throw new ArrayIndexOutOfBoundsException
     }
     def length: Int = n1
   }
 
-  def rowSlice(i:Int) = new RowSlice(i)
-  def columnSlice(j:Int) = new ColumnSlice(j)
+  def row(i:Int) = new Row(i)
+  def column(j:Int) = new Column(j)
 
-  def rows: Iterable[RowSlice] = for (i <- rowIndices) yield rowSlice(i)
-  def columns: Iterable[ColumnSlice] = for (j <- columnIndices) yield columnSlice(j)
+  def rows: Iterable[Row] = for (i <- rowIndices) yield row(i)
+  def columns: Iterable[Column] = for (j <- columnIndices) yield column(j)
 
   def indices: Iterable[(Int,Int)] = for (i <- 0 until n1; j <- 0 until n2) yield (i, j)
 

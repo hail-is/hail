@@ -19,7 +19,7 @@ class MultiArray2Suite extends SparkSuite{
     // test array index out of bounds on row slice
     intercept[ArrayIndexOutOfBoundsException] {
       val foo = MultiArray2.fill[Int](5, 5)(0)
-      foo.rowSlice(0)(5)
+      foo.row(0)(5)
     }
 
     // bad multiarray initiation -- negative number
@@ -70,28 +70,28 @@ class MultiArray2Suite extends SparkSuite{
     }
 
     intercept[IllegalArgumentException] {
-      val x = ma5.rowSlice(100)
+      val x = ma5.row(100)
     }
 
     intercept[ArrayIndexOutOfBoundsException] {
-      val x = ma5.rowSlice(0)
+      val x = ma5.row(0)
       val y = x(100)
     }
 
     intercept[IllegalArgumentException] {
-      val x = ma5.rowSlice(-5)
+      val x = ma5.row(-5)
     }
 
     intercept[IllegalArgumentException] {
-      val x = ma5.columnSlice(100)
+      val x = ma5.column(100)
     }
 
     intercept[IllegalArgumentException] {
-      val x = ma5.columnSlice(-5)
+      val x = ma5.column(-5)
     }
 
     intercept[ArrayIndexOutOfBoundsException] {
-      val x = ma5.columnSlice(0)
+      val x = ma5.column(0)
       val y = x(100)
     }
 
