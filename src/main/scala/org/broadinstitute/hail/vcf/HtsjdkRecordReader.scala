@@ -14,10 +14,8 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   override def remove() { throw new UnsupportedOperationException }
 }
 
-class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec)
-  extends AbstractRecordReader {
-  override def readRecord(line: String): (Variant, GenotypeStream) = {
-
+class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
+  def readRecord(line: String): (Variant, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val ref = vc.getReference.getBaseString
@@ -77,8 +75,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec)
   }
 }
 
-object HtsjdkRecordReaderBuilder extends AbstractRecordReaderBuilder {
-  def result(headerLines: Array[String]): HtsjdkRecordReader = {
+object HtsjdkRecordReader {
+  def apply(headerLines: Array[String]): HtsjdkRecordReader = {
     val codec = new htsjdk.variant.vcf.VCFCodec()
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)

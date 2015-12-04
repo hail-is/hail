@@ -76,7 +76,7 @@ object TestRDDBuilder {
     }
   }
 
-  def buildRDD(nSamples: Int, nVariants: Int, sc: SparkContext, vsmtype: String,
+  def buildRDD(nSamples: Int, nVariants: Int, sc: SparkContext,
                       gqArray: Option[Array[Array[Int]]] = None,
                       dpArray: Option[Array[Array[Int]]] = None): VariantDataset = {
     /* Takes the arguments:
@@ -119,8 +119,8 @@ object TestRDDBuilder {
           // FIXME gq
           b += Genotype(gt, ad, Some(dp), pl)
         }
-        (variant, b.result())
+        (variant, b.result(): Iterable[Genotype])
     }
-    VariantSampleMatrix(vsmtype, VariantMetadata(Map("1" -> 1000000), sampleList, None), streamRDD)
+    VariantSampleMatrix(VariantMetadata(Map("1" -> 1000000), sampleList, None), streamRDD)
   }
 }

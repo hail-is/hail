@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.variant.vsm.SparkyVSM
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
@@ -20,7 +19,7 @@ object MultiSplit extends Command {
       (if (k == i) 1 else 0)
   }
 
-  def split(v: Variant, it: GenotypeStream): Iterator[(Variant, GenotypeStream)] = {
+  def split(v: Variant, it: Iterable[Genotype]): Iterator[(Variant, Iterable[Genotype])] = {
     if (v.isBiallelic)
       return Iterator((v, it))
 
@@ -64,11 +63,8 @@ object MultiSplit extends Command {
   }
 
   def run(state: State, options: Options): State = {
-    // FIXME
-    val sparky = state.vds.asInstanceOf[SparkyVSM[Genotype, GenotypeStream]]
-
-    val newVDS = sparky.copy[Genotype, GenotypeStream](rdd =
-      sparky.rdd.flatMap[(Variant, GenotypeStream)]((split _).tupled))
+    val newVDS = state.vds.copy[Genotype](rdd =
+      state.vds.rdd.flatMap[(Variant, Iterable[Genotype])]((split _).tupled))
     state.copy(vds = newVDS)
   }
 }

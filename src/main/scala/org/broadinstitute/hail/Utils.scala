@@ -246,6 +246,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def writeTable(filename: String, header: String = null) {
     if (header != null)
       writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
     r.saveAsTextFile(filename)
   }
 }
@@ -264,8 +265,6 @@ class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
 
 class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
   def mapValuesWithKeys[T](f: (K, V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
-
-  def groupByKey: Map[K, Iterable[V]] = m.groupBy(_._1).mapValues {_.values}
 
   def force = m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
 }
