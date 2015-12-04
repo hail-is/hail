@@ -178,36 +178,7 @@ class RecordReader(header: Header) extends AbstractRecordReader {
     }
   }
 
-  override def readRecord(line: String): Iterator[(Variant, Iterator[Genotype])] = {
-    var i = 0
-    var tabs = 0
-    while (tabs < 9) {
-      if (line(i) == '\t')
-        tabs += 1
-      i += 1
-    }
-
-    val fixed: Array[String] = line.slice(0, i).split("\t")
-
-    val vcfVariant = VCFVariant(fixed(0),
-      fixed(1).toInt,
-      fixed(3) +: fixed(4).split(","))
-
-    // FIXME skip multi-allelic variants
-    if (vcfVariant.nAlleles == 2) {
-      val vcfGenotypes = parseGenotypeStream(header,
-        vcfVariant.nAlleles,
-        fixed(8),
-        line.view.slice(i, line.length).iterator.buffered)
-
-      val variant = vcfVariant.toVariant
-
-      Iterator.single((variant,
-        for (g <- vcfGenotypes)
-          yield g.toGenotype))
-    } else
-      Iterator.empty
-  }
+  override def readRecord(line: String): (Variant, GenotypeStream) = throw new UnsupportedOperationException
 }
 
 object RecordReaderBuilder extends AbstractRecordReaderBuilder {

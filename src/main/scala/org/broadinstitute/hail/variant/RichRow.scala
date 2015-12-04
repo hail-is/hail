@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.variant
 
+import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
@@ -18,16 +19,18 @@ class RichRow(r: Row) {
     else
       Some(r.getInt(i))
 
-  def getVariant(i: Int): Variant = throw new UnsupportedOperationException
-  /*
+  def toAltAllele: AltAllele = {
+    AltAllele(r.getString(0),
+      r.getString(1))
+  }
+
   def getVariant(i: Int): Variant = {
     val ir = r.getAs[Row](i)
-    Variant(ir.getAs[String](0),
-      ir.getAs[Int](1),
-      ir.getAs[String](2),
-      ir.getAs[String](3))
+    Variant(ir.getString(0),
+      ir.getInt(1),
+      ir.getString(2),
+      ir.getAs[ArrayBuffer[Row]](3).map(_.toAltAllele))
   }
-  */
 
   def getGenotype(i: Int): Genotype = throw new UnsupportedOperationException
 

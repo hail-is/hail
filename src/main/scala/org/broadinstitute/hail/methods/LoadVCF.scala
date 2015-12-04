@@ -39,13 +39,7 @@ object LoadVCF {
       .mapPartitions { lines =>
         val reader = readerBuilder.result(headerLinesBc.value)
         lines.filter(line => !line.isEmpty && line(0) != '#')
-          .flatMap(reader.readRecord)
-          .map { case (v, gs) =>
-            val b = new GenotypeStreamBuilder(v, compress)
-            for (g <- gs)
-              b += g
-            (v, b.result())
-          }
+          .map(reader.readRecord)
       }
 
     // FIXME null should be contig lengths

@@ -7,6 +7,7 @@ import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.scalacheck.{Arbitrary, Gen}
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
@@ -151,6 +152,25 @@ class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
       b += c.toByte
     }
   }
+
+  def writeSLEB128(x0: Int) {
+    var more = true
+    var x = x0
+    while (more) {
+      var c = x & 0x7f
+      x >>= 7
+
+      if ((x == 0
+        && (c & 0x40) == 0)
+        || (x == -1
+        && (c & 0x40) == 0x40))
+        more = false
+      else
+        c |= 0x80
+
+      b += c.toByte
+    }
+  }
 }
 
 class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
@@ -163,6 +183,24 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
       x = x | ((b & 0x7f) << shift)
       shift += 7
     } while ((b & 0x80) != 0)
+
+    x
+  }
+
+  def readSLEB128(): Int = {
+    var shift: Int = 0
+    var x: Int = 0
+    var b: Byte = 0
+    do {
+      b = i.next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    } while ((b & 0x80) != 0)
+
+    // sign extend
+    if (shift < 32
+      && (b & 0x40) != 0)
+      x = (x << (32 - shift)) >> (32 - shift)
 
     x
   }
@@ -245,6 +283,29 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   }
 }
 
+class RichIntPairTraversableOnce[V](val t: TraversableOnce[(Int, V)]) extends AnyVal {
+  def reduceByKeyToArray(n: Int, zero: => V)(f: (V, V) => V)(implicit vct: ClassTag[V]): Array[V] = {
+    val a = Array.fill[V](n)(zero)
+    t.foreach { case (k, v) =>
+      a(k) = f(a(k), v)
+    }
+    a
+  }
+}
+
+class RichPairTraversableOnce[K, V](val t: TraversableOnce[(K, V)]) extends AnyVal {
+  def reduceByKey(f: (V, V) => V): scala.collection.Map[K, V] = {
+    val m = mutable.Map.empty[K, V]
+    t.foreach { case (k, v) =>
+      m.get(k) match {
+        case Some(v2) => m += k -> f(v, v2)
+        case None => m += k -> v
+      }
+    }
+    m
+  }
+}
+
 object Utils {
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -317,6 +378,12 @@ object Utils {
 
   implicit def toRichOption[T](o: Option[T]): RichOption[T] =
     new RichOption[T](o)
+
+  implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]) =
+    new RichPairTraversableOnce[K, V](t)
+
+  implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]) =
+    new RichIntPairTraversableOnce[V](t)
 
   def warning(msg: String) {
     System.err.println("hail: warning: " + msg)
@@ -489,7 +556,7 @@ object Utils {
     a - b >= -D_epsilon(a, b, tolerance)
 
 
-  def flushDouble(a: Double):Double =
+  def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 
   def eval[T](t: String): T = {
@@ -498,4 +565,14 @@ object Utils {
     toolbox.typeCheck(ast)
     toolbox.eval(ast).asInstanceOf[T]
   }
+
+  def genOption[T](g: Gen[T], someFrequency: Int = 4): Gen[Option[T]] =
+    Gen.frequency((1, Gen.const(None)),
+      (someFrequency, g.map(Some(_))))
+
+  def genNonnegInt: Gen[Int] = Arbitrary.arbitrary[Int].map(_ & Int.MaxValue)
+
+  def genBase = Gen.oneOf('A', 'C', 'T', 'G')
+
+  def genDNAString = Gen.buildableOf[String, Char](genBase)
 }

@@ -53,7 +53,7 @@ object FilterGenotypes extends Command {
       if (p(v, Sample(sampleIdsBc.value(s)), g))
         g
       else
-        Genotype(None, None, None, None, None))
+        Genotype(None, None, None, None))
 
     state.copy(vds = newVDS)
   }

@@ -1,9 +1,23 @@
 package org.broadinstitute.hail.variant
 
+import org.scalacheck.Gen
+import org.broadinstitute.hail.Utils._
+
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
   // FIXME add "*"
   val SNP, MNP, Insertion, Deletion, Complex = Value
+}
+
+object AltAllele {
+  def gen(ref: String): Gen[AltAllele] =
+    for (alt <- genDNAString)
+      yield AltAllele(ref, alt)
+
+  def gen: Gen[AltAllele] =
+    for (ref <- genDNAString;
+      alt <- genDNAString)
+      yield AltAllele(ref, alt)
 }
 
 case class AltAllele(ref: String,
@@ -67,6 +81,19 @@ object Variant {
     start: Int,
     ref: String,
     alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
+
+  def nGenotypes(nAlleles: Int): Int = {
+    require(nAlleles > 0)
+    nAlleles * (nAlleles + 1) / 2
+  }
+
+  def gen: Gen[Variant] =
+    for (contig <- Gen.identifier;
+      start <- genNonnegInt;
+      ref <- genDNAString;
+      altAlleles <- Gen.buildableOf[IndexedSeq[AltAllele], AltAllele](
+        AltAllele.gen(ref)))
+      yield Variant(contig, start, ref, altAlleles)
 }
 
 case class Variant(contig: String,
@@ -94,7 +121,7 @@ case class Variant(contig: String,
   else
     altAlleles(i - 1).alt
 
-  def nGenotypes = nAlleles * (nAlleles + 1) / 2
+  def nGenotypes = Variant.nGenotypes(nAlleles)
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/

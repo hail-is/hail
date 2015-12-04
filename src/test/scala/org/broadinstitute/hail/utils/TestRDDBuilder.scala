@@ -94,7 +94,7 @@ object TestRDDBuilder {
 
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>
-      (Variant("1", i, defaultRef, defaultAlt),
+      (Variant("1", i + 1, defaultRef, defaultAlt),
         (gqArray.map(_(i)),
           dpArray.map(_(i)))))
       .toArray
@@ -116,8 +116,8 @@ object TestRDDBuilder {
           val ad = adFromDP(dp, gt)
           val pl = plFromGQ(gq, gt)
 
-          // FIXME
-          b += Genotype(gt, ad, Some(dp), Some(gq), pl)
+          // FIXME gq
+          b += Genotype(gt, ad, Some(dp), pl)
         }
         (variant, b.result())
     }

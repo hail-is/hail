@@ -3,7 +3,7 @@ package org.broadinstitute.hail.vcf
 import org.broadinstitute.hail.variant._
 
 abstract class AbstractRecordReader {
-  def readRecord(line: String): Iterator[(Variant, Iterator[Genotype])]
+  def readRecord(line: String): (Variant, GenotypeStream)
 }
 
 abstract class AbstractRecordReaderBuilder extends Serializable {
