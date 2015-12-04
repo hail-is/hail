@@ -11,26 +11,6 @@ import org.broadinstitute.hail.methods.{sSingletonVariants, LoadVCF}
 import org.testng.annotations.Test
 
 class VSMSuite extends SparkSuite {
-  val vsmTypes = List("sparky", "tuple")
-
-  @Test def testsSingletonVariants() {
-    val singletons: List[Set[Variant]] =
-      vsmTypes
-        .map(vsmtype => {
-          val vdsdir = "/tmp/sample." + vsmtype + ".vds"
-
-          val result = "rm -rf " + vdsdir !;
-          assert(result == 0)
-
-          LoadVCF(sc, "src/test/resources/sample.vcf.gz", vsmtype = vsmtype)
-            .write(sqlContext, vdsdir)
-
-          val vds = VariantSampleMatrix.read(sqlContext, vdsdir)
-          sSingletonVariants(vds)
-        })
-
-    assert(singletons.tail.forall(s => s == singletons.head))
-  }
 
   @Test def testFilterSamples() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
@@ -53,20 +33,18 @@ class VSMSuite extends SparkSuite {
         }
       }
 
-      vsmTypes.foreach { vsmtype =>
-        val localKeep = keep
-        val filtered = LoadVCF(sc, "src/test/resources/sample.vcf.gz", vsmtype = vsmtype)
-          .filterSamples(s => localKeep(s))
+      val localKeep = keep
+      val filtered = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
+        .filterSamples(s => localKeep(s))
 
-        val filteredAsMap = filtered.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
-        filteredAsMap.foreach { case (k, g) => simpleAssert(vdsAsMap(k) == g) }
+      val filteredAsMap = filtered.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
+      filteredAsMap.foreach { case (k, g) => simpleAssert(vdsAsMap(k) == g) }
 
-        simpleAssert(filtered.nSamples == nSamples)
-        simpleAssert(filtered.localSamples.toSet == keep)
+      simpleAssert(filtered.nSamples == nSamples)
+      simpleAssert(filtered.localSamples.toSet == keep)
 
-        val sampleKeys = filtered.mapWithKeys((v, s, g) => s).distinct.collect()
-        assert(sampleKeys.toSet == keep)
-      }
+      val sampleKeys = filtered.mapWithKeys((v, s, g) => s).distinct.collect()
+      assert(sampleKeys.toSet == keep)
     }
   }
 }

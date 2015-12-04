@@ -79,6 +79,11 @@ class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
     this
   }
 
+  def ++=(i: Iterator[Genotype]): GenotypeStreamBuilder.this.type = {
+    i.foreach(_.write(b))
+    this
+  }
+
   override def clear() {
     b.clear()
   }
