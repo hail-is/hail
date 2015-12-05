@@ -218,6 +218,8 @@ object Genotype {
     }
   }
 
+  def gen(v: Variant): Gen[Genotype] = gen(v.nAlleles)
+
   def genWithSize: Gen[(Int, Genotype)] =
     for (nAlleles <- Gen.choose(1, 10);
       g <- gen(nAlleles))

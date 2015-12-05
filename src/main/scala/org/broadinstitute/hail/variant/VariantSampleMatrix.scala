@@ -6,6 +6,7 @@ import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
+import org.scalacheck.{Arbitrary, Gen}
 import scala.language.implicitConversions
 
 import scala.reflect.ClassTag
@@ -29,6 +30,21 @@ object VariantSampleMatrix {
     val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
     new VariantSampleMatrix[Genotype](metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
+
+  def genVariantGenotypes[T](nSamples: Int, g: Gen[T]) =
+    for (v <- Variant.gen;
+      gs <- Gen.buildableOfN[Iterable[T], T](nSamples, g))
+      yield (v, gs)
+
+  def gen[T](sc: SparkContext, g: Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    for (nSamples <- Gen.choose(0, 100);
+    // FIXME unique
+      sampleIds <- Gen.buildableOfN[Array[String], String](nSamples, Gen.identifier);
+      rows <- Gen.buildableOf[Seq[(Variant, Iterable[T])], (Variant, Iterable[T])](genVariantGenotypes(nSamples, g)))
+      yield new VariantSampleMatrix[T](VariantMetadata(Map.empty, sampleIds), sc.parallelize(rows))
+
+  def gen[T](sc: SparkContext)(implicit arb: Arbitrary[T], ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    gen(sc, arb.arbitrary)
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
@@ -205,6 +221,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
 
+  
 }
 
 // FIXME AnyVal Scala 2.11
