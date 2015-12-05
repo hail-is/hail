@@ -41,7 +41,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (implicit ttt: TypeTag[T], tct: ClassTag[T]) =
     this(metadata, Array.range(0, metadata.nSamples), rdd)
 
-  def sampleIds: Array[String] = metadata.sampleIds
+  def sampleIds: IndexedSeq[String] = metadata.sampleIds
 
   def nSamples: Int = metadata.sampleIds.length
 
@@ -205,6 +205,17 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
 
+  def same(that: VariantSampleMatrix[T]): Boolean = {
+    metadata == that.metadata &&
+      localSamples.sameElements(that.localSamples) &&
+      rdd.fullOuterJoin(that.rdd)
+        .map { case (v, t) => t match {
+          case (Some(it1), Some(it2)) =>
+            it1.sameElements(it2)
+          case _ => false
+        }
+        }.reduce(_ && _)
+  }
 }
 
 // FIXME AnyVal Scala 2.11

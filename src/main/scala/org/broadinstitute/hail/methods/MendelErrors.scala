@@ -25,7 +25,7 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     else if (code == 4 || code == 7 || code == 9 || code == 10)  Iterator(trio.kid, trio.mom)
     else                                                         Iterator(trio.kid)
 
-  def toLineMendel(sampleIds: Array[String]): String = {
+  def toLineMendel(sampleIds: IndexedSeq[String]): String = {
     val v = variant
     val t = trio
     val errorString = gtString(v, gtDad) + " x " + gtString(v, gtMom) + " -> " + gtString(v, gtKid)
@@ -101,7 +101,7 @@ object MendelErrors {
 }
 
 case class MendelErrors(trios:        Array[CompleteTrio],
-                        sampleIds:    Array[String],
+                        sampleIds:    IndexedSeq[String],
                         mendelErrors: RDD[MendelError]) {
 
   val sc = mendelErrors.sparkContext
