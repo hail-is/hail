@@ -103,6 +103,20 @@ object FilterUtils {
   implicit def toFilterOptionFloat(fo: FilterOption[Float]): FilterOptionFloat = new FilterOptionFloat(fo.ot)
   implicit def toFilterOptionLong(fo: FilterOption[Long]): FilterOptionLong = new FilterOptionLong(fo.ot)
   implicit def toFilterOptionInt(fo: FilterOption[Int]): FilterOptionInt = new FilterOptionInt(fo.ot)
+
+  def pushToBooleanValue[T](f: (T) => FilterOption[Boolean], keep: Boolean): (T) => Boolean = {
+    t => f(t).ot match {
+      case Some(b) => if (keep) b else !b
+      case None => false
+    }
+  }
+
+  def pushToBooleanValue(f: (Variant, Sample, Genotype) => FilterOption[Boolean], keep: Boolean): (Variant, Sample, Genotype) => Boolean = {
+    (v, s, g) => f(v, s, g).ot match {
+      case Some(b) => if (keep) b else !b
+      case None => false
+    }
+  }
 }
 
 class Evaluator[T](t: String)(implicit tct: ClassTag[T])
@@ -149,5 +163,4 @@ class FilterGenotypeCondition(cond: String)
   def apply(v: Variant, s: Sample, g: Genotype) = eval()(v, s, g)
 }
 
-//def toBoolean: Boolean = if (this.ob.isDefined) this.ob.get else false //FIXME: need to condition on keep or remove
 

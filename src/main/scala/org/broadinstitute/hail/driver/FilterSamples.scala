@@ -49,7 +49,7 @@ object FilterSamples extends Command {
           cf.typeCheck()
 
           val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-          (s: Int) => cf(Sample(sampleIdsBc.value(s)))
+          FilterUtils.pushToBooleanValue((s: Int) => cf(Sample(sampleIdsBc.value(s))), options.keep)
         } catch {
           case e: scala.tools.reflect.ToolBoxError =>
             /* e.message looks like:
@@ -60,11 +60,6 @@ object FilterSamples extends Command {
         }
     }
 
-    val newVDS = vds.filterSamples(if (options.keep)
-      p
-    else
-      (s: Int) => !p(s))
-
-    state.copy(vds = newVDS)
+    state.copy(vds = vds.filterSamples(p))
   }
 }

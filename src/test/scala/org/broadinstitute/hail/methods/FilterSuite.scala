@@ -24,7 +24,7 @@ class FilterSuite extends SparkSuite {
     assert(!highGQ.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
     assert(highGQ.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
 
-    val vds2 = TestRDDBuilder.buildRDD(1, 1, sc, vsmtype = "sparky")
+    val vds2 = TestRDDBuilder.buildRDD(1, 1, sc)
     val state2 = State("", sc, sqlContext, vds2)
     val nVariants = vds2.nVariants
 
@@ -51,9 +51,6 @@ class FilterSuite extends SparkSuite {
 
     assert(FilterVariants.run(state2, Array("--remove", "-c", "5 === 5.0"))
       .vds.nVariants == 0)
-
-//    assert(FilterVariants.run(state2, Array("--remove", "-c", "5 === None"))
-//      .vds.nVariants == 0)
 
     assert(FilterVariants.run(state2, Array("--remove", "-c", "val a = new FilterOption[Int](Some(4)); val b = new FilterOption[Int](Some(5)); a > b"))
       .vds.nVariants == nVariants)

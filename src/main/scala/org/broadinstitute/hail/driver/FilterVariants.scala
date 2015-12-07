@@ -40,7 +40,7 @@ object FilterVariants extends Command {
         try {
           val cf = new FilterVariantCondition(c)
           cf.typeCheck()
-          cf.apply
+          FilterUtils.pushToBooleanValue(cf.apply, options.keep)
         } catch {
           case e: scala.tools.reflect.ToolBoxError =>
             /* e.message looks like:
@@ -51,12 +51,7 @@ object FilterVariants extends Command {
         }
     }
 
-    val newVDS = vds.filterVariants(if (options.keep)
-      p
-    else
-      (v: Variant) => !p(v))
-
-    state.copy(vds = newVDS)
+    state.copy(vds = vds.filterVariants(p))
   }
 }
 

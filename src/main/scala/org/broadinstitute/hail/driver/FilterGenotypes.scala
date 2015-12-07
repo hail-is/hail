@@ -34,10 +34,7 @@ object FilterGenotypes extends Command {
     val p: (Variant, Sample, Genotype) => Boolean = try {
       val cf = new FilterGenotypeCondition(options.condition)
       cf.typeCheck()
-      if (options.keep)
-        cf.apply
-      else
-        (v: Variant, s: Sample, g: Genotype) => !cf(v, s, g)
+      FilterUtils.pushToBooleanValue(cf.apply, options.keep)
     } catch {
       case e: scala.tools.reflect.ToolBoxError =>
         /* e.message looks like:
