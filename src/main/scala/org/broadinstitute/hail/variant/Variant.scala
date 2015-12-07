@@ -11,7 +11,7 @@ object AltAlleleType extends Enumeration {
 
 object AltAllele {
   def gen(ref: String): Gen[AltAllele] =
-    for (alt <- genDNAString)
+    for (alt <- genDNAString if alt != ref)
       yield AltAllele(ref, alt)
 
   def gen: Gen[AltAllele] =
@@ -89,7 +89,7 @@ object Variant {
 
   def gen: Gen[Variant] =
     for (contig <- Gen.identifier;
-      start <- genNonnegInt;
+      start <- Gen.posNum[Int];
       ref <- genDNAString;
       altAlleles <- Gen.buildableOf[IndexedSeq[AltAllele], AltAllele](
         AltAllele.gen(ref)))

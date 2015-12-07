@@ -35,7 +35,7 @@ case class CompleteTrio(kid: Int, fam: Option[String], dad: Int, mom: Int, sex: 
 
 object Pedigree {
 
-  def read(filename: String, sampleIds: Array[String]): Pedigree = {
+  def read(filename: String, sampleIds: IndexedSeq[String]): Pedigree = {
     require(filename.endsWith(".fam"))
 
     val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
@@ -88,7 +88,7 @@ case class Pedigree(trios: Array[Trio]) {
   }
 
   // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
-  def write(filename: String, hConf: hadoop.conf.Configuration, sampleIds: Array[String]) {
+  def write(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]) {
     def sampleIdOrElse(s: Option[Int]) = if (s.isDefined) sampleIds(s.get) else "0"
     def toLine(t: Trio): String =
       t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + sampleIdOrElse(t.dad) + "\t" +

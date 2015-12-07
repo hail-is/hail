@@ -1,45 +1,105 @@
 package org.broadinstitute.hail.variant.vsm
 
-import org.apache.spark.sql.Row
-import org.apache.spark.{SparkContext, SparkConf}
-import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.variant.{GenotypeStream, Genotype, Variant, VariantSampleMatrix}
+import org.broadinstitute.hail.{ScalaCheckSuite, SparkSuite}
+import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
-import sys.process._
 import scala.language.postfixOps
-import org.broadinstitute.hail.methods.{sSingletonVariants, LoadVCF}
+import org.broadinstitute.hail.methods.LoadVCF
 import org.testng.annotations.Test
+import org.scalacheck.Prop._
+import org.scalacheck.Arbitrary._
 
-/*
-object Test {
-  def main(args: Array[String]) {
-    val conf = new SparkConf().setMaster("local").setAppName("test")
+class VSMSuite extends SparkSuite with ScalaCheckSuite {
 
-    val sc = new SparkContext(conf)
-    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+  @Test def testSame() {
+    val vds1 = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
+    val vds2 = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
+    assert(vds1.same(vds2))
 
-    val vsm = LoadVCF(sc, "src/test/resources/sample.vcf.gz", vsmtype = "sparky")
+    val mdata1 = VariantMetadata(Map("1" -> 10, "2" -> 10), IndexedSeq("S1", "S2", "S3"))
+    val mdata2 = VariantMetadata(Map("1" -> 10, "2" -> 20), IndexedSeq("S1", "S2", "S3"))
+    val mdata3 = VariantMetadata(Map("1" -> 10), IndexedSeq("S1", "S2"))
 
-    val rdd = vsm.asInstanceOf[SparkyVSM[Genotype, GenotypeStream]].rdd
+    assert(mdata1 != mdata2)
+    assert(mdata1 != mdata3)
+    assert(mdata2 != mdata3)
 
-    import sqlContext.implicits._
+    val v1 = Variant("1", 1, "A", "T")
+    val v2 = Variant("1", 2, "T", "G")
+    val v3 = Variant("1", 2, "T", "A")
 
-    val df = rdd.toDF()
-    df.printSchema()
+    val rdd1 = sc.parallelize(Seq(v1 ->
+      Iterable(Genotype(), Genotype(0), Genotype(2)),
+      v2 ->
+        Iterable(Genotype(), Genotype(0), Genotype(1))))
 
-    val row = df.first
-    val _1 = row.getAs[Row](0)
-    val altAlleles = _1.getAs[ArrayBuffer[Row]](3)
+    // differ in variant
+    val rdd2 = sc.parallelize(Seq(v1 ->
+      Iterable(Genotype(), Genotype(0), Genotype(2)),
+      v3 ->
+        Iterable(Genotype(0), Genotype(0), Genotype(1))))
 
-    println(altAlleles)
+    // differ in genotype
+    val rdd3 = sc.parallelize(Seq(v1 ->
+      Iterable(Genotype(), Genotype(1), Genotype(2)),
+      v2 ->
+        Iterable(Genotype(0), Genotype(0), Genotype(1))))
+
+    // for mdata3
+    val rdd4 = sc.parallelize(Seq(v1 ->
+      Iterable(Genotype(), Genotype(0)),
+      v2 -> Iterable(
+        Genotype(0), Genotype(0))))
+
+    // differ in number of variants
+    val rdd5 = sc.parallelize(Seq(v1 ->
+      Iterable(Genotype(), Genotype(0))))
+
+    val vdss = Array(new VariantDataset(mdata1, rdd1),
+      new VariantDataset(mdata1, rdd2),
+      new VariantDataset(mdata1, rdd3),
+      new VariantDataset(mdata2, rdd1),
+      new VariantDataset(mdata2, rdd2),
+      new VariantDataset(mdata2, rdd3),
+      new VariantDataset(mdata3, rdd4),
+      new VariantDataset(mdata3, rdd5))
+
+    for (i <- vdss.indices;
+      j <- vdss.indices) {
+      if (i == j)
+        assert(vdss(i) == vdss(j))
+      else
+        assert(vdss(i) != vdss(j))
+    }
   }
-}
+
+  @Test def testReadWrite() {
+/*
+    (0 until 100).foreach { _ =>
+      VariantSampleMatrix.gen[Genotype](sc, (v: Variant) => Genotype.gen(v)).sample match {
+        case Some(vsm) =>
+          vsm.rdd.foreach { case (v, gs) =>
+            gs.foreach(_.check(v)) }
+
+          hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
+          vsm.write(sqlContext, "/tmp/foo.vds")
+        case None =>
+      }
+    }
 */
 
-class VSMSuite extends SparkSuite {
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, (v: Variant) => Genotype.gen(v))) { vsm: VariantSampleMatrix[Genotype] =>
+      hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
+      vsm.write(sqlContext, "/tmp/foo.vds")
+      val vsm2 = VariantSampleMatrix.read(sqlContext, "/tmp/foo.vds")
+      vsm2.same(vsm)
+    }
+
+    check(p)
+  }
+
   @Test def testFilterSamples() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()

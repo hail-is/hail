@@ -17,10 +17,10 @@ object GenotypeType extends Enumeration {
 
 import org.broadinstitute.hail.variant.GenotypeType.GenotypeType
 
-case class Genotype(gt: Option[Int],
-  ad: Option[IndexedSeq[Int]],
-  dp: Option[Int],
-  pl: Option[IndexedSeq[Int]]) {
+case class Genotype(gt: Option[Int] = None,
+  ad: Option[IndexedSeq[Int]] = None,
+  dp: Option[Int] = None,
+  pl: Option[IndexedSeq[Int]] = None) {
   require(gt.forall(_ >= 0))
 
   def check(v: Variant) {
@@ -109,6 +109,8 @@ case class Genotype(gt: Option[Int],
 }
 
 object Genotype {
+  def apply(gtx: Int): Genotype = Genotype(Some(gtx))
+
   final val flagMultiHasGT = 0x1
   final val flagMultiGTRef = 0x2
   final val flagBiGTMask = 0x3
@@ -214,7 +216,9 @@ object Genotype {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
-      Genotype(gt, ad, dp, pl.map(pla => pla: IndexedSeq[Int]))
+      val g = Genotype(gt, ad, dp, pl.map(pla => pla: IndexedSeq[Int]))
+      g.check(nAlleles)
+      g
     }
   }
 

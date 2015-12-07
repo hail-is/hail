@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.variant
 
-import org.scalacheck
-import org.scalacheck.{Gen, Properties}
+import org.scalacheck.Gen
+import org.broadinstitute.hail.ScalaCheckSuite
+import org.scalacheck.Properties
 import org.scalacheck.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
@@ -42,7 +43,8 @@ object GenotypeSuite {
 
 }
 
-class GenotypeSuite extends TestNGSuite {
+class GenotypeSuite extends TestNGSuite with ScalaCheckSuite {
+
   import GenotypeSuite._
 
   val v = Variant("1", 1, "A", "T")
@@ -81,7 +83,6 @@ class GenotypeSuite extends TestNGSuite {
     assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(Array(100, 0, 100))).pAB().get, 1.0))
     assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(Array(200, 0, 100))).pAB().get, 0.423950))
 
-    Spec.check
-    // scalacheck.Test.check(scalacheck.Test.Parameters.default, Spec)
+    check(Spec)
   }
 }

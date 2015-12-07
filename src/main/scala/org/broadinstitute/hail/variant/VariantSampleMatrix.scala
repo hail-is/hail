@@ -7,6 +7,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
 import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Arbitrary._
 import scala.language.implicitConversions
 
 import scala.reflect.ClassTag
@@ -31,20 +32,29 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 
-  def genVariantGenotypes[T](nSamples: Int, g: Gen[T]) =
+  def genVariantValues[T](nSamples: Int, g: Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
       gs <- Gen.buildableOfN[Iterable[T], T](nSamples, g))
       yield (v, gs)
 
-  def gen[T](sc: SparkContext, g: Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
-    for (nSamples <- Gen.choose(0, 100);
-    // FIXME unique
+  def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
+    for (v <- Variant.gen;
+      gs <- Gen.buildableOfN[Iterable[T], T](nSamples, g(v)))
+      yield (v, gs)
+
+  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    for (nSamples <- Gen.choose(0, 10);
+      // FIXME unique
       sampleIds <- Gen.buildableOfN[Array[String], String](nSamples, Gen.identifier);
-      rows <- Gen.buildableOf[Seq[(Variant, Iterable[T])], (Variant, Iterable[T])](genVariantGenotypes(nSamples, g)))
+      rows <- Gen.buildableOf[Seq[(Variant, Iterable[T])], (Variant, Iterable[T])](genVariantValues(nSamples, g)))
       yield new VariantSampleMatrix[T](VariantMetadata(Map.empty, sampleIds), sc.parallelize(rows))
 
-  def gen[T](sc: SparkContext)(implicit arb: Arbitrary[T], ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
-    gen(sc, arb.arbitrary)
+  def gen[T](sc: SparkContext, g: Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    gen(sc, (v: Variant) => g)
+
+  implicit def arbVariantSampleMatrix[T](implicit sc: SparkContext,
+    a: Arbitrary[T], ttt: TypeTag[T], tct: ClassTag[T]): Arbitrary[VariantSampleMatrix[T]] =
+    Arbitrary(gen(sc, arbitrary[T]))
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
@@ -57,7 +67,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (implicit ttt: TypeTag[T], tct: ClassTag[T]) =
     this(metadata, Array.range(0, metadata.nSamples), rdd)
 
-  def sampleIds: Array[String] = metadata.sampleIds
+  def sampleIds: IndexedSeq[String] = metadata.sampleIds
 
   def nSamples: Int = metadata.sampleIds.length
 
@@ -221,7 +231,18 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.mapValues(_.foldLeft(zeroValue)((acc, g) => combOp(acc, g)))
 
-  
+  def same(that: VariantSampleMatrix[T]): Boolean = {
+    metadata == that.metadata &&
+      localSamples.sameElements(that.localSamples) &&
+      rdd.fullOuterJoin(that.rdd)
+        .map { case (v, t) => t match {
+          case (Some(it1), Some(it2)) =>
+            it1.sameElements(it2)
+          case _ => false
+        }
+        }.reduce(_ && _)
+  }
+
 }
 
 // FIXME AnyVal Scala 2.11

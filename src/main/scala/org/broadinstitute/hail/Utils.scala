@@ -7,7 +7,8 @@ import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Gen
+import org.scalacheck.Arbitrary._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
@@ -569,9 +570,10 @@ object Utils {
     Gen.frequency((1, Gen.const(None)),
       (someFrequency, g.map(Some(_))))
 
-  def genNonnegInt: Gen[Int] = Arbitrary.arbitrary[Int].map(_ & Int.MaxValue)
+  def genNonnegInt: Gen[Int] = arbitrary[Int].map(_ & Int.MaxValue)
 
-  def genBase = Gen.oneOf('A', 'C', 'T', 'G')
+  def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
-  def genDNAString = Gen.buildableOf[String, Char](genBase)
+  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+
 }

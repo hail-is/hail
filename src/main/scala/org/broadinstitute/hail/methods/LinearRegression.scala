@@ -15,7 +15,7 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
 
 object CovariateData {
 
-  def read(filename: String, sampleIds: Array[String]): CovariateData = {
+  def read(filename: String, sampleIds: IndexedSeq[String]): CovariateData = {
     val src = Source.fromFile(new File(filename))
     val linesIt = src.getLines().filterNot(_.isEmpty)
     val header = linesIt.next()
