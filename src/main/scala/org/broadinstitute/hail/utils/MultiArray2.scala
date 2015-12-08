@@ -1,6 +1,9 @@
 package org.broadinstitute.hail.utils
 
 import java.io.Serializable
+import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.util.Buildable
+
 import scala.reflect.ClassTag
 import scala.collection.immutable.IndexedSeq
 
@@ -70,5 +73,21 @@ class MultiArray2[T](val n1: Int,
 object MultiArray2 {
   def fill[T](n1: Int, n2: Int)(elem: => T)(implicit tct: ClassTag[T]): MultiArray2[T] =
     new MultiArray2[T](n1, n2, Array.fill[T](n1 * n2)(elem))
+
+  def genMultiArray2[T](g: Gen[T])(implicit bT: Buildable[T, Array[T]]) = {
+    val maxDimensionSize = 10
+    for (n1 <- Gen.choose(0, maxDimensionSize);
+         n2 <- Gen.choose(0, maxDimensionSize);
+         a <- Gen.containerOfN[Array, T](n1 * n2, g)
+    )
+      yield new MultiArray2(n1, n2, a)
+  }
+
+  def genMultiArray2Sized[T](g: Gen[T],n1:Int,n2:Int)(implicit bT: Buildable[T, Array[T]]) = {
+    require(n1 >= 0 && n2 >= 0)
+    for (a <- Gen.containerOfN[Array, T](n1 * n2, g)) yield new MultiArray2(n1, n2, a)
+  }
+
+  implicit def arbMultiArray2[T](implicit a: Arbitrary[T], bT: Buildable[T, Array[T]]): Arbitrary[MultiArray2[T]] = Arbitrary(genMultiArray2(a.arbitrary))
 }
 
