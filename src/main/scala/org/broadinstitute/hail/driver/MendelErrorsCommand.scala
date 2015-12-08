@@ -21,7 +21,7 @@ object MendelErrorsCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    val ped = Pedigree.read(options.famFilename, state.vds.sampleIds)
+    val ped = Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds)
     val men = MendelErrors(state.vds, ped.completeTrios)
 
     men.writeMendel(options.output + ".mendel")

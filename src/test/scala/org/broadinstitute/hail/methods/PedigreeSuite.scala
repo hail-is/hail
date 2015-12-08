@@ -6,9 +6,9 @@ import org.testng.annotations.Test
 class PedigreeSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", vds.sampleIds)
+    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
     ped.write("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)  // FIXME: this is not right
-    val pedwr = Pedigree.read("/tmp/sample_mendel.fam", vds.sampleIds)
+    val pedwr = Pedigree.read("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
     assert(ped.trios.sameElements(pedwr.trios))
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
