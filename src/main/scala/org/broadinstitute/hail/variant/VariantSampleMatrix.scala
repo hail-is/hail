@@ -94,6 +94,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def expand(): RDD[(Variant, Int, T)] =
     mapWithKeys[(Variant, Int, T)]((v, s, g) => (v, s, g))
 
+  def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
+    copy(rdd = rdd.sample(withReplacement = false, fraction, 1))
 
   def mapValues[U](f: (T) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U] = {
     mapValuesWithKeys((v, s, g) => f(g))

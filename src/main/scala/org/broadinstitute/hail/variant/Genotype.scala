@@ -104,7 +104,7 @@ class Genotype(private val flags: Byte,
     p.j == p.k
   }
 
-  def isNonRef: Boolean = _gt >= 0
+  def isCalledNonRef: Boolean = _gt >= 0
 
   def isHetNonRef: Boolean = _gt >= 0 && {
     val p = Genotype.gtPair(_gt)
