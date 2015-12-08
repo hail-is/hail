@@ -17,11 +17,68 @@ object GenotypeType extends Enumeration {
 
 import org.broadinstitute.hail.variant.GenotypeType.GenotypeType
 
-case class Genotype(gt: Option[Int] = None,
-  ad: Option[IndexedSeq[Int]] = None,
-  dp: Option[Int] = None,
-  pl: Option[IndexedSeq[Int]] = None) {
-  require(gt.forall(_ >= 0))
+object GTPair {
+  def apply(j: Int, k: Int): GTPair = {
+    require(j >= 0 && j <= 0xffff)
+    require(k >= 0 && k <= 0xffff)
+    new GTPair(j | (k << 16))
+  }
+}
+
+class GTPair(val p: Int) extends AnyVal {
+  def j: Int = p & 0xffff
+
+  def k: Int = (p >> 16) & 0xffff
+}
+
+class Genotype(private val flags: Byte,
+  private val _gt: Int,
+  private val _ad: Array[Int],
+  private val _dp: Int,
+  private val _pl: Array[Int]) extends Serializable {
+
+  require(_gt >= -1)
+  require((_gt == -1) == ((flags & Genotype.flagHasGT) == 0))
+
+  override def equals(that: Any): Boolean = that match {
+    case g: Genotype =>
+      flags == g.flags &&
+        _gt == g._gt &&
+        (_ad == null || _ad.sameElements(g._ad)) &&
+        _dp == g._dp &&
+        (_pl == null || _pl.sameElements(g._pl))
+    case _ => false
+  }
+
+  override def hashCode: Int = {
+    flags ^ _gt ^ _dp ^
+      (if (_ad != null) _ad.hashCode else 0) ^
+      (if (_pl != null) _pl.hashCode else 0)
+  }
+
+  def gt: Option[Int] =
+    if (_gt >= 0)
+      Some(_gt)
+    else
+      None
+
+  def ad: Option[IndexedSeq[Int]] =
+    if ((flags & Genotype.flagHasAD) != 0)
+      Some(_ad)
+    else
+      None
+
+  def dp: Option[Int] =
+    if ((flags & Genotype.flagHasDP) != 0)
+      Some(_dp)
+    else
+      None
+
+  def pl: Option[IndexedSeq[Int]] =
+    if ((flags & Genotype.flagHasPL) != 0)
+      Some(_pl)
+    else
+      None
 
   def check(v: Variant) {
     check(v.nAlleles)
@@ -34,58 +91,65 @@ case class Genotype(gt: Option[Int] = None,
     assert(pl.forall(a => a.length == nGenotypes))
   }
 
-  def isHomRef: Boolean = gt.contains(0)
+  def isHomRef: Boolean = _gt == 0
 
   // FIXME i, j => j, k
-  def isHet: Boolean = gt.exists { gt =>
-    val (i, j) = Genotype.gtPair(gt)
-    i != j
+  def isHet: Boolean = _gt >= 0 && {
+    val p = Genotype.gtPair(_gt)
+    p.j != p.k
   }
 
-  def isHomVar: Boolean = gt.exists(gt =>
-    gt > 0 && {
-      val (i, j) = Genotype.gtPair(gt)
-      i == j
-    })
-
-  def isNonRef: Boolean = gt.exists(_ > 0)
-
-  def isHetNonRef: Boolean = gt.exists { gt =>
-    val (i, j) = Genotype.gtPair(gt)
-    i > 0 && i != j
+  def isHomVar: Boolean = _gt > 0 && {
+    val p = Genotype.gtPair(_gt)
+    p.j == p.k
   }
 
-  def isHetRef: Boolean = gt.exists { gt =>
-    val (i, j) = Genotype.gtPair(gt)
-    i == 0 && j > 0
+  def isNonRef: Boolean = _gt >= 0
+
+  def isHetNonRef: Boolean = _gt >= 0 && {
+    val p = Genotype.gtPair(_gt)
+    p.j > 0 && p.j != p.k
   }
 
-  def isNotCalled: Boolean = gt.isEmpty
+  def isHetRef: Boolean = _gt >= 0 && {
+    val p = Genotype.gtPair(_gt)
+    p.j == 0 && p.k > 0
+  }
 
-  def isCalled: Boolean = gt.isDefined
+  def isNotCalled: Boolean = _gt == -1
 
+  def isCalled: Boolean = _gt >= 0
+
+  // FIXME NO
   def gtType: GenotypeType = GenotypeType(gt.getOrElse(-1))
 
-  def nNonRef: Int = gt.getOrElse(0)
-
-  def gq: Option[Int] = gt.flatMap(gtx =>
-    pl.map { plx =>
-      if (plx.length < 2)
-      // FIXME
-        Int.MaxValue
+  def nNonRef: Int =
+    if (_gt >= 0) {
+      val p = Genotype.gtPair(_gt)
+      if (p.j == p.k)
+        1
       else
-        plx.indices
-          .filter(_ != gtx)
-          .map(i => plx(i))
-          .min
-    })
+        2
+    } else
+      0
+
+  def gq: Option[Int] =
+    if (_gt >= 0 && ((flags & Genotype.flagHasPL) != 0)) {
+      var r = Int.MaxValue
+      for (i <- 0 until _gt)
+        r = r.min(_pl(i))
+      for (i <- (_gt + 1) until _pl.length)
+        r = r.min(_pl(i))
+      Some(r)
+    } else
+      None
 
   override def toString: String = {
     val b = new StringBuilder
 
     b.append(gt.map { gt =>
-      val (i, j) = Genotype.gtPair(gt)
-      s"$i/$j"
+      val p = Genotype.gtPair(gt)
+      s"${p.j}/${p.k}"
     }.getOrElse("."))
     b += ':'
     b.append(ad.map(_.mkString(",")).getOrElse("."))
@@ -109,11 +173,29 @@ case class Genotype(gt: Option[Int] = None,
 }
 
 object Genotype {
-  def apply(gtx: Int): Genotype = Genotype(Some(gtx))
+  def apply(gtx: Int): Genotype = new Genotype(flagHasGT.toByte, gtx, null, 0, null)
+
+  def apply(gt: Option[Int] = None,
+    ad: Option[IndexedSeq[Int]] = None,
+    dp: Option[Int] = None,
+    pl: Option[IndexedSeq[Int]] = None): Genotype = {
+
+    val flags =
+      ((if (gt.isDefined) Genotype.flagHasGT else 0)
+        | (if (ad.isDefined) Genotype.flagHasAD else 0)
+        | (if (dp.isDefined) Genotype.flagHasDP else 0)
+        | (if (pl.isDefined) Genotype.flagHasPL else 0))
+
+    new Genotype(flags.toByte, gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(0), pl.map(_.toArray).orNull)
+  }
 
   final val flagMultiHasGT = 0x1
   final val flagMultiGTRef = 0x2
   final val flagBiGTMask = 0x3
+
+  // only used by expanded genotype
+  final val flagHasGT = 0x1
+
   final val flagHasAD = 0x4
   final val flagHasDP = 0x8
   final val flagHasPL = 0x10
@@ -121,20 +203,36 @@ object Genotype {
   final val flagDPSimple = 0x40
   // 0x80 reserved
 
+  val smallGTPair = Array(new GTPair(0x0), new GTPair(0x10000), new GTPair(0x10001),
+    new GTPair(0x20000), new GTPair(0x20001), new GTPair(0x20002),
+    new GTPair(0x30000), new GTPair(0x30001), new GTPair(0x30002), new GTPair(0x30003),
+    new GTPair(0x40000), new GTPair(0x40001), new GTPair(0x40002), new GTPair(0x40003), new GTPair(0x40004),
+    new GTPair(0x50000), new GTPair(0x50001), new GTPair(0x50002), new GTPair(0x50003), new GTPair(0x50004),
+    new GTPair(0x50005),
+    new GTPair(0x60000), new GTPair(0x60001), new GTPair(0x60002), new GTPair(0x60003), new GTPair(0x60004),
+    new GTPair(0x60005), new GTPair(0x60006),
+    new GTPair(0x70000), new GTPair(0x70001), new GTPair(0x70002), new GTPair(0x70003), new GTPair(0x70004),
+    new GTPair(0x70005), new GTPair(0x70006), new GTPair(0x70007))
+
   // FIXME speed up, cache small, sqrt
-  def gtPair(t: Int): (Int, Int) = {
-    def f(i: Int, j: Int): (Int, Int) = if (i <= j)
-      (i, j)
+  def gtPair(i: Int): GTPair = {
+    def f(j: Int, k: Int): GTPair = if (j <= k)
+      GTPair(j, k)
     else
-      f(i - j - 1, j + 1)
+      f(j - k - 1, k + 1)
 
-    f(t, 0)
+    if (i <= 35)
+      smallGTPair(i)
+    else
+      f(i, 0)
   }
 
-  def gtIndex(i: Int, j: Int): Int = {
-    require(i >= 0 && i <= j)
-    j * (j + 1) / 2 + i
+  def gtIndex(j: Int, k: Int): Int = {
+    require(j >= 0 && j <= k)
+    k * (k + 1) / 2 + j
   }
+
+  def gtIndex(p: GTPair): Int = gtIndex(p.j, p.k)
 
   def read(v: Variant, a: Iterator[Byte]): Genotype =
     read(v.nAlleles, a)
@@ -143,67 +241,84 @@ object Genotype {
     val isBiallelic = nAlleles == 2
     val nGenotypes = Variant.nGenotypes(nAlleles)
 
-    val flags = a.next()
+    val flags: Byte = a.next()
+    var newFlags: Int = flags & (Genotype.flagHasAD | Genotype.flagHasDP | Genotype.flagHasPL)
 
-    val gt: Option[Int] =
+    val gt: Int =
       if (isBiallelic) {
         if ((flags & Genotype.flagBiGTMask) == 0)
-          None
-        else
-          Some((flags & Genotype.flagBiGTMask) - 1)
+          -1 // None
+        else {
+          newFlags |= Genotype.flagHasGT
+          (flags & Genotype.flagBiGTMask) - 1
+        }
       } else {
         if ((flags & Genotype.flagMultiHasGT) != 0) {
+          newFlags |= Genotype.flagHasGT
           if ((flags & Genotype.flagMultiGTRef) != 0)
-            Some(0)
+            0
           else
-            Some(a.readULEB128())
+            a.readULEB128()
         } else
-          None
+          -1 // None
       }
 
-    val ad: Option[IndexedSeq[Int]] =
+    val ad: Array[Int] =
       if ((flags & Genotype.flagHasAD) != 0) {
+        val ada = new Array[Int](nAlleles)
         if ((flags & Genotype.flagADSimple) != 0) {
-          assert(gt.isDefined)
-          val (j, k) = Genotype.gtPair(gt.get)
-          val adx = Array.fill(nAlleles)(0)
-          adx(j) = a.readULEB128()
-          if (j != k)
-            adx(k) = a.readULEB128()
-          Some(adx)
-        } else
-          Some(Array.fill(nAlleles)(a.readULEB128()))
+          assert((newFlags & Genotype.flagHasGT) != 0)
+          val p = Genotype.gtPair(gt)
+          ada(p.j) = a.readULEB128()
+          if (p.j != p.k)
+            ada(p.k) = a.readULEB128()
+        } else {
+          for (i <- ada.indices)
+            ada(i) = a.readULEB128()
+        }
+        ada
       } else
-        None
+        null
 
     val dp =
       if ((flags & Genotype.flagHasDP) != 0) {
-        if (ad.isDefined) {
+        if ((newFlags & Genotype.flagHasAD) != 0) {
           if ((flags & Genotype.flagDPSimple) != 0)
-            Some(ad.get.sum)
+            ad.sum
           else
-            Some(ad.get.sum + a.readSLEB128())
+            ad.sum + a.readSLEB128()
         } else
-          Some(a.readULEB128())
+          a.readULEB128()
       } else
-        None
+        0 // None
 
-    val pl: Option[IndexedSeq[Int]] =
+    val pl: Array[Int] =
       if ((flags & Genotype.flagHasPL) != 0) {
-        if (gt.isDefined) {
-          val pla = Array.fill(nGenotypes)(0)
-          val gtx = gt.get
-          for (i <- 0 until gtx)
+        val pla = new Array[Int](nGenotypes)
+        if ((newFlags & Genotype.flagHasGT) != 0) {
+          var i = 0
+          while (i < gt) {
             pla(i) = a.readULEB128()
-          for (i <- (gtx + 1) until pla.length)
-            pla(i) = a.readSLEB128()
-          Some(pla)
-        } else
-          Some(Array.fill(nGenotypes)(a.readULEB128()))
+            i += 1
+          }
+          i += 1
+          while (i < pla.length) {
+            pla(i) = a.readULEB128()
+            i += 1
+          }
+          pla
+        } else {
+          var i = 0
+          while (i < pla.length) {
+            pla(i) = a.readULEB128()
+            i += 1
+          }
+        }
+        pla
       } else
-        None
+        null
 
-    Genotype(gt, ad, dp, pl)
+    new Genotype(newFlags.toByte, gt, ad, dp, pl)
   }
 
   def gen(nAlleles: Int): Gen[Genotype] = {
@@ -310,11 +425,11 @@ class GenotypeBuilder(nAlleles: Int) {
     if (hasGT) {
       // FIXME
       val p = Genotype.gtPair(gt)
-      j = p._1
-      k = p._2
+      j = p.j
+      k = p.k
       if (hasAD) {
         if (ad.indices
-          .filter(i => i != j && i != k)
+          .filter(i => i != p.j && i != p.k)
           .forall(i => ad(i) == 0))
           flags |= Genotype.flagADSimple
       }
@@ -353,9 +468,9 @@ class GenotypeBuilder(nAlleles: Int) {
         for (i <- 0 until gt)
           b.writeULEB128(pl(i))
         for (i <- gt + 1 until pl.length)
-          b.writeSLEB128(pl(i))
+          b.writeULEB128(pl(i))
       } else
-        pl.foreach(b.writeSLEB128)
+        pl.foreach(b.writeULEB128)
     }
   }
 

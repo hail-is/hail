@@ -14,9 +14,9 @@ object MultiSplit extends Command {
   def newOptions = new Options
 
   def splitGT(gt: Int, i: Int): Int = {
-    val (j, k) = Genotype.gtPair(gt)
-    (if (j == i) 1 else 0) +
-      (if (k == i) 1 else 0)
+    val p = Genotype.gtPair(gt)
+    (if (p.j == i) 1 else 0) +
+      (if (p.k == i) 1 else 0)
   }
 
   def split(v: Variant, it: Iterable[Genotype]): Iterator[(Variant, Iterable[Genotype])] = {

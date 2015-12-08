@@ -193,15 +193,29 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
 
-    rdd
-      .map { case (v, gs) =>
-        val serializer = SparkEnv.get.serializer.newInstance()
-        val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+    rdd.mapPartitions { (it: Iterator[(Variant, Iterable[T])]) =>
+      val serializer = SparkEnv.get.serializer.newInstance()
 
-        (v, gs.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
+      it.map { case (v, gs) =>
+        // FIXME shadow
+        val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+        (v, gs.iterator.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
           seqOp(acc, v, localSamplesBc.value(i), g)
         })
       }
+    }
+
+    /*
+        rdd
+          .map { case (v, gs) =>
+            val serializer = SparkEnv.get.serializer.newInstance()
+            val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+
+            (v, gs.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
+              seqOp(acc, v, localSamplesBc.value(i), g)
+            })
+          }
+    */
   }
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)] = {

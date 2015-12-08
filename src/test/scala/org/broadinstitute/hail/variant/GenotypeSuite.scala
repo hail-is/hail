@@ -19,7 +19,9 @@ object GenotypeSuite {
     val gb = new GenotypeBuilder(nAlleles)
     gb.set(g)
     gb.write(ab)
-    g == Genotype.read(nAlleles, ab.result().iterator)
+    val g2 = Genotype.read(nAlleles, ab.result().iterator)
+    // println(s"g = $g, g2 = $g2")
+    g == g2
   }
 
   object Spec extends Properties("Genotype") {
@@ -33,11 +35,11 @@ object GenotypeSuite {
 
     property("gtPairIndex") = forAll(Gen.choose(0, 0x7fff),
       Gen.choose(0, 0x7fff)) { (i: Int, j: Int) =>
-      (i <= j) ==> (Genotype.gtPair(Genotype.gtIndex(i, j)) ==(i, j))
+      (i <= j) ==> (Genotype.gtPair(Genotype.gtIndex(i, j)) == GTPair(i, j))
     }
 
     property("gtIndexPair") = forAll(Gen.choose(0, 0x20003fff)) { (i: Int) =>
-      (Genotype.gtIndex _).tupled(Genotype.gtPair(i)) == i
+      Genotype.gtIndex(Genotype.gtPair(i)) == i
     }
   }
 
