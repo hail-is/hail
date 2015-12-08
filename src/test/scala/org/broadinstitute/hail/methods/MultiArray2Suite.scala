@@ -5,7 +5,7 @@ import org.broadinstitute.hail.utils.MultiArray2
 import org.testng.annotations.Test
 import org.scalacheck._
 import org.scalacheck.util.Buildable._
-import org.scalacheck.Prop._
+import org.scalacheck.Prop.{throws,forAll,BooleanOperators}
 import org.scalacheck.util.Buildable
 import org.scalacheck.Arbitrary._
 import scala.language.implicitConversions
@@ -13,9 +13,8 @@ import scala.language.implicitConversions
 object MultiArray2Suite {
 
   object Spec extends Properties("MultiArray2") {
-    /*    property("sizeNotNegative") = forAll {case (n1:Int,n2:Int) =>
-      if (n1 < 0 || n2 < 0) throws(classOf[IllegalArgumentException])(new MultiArray2[Int](n1,n2,Array(0,0,0,0)))
-      else true
+/*    property("sizeNotNegative") = forAll { (n1: Int, n2: Int) => (n1 < 0 || n2 < 0) ==>
+      throws(new MultiArray2[Int](n1,n2,Array(0,0,0,0))},classOf[IllegalArgumentException])
     }*/
 
     property("sizeEqualsN1N2") = forAll { ma: MultiArray2[Int] => ma.n1 * ma.n2 == ma.indices.size }
@@ -78,6 +77,7 @@ object MultiArray2Suite {
 
 class MultiArray2Suite extends SparkSuite with ScalaCheckSuite {
   import MultiArray2Suite._
+
   @Test def test() = {
 
     def genMultiArray2[T](g: Gen[T])(implicit bT: Buildable[T, Array[T]]) = {
@@ -90,7 +90,7 @@ class MultiArray2Suite extends SparkSuite with ScalaCheckSuite {
         yield new MultiArray2(n1, n2, a)
     }
 
-    implicit def arbMultiArray2[T](implicit a: Arbitrary[T]): Arbitrary[MultiArray2[T]] = Arbitrary(genMultiArray2(a.arbitrary))
+    implicit def arbMultiArray2[T](implicit a: Arbitrary[T], bT:Buildable[T,Array[T]]): Arbitrary[MultiArray2[T]] = Arbitrary(genMultiArray2(a.arbitrary))
 
     check(Spec)
   }
