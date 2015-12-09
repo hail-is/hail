@@ -64,12 +64,6 @@ case class Annotations[T](maps: Map[String, Map[String, T]], vals: Map[String, T
       .--(newVals.keys)
       .++(newVals))
   }
-
-  def equals(other: Annotations[T]): Boolean = {
-    vals.forall { case (k, v) => other.vals.contains(k) && other.vals(k) == v} &&
-      maps.forall { case (mName, m) => other.maps.contains(mName) && m.forall {
-        case (k, v) => other.maps(mName).contains(k) && other.maps(mName)(k) == v }}
-  }
 }
 
 object EmptyAnnotationSignatures {
@@ -85,10 +79,9 @@ object EmptyAnnotations {
 }
 
 object EmptySampleAnnotations {
-  def apply(nSamples: Int): Array[AnnotationData] = {
+  def apply(nSamples: Int): IndexedSeq[AnnotationData] = {
     (0 until nSamples)
       .map(i => Annotations(Map.empty[String, Map[String, String]], Map.empty[String, String]))
-      .toArray
   }
 }
 
@@ -145,9 +138,9 @@ object AnnotationClassBuilder {
     s"val $exposedName = new ${hiddenClassName}Annotations($hiddenClassName)\n"
   }
 
-  def makeArray(hiddenOutputName: String, hiddenClassName: String, hiddenAnnotationArrayName: String): String = {
-    s"val $hiddenOutputName: Array[${hiddenClassName}Annotations] = " +
-      "$hiddenAnnotationArrayName.map(new ${hiddenClassName}Annotations(_))\n"
+  def makeIndexedSeq(hiddenOutputName: String, hiddenClassName: String, hiddenAnnotationArrayName: String): String = {
+    s"val $hiddenOutputName: IndexedSeq[${hiddenClassName}Annotations] = " +
+      s"$hiddenAnnotationArrayName.map(new ${hiddenClassName}Annotations(_))\n"
   }
 
   val arrayRegex = """Array\[(\w+)\]""".r

@@ -198,7 +198,8 @@ class VariantQCCombiner extends Serializable {
 
     val hwe = HWEStats
     sb.tsvAppend(hwe._1)
-    sb.append(hwe._2)
+    sb += '\t'
+    sb ++= stringFormatDouble(hwe._2)
   }
 
   def asMap: Map[String, String] = {
@@ -282,7 +283,7 @@ object VariantQC extends Command {
 
       val qcResults = results(vds)
 
-      hadoopDelete(output, state.hadoopConf, true)
+      hadoopDelete(output, state.hadoopConf, recursive = true)
       val r = results(vds)
         .map { case (v, comb) =>
           val sb = new StringBuilder()

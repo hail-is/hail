@@ -35,7 +35,7 @@ object FilterGenotypes extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val p: Array[AnnotationData] => ((Variant, AnnotationData) => ((Int, Sample, Genotype) => Boolean)) = try {
+    val p: IndexedSeq[AnnotationData] => ((Variant, AnnotationData) => ((Int, Sample, Genotype) => Boolean)) = try {
       val cf = new FilterGenotypeCondition(options.condition, vas, sas, sa)
       cf.typeCheck()
       cf.apply
@@ -50,14 +50,15 @@ object FilterGenotypes extends Command {
     }
 
     val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-
+    val localKeep = options.keep
+    val localRemove = options.remove
     //FIXME put keep/remove logic here
     val newVDS = vds.mapValuesWithAll((v: Variant, va: AnnotationData, s: Int, g: Genotype) =>
       if (p(sa)(v, va)(s, Sample(sampleIdsBc.value(s)), g)) {
-        g
+        if (localKeep) g else Genotype(-1, (0, 0), 0, null)
       }
       else {
-        Genotype(-1, (0, 0), 0, null)
+        if (localRemove) g else Genotype(-1, (0, 0), 0, null)
       })
     state.copy(vds = newVDS)
   }

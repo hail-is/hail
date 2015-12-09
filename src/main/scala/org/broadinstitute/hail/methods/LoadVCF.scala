@@ -78,7 +78,6 @@ object LoadVCF {
       else
         null
     }
-//    contigLengths.foreach { case (id, len) => println("contig=%s, length=%s".format(id, len))}
 
     val annoRegex = """##INFO=<ID=(.+),Number=(.+),Type=(.+),Description="(.*)">""".r
     val annotationTypes = {
@@ -95,13 +94,10 @@ object LoadVCF {
     }
     val annotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> annotationTypes),
       Map("filters" -> new SimpleSignature("Set[String]", "toSetString", "filters applied to site"),
-        "pass" -> new SimpleSignature("Boolean", "toBoolean", "filters were applied && this site passed"),
+        "pass" -> new SimpleSignature("Boolean", "toBoolean", "filters were applied to vcf and this site passed"),
         "multiallelic" -> new SimpleSignature("Boolean", "toBoolean", "Site is a split multiallelic"),
         "qual" -> new SimpleSignature("Double", "toDouble", "vcf qual field"),
         "rsid" -> new SimpleSignature("String", "toString", "site rdID")))
-//    annotationTypes.foreach {
-//      case (id, v) => println(s"id=$id, type=$v")
-//    }
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')

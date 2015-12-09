@@ -332,10 +332,10 @@ object SampleQC extends Command {
         .map{ case (sa, s) => sa.addMap("qc", r(s).asMap) }
       state.copy(
         vds = vds.copy(
-          metadata=vds.metadata.copy(
-            sampleAnnotations = newAnnotations,
+          metadata = vds.metadata.copy(
             sampleAnnotationSignatures = vds.metadata.sampleAnnotationSignatures
-              .addMap("qc", SampleQCCombiner.signatures))))
+              .addMap("qc", SampleQCCombiner.signatures),
+            sampleAnnotations = newAnnotations)))
     }
     else {
 
@@ -348,7 +348,7 @@ object SampleQC extends Command {
       val singletons = sSingletonVariants(vds)
       val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
-      hadoopDelete(output, state.hadoopConf, true)
+      hadoopDelete(output, state.hadoopConf, recursive = true)
       val r = results(vds, singletons)
         .map { case (s, comb) =>
           val sb = new StringBuilder()

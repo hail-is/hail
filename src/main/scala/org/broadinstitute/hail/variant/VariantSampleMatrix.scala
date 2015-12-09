@@ -125,19 +125,21 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }
   }
 
-  def filterVariants(p: (Variant, Annotations[String]) => Boolean) =
+  def filterVariants(p: (Variant, Annotations[String]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, va, gs) => p(v, va) })
 
   def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
     filterVariants((v, va) => ilist.contains(v.contig, v.start))
 
-  def filterSamples(p: (Int, AnnotationData) => Boolean) = {
-    val localZipped = localSamples.zipWith(metadata.sampleAnnotations, (i: Int, j: AnnotationData) => (i, j))
-    val localZippedBc = sparkContext.broadcast(localZipped)
-    copy[T](localSamples = localZipped.filter(p.tupled).map(_._1),
+  def filterSamples(p: (Int, AnnotationData) => Boolean): VariantSampleMatrix[T] = {
+    val mask = localSamples.zip(metadata.sampleAnnotations).map { case (s, sa) => p(s, sa) }
+    val maskBc = sparkContext.broadcast(mask)
+    copy[T](localSamples = localSamples.zipWithIndex
+      .filter { case (s, i) => mask(i) }
+      .map(_._1),
       rdd = rdd.map { case (v, va, gs) =>
-        (v, va, localZippedBc.value.view.zip(gs.view)
-          .filter { case ((s, sa), _) => p(s, sa) }
+        (v, va, maskBc.value.view.zip(gs.view)
+          .filter(_._1)
           .map(_._2))
       })
   }
@@ -240,13 +242,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     rdd.map { case (v, va, gs) => (v, gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g))) }
 
   def same(that: VariantSampleMatrix[T]): Boolean = {
+    println(metadata == that.metadata)
     metadata == that.metadata &&
       localSamples.sameElements(that.localSamples) &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
         .map { case (v, t) => t match {
           case (Some((va1, it1)), Some((va2, it2))) =>
-            it1.sameElements(it2) && va1.equals(va2)
+            it1.sameElements(it2) && va1 == va2
           case _ => false
         }
         }.reduce(_ && _)
@@ -301,7 +304,7 @@ class RichVDS(vds: VariantDataset) {
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
     vds.rdd
-      .map { case (v, va, gs) => (v, gs.toGenotypeStream(v, compress)) }
+      .map { case (v, va, gs) => (v, va, gs.toGenotypeStream(v, compress)) }
       .toDF()
       .saveAsParquetFile(dirname + "/rdd.parquet")
   }

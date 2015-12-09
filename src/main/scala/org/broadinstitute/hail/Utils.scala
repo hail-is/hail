@@ -210,7 +210,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def writeTable(filename: String, header: String = null) {
     if (header != null)
       writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
     r.saveAsTextFile(filename)
   }
 }
@@ -240,6 +240,7 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   def tsvAppend[T](v: Option[T]) {
     v match {
+      case Some(d: Double) => sb.append(stringFormatDouble(d))
       case Some(x) => sb.append(x)
       case None => sb.append("NA")
     }
@@ -412,6 +413,10 @@ object Utils {
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
+  }
+
+  def stringFormatDouble(d: Double): String = {
+    d.formatted("%.4e")
   }
 
   // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!

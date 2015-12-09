@@ -6,7 +6,7 @@ import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object ExportVariants extends Command {
+object ExportGenotypes extends Command {
 
   class Options extends BaseOptions {
 
@@ -25,9 +25,9 @@ object ExportVariants extends Command {
 
   def newOptions = new Options
 
-  def name = "exportvariants"
+  def name = "exportgenotypes"
 
-  def description = "Export list of variant information to tsv"
+  def description = "Export list of sample-variant information to tsv"
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -36,21 +36,29 @@ object ExportVariants extends Command {
 
     val output = options.output
 
-    val vas = vds.metadata.variantAnnotationSignatures
-    val makeString: (Variant, Annotations[String]) => String = {
-      try {
-          val eve = new ExportVariantsEvaluator(cond, vas, options.missing)
-          eve.typeCheck()
-          eve.apply
-        } catch {
-          case e: scala.tools.reflect.ToolBoxError =>
-            /* e.message looks like:
-               reflective compilation has failed:
+    val vas: AnnotationSignatures = state.vds.metadata.variantAnnotationSignatures
+    val sas: AnnotationSignatures = state.vds.metadata.sampleAnnotationSignatures
+    val sa = state.vds.metadata.sampleAnnotations
 
-               ';' expected but '.' found. */
-            fatal("parse error in condition: " + e.message.split("\n").last)
-        }
+    val makeString: IndexedSeq[AnnotationData] => ((Variant, AnnotationData) =>
+      ((Int, Sample, Genotype) => String)) = try {
+      val cf = new ExportGenotypeEvaluator(options.condition, vas, sas, sa, options.missing)
+      cf.typeCheck()
+      cf.apply
     }
+    catch {
+      case e: scala.tools.reflect.ToolBoxError =>
+        /* e.message looks like:
+           reflective compilation has failed:
+
+           ';' expected but '.' found. */
+        fatal("parse error in condition: " + e.message.split("\n").last)
+    }
+
+    val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
+
+    val stringVDS = vds.mapValuesWithAll((v: Variant, va: AnnotationData, s: Int, g: Genotype) =>
+      makeString(sa)(v, va)(s, Sample(sampleIdsBc.value(s)), g))
 
     writeTextFile(output + ".header", state.hadoopConf) { s =>
       s.write(cond.split(",").map(_.split("\\.").last).reduceRight(_ + "\t" + _))
@@ -59,8 +67,8 @@ object ExportVariants extends Command {
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
-    vds.variantsAndAnnotations
-      .map { case (v, va) => makeString(v, va) }
+    stringVDS.rdd
+      .flatMap { case (v, va, strings) => strings}
       .saveAsTextFile(output)
 
     state

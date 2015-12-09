@@ -53,11 +53,11 @@ object ExportSamples extends Command {
     }
 
     writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(cond.split(",").reduceRight(_ + "\t" + _))
+      s.write(cond.split(",").map(_.split("\\.").last).reduceRight(_ + "\t" + _))
       s.write("\n")
     }
 
-    hadoopDelete(output, state.hadoopConf, true)
+    hadoopDelete(output, state.hadoopConf, recursive = true)
 
     vds.sparkContext.parallelize(vds.sampleIds.map(Sample).zip(vds.metadata.sampleAnnotations))
       .map { case (s, sa) => makeString(s, sa)}

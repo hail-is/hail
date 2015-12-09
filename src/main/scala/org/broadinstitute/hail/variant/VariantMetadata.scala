@@ -4,24 +4,24 @@ import org.broadinstitute.hail.annotations._
 
 object VariantMetadata {
   def apply(contigLength: Map[String, Int],
-    sampleIds: Array[String]): VariantMetadata = VariantMetadata(contigLength, sampleIds, None,
+    sampleIds: Array[String]): VariantMetadata = new VariantMetadata(contigLength, sampleIds, None,
     EmptySampleAnnotations(sampleIds.length), EmptyAnnotationSignatures(), EmptyAnnotationSignatures())
 
   def apply(contigLength: Map[String, Int],
     sampleIds: Array[String],
-    vcfHeader: Array[String]): VariantMetadata = VariantMetadata(contigLength, sampleIds, Some(vcfHeader),
+    vcfHeader: Array[String]): VariantMetadata = new VariantMetadata(contigLength, sampleIds, Some(vcfHeader),
       EmptySampleAnnotations(sampleIds.length), EmptyAnnotationSignatures(), EmptyAnnotationSignatures())
 
   def apply(contigLength: Map[String, Int], sampleIds: Array[String], vcfHeader: Array[String],
-    sa: Array[AnnotationData], sas: AnnotationSignatures, vas: AnnotationSignatures): VariantMetadata = {
+    sa: IndexedSeq[AnnotationData], sas: AnnotationSignatures, vas: AnnotationSignatures): VariantMetadata = {
     new VariantMetadata(contigLength, sampleIds, Some(vcfHeader), sa, sas, vas)
   }
 }
 
 case class VariantMetadata(contigLength: Map[String, Int],
-  sampleIds: Array[String],
-  vcfHeader: Option[Array[String]],
-  sampleAnnotations: Array[AnnotationData],
+  sampleIds: IndexedSeq[String],
+  vcfHeader: Option[IndexedSeq[String]],
+  sampleAnnotations: IndexedSeq[AnnotationData],
   sampleAnnotationSignatures: AnnotationSignatures,
   variantAnnotationSignatures: AnnotationSignatures) {
 

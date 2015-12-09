@@ -8,6 +8,7 @@ import scala.util.Random
 import scala.language.postfixOps
 import org.broadinstitute.hail.methods.LoadVCF
 import org.testng.annotations.Test
+import org.broadinstitute.hail.annotations._
 
 class VSMSuite extends SparkSuite {
 
@@ -16,9 +17,9 @@ class VSMSuite extends SparkSuite {
     val vds2 = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
     assert(vds1.same(vds2))
 
-    val mdata1 = VariantMetadata(Map("1" -> 10, "2" -> 10), IndexedSeq("S1", "S2", "S3"))
-    val mdata2 = VariantMetadata(Map("1" -> 10, "2" -> 20), IndexedSeq("S1", "S2", "S3"))
-    val mdata3 = VariantMetadata(Map("1" -> 10), IndexedSeq("S1", "S2"))
+    val mdata1 = VariantMetadata(Map("1" -> 10, "2" -> 10), Array("S1", "S2", "S3"))
+    val mdata2 = VariantMetadata(Map("1" -> 10, "2" -> 20), Array("S1", "S2", "S3"))
+    val mdata3 = VariantMetadata(Map("1" -> 10), Array("S1", "S2"))
 
     assert(mdata1 != mdata2)
     assert(mdata1 != mdata3)
@@ -28,47 +29,61 @@ class VSMSuite extends SparkSuite {
     val v2 = Variant("1", 2, "T", "G")
     val v3 = Variant("1", 2, "T", "A")
 
-    val rdd1 = sc.parallelize(Seq(v1 ->
+    val va1 = Annotations(Map("info" -> Map("v1thing" -> "yes")), Map("v1otherThing" -> "yes"))
+    val va2 = Annotations(Map("info" -> Map("v2thing" -> "yes")), Map("v2otherThing" -> "yes"))
+    val va3 = Annotations(Map("info" -> Map("v3thing" -> "yes")), Map("v3otherThing" -> "yes"))
+
+    val rdd1 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(-1, (0, 2), 2, null),
         Genotype(0, (11, 1), 12, (0, 10, 100)),
-        Genotype(2, (0, 13), 13, (100, 10, 0))),
-      v2 ->
+        Genotype(2, (0, 13), 13, (100, 10, 0)))),
+      (v2, va2,
         Iterable(Genotype(0, (10, 0), 10, (0, 10, 100)),
           Genotype(0, (11, 0), 11, (0, 10, 100)),
-          Genotype(1, (6, 6), 12, (50, 0, 50)))))
+          Genotype(1, (6, 6), 12, (50, 0, 50))))))
 
     // differ in variant
-    val rdd2 = sc.parallelize(Seq(v1 ->
+    val rdd2 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(-1, (0, 2), 2, null),
         Genotype(0, (11, 1), 12, (0, 10, 100)),
-        Genotype(2, (0, 13), 13, (100, 10, 0))),
-      v3 ->
+        Genotype(2, (0, 13), 13, (100, 10, 0)))),
+      (v3, va2,
         Iterable(Genotype(0, (10, 0), 10, (0, 10, 100)),
           Genotype(0, (11, 0), 11, (0, 10, 100)),
-          Genotype(1, (6, 6), 12, (50, 0, 50)))))
+          Genotype(1, (6, 6), 12, (50, 0, 50))))))
 
     // differ in genotype
-    val rdd3 = sc.parallelize(Seq(v1 ->
+    val rdd3 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(-1, (0, 2), 2, null),
         Genotype(1, (7, 8), 15, (100, 0, 100)),
-        Genotype(2, (0, 13), 13, (100, 10, 0))),
-      v2 ->
+        Genotype(2, (0, 13), 13, (100, 10, 0)))),
+      (v2, va2,
         Iterable(Genotype(0, (10, 0), 10, (0, 10, 100)),
           Genotype(0, (11, 0), 11, (0, 10, 100)),
-          Genotype(1, (6, 6), 12, (50, 0, 50)))))
+          Genotype(1, (6, 6), 12, (50, 0, 50))))))
 
     // for mdata3
-    val rdd4 = sc.parallelize(Seq(v1 ->
+    val rdd4 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(-1, (0, 2), 2, null),
-        Genotype(0, (11, 1), 12, (0, 10, 100))),
-      v2 -> Iterable(
+        Genotype(0, (11, 1), 12, (0, 10, 100)))),
+      (v2, va2, Iterable(
         Genotype(0, (10, 0), 10, (0, 10, 100)),
-        Genotype(0, (11, 0), 11, (0, 10, 100)))))
+        Genotype(0, (11, 0), 11, (0, 10, 100))))))
 
     // differ in number of variants
-    val rdd5 = sc.parallelize(Seq(v1 ->
+    val rdd5 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(-1, (0, 2), 2, null),
-        Genotype(0, (11, 1), 12, (0, 10, 100)))))
+        Genotype(0, (11, 1), 12, (0, 10, 100))))))
+
+    // differ in annotations
+    val rdd6 = sc.parallelize(Seq((v1, va1,
+      Iterable(Genotype(-1, (0, 2), 2, null),
+        Genotype(0, (11, 1), 12, (0, 10, 100)),
+        Genotype(2, (0, 13), 13, (100, 10, 0)))),
+      (v2, va3,
+        Iterable(Genotype(0, (10, 0), 10, (0, 10, 100)),
+          Genotype(0, (11, 0), 11, (0, 10, 100)),
+          Genotype(1, (6, 6), 12, (50, 0, 50))))))
 
     val vdss = Array(new VariantDataset(mdata1, rdd1),
       new VariantDataset(mdata1, rdd2),
@@ -77,7 +92,8 @@ class VSMSuite extends SparkSuite {
       new VariantDataset(mdata2, rdd2),
       new VariantDataset(mdata2, rdd3),
       new VariantDataset(mdata3, rdd4),
-      new VariantDataset(mdata3, rdd5))
+      new VariantDataset(mdata3, rdd5),
+      new VariantDataset(mdata1, rdd6))
 
     for (i <- vdss.indices;
       j <- vdss.indices) {

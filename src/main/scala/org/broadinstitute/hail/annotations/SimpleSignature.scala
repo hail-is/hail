@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.annotations
 
-class SimpleSignature(scalaType: String, conversionMethod: String, description: String)
+case class SimpleSignature(scalaType: String, conversionMethod: String, description: String)
   extends AnnotationSignature {
 
   def buildCaseClasses: String = ""
