@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.variant
 
+import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.scalacheck.{Gen, Arbitrary}
 
@@ -50,11 +51,14 @@ class Genotype(private val flags: Byte,
     case _ => false
   }
 
-  override def hashCode: Int = {
-    flags ^ _gt ^ _dp ^
-      (if (_ad != null) _ad.hashCode else 0) ^
-      (if (_pl != null) _pl.hashCode else 0)
-  }
+  override def hashCode: Int =
+    new HashCodeBuilder(43, 19)
+      .append(flags)
+      .append(_gt)
+      .append(_ad: IndexedSeq[Int])
+      .append(_dp)
+      .append(_pl: IndexedSeq[Int])
+      .toHashCode
 
   def gt: Option[Int] =
     if (_gt >= 0)
@@ -81,20 +85,14 @@ class Genotype(private val flags: Byte,
       None
 
   def check(v: Variant) {
-    check(v.nAlleles)
-  }
-
-  def check(nAlleles: Int) {
-    val nGenotypes = Variant.nGenotypes(nAlleles)
-    assert(gt.forall(i => i >= 0 && i < nGenotypes))
-    assert(ad.forall(a => a.length == nAlleles))
-    assert(pl.forall(a => a.length == nGenotypes))
+    assert(gt.forall(i => i >= 0 && i < v.nGenotypes))
+    assert(ad.forall(a => a.length == v.nAlleles))
+    assert(pl.forall(a => a.length == v.nGenotypes))
   }
 
   def isHomRef: Boolean = _gt == 0
 
-  // FIXME i, j => j, k
-  def isHet: Boolean = _gt >= 0 && {
+  def isHet: Boolean = _gt > 0 && {
     val p = Genotype.gtPair(_gt)
     p.j != p.k
   }
@@ -104,14 +102,14 @@ class Genotype(private val flags: Byte,
     p.j == p.k
   }
 
-  def isCalledNonRef: Boolean = _gt >= 0
+  def isCalledNonRef: Boolean = _gt > 0
 
-  def isHetNonRef: Boolean = _gt >= 0 && {
+  def isHetNonRef: Boolean = _gt > 0 && {
     val p = Genotype.gtPair(_gt)
     p.j > 0 && p.j != p.k
   }
 
-  def isHetRef: Boolean = _gt >= 0 && {
+  def isHetRef: Boolean = _gt > 0 && {
     val p = Genotype.gtPair(_gt)
     p.j == 0 && p.k > 0
   }
@@ -120,11 +118,20 @@ class Genotype(private val flags: Byte,
 
   def isCalled: Boolean = _gt >= 0
 
-  // FIXME NO
-  def gtType: GenotypeType = GenotypeType(gt.getOrElse(-1))
+  def gtType: GenotypeType =
+    if (isHomRef)
+      GenotypeType.HomRef
+    else if (isHet)
+      GenotypeType.Het
+    else if (isHomVar)
+      GenotypeType.HomVar
+    else {
+      assert(isNotCalled)
+      GenotypeType.NoCall
+    }
 
   def nNonRef: Int =
-    if (_gt >= 0) {
+    if (_gt > 0) {
       val p = Genotype.gtPair(_gt)
       if (p.j == p.k)
         1
@@ -136,10 +143,18 @@ class Genotype(private val flags: Byte,
   def gq: Option[Int] =
     if (_gt >= 0 && ((flags & Genotype.flagHasPL) != 0)) {
       var r = Int.MaxValue
-      for (i <- 0 until _gt)
-        r = r.min(_pl(i))
-      for (i <- (_gt + 1) until _pl.length)
-        r = r.min(_pl(i))
+      var i = 0
+      while (i < _gt) {
+        if (_pl(i) < r)
+          r = _pl(i)
+        i += 1
+      }
+      i += 1
+      while (i < _pl.length) {
+        if (_pl(i) < r)
+          r = _pl(i)
+        i += 1
+      }
       Some(r)
     } else
       None
@@ -234,18 +249,12 @@ object Genotype {
 
   def gtIndex(p: GTPair): Int = gtIndex(p.j, p.k)
 
-  def read(v: Variant, a: Iterator[Byte]): Genotype =
-    read(v.nAlleles, a)
-
-  def read(nAlleles: Int, a: Iterator[Byte]): Genotype = {
-    val isBiallelic = nAlleles == 2
-    val nGenotypes = Variant.nGenotypes(nAlleles)
-
+  def read(v: Variant, a: Iterator[Byte]): Genotype = {
     val flags: Byte = a.next()
     var newFlags: Int = flags & (Genotype.flagHasAD | Genotype.flagHasDP | Genotype.flagHasPL)
 
     val gt: Int =
-      if (isBiallelic) {
+      if (v.isBiallelic) {
         if ((flags & Genotype.flagBiGTMask) == 0)
           -1 // None
         else {
@@ -265,7 +274,7 @@ object Genotype {
 
     val ad: Array[Int] =
       if ((flags & Genotype.flagHasAD) != 0) {
-        val ada = new Array[Int](nAlleles)
+        val ada = new Array[Int](v.nAlleles)
         if ((flags & Genotype.flagADSimple) != 0) {
           assert((newFlags & Genotype.flagHasGT) != 0)
           val p = Genotype.gtPair(gt)
@@ -294,7 +303,7 @@ object Genotype {
 
     val pl: Array[Int] =
       if ((flags & Genotype.flagHasPL) != 0) {
-        val pla = new Array[Int](nGenotypes)
+        val pla = new Array[Int](v.nGenotypes)
         if ((newFlags & Genotype.flagHasGT) != 0) {
           var i = 0
           while (i < gt) {
@@ -321,42 +330,37 @@ object Genotype {
     new Genotype(newFlags.toByte, gt, ad, dp, pl)
   }
 
-  def gen(nAlleles: Int): Gen[Genotype] = {
-    val nGenotypes = Variant.nGenotypes(nAlleles)
-
-    for (gt: Option[Int] <- genOption(Gen.choose(0, nGenotypes - 1));
-      ad <- genOption(Gen.buildableOfN[IndexedSeq[Int], Int](nAlleles, genNonnegInt));
+  def gen(v: Variant): Gen[Genotype] = {
+    for (gt: Option[Int] <- genOption(Gen.choose(0, v.nGenotypes - 1));
+      ad <- genOption(Gen.buildableOfN[IndexedSeq[Int], Int](v.nAlleles, genNonnegInt));
       dp <- genOption(Gen.posNum[Int]);
-      pl: Option[Array[Int]] <- genOption(Gen.buildableOfN[Array[Int], Int](nGenotypes, genNonnegInt))) yield {
+      pl: Option[Array[Int]] <- genOption(Gen.buildableOfN[Array[Int], Int](v.nGenotypes, genNonnegInt))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
       val g = Genotype(gt, ad, dp, pl.map(pla => pla: IndexedSeq[Int]))
-      g.check(nAlleles)
+      g.check(v)
       g
     }
   }
 
-  def gen(v: Variant): Gen[Genotype] = gen(v.nAlleles)
-
-  def genWithSize: Gen[(Int, Genotype)] =
-    for (nAlleles <- Gen.choose(1, 10);
-      g <- gen(nAlleles))
-      yield (nAlleles, g)
+  def genWithVariant: Gen[(Variant, Genotype)] =
+    for (v <- Variant.gen;
+      g <- gen(v))
+      yield (v, g)
 
   def gen: Gen[Genotype] =
-    for (nAlleles <- Gen.choose(1, 10);
-      g <- gen(nAlleles))
+    for (v <- Variant.gen;
+      g <- gen(v))
       yield g
 
   implicit def arbGenotype = Arbitrary(gen)
 }
 
-class GenotypeBuilder(nAlleles: Int) {
-  def this(v: Variant) = this(v.nAlleles)
+class GenotypeBuilder(v: Variant) {
 
-  val isBiallelic = nAlleles == 2
-  val nGenotypes = Variant.nGenotypes(nAlleles)
+  val isBiallelic = v.isBiallelic
+  val nGenotypes = v.nGenotypes
 
   private var flags: Int = 0
 
@@ -385,7 +389,7 @@ class GenotypeBuilder(nAlleles: Int) {
   }
 
   def setAD(newAD: IndexedSeq[Int]) {
-    require(newAD.length == nAlleles)
+    require(newAD.length == v.nAlleles)
     flags |= Genotype.flagHasAD
     ad = newAD
   }
@@ -396,7 +400,7 @@ class GenotypeBuilder(nAlleles: Int) {
   }
 
   def setPL(newPL: IndexedSeq[Int]) {
-    require(newPL.length == nGenotypes)
+    require(newPL.length == v.nGenotypes)
     flags |= Genotype.flagHasPL
     pl = newPL
   }

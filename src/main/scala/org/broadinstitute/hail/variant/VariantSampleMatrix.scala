@@ -42,6 +42,11 @@ object VariantSampleMatrix {
       gs <- Gen.buildableOfN[Iterable[T], T](nSamples, g(v)))
       yield (v, gs)
 
+  def genVariantGenotypes(nSamples: Int): Gen[(Variant, Iterable[Genotype])] =
+    for (v <- Variant.gen;
+      gs <- Gen.buildableOfN[Iterable[Genotype], Genotype](nSamples, Genotype.gen(v)))
+      yield (v, gs)
+
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (nSamples <- Gen.choose(0, 10);
       // FIXME unique
@@ -51,10 +56,6 @@ object VariantSampleMatrix {
 
   def gen[T](sc: SparkContext, g: Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     gen(sc, (v: Variant) => g)
-
-  implicit def arbVariantSampleMatrix[T](implicit sc: SparkContext,
-    a: Arbitrary[T], ttt: TypeTag[T], tct: ClassTag[T]): Arbitrary[VariantSampleMatrix[T]] =
-    Arbitrary(gen(sc, arbitrary[T]))
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,

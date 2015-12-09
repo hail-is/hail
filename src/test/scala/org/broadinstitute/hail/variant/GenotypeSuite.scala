@@ -13,19 +13,19 @@ import scala.collection.mutable
 object GenotypeSuite {
   val ab = new mutable.ArrayBuilder.ofByte
 
-  def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
+  def readWriteEqual(v: Variant, g: Genotype): Boolean = {
     ab.clear()
 
-    val gb = new GenotypeBuilder(nAlleles)
+    val gb = new GenotypeBuilder(v)
     gb.set(g)
     gb.write(ab)
-    val g2 = Genotype.read(nAlleles, ab.result().iterator)
+    val g2 = Genotype.read(v, ab.result().iterator)
     // println(s"g = $g, g2 = $g2")
     g == g2
   }
 
   object Spec extends Properties("Genotype") {
-    property("readWrite") = forAll[(Int, Genotype), Boolean](Genotype.genWithSize) { case (nAlleles, g) =>
+    property("readWrite") = forAll[(Variant, Genotype), Boolean](Genotype.genWithVariant) { case (nAlleles, g) =>
       readWriteEqual(nAlleles, g)
     }
 
@@ -52,7 +52,7 @@ class GenotypeSuite extends TestNGSuite with ScalaCheckSuite {
   val v = Variant("1", 1, "A", "T")
 
   def testReadWrite(g: Genotype) {
-    assert(readWriteEqual(v.nAlleles, g))
+    assert(readWriteEqual(v, g))
   }
 
   @Test def testGenotype() {

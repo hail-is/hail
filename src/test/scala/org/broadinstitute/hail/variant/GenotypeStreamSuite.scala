@@ -9,12 +9,12 @@ object GenotypeStreamSuite {
   val v = Variant("chr1", 1234, "A", "T")
   val b = new GenotypeStreamBuilder(v)
   object Spec extends Properties("GenotypeStream") {
-    property("iterateBuild") = forAll(Gen.buildableOf[Array[Genotype], Genotype](Genotype.gen(2))) { a: Array[Genotype] =>
+    property("iterateBuild") = forAll(VariantSampleMatrix.genVariantGenotypes(10)) { case (v: Variant, it: Iterable[Genotype]) =>
       b.clear()
-      b ++= a
+      b ++= it
       val gs = b.result()
       val a2 = gs.toArray
-      a.sameElements(a2)
+      it.sameElements(a2)
     }
   }
 }

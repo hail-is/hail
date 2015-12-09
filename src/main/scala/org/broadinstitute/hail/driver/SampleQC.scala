@@ -68,17 +68,17 @@ class SampleQCCombiner extends Serializable {
     g.gt match {
       case Some(0) =>
         nHomRef += 1
-        g.dp.map { v =>
+        g.dp.foreach { v =>
           dpSC.merge(v)
           dpHomRefSC.merge(v)
         }
-        g.gq.map { v =>
+        g.gq.foreach { v =>
           gqSC.merge(v)
           gqHomRefSC.merge(v)
         }
       case Some(1) =>
         nHet += 1
-        g.ad.map { a =>
+        g.ad.foreach { a =>
           refDepth += a(0)
           altDepth += a(1)
         }
@@ -96,11 +96,11 @@ class SampleQCCombiner extends Serializable {
           nDel += 1
         if (vIsSingleton)
           nSingleton += 1
-        g.dp.map { v =>
+        g.dp.foreach { v =>
           dpSC.merge(v)
           dpHetSC.merge(v)
         }
-        g.gq.map { v =>
+        g.gq.foreach { v =>
           gqSC.merge(v)
           gqHetSC.merge(v)
         }
@@ -120,11 +120,11 @@ class SampleQCCombiner extends Serializable {
           nDel += 1
         if (vIsSingleton)
           nSingleton += 1
-        g.dp.map { v =>
+        g.dp.foreach { v =>
           dpSC.merge(v)
           dpHomVarSC.merge(v)
         }
-        g.gq.map { v =>
+        g.gq.foreach { v =>
           gqSC.merge(v)
           gqHomVarSC.merge(v)
         }
