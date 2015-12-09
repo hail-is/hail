@@ -21,7 +21,8 @@ import org.broadinstitute.hail.variant.GenotypeType.GenotypeType
 case class Genotype(private val gt: Int,
                     ad: (Int, Int),
                     dp: Int,
-                    private val pl: (Int, Int, Int)) {
+                    private val pl: (Int, Int, Int),
+                    fakeRef: Boolean = false) {
 
   require(gt >= -1 && gt <= 2)
   /*
@@ -35,10 +36,10 @@ case class Genotype(private val gt: Int,
   def write(b: mutable.ArrayBuilder[Byte]) {
     // val writeDp = ad._1 + ad._2 != dp
     val writeAd2 = gt != 0 || ad._2 != 0
-
-    // (if (writeDp) 0x08 else 0)
-    b += ((if (writeAd2) 0x10 else 0)
-      | (gt & 7)).toByte
+    b += ((gt & 7)
+//      | (if (writeDp) 0x08 else 0)
+      | (if (writeAd2) 0x10 else 0)
+      | (if (fakeRef) 0x20 else 0)).toByte
     if (gt != -1) {
       val (pl1, pl2) = minPl
       b.writeULEB128(pl1)
@@ -124,6 +125,7 @@ object Genotype {
     val gt = (b << 29) >> 29
     // val writeDp = (b & 0x08) != 0
     val writeAd2 = (b & 0x10) != 0
+    val fakeRef = (b & 0x20) != 0
 
     val pl =
       if (gt != -1) {
@@ -144,20 +146,22 @@ object Genotype {
     // val dpDelta = if (writeDp) ...
     val dp = a.readULEB128()
 
-    Genotype(gt, (ad1, ad2), dp, pl)
+    Genotype(gt, (ad1, ad2), dp, pl, fakeRef)
   }
 
   implicit def arbGenotype: Arbitrary[Genotype] = Arbitrary {
     for {gt <- Gen.choose(-1, 2)
-         ad1 <- Gen.choose(0, 1000)
-         ad2 <- Gen.choose(0, 1000)
-         dpDelta <- Gen.choose(0, 100)
-         pl1 <- Gen.choose(0, 10000)
-         pl2 <- Gen.choose(0, 10000)}
+         ad1 <- Gen.choose(0, 100)
+         ad2 <- Gen.choose(0, 100)
+         dpDelta <- Gen.choose(0, 10)
+         pl1 <- Gen.choose(0, 1000)
+         pl2 <- Gen.choose(0, 1000)
+         fakeRef <- Gen.choose(0,9).map(_ == 0)}
       yield Genotype(gt, (ad1, ad2), ad1 + ad2 + dpDelta,
         if (gt == -1)
           null
         else
-          (pl1, pl2).insert(gt, 0))
+          (pl1, pl2).insert(gt, 0),
+        fakeRef)
   }
 }
