@@ -40,7 +40,8 @@ object FilterVariants extends Command {
         try {
           val cf = new FilterVariantCondition(c)
           cf.typeCheck()
-          FilterUtils.pushToBooleanValue(cf.apply, options.keep)
+          val keep = options.keep
+          (v: Variant) => Filter.keepThis(cf(v), keep)
         } catch {
           case e: scala.tools.reflect.ToolBoxError =>
             /* e.message looks like:

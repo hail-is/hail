@@ -11,7 +11,7 @@ class FilterString(val s: String) extends AnyVal {
 }
 
 class FilterOption[T](val ot: Option[T]) extends AnyVal {
-  override def toString: String = if (ot.isDefined) ot.get.toString else "NA" // ideal?
+  override def toString: String = if (ot.isDefined) ot.get.toString else "NA"
   def ===(that: FilterOption[T]): FilterOption[Boolean] = new FilterOption(this.ot.flatMap(t => that.ot.map(_ == t)))
   def !==(that: FilterOption[T]): FilterOption[Boolean] = new FilterOption((this === that).ot.map(!_))
 }
@@ -35,7 +35,6 @@ class FilterOptionArray[T](val oa: Option[Array[T]]) extends AnyVal {
   //def ++(that: FilterOptionArray[T]): FilterOption[Array[T]] = new FilterOption(this.oa.flatMap(a => that.oa.map(a ++ _)))
 }
 
-// tricky to replace with compare
 class FilterOptionOrdered[T](val ot: Option[T])(implicit order: (T) => Ordered[T]) {
   def >(that: FilterOptionOrdered[T]): FilterOption[Boolean] = new FilterOption(this.ot.flatMap(t => that.ot.map(t > _)))
   def <(that: FilterOptionOrdered[T]): FilterOption[Boolean] = new FilterOption(this.ot.flatMap(t => that.ot.map(t < _)))
@@ -90,33 +89,34 @@ object FilterUtils {
   implicit def toFilterOption[T](t: T): FilterOption[T] = new FilterOption(Some(t))
 
   implicit def toFilterOptionBoolean(fo: FilterOption[Boolean]): FilterOptionBoolean = new FilterOptionBoolean(fo.ot)
+
   implicit def toFilterOptionString(fo: FilterOption[String]): FilterOptionString = new FilterOptionString(fo.ot)
+
   implicit def toFilterOptionArray[T](fo: FilterOption[Array[T]]): FilterOptionArray[T] = new FilterOptionArray[T](fo.ot)
 
   implicit def toFilterOptionOrdered[T](fo: FilterOption[T])(implicit order: (T) => Ordered[T]): FilterOptionOrdered[T] = new FilterOptionOrdered[T](fo.ot)
+
   implicit def toFilterOptionOrdered[T](t: T)(implicit order: (T) => Ordered[T]): FilterOptionOrdered[T] = new FilterOptionOrdered[T](Some(t))
 
   implicit def toFilterOptionNumeric[T](fo: FilterOption[T])(implicit order: (T) => scala.math.Numeric[T]#Ops): FilterOptionNumeric[T] = new FilterOptionNumeric[T](fo.ot)
+
   implicit def toFilterOptionNumeric[T](t: T)(implicit order: (T) => scala.math.Numeric[T]#Ops): FilterOptionNumeric[T] = new FilterOptionNumeric[T](Some(t))
 
   implicit def toFilterOptionDouble(fo: FilterOption[Double]): FilterOptionDouble = new FilterOptionDouble(fo.ot)
+
   implicit def toFilterOptionFloat(fo: FilterOption[Float]): FilterOptionFloat = new FilterOptionFloat(fo.ot)
+
   implicit def toFilterOptionLong(fo: FilterOption[Long]): FilterOptionLong = new FilterOptionLong(fo.ot)
+
   implicit def toFilterOptionInt(fo: FilterOption[Int]): FilterOptionInt = new FilterOptionInt(fo.ot)
+}
 
-  def pushToBooleanValue[T](f: (T) => FilterOption[Boolean], keep: Boolean): (T) => Boolean = {
-    t => f(t).ot match {
+object Filter {
+  def keepThis(fo: FilterOption[Boolean], keep: Boolean): Boolean =
+    fo.ot match {
       case Some(b) => if (keep) b else !b
       case None => false
     }
-  }
-
-  def pushToBooleanValue(f: (Variant, Sample, Genotype) => FilterOption[Boolean], keep: Boolean): (Variant, Sample, Genotype) => Boolean = {
-    (v, s, g) => f(v, s, g).ot match {
-      case Some(b) => if (keep) b else !b
-      case None => false
-    }
-  }
 }
 
 class Evaluator[T](t: String)(implicit tct: ClassTag[T])
@@ -140,7 +140,7 @@ class Evaluator[T](t: String)(implicit tct: ClassTag[T])
 class FilterVariantCondition(cond: String)
   extends Evaluator[(Variant) => FilterOption[Boolean]](
     "(v: org.broadinstitute.hail.variant.Variant) => { " +
-      "import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods._; " +
+      "import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods.FilterOption; " +
       cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]") {
   def apply(v: Variant) = eval()(v)
 }
@@ -148,7 +148,7 @@ class FilterVariantCondition(cond: String)
 class FilterSampleCondition(cond: String)
   extends Evaluator[(Sample) => FilterOption[Boolean]](
     "(s: org.broadinstitute.hail.variant.Sample) => { " +
-      "import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods._; " +
+      "import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods.FilterOption; " +
       cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]") {
   def apply(s: Sample) = eval()(s)
 }
@@ -158,9 +158,7 @@ class FilterGenotypeCondition(cond: String)
     "(v: org.broadinstitute.hail.variant.Variant, " +
       "s: org.broadinstitute.hail.variant.Sample, " +
       "g: org.broadinstitute.hail.variant.Genotype) => { " +
-      "import org.broadinstitute.hail.methods.FilterUtils._;  import org.broadinstitute.hail.methods._; " +
+      "import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods.FilterOption; " +
       cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]") {
   def apply(v: Variant, s: Sample, g: Genotype) = eval()(v, s, g)
 }
-
-

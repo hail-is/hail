@@ -42,14 +42,14 @@ object FilterSamples extends Command {
           .filter(line => !line.isEmpty)
           .map(indexOfSample)
           .toSet
-        samples.contains(_)
+        (i: Int) => samples.contains(i)
       case c: String =>
         try {
           val cf = new FilterSampleCondition(c)
           cf.typeCheck()
-
           val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-          FilterUtils.pushToBooleanValue((s: Int) => cf(Sample(sampleIdsBc.value(s))), options.keep)
+          val keep = options.keep
+          (s: Int) => Filter.keepThis(cf(Sample(sampleIdsBc.value(s))), keep)
         } catch {
           case e: scala.tools.reflect.ToolBoxError =>
             /* e.message looks like:

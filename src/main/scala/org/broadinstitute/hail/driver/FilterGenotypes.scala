@@ -34,7 +34,8 @@ object FilterGenotypes extends Command {
     val p: (Variant, Sample, Genotype) => Boolean = try {
       val cf = new FilterGenotypeCondition(options.condition)
       cf.typeCheck()
-      FilterUtils.pushToBooleanValue(cf.apply, options.keep)
+      val keep = options.keep
+      (v: Variant, s: Sample, g: Genotype) => Filter.keepThis(cf(v, s, g), keep)
     } catch {
       case e: scala.tools.reflect.ToolBoxError =>
         /* e.message looks like:
@@ -47,7 +48,7 @@ object FilterGenotypes extends Command {
     val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
 
     val newVDS = vds.mapValuesWithKeys((v: Variant, s: Int, g: Genotype) =>
-      if (p(v, Sample(sampleIdsBc.value(s)), g))
+      if (p(v, Sample(sampleIdsBc.value(s)), g))  // FIXME new FilterGenotype(g)
         g
       else
         Genotype(-1, (0, 0), 0, null))
