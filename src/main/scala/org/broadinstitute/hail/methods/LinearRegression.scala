@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import java.io.File
-
+import org.apache.hadoop
 import breeze.linalg._
 import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
@@ -15,22 +14,25 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
 
 object CovariateData {
 
-  def read(filename: String, sampleIds: Array[String]): CovariateData = {
-    val src = Source.fromFile(new File(filename))
-    val linesIt = src.getLines().filterNot(_.isEmpty)
-    val header = linesIt.next()
-    val lines = linesIt.toArray
-    src.close()
+  def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): CovariateData = {
+    val lines = readFile(filename, hConf) { s =>
+      Source.fromInputStream(s)
+        .getLines()
+        .filterNot(_.isEmpty)
+        .toArray
+    }
+
+    val header = lines(0)
 
     val covName = header.split("\\s+").tail
     val nCov = covName.length
-    val nCovRow = lines.length
+    val nCovRow = lines.length - 1
     val covRowSample = Array.ofDim[Int](nCovRow)
     val sampleNameIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
     val data = DenseMatrix.zeros[Double](nCovRow, nCov)
     for (cr <- 0 until nCovRow) {
-      val entries = lines(cr).split("\\s+")
+      val entries = lines(cr + 1).split("\\s+")
       covRowSample(cr) = sampleNameIndex(entries(0))
       data(cr to cr, ::) := DenseVector(entries.iterator.drop(1).map(_.toDouble).toArray)
     }

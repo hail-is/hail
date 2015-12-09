@@ -47,6 +47,6 @@ object LoadVCF {
       }
 
     // FIXME null should be contig lengths
-    VariantSampleMatrix(VariantMetadata(null, sampleIds, headerLines), genotypes)
+    VariantSampleMatrix(VariantMetadata(null, sampleIds), genotypes)
   }
 }

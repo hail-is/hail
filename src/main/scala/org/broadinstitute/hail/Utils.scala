@@ -7,6 +7,8 @@ import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.scalacheck.Gen
+import org.scalacheck.Arbitrary._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
@@ -227,6 +229,7 @@ class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
 
 class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
   def mapValuesWithKeys[T](f: (K, V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
+
   def force = m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
 }
 
@@ -240,6 +243,19 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
       case Some(x) => sb.append(x)
       case None => sb.append("NA")
     }
+  }
+}
+
+class RichIterator[T](val it: Iterator[T]) extends AnyVal {
+  def existsExactly1(p: (T) => Boolean): Boolean = {
+    var n: Int = 0
+    while (it.hasNext)
+      if (p(it.next())) {
+        n += 1
+        if (n > 1)
+          return false
+      }
+    n == 1
   }
 }
 
@@ -486,9 +502,9 @@ object Utils {
   def D_>=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
     a - b >= -D_epsilon(a, b, tolerance)
 
-
-  def flushDouble(a: Double):Double =
+  def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
+
 
   def eval[T](t: String): T = {
     val toolbox = currentMirror.mkToolBox()
@@ -496,4 +512,17 @@ object Utils {
     toolbox.typeCheck(ast)
     toolbox.eval(ast).asInstanceOf[T]
   }
+
+  def genOption[T](g: Gen[T], someFrequency: Int = 4): Gen[Option[T]] =
+    Gen.frequency((1, Gen.const(None)),
+      (someFrequency, g.map(Some(_))))
+
+  def genNonnegInt: Gen[Int] = arbitrary[Int].map(_ & Int.MaxValue)
+
+  def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
+
+  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+
+  implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
+
 }

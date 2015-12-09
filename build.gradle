@@ -43,6 +43,8 @@ shadowJar {
     classifier = 'spark'
     mergeServiceFiles()
     zip64 true
+    // conflict with version of math3 in default Hadoop/Spark install
+    relocate 'org.apache.commons', 'org.broadinstitute.hail.relocated.org.apache.commons'
     dependencies {
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.apache.commons:commons-math3:.*'))
@@ -55,6 +57,7 @@ shadowJar {
         // include(dependency('org.scala-lang:scala-library:.*'))
         // include(dependency('org.scala-lang:scala-reflect:.*'))
     }
+
 }
 
 dependencies {
