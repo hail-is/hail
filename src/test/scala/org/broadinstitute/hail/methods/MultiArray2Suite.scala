@@ -1,104 +1,74 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{ScalaCheckSuite, SparkSuite}
 import org.broadinstitute.hail.utils.MultiArray2
 import org.testng.annotations.Test
+import org.scalacheck._
+import org.scalacheck.util.Buildable._
+import org.scalacheck.Prop.{throws, forAll, BooleanOperators, classify}
+import org.scalacheck.Arbitrary._
+import scala.language.implicitConversions
 
-class MultiArray2Suite extends SparkSuite{
+
+
+object MultiArray2Suite {
+  import MultiArray2._
+
+  object Spec extends Properties("MultiArray2") {
+
+    property("sizeNotNegative") = forAll(Gen.negNum[Int],Gen.negNum[Int]) { (n1:Int, n2:Int) =>
+      (n1 < 0 || n2 < 0) ==> throws(classOf[IllegalArgumentException])(new MultiArray2[Int](n1, n2, Array(0, 0, 0, 0)))
+    }
+
+    property("sizeEqualsN1N2") = forAll { ma:MultiArray2[Int] => ma.n1 * ma.n2 == ma.indices.size}
+
+    property("indicesValid") = forAll { ma:MultiArray2[Int] => ma.indices.forall {case (i,j) => i >= 0 && i < ma.n1 && j >= 0 && j < ma.n2}}
+
+    property("rowIndices") = forAll { ma:MultiArray2[Int] => ma.rowIndices.forall {case (i) => i >= 0 && i < ma.n1}}
+
+    property("columnIndices") = forAll { ma:MultiArray2[Int] => ma.columnIndices.forall {case (j) => j >= 0 && j < ma.n2}}
+
+    property("applyIdentity") = forAll { ma:MultiArray2[Int] => ma.indices.forall {case (i,j) => ma(i,j) == ma.row(i)(j) && ma(i,j) == ma.column(j)(i)}}
+
+    property("updateIdentity") = forAll {(ma:MultiArray2[Int]) => ma.indices.forall{case (i,j) => ma(i,j) = 100; ma(i,j) == 100}}
+
+    property("apply") = forAll { (ma:MultiArray2[Int], i:Int, j:Int) =>
+      classify(i >= 0 && i < ma.n1 && j >= 0 && j < ma.n2,"IndexInBounds","IndexOutOfBounds") {
+        if (i < 0 || i >= ma.n1 || j < 0 || j >= ma.n2)
+          throws(classOf[ArrayIndexOutOfBoundsException])(ma(i, j))
+        else
+          ma(i, j) == ma.row(i)(j) && ma(i, j) == ma.column(j)(i)
+      }
+    }
+
+    property("zip") = forAll { (ma1:MultiArray2[Int], ma2:MultiArray2[String]) =>
+      classify(ma1.n1 == ma2.n1 && ma1.n2 == ma2.n2,"SameShapes","DifferentShapes") {
+        if (ma1.n1 != ma2.n1 || ma1.n2 != ma2.n2)
+          throws(classOf[IllegalArgumentException])(ma1.zip(ma2))
+        else {
+          val ma1Zip = ma1.zip(ma2)
+          val ma2Zip = ma2.zip(ma1)
+          ma1Zip.indices.forall { case (i, j) => ma1Zip(i, j) ==(ma1(i, j), ma2(i, j)) && ma2Zip(i, j) ==(ma2(i, j), ma1(i, j)) }
+        }
+      }
+    }
+
+    property("zipIdentity") = forAll(Gen.choose[Int](0,10),Gen.choose[Int](0,10)) { (n1:Int, n2:Int) =>
+      forAll(genMultiArray2Sized[Int](n1,n2),genMultiArray2Sized[String](n1,n2)) {
+        (ma1:MultiArray2[Int], ma2:MultiArray2[String]) =>
+          val ma1Zip = ma1.zip(ma2)
+          val ma2Zip = ma2.zip(ma1)
+          ma1Zip.indices.forall{case (i,j) => ma1Zip(i,j) == (ma1(i,j), ma2(i,j)) && ma2Zip(i,j) == (ma2(i,j),ma1(i,j))}
+      }
+    }
+  }
+}
+
+class MultiArray2Suite extends SparkSuite with ScalaCheckSuite {
+
+  import MultiArray2Suite._
+
   @Test def test() = {
-
-    // test multiarray of size 0 will be created
-    val ma0 = MultiArray2.fill[Int](0, 0)(0)
-
-    // test multiarray of size 0 that get nothing out
-    intercept[IllegalArgumentException] {
-      val ma0 = MultiArray2.fill[Int](0, 0)(0)
-      ma0(0,0)
-    }
-
-    // test array index out of bounds on row slice
-    intercept[ArrayIndexOutOfBoundsException] {
-      val foo = MultiArray2.fill[Int](5, 5)(0)
-      foo.row(0)(5)
-    }
-
-    // bad multiarray initiation -- negative number
-    intercept[IllegalArgumentException] {
-      val a = MultiArray2.fill[Int](-5,5)(0)
-    }
-
-    // bad multiarray initiation -- negative number
-    intercept[IllegalArgumentException] {
-      val a = MultiArray2.fill[Int](5,-5)(0)
-    }
-
-    val ma1 = MultiArray2.fill[Int](10,3)(0)
-    for ((i,j) <- ma1.indices) {
-      ma1.update(i,j,i*j)
-    }
-    assert(ma1(2,2) == 4)
-    assert(ma1(6,1) == 6)
-
-    // Catch exception if try to get value that is not in indices of multiarray
-    intercept[IllegalArgumentException] {
-      val foo = ma1(100,100)
-    }
-
-    val ma2 = MultiArray2.fill[Int](10,3)(0)
-    for ((i,j) <- ma2.indices) {
-      ma2.update(i,j,i+j)
-    }
-
-
-    assert(ma2(2,2) == 4)
-    assert(ma2(6,1) == 7)
-
-    // Test zip with two ints
-    val ma3 = ma1.zip(ma2)
-    assert(ma3(2,2) == (4,4))
-    assert(ma3(6,1) == (6,7))
-
-    // Test zip with multi-arrays of different types
-    val ma4 = MultiArray2.fill[String](10,3)("foo")
-    val ma5 = ma1.zip(ma4)
-    assert(ma5(2,2) == (4,"foo"))
-    assert(ma5(0,0) == (0,"foo"))
-
-    // Test row slice
-    for (row <- ma5.rows; idx <- 0 until row.length) {
-      assert(row(idx) == (row.i*idx,"foo"))
-    }
-
-    intercept[IllegalArgumentException] {
-      val x = ma5.row(100)
-    }
-
-    intercept[ArrayIndexOutOfBoundsException] {
-      val x = ma5.row(0)
-      val y = x(100)
-    }
-
-    intercept[IllegalArgumentException] {
-      val x = ma5.row(-5)
-    }
-
-    intercept[IllegalArgumentException] {
-      val x = ma5.column(100)
-    }
-
-    intercept[IllegalArgumentException] {
-      val x = ma5.column(-5)
-    }
-
-    intercept[ArrayIndexOutOfBoundsException] {
-      val x = ma5.column(0)
-      val y = x(100)
-    }
-
-    // Test column slice
-    for (column <- ma5.columns; idx <- 0 until column.length) {
-      assert(column(idx) == (column.j*idx,"foo"))
-    }
-
+    check(Spec)
   }
 }
