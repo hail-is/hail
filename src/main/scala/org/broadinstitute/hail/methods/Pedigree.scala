@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.methods
 
-import java.io.File
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{Sex, Phenotype}
@@ -18,16 +17,20 @@ object Role extends Enumeration {
 import org.broadinstitute.hail.methods.Role.{Role, Kid, Dad, Mom}
 
 case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int],
-                sex: Option[Sex], pheno: Option[Phenotype]) {
+  sex: Option[Sex], pheno: Option[Phenotype]) {
 
   def toCompleteTrio: Option[CompleteTrio] =
     dad.flatMap(d =>
       mom.map(m => CompleteTrio(kid, fam, d, m, sex, pheno)))
 
   def isMale: Boolean = sex.contains(Male)
+
   def isFemale: Boolean = sex.contains(Female)
+
   def isCase: Boolean = pheno.contains(Case)
+
   def isControl: Boolean = pheno.contains(Control)
+
   def isComplete: Boolean = dad.isDefined && mom.isDefined
 }
 
@@ -35,24 +38,24 @@ case class CompleteTrio(kid: Int, fam: Option[String], dad: Int, mom: Int, sex: 
 
 object Pedigree {
 
-  def read(filename: String, sampleIds: IndexedSeq[String]): Pedigree = {
+  def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): Pedigree = {
     require(filename.endsWith(".fam"))
 
     val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
     def maybeId(id: String): Option[Int] = if (id != "0") sampleIndex.get(id) else None
     def maybeFam(fam: String): Option[String] = if (fam != "0") Some(fam) else None
 
-    Pedigree(Source.fromFile(new File(filename))
-      .getLines()
-      .filter(line => !line.isEmpty)
-      .map { line => // FIXME: proper input error handling (and possible conflicting trio handing)
-      val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
+    readFile(filename, hConf) { s =>
+      Pedigree(Source.fromInputStream(s)
+        .getLines()
+        .filter(line => !line.isEmpty)
+        .map { line => // FIXME: proper input error handling (and possible conflicting trio handing)
+          val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
 
-      Trio(sampleIndex(kid), maybeFam(fam), maybeId(dad), maybeId(mom),
-        Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
-      }
-      .toArray
-    )
+          Trio(sampleIndex(kid), maybeFam(fam), maybeId(dad), maybeId(mom),
+            Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
+        }.toArray)
+    }
   }
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
@@ -63,8 +66,10 @@ object Pedigree {
 case class Pedigree(trios: Array[Trio]) {
 
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
+
   def samplePheno: Map[Int, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
-  def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_(t)) )
+
+  def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_ (t)))
 
   def writeSummary(filename: String, hConf: hadoop.conf.Configuration) = {
     val columns = Array(
@@ -81,7 +86,7 @@ case class Pedigree(trios: Array[Trio]) {
       ("nControlMaleTrio", nSatisfying(_.isComplete, _.isControl, _.isMale)),
       ("nControlFemaleTrio", nSatisfying(_.isComplete, _.isControl, _.isFemale)))
 
-    writeTextFile(filename, hConf){ fw =>
+    writeTextFile(filename, hConf) { fw =>
       fw.write(columns.iterator.map(_._1).mkString("\t") + "\n")
       fw.write(columns.iterator.map(_._2).mkString("\t") + "\n")
     }

@@ -247,6 +247,19 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   }
 }
 
+class RichIterator[T](val it: Iterator[T]) extends AnyVal {
+  def existsExactly1(p: (T) => Boolean): Boolean = {
+    var n: Int = 0
+    while (it.hasNext)
+      if (p(it.next())) {
+        n += 1
+        if (n > 1)
+          return false
+      }
+    n == 1
+  }
+}
+
 object Utils {
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -497,6 +510,7 @@ object Utils {
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 
+
   def eval[T](t: String): T = {
     val toolbox = currentMirror.mkToolBox()
     val ast = toolbox.parse(t)
@@ -513,5 +527,7 @@ object Utils {
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+
+  implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
 }

@@ -59,6 +59,7 @@ object Main {
     val commands = Array(
       Cache,
       Count,
+      DownsampleVariants,
       FilterGenotypes,
       FamSummary,
       FilterVariants,
