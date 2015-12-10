@@ -28,8 +28,12 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     val filts = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
         "PASS"
-      else
-        vc.getFilters.toArray.map(_.toString).reduceRight(_ + "," + _)
+      else {
+        if (vc.getFilters.isEmpty)
+          ""
+        else
+          vc.getFilters.toArray.map(_.toString).reduceRight(_ + "," + _)
+      }
     }
     val rsid = vc.getID
 //    println(s"nFilters=%d".format(filts.length))
