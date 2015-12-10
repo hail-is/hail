@@ -16,7 +16,7 @@ class MultiArray2[T](val n1: Int,
   require(a.length == n1*n2)
 
   class Row(val i:Int) extends IndexedSeq[T] {
-    require(i >= 0 && i < n1)
+    if (i <0 || i >= n1) throw new ArrayIndexOutOfBoundsException
     def apply(j:Int): T = {
       if (j < 0 || j >= length) throw new ArrayIndexOutOfBoundsException
       a(i*n2 + j)
@@ -25,7 +25,7 @@ class MultiArray2[T](val n1: Int,
   }
 
   class Column(val j:Int) extends IndexedSeq[T] {
-    require(j >= 0 && j < n2)
+    if (j < 0 || j >= n2) throw new ArrayIndexOutOfBoundsException
     def apply(i:Int): T = {
       if (i < 0 || i >= length) throw new ArrayIndexOutOfBoundsException
       a(i*n2 + j)
@@ -46,17 +46,17 @@ class MultiArray2[T](val n1: Int,
   def columnIndices: Iterable[Int] = for (j <- 0 until n2) yield j
 
   def apply(i: Int, j: Int): T = {
-    require(i >= 0 && i < n1 && j >= 0 && j < n2)
+    if (i < 0 || i >= n1 || j < 0 || j >= n2) throw new ArrayIndexOutOfBoundsException
     a(i*n2 + j)
   }
 
   def update(i: Int, j: Int, x:T): Unit = {
-    require(i >= 0 && i < n1 && j >= 0 && j < n2)
+    if (i < 0 || i >= n1 || j < 0 || j >= n2) throw new ArrayIndexOutOfBoundsException
     a.update(i*n2 + j,x)
   }
 
   def update(t: (Int,Int), x:T): Unit = {
-    require(t._1 >= 0 && t._1 < n1 && t._2 >= 0 && t._2 < n2)
+    if (t._1 < 0 || t._1 >= n1 || t._2 < 0 || t._2 >= n2) throw new ArrayIndexOutOfBoundsException
     update(t._1,t._2,x)
   }
 
@@ -83,11 +83,12 @@ object MultiArray2 {
       yield new MultiArray2(n1, n2, a)
   }
 
-  def genMultiArray2Sized[T](g: Gen[T],n1:Int,n2:Int)(implicit bT: Buildable[T, Array[T]]) = {
+  def genMultiArray2Sized[T](n1:Int,n2:Int)(implicit a: Arbitrary[T], bT: Buildable[T, Array[T]]) = {
     require(n1 >= 0 && n2 >= 0)
-    for (a <- Gen.containerOfN[Array, T](n1 * n2, g)) yield new MultiArray2(n1, n2, a)
+    for (a <- Gen.containerOfN[Array, T](n1 * n2, a.arbitrary)) yield new MultiArray2(n1, n2, a)
   }
 
   implicit def arbMultiArray2[T](implicit a: Arbitrary[T], bT: Buildable[T, Array[T]]): Arbitrary[MultiArray2[T]] = Arbitrary(genMultiArray2(a.arbitrary))
+
 }
 
