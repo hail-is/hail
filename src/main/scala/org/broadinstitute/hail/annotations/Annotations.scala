@@ -89,7 +89,7 @@ object AnnotationUtils {
 
   def annotationToString(ar: AnyRef): String = {
     ar match {
-      case iter: Iterable[_] => iter.map(_.toString).reduceRight(_ + ", " + _)
+      case iter: Iterable[_] => if (iter.isEmpty) "" else iter.map(_.toString).reduceRight(_ + ", " + _)
       case _ => ar.toString
     }
   }
@@ -107,23 +107,39 @@ object AnnotationUtils {
 
 object AnnotationClassBuilder {
 
-  def signatures(sigs: AnnotationSignatures, hiddenClassName: String): String = {
+  def signatures(sigs: AnnotationSignatures, hiddenClassName: String,
+    makeToString: Boolean = false, missing: String = ""): String = {
     val internalClasses = sigs.maps.map {
       case (subclass, subMap) =>
         s"class __${subclass}Annotations(subMap: Map[String, String]) extends Serializable {\n" +
           subMap.map { case (k, sig) =>
-//            s"""  val $k: $kType = subMap.getOrElse("$k", \"false\").$kMethod\n"""
+            //            s"""  val $k: $kType = subMap.getOrElse("$k", \"false\").$kMethod\n"""
             val default = getDefault(sig.getType)
             s"""  val $k: ${sig.getType} = subMap.getOrElse("$k", "$default").${sig.conversion}\n"""
           }
-            .foldRight[String]("")(_ + _) + "}\n"
+            .foldRight[String]("")(_ + _) + {
+          if (makeToString) {
+            val keys = subMap.keys.toArray.sorted
+            "  def __fields: Array[String] = Array(" + {
+              if (keys.isEmpty) ""
+              else keys.map(_ + s""".formatString("$missing")""")
+                .reduceRight(_ + "," + _)
+            } + ")\n" +
+              """  override def toString: String = """ +
+              """if (__fields.length == 0) "" else __fields.reduceRight(_ + ";" + _)""" + "\n" +
+              """  def all: String = if (__fields.length == 0) "" else __fields.reduceRight(_ + "\t" + _)""" + "\n"
+          }
+          else ""
+        } +
+          "}\n"
     }
       .foldRight[String]("")(_ + _)
 
     val hiddenClass = s"class ${hiddenClassName}Annotations" +
       s"(annot: org.broadinstitute.hail.annotations.AnnotationData) extends Serializable {\n" +
       sigs.maps.map { case (subclass, subMap) =>
-        s"""  val $subclass =  new __${subclass}Annotations(annot.maps(\"$subclass\"))\n""" }
+        s"""  val $subclass =  new __${subclass}Annotations(annot.maps(\"$subclass\"))\n"""
+      }
         .foldRight[String]("")(_ + _) +
       sigs.vals.map { case (k, sig) =>
         val default = getDefault(sig.getType)
@@ -145,6 +161,7 @@ object AnnotationClassBuilder {
 
   val arrayRegex = """Array\[(\w+)\]""".r
   val optionRegex = """Option\[(\w+)\]""".r
+
   private def getDefault(typeStr: String): String = {
     if (typeStr == "Int" || typeStr == "Double")
       "0"

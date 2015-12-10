@@ -52,6 +52,31 @@ object ExportSamples extends Command {
       }
     }
 
+    // FIXME add additional command parsing functionality
+    val sampleRegex = """s\.(\w+)""".r
+    val topLevelAnnoRegex = """sa\.(\w+)""".r
+    val printMapRegex = """sa\.(\w+)\.all""".r
+    val annoRegex = """sa\.(.+)""".r
+    def mapColumnNames(input: String): String = {
+      input match {
+        case "v" => "Sample"
+        case "sa" =>
+          fatal("parse error in condition: cannot print 'sa', choose a group or value in annotations")
+        case sampleRegex(x) => x
+        case topLevelAnnoRegex(x) =>
+          if (sas.maps.contains(x)) {
+            val keys = sas.maps(x).keys.toArray.sorted
+            if (keys.isEmpty) x else s"$x:" + keys.reduceRight(_ + ";" + _)
+          }
+          else x
+        case printMapRegex(x) =>
+          val keys = sas.maps(x).keys
+          if (keys.isEmpty) x else keys.reduceRight(_ + "\t" + _)
+        case annoRegex(x) => x
+        case _ => input
+      }
+    }
+
     writeTextFile(output + ".header", state.hadoopConf) { s =>
       s.write(cond.split(",").map(_.split("\\.").last).reduceRight(_ + "\t" + _))
       s.write("\n")
@@ -60,7 +85,7 @@ object ExportSamples extends Command {
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     vds.sparkContext.parallelize(vds.sampleIds.map(Sample).zip(vds.metadata.sampleAnnotations))
-      .map { case (s, sa) => makeString(s, sa)}
+      .map { case (s, sa) => makeString(s, sa) }
       .saveAsTextFile(output)
 
     state

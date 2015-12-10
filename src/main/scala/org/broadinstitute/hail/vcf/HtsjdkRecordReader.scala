@@ -36,10 +36,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       }
     }
     val rsid = vc.getID
-//    println(s"nFilters=%d".format(filts.length))
-//    println("qual=%.2f".format(vc.getPhredScaledQual))
-//    println("Filters are: ")
-//    filts.foreach(println(_))
     if (vc.isBiallelic) {
       val variant = Variant(vc.getContig, vc.getStart, vc.getReference.getBaseString,
         vc.getAlternateAllele(0).getBaseString)

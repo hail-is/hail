@@ -18,10 +18,10 @@ class ExportSuite extends SparkSuite{
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = State("", sc, sqlContext, vds)
 
-    SampleQC.run(state, Array("-o" ,"src/test/resources/sample.vcf.sampleQC"))
+    SampleQC.run(state, Array("-o", "src/test/resources/sample.vcf.sampleQC"))
     val postSampleQC = SampleQC.run(state, Array("--store"))
 
-    ExportSamples.run(postSampleQC, Array("-o" ,"src/test/resources/sample.vcf.exportSamples", "-c",
+    ExportSamples.run(postSampleQC, Array("-o", "src/test/resources/sample.vcf.exportSamples", "-c",
       "s.id, sa.qc.nCalled,sa.qc.nNotCalled,sa.qc.nHomRef,sa.qc.nHet,sa.qc.nHomVar,sa.qc.nSNP,sa.qc.nInsertion," +
         "sa.qc.nDeletion,sa.qc.nSingleton,sa.qc.nTransition,sa.qc.nTransversion,sa.qc.dpMean,sa.qc.dpStDev," +
         "sa.qc.dpMeanHomRef,sa.qc.dpStDevHomRef,sa.qc.dpMeanHet,sa.qc.dpStDevHet,sa.qc.dpMeanHomVar," +
@@ -36,7 +36,7 @@ class ExportSuite extends SparkSuite{
 
     assert(sQcOutput == sExportOutput)
 
-    VariantQC.run(state, Array("-o" ,"src/test/resources/sample.vcf.variantQC"))
+    VariantQC.run(state, Array("-o", "src/test/resources/sample.vcf.variantQC"))
 
     val postVariantQC = VariantQC.run(state, Array("--store"))
 
@@ -53,6 +53,5 @@ class ExportSuite extends SparkSuite{
       .getLines().toSet
 
     assert(vQcOutput == vExportOutput)
-
   }
 }

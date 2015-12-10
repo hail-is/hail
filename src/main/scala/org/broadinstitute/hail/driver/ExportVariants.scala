@@ -52,8 +52,33 @@ object ExportVariants extends Command {
         }
     }
 
+    // FIXME add additional command parsing functionality
+    val variantRegex = """v\.(\w+)""".r
+    val topLevelAnnoRegex = """va\.(\w+)""".r
+    val printMapRegex = """va\.(\w+)\.all""".r
+    val annoRegex = """va\.(.+)""".r
+    def mapColumnNames(input: String): String = {
+      input match {
+        case "v" => "Variant"
+        case "va" =>
+          fatal("parse error in condition: cannot print 'va', choose a group or value in annotations")
+        case variantRegex(x) => x
+        case topLevelAnnoRegex(x) =>
+          if (vas.maps.contains(x)) {
+            val keys = vas.maps(x).keys.toArray.sorted
+            if (keys.isEmpty) x else s"$x:" + keys.reduceRight(_ + ";" + _)
+          }
+          else x
+        case printMapRegex(x) =>
+          val keys = vas.maps(x).keys
+          if (keys.isEmpty) x else keys.reduceRight(_ + "\t" + _)
+        case annoRegex(x) => x
+        case _ => input
+      }
+    }
+
     writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(cond.split(",").map(_.split("\\.").last).reduceRight(_ + "\t" + _))
+      s.write(cond.split(",").map(mapColumnNames).reduceRight(_ + "\t" + _))
       s.write("\n")
     }
 
