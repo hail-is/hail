@@ -82,6 +82,12 @@ object Variant {
     ref: String,
     alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
 
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alt: String,
+    wasSplit: Boolean): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)), wasSplit)
+
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0)
     nAlleles * (nAlleles + 1) / 2
@@ -99,7 +105,8 @@ object Variant {
 case class Variant(contig: String,
   start: Int,
   ref: String,
-  altAlleles: IndexedSeq[AltAllele]) {
+  altAlleles: IndexedSeq[AltAllele],
+  wasSplit: Boolean = false) {
   require(start >= 1)
 
   def nAltAlleles: Int = altAlleles.length

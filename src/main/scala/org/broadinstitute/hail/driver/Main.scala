@@ -152,13 +152,11 @@ object Main {
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     sc.addJar(jar)
 
-    val installDir = new File(jar).getParent + "/.."
-
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
     val times = mutable.ArrayBuffer.empty[(String, Long)]
 
-    invocations.foldLeft(State(installDir, sc, sqlContext, null)) { case (s, args) =>
+    invocations.foldLeft(State(sc, sqlContext)) { case (s, args) =>
       println("running: " + args.mkString(" "))
       val cmdName = args(0)
       nameCommand.get(cmdName) match {

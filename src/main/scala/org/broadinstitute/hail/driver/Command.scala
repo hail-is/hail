@@ -1,10 +1,19 @@
 package org.broadinstitute.hail.driver
 
+import java.io.File
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
+
+object State {
+  def apply(sc: SparkContext, sqlContext: SQLContext): State = {
+    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
+    val installDir = new File(jar).getParent + "/.."
+    new State(installDir, sc, sqlContext, null)
+  }
+}
 
 case class State(installDir: String,
   sc: SparkContext,

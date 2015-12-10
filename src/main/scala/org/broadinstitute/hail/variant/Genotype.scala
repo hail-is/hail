@@ -30,6 +30,9 @@ class GTPair(val p: Int) extends AnyVal {
   def j: Int = p & 0xffff
 
   def k: Int = (p >> 16) & 0xffff
+
+  def nNonRefAlleles: Int =
+    (if (j != 0) 1 else 0) + (if (k != 0) 1 else 0)
 }
 
 class Genotype(private val flags: Byte,
@@ -40,6 +43,13 @@ class Genotype(private val flags: Byte,
 
   require(_gt >= -1)
   require((_gt == -1) == ((flags & Genotype.flagHasGT) == 0))
+
+  def copy(gt: Option[Int] = this.gt,
+    ad: Option[IndexedSeq[Int]] = this.ad,
+    dp: Option[Int] = this.dp,
+    pl: Option[IndexedSeq[Int]] = this.pl,
+    fakeRef: Boolean = this.fakeRef): Genotype =
+    Genotype(gt, ad, dp, pl, fakeRef)
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
@@ -130,15 +140,11 @@ class Genotype(private val flags: Byte,
       GenotypeType.NoCall
     }
 
-  def nNonRef: Int =
-    if (_gt > 0) {
-      val p = Genotype.gtPair(_gt)
-      if (p.j == p.k)
-        1
-      else
-        2
-    } else
-      0
+  def nNonRefAlleles: Option[Int] =
+    if (_gt > 0)
+      Some(Genotype.gtPair(_gt).nNonRefAlleles)
+    else
+      None
 
   def gq: Option[Int] =
     if (_gt >= 0 && ((flags & Genotype.flagHasPL) != 0)) {
@@ -158,6 +164,9 @@ class Genotype(private val flags: Byte,
       Some(r)
     } else
       None
+
+  def fakeRef: Boolean =
+    (flags & Genotype.flagFakeRef) != 0
 
   override def toString: String = {
     val b = new StringBuilder
@@ -193,13 +202,15 @@ object Genotype {
   def apply(gt: Option[Int] = None,
     ad: Option[IndexedSeq[Int]] = None,
     dp: Option[Int] = None,
-    pl: Option[IndexedSeq[Int]] = None): Genotype = {
+    pl: Option[IndexedSeq[Int]] = None,
+    fakeRef: Boolean = false): Genotype = {
 
     val flags =
       ((if (gt.isDefined) Genotype.flagHasGT else 0)
         | (if (ad.isDefined) Genotype.flagHasAD else 0)
         | (if (dp.isDefined) Genotype.flagHasDP else 0)
-        | (if (pl.isDefined) Genotype.flagHasPL else 0))
+        | (if (pl.isDefined) Genotype.flagHasPL else 0)
+        | (if (fakeRef) Genotype.flagFakeRef else 0))
 
     new Genotype(flags.toByte, gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(0), pl.map(_.toArray).orNull)
   }
@@ -216,7 +227,7 @@ object Genotype {
   final val flagHasPL = 0x10
   final val flagADSimple = 0x20
   final val flagDPSimple = 0x40
-  // 0x80 reserved
+  final val flagFakeRef = 0x80
 
   val smallGTPair = Array(new GTPair(0x0), new GTPair(0x10000), new GTPair(0x10001),
     new GTPair(0x20000), new GTPair(0x20001), new GTPair(0x20002),
@@ -251,7 +262,7 @@ object Genotype {
 
   def read(v: Variant, a: Iterator[Byte]): Genotype = {
     val flags: Byte = a.next()
-    var newFlags: Int = flags & (Genotype.flagHasAD | Genotype.flagHasDP | Genotype.flagHasPL)
+    var newFlags: Int = flags & (Genotype.flagFakeRef | Genotype.flagHasAD | Genotype.flagHasDP | Genotype.flagHasPL)
 
     val gt: Int =
       if (v.isBiallelic) {
@@ -403,6 +414,10 @@ class GenotypeBuilder(v: Variant) {
     require(newPL.length == v.nGenotypes)
     flags |= Genotype.flagHasPL
     pl = newPL
+  }
+
+  def setFakeRef() {
+    flags |= Genotype.flagFakeRef
   }
 
   def set(g: Genotype) {

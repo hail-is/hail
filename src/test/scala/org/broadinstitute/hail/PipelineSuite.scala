@@ -6,13 +6,7 @@ import org.testng.annotations.Test
 
 class PipelineSuite extends SparkSuite {
   @Test def defaultPipeline() {
-    // FIXME move to State object
-    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
-    sc.addJar(jar)
-
-    val installDir = new File(jar).getParent + "/.."
-
-    var s = State(installDir, sc, sqlContext, null)
+    var s = State(sc, sqlContext)
 
     s = Import.run(s, Array("-i", "src/test/resources/sample.vcf"))
     s = Write.run(s, Array("-o", "/tmp/sample.vds"))

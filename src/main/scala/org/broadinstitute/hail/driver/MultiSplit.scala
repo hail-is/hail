@@ -26,11 +26,11 @@ object MultiSplit extends Command {
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(_._1.alt != "*")
       .map { case (aa, i) =>
-        (Variant(v.contig, v.start, v.ref, aa.alt), i + 1)
+        (Variant(v.contig, v.start, v.ref, aa.alt, wasSplit = true), i + 1)
       }.toArray
 
-    // FIXME compress?
-    val splitGenotypeBs = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv, true) }
+    val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv) }
+    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv, true) }
 
     for (g <- it) {
 
@@ -38,28 +38,40 @@ object MultiSplit extends Command {
 
       // svj corresponds to the ith allele of v
       for (((svj, i), j) <- splitVariants.iterator.zipWithIndex) {
+        val gb = splitGenotypeBuilders(j)
 
-        val gt = g.gt.map(ggtx => splitGT(ggtx, i))
-        val ad: Option[IndexedSeq[Int]] = gadsum.map { case (gadx, sum) =>
-          // what bcftools does
-          // Array(gadx(0), gadx(i))
-          Array(sum - gadx(i), gadx(i))
+        gb.clear()
+        g.gt.foreach { ggtx =>
+          val gtx = splitGT(ggtx, i)
+          gb.setGT(gtx)
+
+          val p = Genotype.gtPair(ggtx)
+          if (gtx != p.nNonRefAlleles)
+            gb.setFakeRef()
         }
 
-        val pl: Option[IndexedSeq[Int]] = g.pl.map { gplx =>
+        gadsum.foreach { case (gadx, sum) =>
+          // what bcftools does
+          // Array(gadx(0), gadx(i))
+          gb.setAD(Array(sum - gadx(i), gadx(i)))
+        }
+
+        g.dp.foreach { dpx => gb.setDP(dpx) }
+
+        g.pl.foreach { gplx =>
           val plx = gplx.iterator.zipWithIndex
             .map { case (p, k) => (splitGT(k, i), p) }
             .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
           assert(!plx.contains(Int.MaxValue))
-          plx
+          gb.setPL(plx)
         }
 
-        // FIXME
-        splitGenotypeBs(j) += Genotype(gt, ad, g.dp, pl)
+
+        splitGenotypeStreamBuilders(j).write(gb)
       }
     }
 
-    splitVariants.iterator.map(_._1).zip(splitGenotypeBs.iterator.map(_.result()))
+    splitVariants.iterator.map(_._1).zip(splitGenotypeStreamBuilders.iterator.map(_.result()))
   }
 
   def run(state: State, options: Options): State = {

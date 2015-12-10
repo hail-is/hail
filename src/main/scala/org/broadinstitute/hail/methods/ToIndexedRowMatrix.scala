@@ -14,7 +14,8 @@ object ToIndexedRowMatrix {
     val variantIdxBroadcast = vds.sparkContext.broadcast(variants.index)
 
     val unnormalized = vds
-      .mapWithKeys((v, s, g) => (s, (variantIdxBroadcast.value(v), g.nNonRef)))
+      // FIXME .getOrElse(0)?
+      .mapWithKeys((v, s, g) => (s, (variantIdxBroadcast.value(v), g.nNonRefAlleles.getOrElse(0))))
       .groupByKey()
       .map { case (s, indexGT) =>
       val a = Array.fill[Double](nVariants)(0.0)
