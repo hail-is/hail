@@ -75,7 +75,7 @@ object MultiArray2 {
     new MultiArray2[T](n1, n2, Array.fill[T](n1 * n2)(elem))
 
   def genMultiArray2[T](g: Gen[T])(implicit bT: Buildable[T, Array[T]]) = {
-    val maxDimensionSize = 10
+    val maxDimensionSize = 5
     for (n1 <- Gen.choose(0, maxDimensionSize);
          n2 <- Gen.choose(0, maxDimensionSize);
          a <- Gen.containerOfN[Array, T](n1 * n2, g)
