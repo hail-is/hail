@@ -37,15 +37,39 @@ class FilterSuite extends SparkSuite {
     // test these in both cases
 
 
-//    def eval(cond: String): Boolean = new Evaluator[FilterOption[Boolean]]("{ import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods.FilterOption; " + cond + " }").eval().ot.get
-//    def evalfo(cond: String): Boolean = new Evaluator[FilterOption[Boolean]]("{ import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods.FilterOption; new FilterOption(Some("+ cond +")) }").eval().ot.get
+    def eval(cond: String): Option[Boolean] = new Evaluator[FilterOption[Boolean]] (
+      "{ import org.broadinstitute.hail.methods.FilterUtils._; import org.broadinstitute.hail.methods.FilterOption; " +
+        cond + " }: org.broadinstitute.hail.methods.FilterOption[Boolean]")
+      .eval().ot
 
-//    assert(eval("true"))
+    assert(eval("true").get)
+    assert(eval("new FilterOption(Some(true))").get)
+    assert(eval("new FilterOption(None)").isEmpty)
+    assert(eval("new FilterOption(None) === new FilterOption(None)").isEmpty)
+    assert(eval("new FilterOption(None) === true").isEmpty)
 
+    assert(eval("true === true").get)
+    assert(eval("new FilterOption(Some(true)) === true").get)
+    assert(eval("true === new FilterOption(Some(true))").get)
+    assert(eval("new FilterOption(Some(true)) === new FilterOption(Some(true))").get)
+
+/*  assert(eval("true === new FilterOption(None)").isEmpty)
+    assert(eval("new FilterOption(None) === true").isEmpty)
+    assert(eval("new FilterOption(None) === new FilterOption(Some(true))").isEmpty)
+    assert(eval("new FilterOption(Some(true)) === new FilterOption(None)").isEmpty)
+
+    assert(eval("false === new FilterOption(None)").isEmpty)
+    assert(eval("true === new FilterOption(true)").get)
+    assert(eval("new FilterOption(None) === new FilterOption(None)").isEmpty)
+
+*/
 //    assert(eval("Array(1,2).size === 2"))
 
     assert(FilterVariants.run(state2, Array("--remove", "-c", "true === true"))
       .vds.nVariants == 0)
+
+//    assert(FilterVariants.run(state2, Array("--remove", "-c", "true === new FilterOption(Some(true))"))
+//      .vds.nVariants == 0)
 
     assert(FilterVariants.run(state2, Array("--remove", "-c", "true"))
       .vds.nVariants == 0)
@@ -70,6 +94,7 @@ class FilterSuite extends SparkSuite {
 
     assert(FilterVariants.run(state2, Array("--remove", "-c", "new FilterOption[Int](Some(4)) > 5"))
       .vds.nVariants == nVariants)
+
 
   }
 }
