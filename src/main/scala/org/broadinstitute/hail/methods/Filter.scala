@@ -27,7 +27,10 @@ class FilterOptionBoolean(val ob: Option[Boolean]) extends AnyVal {
 
 class FilterOptionString(val os: Option[String]) extends AnyVal {
   def toInt: FilterOption[Int] = new FilterOption(this.os.map(_.toInt))
+  def toLong: FilterOption[Long] = new FilterOption(this.os.map(_.toLong))
+  def toFloat: FilterOption[Float] = new FilterOption(this.os.map(_.toFloat))
   def toDouble: FilterOption[Double] = new FilterOption(this.os.map(_.toDouble))
+  def length: FilterOption[Int] = new FilterOption(this.os.map(_.length))
   def +(that: FilterOptionString) = new FilterOption(this.os.flatMap(s => that.os.map(s + _)))
   def apply(i: Int): FilterOption[Char] = new FilterOption(this.os.map(_(i)))
 }
