@@ -17,14 +17,18 @@ abstract class IndexedBinaryBlockReader(job: Configuration, split: FileSplit)
   private val start: Long = split.getStart
   private var pos: Long = start
   private val end: Long = start + split.getLength
-  private val file: Path = split.getPath
-  private val fs: FileSystem = file.getFileSystem(job)
-  private val bfis: BetterFSDataInputStream = new BetterFSDataInputStream(fs.open(file))
+  private val bfis = openFile
   private val blocksToProcess: Array[(BlockIndex)] = getIndices(start, end)
   private var index = 0
 
-
+  // FIXME: DELETE THIS
   println("nBlocks=%d, blocks(0)=%d, bytes %d:%d".format(blocksToProcess.length, blocksToProcess(0).start, start, end))
+
+  def openFile: HadoopFSDataBinaryReader = {
+    val file: Path = split.getPath
+    val fs: FileSystem = file.getFileSystem(job)
+    new HadoopFSDataBinaryReader(fs.open(file))
+  }
 
   def getIndices(start: Long, end: Long): Array[BlockIndex]
 
@@ -54,13 +58,9 @@ abstract class IndexedBinaryBlockReader(job: Configuration, split: FileSplit)
     true
   }
 
-  def createKey(): RichLongWritable = {
-    new RichLongWritable()
-  }
+  def createKey(): RichLongWritable = new RichLongWritable()
 
-  def createValue(): ByteBlock = {
-    new ByteBlock()
-  }
+  def createValue(): ByteBlock = new ByteBlock()
 
   def getPos: Long = pos
 
@@ -73,9 +73,8 @@ abstract class IndexedBinaryBlockReader(job: Configuration, split: FileSplit)
     }
   }
 
-  def close(): Unit = {
-    bfis.close()
-  }
+  def close() = bfis.close()
+
 }
 
 class RichLongWritable extends LongWritable with Serializable

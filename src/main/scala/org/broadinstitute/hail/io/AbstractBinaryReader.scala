@@ -3,7 +3,7 @@ package org.broadinstitute.hail.io
 import java.io._
 
 
-abstract class BinaryReader {
+abstract class AbstractBinaryReader {
 
   def read(): Int
 
@@ -28,28 +28,22 @@ abstract class BinaryReader {
     arr
   }
 
-  def readLongBE(): Long = {
+  def readLongBE(): Long =
     ((read() & 0xff) << 56) | ((read() & 0xff) << 48) | ((read() & 0xff) << 40) | ((read() & 0xff) << 32) |
       ((read() & 0xff) << 24) | ((read() & 0xff) << 16) | ((read() & 0xff) << 8) | (read() & 0xff)
-  }
 
-  def readIntBE(): Int = {
+  def readIntBE(): Int =
     ((read() & 0xff) << 24) | ((read() & 0xff) << 16) | ((read() & 0xff) << 8) | (read() & 0xff)
-  }
 
-  def readLong(): Long = {
+  def readLong(): Long =
     (read() & 0xff) | ((read() & 0xff) << 8) | ((read() & 0xff) << 16) | ((read() & 0xff) << 24) |
       ((read() & 0xff) << 32) | ((read() & 0xff) << 40) | ((read() & 0xff) << 48) | ((read() & 0xff) << 56)
-  }
 
-  def readInt(): Int = {
+  def readInt(): Int =
     (read() & 0xff) |((read() & 0xff) << 8) | ((read() & 0xff) << 16) | ((read() & 0xff) << 24)
-    //    super.read() << 24 | super.read() << 16 | super.read() << 8 | super.read
-  }
 
-  def readShort(): Int = {
-    (read() & 0xff) | ((read() & 0xff) << 8)
-  }
+  def readShort(): Int = (read() & 0xff) | ((read() & 0xff) << 8)
+
 
   def readString(length: Int): String = {
     val byteArray = new Array[Byte](length)
@@ -63,19 +57,9 @@ abstract class BinaryReader {
     // need LengthBytes to be Short or Int compatible
     require(lengthBytes == 2 || lengthBytes == 4)
 
-    val length: Int = lengthBytes match {
-      case 2 => readShort()
-      case 4 => readInt()
-    }
+    val length = if (lengthBytes == 2) readShort() else readInt()
     readString(length)
   }
 
-  def skipBytes(lengthBytes: Long): Long = {
-    var i: Long  = 0L
-    while (i < lengthBytes) {
-      read()
-      i += 1
-    }
-    i
-  }
+  def skipBytes(lengthBytes: Long): Long
 }

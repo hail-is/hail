@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.io
 
-class ByteArrayReader(arr: Array[Byte]) extends BinaryReader {
+class ByteArrayReader(arr: Array[Byte]) extends AbstractBinaryReader {
 
   def this(bb: ByteBlock) = this(bb.getArray)
 
@@ -9,8 +9,9 @@ class ByteArrayReader(arr: Array[Byte]) extends BinaryReader {
 
   override def read(): Int = {
     if (position < length) {
+      val b = arr(position)
       position += 1
-      arr(position-1)
+      b
     }
     else
       -1
@@ -26,7 +27,16 @@ class ByteArrayReader(arr: Array[Byte]) extends BinaryReader {
     }
   }
 
-  def seek(pos: Int): Unit = {
+  def seek(pos: Int) {
     position = pos
+  }
+
+  def skipBytes(bytes: Long): Long = {
+    require(bytes < Integer.MAX_VALUE)
+    position += bytes.toInt
+    if (position < length)
+      bytes
+    else
+      -1
   }
 }

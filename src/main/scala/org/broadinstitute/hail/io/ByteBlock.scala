@@ -4,13 +4,10 @@ class ByteBlock extends Serializable {
   private var byteArray: Option[Array[Byte]] = None
   private var index: Option[Int] = None
 
-  def setBlock(arr: Array[Byte]): Unit = {
-    byteArray = Some(arr)
-  }
+  def setBlock(arr: Array[Byte]) = byteArray = Some(arr)
 
-  def setIndex(ind: Int): Unit = {
-    index = Some(ind)
-  }
+  def setIndex(ind: Int) = index = Some(ind)
+
 
   def getArray: Array[Byte] = {
     byteArray match {

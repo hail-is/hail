@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.io
 import java.io._
 
-class CountingBufferedInputStream(bis: BufferedInputStream, start: Long = 0) extends BinaryReader {
+class CountingBufferedInputStream(bis: BufferedInputStream, start: Long = 0) extends AbstractBinaryReader {
 
   private var position: Long = start
 
@@ -9,7 +9,6 @@ class CountingBufferedInputStream(bis: BufferedInputStream, start: Long = 0) ext
     val r = bis.read()
     if (r >= 0)
       position += 1
-//    println("read something, pos is %d".format(position))
     r
   }
 
@@ -26,4 +25,6 @@ class CountingBufferedInputStream(bis: BufferedInputStream, start: Long = 0) ext
   }
 
   def getPosition: Long = position
+
+  def skipBytes(bytes: Long): Long = bis.skip(bytes)
 }

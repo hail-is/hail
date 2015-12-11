@@ -7,6 +7,7 @@ import org.apache.hadoop.io.LongWritable
 
 import scala.io.Source
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.Utils.hadoopOpen
 import org.apache.spark.SparkContext
 import scala.collection.mutable.ArrayBuffer
 
@@ -15,7 +16,7 @@ class BgenLoader(file: String, sc: SparkContext) {
   private var version: Int = 0
   private var hasSampleIdBlock: Boolean = false
   private var sampleIDs: Option[Array[String]] = None
-  private val reader = new BinaryFileReader(new RandomAccessFile(file, "r"))
+  private val reader = new HadoopFSDataBinaryReader(hadoopOpen(file, sc.hadoopConfiguration))
   var nSamples: Int = 0
   var nVariants: Int = 0
 

@@ -85,7 +85,7 @@ class RichHomogenousTuple1[T](val t: Tuple1[T]) extends AnyVal {
     case 1 => (t._1, x)
   }
 
-  def remove(i: Int): Unit = {
+  def remove(i: Int) {
     require(i == 0)
   }
 }

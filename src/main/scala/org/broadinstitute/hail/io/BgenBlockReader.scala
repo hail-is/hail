@@ -4,12 +4,13 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.mapred.{InvalidFileTypeException, FileSplit}
 import scala.collection.mutable.ArrayBuffer
 import org.apache.hadoop.mapred._
+import org.broadinstitute.hail.Utils.hadoopOpen
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader(job, split) {
 
   override def getIndices(start: Long, end: Long): Array[BlockIndex] = {
     val path = job.get("idx")
-    val bfr = new BinaryFileReader(path)
+    val bfr = new HadoopFSDataBinaryReader(hadoopOpen(path, job))
     val posAndInd = ArrayBuffer[(Long, Int)]()
 
     val nVariants = bfr.readIntBE()
