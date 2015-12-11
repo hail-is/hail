@@ -35,9 +35,7 @@ object PlinkLoader {
       val Array(fam, kid, dad, mom, sex, pheno) = arr
       Trio(indexOfSample(kid), stringOrZero(fam), maybeId(dad), maybeId(mom),
         Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
-    }
-      .toTraversable
-    )
+    })
 
     SampleInfo(sampleIds, ped)
   }
@@ -84,7 +82,7 @@ object PlinkLoader {
 
     val variantsBc = sc.broadcast(variants)
     def parseVariant(bb: ByteBlock):
-    (Variant, GenotypeStream) = {
+    (Variant, Iterable[Genotype]) = {
       val variant = variantsBc.value(bb.getIndex)
       val bar = new ByteArrayReader(bb.getArray)
       val b = new GenotypeStreamBuilder(variant, compress = false)
@@ -94,13 +92,13 @@ object PlinkLoader {
         .map(plinkToHail)
         .take(nSamples)
         .foreach(i => b += sparseGt(i+1))
-      (variant, b.result())
+      (variant, b.result(): Iterable[Genotype])
     }
 
     val vgsRdd = bbRdd.map {
       case (l, bb) => parseVariant(bb)
     }
-    VariantSampleMatrix(vsmType, VariantMetadata(null, sampleIds), vgsRdd)
+    VariantSampleMatrix(VariantMetadata(null, sampleIds), vgsRdd)
   }
 
 

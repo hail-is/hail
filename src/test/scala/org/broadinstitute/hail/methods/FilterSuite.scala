@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import java.io.File
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.io.LoadVCF
 import org.broadinstitute.hail.driver.Main._
 import org.broadinstitute.hail.driver.{FilterVariants, FilterSamples, FilterGenotypes, State}
 import org.testng.annotations.Test

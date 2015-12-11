@@ -121,7 +121,7 @@ class BgenLoader(file: String, sc: SparkContext) {
         val gt = Genotype(gtCall, (0, 0), 0, PLs) // FIXME missing data for stuff
         b += gt
       }
-      (variant, b.result())
+      (variant, b.result(): Iterable[Genotype])
     }
   }
 
@@ -275,6 +275,6 @@ object BgenLoader {
       sc.defaultMinPartitions).map(info => parseFunction(info._2))
     rdd.count()
     println("parsing took %.3f seconds".format((System.currentTimeMillis() - time).toDouble / 1000.0))
-    VariantSampleMatrix(vsmType, VariantMetadata(null, ids), rdd)
+    VariantSampleMatrix(VariantMetadata(null, ids), rdd)
   }
 }

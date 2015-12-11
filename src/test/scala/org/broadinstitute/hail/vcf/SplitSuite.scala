@@ -2,7 +2,7 @@ package org.broadinstitute.hail.vcf
 
 import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.methods.LoadVCF
+import org.broadinstitute.hail.io.LoadVCF
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils.simpleAssert
 
