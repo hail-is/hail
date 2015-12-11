@@ -26,7 +26,7 @@ object VariantSampleMatrix {
       _.readObject().asInstanceOf[VariantMetadata])
 
     // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-    val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
+    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     new VariantSampleMatrix[Genotype](metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 }
@@ -224,6 +224,6 @@ class RichVDS(vds: VariantDataset) {
     vds.rdd
       .map { case (v, gs) => (v, gs.toGenotypeStream(v, compress)) }
       .toDF()
-      .saveAsParquetFile(dirname + "/rdd.parquet")
+      .write.parquet(dirname + "/rdd.parquet")
   }
 }

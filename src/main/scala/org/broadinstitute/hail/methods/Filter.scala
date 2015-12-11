@@ -13,7 +13,10 @@ class FilterString(val s: String) extends AnyVal {
 class FilterOption[T](val ot: Option[T]) extends AnyVal {
   override def toString: String = if (ot.isDefined) ot.get.toString else "NA"
   def ===(that: FilterOption[T]): FilterOption[Boolean] = new FilterOption(this.ot.flatMap(t => that.ot.map(_ == t)))
-  def !==(that: FilterOption[T]): FilterOption[Boolean] = new FilterOption((this === that).ot.map(!_))
+  def ===[S](that: FilterOption[S])(implicit conv: (T) => S): FilterOption[Boolean] =
+    new FilterOption(this.ot.flatMap(t => that.ot.map(_ == t)))
+
+  //def !==(that: FilterOption[T]): FilterOption[Boolean] = new FilterOption((this === that).ot.map(!_))
 }
 
 class FilterOptionBoolean(val ob: Option[Boolean]) extends AnyVal {
@@ -77,14 +80,28 @@ class FilterOptionInt(val oi: Option[Int]) {
   def /(that: FilterOptionDouble): FilterOption[Double] = new FilterOption(this.oi.flatMap(i => that.od.map(i / _)))
 }
 
-class FilterObject[T](val t: T) extends AnyVal {
-  def ===(that: T) = t == that
+//class FilterObject[T](val t: T) extends AnyVal {
+//  def ===(that: T) = t == that
+//}
+
+/*
+class FilterObject[T](val t: T) {
+  def ===(that: T): FilterOption[Boolean] = t match {
+    case fot: FilterOption[_] => new FilterOption(fot.ot.flatMap(t => that.asInstanceOf[FilterOption[_]].ot.map(t == _)))
+    case _ => new FilterOption(Some(t == that))
+  }
+
+  def ===(that: FilterOption[T]): FilterOption[Boolean] = t match {
+    case fot: FilterOption[_] => Utils.fail()
+    case _ => new FilterOption(that.ot.map(t == _))
+  }
 }
+*/
 
 object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
 
-  implicit def toFilterObject[T](t: T): FilterObject[T] = new FilterObject(t)
+  // implicit def toFilterObject[T](t: T): FilterObject[T] = new FilterObject(t)
 
   implicit def toFilterOption[T](t: T): FilterOption[T] = new FilterOption(Some(t))
 
