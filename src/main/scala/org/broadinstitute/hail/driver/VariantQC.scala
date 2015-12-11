@@ -5,30 +5,30 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.stats.LeveneHaldane
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
 
 object VariantQCCombiner {
-  val header = "nCalled" + "\t" +
-    "nNotCalled" + "\t" +
-    "nHomRef" + "\t" +
-    "nHet" + "\t" +
-    "nHomVar" + "\t" +
-    "alleleBalance" + "\t" +
-    "dpMean" + "\t" + "dpStDev" + "\t" +
-    "dpMeanHomRef" + "\t" + "dpStDevHomRef" + "\t" +
-    "dpMeanHet" + "\t" + "dpStDevHet" + "\t" +
-    "dpMeanHomVar" + "\t" + "dpStDevHomVar" + "\t" +
-    "gqMean" + "\t" + "gqStDev" + "\t" +
-    "gqMeanHomRef" + "\t" + "gqStDevHomRef" + "\t" +
-    "gqMeanHet" + "\t" + "gqStDevHet" + "\t" +
-    "gqMeanHomVar" + "\t" + "gqStDevHomVar" + "\t" +
-    "MAF" + "\t" +
-    "nNonRef" + "\t" +
-    "rHeterozygosity" + "\t" +
-    "rHetHomVar" + "\t" +
-    "pHWE"
+  val header = "nCalled\t" +
+    "nNotCalled\t" +
+    "nHomRef\t" +
+    "nHet\t" +
+    "nHomVar\t" +
+    "dpMean\tdpStDev\t" +
+    "dpMeanHomRef\tdpStDevHomRef\t" +
+    "dpMeanHet\tdpStDevHet\t" +
+    "dpMeanHomVar\tdpStDevHomVar\t" +
+    "gqMean\tgqStDev\t" +
+    "gqMeanHomRef\tgqStDevHomRef\t" +
+    "gqMeanHet\tgqStDevHet\t" +
+    "gqMeanHomVar\tgqStDevHomVar\t" +
+    "MAF\t" +
+    "nNonRef\t" +
+    "rHeterozygosity\t" +
+    "rHetHomVar\t" +
+    "rExpectedHetFrequency\tpHWE\t"
 }
 
 class VariantQCCombiner extends Serializable {
@@ -52,7 +52,7 @@ class VariantQCCombiner extends Serializable {
   // FIXME per-genotype
 
   def merge(g: Genotype): VariantQCCombiner = {
-    g.call.map(_.gt) match {
+    (g.call.map(_.gt): @unchecked) match {
       case Some(0) =>
         nHomRef += 1
         dpSC.merge(g.dp)
@@ -101,30 +101,20 @@ class VariantQCCombiner extends Serializable {
     this
   }
 
-  def pAB: Double = {
-    val d = new BinomialDistribution(refDepth + altDepth, 0.5)
-    val minDepth = refDepth.min(altDepth)
-    val minp = d.probability(minDepth)
-    val mincp = d.cumulativeProbability(minDepth)
-    (2 * mincp - minp).min(1.0).max(0.0)
-  }
-
-  def pHWE: Double = {
-    val total = nHomRef + nHet + nHomVar
-    val p = (nHet.toDouble + 2 * nHomVar) / total
-    val q = 1 - p
-
-    val observed = Array[Double](nHomRef, nHet, nHomVar)
-    val expected = Array[Double](q * q * total, 2 * p * q * total, p * p * total)
-
-    // FIXME handle div by 0
-    observed.zipWith[Double, Double](expected, (o, e) => (o - e) * (o - e) / e).sum
-  }
-
   def emitSC(sb: mutable.StringBuilder, sc: StatCounter) {
     sb.tsvAppend(someIf(sc.count > 0, sc.mean))
     sb += '\t'
     sb.tsvAppend(someIf(sc.count > 0, sc.stdev))
+  }
+
+  def HWEStats: (Option[Double], Double) = {
+    // rExpectedHetFrequency, pHWE
+    val n = nHomRef + nHet + nHomVar
+    val nAB = nHet
+    val nA = nAB + 2 * nHomRef.min(nHomVar)
+
+    val LH = LeveneHaldane(n, nA)
+    (divOption(LH.getNumericalMean, n), LH.exactMidP(nAB))
   }
 
   def emit(sb: mutable.StringBuilder) {
@@ -139,9 +129,6 @@ class VariantQCCombiner extends Serializable {
     sb.append(nHet)
     sb += '\t'
     sb.append(nHomVar)
-    sb += '\t'
-
-    sb.append(pAB)
     sb += '\t'
 
     emitSC(sb, dpSC)
@@ -180,8 +167,9 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nHet, nHomVar))
     sb += '\t'
 
-    // pHWE
-    sb.append(pHWE)
+    val hwe = HWEStats
+    sb.tsvAppend(hwe._1)
+    sb.append(hwe._2)
   }
 }
 

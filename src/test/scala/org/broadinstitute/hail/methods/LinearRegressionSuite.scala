@@ -10,8 +10,8 @@ import org.testng.annotations.Test
 class LinearRegressionSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
-    val ped = Pedigree.read("src/test/resources/linearRegression.fam", vds.sampleIds)
-    val cov = CovariateData.read("src/test/resources/linearRegression.cov", vds.sampleIds)
+    val ped = Pedigree.read("src/test/resources/linearRegression.fam", sc.hadoopConfiguration, vds.sampleIds)
+    val cov = CovariateData.read("src/test/resources/linearRegression.cov", sc.hadoopConfiguration, vds.sampleIds)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (2, ., 2, ., 0, 0)

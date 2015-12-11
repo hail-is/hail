@@ -7,12 +7,16 @@ import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.scalacheck.Gen
+import org.scalacheck.Arbitrary._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
+import scala.reflect.runtime.currentMirror
+import scala.tools.reflect.ToolBox
 
 // FIXME AnyVal in Scala 2.11
 class RichVector[T](v: Vector[T]) {
@@ -206,6 +210,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def writeTable(filename: String, header: String = null) {
     if (header != null)
       writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
     r.saveAsTextFile(filename)
   }
 }
@@ -225,8 +230,6 @@ class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
 class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
   def mapValuesWithKeys[T](f: (K, V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
 
-  def groupByKey: Map[K, Iterable[V]] = m.groupBy(_._1).mapValues {_.values}
-
   def force = m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
 }
 
@@ -240,6 +243,19 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
       case Some(x) => sb.append(x)
       case None => sb.append("NA")
     }
+  }
+}
+
+class RichIterator[T](val it: Iterator[T]) extends AnyVal {
+  def existsExactly1(p: (T) => Boolean): Boolean = {
+    var n: Int = 0
+    while (it.hasNext)
+      if (p(it.next())) {
+        n += 1
+        if (n > 1)
+          return false
+      }
+    n == 1
   }
 }
 
@@ -411,11 +427,6 @@ object Utils {
     if (!p) throw new AssertionError
   }
 
-  // FIXME This should be replaced by AB's version that assesses relative difference as well
-  def closeEnough(a: Double, b: Double, cutoff: Double = 0.0001) = {
-    math.abs(a - b) < cutoff
-  }
-
   // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
   def printTime[T](block: => T) = {
     val timed = time(block)
@@ -469,4 +480,49 @@ object Utils {
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder =
     new RichStringBuilder(sb)
+
+  def D_epsilon(a: Double, b: Double, tolerance: Double = 1.0E-6): Double =
+    math.max(java.lang.Double.MIN_NORMAL, tolerance * math.max(math.abs(a), math.abs(b)))
+
+  def D_==(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+    math.abs(a - b) <= D_epsilon(a, b, tolerance)
+
+  def D_!=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+    math.abs(a - b) > D_epsilon(a, b, tolerance)
+
+  def D_<(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+    a - b < -D_epsilon(a, b, tolerance)
+
+  def D_<=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+    a - b <= D_epsilon(a, b, tolerance)
+
+  def D_>(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+    a - b > D_epsilon(a, b, tolerance)
+
+  def D_>=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+    a - b >= -D_epsilon(a, b, tolerance)
+
+  def flushDouble(a: Double): Double =
+    if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
+
+
+  def eval[T](t: String): T = {
+    val toolbox = currentMirror.mkToolBox()
+    val ast = toolbox.parse(t)
+    toolbox.typeCheck(ast)
+    toolbox.eval(ast).asInstanceOf[T]
+  }
+
+  def genOption[T](g: Gen[T], someFrequency: Int = 4): Gen[Option[T]] =
+    Gen.frequency((1, Gen.const(None)),
+      (someFrequency, g.map(Some(_))))
+
+  def genNonnegInt: Gen[Int] = arbitrary[Int].map(_ & Int.MaxValue)
+
+  def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
+
+  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+
+  implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
+
 }

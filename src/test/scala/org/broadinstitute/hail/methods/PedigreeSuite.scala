@@ -7,12 +7,18 @@ import org.testng.annotations.Test
 class PedigreeSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", vds.sampleIds)
+    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
     ped.write("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)  // FIXME: this is not right
-    val pedwr = Pedigree.read("/tmp/sample_mendel.fam", vds.sampleIds)
-    assert(ped == pedwr)
+    val pedwr = Pedigree.read("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
+    assert(ped.trios.sameElements(pedwr.trios))
 
-    assert(ped.nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 11)
+    val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
+    val sampleIndex = vds.sampleIds.zipWithIndex.toMap
+    assert(nuclearFams((sampleIndex("Dad1"), sampleIndex("Mom1"))).toSet ==
+      Set(sampleIndex("Son1"), sampleIndex("Daughter1")))
+    assert(nuclearFams((sampleIndex("Dad2"), sampleIndex("Mom2"))).toSet ==
+      Set(sampleIndex("Son2")))
+    assert(nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 11)
 
     assert(ped.nSatisfying(_.isMale) == 6 && ped.nSatisfying(_.isFemale) == 5)
 

@@ -12,29 +12,28 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object SampleQCCombiner {
-  val header = "nCalled" + "\t" +
-    "nNotCalled" + "\t" +
-    "nHomRef" + "\t" +
-    "nHet" + "\t" +
-    "nHomVar" + "\t" +
-    "alleleBalance" + "\t" +
-    "nSNP" + "\t" +
-    "nInsertion" + "\t" +
-    "nDeletion" + "\t" +
-    "nSingleton" + "\t" +
-    "nTransition" + "\t" +
-    "nTransversion" + "\t" +
-    "dpMean" + "\t" + "dpStDev" + "\t" +
-    "dpMeanHomRef" + "\t" + "dpStDevHomRef" + "\t" +
-    "dpMeanHet" + "\t" + "dpStDevHet" + "\t" +
-    "dpMeanHomVar" + "\t" + "dpStDevHomVar" + "\t" +
-    "gqMean" + "\t" + "gqStDev" + "\t" +
-    "gqMeanHomRef" + "\t" + "gqStDevHomRef" + "\t" +
-    "gqMeanHet" + "\t" + "gqStDevHet" + "\t" +
-    "gqMeanHomVar" + "\t" + "gqStDevHomVar" + "\t" +
-    "nNonRef" + "\t" +
-    "rTiTv" + "\t" +
-    "rHetHomVar" + "\t" +
+  val header = "nCalled\t" +
+    "nNotCalled\t" +
+    "nHomRef\t" +
+    "nHet\t" +
+    "nHomVar\t" +
+    "nSNP\t" +
+    "nInsertion\t" +
+    "nDeletion\t" +
+    "nSingleton\t" +
+    "nTransition\t" +
+    "nTransversion\t" +
+    "dpMean\tdpStDev\t" +
+    "dpMeanHomRef\tdpStDevHomRef\t" +
+    "dpMeanHet\tdpStDevHet\t" +
+    "dpMeanHomVar\tdpStDevHomVar\t" +
+    "gqMean\tgqStDev\t" +
+    "gqMeanHomRef\tgqStDevHomRef\t" +
+    "gqMeanHet\tgqStDevHet\t" +
+    "gqMeanHomVar\tgqStDevHomVar\t" +
+    "nNonRef\t" +
+    "rTiTv\t" +
+    "rHetHomVar\t" +
     "rDeletionInsertion"
 }
 
@@ -65,7 +64,7 @@ class SampleQCCombiner extends Serializable {
 
   // FIXME per-genotype
 
-  def merge(v: Variant, g: Genotype, singletons: Set[Variant]): SampleQCCombiner = {
+  def merge(v: Variant, vIsSingleton: Boolean, g: Genotype): SampleQCCombiner = {
     g.call.map(_.gt) match {
       case Some(0) =>
         nHomRef += 1
@@ -89,7 +88,7 @@ class SampleQCCombiner extends Serializable {
           nIns += 1
         else if (v.isDeletion)
           nDel += 1
-        if (singletons.contains(v))
+        if (vIsSingleton)
           nSingleton += 1
         dpSC.merge(g.dp)
         dpHetSC.merge(g.dp)
@@ -109,7 +108,7 @@ class SampleQCCombiner extends Serializable {
           nIns += 1
         else if (v.isDeletion)
           nDel += 1
-        if (singletons.contains(v))
+        if (vIsSingleton)
           nSingleton += 1
         dpSC.merge(g.dp)
         dpHomVarSC.merge(g.dp)
@@ -152,14 +151,6 @@ class SampleQCCombiner extends Serializable {
     this
   }
 
-  def pAB: Double = {
-    val d = new BinomialDistribution(refDepth + altDepth, 0.5)
-    val minDepth = refDepth.min(altDepth)
-    val minp = d.probability(minDepth)
-    val mincp = d.cumulativeProbability(minDepth)
-    (2 * mincp - minp).min(1.0).max(0.0)
-  }
-
   def emitSC(sb: mutable.StringBuilder, sc: StatCounter) {
     sb.tsvAppend(someIf(sc.count > 0, sc.mean))
     sb += '\t'
@@ -178,9 +169,6 @@ class SampleQCCombiner extends Serializable {
     sb.append(nHet)
     sb += '\t'
     sb.append(nHomVar)
-    sb += '\t'
-
-    sb.append(pAB)
     sb += '\t'
 
     sb.append(nSNP)
@@ -221,7 +209,7 @@ class SampleQCCombiner extends Serializable {
     sb.append(nHet + nHomVar)
     sb += '\t'
 
-    // nTiTv
+    // nTiTvf
     sb.tsvAppend(divOption(nTi, nTv))
     sb += '\t'
 
@@ -231,7 +219,6 @@ class SampleQCCombiner extends Serializable {
 
     // rDeletionInsertion
     sb.tsvAppend(divOption(nDel, nIns))
-
   }
 }
 
@@ -248,13 +235,30 @@ object SampleQC extends Command {
 
   def description = "Compute per-sample QC metrics"
 
-  def results(vds: VariantDataset, singletons: Set[Variant]): RDD[(Int, SampleQCCombiner)] = {
-    val singletonsBc: Broadcast[Set[Variant]] = vds.sparkContext.broadcast(singletons)
+  def results(vds: VariantDataset): RDD[(Int, SampleQCCombiner)] = {
 
+    /*
+    val singletons = sSingletonVariants(vds)
+    val singletonsBc = vds.sparkContext.broadcast(singletons)
     vds
       .aggregateBySampleWithKeys(new SampleQCCombiner)(
-        (comb, v, s, g) => comb.merge(v, g, singletonsBc.value),
+        (comb, v, s, g) => comb.merge(v, singletonsBc.value(v), g),
         (comb1, comb2) => comb1.merge(comb2))
+        */
+
+    val localSamplesBc = vds.sparkContext.broadcast(vds.localSamples)
+    vds
+      .rdd
+      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Iterable[Genotype])]) =>
+        val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
+        localSamplesBc.value.iterator
+          .zip(it.foldLeft(zeroValue) { case (acc, (v, gs)) =>
+            val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
+            for ((g, i) <- gs.zipWithIndex)
+              acc(i) = acc(i).merge(v, vIsSingleton, g)
+            acc
+          }.iterator)
+      }.foldByKey(new SampleQCCombiner)((comb1, comb2) => comb1.merge(comb2))
   }
 
   def run(state: State, options: Options): State = {
@@ -268,11 +272,10 @@ object SampleQC extends Command {
       s.write("\n")
     }
 
-    val singletons = sSingletonVariants(vds)
     val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
     hadoopDelete(output, state.hadoopConf, true)
-    val r = results(vds, singletons)
+    val r = results(vds)
       .map { case (s, comb) =>
         val sb = new StringBuilder()
         sb.append(sampleIdsBc.value(s))

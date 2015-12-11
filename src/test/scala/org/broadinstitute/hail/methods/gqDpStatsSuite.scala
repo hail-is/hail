@@ -22,48 +22,45 @@ class gqDpStatsSuite extends SparkSuite {
     val variantDevs = Array(1.87082869, 5.33853913, 7.27581611, 4.28478413)
 
     // DP test first
-    val dpVds = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=Some(arr), gqArray=None)
-    val dpSingletons = sSingletonVariants(dpVds)
+    val dpVds = TestRDDBuilder.buildRDD(8, 4, sc, dpArray=Some(arr), gqArray=None)
     val dpVariantR = VariantQC.results(dpVds)
-    val dpSampleR = SampleQC.results(dpVds, dpSingletons)
+    val dpSampleR = SampleQC.results(dpVds)
     
     dpVariantR.collect().foreach {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].get,
 //          variantMeans(v.start),a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
-        assert(closeEnough(a.dpSC.mean, variantMeans(v.start)))
-        assert(closeEnough(a.dpSC.stdev, variantDevs(v.start)))
+        simpleAssert(D_==(a.dpSC.mean, variantMeans(v.start)))
+        simpleAssert(D_==(a.dpSC.stdev, variantDevs(v.start)))
     }
 
       dpSampleR.collect().foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        assert(closeEnough(a.dpSC.mean, sampleMeans(s)))
-        assert(closeEnough(a.dpSC.stdev, sampleDevs(s)))
+        simpleAssert(D_==(a.dpSC.mean, sampleMeans(s)))
+        simpleAssert(D_==(a.dpSC.stdev, sampleDevs(s)))
     }
 
     // now test GQ
-    val gqVds = TestRDDBuilder.buildRDD(8, 4, sc, "sparky", dpArray=None, gqArray=Some(arr))
-    val gqSingletons = sSingletonVariants(gqVds)
+    val gqVds = TestRDDBuilder.buildRDD(8, 4, sc, dpArray=None, gqArray=Some(arr))
     val gqVariantR = VariantQC.results(gqVds)
-    val gqSampleR = SampleQC.results(gqVds, gqSingletons)
+    val gqSampleR = SampleQC.results(gqVds)
 
     gqVariantR.collect().foreach {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
 //          .asInstanceOf[Double], variantDevs(v.start)))
-
-        assert(closeEnough(a.gqSC.mean, variantMeans(v.start)))
-        assert(closeEnough(a.gqSC.stdev, variantDevs(v.start)))
+        simpleAssert(D_==(a.gqSC.mean, variantMeans(v.start)))
+        simpleAssert(D_==(a.gqSC.stdev, variantDevs(v.start)))
     }
 
     gqSampleR.collect().foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        assert(closeEnough(a.gqSC.mean, sampleMeans(s)))
-        assert(closeEnough(a.gqSC.stdev, sampleDevs(s)))
+        simpleAssert(D_==(a.gqSC.mean, sampleMeans(s)))
+        simpleAssert(D_==(a.gqSC.stdev, sampleDevs(s)))
     }
   }
 }

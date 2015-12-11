@@ -8,8 +8,8 @@ import org.testng.annotations.Test
 class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", vds.sampleIds)
-    val men = MendelErrors(vds, ped)
+    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
+    val men = MendelErrors(vds, ped.completeTrios)
 
     val nPerFam = men.nErrorPerNuclearFamily.collectAsMap()
     val nPerIndiv = men.nErrorPerIndiv.collectAsMap()
@@ -29,7 +29,7 @@ class MendelErrorsSuite extends SparkSuite {
     val variant5 = Variant("20", 1, "C", "T")
 
     assert(nPerFam.size == 2)
-    assert(nPerIndiv.size == 11)
+    assert(nPerIndiv.size == 7)
     assert(nPerVariant.size == 22)
 
     assert(nPerFam((dad, mom)) == 34)
@@ -48,9 +48,9 @@ class MendelErrorsSuite extends SparkSuite {
     assert(nPerVariant.get(variant5).isEmpty)
 
     //FIXME: How to test these?
-    //men.writeMendel("/tmp/sample_mendel.mendel")
-    //men.writeMendelL("/tmp/sample_mendel.lmendel")
-    //men.writeMendelF("/tmp/sample_mendel.fmendel")
-    //men.writeMendelI("/tmp/sample_mendel.imendel")
+    men.writeMendel("/tmp/sample_mendel.mendel")
+    men.writeMendelL("/tmp/sample_mendel.lmendel")
+    men.writeMendelF("/tmp/sample_mendel.fmendel")
+    men.writeMendelI("/tmp/sample_mendel.imendel")
   }
 }
