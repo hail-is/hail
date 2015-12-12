@@ -39,18 +39,9 @@ object FilterVariants extends Command {
         val ilist = IntervalList.read(options.condition)
         (v: Variant, va: Annotations[String]) => ilist.contains(v.contig, v.start)
       case c: String =>
-        try {
-          val cf = new FilterVariantCondition(c, vas)
-          cf.typeCheck()
-          cf.apply
-        } catch {
-          case e: scala.tools.reflect.ToolBoxError =>
-            /* e.message looks like:
-               reflective compilation has failed:
-
-               ';' expected but '.' found. */
-            fatal("parse error in condition: " + e.message.split("\n").last)
-        }
+        val cf = new FilterVariantCondition(c, vas)
+        cf.typeCheck()
+        cf.apply
     }
 
     val newVDS = vds.filterVariants(if (options.keep)

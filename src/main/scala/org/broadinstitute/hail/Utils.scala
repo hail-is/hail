@@ -432,6 +432,12 @@ object Utils {
     d.formatted("%.4e")
   }
 
+  def writeOption(o: Option[Any], missingValue: String = "NA"): String = o match {
+    case Some(d: Double) => stringFormatDouble(d)
+    case Some(x) => x.toString
+    case None => missingValue
+  }
+
   // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
   def printTime[T](block: => T) = {
     val timed = time(block)

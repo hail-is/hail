@@ -35,18 +35,10 @@ object FilterGenotypes extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val p: IndexedSeq[AnnotationData] => ((Variant, AnnotationData) => ((Int, Sample, Genotype) => Boolean)) = try {
+    val p: ((Variant, AnnotationData) => ((Int, Sample, Genotype) => Boolean)) = try {
       val cf = new FilterGenotypeCondition(options.condition, vas, sas, sa)
       cf.typeCheck()
-      cf.apply
-    }
-    catch {
-      case e: scala.tools.reflect.ToolBoxError =>
-        /* e.message looks like:
-           reflective compilation has failed:
-
-           ';' expected but '.' found. */
-        fatal("parse error in condition: " + e.message.split("\n").last)
+      cf.apply(sa)
     }
 
     val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
@@ -54,7 +46,7 @@ object FilterGenotypes extends Command {
     val localRemove = options.remove
     //FIXME put keep/remove logic here
     val newVDS = vds.mapValuesWithAll((v: Variant, va: AnnotationData, s: Int, g: Genotype) =>
-      if (p(sa)(v, va)(s, Sample(sampleIdsBc.value(s)), g)) {
+      if (p(v, va)(s, Sample(sampleIdsBc.value(s)), g)) {
         if (localKeep) g else Genotype(-1, (0, 0), 0, null)
       }
       else {

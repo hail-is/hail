@@ -32,7 +32,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         if (vc.getFilters.isEmpty)
           ""
         else
-          vc.getFilters.toArray.map(_.toString).reduceRight(_ + "," + _)
+          vc.getFilters.toArray.map(_.toString).mkString(",")
       }
     }
     val rsid = vc.getID

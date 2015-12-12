@@ -66,19 +66,19 @@ object ExportVariants extends Command {
         case topLevelAnnoRegex(x) =>
           if (vas.maps.contains(x)) {
             val keys = vas.maps(x).keys.toArray.sorted
-            if (keys.isEmpty) x else s"$x:" + keys.reduceRight(_ + ";" + _)
+            if (keys.isEmpty) x else s"$x:" + keys.mkString("\t")
           }
           else x
         case printMapRegex(x) =>
           val keys = vas.maps(x).keys
-          if (keys.isEmpty) x else keys.reduceRight(_ + "\t" + _)
+          if (keys.isEmpty) x else keys.mkString("\t")
         case annoRegex(x) => x
         case _ => input
       }
     }
 
     writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(cond.split(",").map(mapColumnNames).reduceRight(_ + "\t" + _))
+      s.write(cond.split(",").map(mapColumnNames).mkString("\t"))
       s.write("\n")
     }
 

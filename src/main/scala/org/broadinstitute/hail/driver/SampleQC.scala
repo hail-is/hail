@@ -340,9 +340,10 @@ object SampleQC extends Command {
 
     val output = options.output
 
+    val singletons = sSingletonVariants(vds)
+    val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
+
     if (options.store) {
-      val singletons = sSingletonVariants(vds)
-      val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
       val r = results(vds).collectAsMap()
       val newAnnotations = vds.metadata.sampleAnnotations
         .zipWithIndex
@@ -353,17 +354,12 @@ object SampleQC extends Command {
             sampleAnnotationSignatures = vds.metadata.sampleAnnotationSignatures
               .addMap("qc", SampleQCCombiner.signatures),
             sampleAnnotations = newAnnotations)))
-    }
-    else {
-
+    } else {
       writeTextFile(output + ".header", state.hadoopConf) { s =>
         s.write("sampleID\t")
         s.write(SampleQCCombiner.header)
         s.write("\n")
       }
-
-      val singletons = sSingletonVariants(vds)
-      val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
       hadoopDelete(output, state.hadoopConf, recursive = true)
       val r = results(vds)

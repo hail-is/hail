@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.SparkContext
 import org.broadinstitute.hail.Utils
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.methods.FilterUtils.{FilterGenotypePostSA, FilterGenotypeWithSA}
@@ -69,7 +70,17 @@ class Evaluator[T](t: String)(implicit tct: ClassTag[T])
 
   def typeCheck() {
     require(p.isEmpty)
-    p = Some(Utils.eval[T](t))
+    try {
+      p = Some(Utils.eval[T](t))
+    }
+    catch {
+      case e: scala.tools.reflect.ToolBoxError =>
+        /* e.message looks like:
+           reflective compilation has failed:
+
+           ';' expected but '.' found. */
+        fatal("parse error in condition: " + e.message.split("\n").last)
+    }
   }
 
   def eval(): T = p match {

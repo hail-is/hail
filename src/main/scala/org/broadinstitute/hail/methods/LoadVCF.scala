@@ -106,8 +106,8 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
-    val sampleAnnotations = EmptySampleAnnotations(sampleIds.length)
-    val sampleAnnotationSignatures = EmptyAnnotationSignatures()
+    val sampleAnnotations = Annotations.emptyOfArrayString(sampleIds.length)
+    val sampleAnnotationSignatures = Annotations.emptyOfSignature()
 
     val headerLinesBc = sc.broadcast(headerLines)
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))

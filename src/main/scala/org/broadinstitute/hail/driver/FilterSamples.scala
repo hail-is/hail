@@ -46,20 +46,11 @@ object FilterSamples extends Command {
           .toSet
         (s: Int, sa: AnnotationData) => samples.contains(s)
       case c: String =>
-        try {
-          val cf = new FilterSampleCondition(c, sas)
-          cf.typeCheck()
+        val cf = new FilterSampleCondition(c, sas)
+        cf.typeCheck()
 
-          val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-          (s: Int, sa: AnnotationData) => cf(Sample(sampleIdsBc.value(s)), state.vds.metadata.sampleAnnotations(s))
-        } catch {
-          case e: scala.tools.reflect.ToolBoxError =>
-            /* e.message looks like:
-               reflective compilation has failed:
-
-               ';' expected but '.' found. */
-            fatal("parse error in condition: " + e.message.split("\n").last)
-        }
+        val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
+        (s: Int, sa: AnnotationData) => cf(Sample(sampleIdsBc.value(s)), state.vds.metadata.sampleAnnotations(s))
     }
 
     val newVDS = vds.filterSamples(if (options.keep)

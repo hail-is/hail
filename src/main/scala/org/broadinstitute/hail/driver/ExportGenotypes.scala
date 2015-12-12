@@ -36,15 +36,15 @@ object ExportGenotypes extends Command {
 
     val output = options.output
 
-    val vas: AnnotationSignatures = state.vds.metadata.variantAnnotationSignatures
-    val sas: AnnotationSignatures = state.vds.metadata.sampleAnnotationSignatures
+    val vas: AnnotationSignatures = vds.metadata.variantAnnotationSignatures
+    val sas: AnnotationSignatures = vds.metadata.sampleAnnotationSignatures
     val sa = state.vds.metadata.sampleAnnotations
 
-    val makeString: IndexedSeq[AnnotationData] => ((Variant, AnnotationData) =>
+    val makeString: ((Variant, AnnotationData) =>
       ((Int, Sample, Genotype) => String)) = try {
       val cf = new ExportGenotypeEvaluator(options.condition, vas, sas, sa, options.missing)
       cf.typeCheck()
-      cf.apply
+      cf.apply(sa)
     }
     catch {
       case e: scala.tools.reflect.ToolBoxError =>
@@ -55,10 +55,10 @@ object ExportGenotypes extends Command {
         fatal("parse error in condition: " + e.message.split("\n").last)
     }
 
-    val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
+    val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
     val stringVDS = vds.mapValuesWithAll((v: Variant, va: AnnotationData, s: Int, g: Genotype) =>
-      makeString(sa)(v, va)(s, Sample(sampleIdsBc.value(s)), g))
+      makeString(v, va)(s, Sample(sampleIdsBc.value(s)), g))
 
     // FIXME add additional command parsing functionality
     val variantRegex = """v\.(\w+)""".r
@@ -81,28 +81,28 @@ object ExportGenotypes extends Command {
         case topLevelSampleAnnoRegex(x) =>
           if (sas.maps.contains(x)) {
             val keys = sas.maps(x).keys.toArray.sorted
-            if (keys.isEmpty) x else s"$x:" + keys.reduceRight(_ + ";" + _)
+            if (keys.isEmpty) x else s"$x:" + keys.mkString(";")
           }
           else x
         case topLevelVariantAnnoRegex(x) =>
           if (vas.maps.contains(x)) {
             val keys = vas.maps(x).keys.toArray.sorted
-            if (keys.isEmpty) x else s"$x:" + keys.reduceRight(_ + ";" + _)
+            if (keys.isEmpty) x else s"$x:" + keys.mkString(";")
           }
           else x
         case samplePrintMapRegex(x) =>
           val keys = sas.maps(x).keys
-          if (keys.isEmpty) x else keys.reduceRight(_ + "\t" + _)
+          if (keys.isEmpty) x else keys.mkString("\t")
         case variantPrintMapRegex(x) =>
           val keys = vas.maps(x).keys
-          if (keys.isEmpty) x else keys.reduceRight(_ + "\t" + _)
+          if (keys.isEmpty) x else keys.mkString("\t")
         case annoRegex(x) => x
         case _ => input
       }
     }
 
     writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(cond.split(",").map(_.split("\\.").last).reduceRight(_ + "\t" + _))
+      s.write(cond.split(",").map(_.split("\\.").last).mkString("\t"))
       s.write("\n")
     }
 

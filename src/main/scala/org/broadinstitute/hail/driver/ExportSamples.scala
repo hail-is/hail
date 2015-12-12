@@ -66,19 +66,19 @@ object ExportSamples extends Command {
         case topLevelAnnoRegex(x) =>
           if (sas.maps.contains(x)) {
             val keys = sas.maps(x).keys.toArray.sorted
-            if (keys.isEmpty) x else s"$x:" + keys.reduceRight(_ + ";" + _)
+            if (keys.isEmpty) x else s"$x:" + keys.mkString(";")
           }
           else x
         case printMapRegex(x) =>
           val keys = sas.maps(x).keys
-          if (keys.isEmpty) x else keys.reduceRight(_ + "\t" + _)
+          if (keys.isEmpty) x else keys.mkString("\t")
         case annoRegex(x) => x
         case _ => input
       }
     }
 
     writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(cond.split(",").map(_.split("\\.").last).reduceRight(_ + "\t" + _))
+      s.write(cond.split(",").map(_.split("\\.").last).mkString(";"))
       s.write("\n")
     }
 
