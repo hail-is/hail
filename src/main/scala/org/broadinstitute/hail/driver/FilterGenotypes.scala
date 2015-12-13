@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.variant.{Variant, Genotype, Sample}
+import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype, Sample}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object FilterGenotypes extends Command {
@@ -28,30 +28,31 @@ object FilterGenotypes extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val vas: AnnotationSignatures = state.vds.metadata.variantAnnotationSignatures
-    val sas: AnnotationSignatures = state.vds.metadata.sampleAnnotationSignatures
-    val sa = state.vds.metadata.sampleAnnotations
+    val vas: AnnotationSignatures = vds.metadata.variantAnnotationSignatures
+    val sas: AnnotationSignatures = vds.metadata.sampleAnnotationSignatures
+    val ids = vds.sampleIds
+    val sa = vds.metadata.sampleAnnotations
 
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val p: ((Variant, AnnotationData) => ((Int, Sample, Genotype) => Boolean)) = try {
-      val cf = new FilterGenotypeCondition(options.condition, vas, sas, sa)
+    val p: ((Variant, AnnotationData) => ((Int, Genotype) => Boolean)) = {
+      val cf = new FilterGenotypeCondition(options.condition, vas, sas, sa, ids)
       cf.typeCheck()
-      cf.apply(sa)
+      cf.apply
     }
 
-    val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
     val localKeep = options.keep
     val localRemove = options.remove
     //FIXME put keep/remove logic here
-    val newVDS = vds.mapValuesWithAll((v: Variant, va: AnnotationData, s: Int, g: Genotype) =>
-      if (p(v, va)(s, Sample(sampleIdsBc.value(s)), g)) {
-        if (localKeep) g else Genotype(-1, (0, 0), 0, null)
-      }
-      else {
-        if (localRemove) g else Genotype(-1, (0, 0), 0, null)
-      })
+    val newVDS = vds.mapValuesWithPartialApplication(
+      (v: Variant, va: AnnotationData) =>
+      (s: Int, g: Genotype) =>
+        if (p(v, va)(s, g)) {
+          if (localKeep) g else Genotype(-1, (0, 0), 0, null)
+        } else {
+          if (localRemove) g else Genotype(-1, (0, 0), 0, null)
+        })
     state.copy(vds = newVDS)
   }
 }

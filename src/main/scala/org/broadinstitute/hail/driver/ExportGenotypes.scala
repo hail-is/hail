@@ -31,37 +31,29 @@ object ExportGenotypes extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-
     val cond = options.condition
-
     val output = options.output
 
     val vas: AnnotationSignatures = vds.metadata.variantAnnotationSignatures
     val sas: AnnotationSignatures = vds.metadata.sampleAnnotationSignatures
-    val sa = state.vds.metadata.sampleAnnotations
+    val sa = vds.metadata.sampleAnnotations
+    val ids = vds.sampleIds
 
     val makeString: ((Variant, AnnotationData) =>
-      ((Int, Sample, Genotype) => String)) = try {
-      val cf = new ExportGenotypeEvaluator(options.condition, vas, sas, sa, options.missing)
+      ((Int, Genotype) => String)) = {
+      val cf = new ExportGenotypeEvaluator(options.condition, vas, sas, sa, ids, options.missing)
       cf.typeCheck()
-      cf.apply(sa)
-    }
-    catch {
-      case e: scala.tools.reflect.ToolBoxError =>
-        /* e.message looks like:
-           reflective compilation has failed:
-
-           ';' expected but '.' found. */
-        fatal("parse error in condition: " + e.message.split("\n").last)
+      cf.apply
     }
 
-    val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
-
-    val stringVDS = vds.mapValuesWithAll((v: Variant, va: AnnotationData, s: Int, g: Genotype) =>
-      makeString(v, va)(s, Sample(sampleIdsBc.value(s)), g))
+    val stringVDS = vds.mapValuesWithPartialApplication(
+      (v: Variant, va: AnnotationData) =>
+        (s: Int, g: Genotype) =>
+          makeString(v, va)(s, g))
 
     // FIXME add additional command parsing functionality
-    val variantRegex = """v\.(\w+)""".r
+    val variantRegex =
+      """v\.(\w+)""".r
     val sampleRegex = """s\.(\w+)""".r
     val topLevelSampleAnnoRegex = """sa\.(\w+)""".r
     val topLevelVariantAnnoRegex = """va\.(\w+)""".r
@@ -109,7 +101,7 @@ object ExportGenotypes extends Command {
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     stringVDS.rdd
-      .flatMap { case (v, va, strings) => strings}
+      .flatMap { case (v, va, strings) => strings }
       .saveAsTextFile(output)
 
     state

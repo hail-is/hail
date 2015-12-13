@@ -106,7 +106,7 @@ object AnnotationClassBuilder {
   }
 
   def makeIndexedSeq(hiddenOutputName: String, hiddenClassName: String, hiddenAnnotationArrayName: String): String =
-    s"""val $hiddenOutputName: IndexedSeq[${hiddenClassName}Annotations]
+    s"""val $hiddenOutputName: IndexedSeq[${hiddenClassName}Annotations] =
        |$hiddenAnnotationArrayName.map(new ${hiddenClassName}Annotations(_))
        |
      """.stripMargin

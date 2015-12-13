@@ -2,13 +2,15 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.methods.ExportUtils.{ExportGenotypePostSA, ExportGenotypeWithSA}
 import org.broadinstitute.hail.variant.{Sample, Variant, Genotype}
 import org.broadinstitute.hail.Utils._
 import scala.language.implicitConversions
 
 object ExportUtils {
-  type ExportGenotypeWithSA = (IndexedSeq[AnnotationData] => ((Variant, AnnotationData) => ((Int, Sample, Genotype) => String)))
-  type ExportGenotypePostSA = (Variant, AnnotationData) => ((Int, Sample, Genotype) => String)
+  type ExportGenotypeWithSA = ((IndexedSeq[AnnotationData], IndexedSeq[String]) =>
+    ((Variant, AnnotationData) => ((Int, Genotype) => String)))
+  type ExportGenotypePostSA = (Variant, AnnotationData) => ((Int, Genotype) => String)
 }
 
 object UserExportUtils {
@@ -45,49 +47,57 @@ object UserExportUtils {
 
 class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures, missingValue: String)
   extends Evaluator[(Variant, AnnotationData) => String]({
-    "(__v: org.broadinstitute.hail.variant.Variant, \n" +
-      "__va: org.broadinstitute.hail.annotations.AnnotationData) => { \n" +
-      "import org.broadinstitute.hail.methods.FilterUtils._\n" +
-      "import org.broadinstitute.hail.methods.UserExportUtils._\n" +
-      "val v: org.broadinstitute.hail.methods.UserExportUtils.ExportVariant = new ExportVariant(__v)\n" +
-      signatures(vas, "__va", makeToString = true, missing = missingValue) +
-      instantiate("va", "__va") +
-      s"""Array($list).map(formatString(_, "$missingValue")).mkString("\t")}: String"""}) {
+    s"""(__v: org.broadinstitute.hail.variant.Variant,
+        |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  import org.broadinstitute.hail.methods.UserExportUtils._
+        |  val v: ExportVariant = new ExportVariant(__v)
+        |  ${signatures(vas, "__va", makeToString = true, missing = missingValue)}
+        |  ${instantiate("va", "__va")}
+          |  Array($list).map(formatString(_, "$missingValue")).mkString("\t")
+        |}: String
+    """.stripMargin}) {
   def apply(v: Variant, va: AnnotationData): String = eval()(v, va)
 }
 
 class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures, missingValue: String)
-  extends Evaluator[(Sample, AnnotationData) => String]({
-    "(s: org.broadinstitute.hail.variant.Sample, \n" +
-      "__sa: org.broadinstitute.hail.annotations.AnnotationData) => { \n" +
-      "import org.broadinstitute.hail.methods.FilterUtils._\n" +
-      "import org.broadinstitute.hail.methods.UserExportUtils._\n" +
-      signatures(sas, "__sa", makeToString = true, missing = missingValue) +
-      instantiate("sa", "__sa") +
-      s"""Array($list).map(formatString(_, "$missingValue")).mkString("\t")}: String"""}) {
+  extends Evaluator[(Sample, AnnotationData) => String](
+    s"""(s: org.broadinstitute.hail.variant.Sample,
+        |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  import org.broadinstitute.hail.methods.UserExportUtils._
+        |  ${signatures(sas, "__sa", makeToString = true, missing = missingValue)}
+        |  ${instantiate("sa", "__sa")}
+        |  Array($list).map(formatString(_, "$missingValue")).mkString("\t")
+        |}: String
+    """.stripMargin) {
   def apply(s: Sample, sa: AnnotationData): String = eval()(s, sa)
 }
 
 class ExportGenotypeEvaluator(list: String, vas: AnnotationSignatures, sas: AnnotationSignatures,
-  sad: IndexedSeq[AnnotationData], missingValue: String)
-  extends EvaluatorWithTransformation[ExportUtils.ExportGenotypeWithSA, ExportUtils.ExportGenotypePostSA](
-    {"(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData]) => {\n" +
-      "import org.broadinstitute.hail.methods.FilterUtils._\n" +
-      "import org.broadinstitute.hail.methods.UserExportUtils._\n" +
-      signatures(sas, "__sa") +
-      makeIndexedSeq("__saArray", "__sa", "__sa") +
-      "(__v: org.broadinstitute.hail.variant.Variant, " +
-      "__va: org.broadinstitute.hail.annotations.AnnotationData) => {\n" +
-      "val v: org.broadinstitute.hail.methods.UserExportUtils.ExportVariant = new ExportVariant(__v)\n" +
-      signatures(vas, "__va", makeToString = true, missing = missingValue) +
-      instantiate("va", "__va") +
-     """(__sIndex: Int,
-       |  s: org.broadinstitute.hail.variant.Sample,
-       |  g: org.broadinstitute.hail.variant.Genotype) => {
-       |  val sa = __saArray(__sIndex)
-       |  Array($list).map(formatString(_, "$missingValue")).mkString("\t")}: String}}
-     """.stripMargin}, t => t(sad)) {
-  def apply(sa: IndexedSeq[AnnotationData])
-    (v: Variant, va: AnnotationData)(sIndex: Int, s: Sample, g: Genotype): String =
-    eval()(v, va)(sIndex, s, g)
+  sad: IndexedSeq[AnnotationData], ids: IndexedSeq[String], missingValue: String)
+  extends EvaluatorWithTransformation[ExportGenotypeWithSA, ExportGenotypePostSA](
+      s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
+          |  __ids: IndexedSeq[String]) => {
+          |  import org.broadinstitute.hail.methods.FilterUtils._
+          |  import org.broadinstitute.hail.methods.UserExportUtils._
+          |  ${signatures(sas, "__sa")}
+          |  ${makeIndexedSeq("__saArray", "__sa", "__sa")}
+          |  (__v: org.broadinstitute.hail.variant.Variant,
+          |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
+          |    val v = new ExportVariant(__v)
+          |    ${signatures(vas, "__va")}
+          |    ${instantiate("va", "__va")}
+          |    (__sIndex: Int,
+          |      g: org.broadinstitute.hail.variant.Genotype) => {
+          |        val sa = __saArray(__sIndex)
+          |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+          |        Array($list).map(formatString(_, "$missingValue")).mkString("\t")
+          |      }: String
+          |   }
+          | }
+      """.stripMargin,
+    t => t(sad, ids)) {
+  def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): String =
+    eval()(v, va)(sIndex, g)
 }

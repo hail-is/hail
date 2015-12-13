@@ -98,6 +98,16 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     })
   }
 
+  def mapValuesWithPartialApplication[U](f: (Variant, AnnotationData) => ((Int, T) => U))
+    (implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U] = {
+    val localSamplesBc = sparkContext.broadcast(localSamples)
+    copy(rdd = rdd.map { case (v, va, gs) =>
+      val fPrime = f(v, va)
+      (v, va, localSamplesBc.value.view.zip(gs.view)
+        .map { case (s, t) => fPrime(s, t) })
+    })
+  }
+
   def map[U](f: T => U)(implicit uct: ClassTag[U]): RDD[U] =
     mapWithKeys((v, s, g) => f(g))
 
