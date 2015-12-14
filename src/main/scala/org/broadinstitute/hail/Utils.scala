@@ -4,6 +4,9 @@ import java.io._
 import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
+import org.apache.hadoop.fs.FileUtil._
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
@@ -213,6 +216,15 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
     r.saveAsTextFile(filename)
   }
+
+  def writeFlatFile(filename: String, header: String = null) {
+    if (header != null)
+      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
+    r.saveAsTextFile(filename)
+    hadoopCopyMergeHeader(filename, filename + ".merged",r.sparkContext.hadoopConfiguration,true,false,"\n")
+  }
+
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
@@ -369,6 +381,54 @@ object Utils {
 
   def hadoopDelete(filename: String, hConf: hadoop.conf.Configuration, recursive: Boolean) {
     hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
+  }
+
+  def hadoopCopyMerge(filenameSrc: String, filenameDest:String, hConf: hadoop.conf.Configuration,deleteSource:Boolean=false,addString:String="\n") {
+    // does not include the header and is all files
+    copyMerge(hadoopFS(filenameSrc,hConf),new hadoop.fs.Path(filenameSrc),hadoopFS(filenameDest,hConf),new hadoop.fs.Path(filenameDest),deleteSource,hConf,addString)
+  }
+
+  def hadoopCopyMergeHeader(filenameSrc: String, filenameDest:String, hConf: hadoop.conf.Configuration,overwrite:Boolean=true,deleteSource:Boolean=false,addString:String="\n") {
+
+    val srcPath = new hadoop.fs.Path(filenameSrc)
+    val destPath = new hadoop.fs.Path(filenameDest)
+    val srcFS = hadoopFS(filenameSrc,hConf)
+    val destFS = hadoopFS(filenameDest,hConf)
+
+    require(srcPath != destPath)
+
+    if (!srcFS.getFileStatus(srcPath).isDirectory) throw new UnsupportedOperationException
+
+    if (destFS.exists(destPath)) {
+      val destFileStatus = destFS.getFileStatus(destPath)
+      if (destFileStatus.isDirectory && !overwrite)
+        throw new IOException(s"Destination directory already exists: $destPath")
+      else
+        destFS.delete(destPath,true)
+    }
+
+    val outputStream = destFS.create(destPath)
+
+    try {
+      val headerPath = new hadoop.fs.Path(filenameSrc + ".header")
+
+      val fileStatuses = {Array(srcFS.getFileStatus(headerPath)).filter{fs => fs.isFile && fs.getLen != 0} ++ srcFS.listStatus(srcPath).filter{fs => fs.isFile && fs.getLen != 0 && fs.getPath.getName.startsWith("part")}.sortBy(fs => fs.getPath.getName)}.toIterator
+      for (fs <- fileStatuses) {
+        val inputStream = srcFS.open(fs.getPath)
+        try {
+          copyBytes(inputStream, outputStream, hConf, false)
+          if (addString != null && fileStatuses.hasNext) outputStream.write(addString.getBytes("UTF-8"))
+        }
+        finally {
+          inputStream.close()
+        }
+      }
+    }
+    finally {
+      outputStream.close()
+    }
+
+    if (deleteSource) hadoopDelete(filenameSrc,hConf,true)
   }
 
   def writeObjectFile[T](filename: String,
