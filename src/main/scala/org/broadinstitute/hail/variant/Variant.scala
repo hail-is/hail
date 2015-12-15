@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.variant
 
-import org.scalacheck.Gen
+import org.scalacheck.{Arbitrary, Gen}
 import org.broadinstitute.hail.Utils._
 
 object AltAlleleType extends Enumeration {
@@ -10,9 +10,12 @@ object AltAlleleType extends Enumeration {
 }
 
 object AltAllele {
-  def gen(ref: String): Gen[AltAllele] =
-    for (alt <- genDNAString if alt != ref)
+  def gen(ref: String): Gen[AltAllele] = {
+    val g = for (alt <- Gen.frequency((10, genDNAString),
+      (1, Gen.const("*"))) if alt != ref)
       yield AltAllele(ref, alt)
+    genFilterFailures(g)
+  }
 
   def gen: Gen[AltAllele] =
     for (ref <- genDNAString;
@@ -93,13 +96,24 @@ object Variant {
     nAlleles * (nAlleles + 1) / 2
   }
 
-  def gen: Gen[Variant] =
-    for (contig <- Gen.identifier;
+  def genVariants(nVariants: Int): Gen[Array[Variant]] =
+    Gen.buildableOfN[Array[Variant], Variant](nVariants, gen)
+
+  def gen: Gen[Variant] = {
+    val g = for (contig <- Gen.identifier;
       start <- Gen.posNum[Int];
-      ref <- genDNAString;
-      altAlleles <- Gen.buildableOf[IndexedSeq[AltAllele], AltAllele](
-        AltAllele.gen(ref)))
-      yield Variant(contig, start, ref, altAlleles)
+      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
+      alleles <- genDistinctBuildableOfN[Array[String], String](
+        nAlleles,
+        Gen.frequency((10, genDNAString),
+          (1, Gen.const("*")))) if alleles(0) != "*") yield {
+      val ref = alleles(0)
+      Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
+    }
+    genFilterFailures(g)
+  }
+
+  implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
 }
 
 case class Variant(contig: String,

@@ -19,15 +19,15 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     val vc = codec.decode(line)
 
     val ref = vc.getReference.getBaseString
-    val variant = Variant(vc.getContig,
+    val v = Variant(vc.getContig,
       vc.getStart,
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
 
-    val gb = new GenotypeBuilder(variant)
+    val gb = new GenotypeBuilder(v)
 
     // FIXME compress
-    val gsb = new GenotypeStreamBuilder(variant, true)
+    val gsb = new GenotypeStreamBuilder(v, true)
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala
@@ -51,10 +51,18 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
           Genotype.gtIndex(j, i)
         gb.setGT(gt)
 
-        if (pl != null && pl(gt) != 0) {
-          // FIXME warn
-          pl = pl.clone()
-          pl(gt) = 0
+        assert((pl != null) == g.hasPL)
+        if (pl != null) {
+          if (pl(gt) != 0) {
+            warn(
+              s"""PL corresponding to GT is non-zero
+                  |  sample: ${g.getSampleName}
+                  |  variant: ${v.contig} ${v.start} ${v.ref} ${v.altAlleles.map(_.alt).mkString(",")}
+                  |  genotype: $g""".stripMargin)
+
+            pl = pl.clone()
+            pl(gt) = 0
+          }
         }
       }
 
@@ -63,15 +71,25 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       if (g.hasDP)
         gb.setDP(g.getDP)
 
-      assert((pl != null) == g.hasPL)
       if (pl != null)
         gb.setPL(pl)
 
-      // FIXME write htsjdk Genotype?
+      if (a0.isCalled && pl != null && g.hasGQ) {
+        val ggq = g.getGQ
+        val gq = gb.gq
+        if (gq != ggq) {
+          warn(
+            s"""GQ is not minimum of non-GT PL
+                |  sample: ${g.getSampleName}
+                |  variant: ${v.contig} ${v.start} ${v.ref} ${v.altAlleles.map(_.alt).mkString(",")}
+                |  genotype: $g""".stripMargin)
+        }
+      }
+
       gsb.write(gb)
     }
 
-    (variant, gsb.result())
+    (v, gsb.result())
   }
 }
 

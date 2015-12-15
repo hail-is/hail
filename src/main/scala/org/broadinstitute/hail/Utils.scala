@@ -9,6 +9,7 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
+import org.scalacheck.util.Buildable
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
@@ -392,10 +393,10 @@ object Utils {
   implicit def toRichOption[T](o: Option[T]): RichOption[T] =
     new RichOption[T](o)
 
-  implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]) =
+  implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]): RichPairTraversableOnce[K, V] =
     new RichPairTraversableOnce[K, V](t)
 
-  implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]) =
+  implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
 
   def warning(msg: String) {
@@ -405,6 +406,10 @@ object Utils {
   def fatal(msg: String): Nothing = {
     System.err.println("hail: fatal: " + msg)
     sys.exit(1)
+  }
+
+  def warn(msg: String) {
+    System.err.println("hail: warning: " + msg)
   }
 
   def fail() {
@@ -590,5 +595,31 @@ object Utils {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
+
+  def genFilterFailures[T](g: Gen[T]): Gen[T] = Gen.parameterized { p =>
+    def f(): T = g(p) match {
+      case Some(x) => x
+      case None => f()
+    }
+
+    arbitrary[Int].map(_ => f())
+  }
+
+  def genDistinctBuildableOf[C, T](g: Gen[T])(implicit evb: Buildable[T, C], evt: (C) => Traversable[T]): Gen[C] =
+    for (c <- Gen.buildableOf[C, T](g)) yield evb.fromIterable(c.toSet)
+
+  def genDistinctBuildableOfN[C, T](n: Int, g: Gen[T])
+    (implicit evb: Buildable[T, C], evt: (C) => Traversable[T]): Gen[C] = {
+
+    def f(s: Set[T], t: T): Gen[C] = {
+      val newS = s + t
+      if (newS.size == n)
+        evb.fromIterable(newS)
+      else
+        g.flatMap(t => f(newS, t))
+    }
+
+    g.flatMap(t => f(Set.empty[T], t))
+  }
 
 }

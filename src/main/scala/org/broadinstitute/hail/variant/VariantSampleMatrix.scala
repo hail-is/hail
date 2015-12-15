@@ -15,8 +15,8 @@ import scala.reflect.runtime.universe._
 
 
 object VariantSampleMatrix {
-  def apply(metadata: VariantMetadata,
-    rdd: RDD[(Variant, Iterable[Genotype])]): VariantDataset = {
+  def apply[T](metadata: VariantMetadata,
+    rdd: RDD[(Variant, Iterable[T])])(implicit ttt: TypeTag[T], tct: ClassTag[T]): VariantSampleMatrix[T] = {
     new VariantSampleMatrix(metadata, rdd)
   }
 
@@ -32,30 +32,54 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata, df.rdd.map(r => (r.getVariant(0), r.getGenotypeStream(1))))
   }
 
-  def genVariantValues[T](nSamples: Int, g: Gen[T]): Gen[(Variant, Iterable[T])] =
-    for (v <- Variant.gen;
-      gs <- Gen.buildableOfN[Iterable[T], T](nSamples, g))
-      yield (v, gs)
+  def genValues[T](nSamples: Int, g: Gen[T]): Gen[Iterable[T]] =
+    Gen.buildableOfN[Iterable[T], T](nSamples, g)
+
+  def genValues[T](g: Gen[T]): Gen[Iterable[T]] =
+    Gen.buildableOf[Iterable[T], T](g)
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      gs <- Gen.buildableOfN[Iterable[T], T](nSamples, g(v)))
-      yield (v, gs)
+      values <- genValues[T](nSamples, g(v)))
+      yield (v, values)
+
+  def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
+    for (v <- Variant.gen;
+      values <- genValues[T](g(v)))
+      yield (v, values)
+
+  def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
+    genVariantValues(Genotype.gen)
 
   def genVariantGenotypes(nSamples: Int): Gen[(Variant, Iterable[Genotype])] =
-    for (v <- Variant.gen;
-      gs <- Gen.buildableOfN[Iterable[Genotype], Genotype](nSamples, Genotype.gen(v)))
-      yield (v, gs)
+    genVariantValues(nSamples, Genotype.gen)
 
-  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
-    for (nSamples <- Gen.choose(0, 10);
-      // FIXME unique
-      sampleIds <- Gen.buildableOfN[Array[String], String](nSamples, Gen.identifier);
-      rows <- Gen.buildableOf[Seq[(Variant, Iterable[T])], (Variant, Iterable[T])](genVariantValues(nSamples, g)))
-      yield new VariantSampleMatrix[T](VariantMetadata(Map.empty, sampleIds), sc.parallelize(rows))
+  def gen[T](sc: SparkContext,
+    sampleIds: Array[String],
+    variants: Array[Variant],
+    g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
 
-  def gen[T](sc: SparkContext, g: Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
-    gen(sc, (v: Variant) => g)
+    for (rows <- Gen.sequence[Seq[(Variant, Iterable[T])], (Variant, Iterable[T])](variants.map(v => Gen.zip(Gen.const(v), genValues(g(v))))))
+      yield VariantSampleMatrix[T](VariantMetadata(Map.empty, sampleIds), sc.parallelize(rows))
+  }
+
+  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val samplesVariantsGen =
+      for (sampleIds <- genDistinctBuildableOf[Array[String], String](Gen.identifier);
+        variants <- genDistinctBuildableOf[Array[Variant], Variant](Variant.gen))
+        yield (sampleIds, variants)
+    samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
+  }
+
+  def gen[T](sc: SparkContext, sampleIds: Array[String], g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val variantsGen = genDistinctBuildableOf[Array[Variant], Variant](Variant.gen)
+    variantsGen.flatMap(variants => gen(sc, sampleIds, variants, g))
+  }
+
+  def gen[T](sc: SparkContext, variants: Array[Variant], g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val samplesGen = genDistinctBuildableOf[Array[String], String](Gen.identifier)
+    samplesGen.flatMap(sampleIds => gen(sc, sampleIds, variants, g))
+  }
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,

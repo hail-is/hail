@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.variant.Sex._
 import scala.io.Source
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{AccumulableParam, SparkConf, SparkContext}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.vcf

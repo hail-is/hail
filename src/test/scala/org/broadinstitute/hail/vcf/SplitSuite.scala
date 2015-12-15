@@ -1,15 +1,37 @@
 package org.broadinstitute.hail.vcf
 
-import org.apache.spark.{SparkContext, SparkConf}
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{ScalaCheckSuite, SparkSuite}
 import org.broadinstitute.hail.driver.{MultiSplit, State}
 import org.broadinstitute.hail.methods.LoadVCF
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix, VariantDataset, Variant}
+import org.scalacheck.Properties
+import org.scalacheck.Prop._
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils.simpleAssert
 
-class SplitSuite extends SparkSuite {
-  @Test def SplitTest() {
+
+class SplitSuite extends SparkSuite with ScalaCheckSuite {
+
+  @Test def splitTest() {
+
+    object Spec extends Properties("MultiSplit") {
+      property("fakeRef implies wasSplit") =
+        forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vds: VariantDataset) =>
+          vds.rdd.count()
+          true
+          /*
+          var s = State(sc, sqlContext)
+          s = s.copy(vds = vds)
+          s = MultiSplit.run(s, Array[String]())
+          s.vds.mapWithKeys((v: Variant, _: Int, g: Genotype) =>
+            !g.fakeRef || v.wasSplit)
+            .collect()
+            .forall(identity)
+            */
+        }
+    }
+
+    check(Spec)
 
     val vds1m = LoadVCF(sc, "src/test/resources/split_test.vcf")
 

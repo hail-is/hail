@@ -6,10 +6,12 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 object GenotypeStreamSuite {
+
   val v = Variant("chr1", 1234, "A", "T")
   val b = new GenotypeStreamBuilder(v)
+
   object Spec extends Properties("GenotypeStream") {
-    property("iterateBuild") = forAll(VariantSampleMatrix.genVariantGenotypes(10)) { case (v: Variant, it: Iterable[Genotype]) =>
+    property("iterateBuild") = forAll(VariantSampleMatrix.genVariantGenotypes) { case (v: Variant, it: Iterable[Genotype]) =>
       b.clear()
       b ++= it
       val gs = b.result()
@@ -17,9 +19,11 @@ object GenotypeStreamSuite {
       it.sameElements(a2)
     }
   }
+
 }
 
 class GenotypeStreamSuite extends TestNGSuite {
+
   import GenotypeStreamSuite._
 
   @Test def testGenotypeStream() {

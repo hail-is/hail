@@ -148,7 +148,7 @@ class Genotype(private val flags: Byte,
 
   def gq: Option[Int] =
     if (_gt >= 0 && ((flags & Genotype.flagHasPL) != 0)) {
-      var r = Int.MaxValue
+      var r = 99
       var i = 0
       while (i < _gt) {
         if (_pl(i) < r)
@@ -343,9 +343,11 @@ object Genotype {
 
   def gen(v: Variant): Gen[Genotype] = {
     for (gt: Option[Int] <- genOption(Gen.choose(0, v.nGenotypes - 1));
-      ad <- genOption(Gen.buildableOfN[IndexedSeq[Int], Int](v.nAlleles, genNonnegInt));
-      dp <- genOption(Gen.posNum[Int]);
-      pl: Option[Array[Int]] <- genOption(Gen.buildableOfN[Array[Int], Int](v.nGenotypes, genNonnegInt))) yield {
+      ad <- genOption(Gen.buildableOfN[IndexedSeq[Int], Int](v.nAlleles,
+        Gen.choose(0, Int.MaxValue / v.nAlleles)));
+      dp <- genOption(genNonnegInt);
+      pl: Option[Array[Int]] <- genOption(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
+        Gen.choose(0, Int.MaxValue / v.nGenotypes)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
@@ -355,17 +357,17 @@ object Genotype {
     }
   }
 
-  def genWithVariant: Gen[(Variant, Genotype)] =
+  def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
       g <- gen(v))
       yield (v, g)
 
-  def gen: Gen[Genotype] =
+  def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
       g <- gen(v))
       yield g
 
-  implicit def arbGenotype = Arbitrary(gen)
+  implicit def arbGenotype = Arbitrary(genArb)
 }
 
 class GenotypeBuilder(v: Variant) {
@@ -384,13 +386,33 @@ class GenotypeBuilder(v: Variant) {
     flags = 0
   }
 
+  def gq: Int = {
+    assert(hasGT
+      && ((flags & Genotype.flagHasPL) != 0))
+    var gq = 99
+    for (i <- 0 until gt) {
+      if (pl(i) < gq)
+        gq = pl(i)
+    }
+    for (i <- (gt + 1) until pl.length) {
+      if (pl(i) < gq)
+        gq = pl(i)
+    }
+    gq
+  }
+
+  def hasGT: Boolean =
+    if (isBiallelic)
+      (flags & Genotype.flagBiGTMask) != 0
+    else
+      (flags & Genotype.flagMultiHasGT) != 0
+
   def setGT(newGT: Int) {
     require(newGT >= 0 && newGT <= nGenotypes)
-    if (isBiallelic) {
-      assert((flags & Genotype.flagBiGTMask) == 0)
+    require(!hasGT)
+    if (isBiallelic)
       flags = flags | (newGT + 1)
-    } else {
-      assert((flags & Genotype.flagMultiHasGT) == 0)
+    else {
       flags |= Genotype.flagMultiHasGT
       if (newGT == 0)
         flags |= Genotype.flagMultiGTRef
