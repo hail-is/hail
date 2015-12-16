@@ -218,13 +218,13 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def writeFlatFile(filename: String, header: String = null) {
+    val applicationId = r.sparkContext.applicationId
     if (header != null)
-      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
+      writeTextFile(applicationId + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
     hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
-    r.saveAsTextFile(filename)
-    hadoopCopyMergeHeader(filename, filename + ".merged",r.sparkContext.hadoopConfiguration,true,false,"\n")
-  }
-
+    r.saveAsTextFile(applicationId)
+    hadoopCopyMergeHeader(applicationId, filename,r.sparkContext.hadoopConfiguration,true,true,null)
+  } // hadoop tmp filename hdfs: file:, write in parallel??? partition by chr 10 MB, map repartition  / sort within partition make sure partitions are in order
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
@@ -388,13 +388,12 @@ object Utils {
     copyMerge(hadoopFS(filenameSrc,hConf),new hadoop.fs.Path(filenameSrc),hadoopFS(filenameDest,hConf),new hadoop.fs.Path(filenameDest),deleteSource,hConf,addString)
   }
 
-  def hadoopCopyMergeHeader(filenameSrc: String, filenameDest:String, hConf: hadoop.conf.Configuration,overwrite:Boolean=true,deleteSource:Boolean=false,addString:String="\n") {
-
-    val srcPath = new hadoop.fs.Path(filenameSrc)
-    val destPath = new hadoop.fs.Path(filenameDest)
-    val srcFS = hadoopFS(filenameSrc,hConf)
-    val destFS = hadoopFS(filenameDest,hConf)
-
+  def hadoopCopyMergeHeader(srcFilename: String, destFilename:String, hConf: hadoop.conf.Configuration, overwrite:Boolean=true, deleteSource:Boolean=false, addString:String=null) {
+    val srcPath = new hadoop.fs.Path(srcFilename)
+    val destPath = new hadoop.fs.Path(destFilename)
+    val srcFS = hadoopFS(srcFilename,hConf)
+    val destFS = hadoopFS(destFilename,hConf)
+    //srcFS.copyToLocalFile(false,srcPath,destPath,true)
     require(srcPath != destPath)
 
     if (!srcFS.getFileStatus(srcPath).isDirectory) throw new UnsupportedOperationException
@@ -410,7 +409,7 @@ object Utils {
     val outputStream = destFS.create(destPath)
 
     try {
-      val headerPath = new hadoop.fs.Path(filenameSrc + ".header")
+      val headerPath = new hadoop.fs.Path(srcFilename + ".header")
 
       val fileStatuses = {Array(srcFS.getFileStatus(headerPath)).filter{fs => fs.isFile && fs.getLen != 0} ++ srcFS.listStatus(srcPath).filter{fs => fs.isFile && fs.getLen != 0 && fs.getPath.getName.startsWith("part")}.sortBy(fs => fs.getPath.getName)}.toIterator
       for (fs <- fileStatuses) {
@@ -428,7 +427,10 @@ object Utils {
       outputStream.close()
     }
 
-    if (deleteSource) hadoopDelete(filenameSrc,hConf,true)
+    if (deleteSource) {
+      hadoopDelete(srcFilename,hConf,true)
+      hadoopDelete(srcFilename + ".header",hConf,true)
+    }
   }
 
   def writeObjectFile[T](filename: String,

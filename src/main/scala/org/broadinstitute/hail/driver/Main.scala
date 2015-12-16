@@ -60,6 +60,7 @@ object Main {
       Cache,
       Count,
       DownsampleVariants,
+      ExportVCF,
       FilterGenotypes,
       FamSummary,
       FilterVariants,
