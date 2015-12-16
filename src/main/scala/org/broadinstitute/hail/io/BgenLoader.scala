@@ -1,15 +1,10 @@
 package org.broadinstitute.hail.io
 
-import java.io._
-import java.nio.file._
 import java.util.zip.Inflater
-import org.apache.hadoop.io.LongWritable
-
-import scala.io.Source
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils.hadoopOpen
+import org.broadinstitute.hail.Utils._
+import org.apache.hadoop.io.LongWritable
 import org.apache.spark.SparkContext
-import scala.collection.mutable.ArrayBuffer
 
 class BgenLoader(file: String, sc: SparkContext) {
   private var compression: Boolean = false
@@ -190,8 +185,9 @@ class BgenLoader(file: String, sc: SparkContext) {
       position = getNextBlockPosition(position)
       dataBlockStarts(i) = position
     }
-
-    ioUtils.writeIndexArray(dataBlockStarts, file + ".idx")
+    println(s"first 3 = ${dataBlockStarts.take(3).mkString(",")}")
+    println(s"last 3 = ${dataBlockStarts.takeRight(3).mkString(",")}")
+    IndexBTree.write(dataBlockStarts, hadoopCreate(file + ".idx", sc.hadoopConfiguration))
 
     sampleIDs
   }
@@ -264,15 +260,18 @@ object BgenLoader {
       case None => (0 until nSamples).map(_.toString).toArray
     }
 
-    val returned = ioUtils.readIndexArray(file + ".idx")
-
     var time = System.currentTimeMillis()
 
     // FIXME what about withScope and assertNotStopped()?
     sc.hadoopConfiguration.set("idx", file + ".idx")
+    sc.hadoopConfiguration.setInt("nSamples", bl.nSamples)
+    sc.hadoopConfiguration.setInt("version", bl.version)
+    sc.hadoopConfiguration.setBoolean("bgenCompressed", bl.compression)
+    sc.hadoopConfiguration.setBoolean("compressGS", false)
     val parseFunction = bl.getParseFunction
-    val rdd = sc.hadoopFile(file, classOf[BgenInputFormat], classOf[RichLongWritable], classOf[ByteBlock],
-      sc.defaultMinPartitions).map(info => parseFunction(info._2))
+    val rdd = sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
+      sc.defaultMinPartitions)
+      .map { case (lw, pl) => (pl.getKey, pl.getGS) }
     rdd.count()
     println("parsing took %.3f seconds".format((System.currentTimeMillis() - time).toDouble / 1000.0))
     VariantSampleMatrix(VariantMetadata(null, ids), rdd)

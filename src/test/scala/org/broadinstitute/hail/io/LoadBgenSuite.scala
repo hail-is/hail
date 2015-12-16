@@ -14,7 +14,7 @@ class LoadBgenSuite extends SparkSuite {
     println("From 13:104620197:TGAA_, R, D => %s, %s".format(munge2a._1, munge2a._2))
     println("From 13:104620197:TGAA_, D, R => %s, %s".format(munge2b._1, munge2b._2))
 //    val loader = BgenLoader("src/test/resources/11_36760324_51539425.bgen", sc)
-    val loader = BgenLoader("src/test/resources/bigger.bgen", sc)
+    val loader = BgenLoader("src/test/resources/biggerM.bgen", sc)
 //    val loader = BgenLoader("src/test/resources/indelgen.bgen", sc)
 //    val loader = BgenLoader("src/test/resources/bigM.bgen", sc)
 //    loader.makeVDS(sc, "sparky")

@@ -1,15 +1,15 @@
 package org.broadinstitute.hail.io
 
-import java.io.{InputStream, FileInputStream, FileOutputStream}
-
+import java.io.{OutputStream, InputStream}
 import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
-
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 object IndexBTree {
 
-  def write(arr: Array[Long], path: String) {
+  def write(arr: Array[Long], out: OutputStream) {
+    println(s"Length of array: ${arr.length}")
+    val fs = new FSDataOutputStream(out)
+    require(arr.length > 0)
     // first calculate the necessary number of layers in the tree -- log1024(arr.length) rounded up
     val depth = (math.log10(arr.length) / math.log10(1024)).ceil.toInt
 
@@ -17,7 +17,7 @@ object IndexBTree {
     val layers = mutable.ArrayBuffer[IndexedSeq[Long]]()
     for (i <- 0 until depth - 1) {
       val multiplier = math.pow(1024, depth - 1 - i).toInt
-      println(s"i = $i, mult = $multiplier")
+      //      println(s"i = $i, mult = $multiplier")
       layers.append((0 until math.pow(1024, i + 1).toInt).map { j =>
         if (j * multiplier <= arr.length)
           arr(j * multiplier)
@@ -26,20 +26,18 @@ object IndexBTree {
       })
     }
 
-    val fs = new FSDataOutputStream(new FileOutputStream(path))
     layers.append(arr)
-    layers.zipWithIndex.foreach { case (a, i) => println(s"index $i size is ${a.size}")}
-    val flat = layers.flatten
-    println("After flatten: " + flat.size)
-    val bytes = flat.flatMap(l => Array[Byte](
+    //    layers.zipWithIndex.foreach { case (a, i) => println(s"index $i size is ${a.size}")}
+    //    println("After flatten: " + flat.size)
+    val bytes = layers.flatten.flatMap(l => Array[Byte](
       (l >>> 56).toByte,
       (l >>> 48).toByte,
       (l >>> 40).toByte,
       (l >>> 32).toByte,
       (l >>> 24).toByte,
       (l >>> 16).toByte,
-      (l >>>  8).toByte,
-      (l >>>  0).toByte)).toArray
+      (l >>> 8).toByte,
+      (l >>> 0).toByte)).toArray
     fs.writeLong(depth)
     fs.write(bytes)
     fs.close()
@@ -84,8 +82,7 @@ object IndexBTree {
   def query(start: Long, end: Long, in: InputStream): Array[Long] = {
     val fs = new FSDataInputStream(in)
     val depth = fs.readLong()
-    println("depth is " + depth)
-    println(s"query is ($start - $end)")
+
     // keep track of depth and position in layer -- position = 1 + (i <- 1 to currentLayer).map(math.pow(1024,_)).sum
     var layerPos: Long = 0
     var currentDepth = 1
@@ -95,14 +92,10 @@ object IndexBTree {
     while (currentDepth <= depth) {
       // if not on the last layer, find the largest value <= our start
       val read = fs.readLong()
-      if (currentDepth == 1)
-        println(read)
 
       if (currentDepth < depth) {
         if (read > start) {
-          println(s"found read value greater than start: $read -- moving to depth=${currentDepth+1}")
-          println(s"layerPos = $layerPos")
-          fs.seek(getOffset(currentDepth) + 8192 * (layerPos-1))
+          fs.seek(getOffset(currentDepth) + 8192 * (layerPos))
           currentDepth += 1
           layerPos = 0
         }
@@ -114,11 +107,103 @@ object IndexBTree {
         if (read > end || read == -1)
           currentDepth = Integer.MAX_VALUE // exit the loop
         else if (read >= start) {
-          println(s"found value in range: $read")
           ret += read
         }
       }
     }
     ret.toArray
+  }
+
+  def queryBlockIndices(start: Long, end: Long, in: InputStream): Array[BlockIndex] = {
+    println(s"Got query: $start-$end")
+    val fs = new FSDataInputStream(in)
+    fs.seek(0)
+    val depth = fs.readLong()
+//    println(s"depth is $depth")
+
+    // keep track of depth and position in layer -- position = 1 + (i <- 1 to currentLayer).map(math.pow(1024,_)).sum
+    var index: Int = 0
+    var currentDepth = 1
+    def getOffset(i: Int): Int = (0 to i).map(math.pow(1024, _).toInt).sum * 8
+    val ret = new mutable.ArrayBuffer[(Long, Int)]()
+
+    while (currentDepth <= depth) {
+      // if not on the last layer, find the largest value <= our start
+      val read = fs.readLong()
+//      println(s"read a value: $read")
+
+      if (currentDepth < depth) {
+//        println(s"read $read")
+        if (read >= start) {
+          index = 1024 * math.max(index-1, 0)
+//          println(s"Incrementing depth, index=$index, read=$read -- going to ${getOffset(currentDepth) + 8 * index}")
+          fs.seek(getOffset(currentDepth) + 8 * index)
+          currentDepth += 1
+        } else
+          index += 1
+      } else {
+        if (read >= start)
+          ret += ((read, index.toInt))
+        if (read >= end)
+          // exit the loop
+          currentDepth = Integer.MAX_VALUE
+
+        index += 1
+      }
+    }
+    val indices = ret.take(ret.length-1)
+      .zip(ret.takeRight(ret.length-1))
+      .map {
+        case ((pos1, ind1), (pos2, ind2)) =>
+          BlockIndex(pos1, (pos2-pos1).toInt, ind1)
+      }
+      .toArray
+//    println(s"number of blocks found: ${indices.length}")
+    println(s"first five indices: ${indices.map(_.toString).take(5).mkString("\n")}")
+    println(s"last five indices: ${indices.map(_.toString).takeRight(5).mkString("\n")}")
+//    indices.foreach(println)
+    indices
+  }
+
+  def queryStart(start: Long, in: InputStream): Long = {
+    val fs = new FSDataInputStream(in)
+    fs.seek(0)
+    val depth = fs.readLong()
+
+    // keep track of depth and position in layer -- position = 1 + (i <- 1 to currentLayer).map(math.pow(1024,_)).sum
+    var index: Int = 0
+    var currentDepth = 1
+    def getOffset(i: Int): Int = (0 to i).map(math.pow(1024, _).toInt).sum * 8
+    var ret: Long = -1L
+
+    while (currentDepth <= depth) {
+      // if not on the last layer, find the largest value <= our start
+      val read = fs.readLong()
+      //      println(s"read a value: $read")
+
+      if (currentDepth < depth) {
+        //        println(s"read $read")
+        if (read >= start || index > getOffset(currentDepth)) {
+          if (start == 637534208) {
+            println(s"index=$index, max = ${math.max(index-1, 0)}, mod = ${1024 * math.max(index-1, 0)}")
+          }
+          index = 1024 * math.max(index-1, 0)
+          if (index == -1925316608) {
+            println(s"depth=$currentDepth, depthOfTree=$depth, read=$read")
+          }
+          println(s"Incrementing depth(d=$currentDepth -> $depth), index=$index, read=$read -- going to ${getOffset(currentDepth) + 8 * index}")
+          fs.seek(getOffset(currentDepth) + 8 * index)
+          currentDepth += 1
+        } else
+          index += 1
+      } else {
+        if (read >= start) {
+          ret = read
+          currentDepth = Integer.MAX_VALUE
+        }
+        index += 1
+      }
+    }
+    ret
   }
 }

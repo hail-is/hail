@@ -2,20 +2,54 @@ package org.broadinstitute.hail.io
 
 import java.io._
 
+import org.apache.hadoop.io.LongWritable
+import org.broadinstitute.hail.Utils
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.io.Source
+import scala.reflect.ClassTag
 
 case class SampleInfo(sampleIds: Array[String], pedigree: Pedigree)
 
+
+class VariantParser(bimPath: String)
+  extends Serializable {
+  @transient var variants: Option[Array[Variant]] = None
+
+  def parseBim(): Array[Variant] = {
+    val bimFile = new File(bimPath)
+    Source.fromFile(bimFile)
+      .getLines()
+      .filter(line => !line.isEmpty)
+      .map { line =>
+        val Array(contig, rsId, morganPos, bpPos, allele1, allele2) = line.split("\\s+")
+        Variant(contig, bpPos.toInt, allele1, allele2)
+      }
+      .toArray
+  }
+
+  def check() {
+    require(variants.isEmpty)
+    variants = Some(parseBim())
+  }
+
+  def eval(): Array[Variant] = variants match {
+    case null | None =>
+      val v = parseBim()
+      variants = Some(v)
+      v
+    case Some(v) => v
+  }
+}
+
 object PlinkLoader {
-  val sparseGt = Array(Genotype(-1, (0, 0), 0, (0,0,0)),
-    Genotype(0, (0, 0), 0, (0,0,0)),
-    Genotype(1, (0, 0), 0, (0,0,0)),
-    Genotype(2, (0, 0), 0, (0,0,0)))
+  val sparseGt = Array(Genotype(-1, (0, 0), 0, (0, 0, 0)),
+    Genotype(0, (0, 0), 0, (0, 0, 0)),
+    Genotype(1, (0, 0), 0, (0, 0, 0)),
+    Genotype(2, (0, 0), 0, (0, 0, 0)))
 
   private def parseFam(famPath: String): SampleInfo = {
     val famFile = new File(famPath)
@@ -40,29 +74,13 @@ object PlinkLoader {
     SampleInfo(sampleIds, ped)
   }
 
-  private def parseBim(bimPath: String): Array[Variant] = {
-    val bimFile = new File(bimPath)
-    Source.fromFile(bimFile)
-      .getLines()
-      .filter(line => !line.isEmpty)
-      .map { line =>
-        val Array(contig, rsId, morganPos, bpPos, allele1, allele2) = line.split("\\s+")
-        Variant(contig, bpPos.toInt, allele1, allele2)
-      }
-      .toArray
-  }
-
   private def parseBed(bedPath: String,
     sampleIds: Array[String],
-    variants: Array[Variant],
+    bimPath: String,
     sc: SparkContext,
     vsmType: String): VariantDataset = {
 
     val nSamples = sampleIds.length
-    val nVariants = variants.length
-
-    // 2 bits per genotype, round up to the nearest byte.  Add 3 for magic numbers at the start of the file
-    def getStart(variantIndex: Int): Long = 3 + variantIndex.toLong * ((sampleIds.length / 4.00) + .75).toInt
 
     def plinkToHail(call: Int): Int = {
       if (call == 0)
@@ -73,32 +91,16 @@ object PlinkLoader {
         call - 1
     }
 
-    val blocks = variants.zipWithIndex.map { case (v, i) => (v, getStart(i)) }
-
-      sc.hadoopConfiguration.setInt("nSamples", nSamples)
+    sc.hadoopConfiguration.setInt("nSamples", nSamples)
     // FIXME what about withScope and assertNotStopped()?
-    val bbRdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[RichLongWritable], classOf[ByteBlock],
+    val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[ParsedLine[Int]],
       sc.defaultMinPartitions)
 
-    val variantsBc = sc.broadcast(variants)
-    def parseVariant(bb: ByteBlock):
-    (Variant, Iterable[Genotype]) = {
-      val variant = variantsBc.value(bb.getIndex)
-      val bar = new ByteArrayReader(bb.getArray)
-      val b = new GenotypeStreamBuilder(variant, compress = false)
-      bar.readBytes(bar.length)
-        .iterator
-        .flatMap { i => Iterator(i & 3, (i >> 2) & 3, (i >> 4) & 3, (i >> 6) & 3) }
-        .map(plinkToHail)
-        .take(nSamples)
-        .foreach(i => b += sparseGt(i+1))
-      (variant, b.result(): Iterable[Genotype])
+    val variants = new VariantParser(bimPath).eval()
+    val variantRDD = rdd.map {
+      case (lw, pl) => (variants(pl.getKey), pl.getGS)
     }
-
-    val vgsRdd = bbRdd.map {
-      case (l, bb) => parseVariant(bb)
-    }
-    VariantSampleMatrix(VariantMetadata(null, sampleIds), vgsRdd)
+    VariantSampleMatrix(VariantMetadata(null, sampleIds), variantRDD )
   }
 
 
@@ -106,11 +108,8 @@ object PlinkLoader {
     val samples = parseFam(fileBase + ".fam")
     println("nSamples is " + samples.sampleIds.length)
 
-    val variants = parseBim(fileBase + ".bim")
-    println("nVariants is " + variants.length)
-
     val startTime = System.nanoTime()
-    val vds = parseBed(fileBase + ".bed", samples.sampleIds, variants, sc, vsmType)
+    val vds = parseBed(fileBase + ".bed", samples.sampleIds, fileBase + ".bim", sc, vsmType)
     val endTime = System.nanoTime()
     val diff = (endTime - startTime) / 1e9
     vds
