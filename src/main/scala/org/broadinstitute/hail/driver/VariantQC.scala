@@ -181,6 +181,7 @@ class VariantQCCombiner extends Serializable {
 
     val lh = levineHaldaneStats
     sb.tsvAppend(lh._1)
+    sb += '\t'
     sb.append(lh._2)
   }
 }
