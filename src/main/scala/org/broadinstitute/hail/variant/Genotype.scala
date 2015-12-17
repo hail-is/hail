@@ -2,7 +2,7 @@ package org.broadinstitute.hail.variant
 
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
-import org.scalacheck.{Gen, Arbitrary}
+import org.broadinstitute.hail.check.{Gen, Arbitrary}
 
 import scala.language.implicitConversions
 import scala.collection.mutable
@@ -326,7 +326,6 @@ object Genotype {
             pla(i) = a.readULEB128()
             i += 1
           }
-          pla
         } else {
           var i = 0
           while (i < pla.length) {
@@ -341,12 +340,12 @@ object Genotype {
     new Genotype(newFlags.toByte, gt, ad, dp, pl)
   }
 
-  def gen(v: Variant): Gen[Genotype] = {
-    for (gt: Option[Int] <- genOption(Gen.choose(0, v.nGenotypes - 1));
-      ad <- genOption(Gen.buildableOfN[IndexedSeq[Int], Int](v.nAlleles,
+  def gen(v: Variant): Gen[Genotype] =
+    for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
+      ad <- Gen.option(Gen.buildableOfN[IndexedSeq[Int], Int](v.nAlleles,
         Gen.choose(0, Int.MaxValue / v.nAlleles)));
-      dp <- genOption(genNonnegInt);
-      pl: Option[Array[Int]] <- genOption(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
+      dp <- Gen.option(Gen.nonnegInt);
+      pl: Option[Array[Int]] <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
         Gen.choose(0, Int.MaxValue / v.nGenotypes)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
@@ -355,7 +354,6 @@ object Genotype {
       g.check(v)
       g
     }
-  }
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;

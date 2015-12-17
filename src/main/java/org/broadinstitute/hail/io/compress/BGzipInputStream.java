@@ -9,7 +9,7 @@ import java.io.InputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
-public class BGzipInputStream extends SplitCompressionInputStream {
+class BGzipInputStream extends SplitCompressionInputStream {
     private static final int BGZF_MAX_BLOCK_SIZE = 64 * 1024;
     private static final int INPUT_BUFFER_CAPACITY = 2 * BGZF_MAX_BLOCK_SIZE;
     private static final int OUTPUT_BUFFER_CAPACITY = BGZF_MAX_BLOCK_SIZE;
@@ -78,14 +78,14 @@ public class BGzipInputStream extends SplitCompressionInputStream {
 
     BGzipHeader bgzipHeader;
 
-    byte[] inputBuffer = new byte[INPUT_BUFFER_CAPACITY];
+    final byte[] inputBuffer = new byte[INPUT_BUFFER_CAPACITY];
     int inputBufferSize = 0;
     int inputBufferPos = 0;
 
     /* `inputBufferInPos' is the position in the compressed input stream corresponding to `inputBuffer[0]'. */
     long inputBufferInPos = 0;
 
-    byte[] outputBuffer = new byte[OUTPUT_BUFFER_CAPACITY];
+    final byte[] outputBuffer = new byte[OUTPUT_BUFFER_CAPACITY];
     int outputBufferSize = 0;
     int outputBufferPos = 0;
 

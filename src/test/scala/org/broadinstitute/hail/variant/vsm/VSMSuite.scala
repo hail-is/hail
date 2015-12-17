@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.variant.vsm
 
-import org.broadinstitute.hail.{ScalaCheckSuite, SparkSuite}
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
@@ -8,10 +8,10 @@ import scala.util.Random
 import scala.language.postfixOps
 import org.broadinstitute.hail.methods.LoadVCF
 import org.testng.annotations.Test
-import org.scalacheck.Prop._
-import org.scalacheck.Arbitrary._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Arbitrary._
 
-class VSMSuite extends SparkSuite with ScalaCheckSuite {
+class VSMSuite extends SparkSuite {
 
   @Test def testSame() {
     val vds1 = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
@@ -76,28 +76,14 @@ class VSMSuite extends SparkSuite with ScalaCheckSuite {
   }
 
   @Test def testReadWrite() {
-/*
-    (0 until 100).foreach { _ =>
-      VariantSampleMatrix.gen[Genotype](sc, (v: Variant) => Genotype.gen(v)).sample match {
-        case Some(vsm) =>
-          vsm.rdd.foreach { case (v, gs) =>
-            gs.foreach(_.check(v)) }
-
-          hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
-          vsm.write(sqlContext, "/tmp/foo.vds")
-        case None =>
-      }
-    }
-*/
-
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, (v: Variant) => Genotype.gen(v))) { vsm: VariantSampleMatrix[Genotype] =>
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
       hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
       vsm.write(sqlContext, "/tmp/foo.vds")
       val vsm2 = VariantSampleMatrix.read(sqlContext, "/tmp/foo.vds")
       vsm2.same(vsm)
     }
 
-    check(p)
+    p.check
   }
 
   @Test def testFilterSamples() {

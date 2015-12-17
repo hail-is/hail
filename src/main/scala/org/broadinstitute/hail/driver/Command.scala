@@ -8,10 +8,10 @@ import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLinePars
 import scala.collection.JavaConverters._
 
 object State {
-  def apply(sc: SparkContext, sqlContext: SQLContext): State = {
+  def apply(sc: SparkContext, sqlContext: SQLContext, vds: VariantDataset = null): State = {
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     val installDir = new File(jar).getParent + "/.."
-    new State(installDir, sc, sqlContext, null)
+    new State(installDir, sc, sqlContext, vds)
   }
 }
 
