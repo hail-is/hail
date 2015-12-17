@@ -67,7 +67,7 @@ object AnnotationClassBuilder {
       case (subclass, subMap) =>
         val attrs = subMap
           .map { case (k, sig) =>
-            s"""  val $k: Option[${sig.emitType}] = subMap.get("$k").${sig.emitConversionIdentifier}"""
+            s"""  val $k: Option[${sig.emitType}] = subMap.get("$k").map(_.${sig.emitConversionIdentifier})"""
           }
           .mkString("\n")
         val methods: String = {
@@ -76,17 +76,15 @@ object AnnotationClassBuilder {
                 |    ${subMap.keys.toArray.sorted.map(s => s"""formatString($s, "$missing")""").mkString(",")}
                 |  )
                 |  override def toString: String = __fields.mkString(";")
-                |  def all: String = __fields.mkString("\t")
-            """.stripMargin
+                |  def all: String = __fields.mkString("\t")""".stripMargin
           } else ""
         }
         s"""class __${subclass}Annotations(subMap: Map[String, String]) extends Serializable {
             |$attrs
             |$methods
-            |}
-            |""".stripMargin
+            |}""".stripMargin
     }
-      .foldRight[String]("")(_ + _)
+      .mkString("\n")
 
     val hiddenClass = {
       val classes =
@@ -95,13 +93,14 @@ object AnnotationClassBuilder {
         }
           .mkString("\n")
       val vals = sigs.vals.map { case (k, sig) =>
-        s"""  val $k: Option[${sig.emitType}] = annot.getVal("$k").${sig.emitConversionIdentifier}"""
+        s"""  val $k: Option[${sig.emitType}] = annot.getVal("$k").map(_.${sig.emitConversionIdentifier})"""
       }
         .mkString("\n")
       s"""class ${hiddenClassName}Annotations(annot: org.broadinstitute.hail.annotations.AnnotationData)
           |  extends Serializable {
-          |  $classes
-          |  $vals
+          |  ${if (classes.nonEmpty) classes else "// no classes"}
+          |  ${if (vals.nonEmpty) vals else "// no vals"}
+          |}
           |""".stripMargin
     }
 

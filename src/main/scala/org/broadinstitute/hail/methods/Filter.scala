@@ -15,28 +15,12 @@ class FilterString(val s: String) extends AnyVal {
   def !~(t: String): Boolean = !this.~(t)
 }
 
-object ConvertibleString {
-  val someRegex = """Some\(([0-9\.]+)\)""".r
-}
-
 class ConvertibleString(val s: String) extends AnyVal {
   def toArrayInt: Array[Int] = s.split(",").map(i => i.toInt)
 
   def toArrayDouble: Array[Double] = s.split(",").map(i => i.toDouble)
 
   def toSetString: Set[String] = s.split(",").toSet
-
-  def toStupidAnnotation: Array[Array[String]] = s.split(",").map(_.split("|").map(_.trim))
-
-  def toOptionInt: Option[Int] = s match {
-    case ConvertibleString.someRegex(i) => Some(i.toInt)
-    case "None" => None
-  }
-
-  def toOptionDouble: Option[Double] = s match {
-    case ConvertibleString.someRegex(i) => Some(i.toDouble)
-    case "None" => None
-  }
 }
 
 object FilterUtils {
@@ -47,10 +31,6 @@ object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
 
   implicit def toConvertibleString(s: String): ConvertibleString = new ConvertibleString(s)
-
-  //  def test(): (Variant, Annotations[String]) => Boolean = {
-  //    throw new UnsupportedOperationException
-  //  }
 }
 
 class EvaluatorWithTransformation[T, S](t: String, f: T => S)(implicit tct: ClassTag[T]) extends Serializable {
@@ -128,23 +108,23 @@ class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
 class FilterGenotypeCondition(cond: String, vas: AnnotationSignatures, sas: AnnotationSignatures,
   sad: IndexedSeq[AnnotationData], ids: IndexedSeq[String])
   extends EvaluatorWithTransformation[FilterGenotypeWithSA, FilterGenotypePostSA](
-        s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
-            |  __ids: IndexedSeq[String]) => {
-            |  import org.broadinstitute.hail.methods.FilterUtils._
-            |  ${signatures(sas, "__sa")}
-            |  ${makeIndexedSeq("__saArray", "__sa", "__sa")}
-            |  (v: org.broadinstitute.hail.variant.Variant,
-            |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
-            |    ${signatures(vas, "__va")}
-            |    ${instantiate("va", "__va")}
-            |    (__sIndex: Int,
-            |      g: org.broadinstitute.hail.variant.Genotype) => {
-            |        val sa = __saArray(__sIndex)
-            |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
-            |        $cond
-            |      }: Boolean
-            |   }
-            | }
+    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
+        |  __ids: IndexedSeq[String]) => {
+        |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  ${signatures(sas, "__sa")}
+        |  ${makeIndexedSeq("__saArray", "__sa", "__sa")}
+        |  (v: org.broadinstitute.hail.variant.Variant,
+        |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |    ${signatures(vas, "__va")}
+        |    ${instantiate("va", "__va")}
+        |    (__sIndex: Int,
+        |      g: org.broadinstitute.hail.variant.Genotype) => {
+        |        val sa = __saArray(__sIndex)
+        |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+        |        $cond
+        |      }: Boolean
+        |   }
+        | }
       """.stripMargin,
     t => t(sad, ids)) {
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): Boolean =

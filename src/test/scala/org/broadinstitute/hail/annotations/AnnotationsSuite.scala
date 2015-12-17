@@ -4,7 +4,6 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant.{Genotype, IntervalList, Variant}
-import org.scalacheck.Gen
 import org.testng.annotations.Test
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.methods.FilterUtils.toConvertibleString
@@ -34,86 +33,86 @@ class AnnotationsSuite extends SparkSuite {
     assert(variantAnnotationMap.contains(anotherVariant))
 
     // type Int - INFO.DP
-    assert(vas.get("info", "DP").contains(VCFSignature("Int", "toInt",
+    assert(vas.getInMap("info", "DP").contains(VCFSignature("Integer", "Int", "1", "toInt",
       "Approximate read depth; some reads may have been filtered")))
     assert(variantAnnotationMap(firstVariant)
-      .get("info", "DP")
+      .getInMap("info", "DP")
       .contains("77560") &&
       variantAnnotationMap(firstVariant)
-        .get("info", "DP").get.toInt == 77560)
+        .getInMap("info", "DP").get.toInt == 77560)
     assert(variantAnnotationMap(anotherVariant)
-      .get("info", "DP")
+      .getInMap("info", "DP")
       .contains("20271") &&
       variantAnnotationMap(anotherVariant)
-        .get("info", "DP").get.toInt == 20271)
+        .getInMap("info", "DP").get.toInt == 20271)
 
     // type Double - INFO.HWP
-    assert(vas.get("info", "HWP").contains(VCFSignature("Double", "toDouble",
+    assert(vas.getInMap("info", "HWP").contains(new VCFSignature("Float", "Double", "1", "toDouble",
       "P value from test of Hardy Weinberg Equilibrium")))
     assert(variantAnnotationMap(firstVariant)
-      .contains("info", "HWP") &&
+      .containsInMap("info", "HWP") &&
       D_==(variantAnnotationMap(firstVariant)
-        .get("info", "HWP").get.toDouble, 0.0001))
+        .getInMap("info", "HWP").get.toDouble, 0.0001))
     assert(variantAnnotationMap(anotherVariant)
-      .contains("info", "HWP") &&
+      .containsInMap("info", "HWP") &&
       D_==(variantAnnotationMap(anotherVariant)
-        .get("info", "HWP").get.toDouble, 0.8286))
+        .getInMap("info", "HWP").get.toDouble, 0.8286))
 
     // type String - INFO.culprit
-    assert(vas.get("info", "culprit").contains(VCFSignature("String", "toString",
+    assert(vas.getInMap("info", "culprit").contains(VCFSignature("String", "String", "1", "toString",
       "The annotation which was the worst performing in the Gaussian mixture model, " +
         "likely the reason why the variant was filtered out")))
     assert(variantAnnotationMap(firstVariant)
-      .get("info", "culprit")
+      .getInMap("info", "culprit")
       .contains("FS"))
     assert(variantAnnotationMap(anotherVariant)
-      .get("info", "culprit")
+      .getInMap("info", "culprit")
       .contains("FS"))
 
     // type Array - INFO.AC (allele count)
-    assert(vas.get("info", "AC").contains(VCFSignature("Array[Int]", "toArrayInt",
+    assert(vas.getInMap("info", "AC").contains(VCFSignature("Integer", "Array[Int]", "A", "toArrayInt",
       "Allele count in genotypes, for each ALT allele, in the same order as listed")))
     assert(variantAnnotationMap(firstVariant)
-      .get("info", "AC")
+      .getInMap("info", "AC")
       .contains("89") &&
       variantAnnotationMap(firstVariant)
-        .get("info", "AC").get.toArrayInt
+        .getInMap("info", "AC").get.toArrayInt
         .sameElements(Array(89)))
     assert(variantAnnotationMap(anotherVariant)
-      .get("info", "AC")
+      .getInMap("info", "AC")
       .contains("13") &&
       variantAnnotationMap(anotherVariant)
-        .get("info", "AC").get.toArrayInt
+        .getInMap("info", "AC").get.toArrayInt
         .sameElements(Array(13)))
 
     // type Boolean/flag - INFO.DB (dbSNP membership)
-    assert(vas.get("info", "DB").contains(VCFSignature("Boolean", "toBoolean",
+    assert(vas.getInMap("info", "DB").contains(new VCFSignature("Flag", "Boolean", "0", "toBoolean",
       "dbSNP Membership")))
     assert(variantAnnotationMap(firstVariant)
-      .get("info", "DB")
+      .getInMap("info", "DB")
       .contains("true") &&
       variantAnnotationMap(firstVariant)
-        .get("info", "DB").get.toBoolean) // .get.toBoolean == true
+        .getInMap("info", "DB").get.toBoolean) // .get.toBoolean == true
     assert(!variantAnnotationMap(anotherVariant)
-      .contains("info", "DB"))
+      .containsInMap("info", "DB"))
 
     //type Set[String]
-    assert(vas.get("filters").contains(VCFSignature("Set[String]", "toSetString", "filters applied to site")))
+    assert(vas.getVal("filters").contains(new VCFSignature("Set[String]", "toSetString", "filters applied to site")))
     assert(variantAnnotationMap(firstVariant)
-      .get("filters").contains("PASS") &&
+      .getVal("filters").contains("PASS") &&
       variantAnnotationMap(firstVariant)
-      .get("filters").get.toSetString == Set[String]("PASS"))
+      .getVal("filters").get.toSetString == Set[String]("PASS"))
     assert(variantAnnotationMap(anotherVariant)
-      .get("filters").contains("VQSRTrancheSNP99.95to100.00") &&
+      .getVal("filters").contains("VQSRTrancheSNP99.95to100.00") &&
       variantAnnotationMap(anotherVariant)
-        .get("filters").get.toSetString == Set[String]("VQSRTrancheSNP99.95to100.00"))
+        .getVal("filters").get.toSetString == Set[String]("VQSRTrancheSNP99.95to100.00"))
 
     // GATK PASS
-    assert(vas.get("pass").contains(VCFSignature("Boolean", "toBoolean",
+    assert(vas.getVal("pass").contains(new VCFSignature("Boolean", "toBoolean",
       "filters were applied to vcf and this site passed")))
     assert(variantAnnotationMap(firstVariant)
-      .get("pass").contains("true"))
+      .getVal("pass").contains("true"))
     assert(variantAnnotationMap(anotherVariant)
-      .get("pass").contains("false"))
+      .getVal("pass").contains("false"))
   }
 }

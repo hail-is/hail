@@ -216,6 +216,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
 
+
     rdd
       .map { case (v, va, gs) =>
         val serializer = SparkEnv.get.serializer.newInstance()
@@ -255,7 +256,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     rdd.map { case (v, va, gs) => (v, gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g))) }
 
   def same(that: VariantSampleMatrix[T]): Boolean = {
-    println(metadata == that.metadata)
     metadata == that.metadata &&
       localSamples.sameElements(that.localSamples) &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }

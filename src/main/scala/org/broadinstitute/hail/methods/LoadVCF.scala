@@ -3,12 +3,12 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.vcf.BufferedLineIterator
 
 import scala.io.Source
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.SparkContext
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.vcf
 import org.broadinstitute.hail.annotations._
-import scala.collection.convert._
+import scala.collection.JavaConversions._
 
 object LoadVCF {
   // FIXME move to VariantDataset
@@ -30,18 +30,20 @@ object LoadVCF {
     }
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
+
     val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+      .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
-    val contigs = header.getContigLines.
+    // FIXME: use htsjdk to parse contigs when they expose the correct fields
     val contigRegex ="""##contig=<ID=(.+),length=(\d+)>""".r
-    val contigLengths = {
+    val contigs = {
       val contigMap = headerLines.map {
         case contigRegex(id, length) =>
           Some((id, length.toInt))
         case _ => None
       }.flatMap(i => i)
-      .toMap
+        .toMap
 
       if (contigMap.nonEmpty)
         contigMap
@@ -49,24 +51,18 @@ object LoadVCF {
         null
     }
 
-    val annoRegex = """##INFO=<ID=(.+),Number=(.+),Type=(.+),Description="(.*)">""".r
-    val annotationTypes = {
-      val annotationMap = headerLines.flatMap {
-        case annoRegex(id, number, typeOf, desc) => Some(id, VCFSignature.parse(number, typeOf, desc))
-        case _ => None
-      }.toMap
+    val infoSignatures = header
+      .getInfoHeaderLines
+      .toList
+      .map(line => (line.getID, VCFSignature.parse(line)))
+      .toMap
 
-      if (annotationMap.nonEmpty)
-        annotationMap
-      else
-        Map.empty[String, AnnotationSignature]
-    }
-    val annotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> annotationTypes),
-      Map("filters" -> new VCFSignature("Set[String]", "toSetString", "filters applied to site"),
+    val annotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> infoSignatures),
+      Map("filters" -> new VCFSignature("Set[String]","toSetString", "filters applied to site"),
         "pass" -> new VCFSignature("Boolean", "toBoolean", "filters were applied to vcf and this site passed"),
         "multiallelic" -> new VCFSignature("Boolean", "toBoolean", "Site is a split multiallelic"),
         "qual" -> new VCFSignature("Double", "toDouble", "vcf qual field"),
-        "rsid" -> new VCFSignature("String", "toString", "site rdID")))
+        "rsid" -> new VCFSignature("String", "toString", "site rsID")))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -92,7 +88,7 @@ object LoadVCF {
           }
       }
 
-    VariantSampleMatrix(VariantMetadata(contigLengths, sampleIds,
+    VariantSampleMatrix(VariantMetadata(contigs, sampleIds,
       headerLines, sampleAnnotations, sampleAnnotationSignatures, annotationSignatures), genotypes)
   }
 }

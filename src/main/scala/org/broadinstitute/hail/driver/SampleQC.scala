@@ -47,26 +47,26 @@ object SampleQCCombiner {
     "nSingleton" -> new VCFSignature("Int", "toInt", ""),
     "nTransition" -> new VCFSignature("Int", "toInt", ""),
     "nTransversion" -> new VCFSignature("Int", "toInt", ""),
-    "dpMean" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "dpStDev" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "dpMeanHomRef" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "dpStDevHomRef" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "dpMeanHet" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "dpStDevHet" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "dpMeanHomVar" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "dpStDevHomVar" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "gqMean" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "gqStDev" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "gqMeanHomRef" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "gqStDevHomRef" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "gqMeanHet" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "gqStDevHet" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "gqMeanHomVar" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "gqStDevHomVar" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
+    "dpMean" -> new VCFSignature("Double", "toDouble", ""),
+    "dpStDev" -> new VCFSignature("Double", "toDouble", ""),
+    "dpMeanHomRef" -> new VCFSignature("Double", "toDouble", ""),
+    "dpStDevHomRef" -> new VCFSignature("Double", "toDouble", ""),
+    "dpMeanHet" -> new VCFSignature("Double", "toDouble", ""),
+    "dpStDevHet" -> new VCFSignature("Double", "toDouble", ""),
+    "dpMeanHomVar" -> new VCFSignature("Double", "toDouble", ""),
+    "dpStDevHomVar" -> new VCFSignature("Double", "toDouble", ""),
+    "gqMean" -> new VCFSignature("Double", "toDouble", ""),
+    "gqStDev" -> new VCFSignature("Double", "toDouble", ""),
+    "gqMeanHomRef" -> new VCFSignature("Double", "toDouble", ""),
+    "gqStDevHomRef" -> new VCFSignature("Double", "toDouble", ""),
+    "gqMeanHet" -> new VCFSignature("Double", "toDouble", ""),
+    "gqStDevHet" -> new VCFSignature("Double", "toDouble", ""),
+    "gqMeanHomVar" -> new VCFSignature("Double", "toDouble", ""),
+    "gqStDevHomVar" -> new VCFSignature("Double", "toDouble", ""),
     "nNonRef" -> new VCFSignature("Int", "toInt", ""),
-    "rTiTv" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "rHetHomVar" -> new VCFSignature("Option[Double]", "toOptionDouble", ""),
-    "rDeletionInsertion" -> new VCFSignature("Option[Double]", "toOptionDouble", ""))
+    "rTiTv" -> new VCFSignature("Double", "toDouble", ""),
+    "rHetHomVar" -> new VCFSignature("Double", "toDouble", ""),
+    "rDeletionInsertion" -> new VCFSignature("Double", "toDouble", ""))
 }
 
 class SampleQCCombiner extends Serializable {
@@ -254,37 +254,42 @@ class SampleQCCombiner extends Serializable {
   }
 
   def asMap: Map[String, String] = {
-    Map("nCalled" -> (nHomRef + nHet + nHomVar).toString,
-      "nNotCalled" -> nNotCalled.toString,
-      "nHomRef" -> nHomRef.toString,
-      "nHet" -> nHet.toString,
-      "nHomVar" -> nHomVar.toString,
-      "nSNP" -> nSNP.toString,
-      "nInsertion" -> nIns.toString,
-      "nDeletion" -> nDel.toString,
-      "nSingleton" -> nSingleton.toString,
-      "nTransition" -> nTi.toString,
-      "nTransversion" -> nTv.toString,
-      "dpMean" -> someIf(dpSC.count > 0, dpSC.mean).toString,
-      "dpStDev" -> someIf(dpSC.count > 0, dpSC.stdev).toString,
-      "dpMeanHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.mean).toString,
-      "dpStDevHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.stdev).toString,
-      "dpMeanHet" -> someIf(dpHetSC.count > 0, dpHetSC.mean).toString,
-      "dpStDevHet" -> someIf(dpHetSC.count > 0, dpHetSC.stdev).toString,
-      "dpMeanHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.mean).toString,
-      "dpStDevHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.stdev).toString,
-      "gqMean" -> someIf(gqSC.count > 0, gqSC.mean).toString,
-      "gqStDev" -> someIf(gqSC.count > 0, gqSC.stdev).toString,
-      "gqMeanHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.mean).toString,
-      "gqStDevHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.stdev).toString,
-      "gqMeanHet" -> someIf(gqHetSC.count > 0, gqHetSC.mean).toString,
-      "gqStDevHet" -> someIf(gqHetSC.count > 0, gqHetSC.stdev).toString,
-      "gqMeanHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.mean).toString,
-      "gqStDevHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.stdev).toString,
-      "nNonRef" -> (nHet + nHomVar).toString,
-      "rTiTv" -> divOption(nTi, nTv).toString,
-      "rHetHomVar" -> divOption(nHet, nHomVar).toString,
-      "rDeletionInsertion" -> divOption(nDel, nIns).toString)
+    Map("nCalled" -> (nHomRef + nHet + nHomVar),
+      "nNotCalled" -> nNotCalled,
+      "nHomRef" -> nHomRef,
+      "nHet" -> nHet,
+      "nHomVar" -> nHomVar,
+      "nSNP" -> nSNP,
+      "nInsertion" -> nIns,
+      "nDeletion" -> nDel,
+      "nSingleton" -> nSingleton,
+      "nTransition" -> nTi,
+      "nTransversion" -> nTv,
+      "dpMean" -> someIf(dpSC.count > 0, dpSC.mean),
+      "dpStDev" -> someIf(dpSC.count > 0, dpSC.stdev),
+      "dpMeanHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.mean),
+      "dpStDevHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.stdev),
+      "dpMeanHet" -> someIf(dpHetSC.count > 0, dpHetSC.mean),
+      "dpStDevHet" -> someIf(dpHetSC.count > 0, dpHetSC.stdev),
+      "dpMeanHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.mean),
+      "dpStDevHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.stdev),
+      "gqMean" -> someIf(gqSC.count > 0, gqSC.mean),
+      "gqStDev" -> someIf(gqSC.count > 0, gqSC.stdev),
+      "gqMeanHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.mean),
+      "gqStDevHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.stdev),
+      "gqMeanHet" -> someIf(gqHetSC.count > 0, gqHetSC.mean),
+      "gqStDevHet" -> someIf(gqHetSC.count > 0, gqHetSC.stdev),
+      "gqMeanHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.mean),
+      "gqStDevHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.stdev),
+      "nNonRef" -> (nHet + nHomVar),
+      "rTiTv" -> divOption(nTi, nTv),
+      "rHetHomVar" -> divOption(nHet, nHomVar),
+      "rDeletionInsertion" -> divOption(nDel, nIns))
+      .flatMap { case (k, v) => v match {
+        case Some(value) => Some(k, value.toString)
+        case None => None
+        case _ => Some(k, v.toString)
+      }}
   }
 
 }
@@ -324,15 +329,15 @@ object SampleQC extends Command {
     vds
       .rdd
       .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, AnnotationData, Iterable[Genotype])]) =>
-        val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
-        localSamplesBc.value.iterator
-          .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
-            val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
-            for ((g, i) <- gs.zipWithIndex)
-              acc(i) = acc(i).merge(v, vIsSingleton, g)
-            acc
-          }.iterator)
-      }.foldByKey(new SampleQCCombiner)((comb1, comb2) => comb1.merge(comb2))
+      val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
+      localSamplesBc.value.iterator
+        .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
+          val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
+          for ((g, i) <- gs.zipWithIndex)
+            acc(i) = acc(i).merge(v, vIsSingleton, g)
+          acc
+        }.iterator)
+    }.foldByKey(new SampleQCCombiner)((comb1, comb2) => comb1.merge(comb2))
   }
 
   def run(state: State, options: Options): State = {
@@ -347,7 +352,7 @@ object SampleQC extends Command {
       val r = results(vds).collectAsMap()
       val newAnnotations = vds.metadata.sampleAnnotations
         .zipWithIndex
-        .map{ case (sa, s) => sa.addMap("qc", r(s).asMap) }
+        .map { case (sa, s) => sa.addMap("qc", r(s).asMap) }
       state.copy(
         vds = vds.copy(
           metadata = vds.metadata.copy(

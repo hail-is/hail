@@ -23,10 +23,12 @@ class FilterSuite extends SparkSuite {
 
     // the below command will test typing of runtime-generated code exposing annotations
     FilterGenotypes.run(state, Array("--keep", "-c",
-      """assert(va.pass.getClass.getName == "boolean");""" +
-        """assert(va.info.AN.getClass.getName == "int");""" +
-        """assert(va.info.GQ_MEAN.getClass.getName == "double");""" +
-        """assert(va.info.AC.getClass.getName == "int[]");""" +
-        """assert(va.filters.getClass.getName.contains("scala.collection.immutable.Set"));true"""))
+      """assert(va.pass.forall(_.getClass.getName == "boolean"), "va.pass was not a boolean")
+        |assert(va.info.AN.forall(_.getClass.getName == "int"), "AN was not an int")
+        |assert(va.info.GQ_MEAN.forall(_.getClass.getName == "double"), "GQ_MEAN was not a double")
+        |assert(va.info.AC.forall(_.getClass.getSimpleName == "int[]"), "AC was not an int array")
+        |assert(va.filters.forall(_.getClass.getName.contains("scala.collection.immutable.Set")),
+        |  "filters was not a set")
+        |true""".stripMargin)).vds.expand().collect()
   }
 }

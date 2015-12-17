@@ -1,8 +1,13 @@
 package org.broadinstitute.hail.annotations
 
+import htsjdk.variant.vcf.{VCFInfoHeaderLine, VCFHeaderLineCount, VCFHeaderLineType}
+
 case class VCFSignature(vcfType: String, emitType: String, number: String,
   emitConversionIdentifier: String, description: String)
   extends AnnotationSignature {
+
+  def this(scalaType: String, conversionMethod: String, desc: String) =
+    this("", scalaType, "", conversionMethod, "")
 
   def emitUtilities: String = ""
 }
@@ -11,6 +16,7 @@ object VCFSignature {
 
   val arrayRegex = """Array\[(\w+)\]""".r
   val setRegex = """Set\[(\w+)\]""".r
+
   def getConversionMethod(str: String): String = {
     str match {
       case arrayRegex(subType) => s"toArray$subType"
@@ -30,20 +36,35 @@ object VCFSignature {
       case _ => throw new UnsupportedOperationException("unexpected annotation type")
     }
 
-  def parse(number: String, vcfType: String, desc: String): AnnotationSignature = {
-    val parsedType: String = vcfTypeToScala(vcfType)
+  val integerRegex = """(\d+)""".r
 
-    val scalaType: String = {
-      if (number == "0" || number == "1") {
-        parsedType
-      }
-      else if (number == "A" || number == "R" || number == "G") {
-        s"Array[$parsedType]"
-      }
-      else
-        throw new UnsupportedOperationException
+  def parse(line: VCFInfoHeaderLine): AnnotationSignature = {
+    val vcfType = line.getType.toString
+    val parsedType = line.getType match {
+      case VCFHeaderLineType.Integer => "Int"
+      case VCFHeaderLineType.Float => "Double"
+      case VCFHeaderLineType.String => "String"
+      case VCFHeaderLineType.Character => "Character"
+      case VCFHeaderLineType.Flag => "Boolean"
+    }
+    val parsedCount = line.getCountType match {
+      case VCFHeaderLineCount.A => "A"
+      case VCFHeaderLineCount.G => "G"
+      case VCFHeaderLineCount.R => "R"
+      case VCFHeaderLineCount.INTEGER => line.getCount.toString
+      case VCFHeaderLineCount.UNBOUNDED => "."
+    }
+    val scalaType = parsedCount match {
+      case "A" | "R" | "G" => s"Array[$parsedType]"
+      case integerRegex(i) => if (i.toInt > 1) s"Array[$parsedType]" else parsedType
+      case _ => parsedType
     }
     val conversionMethod = getConversionMethod(scalaType)
-    new VCFSignature(vcfType, scalaType, number, conversionMethod, desc)
+    val desc = line.getDescription
+
+
+    new VCFSignature(vcfType, scalaType, parsedCount, conversionMethod, desc)
+
+
   }
 }
