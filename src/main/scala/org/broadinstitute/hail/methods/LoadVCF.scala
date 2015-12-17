@@ -1,52 +1,17 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.vcf.BufferedLineIterator
+
 import scala.io.Source
 import org.apache.spark.{SparkConf, SparkContext}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.vcf
 import org.broadinstitute.hail.annotations._
+import scala.collection.convert._
 
 object LoadVCF {
   // FIXME move to VariantDataset
-
-  val arrayRegex = """Array\[(\w+)\]""".r
-  val setRegex = """Set\[(\w+)\]""".r
-  def getConversionMethod(str: String): String = {
-    str match {
-      case arrayRegex(subType) => s"toArray$subType"
-      case setRegex(subType) => s"toSet$subType"
-      case _ => s"to$str"
-    }
-  }
-
-  def parseInfoType(str: String): String = {
-    str match {
-      case "Flag" => "Boolean"
-      case "Integer" => "Int"
-      case "Float" => "Double"
-      case "String" => "String"
-      case "Character" => "String"
-      case _ => throw new UnsupportedOperationException("unexpected annotation type")
-    }
-  }
-
-  def parseInfoLine(number: String, typeOf: String, desc: String): AnnotationSignature = {
-    val parsedType = parseInfoType(typeOf)
-    if (number == "0" || number == "1") {
-      new SimpleSignature(parsedType, getConversionMethod(parsedType), desc)
-    }
-    else if (number == "A" || number == "R" || number == "G") {
-      val arrType = s"Array[$parsedType]"
-      new SimpleSignature(arrType, getConversionMethod(arrType), desc)
-    }
-    else if (number == "." && parsedType == "String") {
-      new SimpleSignature(parsedType, getConversionMethod(parsedType), desc)
-    }
-    else
-      throw new UnsupportedOperationException
-  }
-
   def apply(sc: SparkContext,
     file: String,
     compress: Boolean = true,
@@ -64,6 +29,11 @@ object LoadVCF {
         .toArray
     }
 
+    val codec = new htsjdk.variant.vcf.VCFCodec()
+    val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+
+    val contigs = header.getContigLines.
     val contigRegex ="""##contig=<ID=(.+),length=(\d+)>""".r
     val contigLengths = {
       val contigMap = headerLines.map {
@@ -81,11 +51,10 @@ object LoadVCF {
 
     val annoRegex = """##INFO=<ID=(.+),Number=(.+),Type=(.+),Description="(.*)">""".r
     val annotationTypes = {
-      val annotationMap = headerLines.map {
-        case annoRegex(id, number, typeOf, desc) => Some(id, parseInfoLine(number, typeOf, desc))
+      val annotationMap = headerLines.flatMap {
+        case annoRegex(id, number, typeOf, desc) => Some(id, VCFSignature.parse(number, typeOf, desc))
         case _ => None
-      }.flatMap(i => i)
-        .toMap
+      }.toMap
 
       if (annotationMap.nonEmpty)
         annotationMap
@@ -93,11 +62,11 @@ object LoadVCF {
         Map.empty[String, AnnotationSignature]
     }
     val annotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> annotationTypes),
-      Map("filters" -> new SimpleSignature("Set[String]", "toSetString", "filters applied to site"),
-        "pass" -> new SimpleSignature("Boolean", "toBoolean", "filters were applied to vcf and this site passed"),
-        "multiallelic" -> new SimpleSignature("Boolean", "toBoolean", "Site is a split multiallelic"),
-        "qual" -> new SimpleSignature("Double", "toDouble", "vcf qual field"),
-        "rsid" -> new SimpleSignature("String", "toString", "site rdID")))
+      Map("filters" -> new VCFSignature("Set[String]", "toSetString", "filters applied to site"),
+        "pass" -> new VCFSignature("Boolean", "toBoolean", "filters were applied to vcf and this site passed"),
+        "multiallelic" -> new VCFSignature("Boolean", "toBoolean", "Site is a split multiallelic"),
+        "qual" -> new VCFSignature("Double", "toDouble", "vcf qual field"),
+        "rsid" -> new VCFSignature("String", "toString", "site rdID")))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')

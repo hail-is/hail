@@ -18,7 +18,7 @@ class AnnotationsSuite extends SparkSuite {
 
     /*
       The below tests are designed to check for a subset of variants and info fields, that:
-          1. the types, conversion strings, and description strings agree with the VCF
+          1. the types, emitConversionIdentifier strings, and description strings agree with the VCF
           2. the strings stored in the AnnotationData classes agree with the VCF
           3. the strings stored in the AnnotationData classes convert correctly to the proper type
     */
@@ -34,7 +34,7 @@ class AnnotationsSuite extends SparkSuite {
     assert(variantAnnotationMap.contains(anotherVariant))
 
     // type Int - INFO.DP
-    assert(vas.get("info", "DP").contains(SimpleSignature("Int", "toInt",
+    assert(vas.get("info", "DP").contains(VCFSignature("Int", "toInt",
       "Approximate read depth; some reads may have been filtered")))
     assert(variantAnnotationMap(firstVariant)
       .get("info", "DP")
@@ -48,7 +48,7 @@ class AnnotationsSuite extends SparkSuite {
         .get("info", "DP").get.toInt == 20271)
 
     // type Double - INFO.HWP
-    assert(vas.get("info", "HWP").contains(SimpleSignature("Double", "toDouble",
+    assert(vas.get("info", "HWP").contains(VCFSignature("Double", "toDouble",
       "P value from test of Hardy Weinberg Equilibrium")))
     assert(variantAnnotationMap(firstVariant)
       .contains("info", "HWP") &&
@@ -60,7 +60,7 @@ class AnnotationsSuite extends SparkSuite {
         .get("info", "HWP").get.toDouble, 0.8286))
 
     // type String - INFO.culprit
-    assert(vas.get("info", "culprit").contains(SimpleSignature("String", "toString",
+    assert(vas.get("info", "culprit").contains(VCFSignature("String", "toString",
       "The annotation which was the worst performing in the Gaussian mixture model, " +
         "likely the reason why the variant was filtered out")))
     assert(variantAnnotationMap(firstVariant)
@@ -71,7 +71,7 @@ class AnnotationsSuite extends SparkSuite {
       .contains("FS"))
 
     // type Array - INFO.AC (allele count)
-    assert(vas.get("info", "AC").contains(SimpleSignature("Array[Int]", "toArrayInt",
+    assert(vas.get("info", "AC").contains(VCFSignature("Array[Int]", "toArrayInt",
       "Allele count in genotypes, for each ALT allele, in the same order as listed")))
     assert(variantAnnotationMap(firstVariant)
       .get("info", "AC")
@@ -87,7 +87,7 @@ class AnnotationsSuite extends SparkSuite {
         .sameElements(Array(13)))
 
     // type Boolean/flag - INFO.DB (dbSNP membership)
-    assert(vas.get("info", "DB").contains(SimpleSignature("Boolean", "toBoolean",
+    assert(vas.get("info", "DB").contains(VCFSignature("Boolean", "toBoolean",
       "dbSNP Membership")))
     assert(variantAnnotationMap(firstVariant)
       .get("info", "DB")
@@ -98,7 +98,7 @@ class AnnotationsSuite extends SparkSuite {
       .contains("info", "DB"))
 
     //type Set[String]
-    assert(vas.get("filters").contains(SimpleSignature("Set[String]", "toSetString", "filters applied to site")))
+    assert(vas.get("filters").contains(VCFSignature("Set[String]", "toSetString", "filters applied to site")))
     assert(variantAnnotationMap(firstVariant)
       .get("filters").contains("PASS") &&
       variantAnnotationMap(firstVariant)
@@ -109,7 +109,7 @@ class AnnotationsSuite extends SparkSuite {
         .get("filters").get.toSetString == Set[String]("VQSRTrancheSNP99.95to100.00"))
 
     // GATK PASS
-    assert(vas.get("pass").contains(SimpleSignature("Boolean", "toBoolean",
+    assert(vas.get("pass").contains(VCFSignature("Boolean", "toBoolean",
       "filters were applied to vcf and this site passed")))
     assert(variantAnnotationMap(firstVariant)
       .get("pass").contains("true"))

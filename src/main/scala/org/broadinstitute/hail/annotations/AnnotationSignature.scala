@@ -1,8 +1,8 @@
 package org.broadinstitute.hail.annotations
 
 abstract class AnnotationSignature {
-  def buildCaseClasses: String
-  def conversion: String
-  def getType: String
+  def emitUtilities: String
+  def emitConversionIdentifier: String
+  def emitType: String
 
 }
