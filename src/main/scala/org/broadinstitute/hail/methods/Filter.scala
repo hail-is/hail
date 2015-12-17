@@ -25,26 +25,26 @@ class Evaluator[T](t: String)(implicit tct: ClassTag[T])
   }
 
   def eval(): T = p match {
-    case Some(v) => v
-    case None =>
+    case null | None =>
       val v = Utils.eval[T](t)
       p = Some(v)
       v
+    case Some(v) => v
   }
 }
 
 class FilterVariantCondition(cond: String)
   extends Evaluator[(Variant) => Boolean](
-    "(v: Variant) => { " +
-      "import org.broadinstitute.hail.driver.FilterUtils._; " +
+    "(v: org.broadinstitute.hail.variant.Variant) => { " +
+      "import org.broadinstitute.hail.methods.FilterUtils._; " +
       cond + " }: Boolean") {
   def apply(v: Variant): Boolean = eval()(v)
 }
 
 class FilterSampleCondition(cond: String)
   extends Evaluator[(Sample) => Boolean](
-    "(s: Sample) => { " +
-      "import org.broadinstitute.hail.driver.FilterUtils._; " +
+    "(s: org.broadinstitute.hail.variant.Sample) => { " +
+      "import org.broadinstitute.hail.methods.FilterUtils._; " +
       cond + " }: Boolean") {
   def apply(s: Sample): Boolean = eval()(s)
 }
@@ -52,9 +52,9 @@ class FilterSampleCondition(cond: String)
 class FilterGenotypeCondition(cond: String)
   extends Evaluator[(Variant, Sample, Genotype) => Boolean](
     "(v: org.broadinstitute.hail.variant.Variant, " +
-      "s: Sample, " +
+      "s: org.broadinstitute.hail.variant.Sample, " +
       "g: org.broadinstitute.hail.variant.Genotype) => { " +
-      "import org.broadinstitute.hail.driver.FilterUtils._; " +
+      "import org.broadinstitute.hail.methods.FilterUtils._; " +
       cond + " }: Boolean") {
   def apply(v: Variant, s: Sample, g: Genotype): Boolean =
     eval()(v, s, g)

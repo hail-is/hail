@@ -16,7 +16,6 @@ object VariantQCCombiner {
     "nHomRef\t" +
     "nHet\t" +
     "nHomVar\t" +
-    "alleleBalance\t" +
     "dpMean\tdpStDev\t" +
     "dpMeanHomRef\tdpStDevHomRef\t" +
     "dpMeanHet\tdpStDevHet\t" +
@@ -102,21 +101,13 @@ class VariantQCCombiner extends Serializable {
     this
   }
 
-  def pAB: Double = {
-    val d = new BinomialDistribution(refDepth + altDepth, 0.5)
-    val minDepth = refDepth.min(altDepth)
-    val minp = d.probability(minDepth)
-    val mincp = d.cumulativeProbability(minDepth)
-    (2 * mincp - minp).min(1.0).max(0.0)
-  }
-
   def emitSC(sb: mutable.StringBuilder, sc: StatCounter) {
     sb.tsvAppend(someIf(sc.count > 0, sc.mean))
     sb += '\t'
     sb.tsvAppend(someIf(sc.count > 0, sc.stdev))
   }
 
-  def levineHaldaneStats: (Option[Double], Double) = {
+  def HWEStats: (Option[Double], Double) = {
     // rExpectedHetFrequency, pHWE
     val n = nHomRef + nHet + nHomVar
     val nAB = nHet
@@ -138,9 +129,6 @@ class VariantQCCombiner extends Serializable {
     sb.append(nHet)
     sb += '\t'
     sb.append(nHomVar)
-    sb += '\t'
-
-    sb.append(pAB)
     sb += '\t'
 
     emitSC(sb, dpSC)
@@ -179,10 +167,11 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nHet, nHomVar))
     sb += '\t'
 
-    val lh = levineHaldaneStats
-    sb.tsvAppend(lh._1)
+    // Hardy-Weinberg statistics
+    val hwe = HWEStats
+    sb.tsvAppend(hwe._1)
     sb += '\t'
-    sb.append(lh._2)
+    sb.append(hwe._2)
   }
 }
 

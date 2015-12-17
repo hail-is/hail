@@ -9,7 +9,8 @@ case class Variant(contig: String,
                    // FIXME: 0- or 1-based?
                    start: Int,
                    ref: String,
-                   alt: String) {
+                   alt: String,
+                   wasSplit: Boolean = false) {
   require(ref != alt)
 
   import VariantType._
@@ -69,4 +70,5 @@ case class Variant(contig: String,
     require(isSNP)
     (ref,alt).zipped.dropWhile{ case (a, b) => a == b }.head
   }
+
 }
