@@ -249,8 +249,9 @@ object Genotype {
   }
 
   def gtPairSqrt(i: Int): GTPair = {
-    val k: Int = (Math.sqrt(8*i + 1)/2 - 0.5).toInt
-    val j = i - k
+    val k: Int = (Math.sqrt(8*i.toDouble + 1)/2 - 0.5).toInt
+    assert(k * (k + 1) / 2 <= i)
+    val j = i - k * (k + 1) / 2
     assert(gtIndex(j, k) == i)
     GTPair(j, k)
   }
