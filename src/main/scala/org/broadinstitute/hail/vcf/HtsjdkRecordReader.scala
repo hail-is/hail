@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.vcf
 
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
 import scala.collection.JavaConverters._
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
@@ -40,7 +39,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
       gb.clear()
 
-      var pl = g.getPL
+      var pl: Array[Int] = g.getPL
 
       if (a0.isCalled) {
         val i = vc.getAlleleIndex(a0)
@@ -53,13 +52,15 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
         assert((pl != null) == g.hasPL)
         if (pl != null) {
-          if (pl(gt) != 0) {
-            warn(
-              s"""PL corresponding to GT is non-zero
-                  |  sample: ${g.getSampleName}
-                  |  variant: ${v.contig} ${v.start} ${v.ref} ${v.altAlleles.map(_.alt).mkString(",")}
-                  |  genotype: $g""".stripMargin)
+          val plmin = pl.min
+          if (plmin != 0) {
+            pl = pl.clone()
+            for (i <- pl.indices)
+              pl(i) -= plmin
+          }
 
+          // FIXME
+          if (pl(gt) != 0) {
             pl = pl.clone()
             pl(gt) = 0
           }
@@ -73,18 +74,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
       if (pl != null)
         gb.setPL(pl)
-
-      if (a0.isCalled && pl != null && g.hasGQ) {
-        val ggq = g.getGQ
-        val gq = gb.gq
-        if (gq != ggq) {
-          warn(
-            s"""GQ is not minimum of non-GT PL
-                |  sample: ${g.getSampleName}
-                |  variant: ${v.contig} ${v.start} ${v.ref} ${v.altAlleles.map(_.alt).mkString(",")}
-                |  genotype: $g""".stripMargin)
-        }
-      }
 
       gsb.write(gb)
     }

@@ -39,7 +39,11 @@ object GenotypeSuite {
     }
 
     property("gtIndexPair") = forAll(Gen.choose(0, 0x20003fff)) { (i: Int) =>
-      Genotype.gtIndex(Genotype.gtPair(i)) == i
+      val p = Genotype.gtPair(i)
+
+      Genotype.gtIndex(p) == i &&
+      Genotype.gtPairSqrt(i) == p &&
+      Genotype.gtPairRecursive(i) == p
     }
   }
 

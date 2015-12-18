@@ -229,28 +229,37 @@ object Genotype {
   final val flagDPSimple = 0x40
   final val flagFakeRef = 0x80
 
-  val smallGTPair = Array(new GTPair(0x0), new GTPair(0x10000), new GTPair(0x10001),
-    new GTPair(0x20000), new GTPair(0x20001), new GTPair(0x20002),
-    new GTPair(0x30000), new GTPair(0x30001), new GTPair(0x30002), new GTPair(0x30003),
-    new GTPair(0x40000), new GTPair(0x40001), new GTPair(0x40002), new GTPair(0x40003), new GTPair(0x40004),
-    new GTPair(0x50000), new GTPair(0x50001), new GTPair(0x50002), new GTPair(0x50003), new GTPair(0x50004),
-    new GTPair(0x50005),
-    new GTPair(0x60000), new GTPair(0x60001), new GTPair(0x60002), new GTPair(0x60003), new GTPair(0x60004),
-    new GTPair(0x60005), new GTPair(0x60006),
-    new GTPair(0x70000), new GTPair(0x70001), new GTPair(0x70002), new GTPair(0x70003), new GTPair(0x70004),
-    new GTPair(0x70005), new GTPair(0x70006), new GTPair(0x70007))
+  val smallGTPair = Array(GTPair(0, 0), GTPair(0, 1), GTPair(1, 1),
+    GTPair(0, 2), GTPair(1, 2), GTPair(2, 2),
+    GTPair(0, 3), GTPair(1, 3), GTPair(2, 3), GTPair(3, 3),
+    GTPair(0, 4), GTPair(1, 4), GTPair(2, 4), GTPair(3, 4), GTPair(4, 4),
+    GTPair(0, 5), GTPair(1, 5), GTPair(2, 5), GTPair(3, 5), GTPair(4, 5), GTPair(5, 5),
+    GTPair(0, 6), GTPair(1, 6), GTPair(2, 6), GTPair(3, 6), GTPair(4, 6), GTPair(5, 6),
+    GTPair(6, 6),
+    GTPair(0, 7), GTPair(1, 7), GTPair(7, 2), GTPair(3, 7), GTPair(4, 7),
+    GTPair(5, 7), GTPair(7, 6), GTPair(7, 7))
 
-  // FIXME speed up, cache small, sqrt
-  def gtPair(i: Int): GTPair = {
+  def gtPairRecursive(i: Int): GTPair = {
     def f(j: Int, k: Int): GTPair = if (j <= k)
       GTPair(j, k)
     else
       f(j - k - 1, k + 1)
 
-    if (i <= 35)
+    f(i, 0)
+  }
+
+  def gtPairSqrt(i: Int): GTPair = {
+    val k: Int = (Math.sqrt(8*i + 1)/2 - 0.5).toInt
+    val j = i - k
+    assert(gtIndex(j, k) == i)
+    GTPair(j, k)
+  }
+  
+  def gtPair(i: Int): GTPair = {
+    if (i < smallGTPair.length)
       smallGTPair(i)
     else
-      f(i, 0)
+      gtPairSqrt(i)
   }
 
   def gtIndex(j: Int, k: Int): Int = {
