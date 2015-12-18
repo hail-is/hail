@@ -59,8 +59,6 @@ abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
   var pos: Long = partitionStart
   val end: Long = partitionStart + split.getLength
   val bfis = openFile
-  private var index = 0
-  bfis.seek(getFirstBlock(partitionStart))
 
   def openFile: HadoopFSDataBinaryReader = {
     val file: Path = split.getPath
@@ -68,7 +66,7 @@ abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
     new HadoopFSDataBinaryReader(fs.open(file))
   }
 
-  def getFirstBlock(start: Long): Long
+  def seekToFirstBlock(start: Long): Unit
 
   def next(key: LongWritable, value: ParsedLine[K]): Boolean
 

@@ -14,12 +14,10 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val nSamples = job.getInt("nSamples", -1)
   val version = job.getInt("version", -1)
   val indexArrayPath = job.get("idx")
-//  println(s"compressed=$bgenCompressed, compressGS=$compressGS, nSamples=$nSamples, version=$version")
 
-
-  override def getFirstBlock(start: Long): Long = {
+  override def seekToFirstBlock(start: Long) {
     val path = job.get("idx")
-    IndexBTree.queryStart(start, hadoopOpen(path, job))
+    bfis.seek(IndexBTree.queryStart(start, hadoopOpen(path, job)))
   }
 
   def next(key: LongWritable, value: ParsedLine[Variant]): Boolean = {
@@ -93,7 +91,6 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       value.setGS(b.result())
       pos = bfis.getPosition
       true
-      false
     }
   }
 

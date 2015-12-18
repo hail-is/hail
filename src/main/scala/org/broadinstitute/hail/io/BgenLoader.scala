@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.io
 
 import java.util.zip.Inflater
+import org.apache.hadoop.mapred.InvalidInputException
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.hadoop.io.LongWritable
@@ -125,7 +126,6 @@ class BgenLoader(file: String, sc: SparkContext) {
     // read the length of all header stuff
     reader.seek(0)
     val allInfoLength = reader.readInt()
-//    println("allInfoLen is " + allInfoLength)
 
     // read the header block
     val headerLength = reader.readInt()
@@ -135,8 +135,6 @@ class BgenLoader(file: String, sc: SparkContext) {
     nSamples = reader.readInt()
     println("nSamples is " + nSamples)
     val magicNumber = reader.readString(4)
-    //    println("magic number is " + magicNumber)
-    //    assert(magicNumber == "bgen")  // four zero-bytes are what, exactly? "\0\0\0\0"?
 
     val headerInfo = {
       if (headerLength > 20)
@@ -152,9 +150,9 @@ class BgenLoader(file: String, sc: SparkContext) {
     hasSampleIdBlock = (flags >> 30 & 1) != 0
     require(version == 0 || version == 1 || version == 2)
 
-    // version 1.2 is currently unsupported
-    if (version == 2)
-      throw new NotImplementedError("Support for bgen version 1.2 has not been written")
+    // version 1.1 is currently supported
+    if (version != 1)
+      throw new NotImplementedError("Hail supports only bgen 1.1 formats")
 
     println("flags stuff: compression=" + compression + ", version=" + version + ", hasSampleID=" + hasSampleIdBlock)
 

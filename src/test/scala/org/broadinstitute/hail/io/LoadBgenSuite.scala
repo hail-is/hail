@@ -17,6 +17,5 @@ class LoadBgenSuite extends SparkSuite {
     val loader = BgenLoader("src/test/resources/biggerM.bgen", sc)
 //    val loader = BgenLoader("src/test/resources/indelgen.bgen", sc)
 //    val loader = BgenLoader("src/test/resources/bigM.bgen", sc)
-//    loader.makeVDS(sc, "sparky")
   }
 }

@@ -39,6 +39,7 @@ class VariantParser(bimPath: String)
   def eval(): Array[Variant] = variants match {
     case null | None =>
       val v = parseBim()
+      println("number of variants is " + v.length)
       variants = Some(v)
       v
     case Some(v) => v
@@ -46,11 +47,6 @@ class VariantParser(bimPath: String)
 }
 
 object PlinkLoader {
-  val sparseGt = Array(Genotype(-1, (0, 0), 0, (0, 0, 0)),
-    Genotype(0, (0, 0), 0, (0, 0, 0)),
-    Genotype(1, (0, 0), 0, (0, 0, 0)),
-    Genotype(2, (0, 0), 0, (0, 0, 0)))
-
   private def parseFam(famPath: String): SampleInfo = {
     val famFile = new File(famPath)
     val sampleArray = Source.fromFile(famFile)
@@ -97,6 +93,11 @@ object PlinkLoader {
       sc.defaultMinPartitions)
 
     val variants = new VariantParser(bimPath).eval()
+    val indices = rdd.map { case (lw, pl) => pl.getKey}
+      .collect()
+    println(s"first 5: ${indices.take(5).mkString(",")}")
+    println(s"last 5: ${indices.takeRight(5).mkString(",")}")
+
     val variantRDD = rdd.map {
       case (lw, pl) => (variants(pl.getKey), pl.getGS)
     }

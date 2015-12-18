@@ -6,31 +6,27 @@ import org.apache.hadoop.mapred.{RecordReader, FileSplit}
 import org.broadinstitute.hail.variant.{GenotypeStreamBuilder, Genotype, Variant}
 
 object PlinkBlockReader {
-  val sparseGt = Array(Genotype(-1, (0, 0), 0, (0, 0, 0)),
+  val plinkOrderedSparseGt = Array(
     Genotype(0, (0, 0), 0, (0, 0, 0)),
+    Genotype(-1, (0, 0), 0, (0, 0, 0)),
     Genotype(1, (0, 0), 0, (0, 0, 0)),
     Genotype(2, (0, 0), 0, (0, 0, 0)))
+
 }
 
 class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Int](job, split) {
 
   var variantIndex = 0
   val nSamples = job.getInt("nSamples", 0)
+  println(s"nSamples in blockReader = $nSamples")
   val compressGS = job.getBoolean("compressGS", false)
   val blockLength = ((nSamples / 4.00) + .75).toInt
+  println(s"blockLength=$blockLength")
+  println(s"expected blocks = ${(end - partitionStart)/blockLength}")
 
-  def getFirstBlock(start: Long): Long = {
+  def seekToFirstBlock(start: Long) {
     variantIndex = ((start - 3) / blockLength).toInt
-    variantIndex * blockLength + 3
-  }
-
-  def plinkToHail(call: Int): Int = {
-    if (call == 0)
-      call
-    else if (call == 1)
-      -1
-    else
-      call - 1
+    bfis.seek(variantIndex * blockLength + 3)
   }
 
   def next(key: LongWritable, value: ParsedLine[Int]): Boolean = {
@@ -42,12 +38,13 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
       bfis.readBytes(blockLength)
         .iterator
         .flatMap { i => Iterator(i & 3, (i >> 2) & 3, (i >> 4) & 3, (i >> 6) & 3) }
-        .map(plinkToHail)
         .take(nSamples)
-        .foreach(i => b += PlinkBlockReader.sparseGt(i + 1))
+        .foreach(i => b += PlinkBlockReader.plinkOrderedSparseGt(i))
       value.setGS(b.result())
       value.setKey(variantIndex)
       variantIndex += 1
+      pos += blockLength
+//      println(s"read variant $variantIndex")
       true
     }
   }
