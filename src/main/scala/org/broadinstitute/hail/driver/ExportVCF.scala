@@ -3,11 +3,14 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{VariantDataset,Variant,Genotype}
 import org.kohsuke.args4j.{Option => Args4jOption}
+import java.time._
 
 object ExportVCF extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
+/*    @Args4jOption(required = true, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary Directory to use")
+    var tmpdir: String = _*/
   }
 
   def newOptions = new Options
@@ -17,13 +20,15 @@ object ExportVCF extends Command {
   def description = "Write current dataset as VCF file"
 
   def run(state:State,options:Options):State = {
+    //check if tmpdir is valid
     val vds = state.vds
     hadoopDelete(options.output, state.hadoopConf, true)
 
     def header:String = {
+      val today = LocalDate.now.toString
       val sampleIds:Array[String] = vds.localSamples.map(vds.sampleIds)
       val version = "##fileformat=VCFv4.2\n"
-      val date = "##fileDate=20151215\n"
+      val date = s"##fileDate=$today\n"
       val source = "##source=HailV0.0\n" // might be good to have a version variable
       val header = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + sampleIds.mkString("\t") + "\n"
       version + date + source + header

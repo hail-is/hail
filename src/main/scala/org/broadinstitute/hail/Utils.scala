@@ -218,12 +218,10 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def writeFlatFile(filename: String, header: String = null) {
-    val applicationId = r.sparkContext.applicationId
-    if (header != null)
-      writeTextFile(applicationId + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
-    r.saveAsTextFile(applicationId)
-    hadoopCopyMergeHeader(applicationId, filename,r.sparkContext.hadoopConfiguration,true,true,null)
+    val hConf = r.sparkContext.hadoopConfiguration
+    val tmpFileName = hadoopGetTemporaryFile(hConf)
+    writeTable(tmpFileName,header)
+    hadoopCopyMergeHeader(tmpFileName, filename,hConf,true,false,null)
   } // hadoop tmp filename hdfs: file:, write in parallel??? partition by chr 10 MB, map repartition  / sort within partition make sure partitions are in order
 }
 
@@ -383,6 +381,20 @@ object Utils {
     hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
   }
 
+  def hadoopGetTemporaryFile(hConf:hadoop.conf.Configuration,nChar:Int=10,prefix:String=null,suffix:String=null):String = {
+    val tmpdir = hConf.get("hadoop.tmp.dir")
+    val destFS = hadoopFS(tmpdir,hConf)
+    val prefixString = if (prefix != null) prefix + "-" else ""
+    val suffixString = if (suffix != null) "." + suffix else ""
+    val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
+    val fileStatus = destFS.globStatus(new hadoop.fs.Path(randomName))
+
+    if (fileStatus == null)
+      randomName
+    else
+      hadoopGetTemporaryFile(hConf,nChar,prefix,suffix)
+  }
+
   def hadoopCopyMerge(filenameSrc: String, filenameDest:String, hConf: hadoop.conf.Configuration,deleteSource:Boolean=false,addString:String="\n") {
     // does not include the header and is all files
     copyMerge(hadoopFS(filenameSrc,hConf),new hadoop.fs.Path(filenameSrc),hadoopFS(filenameDest,hConf),new hadoop.fs.Path(filenameDest),deleteSource,hConf,addString)
@@ -393,15 +405,17 @@ object Utils {
     val destPath = new hadoop.fs.Path(destFilename)
     val srcFS = hadoopFS(srcFilename,hConf)
     val destFS = hadoopFS(destFilename,hConf)
-    //srcFS.copyToLocalFile(false,srcPath,destPath,true)
-    require(srcPath != destPath)
+
+    val successExists = srcFS.getFileStatus(new hadoop.fs.Path(srcFilename + "/_SUCCESS")).isFile
+
+    require(srcPath != destPath && successExists)
 
     if (!srcFS.getFileStatus(srcPath).isDirectory) throw new UnsupportedOperationException
 
     if (destFS.exists(destPath)) {
       val destFileStatus = destFS.getFileStatus(destPath)
-      if (destFileStatus.isDirectory && !overwrite)
-        throw new IOException(s"Destination directory already exists: $destPath")
+      if ((destFileStatus.isDirectory || destFileStatus.isFile) && !overwrite)
+        throw new IOException(s"Destination already exists: $destPath")
       else
         destFS.delete(destPath,true)
     }
