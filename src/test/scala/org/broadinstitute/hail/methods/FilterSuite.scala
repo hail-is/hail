@@ -21,6 +21,6 @@ class FilterSuite extends SparkSuite {
       .vds.expand().collect()
 
     assert(!highGQ.exists { case (v, s, g) => g.gq.exists(_ < 20) })
-    assert(highGQ.count{ case (v, s, g) => g.gq.exists(_ >= 20) } == 31260)
+    assert(highGQ.count{ case (v, s, g) => g.gq.exists(_ >= 20) } == 30889)
   }
 }
