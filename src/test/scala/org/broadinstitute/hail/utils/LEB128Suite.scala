@@ -1,8 +1,7 @@
 package org.broadinstitute.hail.utils
 
-import org.scalacheck.Properties
-import org.scalacheck.Prop._
-import org.scalacheck
+import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -50,11 +49,6 @@ class LEB128Suite extends TestNGSuite {
     assert(slebReadWriteEqual(i))
   }
 
-  // FIXME add to ScalaCheckSuite
-  def check(props: Properties) {
-    assert(scalacheck.Test.check(scalacheck.Test.Parameters.default, props).status == scalacheck.Test.Passed)
-  }
-
   @Test def test() {
     testReadWrite(0)
     testReadWrite(0x7f)
@@ -68,6 +62,6 @@ class LEB128Suite extends TestNGSuite {
     (0 until 31).foreach(i =>
       testSLEBReadWrite(0xdeadbeef >>> i))
 
-    check(Spec)
+    Spec.check
   }
 }

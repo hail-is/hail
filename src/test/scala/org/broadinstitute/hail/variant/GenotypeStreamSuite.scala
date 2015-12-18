@@ -1,18 +1,15 @@
 package org.broadinstitute.hail.variant
 
-import org.scalacheck.{Gen, Properties}
-import org.scalacheck.Prop._
+import org.broadinstitute.hail.check.{Gen, Properties}
+import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 object GenotypeStreamSuite {
 
-  val v = Variant("chr1", 1234, "A", "T")
-  val b = new GenotypeStreamBuilder(v)
-
   object Spec extends Properties("GenotypeStream") {
     property("iterateBuild") = forAll(VariantSampleMatrix.genVariantGenotypes) { case (v: Variant, it: Iterable[Genotype]) =>
-      b.clear()
+      val b = new GenotypeStreamBuilder(v)
       b ++= it
       val gs = b.result()
       val a2 = gs.toArray

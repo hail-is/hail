@@ -7,9 +7,7 @@ import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import org.scalacheck.Gen
-import org.scalacheck.Arbitrary._
-import org.scalacheck.util.Buildable
+import org.broadinstitute.hail.check.Gen
 import scala.collection.mutable
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
@@ -77,61 +75,6 @@ class RichVector[T](v: Vector[T]) {
 
       def next() = f(i.next(), i2.next(), i3.next())
     }.toVector
-  }
-}
-
-class RichHomogenousTuple1[T](val t: Tuple1[T]) extends AnyVal {
-  def at(i: Int) = i match {
-    case 1 => t._1
-  }
-
-  def insert(i: Int, x: T): (T, T) = i match {
-    case 0 => (x, t._1)
-    case 1 => (t._1, x)
-  }
-
-  def remove(i: Int): Unit = {
-    require(i == 0)
-  }
-}
-
-class RichHomogenousTuple2[T](val t: (T, T)) extends AnyVal {
-  def at(i: Int): T = i match {
-    case 1 => t._1
-    case 2 => t._2
-  }
-
-
-  def insert(i: Int, x: T): (T, T, T) = i match {
-    case 0 => (x, t._1, t._2)
-    case 1 => (t._1, x, t._2)
-    case 2 => (t._1, t._2, x)
-  }
-
-  def remove(i: Int): Tuple1[T] = i match {
-    case 1 => Tuple1(t._2)
-    case 2 => Tuple1(t._1)
-  }
-}
-
-class RichHomogenousTuple3[T](val t: (T, T, T)) extends AnyVal {
-  def at(i: Int): T = i match {
-    case 1 => t._1
-    case 2 => t._2
-    case 3 => t._3
-  }
-
-  def insert(i: Int, x: T): (T, T, T, T) = i match {
-    case 0 => (x, t._1, t._2, t._3)
-    case 1 => (t._1, x, t._2, t._3)
-    case 2 => (t._1, t._2, x, t._3)
-    case 3 => (t._1, t._2, t._3, x)
-  }
-
-  def remove(i: Int): (T, T) = i match {
-    case 1 => (t._2, t._3)
-    case 2 => (t._1, t._3)
-    case 3 => (t._1, t._2)
   }
 }
 
@@ -320,17 +263,16 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   }
 }
 
+class RichBoolean(val b: Boolean) extends AnyVal {
+  def ==>(that: => Boolean): Boolean = !b || that
+  def iff(that: Boolean): Boolean = b == that
+}
+
 object Utils {
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
-
-  implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)
-
-  implicit def toRichTuple2[T](t: (T, T)): RichHomogenousTuple2[T] = new RichHomogenousTuple2(t)
-
-  implicit def toRichTuple3[T](t: (T, T, T)): RichHomogenousTuple3[T] = new RichHomogenousTuple3(t)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
     new RichArrayBuilderOfByte(t)
@@ -584,42 +526,11 @@ object Utils {
     toolbox.eval(ast).asInstanceOf[T]
   }
 
-  def genOption[T](g: Gen[T], someFrequency: Int = 4): Gen[Option[T]] =
-    Gen.frequency((1, Gen.const(None)),
-      (someFrequency, g.map(Some(_))))
-
-  def genNonnegInt: Gen[Int] = arbitrary[Int].map(_ & Int.MaxValue)
-
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
-  def genFilterFailures[T](g: Gen[T]): Gen[T] = Gen.parameterized { p =>
-    def f(): T = g(p) match {
-      case Some(x) => x
-      case None => f()
-    }
-
-    arbitrary[Int].map(_ => f())
-  }
-
-  def genDistinctBuildableOf[C, T](g: Gen[T])(implicit evb: Buildable[T, C], evt: (C) => Traversable[T]): Gen[C] =
-    for (c <- Gen.buildableOf[C, T](g)) yield evb.fromIterable(c.toSet)
-
-  def genDistinctBuildableOfN[C, T](n: Int, g: Gen[T])
-    (implicit evb: Buildable[T, C], evt: (C) => Traversable[T]): Gen[C] = {
-
-    def f(s: Set[T], t: T): Gen[C] = {
-      val newS = s + t
-      if (newS.size == n)
-        evb.fromIterable(newS)
-      else
-        g.flatMap(t => f(newS, t))
-    }
-
-    g.flatMap(t => f(Set.empty[T], t))
-  }
-
+  implicit def richBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
 }

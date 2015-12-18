@@ -1,9 +1,8 @@
 package org.broadinstitute.hail.variant
 
-import org.scalacheck.Gen
-import org.broadinstitute.hail.ScalaCheckSuite
-import org.scalacheck.Properties
-import org.scalacheck.Prop._
+import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
@@ -25,7 +24,7 @@ object GenotypeSuite {
   }
 
   object Spec extends Properties("Genotype") {
-    property("readWrite") = forAll[(Variant, Genotype), Boolean](Genotype.genVariantGenotype) { case (nAlleles, g) =>
+    property("readWrite") = forAll[(Variant, Genotype)](Genotype.genVariantGenotype) { case (nAlleles, g) =>
       readWriteEqual(nAlleles, g)
     }
 
@@ -49,7 +48,7 @@ object GenotypeSuite {
 
 }
 
-class GenotypeSuite extends TestNGSuite with ScalaCheckSuite {
+class GenotypeSuite extends TestNGSuite {
 
   import GenotypeSuite._
 
@@ -89,6 +88,6 @@ class GenotypeSuite extends TestNGSuite with ScalaCheckSuite {
     assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(Array(100, 0, 100))).pAB().get, 1.0))
     assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(Array(200, 0, 100))).pAB().get, 0.423950))
 
-    check(Spec)
+    Spec.check
   }
 }
