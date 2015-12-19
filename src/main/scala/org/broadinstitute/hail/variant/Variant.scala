@@ -10,7 +10,7 @@ case class Variant(contig: String,
                    start: Int,
                    ref: String,
                    alt: String,
-                   wasSplit: Boolean = false) {
+                   wasSplit: Boolean = false) extends Ordered[Variant]{
   require(ref != alt)
 
   import VariantType._
@@ -69,5 +69,16 @@ case class Variant(contig: String,
   def strippedSNP: (Char, Char) = {
     require(isSNP)
     (ref,alt).zipped.dropWhile{ case (a, b) => a == b }.head
+  }
+
+  def compare(that:Variant):Int = {
+    if (this.contig != that.contig)
+      this.contig.compare(that.contig)
+    else if (this.start != that.start)
+      this.start.compare(that.start)
+    else if (this.ref != that.ref)
+      this.ref.compare(that.ref)
+    else
+      this.alt.compare(that.alt)
   }
 }
