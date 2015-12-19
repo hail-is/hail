@@ -29,7 +29,7 @@ object ExportVCF extends Command {
       val sampleIds:Array[String] = vds.localSamples.map(vds.sampleIds)
       val version = "##fileformat=VCFv4.2\n"
       val date = s"##fileDate=$today\n"
-      val source = "##source=HailV0.0\n" // might be good to have a version variable
+      val source = "##source=Hailv0.0\n" // might be good to have a version variable
       val header = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + sampleIds.mkString("\t") + "\n"
       version + date + source + header
     }

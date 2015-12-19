@@ -220,11 +220,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def writeFlatFile(filename: String, header: String = null) {
     val hConf = r.sparkContext.hadoopConfiguration
     val tmpFileName = hadoopGetTemporaryFile(hConf)
-    println(filename)
-    println(tmpFileName)
     writeTable(tmpFileName,header)
-    hadoopCopyMergeHeader(tmpFileName, filename,hConf,true,false,null)
-  } // hadoop tmp filename hdfs: file:, write in parallel??? partition by chr 10 MB, map repartition  / sort within partition make sure partitions are in order
+    hadoopCopyMergeHeader(tmpFileName, filename,hConf,true,true,null)
+  } // write in parallel??? partition by chr 10 MB, map repartition  / sort within partition make sure partitions are in order
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
