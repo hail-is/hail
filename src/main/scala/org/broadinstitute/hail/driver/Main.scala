@@ -72,6 +72,7 @@ object Main {
       Read,
       Repartition,
       SampleQC,
+      TDTCommand,
       VariantQC,
       Write
     )

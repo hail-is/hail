@@ -1,15 +1,14 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.methods.{Pedigree, MendelErrors}
+import org.broadinstitute.hail.methods.{Pedigree, TDT}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-import scala.language.postfixOps
-import scala.sys.process._
 
-object MendelErrorsCommand extends Command {
+object TDTCommand extends Command {
 
-  def name = "mendelerrors"
-  def description = "Compute Mendelian violations and count per variant, nuclear family, and individual"
+  def name = "tdt"
+
+  def description = "Perform the family-based transmission disequilibrium test per variant"
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output root filename")
@@ -22,13 +21,9 @@ object MendelErrorsCommand extends Command {
 
   def run(state: State, options: Options): State = {
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds)
-    val men = MendelErrors(state.vds, ped.completeTrios)
-
-    men.writeMendel(options.output + ".mendel")
-    men.writeMendelL(options.output + ".lmendel")
-    men.writeMendelF(options.output + ".fmendel")
-    men.writeMendelI(options.output + ".imendel")
-
+    val tdt = TDT(state.vds, ped.completeTrios)
+    TDT.write(tdt, options.output + ".tdt")
     state
   }
+
 }

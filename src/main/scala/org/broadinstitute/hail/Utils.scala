@@ -3,6 +3,7 @@ package org.broadinstitute.hail
 import java.io._
 import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
+import org.apache.commons.math3.special.Gamma
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
@@ -524,5 +525,9 @@ object Utils {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
+
+  // Avoids the round-off error issue in org.apache.commons.math3.distribution.ChiSquaredDistribution,
+  // which computes 1 - (1 - this):
+  def chiSquaredTail(df: Double, x: Double) = Gamma.regularizedGammaQ(df / 2, x / 2)
 
 }
