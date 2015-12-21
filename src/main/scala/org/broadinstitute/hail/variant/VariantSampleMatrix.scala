@@ -50,9 +50,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def nLocalSamples: Int = localSamples.length
 
-  def copy[U](metadata: VariantMetadata = this.metadata,
-    localSamples: Array[Int] = this.localSamples,
-    rdd: RDD[(Variant, AnnotationData, Iterable[U])] = this.rdd)
+  def copy[U](metadata: VariantMetadata = metadata,
+    localSamples: Array[Int] = localSamples,
+    rdd: RDD[(Variant, AnnotationData, Iterable[U])] = rdd)
     (implicit ttt: TypeTag[U], tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix(metadata, localSamples, rdd)
 
@@ -144,6 +144,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
     filterVariants((v, va) => ilist.contains(v.contig, v.start))
 
+  // see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (Int, AnnotationData) => Boolean): VariantSampleMatrix[T] = {
     val mask = localSamples.zip(metadata.sampleAnnotations).map { case (s, sa) => p(s, sa) }
     val maskBc = sparkContext.broadcast(mask)
@@ -278,7 +279,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
 
-    this.copy(rdd = rdd
+    copy(rdd = rdd
       .map { case (v, va, gs) =>
         val serializer = SparkEnv.get.serializer.newInstance()
         val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
@@ -290,22 +291,22 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def addVariantMapSignatures(mapName: String, map: Map[String, AnnotationSignature]): VariantSampleMatrix[T] = {
-    this.copy(metadata = metadata.copy(variantAnnotationSignatures =
+    copy(metadata = metadata.copy(variantAnnotationSignatures =
       metadata.variantAnnotationSignatures.addMap(mapName, map)))
   }
 
   def addVariantValSignature(name: String, sig: AnnotationSignature): VariantSampleMatrix[T] = {
-    this.copy(metadata = metadata.copy(variantAnnotationSignatures =
+    copy(metadata = metadata.copy(variantAnnotationSignatures =
       metadata.variantAnnotationSignatures.addVal(name, sig)))
   }
 
   def addSampleMapSignatures(mapName: String, map: Map[String, AnnotationSignature]): VariantSampleMatrix[T] = {
-    this.copy(metadata = metadata.copy(sampleAnnotationSignatures =
+    copy(metadata = metadata.copy(sampleAnnotationSignatures =
       metadata.sampleAnnotationSignatures.addMap(mapName, map)))
   }
 
   def addSampleValSignature(name: String, sig: AnnotationSignature): VariantSampleMatrix[T] = {
-    this.copy(metadata = metadata.copy(sampleAnnotationSignatures =
+    copy(metadata = metadata.copy(sampleAnnotationSignatures =
       metadata.sampleAnnotationSignatures.addVal(name, sig)))
   }
 }

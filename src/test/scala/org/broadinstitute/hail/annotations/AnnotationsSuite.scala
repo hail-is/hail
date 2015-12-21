@@ -97,7 +97,7 @@ class AnnotationsSuite extends SparkSuite {
       .containsInMap("info", "DB"))
 
     //type Set[String]
-    assert(vas.getVal("filters").contains(new SimpleSignature("Set[String]", "toSetString", "filters applied to site")))
+    assert(vas.getVal("filters").contains(new SimpleSignature("Set[String]", "toSetString")))
     assert(variantAnnotationMap(firstVariant)
       .getVal("filters").contains("PASS") &&
       variantAnnotationMap(firstVariant)
@@ -108,8 +108,7 @@ class AnnotationsSuite extends SparkSuite {
         .getVal("filters").get.toSetString == Set[String]("VQSRTrancheSNP99.95to100.00"))
 
     // GATK PASS
-    assert(vas.getVal("pass").contains(new SimpleSignature("Boolean", "toBoolean",
-      "filters were applied to vcf and this site passed")))
+    assert(vas.getVal("pass").contains(new SimpleSignature("Boolean", "toBoolean")))
     assert(variantAnnotationMap(firstVariant)
       .getVal("pass").contains("true"))
     assert(variantAnnotationMap(anotherVariant)

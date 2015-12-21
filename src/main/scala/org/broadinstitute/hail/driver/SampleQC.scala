@@ -358,7 +358,9 @@ object SampleQC extends Command {
           metadata = vds.metadata.copy(
             sampleAnnotationSignatures = vds.metadata.sampleAnnotationSignatures
               .addMap("qc", SampleQCCombiner.signatures),
-            sampleAnnotations = newAnnotations)))
+            sampleAnnotations = vds.metadata.sampleAnnotations
+              .zip(newAnnotations)
+              .map { case (oldAnno, newAnno) => oldAnno ++ newAnno})))
     } else {
       writeTextFile(output + ".header", state.hadoopConf) { s =>
         s.write("sampleID\t")

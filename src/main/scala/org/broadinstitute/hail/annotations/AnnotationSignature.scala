@@ -7,9 +7,7 @@ abstract class AnnotationSignature {
 
 }
 
-case class SimpleSignature(emitType: String, emitConversionIdentifier: String, desc: String) extends AnnotationSignature {
-
-  def this(emitType: String, emitConversionIdentifier: String) = this(emitType, emitConversionIdentifier, "")
+case class SimpleSignature(emitType: String, emitConversionIdentifier: String) extends AnnotationSignature {
 
   def emitUtilities = ""
 

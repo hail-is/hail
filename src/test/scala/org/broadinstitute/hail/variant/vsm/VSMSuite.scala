@@ -19,6 +19,12 @@ class VSMSuite extends SparkSuite {
 
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
+    val mdata3 = new VariantMetadata(Seq.empty[(String, String)], Array("S1", "S2"), None,
+      Annotations.emptyOfArrayString(2).map(_.addVal("1", "5")), Annotations.emptyOfSignature(),
+      Annotations.emptyOfSignature())
+    val mdata4 = new VariantMetadata(Seq.empty[(String, String)], Array("S1", "S2"), None,
+      Annotations.emptyOfArrayString(2), Annotations.emptyOfSignature(), Annotations.emptyOfSignature()
+      .addMap("dummy", Map.empty[String, AnnotationSignature]))
 
     assert(mdata1 != mdata2)
 
@@ -28,7 +34,7 @@ class VSMSuite extends SparkSuite {
 
     val va1 = Annotations(Map("info" -> Map("v1thing" -> "yes")), Map("v1otherThing" -> "yes"))
     val va2 = Annotations(Map("info" -> Map("v2thing" -> "yes")), Map("v2otherThing" -> "yes"))
-    val va3 = Annotations(Map("info" -> Map("v3thing" -> "yes")), Map("v3otherThing" -> "yes"))
+    val va3 = Annotations(Map("info" -> Map("v1thing" -> "no")), Map("v1otherThing" -> "no"))
 
     val rdd1 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(-1, (0, 2), 2, null),
@@ -90,6 +96,10 @@ class VSMSuite extends SparkSuite {
       new VariantDataset(mdata2, rdd3),
       new VariantDataset(mdata2, rdd4),
       new VariantDataset(mdata2, rdd5),
+      new VariantDataset(mdata3, rdd1),
+      new VariantDataset(mdata3, rdd2),
+      new VariantDataset(mdata4, rdd1),
+      new VariantDataset(mdata4, rdd2),
       new VariantDataset(mdata1, rdd6))
 
     for (i <- vdss.indices;

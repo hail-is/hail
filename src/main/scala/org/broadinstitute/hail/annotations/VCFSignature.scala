@@ -13,6 +13,7 @@ object VCFSignature {
 
   val arrayRegex = """Array\[(\w+)\]""".r
   val setRegex = """Set\[(\w+)\]""".r
+  val integerRegex = """(\d+)""".r
 
   def parseConversionIdentifier(str: String): String = {
     str match {
@@ -21,19 +22,6 @@ object VCFSignature {
       case _ => s"to$str"
     }
   }
-
-  def vcfTypeToScala(str: String): String =
-    str match {
-      case "Flag" => "Boolean"
-      case "Integer" => "Int"
-      case "Float" => "Double"
-      case "String" => "String"
-      case "Character" => "Character"
-      case "." => "String"
-      case _ => throw new UnsupportedOperationException("unexpected annotation type")
-    }
-
-  val integerRegex = """(\d+)""".r
 
   def parse(line: VCFInfoHeaderLine): AnnotationSignature = {
     val vcfType = line.getType.toString

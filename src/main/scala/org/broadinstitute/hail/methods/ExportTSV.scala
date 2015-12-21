@@ -66,8 +66,8 @@ class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
         |  val v: ExportVariant = new ExportVariant(__v)
-        |  ${signatures(vas, "__va", makeToString = true)}
-        |  ${instantiate("va", "__va")}
+        |  ${signatures(vas, "__vaClass", makeToString = true)}
+        |  ${instantiate("va", "__vaClass", "__va")}
         |  Array($list).map(toTSVString).mkString("\t")
         |}: String
     """.stripMargin
@@ -82,8 +82,8 @@ class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
-        |  ${signatures(sas, "__sa", makeToString = true)}
-        |  ${instantiate("sa", "__sa")}
+        |  ${signatures(sas, "__saClass", makeToString = true)}
+        |  ${instantiate("sa", "__saClass", "__sa")}
         |  Array($list).map(toTSVString).mkString("\t")
         |}: String
     """.stripMargin) {
@@ -104,13 +104,13 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
-        |  ${signatures(metadata.sampleAnnotationSignatures, "__sa", makeToString = true)}
-        |  ${makeIndexedSeq("__saArray", "__sa", "__sa")}
+        |  ${signatures(metadata.sampleAnnotationSignatures, "__saClass", makeToString = true)}
+        |  ${instantiateIndexedSeq("__saArray", "__saClass", "__sa")}
         |  (__v: org.broadinstitute.hail.variant.Variant,
         |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
         |    val v = new ExportVariant(__v)
-        |    ${signatures(metadata.variantAnnotationSignatures, "__va")}
-        |    ${instantiate("va", "__va")}
+        |    ${signatures(metadata.variantAnnotationSignatures, "__vaClass")}
+        |    ${instantiate("va", "__vaClass", "__va")}
         |    (__sIndex: Int,
         |      g: org.broadinstitute.hail.variant.Genotype) => {
         |        val sa = __saArray(__sIndex)

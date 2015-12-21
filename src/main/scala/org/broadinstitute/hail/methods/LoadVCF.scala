@@ -47,12 +47,12 @@ object LoadVCF {
       .map(line => (line.getID, VCFSignature.parse(line)))
       .toMap
 
-    val annotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> infoSignatures),
-        Map("filters" -> new SimpleSignature("Set[String]","toSetString", "filters applied to site"),
-        "pass" -> new SimpleSignature("Boolean", "toBoolean", "filters were applied to vcf and this site passed"),
-        "multiallelic" -> new SimpleSignature("Boolean", "toBoolean", "Site is a split multiallelic"),
-        "qual" -> new SimpleSignature("Double", "toDouble", "vcf qual field"),
-        "rsid" -> new SimpleSignature("String", "toString", "site rsID")))
+    val variantAnnotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> infoSignatures),
+        Map("filters" -> new SimpleSignature("Set[String]","toSetString"),
+        "pass" -> new SimpleSignature("Boolean", "toBoolean"),
+        "multiallelic" -> new SimpleSignature("Boolean", "toBoolean"),
+        "qual" -> new SimpleSignature("Double", "toDouble"),
+        "rsid" -> new SimpleSignature("String", "toString")))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -77,6 +77,6 @@ object LoadVCF {
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
       headerLines, Annotations.emptyOfArrayString(sampleIds.length), Annotations.emptyOfSignature(),
-      annotationSignatures), genotypes)
+      variantAnnotationSignatures), genotypes)
   }
 }

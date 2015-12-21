@@ -28,9 +28,9 @@ case class VariantMetadata(filters: Seq[(String, String)],
   def nSamples: Int = sampleIds.length
 
   def addSampleAnnotations(sas: AnnotationSignatures, sa: IndexedSeq[AnnotationData]): VariantMetadata = {
-    this.copy(
-    sampleAnnotationSignatures = this.sampleAnnotationSignatures ++ sas,
-    sampleAnnotations = this.sampleAnnotations.zip(sa).map { case (a1, a2) => a1 ++ a2 }
+    copy(
+      sampleAnnotationSignatures = sampleAnnotationSignatures ++ sas,
+      sampleAnnotations = sampleAnnotations.zip(sa).map { case (a1, a2) => a1 ++ a2 }
     )
   }
 }

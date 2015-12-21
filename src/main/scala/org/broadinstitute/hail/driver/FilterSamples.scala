@@ -48,8 +48,7 @@ object FilterSamples extends Command {
         val cf = new FilterSampleCondition(c, vds.metadata.sampleAnnotationSignatures)
         cf.typeCheck()
 
-        val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
-        (s: Int, sa: AnnotationData) => cf(Sample(sampleIdsBc.value(s)), vds.metadata.sampleAnnotations(s))
+        (s: Int, sa: AnnotationData) => cf(Sample(vds.sampleIds(s)), vds.metadata.sampleAnnotations(s))
     }
 
     val newVDS = vds.filterSamples(if (options.keep)

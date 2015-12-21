@@ -2,8 +2,6 @@ package org.broadinstitute.hail.annotations
 
 case class Annotations[T](maps: Map[String, Map[String, T]], vals: Map[String, T]) extends Serializable {
 
-  def nAttrs: Int = maps.map(_._2.size).sum + vals.size
-
   def hasMap(str: String): Boolean = maps.contains(str)
 
   def containsVal(str: String): Boolean = vals.contains(str)
@@ -42,8 +40,7 @@ object Annotations {
   def emptyOfString(): AnnotationData = empty[String]()
 
   def emptyOfArrayString(nSamples: Int): IndexedSeq[AnnotationData] =
-    (0 until nSamples)
-      .map(i => empty[String]())
+    IndexedSeq.fill[Annotations[String]](nSamples)(empty[String]())
 }
 
 object AnnotationUtils {
@@ -58,7 +55,7 @@ object AnnotationUtils {
 
 object AnnotationClassBuilder {
 
-  def signatures(sigs: AnnotationSignatures, hiddenClassName: String,
+  def signatures(sigs: AnnotationSignatures, className: String,
     makeToString: Boolean = false): String = {
     val internalClasses = sigs.maps.map {
       case (subclass, subMap) =>
@@ -76,7 +73,7 @@ object AnnotationClassBuilder {
                 |  def all: String = __fields.mkString("\t")""".stripMargin
           } else ""
         }
-        s"""class __${subclass}Annotations(subMap: Map[String, String]) extends Serializable {
+        s"""class __$subclass(subMap: Map[String, String]) extends Serializable {
             |$attrs
             |$methods
             |}""".stripMargin
@@ -86,50 +83,33 @@ object AnnotationClassBuilder {
     val hiddenClass = {
       val classes =
         sigs.maps.map { case (subclass, subMap) =>
-          s"""  val $subclass = new __${subclass}Annotations(annot.maps("$subclass"))"""
+          s"""  val $subclass = new __$subclass(annot.maps("$subclass"))"""
         }
           .mkString("\n")
       val vals = sigs.vals.map { case (k, sig) =>
         s"""  val $k: Option[${sig.emitType}] = annot.getVal("$k").map(_.${sig.emitConversionIdentifier})"""
       }
         .mkString("\n")
-      s"""class ${hiddenClassName}Annotations(annot: org.broadinstitute.hail.annotations.AnnotationData)
+      s"""class $className(annot: org.broadinstitute.hail.annotations.AnnotationData)
           |  extends Serializable {
-          |  ${if (classes.nonEmpty) classes else "// no classes"}
+          |  ${if (internalClasses.nonEmpty) internalClasses else "// no internal class declarations"}
+          |  ${if (classes.nonEmpty) classes else "// no class instantiations"}
           |  ${if (vals.nonEmpty) vals else "// no vals"}
           |}
           |""".stripMargin
     }
 
     s"""
-       |$internalClasses
        |$hiddenClass
     """.stripMargin
   }
 
-  def instantiate(exposedName: String, hiddenClassName: String): String = {
-    s"val $exposedName = new ${hiddenClassName}Annotations($hiddenClassName)\n"
+  def instantiate(exposedName: String, className: String, rawName: String): String = {
+    s"val $exposedName = new $className($rawName)\n"
   }
 
-  def makeIndexedSeq(hiddenOutputName: String, hiddenClassName: String, hiddenAnnotationArrayName: String): String =
-    s"""val $hiddenOutputName: IndexedSeq[${hiddenClassName}Annotations] =
-        |$hiddenAnnotationArrayName.map(new ${hiddenClassName}Annotations(_))
-        |
+  def instantiateIndexedSeq(exposedName: String, classIdentifier: String, rawArrayName: String): String =
+    s"""val $exposedName: IndexedSeq[$classIdentifier] =
+        |  $rawArrayName.map(new $classIdentifier(_))
      """.stripMargin
-
-  val arrayRegex = """Array\[(\w+)\]""".r
-  val optionRegex = """Option\[(\w+)\]""".r
-
-  private def getDefault(typeStr: String): String = {
-    if (typeStr == "Int" || typeStr == "Double")
-      "0"
-    else if (typeStr == "Boolean")
-      "false"
-    else
-      typeStr match {
-        case optionRegex(subType) => "None"
-        case arrayRegex(subType) => getDefault(subType)
-        case _ => ""
-      }
-  }
 }

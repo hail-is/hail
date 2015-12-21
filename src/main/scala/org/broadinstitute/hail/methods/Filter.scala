@@ -35,8 +35,8 @@ class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
     s"""(v: org.broadinstitute.hail.variant.Variant,
         |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
-        |  ${signatures(vas, "__va")}
-        |  ${instantiate("va", "__va")}
+        |  ${signatures(vas, "__vaClass")}
+        |  ${instantiate("va", "__vaClass", "__va")}
         |  $cond
         |}: Boolean
     """.stripMargin
@@ -49,8 +49,8 @@ class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
     s"""(s: org.broadinstitute.hail.variant.Sample,
         |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
-        |  ${signatures(sas, "__sa")}
-        |  ${instantiate("sa", "__sa")}
+        |  ${signatures(sas, "__saClass")}
+        |  ${instantiate("sa", "__saClass", "__sa")}
         |  $cond
         |}: Boolean
     """.stripMargin) {
@@ -62,12 +62,12 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
     s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
-        |  ${signatures(metadata.sampleAnnotationSignatures, "__sa")}
-        |  ${makeIndexedSeq("__saArray", "__sa", "__sa")}
+        |  ${signatures(metadata.sampleAnnotationSignatures, "__saClass")}
+        |  ${instantiateIndexedSeq("__saArray", "__saClass", "__sa")}
         |  (v: org.broadinstitute.hail.variant.Variant,
         |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
-        |    ${signatures(metadata.variantAnnotationSignatures, "__va")}
-        |    ${instantiate("va", "__va")}
+        |    ${signatures(metadata.variantAnnotationSignatures, "__vaClass")}
+        |    ${instantiate("va", "__vaClass",  "__va")}
         |    (__sIndex: Int,
         |      g: org.broadinstitute.hail.variant.Genotype) => {
         |        val sa = __saArray(__sIndex)

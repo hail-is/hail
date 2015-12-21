@@ -28,10 +28,6 @@ object FilterGenotypes extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-//    val vas: AnnotationSignatures = vds.metadata.variantAnnotationSignatures
-//    val sas: AnnotationSignatures = vds.metadata.sampleAnnotationSignatures
-//    val ids = vds.sampleIds
-//    val sa = vds.metadata.sampleAnnotations
 
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")

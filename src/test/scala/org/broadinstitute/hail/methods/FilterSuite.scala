@@ -23,11 +23,12 @@ class FilterSuite extends SparkSuite {
 
     // the below command will test typing of runtime-generated code exposing annotations
     FilterGenotypes.run(state, Array("--keep", "-c",
-      """assert(va.pass.forall(_.getClass.getName == "boolean"), "va.pass was not a boolean")
-        |assert(va.info.AN.forall(_.getClass.getName == "int"), "AN was not an int")
-        |assert(va.info.GQ_MEAN.forall(_.getClass.getName == "double"), "GQ_MEAN was not a double")
-        |assert(va.info.AC.forall(_.getClass.getSimpleName == "int[]"), "AC was not an int array")
-        |assert(va.filters.forall(_.getClass.getName.contains("scala.collection.immutable.Set")),
+      """assert(va.pass.forall(_.isInstanceOf[Boolean]), "va.pass was not a boolean")
+        |assert(va.info.AN.forall(_.isInstanceOf[Int]), "AN was not an int")
+        |assert(va.info.GQ_MEAN.forall(_.isInstanceOf[Double]), "GQ_MEAN was not a double")
+        |assert(va.info.AC.forall(_.isInstanceOf[Array[Int]]) && va.info.AC.forall(_.forall(_.isInstanceOf[Int])),
+        |  "AC was not an int array")
+        |assert(va.filters.forall(_.isInstanceOf[Set[String]]) && va.filters.forall(_.forall(_.isInstanceOf[String])),
         |  "filters was not a set")
         |true""".stripMargin)).vds.expand().collect()
   }
