@@ -20,13 +20,6 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
 
-  def infoToString(ar: AnyRef): String = {
-    ar match {
-      case iter: Iterable[_] => if (iter.isEmpty) "" else iter.map(_.toString).mkString(", ")
-      case _ => ar.toString
-    }
-  }
-
   def readRecord(line: String): Iterator[(Variant, AnnotationData, Iterator[Genotype])] = {
     val vc = codec.decode(line)
     //maybe count tabs to get filter field
@@ -47,7 +40,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         vc.getAlternateAllele(0).getBaseString)
       Iterator.single((variant, Annotations[String](Map[String, Map[String, String]]("info" -> vc.getAttributes
         .asScala
-        .mapValues(infoToString)
+        .mapValues(HtsjdkRecordReader.infoToString)
         .toMap),
         Map[String, String](
           "qual" -> vc.getPhredScaledQual.toString,
@@ -99,7 +92,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
           (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true),
           Annotations[String](Map[String, Map[String, String]]("info" -> vc.getAttributes
             .asScala
-            .mapValues(infoToString)
+            .mapValues(HtsjdkRecordReader.infoToString)
             .toMap),
             Map[String, String](
               "qual" -> vc.getPhredScaledQual.toString,
@@ -166,5 +159,12 @@ object HtsjdkRecordReader {
     val codec = new htsjdk.variant.vcf.VCFCodec()
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)
+  }
+
+  def infoToString(ar: AnyRef): String = {
+    ar match {
+      case iter: Iterable[_] => if (iter.isEmpty) "" else iter.map(_.toString).mkString(", ")
+      case _ => ar.toString
+    }
   }
 }
