@@ -28,7 +28,7 @@ class FilterSuite extends SparkSuite {
         |assert(va.info.GQ_MEAN.forall(_.isInstanceOf[Double]), "GQ_MEAN was not a double")
         |assert(va.info.AC.forall(_.isInstanceOf[Array[Int]]) && va.info.AC.forall(_.forall(_.isInstanceOf[Int])),
         |  "AC was not an int array")
-        |assert(va.filters.forall(_.isInstanceOf[Set[String]]) && va.filters.forall(_.forall(_.isInstanceOf[String])),
+        |assert(va.filters.forall(_.isInstanceOf[Set[_]]) && va.filters.forall(_.forall(_.isInstanceOf[String])),
         |  "filters was not a set")
         |true""".stripMargin)).vds.expand().collect()
   }

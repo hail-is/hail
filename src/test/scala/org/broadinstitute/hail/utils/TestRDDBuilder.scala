@@ -119,7 +119,7 @@ object TestRDDBuilder {
 
           b += Genotype(gt, ad, dp, pl)
         }
-        (variant, Annotations.emptyOfString(), b.result(): Iterable[Genotype])
+        (variant, Annotations.emptyOfData(), b.result(): Iterable[Genotype])
     }
     VariantSampleMatrix(VariantMetadata(sampleList), streamRDD)
   }

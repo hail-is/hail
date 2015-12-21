@@ -37,20 +37,10 @@ object Annotations {
 
   def emptyOfSignature(): AnnotationSignatures = empty[AnnotationSignature]()
 
-  def emptyOfString(): AnnotationData = empty[String]()
+  def emptyOfData(): AnnotationData = empty[String]()
 
   def emptyOfArrayString(nSamples: Int): IndexedSeq[AnnotationData] =
     IndexedSeq.fill[Annotations[String]](nSamples)(empty[String]())
-}
-
-object AnnotationUtils {
-
-  def annotationToString(ar: AnyRef): String = {
-    ar match {
-      case iter: Iterable[_] => if (iter.isEmpty) "" else iter.map(_.toString).mkString(", ")
-      case _ => ar.toString
-    }
-  }
 }
 
 object AnnotationClassBuilder {
