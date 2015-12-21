@@ -5,7 +5,6 @@ import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileUtil._
-import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
@@ -217,12 +216,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     r.saveAsTextFile(filename)
   }
 
-  def writeFlatFile(filename: String, header: String = null) {
+  def writeSingleFile(filename: String, header: String = null, tmpdir: String, overwrite:Boolean = true, deleteSource:Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
-    val tmpFileName = hadoopGetTemporaryFile(hConf)
+    val tmpFileName = hadoopGetTemporaryFile(tmpdir,hConf)
     writeTable(tmpFileName,header)
-    hadoopCopyMergeHeader(tmpFileName, filename,hConf,true,true,null)
-  } // write in parallel??? partition by chr 10 MB, map repartition  / sort within partition make sure partitions are in order
+    hadoopCopyMergeCustom(tmpFileName, filename,hConf,overwrite,deleteSource,addString = null)
+  }
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
@@ -381,8 +380,8 @@ object Utils {
     hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
   }
 
-  def hadoopGetTemporaryFile(hConf:hadoop.conf.Configuration,nChar:Int=10,prefix:String=null,suffix:String=null):String = {
-    val tmpdir = hConf.get("hadoop.tmp.dir")
+  def hadoopGetTemporaryFile(tmpdir:String, hConf:hadoop.conf.Configuration,nChar:Int=10,prefix:String=null,suffix:String=null):String = {
+    //val tmpdir = hConf.get("hadoop.tmp.dir")
     val destFS = hadoopFS(tmpdir,hConf)
     val prefixString = if (prefix != null) prefix + "-" else ""
     val suffixString = if (suffix != null) "." + suffix else ""
@@ -392,15 +391,14 @@ object Utils {
     if (fileStatus == null)
       randomName
     else
-      hadoopGetTemporaryFile(hConf,nChar,prefix,suffix)
+      hadoopGetTemporaryFile(tmpdir,hConf,nChar,prefix,suffix)
   }
 
-  def hadoopCopyMerge(filenameSrc: String, filenameDest:String, hConf: hadoop.conf.Configuration,deleteSource:Boolean=false,addString:String="\n") {
-    // does not include the header and is all files
+  def hadoopCopyMerge(filenameSrc: String, filenameDest:String, hConf: hadoop.conf.Configuration,deleteSource:Boolean=false,addString:String=null) {
     copyMerge(hadoopFS(filenameSrc,hConf),new hadoop.fs.Path(filenameSrc),hadoopFS(filenameDest,hConf),new hadoop.fs.Path(filenameDest),deleteSource,hConf,addString)
   }
 
-  def hadoopCopyMergeHeader(srcFilename: String, destFilename:String, hConf: hadoop.conf.Configuration, overwrite:Boolean=true, deleteSource:Boolean=false, addString:String=null) {
+  def hadoopCopyMergeCustom(srcFilename: String, destFilename:String, hConf: hadoop.conf.Configuration, overwrite:Boolean=true, deleteSource:Boolean=false, addString:String=null) {
     val srcPath = new hadoop.fs.Path(srcFilename)
     val destPath = new hadoop.fs.Path(destFilename)
     val srcFS = hadoopFS(srcFilename,hConf)

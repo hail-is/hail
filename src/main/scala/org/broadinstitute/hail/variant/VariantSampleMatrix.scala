@@ -57,7 +57,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def cache(): VariantSampleMatrix[T] = copy[T](rdd = rdd.cache())
 
-  def repartition(nPartitions: Int) = copy[T](rdd = rdd.repartition(nPartitions))
+  def repartition(nPartitions: Int) = copy[T](rdd = rdd.repartition(nPartitions)(null))
 
   def nPartitions: Int = rdd.partitions.length
 
