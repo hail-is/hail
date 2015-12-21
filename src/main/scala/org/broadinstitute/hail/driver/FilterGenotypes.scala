@@ -2,7 +2,8 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant.{Variant, Genotype, Sample}
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype, Sample}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object FilterGenotypes extends Command {
@@ -31,30 +32,23 @@ object FilterGenotypes extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val p: (Variant, Sample, Genotype) => Boolean = try {
-      val cf = new FilterGenotypeCondition(options.condition)
+    val p: ((Variant, AnnotationData) => ((Int, Genotype) => Boolean)) = {
+      val cf = new FilterGenotypeCondition(options.condition, vds.metadata)
       cf.typeCheck()
-      if (options.keep)
-        cf.apply
-      else
-        (v: Variant, s: Sample, g: Genotype) => !cf(v, s, g)
-    } catch {
-      case e: scala.tools.reflect.ToolBoxError =>
-        /* e.message looks like:
-           reflective compilation has failed:
-
-           ';' expected but '.' found. */
-        fatal("parse error in condition: " + e.message.split("\n").last)
+      cf.apply
     }
 
-    val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-
-    val newVDS = vds.mapValuesWithKeys((v: Variant, s: Int, g: Genotype) =>
-      if (p(v, Sample(sampleIdsBc.value(s)), g))
-        g
-      else
-        Genotype(-1, (0, 0), 0, null))
-
+    val localKeep = options.keep
+    val localRemove = options.remove
+    //FIXME put keep/remove logic here
+    val newVDS = vds.mapValuesWithPartialApplication(
+      (v: Variant, va: AnnotationData) =>
+      (s: Int, g: Genotype) =>
+        if (p(v, va)(s, g)) {
+          if (localKeep) g else Genotype(-1, (0, 0), 0, null)
+        } else {
+          if (localRemove) g else Genotype(-1, (0, 0), 0, null)
+        })
     state.copy(vds = newVDS)
   }
 }

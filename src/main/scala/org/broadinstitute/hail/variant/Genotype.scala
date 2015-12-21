@@ -61,9 +61,12 @@ case class Genotype(private val gt: Int,
   def gtType: GenotypeType = GenotypeType(gt)
 
   def gq: Int = {
-    assert(gt != -1)
-    val (pl1, pl2) = minPl
-    pl1 min pl2 min 99
+    if (gt == -1)
+      0
+    else {
+      val (pl1, pl2) = minPl
+      pl1 min pl2 min 99
+    }
   }
 
   def call: Option[Call] = {

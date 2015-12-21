@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.variant
 
+import org.broadinstitute.hail.annotations._
+
 import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
@@ -42,5 +44,10 @@ class RichRow(r: Row) {
     GenotypeStream(ir.getVariant(0),
       if (ir.isNullAt(1)) None else Some(ir.getInt(1)),
       ir.getAs[Array[Byte]](2))
+  }
+
+  def getVariantAnnotations(i: Int): AnnotationData = {
+    val ir = r.getAs[Row](i)
+    Annotations[String](ir.getAs[Map[String, Map[String, String]]](0), ir.getAs[Map[String, String]](0))
   }
 }

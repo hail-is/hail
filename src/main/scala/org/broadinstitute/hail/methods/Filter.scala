@@ -1,8 +1,9 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.Utils
-import org.broadinstitute.hail.variant.{Sample, Genotype, Variant}
-import scala.reflect.ClassTag
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
+import org.broadinstitute.hail.methods.FilterUtils.{FilterGenotypePostSA, FilterGenotypeWithSA}
+import org.broadinstitute.hail.variant._
 import scala.language.implicitConversions
 
 class FilterString(val s: String) extends AnyVal {
@@ -11,51 +12,72 @@ class FilterString(val s: String) extends AnyVal {
   def !~(t: String): Boolean = !this.~(t)
 }
 
+class AnnotationValueString(val s: String) extends AnyVal {
+  def toArrayInt: Array[Int] = s.split(",").map(i => i.toInt)
+
+  def toArrayDouble: Array[Double] = s.split(",").map(i => i.toDouble)
+
+  def toSetString: Set[String] = s.split(",").toSet
+}
+
 object FilterUtils {
+  type FilterGenotypeWithSA = ((IndexedSeq[AnnotationData], IndexedSeq[String]) =>
+    ((Variant, AnnotationData) => ((Int, Genotype) => Boolean)))
+  type FilterGenotypePostSA = (Variant, AnnotationData) => ((Int, Genotype) => Boolean)
+
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
+
+  implicit def toAnnotationValueString(s: String): AnnotationValueString = new AnnotationValueString(s)
 }
 
-class Evaluator[T](t: String)(implicit tct: ClassTag[T])
-  extends Serializable {
-  @transient var p: Option[T] = None
-
-  def typeCheck() {
-    require(p.isEmpty)
-    p = Some(Utils.eval[T](t))
-  }
-
-  def eval(): T = p match {
-    case null | None =>
-      val v = Utils.eval[T](t)
-      p = Some(v)
-      v
-    case Some(v) => v
-  }
+class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
+  extends Evaluator[(Variant, AnnotationData) => Boolean]({
+    s"""(v: org.broadinstitute.hail.variant.Variant,
+        |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  ${signatures(vas, "__vaClass")}
+        |  ${instantiate("va", "__vaClass", "__va")}
+        |  $cond
+        |}: Boolean
+    """.stripMargin
+  }) {
+  def apply(v: Variant, va: AnnotationData): Boolean = eval()(v, va)
 }
 
-class FilterVariantCondition(cond: String)
-  extends Evaluator[(Variant) => Boolean](
-    "(v: org.broadinstitute.hail.variant.Variant) => { " +
-      "import org.broadinstitute.hail.methods.FilterUtils._; " +
-      cond + " }: Boolean") {
-  def apply(v: Variant): Boolean = eval()(v)
+class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
+  extends Evaluator[(Sample, AnnotationData) => Boolean](
+    s"""(s: org.broadinstitute.hail.variant.Sample,
+        |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  ${signatures(sas, "__saClass")}
+        |  ${instantiate("sa", "__saClass", "__sa")}
+        |  $cond
+        |}: Boolean
+    """.stripMargin) {
+  def apply(s: Sample, sa: AnnotationData): Boolean = eval()(s, sa)
 }
 
-class FilterSampleCondition(cond: String)
-  extends Evaluator[(Sample) => Boolean](
-    "(s: org.broadinstitute.hail.variant.Sample) => { " +
-      "import org.broadinstitute.hail.methods.FilterUtils._; " +
-      cond + " }: Boolean") {
-  def apply(s: Sample): Boolean = eval()(s)
-}
-
-class FilterGenotypeCondition(cond: String)
-  extends Evaluator[(Variant, Sample, Genotype) => Boolean](
-    "(v: org.broadinstitute.hail.variant.Variant, " +
-      "s: org.broadinstitute.hail.variant.Sample, " +
-      "g: org.broadinstitute.hail.variant.Genotype) => { " +
-      "import org.broadinstitute.hail.methods.FilterUtils._; " +
-      cond + " }: Boolean") {
-  def apply(v: Variant, s: Sample, g: Genotype): Boolean =
-    eval()(v, s, g)
+class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
+  extends EvaluatorWithTransformation[FilterGenotypeWithSA, FilterGenotypePostSA](
+    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
+        |  __ids: IndexedSeq[String]) => {
+        |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  ${signatures(metadata.sampleAnnotationSignatures, "__saClass")}
+        |  ${instantiateIndexedSeq("__saArray", "__saClass", "__sa")}
+        |  (v: org.broadinstitute.hail.variant.Variant,
+        |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |    ${signatures(metadata.variantAnnotationSignatures, "__vaClass")}
+        |    ${instantiate("va", "__vaClass",  "__va")}
+        |    (__sIndex: Int,
+        |      g: org.broadinstitute.hail.variant.Genotype) => {
+        |        val sa = __saArray(__sIndex)
+        |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+        |        $cond
+        |      }: Boolean
+        |   }
+        | }
+      """.stripMargin,
+    t => t(metadata.sampleAnnotations, metadata.sampleIds)) {
+  def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): Boolean =
+    eval()(v, va)(sIndex, g)
 }
