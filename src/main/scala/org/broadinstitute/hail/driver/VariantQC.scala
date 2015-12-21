@@ -196,6 +196,7 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nHet, nHomVar))
     sb += '\t'
 
+    // Hardy-Weinberg statistics
     val hwe = HWEStats
     sb.tsvAppend(hwe._1)
     sb += '\t'
