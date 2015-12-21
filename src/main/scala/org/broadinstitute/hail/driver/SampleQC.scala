@@ -254,7 +254,7 @@ class SampleQCCombiner extends Serializable {
   }
 
   def asMap: Map[String, String] = {
-    Map("nCalled" -> (nHomRef + nHet + nHomVar),
+    Map[String, Any]("nCalled" -> (nHomRef + nHet + nHomVar),
       "nNotCalled" -> nNotCalled,
       "nHomRef" -> nHomRef,
       "nHet" -> nHet,

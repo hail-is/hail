@@ -17,10 +17,6 @@ object ExportSamples extends Command {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = "Comma-separated list of fields to be printed to tsv")
     var condition: String = _
-
-    @Args4jOption(required = false, name = "--missing",
-      usage = "Format of missing values (Default: 'NA')")
-    var missing = "NA"
   }
 
   def newOptions = new Options
@@ -39,7 +35,7 @@ object ExportSamples extends Command {
     val sas = vds.metadata.sampleAnnotationSignatures
     val makeString: (Sample, Annotations[String]) => String = {
       try {
-        val ese = new ExportSamplesEvaluator(cond, sas, options.missing)
+        val ese = new ExportSamplesEvaluator(cond, sas)
         ese.typeCheck()
         ese.apply
       } catch {

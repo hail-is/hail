@@ -17,10 +17,6 @@ object ExportGenotypes extends Command {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = "Comma-separated list of fields to be printed to tsv")
     var condition: String = _
-
-    @Args4jOption(required = false, name = "--missing",
-      usage = "Format of missing values (Default: 'NA')")
-    var missing = "NA"
   }
 
   def newOptions = new Options
@@ -41,7 +37,7 @@ object ExportGenotypes extends Command {
 
     val makeString: ((Variant, AnnotationData) =>
       ((Int, Genotype) => String)) = {
-      val cf = new ExportGenotypeEvaluator(options.condition, vas, sas, sa, ids, options.missing)
+      val cf = new ExportGenotypeEvaluator(options.condition, vas, sas, sa, ids)
       cf.typeCheck()
       cf.apply
     }

@@ -15,8 +15,7 @@ import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVect
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
+
 
 // FIXME AnyVal in Scala 2.11
 class RichVector[T](v: Vector[T]) {
@@ -209,7 +208,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
   def writeTable(filename: String, header: String = null) {
     if (header != null)
-      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
+      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {
+        _.write(header)
+      }
     hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
     r.saveAsTextFile(filename)
   }
@@ -238,12 +239,9 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
-  def tsvAppend[T](v: Option[T]) {
-    v match {
-      case Some(d: Double) => sb.append(stringFormatDouble(d))
-      case Some(x) => sb.append(x)
-      case None => sb.append("NA")
-    }
+  def tsvAppend(a: Any) {
+//    sb.append(org.broadinstitute.hail.methods.UserExportUtils.toTSVString(a))
+    sb.append(org.broadinstitute.hail.Utils.toTSVString(a))
   }
 }
 
@@ -428,16 +426,6 @@ object Utils {
     if (!p) throw new AssertionError
   }
 
-  def stringFormatDouble(d: Double): String = {
-    d.formatted("%.4e")
-  }
-
-  def writeOption(o: Option[Any], missingValue: String = "NA"): String = o match {
-    case Some(d: Double) => stringFormatDouble(d)
-    case Some(x) => x.toString
-    case None => missingValue
-  }
-
   // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
   def printTime[T](block: => T) = {
     val timed = time(block)
@@ -473,11 +461,6 @@ object Utils {
       val tSec = (tMilliseconds % msPerMinute) / 1e3
       ("%d" + "h" + "%d" + "m" + "%.1f" + "s").format(tHrs, tMins, tSec)
     }
-  }
-
-  def toTSVString(a: Any): String = a match {
-    case o: Option[Any] => o.map(toTSVString).getOrElse("NA")
-    case _ => a.toString
   }
 
   def someIf[T](p: Boolean, x: => T): Option[T] =
@@ -516,14 +499,6 @@ object Utils {
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 
-
-  def eval[T](t: String): T = {
-    val toolbox = currentMirror.mkToolBox()
-    val ast = toolbox.parse(t)
-    toolbox.typeCheck(ast)
-    toolbox.eval(ast).asInstanceOf[T]
-  }
-
   def genOption[T](g: Gen[T], someFrequency: Int = 4): Gen[Option[T]] =
     Gen.frequency((1, Gen.const(None)),
       (someFrequency, g.map(Some(_))))
@@ -536,4 +511,15 @@ object Utils {
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
+
+  def toTSVString(a: Any): String = {
+    a match {
+      // case Some(o) => toTSVString(o)
+      case None => "NA"
+      case d: Double => d.formatted("%.4e")
+      // case i: Iterable[_] => i.map(toTSVString).mkString(",")
+      // case arr: Array[_] => arr.map(toTSVString).mkString(",")
+      case _ => a.toString
+    }
+  }
 }

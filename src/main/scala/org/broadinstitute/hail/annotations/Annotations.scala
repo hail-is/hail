@@ -34,19 +34,16 @@ case class Annotations[T](maps: Map[String, Map[String, T]], vals: Map[String, T
 
 object Annotations {
 
-  def emptyOf[T](): Annotations[T] = {
+  def empty[T](): Annotations[T] =
     Annotations(Map.empty[String, Map[String, T]], Map.empty[String, T])
-  }
 
-  def emptyOfSignature(): AnnotationSignatures =
-    Annotations(Map.empty[String, Map[String, AnnotationSignature]], Map.empty[String, AnnotationSignature])
+  def emptyOfSignature(): AnnotationSignatures = empty[AnnotationSignature]()
 
-  def emptyOfString(): AnnotationData =
-    Annotations(Map.empty[String, Map[String, String]], Map.empty[String, String])
+  def emptyOfString(): AnnotationData = empty[String]()
 
   def emptyOfArrayString(nSamples: Int): IndexedSeq[AnnotationData] =
     (0 until nSamples)
-      .map(i => Annotations(Map.empty[String, Map[String, String]], Map.empty[String, String]))
+      .map(i => empty[String]())
 }
 
 object AnnotationUtils {
@@ -62,7 +59,7 @@ object AnnotationUtils {
 object AnnotationClassBuilder {
 
   def signatures(sigs: AnnotationSignatures, hiddenClassName: String,
-    makeToString: Boolean = false, missing: String = ""): String = {
+    makeToString: Boolean = false): String = {
     val internalClasses = sigs.maps.map {
       case (subclass, subMap) =>
         val attrs = subMap
@@ -73,7 +70,7 @@ object AnnotationClassBuilder {
         val methods: String = {
           if (makeToString) {
             s"""  def __fields: Array[String] = Array(
-                |    ${subMap.keys.toArray.sorted.map(s => s"""formatString($s, "$missing")""").mkString(",")}
+                |    ${subMap.keys.toArray.sorted.map(s => s"""toTSVString($s)""").mkString(",")}
                 |  )
                 |  override def toString: String = __fields.mkString(";")
                 |  def all: String = __fields.mkString("\t")""".stripMargin

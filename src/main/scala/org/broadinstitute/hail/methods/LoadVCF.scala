@@ -51,6 +51,11 @@ object LoadVCF {
         null
     }
 
+    val filters = header
+      .getFilterLines
+      .toList
+//    .map(line => line.g)
+
     val infoSignatures = header
       .getInfoHeaderLines
       .toList

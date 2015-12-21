@@ -1,12 +1,9 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.Utils
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.methods.FilterUtils.{FilterGenotypePostSA, FilterGenotypeWithSA}
 import org.broadinstitute.hail.variant._
-import scala.reflect.ClassTag
 import scala.language.implicitConversions
 
 class FilterString(val s: String) extends AnyVal {
@@ -31,51 +28,6 @@ object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
 
   implicit def toConvertibleString(s: String): ConvertibleString = new ConvertibleString(s)
-}
-
-class EvaluatorWithTransformation[T, S](t: String, f: T => S)(implicit tct: ClassTag[T]) extends Serializable {
-  @transient var p: Option[S] = None
-
-  def typeCheck() {
-    require(p.isEmpty)
-    p = Some(f(Utils.eval[T](t)))
-  }
-
-  def eval(): S = p match {
-    case null | None =>
-      val v = f(Utils.eval[T](t))
-      p = Some(v)
-      v
-    case Some(v) => v
-  }
-}
-
-class Evaluator[T](t: String)(implicit tct: ClassTag[T])
-  extends Serializable {
-  @transient var p: Option[T] = None
-
-  def typeCheck() {
-    require(p.isEmpty)
-    try {
-      p = Some(Utils.eval[T](t))
-    }
-    catch {
-      case e: scala.tools.reflect.ToolBoxError =>
-        /* e.message looks like:
-           reflective compilation has failed:
-
-           ';' expected but '.' found. */
-        fatal("parse error in condition: " + e.message.split("\n").last)
-    }
-  }
-
-  def eval(): T = p match {
-    case null | None =>
-      val v = Utils.eval[T](t)
-      p = Some(v)
-      v
-    case Some(v) => v
-  }
 }
 
 class FilterVariantCondition(cond: String, vas: AnnotationSignatures)

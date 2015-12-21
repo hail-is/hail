@@ -199,7 +199,7 @@ class VariantQCCombiner extends Serializable {
     val hwe = HWEStats
     sb.tsvAppend(hwe._1)
     sb += '\t'
-    sb ++= stringFormatDouble(hwe._2)
+    sb.tsvAppend(hwe._2)
   }
 
   def asMap: Map[String, String] = {
@@ -210,7 +210,7 @@ class VariantQCCombiner extends Serializable {
 
     val hwe = HWEStats
 
-    Map("nCalled" -> (nHomRef + nHet + nHomVar),
+    Map[String, Any]("nCalled" -> (nHomRef + nHet + nHomVar),
       "nNotCalled" -> nNotCalled,
       "nHomRef" -> nHomRef,
       "nHet" -> nHet,

@@ -1,9 +1,11 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver._
+//import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
+import org.broadinstitute.hail.variant.Sample
 import org.testng.annotations.Test
-
 import scala.io.Source
 
 /**
@@ -21,6 +23,11 @@ class ExportSuite extends SparkSuite{
     SampleQC.run(state, Array("-o", "/tmp/sampleQC"))
     val postSampleQC = SampleQC.run(state, Array("--store"))
 
+//    println(toTSVString(Some(5.1)))
+//    println(toTSVString(Some(None)))
+//    println(toTSVString(Array(1,2,3,4,5)))
+//    println(toTSVString(5.124))
+
     ExportSamples.run(postSampleQC, Array("-o", "/tmp/exportSamples", "-c",
       "s.id, sa.qc.nCalled,sa.qc.nNotCalled,sa.qc.nHomRef,sa.qc.nHet,sa.qc.nHomVar,sa.qc.nSNP,sa.qc.nInsertion," +
         "sa.qc.nDeletion,sa.qc.nSingleton,sa.qc.nTransition,sa.qc.nTransversion,sa.qc.dpMean,sa.qc.dpStDev," +
@@ -37,7 +44,6 @@ class ExportSuite extends SparkSuite{
     assert(sQcOutput == sExportOutput)
 
     VariantQC.run(state, Array("-o", "/tmp/variantQC"))
-
     val postVariantQC = VariantQC.run(state, Array("--store"))
 
     ExportVariants.run(postVariantQC, Array("-o", "/tmp/exportVariants", "-c",
