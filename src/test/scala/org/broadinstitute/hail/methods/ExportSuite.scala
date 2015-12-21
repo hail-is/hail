@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver._
-//import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
+import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
 import org.broadinstitute.hail.variant.Sample
 import org.testng.annotations.Test
 import scala.io.Source
@@ -14,7 +14,7 @@ import scala.io.Source
   * their output agrees with [[org.broadinstitute.hail.driver.VariantQC]] and
   * [[org.broadinstitute.hail.driver.SampleQC]] commands.
   */
-class ExportSuite extends SparkSuite{
+class ExportSuite extends SparkSuite {
 
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
@@ -23,10 +23,10 @@ class ExportSuite extends SparkSuite{
     SampleQC.run(state, Array("-o", "/tmp/sampleQC"))
     val postSampleQC = SampleQC.run(state, Array("--store"))
 
-//    println(toTSVString(Some(5.1)))
-//    println(toTSVString(Some(None)))
-//    println(toTSVString(Array(1,2,3,4,5)))
-//    println(toTSVString(5.124))
+    assert(toTSVString(Some(5.1)) == "5.1000e+00")
+    assert(toTSVString(Some(None)) == "NA")
+    assert(toTSVString(Array(1,2,3,4,5)) == "1,2,3,4,5")
+    assert(toTSVString(5.124) == "5.1240e+00")
 
     ExportSamples.run(postSampleQC, Array("-o", "/tmp/exportSamples", "-c",
       "s.id, sa.qc.nCalled,sa.qc.nNotCalled,sa.qc.nHomRef,sa.qc.nHet,sa.qc.nHomVar,sa.qc.nSNP,sa.qc.nInsertion," +

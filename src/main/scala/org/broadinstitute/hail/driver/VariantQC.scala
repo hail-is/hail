@@ -31,33 +31,33 @@ object VariantQCCombiner {
     "rHetHomVar\t" +
     "rExpectedHetFrequency\tpHWE\t"
 
-  val signatures = Map("nCalled" -> new VCFSignature("Int", "toInt", ""),
-    "nNotCalled" -> new VCFSignature("Int", "toInt", ""),
-    "nHomRef" -> new VCFSignature("Int", "toInt", ""),
-    "nHet" -> new VCFSignature("Int", "toInt", ""),
-    "nHomVar" -> new VCFSignature("Int", "toInt", ""),
-    "dpMean" -> new VCFSignature("Double", "toDouble", ""),
-    "dpStDev" -> new VCFSignature("Double", "toDouble", ""),
-    "dpMeanHomRef" -> new VCFSignature("Double", "toDouble", ""),
-    "dpStDevHomRef" -> new VCFSignature("Double", "toDouble", ""),
-    "dpMeanHet" -> new VCFSignature("Double", "toDouble", ""),
-    "dpStDevHet" -> new VCFSignature("Double", "toDouble", ""),
-    "dpMeanHomVar" -> new VCFSignature("Double", "toDouble", ""),
-    "dpStDevHomVar" -> new VCFSignature("Double", "toDouble", ""),
-    "gqMean" -> new VCFSignature("Double", "toDouble", ""),
-    "gqStDev" -> new VCFSignature("Double", "toDouble", ""),
-    "gqMeanHomRef" -> new VCFSignature("Double", "toDouble", ""),
-    "gqStDevHomRef" -> new VCFSignature("Double", "toDouble", ""),
-    "gqMeanHet" -> new VCFSignature("Double", "toDouble", ""),
-    "gqStDevHet" -> new VCFSignature("Double", "toDouble", ""),
-    "gqMeanHomVar" -> new VCFSignature("Double", "toDouble", ""),
-    "gqStDevHomVar" -> new VCFSignature("Double", "toDouble", ""),
-    "MAF" -> new VCFSignature("Double", "toDouble", ""),
-    "nNonRef" -> new VCFSignature("Int", "toInt", ""),
-    "rHeterozygosity" -> new VCFSignature("Double", "toDouble", ""),
-    "rHetHomVar" -> new VCFSignature("Double", "toDouble", ""),
-    "rExpectedHetFrequency" -> new VCFSignature("Double", "toDouble", ""),
-    "pHWE" -> new VCFSignature("Double", "toDouble", ""))
+  val signatures = Map("nCalled" -> new SimpleSignature("Int", "toInt"),
+    "nNotCalled" -> new SimpleSignature("Int", "toInt"),
+    "nHomRef" -> new SimpleSignature("Int", "toInt"),
+    "nHet" -> new SimpleSignature("Int", "toInt"),
+    "nHomVar" -> new SimpleSignature("Int", "toInt"),
+    "dpMean" -> new SimpleSignature("Double", "toDouble"),
+    "dpStDev" -> new SimpleSignature("Double", "toDouble"),
+    "dpMeanHomRef" -> new SimpleSignature("Double", "toDouble"),
+    "dpStDevHomRef" -> new SimpleSignature("Double", "toDouble"),
+    "dpMeanHet" -> new SimpleSignature("Double", "toDouble"),
+    "dpStDevHet" -> new SimpleSignature("Double", "toDouble"),
+    "dpMeanHomVar" -> new SimpleSignature("Double", "toDouble"),
+    "dpStDevHomVar" -> new SimpleSignature("Double", "toDouble"),
+    "gqMean" -> new SimpleSignature("Double", "toDouble"),
+    "gqStDev" -> new SimpleSignature("Double", "toDouble"),
+    "gqMeanHomRef" -> new SimpleSignature("Double", "toDouble"),
+    "gqStDevHomRef" -> new SimpleSignature("Double", "toDouble"),
+    "gqMeanHet" -> new SimpleSignature("Double", "toDouble"),
+    "gqStDevHet" -> new SimpleSignature("Double", "toDouble"),
+    "gqMeanHomVar" -> new SimpleSignature("Double", "toDouble"),
+    "gqStDevHomVar" -> new SimpleSignature("Double", "toDouble"),
+    "MAF" -> new SimpleSignature("Double", "toDouble"),
+    "nNonRef" -> new SimpleSignature("Int", "toInt"),
+    "rHeterozygosity" -> new SimpleSignature("Double", "toDouble"),
+    "rHetHomVar" -> new SimpleSignature("Double", "toDouble"),
+    "rExpectedHetFrequency" -> new SimpleSignature("Double", "toDouble"),
+    "pHWE" -> new SimpleSignature("Double", "toDouble"))
 }
 
 class VariantQCCombiner extends Serializable {
@@ -278,7 +278,7 @@ object VariantQC extends Command {
       state.copy(vds = vds.mapAnnotationsWithAggregate(new VariantQCCombiner)((comb, v, s, g) => comb.merge(g),
         (comb1, comb2) => comb1.merge(comb2),
         (ad: AnnotationData, comb: VariantQCCombiner) => ad.addMap("qc", comb.asMap))
-        .addVariantSignatures(Map("qc" -> VariantQCCombiner.signatures)))
+        .addVariantMapSignatures("qc", VariantQCCombiner.signatures))
     else {
       writeTextFile(output + ".header", state.hadoopConf) { s =>
         s.write("Chrom\tPos\tRef\tAlt\t")

@@ -6,9 +6,6 @@ case class VCFSignature(vcfType: String, emitType: String, number: String,
   emitConversionIdentifier: String, description: String)
   extends AnnotationSignature {
 
-  def this(scalaType: String, conversionMethod: String, desc: String) =
-    this("", scalaType, "", conversionMethod, "")
-
   def emitUtilities: String = ""
 }
 
@@ -17,7 +14,7 @@ object VCFSignature {
   val arrayRegex = """Array\[(\w+)\]""".r
   val setRegex = """Set\[(\w+)\]""".r
 
-  def getConversionMethod(str: String): String = {
+  def parseConversionIdentifier(str: String): String = {
     str match {
       case arrayRegex(subType) => s"toArray$subType"
       case setRegex(subType) => s"toSet$subType"
@@ -59,7 +56,7 @@ object VCFSignature {
       case integerRegex(i) => if (i.toInt > 1) s"Array[$parsedType]" else parsedType
       case _ => parsedType
     }
-    val conversionMethod = getConversionMethod(scalaType)
+    val conversionMethod = parseConversionIdentifier(scalaType)
     val desc = line.getDescription
 
 

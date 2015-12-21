@@ -37,7 +37,7 @@ object ExportGenotypes extends Command {
 
     val makeString: ((Variant, AnnotationData) =>
       ((Int, Genotype) => String)) = {
-      val cf = new ExportGenotypeEvaluator(options.condition, vas, sas, sa, ids)
+      val cf = new ExportGenotypeEvaluator(options.condition, vds.metadata)
       cf.typeCheck()
       cf.apply
     }
@@ -47,7 +47,7 @@ object ExportGenotypes extends Command {
         (s: Int, g: Genotype) =>
           makeString(v, va)(s, g))
 
-    // FIXME add additional command parsing functionality
+    // FIXME add additional command parsing functionality.  Somewhat hacky
     val variantRegex =
       """v\.(\w+)""".r
     val sampleRegex = """s\.(\w+)""".r

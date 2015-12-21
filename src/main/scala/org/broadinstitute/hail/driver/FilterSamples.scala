@@ -30,12 +30,11 @@ object FilterSamples extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val sas: AnnotationSignatures = state.vds.metadata.sampleAnnotationSignatures
 
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val indexOfSample: Map[String, Int] = state.vds.sampleIds.zipWithIndex.toMap
+    val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
 
     val p = options.condition match {
       case f if f.endsWith(".sample_list") =>
@@ -46,11 +45,11 @@ object FilterSamples extends Command {
           .toSet
         (s: Int, sa: AnnotationData) => samples.contains(s)
       case c: String =>
-        val cf = new FilterSampleCondition(c, sas)
+        val cf = new FilterSampleCondition(c, vds.metadata.sampleAnnotationSignatures)
         cf.typeCheck()
 
-        val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-        (s: Int, sa: AnnotationData) => cf(Sample(sampleIdsBc.value(s)), state.vds.metadata.sampleAnnotations(s))
+        val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
+        (s: Int, sa: AnnotationData) => cf(Sample(sampleIdsBc.value(s)), vds.metadata.sampleAnnotations(s))
     }
 
     val newVDS = vds.filterSamples(if (options.keep)

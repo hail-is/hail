@@ -102,9 +102,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
     copy(rdd = rdd.map { case (v, va, gs) =>
-      val fPrime = f(v, va)
+      val f2 = f(v, va)
       (v, va, localSamplesBc.value.view.zip(gs.view)
-        .map { case (s, t) => fPrime(s, t) })
+        .map { case (s, t) => f2(s, t) })
     })
   }
 
@@ -289,16 +289,24 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def addVariantSignatures(maps: Map[String, Map[String, AnnotationSignature]] = Map.empty[String, Map[String, AnnotationSignature]],
-    vals: Map[String, AnnotationSignature] = Map.empty[String, AnnotationSignature]): VariantSampleMatrix[T] = {
-    this.copy(metadata = this.metadata.copy(variantAnnotationSignatures =
-      this.metadata.variantAnnotationSignatures.addMaps(maps).addVals(vals)))
+  def addVariantMapSignatures(mapName: String, map: Map[String, AnnotationSignature]): VariantSampleMatrix[T] = {
+    this.copy(metadata = metadata.copy(variantAnnotationSignatures =
+      metadata.variantAnnotationSignatures.addMap(mapName, map)))
   }
 
-  def addSampleSignatures(maps: Map[String, Map[String, AnnotationSignature]] = Map.empty[String, Map[String, AnnotationSignature]],
-    vals: Map[String, AnnotationSignature] = Map.empty[String, AnnotationSignature]): VariantSampleMatrix[T] = {
-    this.copy(metadata = this.metadata.copy(sampleAnnotationSignatures =
-      this.metadata.sampleAnnotationSignatures.addMaps(maps).addVals(vals)))
+  def addVariantValSignature(name: String, sig: AnnotationSignature): VariantSampleMatrix[T] = {
+    this.copy(metadata = metadata.copy(variantAnnotationSignatures =
+      metadata.variantAnnotationSignatures.addVal(name, sig)))
+  }
+
+  def addSampleMapSignatures(mapName: String, map: Map[String, AnnotationSignature]): VariantSampleMatrix[T] = {
+    this.copy(metadata = metadata.copy(sampleAnnotationSignatures =
+      metadata.sampleAnnotationSignatures.addMap(mapName, map)))
+  }
+
+  def addSampleValSignature(name: String, sig: AnnotationSignature): VariantSampleMatrix[T] = {
+    this.copy(metadata = metadata.copy(sampleAnnotationSignatures =
+      metadata.sampleAnnotationSignatures.addVal(name, sig)))
   }
 }
 

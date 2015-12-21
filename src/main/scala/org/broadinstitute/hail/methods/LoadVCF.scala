@@ -35,26 +35,11 @@ object LoadVCF {
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
-    // FIXME: use htsjdk to parse contigs when they expose the correct fields
-    val contigRegex ="""##contig=<ID=(.+),length=(\d+)>""".r
-    val contigs = {
-      val contigMap = headerLines.map {
-        case contigRegex(id, length) =>
-          Some((id, length.toInt))
-        case _ => None
-      }.flatMap(i => i)
-        .toMap
-
-      if (contigMap.nonEmpty)
-        contigMap
-      else
-        null
-    }
-
-    val filters = header
+    // FIXME get descriptions when HTSJDK is fixed to expose filter descriptions
+    val filters: List[(String, String)] = header
       .getFilterLines
       .toList
-//    .map(line => line.g)
+      .map(line => (line.getID, ""))
 
     val infoSignatures = header
       .getInfoHeaderLines
@@ -63,11 +48,11 @@ object LoadVCF {
       .toMap
 
     val annotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> infoSignatures),
-      Map("filters" -> new VCFSignature("Set[String]","toSetString", "filters applied to site"),
-        "pass" -> new VCFSignature("Boolean", "toBoolean", "filters were applied to vcf and this site passed"),
-        "multiallelic" -> new VCFSignature("Boolean", "toBoolean", "Site is a split multiallelic"),
-        "qual" -> new VCFSignature("Double", "toDouble", "vcf qual field"),
-        "rsid" -> new VCFSignature("String", "toString", "site rsID")))
+        Map("filters" -> new SimpleSignature("Set[String]","toSetString", "filters applied to site"),
+        "pass" -> new SimpleSignature("Boolean", "toBoolean", "filters were applied to vcf and this site passed"),
+        "multiallelic" -> new SimpleSignature("Boolean", "toBoolean", "Site is a split multiallelic"),
+        "qual" -> new SimpleSignature("Double", "toDouble", "vcf qual field"),
+        "rsid" -> new SimpleSignature("String", "toString", "site rsID")))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -75,9 +60,6 @@ object LoadVCF {
     val sampleIds = headerLine
       .split("\t")
       .drop(9)
-
-    val sampleAnnotations = Annotations.emptyOfArrayString(sampleIds.length)
-    val sampleAnnotationSignatures = Annotations.emptyOfSignature()
 
     val headerLinesBc = sc.broadcast(headerLines)
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
@@ -93,7 +75,8 @@ object LoadVCF {
           }
       }
 
-    VariantSampleMatrix(VariantMetadata(contigs, sampleIds,
-      headerLines, sampleAnnotations, sampleAnnotationSignatures, annotationSignatures), genotypes)
+    VariantSampleMatrix(VariantMetadata(filters, sampleIds,
+      headerLines, Annotations.emptyOfArrayString(sampleIds.length), Annotations.emptyOfSignature(),
+      annotationSignatures), genotypes)
   }
 }

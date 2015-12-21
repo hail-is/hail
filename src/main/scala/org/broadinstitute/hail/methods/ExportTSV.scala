@@ -2,10 +2,11 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.variant.{Sample, Variant, Genotype}
+import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Variant, Genotype}
 import scala.language.implicitConversions
 
 object UserExportUtils {
+
   class ExportVariant(val v: Variant) extends AnyVal {
     def contig = v.contig
 
@@ -44,6 +45,17 @@ object UserExportUtils {
     }
   }
 
+  // FIXME move to Utils after we figure out what is calling the illegal cyclic operation bug
+  def toTSVString(a: Any): String = {
+    a match {
+      case Some(o) => toTSVString(o)
+      case None => "NA"
+      case d: Double => d.formatted("%.4e")
+      case i: Iterable[_] => i.map(toTSVString).mkString(",")
+      case arr: Array[_] => arr.map(toTSVString).mkString(",")
+      case _ => a.toString
+    }
+  }
 }
 
 class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
@@ -53,28 +65,28 @@ class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
-        |
         |  val v: ExportVariant = new ExportVariant(__v)
         |  ${signatures(vas, "__va", makeToString = true)}
         |  ${instantiate("va", "__va")}
-          |  Array($list).map(toTSVString).mkString("\t")
+        |  Array($list).map(toTSVString).mkString("\t")
         |}: String
-    """.stripMargin}) {
+    """.stripMargin
+  }) {
   def apply(v: Variant, va: AnnotationData): String = eval()(v, va)
 }
 
 class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
   extends Evaluator[(Sample, AnnotationData) => String](
-    {val s = s"""(s: org.broadinstitute.hail.variant.Sample,
+    s"""(s: org.broadinstitute.hail.variant.Sample,
         |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.UserExportUtils._
-        |  import org.broadinstitute.hail.Utils.toTSVString
+        |
         |  ${signatures(sas, "__sa", makeToString = true)}
         |  ${instantiate("sa", "__sa")}
         |  Array($list).map(toTSVString).mkString("\t")
         |}: String
-    """.stripMargin;println(s);s}) {
+    """.stripMargin) {
   def apply(s: Sample, sa: AnnotationData): String = eval()(s, sa)
 }
 
@@ -84,32 +96,31 @@ object ExportGenotypeEvaluator {
   type ExportGenotypePostSA = (Variant, AnnotationData) => ((Int, Genotype) => String)
 }
 
-class ExportGenotypeEvaluator(list: String, vas: AnnotationSignatures, sas: AnnotationSignatures,
-  sad: IndexedSeq[AnnotationData], ids: IndexedSeq[String])
+class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
   extends EvaluatorWithTransformation[ExportGenotypeEvaluator.ExportGenotypeWithSA,
     ExportGenotypeEvaluator.ExportGenotypePostSA](
-      s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
-          |  __ids: IndexedSeq[String]) => {
-          |  import org.broadinstitute.hail.methods.FilterUtils._
-          |  import org.broadinstitute.hail.methods.UserExportUtils._
-          |  import org.broadinstitute.hail.Utils.toTSVString
-          |  ${signatures(sas, "__sa", makeToString = true)}
-          |  ${makeIndexedSeq("__saArray", "__sa", "__sa")}
-          |  (__v: org.broadinstitute.hail.variant.Variant,
-          |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
-          |    val v = new ExportVariant(__v)
-          |    ${signatures(vas, "__va")}
-          |    ${instantiate("va", "__va")}
-          |    (__sIndex: Int,
-          |      g: org.broadinstitute.hail.variant.Genotype) => {
-          |        val sa = __saArray(__sIndex)
-          |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
-          |        Array($list).map(toTSVString).mkString("\t")
-          |      }: String
-          |   }
-          | }
+    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
+        |  __ids: IndexedSeq[String]) => {
+        |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  import org.broadinstitute.hail.methods.UserExportUtils._
+        |
+        |  ${signatures(metadata.sampleAnnotationSignatures, "__sa", makeToString = true)}
+        |  ${makeIndexedSeq("__saArray", "__sa", "__sa")}
+        |  (__v: org.broadinstitute.hail.variant.Variant,
+        |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |    val v = new ExportVariant(__v)
+        |    ${signatures(metadata.variantAnnotationSignatures, "__va")}
+        |    ${instantiate("va", "__va")}
+        |    (__sIndex: Int,
+        |      g: org.broadinstitute.hail.variant.Genotype) => {
+        |        val sa = __saArray(__sIndex)
+        |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+        |        Array($list).map(toTSVString).mkString("\t")
+        |      }: String
+        |   }
+        | }
       """.stripMargin,
-    t => t(sad, ids)) {
+    t => t(metadata.sampleAnnotations, metadata.sampleIds)) {
 
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): String =
     eval()(v, va)(sIndex, g)

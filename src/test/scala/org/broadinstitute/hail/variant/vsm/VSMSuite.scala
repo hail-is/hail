@@ -17,13 +17,10 @@ class VSMSuite extends SparkSuite {
     val vds2 = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
     assert(vds1.same(vds2))
 
-    val mdata1 = VariantMetadata(Map("1" -> 10, "2" -> 10), Array("S1", "S2", "S3"))
-    val mdata2 = VariantMetadata(Map("1" -> 10, "2" -> 20), Array("S1", "S2", "S3"))
-    val mdata3 = VariantMetadata(Map("1" -> 10), Array("S1", "S2"))
+    val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
+    val mdata2 = VariantMetadata(Array("S1", "S2"))
 
     assert(mdata1 != mdata2)
-    assert(mdata1 != mdata3)
-    assert(mdata2 != mdata3)
 
     val v1 = Variant("1", 1, "A", "T")
     val v2 = Variant("1", 2, "T", "G")
@@ -62,7 +59,7 @@ class VSMSuite extends SparkSuite {
           Genotype(0, (11, 0), 11, (0, 10, 100)),
           Genotype(1, (6, 6), 12, (50, 0, 50))))))
 
-    // for mdata3
+    // for mdata2
     val rdd4 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(-1, (0, 2), 2, null),
         Genotype(0, (11, 1), 12, (0, 10, 100)))),
@@ -91,8 +88,8 @@ class VSMSuite extends SparkSuite {
       new VariantDataset(mdata2, rdd1),
       new VariantDataset(mdata2, rdd2),
       new VariantDataset(mdata2, rdd3),
-      new VariantDataset(mdata3, rdd4),
-      new VariantDataset(mdata3, rdd5),
+      new VariantDataset(mdata2, rdd4),
+      new VariantDataset(mdata2, rdd5),
       new VariantDataset(mdata1, rdd6))
 
     for (i <- vdss.indices;

@@ -240,8 +240,7 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   def tsvAppend(a: Any) {
-//    sb.append(org.broadinstitute.hail.methods.UserExportUtils.toTSVString(a))
-    sb.append(org.broadinstitute.hail.Utils.toTSVString(a))
+    sb.append(org.broadinstitute.hail.methods.UserExportUtils.toTSVString(a))
   }
 }
 
@@ -510,16 +509,4 @@ object Utils {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
-
-
-  def toTSVString(a: Any): String = {
-    a match {
-      // case Some(o) => toTSVString(o)
-      case None => "NA"
-      case d: Double => d.formatted("%.4e")
-      // case i: Iterable[_] => i.map(toTSVString).mkString(",")
-      // case arr: Array[_] => arr.map(toTSVString).mkString(",")
-      case _ => a.toString
-    }
-  }
 }

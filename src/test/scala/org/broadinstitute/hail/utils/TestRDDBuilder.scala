@@ -121,6 +121,6 @@ object TestRDDBuilder {
         }
         (variant, Annotations.emptyOfString(), b.result(): Iterable[Genotype])
     }
-    VariantSampleMatrix(VariantMetadata(Map("1" -> 1000000), sampleList), streamRDD)
+    VariantSampleMatrix(VariantMetadata(sampleList), streamRDD)
   }
 }

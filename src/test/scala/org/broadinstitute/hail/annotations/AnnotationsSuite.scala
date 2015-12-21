@@ -6,7 +6,7 @@ import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant.{Genotype, IntervalList, Variant}
 import org.testng.annotations.Test
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.methods.FilterUtils.toConvertibleString
+import org.broadinstitute.hail.methods.FilterUtils.toAnnotationValueString
 import scala.language.implicitConversions
 
 /**
@@ -97,7 +97,7 @@ class AnnotationsSuite extends SparkSuite {
       .containsInMap("info", "DB"))
 
     //type Set[String]
-    assert(vas.getVal("filters").contains(new VCFSignature("Set[String]", "toSetString", "filters applied to site")))
+    assert(vas.getVal("filters").contains(new SimpleSignature("Set[String]", "toSetString", "filters applied to site")))
     assert(variantAnnotationMap(firstVariant)
       .getVal("filters").contains("PASS") &&
       variantAnnotationMap(firstVariant)
@@ -108,7 +108,7 @@ class AnnotationsSuite extends SparkSuite {
         .getVal("filters").get.toSetString == Set[String]("VQSRTrancheSNP99.95to100.00"))
 
     // GATK PASS
-    assert(vas.getVal("pass").contains(new VCFSignature("Boolean", "toBoolean",
+    assert(vas.getVal("pass").contains(new SimpleSignature("Boolean", "toBoolean",
       "filters were applied to vcf and this site passed")))
     assert(variantAnnotationMap(firstVariant)
       .getVal("pass").contains("true"))

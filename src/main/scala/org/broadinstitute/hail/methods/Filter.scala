@@ -12,7 +12,7 @@ class FilterString(val s: String) extends AnyVal {
   def !~(t: String): Boolean = !this.~(t)
 }
 
-class ConvertibleString(val s: String) extends AnyVal {
+class AnnotationValueString(val s: String) extends AnyVal {
   def toArrayInt: Array[Int] = s.split(",").map(i => i.toInt)
 
   def toArrayDouble: Array[Double] = s.split(",").map(i => i.toDouble)
@@ -27,7 +27,7 @@ object FilterUtils {
 
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
 
-  implicit def toConvertibleString(s: String): ConvertibleString = new ConvertibleString(s)
+  implicit def toAnnotationValueString(s: String): AnnotationValueString = new AnnotationValueString(s)
 }
 
 class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
@@ -57,17 +57,16 @@ class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
   def apply(s: Sample, sa: AnnotationData): Boolean = eval()(s, sa)
 }
 
-class FilterGenotypeCondition(cond: String, vas: AnnotationSignatures, sas: AnnotationSignatures,
-  sad: IndexedSeq[AnnotationData], ids: IndexedSeq[String])
+class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
   extends EvaluatorWithTransformation[FilterGenotypeWithSA, FilterGenotypePostSA](
     s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
-        |  ${signatures(sas, "__sa")}
+        |  ${signatures(metadata.sampleAnnotationSignatures, "__sa")}
         |  ${makeIndexedSeq("__saArray", "__sa", "__sa")}
         |  (v: org.broadinstitute.hail.variant.Variant,
         |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
-        |    ${signatures(vas, "__va")}
+        |    ${signatures(metadata.variantAnnotationSignatures, "__va")}
         |    ${instantiate("va", "__va")}
         |    (__sIndex: Int,
         |      g: org.broadinstitute.hail.variant.Genotype) => {
@@ -78,7 +77,7 @@ class FilterGenotypeCondition(cond: String, vas: AnnotationSignatures, sas: Anno
         |   }
         | }
       """.stripMargin,
-    t => t(sad, ids)) {
+    t => t(metadata.sampleAnnotations, metadata.sampleIds)) {
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): Boolean =
     eval()(v, va)(sIndex, g)
 }
