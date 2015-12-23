@@ -2,6 +2,11 @@
 
 # Hail
 
+## Table of Contents
+1. [Filtering](docs/Filtering.md)
+2. [Exporting](docs/Exporting.md)
+3. [QC](docs/QC.md)
+
 ## Tools
 
 We use the following development tools:
