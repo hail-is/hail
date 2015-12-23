@@ -5,6 +5,9 @@ import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.methods.FilterUtils.{FilterGenotypePostSA, FilterGenotypeWithSA}
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Genotype, Variant}
 import scala.language.implicitConversions
+import scala.reflect.runtime.universe._
+import scala.reflect.runtime.currentMirror
+import scala.tools.reflect.ToolBox
 
 class FilterString(val s: String) extends AnyVal {
   def ~(t: String): Boolean = s.r.findFirstIn(t).isDefined
@@ -93,14 +96,14 @@ class FilterOptionInt(val o: Option[Int]) {
   def fMinus(that: Float): FilterOption[Float] = new FilterOption(o.map(_ - that))
   def fMinus(that: Double): FilterOption[Double] = new FilterOption(o.map(_ - that))
 
-  def fMult(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](o, that.o, _ * _)
-  def fMult(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](o, that.o, _ * _)
-  def fMult(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](o, that.o, _ * _)
-  def fMult(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](o, that.o, _ * _)
-  def fMult(that: Int): FilterOption[Int] = new FilterOption(o.map(_ * that))
-  def fMult(that: Long): FilterOption[Long] = new FilterOption(o.map(_ * that))
-  def fMult(that: Float): FilterOption[Float] = new FilterOption(o.map(_ * that))
-  def fMult(that: Double): FilterOption[Double] = new FilterOption(o.map(_ * that))
+  def fTimes(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](o, that.o, _ * _)
+  def fTimes(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](o, that.o, _ * _)
+  def fTimes(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Int, Float, Float](o, that.o, _ * _)
+  def fTimes(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Int, Double, Double](o, that.o, _ * _)
+  def fTimes(that: Int): FilterOption[Int] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Long): FilterOption[Long] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Float): FilterOption[Float] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Double): FilterOption[Double] = new FilterOption(o.map(_ * that))
 
   def fDiv(that: FilterOptionInt): FilterOption[Int] = FilterOption[Int, Int, Int](o, that.o, _ / _)
   def fDiv(that: FilterOptionLong): FilterOption[Long] = FilterOption[Int, Long, Long](o, that.o, _ / _)
@@ -193,14 +196,14 @@ class FilterOptionLong(val o: Option[Long]) {
   def fMinus(that: Float): FilterOption[Float] = new FilterOption(o.map(_ - that))
   def fMinus(that: Double): FilterOption[Double] = new FilterOption(o.map(_ - that))
 
-  def fMult(that: FilterOptionInt): FilterOption[Long] = FilterOption[Long, Int, Long](o, that.o, _ * _)
-  def fMult(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](o, that.o, _ * _)
-  def fMult(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](o, that.o, _ * _)
-  def fMult(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](o, that.o, _ * _)
-  def fMult(that: Int): FilterOption[Long] = new FilterOption(o.map(_ * that))
-  def fMult(that: Long): FilterOption[Long] = new FilterOption(o.map(_ * that))
-  def fMult(that: Float): FilterOption[Float] = new FilterOption(o.map(_ * that))
-  def fMult(that: Double): FilterOption[Double] = new FilterOption(o.map(_ * that))
+  def fTimes(that: FilterOptionInt): FilterOption[Long] = FilterOption[Long, Int, Long](o, that.o, _ * _)
+  def fTimes(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](o, that.o, _ * _)
+  def fTimes(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Long, Float, Float](o, that.o, _ * _)
+  def fTimes(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Long, Double, Double](o, that.o, _ * _)
+  def fTimes(that: Int): FilterOption[Long] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Long): FilterOption[Long] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Float): FilterOption[Float] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Double): FilterOption[Double] = new FilterOption(o.map(_ * that))
 
   def fDiv(that: FilterOptionInt): FilterOption[Long] = FilterOption[Long, Int, Long](o, that.o, _ / _)
   def fDiv(that: FilterOptionLong): FilterOption[Long] = FilterOption[Long, Long, Long](o, that.o, _ / _)
@@ -292,14 +295,14 @@ class FilterOptionFloat(val o: Option[Float]) {
   def fMinus(that: Float): FilterOption[Float] = new FilterOption(o.map(_ - that))
   def fMinus(that: Double): FilterOption[Double] = new FilterOption(o.map(_ - that))
 
-  def fMult(that: FilterOptionInt): FilterOption[Float] = FilterOption[Float, Int, Float](o, that.o, _ * _)
-  def fMult(that: FilterOptionLong): FilterOption[Float] = FilterOption[Float, Long, Float](o, that.o, _ * _)
-  def fMult(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](o, that.o, _ * _)
-  def fMult(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](o, that.o, _ * _)
-  def fMult(that: Int): FilterOption[Float] = new FilterOption(o.map(_ * that))
-  def fMult(that: Long): FilterOption[Float] = new FilterOption(o.map(_ * that))
-  def fMult(that: Float): FilterOption[Float] = new FilterOption(o.map(_ * that))
-  def fMult(that: Double): FilterOption[Double] = new FilterOption(o.map(_ * that))
+  def fTimes(that: FilterOptionInt): FilterOption[Float] = FilterOption[Float, Int, Float](o, that.o, _ * _)
+  def fTimes(that: FilterOptionLong): FilterOption[Float] = FilterOption[Float, Long, Float](o, that.o, _ * _)
+  def fTimes(that: FilterOptionFloat): FilterOption[Float] = FilterOption[Float, Float, Float](o, that.o, _ * _)
+  def fTimes(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Float, Double, Double](o, that.o, _ * _)
+  def fTimes(that: Int): FilterOption[Float] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Long): FilterOption[Float] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Float): FilterOption[Float] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Double): FilterOption[Double] = new FilterOption(o.map(_ * that))
 
   def fDiv(that: FilterOptionInt): FilterOption[Float] = FilterOption[Float, Int, Float](o, that.o, _ / _)
   def fDiv(that: FilterOptionLong): FilterOption[Float] = FilterOption[Float, Long, Float](o, that.o, _ / _)
@@ -370,7 +373,7 @@ class FilterOptionFloat(val o: Option[Float]) {
   def fGe(that: Float): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
   def fGe(that: Double): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
 
-  def fRound: FilterOption[Int] = new FilterOption[Int](o.map(scala.math.round))
+  // def fRound: FilterOption[Int] = new FilterOption[Int](o.map(scala.math.round))
 }
 
 class FilterOptionDouble(val o: Option[Double]) {
@@ -392,14 +395,14 @@ class FilterOptionDouble(val o: Option[Double]) {
   def fMinus(that: Float): FilterOption[Double] = new FilterOption(o.map(_ - that))
   def fMinus(that: Double): FilterOption[Double] = new FilterOption(o.map(_ - that))
 
-  def fMult(that: FilterOptionInt): FilterOption[Double] = FilterOption[Double, Int, Double](o, that.o, _ * _)
-  def fMult(that: FilterOptionLong): FilterOption[Double] = FilterOption[Double, Long, Double](o, that.o, _ * _)
-  def fMult(that: FilterOptionFloat): FilterOption[Double] = FilterOption[Double, Float, Double](o, that.o, _ * _)
-  def fMult(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](o, that.o, _ * _)
-  def fMult(that: Int): FilterOption[Double] = new FilterOption(o.map(_ * that))
-  def fMult(that: Long): FilterOption[Double] = new FilterOption(o.map(_ * that))
-  def fMult(that: Float): FilterOption[Double] = new FilterOption(o.map(_ * that))
-  def fMult(that: Double): FilterOption[Double] = new FilterOption(o.map(_ * that))
+  def fTimes(that: FilterOptionInt): FilterOption[Double] = FilterOption[Double, Int, Double](o, that.o, _ * _)
+  def fTimes(that: FilterOptionLong): FilterOption[Double] = FilterOption[Double, Long, Double](o, that.o, _ * _)
+  def fTimes(that: FilterOptionFloat): FilterOption[Double] = FilterOption[Double, Float, Double](o, that.o, _ * _)
+  def fTimes(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](o, that.o, _ * _)
+  def fTimes(that: Int): FilterOption[Double] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Long): FilterOption[Double] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Float): FilterOption[Double] = new FilterOption(o.map(_ * that))
+  def fTimes(that: Double): FilterOption[Double] = new FilterOption(o.map(_ * that))
 
   def fDiv(that: FilterOptionInt): FilterOption[Double] = FilterOption[Double, Int, Double](o, that.o, _ / _)
   def fDiv(that: FilterOptionLong): FilterOption[Double] = FilterOption[Double, Long, Double](o, that.o, _ / _)
@@ -468,6 +471,7 @@ class FilterOptionDouble(val o: Option[Double]) {
   def fGe(that: Float): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
   def fGe(that: Double): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
 
+  /*
   def fPow(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](o, that.o, scala.math.pow)
   def fPow(that: Double): FilterOption[Double] = new FilterOption(o.map(scala.math.pow(_, that)))
 
@@ -480,6 +484,7 @@ class FilterOptionDouble(val o: Option[Double]) {
   def fRint: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.rint))
   def fRound: FilterOption[Long] = new FilterOption[Long](o.map(scala.math.round))
   def fSqrt: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.sqrt))
+  */
 }
 
 object FilterUtils {
@@ -521,6 +526,21 @@ object Filter {
       case Some(b) => if (keep) b else !b
       case None => false
     }
+}
+
+object FilterTransformer {
+  val nameMap = Map("$plus" -> "fPlus", "$minus" -> "fMinus", "$times" -> "fTimes", "$div" -> "fDiv")
+}
+
+class FilterTransformer(m: Map[String, String]) extends Transformer {
+  override def transform(t: Tree) = t match {
+    case Select(exp, TermName(n)) =>
+      m.get(n) match {
+        case Some(newName) => Select(exp, TermName(newName))
+        case None => super.transform(t)
+      }
+    case _ => super.transform(t)
+  }
 }
 
 class FilterVariantCondition(cond: String, vas: AnnotationSignatures)

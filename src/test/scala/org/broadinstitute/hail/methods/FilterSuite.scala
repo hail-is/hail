@@ -2,11 +2,12 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver.{FilterVariants, FilterSamples, FilterGenotypes, State}
-import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
+import scala.reflect.runtime.currentMirror
+import scala.tools.reflect.ToolBox
 
 class FilterSuite extends SparkSuite {
-
+  /*
   @Test def filterUtilsTest() {
     import org.broadinstitute.hail.methods.FilterUtils._
     
@@ -22,16 +23,13 @@ class FilterSuite extends SparkSuite {
 
     fEmpty(fNone)
 
-
     val fTrue = FilterOption(true)
     val fFalse = FilterOption(false)
     val fBooleanNone = new FilterOption[Boolean](None)
 
-
     fAssert(fTrue)
     fAssert(!fFalse)
     fEmpty(!fBooleanNone)
-
 
     fAssert(true fEq true)
     fAssert(fTrue fEq true)
@@ -238,7 +236,7 @@ class FilterSuite extends SparkSuite {
     fEmpty(fDoubleNone fLt fDoubleOne)
     fEmpty(fDoubleZero fLt fDoubleNone)
 
-    fAssert(fDoubleHalf.fPow(fDoubleTwo) fEq .25)
+    // fAssert(fDoubleHalf.fPow(fDoubleTwo) fEq .25)
 
     // Mixed FilterOptionNumeric
 
@@ -275,13 +273,23 @@ class FilterSuite extends SparkSuite {
 
     fAssert(1 fDiv fTwo.fToDouble fEq .5)
     fAssert(1.toDouble fDiv fTwo fEq .5)
+    */
 
+    /*
     fAssert(fDoubleHalf.fCeil fEq 1L)
     fAssert(fDoubleHalf.fCeil fEq FilterOption(1L))
     fAssert(fDoubleHalf.fCeil fEq 1)
     fAssert(fDoubleHalf.fCeil fEq fOne) //using covariance from FilterOption[Int] to FilterOption[Long]
   }
+  */
 
+  @Test def filterTransformerTest(): Unit = {
+    val t = currentMirror.mkToolBox().parse("(a: Int, b: Int) => a - a / b")
+    val t2 = new FilterTransformer(FilterTransformer.nameMap).transform(t)
+    println(t2)
+  }
+
+  /*
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = State("", sc, sqlContext, vds)
@@ -333,4 +341,5 @@ class FilterSuite extends SparkSuite {
     test these in both cases
     */
   }
+  */
 }
