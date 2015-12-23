@@ -63,12 +63,13 @@ class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
     s"""(__v: org.broadinstitute.hail.variant.Variant,
         |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  import org.broadinstitute.hail.methods.FilterOption
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
         |  val v: ExportVariant = new ExportVariant(__v)
         |  ${signatures(vas, "__vaClass", makeToString = true)}
         |  ${instantiate("va", "__vaClass", "__va")}
-        |  Array($list).map(toTSVString).mkString("\t")
+        |  Array($list).map(_.o).map(toTSVString).mkString("\t")
         |}: String
     """.stripMargin
   }) {
@@ -80,11 +81,12 @@ class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
     s"""(s: org.broadinstitute.hail.variant.Sample,
         |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  import org.broadinstitute.hail.methods.FilterOption
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
         |  ${signatures(sas, "__saClass", makeToString = true)}
         |  ${instantiate("sa", "__saClass", "__sa")}
-        |  Array($list).map(toTSVString).mkString("\t")
+        |  Array($list).map(_.o).map(toTSVString).mkString("\t")
         |}: String
     """.stripMargin) {
   def apply(s: Sample, sa: AnnotationData): String = eval()(s, sa)
@@ -102,6 +104,7 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
     s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
+        |  import org.broadinstitute.hail.methods.FilterOption
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
         |  ${signatures(metadata.sampleAnnotationSignatures, "__saClass", makeToString = true)}
@@ -115,7 +118,7 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |      g: org.broadinstitute.hail.variant.Genotype) => {
         |        val sa = __saArray(__sIndex)
         |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
-        |        Array($list).map(toTSVString).mkString("\t")
+        |        Array($list).map(_.o).map(toTSVString).mkString("\t")
         |      }: String
         |   }
         | }

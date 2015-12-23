@@ -77,7 +77,7 @@ object AnnotationClassBuilder {
         }
           .mkString("\n")
       val vals = sigs.vals.map { case (k, sig) =>
-        s"""  val $k: Option[${sig.emitType}] = annot.getVal("$k").map(_.${sig.emitConversionIdentifier})"""
+        s"""  val $k: FilterOption[${sig.emitType}] = new FilterOption[${sig.emitType}](annot.getVal("$k").map(_.${sig.emitConversionIdentifier}))"""
       }
         .mkString("\n")
       s"""class $className(annot: org.broadinstitute.hail.annotations.AnnotationData)

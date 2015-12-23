@@ -41,14 +41,11 @@ object FilterVariants extends Command {
       case c: String =>
         val cf = new FilterVariantCondition(c, vas)
         cf.typeCheck()
-        cf.apply
+        val keep = options.keep
+        (v: Variant, va: AnnotationData) => Filter.keepThis(cf(v, va), keep)
     }
-
-    val newVDS = vds.filterVariants(if (options.keep)
-      p
-    else
-      (v: Variant, va: Annotations[String]) => !p(v, va))
-    state.copy(vds = newVDS)
+    
+    state.copy(vds = vds.filterVariants(p))
   }
 }
 

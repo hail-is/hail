@@ -36,7 +36,7 @@ class Evaluator[T](t: String)(implicit tct: ClassTag[T])
            reflective compilation has failed:
 
            ';' expected but '.' found. */
-        org.broadinstitute.hail.Utils.fatal("parse error in condition: " + e.message.split("\n").last)
+        org.broadinstitute.hail.Utils.fatal("parse error in condition: " + e.message) //FIXME not quite right
     }
   }
 
@@ -53,6 +53,7 @@ object Evaluator {
   import scala.reflect.runtime.currentMirror
   import scala.tools.reflect.ToolBox
   def eval[T](t: String): T = {
+    // println(s"t = $t")
     val toolbox = currentMirror.mkToolBox()
     val ast = toolbox.parse(t)
     toolbox.typeCheck(ast)
