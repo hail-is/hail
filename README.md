@@ -3,9 +3,10 @@
 # Hail
 
 ## Table of Contents
-1. [Filtering](docs/Filtering.md)
-2. [Exporting](docs/Exporting.md)
-3. [QC](docs/QC.md)
+1. [Importing](docs/Importing.md)
+2. [Filtering](docs/Filtering.md)
+3. [Exporting](docs/Exporting.md)
+4. [QC](docs/QC.md)
 
 ## Tools
 
@@ -17,6 +18,7 @@ We use the following development tools:
  - Travis-CI for automated testing
  - Jacoco for code coverage
  - args4j for command line parsing
+ - htsjdk for VCF parsing
  - Spark
  - Apache Commons libraries
  - IntelliJ (but you can use whatever editor you want)
@@ -30,7 +32,7 @@ handles the other dependencies.  On OSX, you can install gradle with
  - .vds: A .vds directory stores a `VariantDataset`, hail's internal
 representation of the information in a .vcf file.  It is stored
 (mostly) as parquet files.  You can use the hail `write` command to
-create a .vds file from a a .vcf\[.gz\] file.
+create a .vds file from a a .vcf\[.bgz\] file.
 
 ## Building
 

@@ -1,11 +1,23 @@
 # QC in Hail
 
-Hail includes two QC modules: `sampleqc` and `variantqc`.  These modules compute a variety of statistics from the genotype data, collapsing either variants or samples.  The output from these modes can be written to hadoop TSV files, or stored within sample and variant annotations for later use and export.  The sets of statistics, their types, and brief descriptions of how they are calculated are listed below.
+Hail includes two QC modules: 
+ - `sampleqc`
+ - `variantqc`
+ 
+These modules compute a variety of statistics from the genotype data, collapsing either variants or samples.  The output from these modes can be written to hadoop TSV files, or stored within sample and variant annotations for later use and export.  
+  
+Command line arguments:
+ - `-o` -- writes computed statistics to the following path as a TSV file
+ - `--store, -s` -- stores all computed statistics within hail in `annotations` objects, to be used with downstream [filter](Filtering.md) and [export](Exporting.md) modules.
+ 
+The sets of statistics, their types, and brief descriptions of how they are calculated are listed below.
 
 **Note:** all standard deviations are calculated with zero degrees of freedom.
 
-## Sample QC
+**Note:** many values can be missing (`NA`).  Missingness is handled properly in filtering and is written as "NA" in export modules.
 
+## Sample QC
+ - `callRate:             Double` -- Fraction of variants with called genotypes
  - `nHomRef:                 Int` -- Number of homozygous reference variants
  - `nHet:                    Int` -- Number of heterozygous variants
  - `nHomVar:                 Int` -- Number of homozygous alternate variants
@@ -22,7 +34,7 @@ Hail includes two QC modules: `sampleqc` and `variantqc`.  These modules compute
  - `rHetHomVar:           Double` -- Het/HomVar ratio across all variants
  - `rDeletionInsertion:   Double` -- Deletion/Insertion ratio across all variants    
  - `dpMean:               Double` -- Depth mean across all variants
- - `dpStDev;              Double` -- Depth standard deviation across all variants
+ - `dpStDev:              Double` -- Depth standard deviation across all variants
  - `dpMeanHomRef:         Double` -- Depth mean across all variants called HomRef
  - `dpStDevHomRef:        Double` -- Depth standard deviation across all variants called HomRef
  - `dpMeanHet:            Double` -- Depth mean across all variants called Het
@@ -39,11 +51,13 @@ Hail includes two QC modules: `sampleqc` and `variantqc`.  These modules compute
  - `gqStDevHomVar:        Double` -- GQ standard deviation across all variants called HomVar
  
 ## VariantQC
+ - `callRate:              Double` -- Fraction of samples with called genotypes
  - `MAF:                   Double` -- Calculated minor allele frequency (q)
+ - `MAC:                      Int` -- Count of alternate alleles
  - `rHeterozygosity:       Double` -- Proportion of heterozygotes
  - `rHetHomVar:            Double` -- Ratio of heterozygotes to homozygous alternates
  - `rExpectedHetFrequency: Double` -- Expected rHeterozygosity based on HWE
- - `pHWE:                  Double` -- p-value to reject that the site is in HWE, [see documentation here](LeveneHaldane.tex)
+ - `pHWE:                  Double` -- p-value computed from Hardy Weinberg Equilibrium null model, [see documentation here](LeveneHaldane.tex)
  - `nHomRef:                  Int` -- Number of homozygous reference samples
  - `nHet:                     Int` -- Number of heterozygous samples
  - `nHomVar:                  Int` -- Number of homozygous alternate samples
