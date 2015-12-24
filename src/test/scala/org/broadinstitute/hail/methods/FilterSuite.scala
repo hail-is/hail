@@ -7,7 +7,7 @@ import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
 
 class FilterSuite extends SparkSuite {
-  /*
+
   @Test def filterUtilsTest() {
     import org.broadinstitute.hail.methods.FilterUtils._
     
@@ -42,10 +42,10 @@ class FilterSuite extends SparkSuite {
     fEmpty(fTrue fEq fBooleanNone)
     fEmpty(fBooleanNone fEq fBooleanNone)
 
-    fAssert(true nfEq false)
-    fAssert(fTrue nfEq false)
-    fAssert(true nfEq fFalse)
-    fAssert(fTrue nfEq fFalse)
+    fAssert(true fNotEq false)
+    fAssert(fTrue fNotEq false)
+    fAssert(true fNotEq fFalse)
+    fAssert(fTrue fNotEq fFalse)
 
     // FilterOptionBoolean
     fAssert(fTrue fAnd true)
@@ -73,6 +73,8 @@ class FilterSuite extends SparkSuite {
     val fZero = FilterOption(0)
     val fOne = FilterOption(1)
     val fTwo = FilterOption(2)
+
+    fAssert("1" fEq "1")
 
     fAssert(fString1.fApply(0) fEq '1')
     fAssert(fString1.fApply(0) fEq fChar)
@@ -273,23 +275,34 @@ class FilterSuite extends SparkSuite {
 
     fAssert(1 fDiv fTwo.fToDouble fEq .5)
     fAssert(1.toDouble fDiv fTwo fEq .5)
-    */
 
     /*
     fAssert(fDoubleHalf.fCeil fEq 1L)
     fAssert(fDoubleHalf.fCeil fEq FilterOption(1L))
     fAssert(fDoubleHalf.fCeil fEq 1)
     fAssert(fDoubleHalf.fCeil fEq fOne) //using covariance from FilterOption[Int] to FilterOption[Long]
-  }
-  */
-
-  @Test def filterTransformerTest(): Unit = {
-    val t = currentMirror.mkToolBox().parse("(a: Int, b: Int) => a - a / b")
-    val t2 = new FilterTransformer(FilterTransformer.nameMap).transform(t)
-    println(t2)
+    */
   }
 
   /*
+  @Test def filterTransformerTest(): Unit = {
+    val t = currentMirror.mkToolBox().parse("(a: Int, b: Int) => a > -b && !true")
+    println(t)
+    val t2 = new FilterTransformer(FilterTransformer.nameMap).transform(t)
+    println(t2)
+  }
+  */
+
+  @Test def parseTest(): Unit = {
+    val vds2 = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
+    val state2 = State("", sc, sqlContext, vds2)
+
+    //println(reflect.runtime.universe.reify("a" == "a").tree)
+
+    val chr1 = FilterVariants.run(state2, Array("--keep", "-c", "v.contig == \"1\"" ))
+    assert(chr1.vds.rdd.count == 9)
+  }
+
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = State("", sc, sqlContext, vds)
@@ -300,14 +313,12 @@ class FilterSuite extends SparkSuite {
     assert(FilterVariants.run(state, Array("--remove", "-c", "v.start >= 14066228"))
       .vds.nVariants == 173)
 
-    val highGQ = FilterGenotypes.run(state, Array("--remove", "-c", "g.call.exists(c => c.gq < 20)"))
+
+    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "new FilterOption(g.call.map(_.gq)) < 20"))
       .vds.expand().collect()
 
-    assert(!highGQ.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
-    assert(highGQ.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
-
-    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "new FilterOption(g.call.map(_.gq)) fLt 20"))
-      .vds.expand().collect()
+//    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "qual < 20"))
+//      .vds.expand().collect()
 
     assert(!highGQ2.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
     assert(highGQ2.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
@@ -341,5 +352,4 @@ class FilterSuite extends SparkSuite {
     test these in both cases
     */
   }
-  */
 }
