@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import java.io.Serializable
+
 import scala.reflect.ClassTag
 
 
@@ -52,10 +53,13 @@ class Evaluator[T](t: String)(implicit tct: ClassTag[T])
 object Evaluator {
   import scala.reflect.runtime.currentMirror
   import scala.tools.reflect.ToolBox
+
+  val m: Map[String, String] = FilterTransformer.nameMap
+
   def eval[T](t: String): T = {
-    // println(s"t = $t")
+    println(s"t = $t")
     val toolbox = currentMirror.mkToolBox()
-    val ast = toolbox.parse(t)
+    val ast = new FilterTransformer(m).transform(toolbox.parse(t))
     toolbox.typeCheck(ast)
     toolbox.eval(ast).asInstanceOf[T]
   }

@@ -42,7 +42,7 @@ class FilterOption[+T](val o: Option[T]) extends AnyVal {
         case _ => Some(t == that)
       }))
 
-  def nfEq(that: Any): FilterOption[Boolean] = new FilterOption((this fEq that).o.map(!_))
+  def fNotEq(that: Any): FilterOption[Boolean] = new FilterOption((this fEq that).o.map(!_))
 }
 
 class FilterOptionBoolean(val o: Option[Boolean]) extends AnyVal {
@@ -529,14 +529,20 @@ object Filter {
 }
 
 object FilterTransformer {
-  val nameMap = Map("$plus" -> "fPlus", "$minus" -> "fMinus", "$times" -> "fTimes", "$div" -> "fDiv")
+  val nameMap = Map(
+    "$eq$eq" -> "fEq", "$bang$eq" -> "nNotEq", "apply" -> "fApply", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
+    "$plus" -> "fPlus", "$minus" -> "fMinus", "$times" -> "fTimes", "$div" -> "fDiv", "$percent" -> "fMod",
+    "abs" -> "fAbs", "signum" -> "fSignum", "max" -> "fMax", "min" -> "fMin",
+    "toInt" -> "fToInt", "toLong" -> "fToLong", "toFloat" -> "fToFloat", "toDouble" -> "fToDouble",
+    "toRealInt" -> "toInt", "toRealDouble" -> "toDouble",
+    "$less" -> "fLt", "$greater" -> "fGt", "$less$eq" -> "fLe", "$greater$eq" -> "fGe")
 }
 
 class FilterTransformer(m: Map[String, String]) extends Transformer {
-  override def transform(t: Tree) = t match {
+  override def transform(t: Tree): Tree = t match {
     case Select(exp, TermName(n)) =>
       m.get(n) match {
-        case Some(newName) => Select(exp, TermName(newName))
+        case Some(newName) => {println(s"match = ($n, $t)"); Select(transform(exp), TermName(newName))}
         case None => super.transform(t)
       }
     case _ => super.transform(t)

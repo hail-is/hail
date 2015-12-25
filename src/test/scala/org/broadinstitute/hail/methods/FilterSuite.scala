@@ -314,11 +314,11 @@ class FilterSuite extends SparkSuite {
       .vds.nVariants == 173)
 
 
-    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "new FilterOption(g.call.map(_.gq)) < 20"))
-      .vds.expand().collect()
+    //val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "new FilterOption(g.call.map(_.gq)) < 20"))
+    //  .vds.expand().collect()
 
-//    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "qual < 20"))
-//      .vds.expand().collect()
+    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
+      .vds.expand().collect()
 
     assert(!highGQ2.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
     assert(highGQ2.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
