@@ -48,7 +48,8 @@ object UserExportUtils {
   // FIXME move to Utils after we figure out what is calling the illegal cyclic operation bug
   def toTSVString(a: Any): String = {
     a match {
-      case Some(o) => toTSVString(o)
+      case fo: FilterOption[_] => toTSVString(fo.o)
+      case Some(x) => toTSVString(x)
       case None => "NA"
       case d: Double => d.formatted("%.4e")
       case i: Iterable[_] => i.map(toTSVString).mkString(",")
@@ -69,7 +70,7 @@ class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
         |  val v: ExportVariant = new ExportVariant(__v)
         |  ${signatures(vas, "__vaClass", makeToString = true)}
         |  ${instantiate("va", "__vaClass", "__va")}
-        |  Array($list).map(_.o).map(toTSVString).mkString("\t")
+        |  Array[Any]($list).map(toTSVString).mkString("\t")
         |}: String
     """.stripMargin
   }) {
@@ -86,7 +87,7 @@ class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
         |
         |  ${signatures(sas, "__saClass", makeToString = true)}
         |  ${instantiate("sa", "__saClass", "__sa")}
-        |  Array($list).map(_.o).map(toTSVString).mkString("\t")
+        |  Array[Any]($list).map(toTSVString).mkString("\t")
         |}: String
     """.stripMargin) {
   def apply(s: Sample, sa: AnnotationData): String = eval()(s, sa)
@@ -118,7 +119,7 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |      g: org.broadinstitute.hail.variant.Genotype) => {
         |        val sa = __saArray(__sIndex)
         |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
-        |        Array($list).map(_.o).map(toTSVString).mkString("\t")
+        |        Array[Any]($list).map(toTSVString).mkString("\t")
         |      }: String
         |   }
         | }

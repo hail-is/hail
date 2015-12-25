@@ -23,8 +23,8 @@ class ExportSuite extends SparkSuite {
     SampleQC.run(state, Array("-o", "/tmp/sampleQC"))
     val postSampleQC = SampleQC.run(state, Array("--store"))
 
-    assert(toTSVString(Some(5.1)) == "5.1000e+00")
-    assert(toTSVString(Some(None)) == "NA")
+    assert(toTSVString(FilterOption(5.1)) == "5.1000e+00")
+    assert(toTSVString(FilterOption.empty) == "NA")
     assert(toTSVString(Array(1,2,3,4,5)) == "1,2,3,4,5")
     assert(toTSVString(5.124) == "5.1240e+00")
 

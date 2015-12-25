@@ -69,6 +69,7 @@ class FilterOptionString(val o: Option[String]) extends AnyVal {
 class FilterOptionArray[T](val o: Option[Array[T]]) extends AnyVal {
   def fApply(i: Int): FilterOption[T] = new FilterOption(o.map(_ (i)))
 
+  //FIXME: is this right?
   def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Array[T], T, Boolean](o, fo.o, _.contains(_))
   def fContains(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.contains(t)))
 
@@ -82,6 +83,7 @@ class FilterOptionArray[T](val o: Option[Array[T]]) extends AnyVal {
 
 class FilterOptionSet[T](val o: Option[Set[T]]) extends AnyVal {
 
+  //FIXME: is this right?
   def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Set[T], T, Boolean](o, fo.o, _.contains(_))
   def fContains(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.contains(t)))
 
@@ -556,7 +558,7 @@ class FilterTransformer(m: Map[String, String]) extends Transformer {
   override def transform(t: Tree): Tree = t match {
     case Select(exp, TermName(n)) =>
       m.get(n) match {
-        case Some(newName) => {println(s"match = ($n, $t)"); Select(transform(exp), TermName(newName))}
+        case Some(newName) => Select(transform(exp), TermName(newName))
         case None => super.transform(t)
       }
     case _ => super.transform(t)
