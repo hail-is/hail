@@ -1,9 +1,87 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.spark.SparkContext
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Variant, Genotype}
+import scala.io.Source
 import scala.language.implicitConversions
+
+object ExportTSV {
+  def parseExpression(cond: String, sc: SparkContext,
+    vas: Option[AnnotationSignatures] = None,
+    sas: Option[AnnotationSignatures] = None): (String, String) = {
+    if (cond.endsWith(".columns")) {
+      val lines = Source
+        .fromInputStream(hadoopOpen(cond, sc.hadoopConfiguration))
+        .getLines()
+        .map(_.split("\t"))
+        .toList
+      //        println(lines.map(_.mkString("; ")).mkString("\t"))
+      /* Check errors in user input format here.  Bad input that satisfies this check will throw
+        errors in makeString */
+      if (lines.isEmpty) {
+        println(s"length = ${lines.length}")
+        fatal("parse error in .columns file: empty file")
+      }
+      if (!lines.forall(_.length > 2))
+        fatal("parse error in .columns file: expect 1 or 2 tab-separated fields per line")
+      (lines.map(_(0)).mkString("\t"), lines.map(_(1)).mkString(","))
+    } else
+      (cond.split(",")
+        .map(mapColumnNames(_, vas, sas))
+        .mkString("\t"), cond)
+  }
+
+  val variantRegex = """v\.(\w+)""".r
+  val topLevelVariantAnnoRegex = """va\.(\w+)""".r
+  val printMapVariantRegex = """va\.(\w+)\.all""".r
+  val sampleRegex = """s\.(\w+)""".r
+  val topLevelSampleAnnoRegex = """sa\.(\w+)""".r
+  val printMapSampleRegex = """sa\.(\w+)\.all""".r
+  val annoRegex = """\wa\.(.+)""".r
+
+  def mapColumnNames(input: String, vas: Option[AnnotationSignatures],
+    sas: Option[AnnotationSignatures]): String = {
+    input match {
+      case "v" => "Variant"
+      case "va" =>
+        fatal("parse error in condition: cannot print 'va', choose a group or value in annotations")
+      case "sa" =>
+        fatal("parse error in condition: cannot print 'sa', choose a group or value in annotations")
+      case variantRegex(x) => x
+      case topLevelVariantAnnoRegex(x) =>
+        if (vas.isEmpty)
+          fatal("parse error in condition: tried to export 'va' in exportsamples")
+        if (vas.get.maps.contains(x)) {
+          val keys = vas.get.maps(x).keys.toArray.sorted
+          if (keys.isEmpty) x else s"$x:" + keys.mkString("\t")
+        }
+        else x
+      case topLevelSampleAnnoRegex(x) =>
+        if (sas.isEmpty)
+          fatal("parse error in condition: tried to export 'sa' in exportvariants")
+        if (sas.get.maps.contains(x)) {
+          val keys = sas.get.maps(x).keys.toArray.sorted
+          if (keys.isEmpty) x else s"$x:" + keys.mkString("\t")
+        }
+        else x
+      case printMapVariantRegex(x) =>
+        if (vas.isEmpty)
+          fatal("parse error in condition: tried to export 'va' in exportsamples")
+        val keys = vas.get.maps(x).keys
+        if (keys.isEmpty) x else keys.mkString("\t")
+      case printMapSampleRegex(x) =>
+        if (sas.isEmpty)
+          fatal("parse error in condition: tried to export 'sa' in exportvariants")
+        val keys = sas.get.maps(x).keys
+        if (keys.isEmpty) x else keys.mkString("\t")
+      case annoRegex(x) => x
+      case _ => input
+    }
+  }
+}
 
 object UserExportUtils {
 

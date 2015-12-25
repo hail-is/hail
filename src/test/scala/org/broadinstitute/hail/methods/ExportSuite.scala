@@ -59,5 +59,8 @@ class ExportSuite extends SparkSuite {
       .getLines().toSet
 
     assert(vQcOutput == vExportOutput)
+
+    ExportVariants.run(postVariantQC, Array("-o", "/tmp/exportVariants",
+      "-c", "src/test/resources/exportVariants.columns"))
   }
 }
