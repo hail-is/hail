@@ -115,10 +115,32 @@ class FilterSuite extends SparkSuite {
     fEmpty(fArrayIntNone.fApply(0) fEq 1)
     fEmpty(fArrayInt.fApply(0) fEq fIntNone)
 
+    fAssert(fArrayInt.fContains(0) fEq false)
+    fAssert(fArrayInt.fContains(1) fEq true)
+    fEmpty(fArrayIntNone.fContains(0) fEq false)
+    fEmpty(fArrayIntNone.fContains(1) fEq true)
+    fEmpty(fArrayInt.fContains(fIntNone) fEq true)
+
     fAssert(fArrayInt.size fEq fTwo)
     fAssert(fArrayInt.size fEq 2)
     fEmpty(fArrayIntNone.size fEq 2)
     fEmpty(fArrayInt.size fEq fIntNone)
+
+    // FilterOptionSet
+
+    val fSetInt = FilterOption(Set(1, 2))
+    val fSetIntNone = new FilterOption[Set[Int]](None)
+
+    fAssert(fSetInt.fContains(0) fEq false)
+    fAssert(fSetInt.fContains(1) fEq true)
+    fEmpty(fSetIntNone.fContains(0) fEq false)
+    fEmpty(fSetIntNone.fContains(1) fEq true)
+    fEmpty(fSetInt.fContains(fIntNone) fEq true)
+
+    fAssert(fSetInt.size fEq fTwo)
+    fAssert(fSetInt.size fEq 2)
+    fEmpty(fSetIntNone.size fEq 2)
+    fEmpty(fSetInt.size fEq fIntNone)
 
     // FilterOptionInt
 
@@ -313,15 +335,14 @@ class FilterSuite extends SparkSuite {
     assert(FilterVariants.run(state, Array("--remove", "-c", "v.start >= 14066228"))
       .vds.nVariants == 173)
 
-
-    //val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "new FilterOption(g.call.map(_.gq)) < 20"))
-    //  .vds.expand().collect()
-
-    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
+    val highGQ = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
       .vds.expand().collect()
 
-    assert(!highGQ2.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
-    assert(highGQ2.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
+    assert(!highGQ.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
+    assert(highGQ.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
+
+    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20 || (g.gq < 30 && va.info.FS > 30)"))
+      .vds.expand().collect()
 
     val vds2 = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
     val state2 = State("", sc, sqlContext, vds2)

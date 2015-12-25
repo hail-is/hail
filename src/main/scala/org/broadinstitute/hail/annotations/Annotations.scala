@@ -56,7 +56,7 @@ object AnnotationClassBuilder {
       case (subclass, subMap) =>
         val attrs = subMap
           .map { case (k, sig) =>
-            s"""  val $k: Option[${sig.emitType}] = subMap.get("$k").map(_.${realConversion(sig.emitConversionIdentifier)})"""
+            s"""  val $k: FilterOption[${sig.emitType}] = new FilterOption(subMap.get("$k").map(_.${realConversion(sig.emitConversionIdentifier)}))"""
           }
           .mkString("\n")
         val methods: String = {

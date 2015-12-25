@@ -69,12 +69,23 @@ class FilterOptionString(val o: Option[String]) extends AnyVal {
 class FilterOptionArray[T](val o: Option[Array[T]]) extends AnyVal {
   def fApply(i: Int): FilterOption[T] = new FilterOption(o.map(_ (i)))
 
+  def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Array[T], T, Boolean](o, fo.o, _.contains(_))
+  def fContains(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.contains(t)))
+
   def size: FilterOption[Int] = new FilterOption(o.map(_.length))
 
   def length: FilterOption[Int] = new FilterOption(o.map(_.length))
 
   //Fixme: error related to conversion to ArraySeq
   //def fConcat(that: FilterOptionArray[T]): FilterOption[Array[T]] = new FilterOption(oa.flatMap(a => that.oa.map(a ++ _)))
+}
+
+class FilterOptionSet[T](val o: Option[Set[T]]) extends AnyVal {
+
+  def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Set[T], T, Boolean](o, fo.o, _.contains(_))
+  def fContains(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.contains(t)))
+
+  def size: FilterOption[Int] = new FilterOption(o.map(_.size))
 }
 
 class FilterOptionInt(val o: Option[Int]) {
@@ -507,6 +518,9 @@ object FilterUtils {
   implicit def toFilterOptionArray[T](a: Array[T]): FilterOptionArray[T] = new FilterOptionArray(Some(a))
   implicit def toFilterOptionArray[T](fo: FilterOption[Array[T]]): FilterOptionArray[T] = new FilterOptionArray[T](fo.o)
 
+  implicit def toFilterOptionSet[T](s: Set[T]): FilterOptionSet[T] = new FilterOptionSet(Some(s))
+  implicit def toFilterOptionSet[T](fo: FilterOption[Set[T]]): FilterOptionSet[T] = new FilterOptionSet[T](fo.o)
+
   implicit def toFilterOptionInt(i: Int): FilterOptionInt = new FilterOptionInt(Some(i))
   implicit def toFilterOptionInt(fo: FilterOption[Int]): FilterOptionInt = new FilterOptionInt(fo.o)
 
@@ -530,11 +544,11 @@ object Filter {
 
 object FilterTransformer {
   val nameMap = Map(
+    "toRealInt" -> "toInt", "toRealDouble" -> "toDouble",
     "$eq$eq" -> "fEq", "$bang$eq" -> "nNotEq", "apply" -> "fApply", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
     "$plus" -> "fPlus", "$minus" -> "fMinus", "$times" -> "fTimes", "$div" -> "fDiv", "$percent" -> "fMod",
-    "abs" -> "fAbs", "signum" -> "fSignum", "max" -> "fMax", "min" -> "fMin",
+    "abs" -> "fAbs", "signum" -> "fSignum", "max" -> "fMax", "min" -> "fMin", "contains" -> "fContains",
     "toInt" -> "fToInt", "toLong" -> "fToLong", "toFloat" -> "fToFloat", "toDouble" -> "fToDouble",
-    "toRealInt" -> "toInt", "toRealDouble" -> "toDouble",
     "$less" -> "fLt", "$greater" -> "fGt", "$less$eq" -> "fLe", "$greater$eq" -> "fGe")
 }
 
