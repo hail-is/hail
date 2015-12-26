@@ -36,18 +36,9 @@ object ExportVariants extends Command {
     val (header, fields) = ExportTSV.parseExpression(cond, vds.sparkContext, vas = Some(vas))
 
     val makeString: (Variant, Annotations[String]) => String = {
-      try {
-          val eve = new ExportVariantsEvaluator(fields, vas)
-          eve.typeCheck()
-          eve.apply
-        } catch {
-          case e: scala.tools.reflect.ToolBoxError =>
-            /* e.message looks like:
-               reflective compilation has failed:
-
-               ';' expected but '.' found. */
-            fatal("parse error in condition: " + e.message.split("\n").last)
-        }
+      val eve = new ExportVariantsEvaluator(fields, vas)
+      eve.typeCheck()
+      eve.apply
     }
 
     writeTextFile(output + ".header", state.hadoopConf) { s =>

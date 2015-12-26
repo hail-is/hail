@@ -34,18 +34,9 @@ object ExportSamples extends Command {
     val (header, fields) = ExportTSV.parseExpression(cond, vds.sparkContext, sas = Some(sas))
 
     val makeString: (Sample, Annotations[String]) => String = {
-      try {
-        val ese = new ExportSamplesEvaluator(fields, sas)
-        ese.typeCheck()
-        ese.apply
-      } catch {
-        case e: scala.tools.reflect.ToolBoxError =>
-          /* e.message looks like:
-             reflective compilation has failed:
-
-             ';' expected but '.' found. */
-          fatal("parse error in condition: " + e.message.split("\n").last)
-      }
+      val ese = new ExportSamplesEvaluator(fields, sas)
+      ese.typeCheck()
+      ese.apply
     }
 
     // FIXME add additional command parsing functionality

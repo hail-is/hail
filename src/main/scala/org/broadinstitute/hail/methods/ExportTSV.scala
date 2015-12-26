@@ -26,7 +26,7 @@ object ExportTSV {
       }
       if (!lines.forall(_.length == 2))
         fatal("parse error in .columns file: expect 2 tab-separated fields per line")
-      (lines.map(_(0)).mkString("\t"), lines.map(_(1)).mkString(","))
+      (lines.map(_.apply(0)).mkString("\t"), lines.map(_.apply(1)).mkString(","))
     } else
       (cond.split(",")
         .map(mapColumnNames(_, vas, sas))
