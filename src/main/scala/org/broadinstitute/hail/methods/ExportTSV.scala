@@ -44,7 +44,9 @@ object ExportTSV {
   def mapColumnNames(input: String, vas: Option[AnnotationSignatures],
     sas: Option[AnnotationSignatures]): String = {
     input match {
+      case "s" => "Sample"
       case "v" => "Variant"
+      case "g" => "Genotype"
       case "va" =>
         fatal("parse error in condition: cannot print 'va', choose a group or value in annotations")
       case "sa" =>
@@ -86,37 +88,21 @@ object UserExportUtils {
 
   class ExportVariant(val v: Variant) extends AnyVal {
     def contig = v.contig
-
     def start = v.start
-
     def ref = v.ref
-
     def alt = v.alt
-
     def variantType = v.variantType
-
     def inParX = v.inParX
-
     def inParY = v.inParY
-
     def isSNP = v.isSNP
-
     def isMNP = v.isMNP
-
     def isInsertion = v.isInsertion
-
     def isDeletion = v.isDeletion
-
     def isIndel = v.isIndel
-
     def isComplex = v.isComplex
-
     def isTransition = v.isTransition
-
     def isTransversion = v.isTransversion
-
     def nMismatch = v.nMismatch
-
     override def toString: String = {
       s"${contig}_${start}_${ref}_$alt"
     }
