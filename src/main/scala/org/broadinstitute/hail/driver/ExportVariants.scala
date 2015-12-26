@@ -17,7 +17,7 @@ object ExportVariants extends Command {
     var output: String = _
 
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
-      usage = ".columns file, or comma-separated list of fields to be printed to tsv")
+      usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
   }
 
@@ -34,8 +34,7 @@ object ExportVariants extends Command {
     val output = options.output
 
     val (header, fields) = ExportTSV.parseExpression(cond, vds.sparkContext, vas = Some(vas))
-    println(s"header is $header")
-    println(s"fields is $fields")
+
     val makeString: (Variant, Annotations[String]) => String = {
       try {
           val eve = new ExportVariantsEvaluator(fields, vas)

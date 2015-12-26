@@ -22,11 +22,10 @@ object ExportTSV {
       /* Check errors in user input format here.  Bad input that satisfies this check will throw
         errors in makeString */
       if (lines.isEmpty) {
-        println(s"length = ${lines.length}")
         fatal("parse error in .columns file: empty file")
       }
-      if (!lines.forall(_.length > 2))
-        fatal("parse error in .columns file: expect 1 or 2 tab-separated fields per line")
+      if (!lines.forall(_.length == 2))
+        fatal("parse error in .columns file: expect 2 tab-separated fields per line")
       (lines.map(_(0)).mkString("\t"), lines.map(_(1)).mkString(","))
     } else
       (cond.split(",")
