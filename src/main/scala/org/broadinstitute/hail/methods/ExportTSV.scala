@@ -60,7 +60,7 @@ object UserExportUtils {
 }
 
 class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
-  extends Evaluator[(Variant, AnnotationData) => String]({
+  extends EvaluatorWithTreeTransform[(Variant, AnnotationData) => String](
     s"""(__v: org.broadinstitute.hail.variant.Variant,
         |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -72,13 +72,13 @@ class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
         |  ${instantiate("va", "__vaClass", "__va")}
         |  Array[Any]($list).map(toTSVString).mkString("\t")
         |}: String
-    """.stripMargin
-  }) {
+    """.stripMargin,
+    Filter.nameMap) {
   def apply(v: Variant, va: AnnotationData): String = eval()(v, va)
 }
 
 class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
-  extends Evaluator[(Sample, AnnotationData) => String](
+  extends EvaluatorWithTreeTransform[(Sample, AnnotationData) => String](
     s"""(s: org.broadinstitute.hail.variant.Sample,
         |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -89,7 +89,8 @@ class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
         |  ${instantiate("sa", "__saClass", "__sa")}
         |  Array[Any]($list).map(toTSVString).mkString("\t")
         |}: String
-    """.stripMargin) {
+    """.stripMargin,
+    Filter.nameMap) {
   def apply(s: Sample, sa: AnnotationData): String = eval()(s, sa)
 }
 
@@ -100,7 +101,7 @@ object ExportGenotypeEvaluator {
 }
 
 class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
-  extends EvaluatorWithTransformation[ExportGenotypeEvaluator.ExportGenotypeWithSA,
+  extends EvaluatorWithValueAndTreeTransform[ExportGenotypeEvaluator.ExportGenotypeWithSA,
     ExportGenotypeEvaluator.ExportGenotypePostSA](
     s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
         |  __ids: IndexedSeq[String]) => {
@@ -124,7 +125,8 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |   }
         | }
       """.stripMargin,
-    t => t(metadata.sampleAnnotations, metadata.sampleIds)) {
+    t => t(metadata.sampleAnnotations, metadata.sampleIds),
+    Filter.nameMap) {
 
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): String =
     eval()(v, va)(sIndex, g)

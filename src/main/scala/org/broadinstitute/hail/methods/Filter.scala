@@ -5,9 +5,6 @@ import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.methods.FilterUtils.{FilterGenotypePostSA, FilterGenotypeWithSA}
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Genotype, Variant}
 import scala.language.implicitConversions
-import scala.reflect.runtime.universe._
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
 
 class FilterString(val s: String) extends AnyVal {
   def ~(t: String): Boolean = s.r.findFirstIn(t).isDefined
@@ -542,9 +539,7 @@ object Filter {
       case Some(b) => if (keep) b else !b
       case None => false
     }
-}
 
-object FilterTransformer {
   val nameMap = Map(
     "toRealInt" -> "toInt", "toRealDouble" -> "toDouble",
     "$eq$eq" -> "fEq", "$bang$eq" -> "nNotEq", "apply" -> "fApply", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
@@ -554,19 +549,8 @@ object FilterTransformer {
     "$less" -> "fLt", "$greater" -> "fGt", "$less$eq" -> "fLe", "$greater$eq" -> "fGe")
 }
 
-class FilterTransformer(m: Map[String, String]) extends Transformer {
-  override def transform(t: Tree): Tree = t match {
-    case Select(exp, TermName(n)) =>
-      m.get(n) match {
-        case Some(newName) => Select(transform(exp), TermName(newName))
-        case None => super.transform(t)
-      }
-    case _ => super.transform(t)
-  }
-}
-
 class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
-  extends Evaluator[(Variant, AnnotationData) => FilterOption[Boolean]]({
+  extends EvaluatorWithTreeTransform[(Variant, AnnotationData) => FilterOption[Boolean]](
     s"""(v: org.broadinstitute.hail.variant.Variant,
        |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
        |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -575,13 +559,13 @@ class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
        |  ${instantiate("va", "__vaClass", "__va")};
        |  {$cond}: FilterOption[Boolean]
        |}
-    """.stripMargin
-  }) {
+    """.stripMargin,
+    Filter.nameMap) {
   def apply(v: Variant, va: AnnotationData): FilterOption[Boolean] = eval()(v, va)
 }
 
 class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
-  extends Evaluator[(Sample, AnnotationData) => FilterOption[Boolean]](
+  extends EvaluatorWithTreeTransform[(Sample, AnnotationData) => FilterOption[Boolean]](
     s"""(s: org.broadinstitute.hail.variant.Sample,
        |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
        |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -590,12 +574,13 @@ class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
        |  ${instantiate("sa", "__saClass", "__sa")};
        |  {$cond}: FilterOption[Boolean]
        |}
-    """.stripMargin) {
+    """.stripMargin,
+    Filter.nameMap) {
   def apply(s: Sample, sa: AnnotationData): FilterOption[Boolean] = eval()(s, sa)
 }
 
 class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
-  extends EvaluatorWithTransformation[FilterGenotypeWithSA, FilterGenotypePostSA](
+  extends EvaluatorWithValueAndTreeTransform[FilterGenotypeWithSA, FilterGenotypePostSA](
     s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
        |  __ids: IndexedSeq[String]) => {
        |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -615,7 +600,8 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
        |  }
        |}
       """.stripMargin,
-    t => t(metadata.sampleAnnotations, metadata.sampleIds)) {
+    t => t(metadata.sampleAnnotations, metadata.sampleIds),
+    Filter.nameMap) {
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): FilterOption[Boolean] =
     eval()(v, va)(sIndex, g)
 }

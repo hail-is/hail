@@ -3,8 +3,6 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver.{FilterVariants, FilterSamples, FilterGenotypes, State}
 import org.testng.annotations.Test
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
 
 class FilterSuite extends SparkSuite {
 
