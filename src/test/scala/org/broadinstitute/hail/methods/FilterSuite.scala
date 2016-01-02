@@ -1,12 +1,12 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.{FilterVariants, FilterSamples, FilterGenotypes, State}
+import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 
 class FilterSuite extends SparkSuite {
 
-  @Test def filterUtilsTest() {
+  @Test def evalTest() {
     import org.broadinstitute.hail.methods.FilterUtils._
     
     def fEmpty[T](fo: FilterOption[T]) {
@@ -105,6 +105,7 @@ class FilterSuite extends SparkSuite {
 
     // FilterOptionArray
     val fArrayInt = FilterOption(Array(1, 2))
+
     val fArrayIntNone = new FilterOption[Array[Int]](None)
     val fIntNone = new FilterOption[Int](None)
 
@@ -119,29 +120,82 @@ class FilterSuite extends SparkSuite {
     fEmpty(fArrayIntNone.fContains(1) fEq true)
     fEmpty(fArrayInt.fContains(fIntNone) fEq true)
 
+    fAssert(fArrayInt.fMkString(", ") fEq "1, 2")
+    fAssert(fArrayInt.fMkString("[", ", ", "]") fEq "[1, 2]")
+
+    fAssert(Array(0) fConcat fArrayInt fSameElements FilterOption(Array(0,1,2)))
+    fAssert(fArrayInt fConcat Array(3) fSameElements Array(1,2,3))
+    fAssert(fArrayInt fConcat fArrayInt fSameElements Array(1,2,1,2))
+    fEmpty(fArrayInt fConcat fArrayIntNone fSameElements fArrayIntNone)
+    fEmpty(fArrayIntNone fConcat fArrayInt fSameElements fArrayIntNone)
+
     fAssert(fArrayInt.size fEq fTwo)
     fAssert(fArrayInt.size fEq 2)
     fEmpty(fArrayIntNone.size fEq 2)
     fEmpty(fArrayInt.size fEq fIntNone)
 
     // FilterOptionSet
+    val fSetInt12 = FilterOption(Set(1, 2))
+    val fSetInt23 = FilterOption(Set(2, 3))
+    val fSetInt123 = FilterOption(Set(1,2,3))
+    val fSetInt1 = FilterOption(Set(1))
+    val fSetInt2 = FilterOption(Set(2))
 
-    val fSetInt = FilterOption(Set(1, 2))
     val fSetIntNone = new FilterOption[Set[Int]](None)
 
-    fAssert(fSetInt.fContains(0) fEq false)
-    fAssert(fSetInt.fContains(1) fEq true)
+    fAssert(fSetInt12.fApply(0) fEq false)
+    fAssert(fSetInt12.fApply(1) fEq true)
+    fEmpty(fSetIntNone.fApply(0) fEq false)
+    fEmpty(fSetIntNone.fApply(1) fEq true)
+    fEmpty(fSetInt12.fApply(fIntNone) fEq true)
+
+    fAssert(fSetInt12.fContains(0) fEq false)
+    fAssert(fSetInt12.fContains(1) fEq true)
     fEmpty(fSetIntNone.fContains(0) fEq false)
     fEmpty(fSetIntNone.fContains(1) fEq true)
-    fEmpty(fSetInt.fContains(fIntNone) fEq true)
+    fEmpty(fSetInt12.fContains(fIntNone) fEq true)
 
-    fAssert(fSetInt.size fEq fTwo)
-    fAssert(fSetInt.size fEq 2)
+    fAssert(Set(1,2) fPlus 3 fEq fSetInt123)
+    fAssert(fSetInt12 fPlus 3 fEq fSetInt123)
+    fAssert(fSetInt12 fPlus 3 fEq Set(1,2,3))
+    fAssert(fSetInt12 fPlus FilterOption(3) fEq fSetInt123)
+    fEmpty(fSetIntNone fPlus 3 fEq fSetInt123)
+    fEmpty(fSetInt12 fPlus fIntNone fEq fSetInt123)
+
+    fAssert(Set(1,2,3) fMinus 3 fEq fSetInt12)
+    fAssert(fSetInt123 fMinus 3 fEq fSetInt12)
+    fAssert(fSetInt123 fMinus 3 fEq Set(1,2))
+    fAssert(fSetInt123 fMinus FilterOption(3) fEq fSetInt12)
+    fEmpty(fSetIntNone fMinus 3 fEq fSetInt12)
+    fEmpty(fSetInt123 fMinus fIntNone fEq fSetInt12)
+
+    fAssert(Set(1,2) fUnion fSetInt23 fEq fSetInt123)
+    fAssert(fSetInt12 fUnion Set(2,3) fEq fSetInt123)
+    fAssert(fSetInt12 fUnion fSetInt23 fEq Set(1,2,3))
+    fAssert(fSetInt12 fUnion fSetInt23 fEq fSetInt123)
+    fEmpty(fSetIntNone fUnion fSetInt23 fEq fSetInt123)
+    fEmpty(fSetInt12 fUnion fSetIntNone fEq fSetInt123)
+
+    fAssert(Set(1,2) fIntersect fSetInt23 fEq fSetInt2)
+    fAssert(fSetInt12 fIntersect Set(2,3) fEq fSetInt2)
+    fAssert(fSetInt12 fIntersect fSetInt23 fEq Set(2))
+    fAssert(fSetInt12 fIntersect fSetInt23 fEq fSetInt2)
+    fEmpty(fSetIntNone fIntersect fSetInt23 fEq fSetInt2)
+    fEmpty(fSetInt12 fIntersect fSetIntNone fEq fSetInt2)
+
+    fAssert(Set(1,2) fDiff fSetInt23 fEq fSetInt1)
+    fAssert(fSetInt12 fDiff Set(2,3) fEq fSetInt1)
+    fAssert(fSetInt12 fDiff fSetInt23 fEq Set(1))
+    fAssert(fSetInt12 fDiff fSetInt23 fEq fSetInt1)
+    fEmpty(fSetIntNone fDiff fSetInt23 fEq fSetInt1)
+    fEmpty(fSetInt12 fDiff fSetIntNone fEq fSetInt1)
+
+    fAssert(fSetInt12.size fEq fTwo)
+    fAssert(fSetInt12.size fEq 2)
     fEmpty(fSetIntNone.size fEq 2)
-    fEmpty(fSetInt.size fEq fIntNone)
+    fEmpty(fSetInt12.size fEq fIntNone)
 
     // FilterOptionInt
-
     fAssert(0 fEq 0)
     fAssert(fZero fEq 0)
     fAssert(0 fEq fZero)
@@ -196,7 +250,6 @@ class FilterSuite extends SparkSuite {
     fEmpty(fZero fLt fIntNone)
 
     // FilterOptionDouble
-
     val fDoubleNone = new FilterOption[Double](None)
 
     val fDoubleMinusOne = FilterOption(-1.0)
@@ -258,10 +311,7 @@ class FilterSuite extends SparkSuite {
     fEmpty(fDoubleNone fLt fDoubleOne)
     fEmpty(fDoubleZero fLt fDoubleNone)
 
-    // fAssert(fDoubleHalf.fPow(fDoubleTwo) fEq .25)
-
     // Mixed FilterOptionNumeric
-
     fAssert(0 fEq 0.0)
     fAssert(0.0 fEq 0)
     fAssert(0 fEq fDoubleZero)
@@ -295,37 +345,28 @@ class FilterSuite extends SparkSuite {
 
     fAssert(1 fDiv fTwo.fToDouble fEq .5)
     fAssert(1.toDouble fDiv fTwo fEq .5)
-
-    /*
-    fAssert(fDoubleHalf.fCeil fEq 1L)
-    fAssert(fDoubleHalf.fCeil fEq FilterOption(1L))
-    fAssert(fDoubleHalf.fCeil fEq 1)
-    fAssert(fDoubleHalf.fCeil fEq fOne) //using covariance from FilterOption[Int] to FilterOption[Long]
-    */
   }
 
-  /*
-  @Test def filterTransformerTest(): Unit = {
-    val t = currentMirror.mkToolBox().parse("(a: Int, b: Int) => a > -b && !true")
-    println(t)
-    val t2 = new FilterTransformer(FilterTransformer.nameMap).transform(t)
-    println(t2)
-  }
-  */
+  @Test def treeTransformerTest(): Unit = {
 
-  @Test def parseTest(): Unit = {
-    val vds2 = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val state2 = State("", sc, sqlContext, vds2)
+    import scala.reflect.runtime.currentMirror
+    import scala.tools.reflect.ToolBox
 
-    //println(reflect.runtime.universe.reify("a" == "a").tree)
+    val toolbox = currentMirror.mkToolBox()
+    val ast = toolbox.parse("(a: Int, b: Int) => a foo (-b foo 4) bar true")
+    val ast2 = toolbox.parse("(a: Int, b: Int) => a FOO (-b FOO 4) BAR true")
+    def treeTransformer = new TreeTransformer(Map("foo" -> "FOO", "bar" -> "BAR"))
 
-    val chr1 = FilterVariants.run(state2, Array("--keep", "-c", "v.contig == \"1\"" ))
-    assert(chr1.vds.rdd.count == 9)
+    assert(treeTransformer.transform(ast) equalsStructure ast2)
   }
 
-  @Test def test() {
+  @Test def filterTest() {
+    //for tree debugging, use println(reflect.runtime.universe.reify(expr).tree)
+
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = State("", sc, sqlContext, vds)
+
+    assert(vds.nVariants == 346)
 
     assert(FilterSamples.run(state, Array("--keep", "-c", "\"^HG\" ~ s.id"))
       .vds.nLocalSamples == 63)
@@ -333,42 +374,94 @@ class FilterSuite extends SparkSuite {
     assert(FilterVariants.run(state, Array("--remove", "-c", "v.start >= 14066228"))
       .vds.nVariants == 173)
 
+    assert(FilterVariants.run(state, Array("--keep", "-c", "va.pass"))
+      .vds.nVariants == 312)
+
+    assert(FilterVariants.run(state, Array("--keep", "-c", "va.info.AN == 200"))
+      .vds.nVariants == 310)
+
+    assert(FilterVariants.run(state, Array("--keep", "-c", "va.info.AC.contains(20)"))
+      .vds.nVariants == 3)
+
+    assert(FilterVariants.run(state, Array("--keep", "-c", """va.filters.contains("VQSRTrancheSNP99.60to99.80")"""))
+      .vds.nVariants == 3)
+
+    // FIXME: rsid of "." should be treated as missing value
+    assert(FilterVariants.run(state, Array("--keep", "-c", """va.rsid != ".""""))
+      .vds.nVariants == 258)
+
+    assert(FilterVariants.run(state, Array("--remove", "-c", """va.rsid == ".""""))
+      .vds.nVariants == 258)
+
+    val stateWithSampleQC = SampleQC.run(state, Array("--store"))
+
+    assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.nCalled == 337"))
+      .vds.nLocalSamples == 17)
+
+    assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.dpMean > 60"))
+      .vds.nLocalSamples == 7)
+
+    assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "if (\"^C1048\" ~ s.id) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3"))
+      .vds.nLocalSamples == 14)
+
+    val stateWithVariantQC = VariantQC.run(state, Array("--store"))
+
+    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.nCalled < 100"))
+      .vds.nVariants == 36)
+
+    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.nHomVar > 0 && va.qc.nHet > 0"))
+      .vds.nVariants == 104)
+
+    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar > 0"))
+      .vds.nVariants == 104)
+
+    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar >= 0"))
+      .vds.nVariants == 117)
+
+    assert(FilterVariants.run(stateWithVariantQC, Array("--remove", "-c", "va.qc.rHetHomVar.isMissing"))
+      .vds.nVariants == 117)
+
+    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar.isNotMissing"))
+      .vds.nVariants == 117)
+
+    // FIXME: need to handle genotypes with options and finish these tests.
+
+    /*
+    FilterGenotype(val g: Genotype) extends AnyVal { def gq: FilterOption[Int] = filterOptionFromOption(g.gq) }
+    use FilterGenotype in evaluator
+    */
+
     val highGQ = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
       .vds.expand().collect()
 
     assert(!highGQ.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
     assert(highGQ.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
 
-    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20 || (g.gq < 30 && va.info.FS > 30)"))
+    val highGQorMidQGAndLowFS = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20 || (g.gq < 30 && va.info.FS > 30)"))
       .vds.expand().collect()
 
     val vds2 = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
     val state2 = State("", sc, sqlContext, vds2)
 
+    val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
+
+    assert(!highGQ2.vds.expand().collect().exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
+
     val chr1 = FilterVariants.run(state2, Array("--keep", "-c", "v.contig == \"1\"" ))
 
     assert(chr1.vds.rdd.count == 9)
 
+    assert(chr1.vds.expand().collect().count(_._3.isCalled) == 9 * 11 - 2)
+
     val hetOrHomVarOnChr1 = FilterGenotypes.run(chr1, Array("--remove", "-c", "g.isHomRef"))
       .vds.expand().collect()
 
-    assert(hetOrHomVarOnChr1.count(_._3.isCalled) == 9 + 3 + 3)
+    assert(hetOrHomVarOnChr1.count(_._3.isCalled) == 9 + 3 + 3) // remove does not retain the 2 missing genotypes
 
     val homRefOnChr1 = FilterGenotypes.run(chr1, Array("--keep", "-c", "g.isHomRef"))
       .vds.expand().collect()
 
-    assert(homRefOnChr1.count(_._3.isCalled) == 9 * 11 - (9 + 3 + 3) - 2)
+    assert(homRefOnChr1.count(_._3.isCalled) == 9 * 11 - (9 + 3 + 3) - 2) // keep does not retain the 2 missing genotypes
 
-    /*
-    forAll { (i: Int, j: Int)
-    FilterOption(i < j) == i < FilterOption(j) }
-    FilterOption(None) < 5 == FilterOption(None)
-    keep, remove
-    filter options work in Eval (just some)
-
-    FilterGenotype(val g: Genotype) extends AnyVal { def gq: FilterOption[Int] = filterOptionFromOption(g.gq) }
-    use FilterGenotype in evaluator
-    test these in both cases
-    */
   }
 }

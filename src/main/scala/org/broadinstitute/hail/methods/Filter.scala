@@ -5,6 +5,7 @@ import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.methods.FilterUtils.{FilterGenotypePostSA, FilterGenotypeWithSA}
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Genotype, Variant}
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 class FilterString(val s: String) extends AnyVal {
   def ~(t: String): Boolean = s.r.findFirstIn(t).isDefined
@@ -40,6 +41,10 @@ class FilterOption[+T](val o: Option[T]) extends AnyVal {
       }))
 
   def fNotEq(that: Any): FilterOption[Boolean] = new FilterOption((this fEq that).o.map(!_))
+
+  def isMissing: FilterOption[Boolean] = new FilterOption[Boolean](if (o.isEmpty) Some(true) else Some(false))
+
+  def isNotMissing: FilterOption[Boolean] = new FilterOption[Boolean](if (o.isDefined) Some(true) else Some(false))
 }
 
 class FilterOptionBoolean(val o: Option[Boolean]) extends AnyVal {
@@ -63,28 +68,56 @@ class FilterOptionString(val o: Option[String]) extends AnyVal {
   def fToDouble: FilterOption[Double] = new FilterOption(o.map(_.toDouble))
 }
 
+// FIXME: Should I support FilterOptions as array indices?  Seems an improbable use case.
 class FilterOptionArray[T](val o: Option[Array[T]]) extends AnyVal {
   def fApply(i: Int): FilterOption[T] = new FilterOption(o.map(_ (i)))
 
-  //FIXME: is this right?
   def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Array[T], T, Boolean](o, fo.o, _.contains(_))
   def fContains(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.contains(t)))
+
+  // Use fMkString instead of toString to create string of array elements
+  def fMkString(sep: String): FilterOption[String] = new FilterOption(o.map(_.mkString(sep)))
+  def fMkString(start: String, sep: String, end: String): FilterOption[String] = new FilterOption(o.map(_.mkString(start, sep, end)))
+
+  // Use fSameElements instead of fEq to test array equality as same elements
+  def fSameElements(that: FilterOptionArray[T]): FilterOption[Boolean] = FilterOption[Array[T], Array[T], Boolean](o, that.o, _.sameElements(_))
+  def fSameElements(that: Array[T]): FilterOption[Boolean] = new FilterOption(o.map(_.sameElements(that)))
 
   def size: FilterOption[Int] = new FilterOption(o.map(_.length))
 
   def length: FilterOption[Int] = new FilterOption(o.map(_.length))
 
-  //Fixme: error related to conversion to ArraySeq
-  //def fConcat(that: FilterOptionArray[T]): FilterOption[Array[T]] = new FilterOption(oa.flatMap(a => that.oa.map(a ++ _)))
+  // FIXME: by adding the ClassTag, this now returns an Array rather than an ArraySeq. If you're happy with this solution, I'll delete the fixme.
+  def fConcat(that: FilterOptionArray[T])(implicit tag: ClassTag[T]): FilterOption[Array[T]] = new FilterOption(o.flatMap(a => that.o.map(a ++ _)))
+
+  def isEmpty: FilterOption[Boolean] = new FilterOption(o.map(_.isEmpty))
 }
 
 class FilterOptionSet[T](val o: Option[Set[T]]) extends AnyVal {
+  def fApply(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Set[T], T, Boolean](o, fo.o, _.apply(_))
+  def fApply(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.apply(t)))
 
-  //FIXME: is this right?
   def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Set[T], T, Boolean](o, fo.o, _.contains(_))
   def fContains(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.contains(t)))
 
+  def fPlus(fo: FilterOption[T]): FilterOption[Set[T]] = FilterOption[Set[T], T, Set[T]](o, fo.o, _ + _)
+  def fPlus(t: T): FilterOption[Set[T]] = new FilterOption(o.map(_ + t))
+
+  def fMinus(fo: FilterOption[T]): FilterOption[Set[T]] = FilterOption[Set[T], T, Set[T]](o, fo.o, _ - _)
+  def fMinus(t: T): FilterOption[Set[T]] = new FilterOption(o.map(_ - t))
+
+  def fUnion(that: FilterOptionSet[T]): FilterOption[Set[T]] = FilterOption[Set[T], Set[T], Set[T]](o, that.o, _.union(_))
+  def fUnion(that: Set[T]): FilterOption[Set[T]] = new FilterOption(o.map(_.union(that)))
+
+  def fIntersect(that: FilterOptionSet[T]): FilterOption[Set[T]] = FilterOption[Set[T], Set[T], Set[T]](o, that.o, _.intersect(_))
+  def fIntersect(that: Set[T]): FilterOption[Set[T]] = new FilterOption(o.map(_.intersect(that)))
+
+  def fDiff(that: FilterOptionSet[T]): FilterOption[Set[T]] = FilterOption[Set[T], Set[T], Set[T]](o, that.o, _.diff(_))
+  def fDiff(that: Set[T]): FilterOption[Set[T]] = new FilterOption(o.map(_.diff(that)))
+
   def size: FilterOption[Int] = new FilterOption(o.map(_.size))
+
+  def isEmpty: FilterOption[Boolean] = new FilterOption(o.map(_.isEmpty))
 }
 
 class FilterOptionInt(val o: Option[Int]) {
@@ -383,6 +416,7 @@ class FilterOptionFloat(val o: Option[Float]) {
   def fGe(that: Float): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
   def fGe(that: Double): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
 
+  //FIXME: See end of FilterOptionDouble
   // def fRound: FilterOption[Int] = new FilterOption[Int](o.map(scala.math.round))
 }
 
@@ -481,6 +515,7 @@ class FilterOptionDouble(val o: Option[Double]) {
   def fGe(that: Float): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
   def fGe(that: Double): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
 
+  //FIXME: how to include operations like sqrt, round, and log which analysts may need? I've written (and commented out) all non-trig operations in scala.math (there's one more in FilterOptionFloat)
   /*
   def fPow(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](o, that.o, scala.math.pow)
   def fPow(that: Double): FilterOption[Double] = new FilterOption(o.map(scala.math.pow(_, that)))
@@ -496,6 +531,10 @@ class FilterOptionDouble(val o: Option[Double]) {
   def fSqrt: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.sqrt))
   */
 }
+
+//class FilterGenotype(val g: Genotype) extends AnyVal {
+//  def gq: FilterOption[Int] = new FilterOption(Some(g.gq))
+//}
 
 object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
@@ -540,9 +579,12 @@ object Filter {
       case None => false
     }
 
+  // FIXME: I think this nameMap belongs in Filter given all the definitions above, but it is used by Export as well. Is that okay?
   val nameMap = Map(
     "toRealInt" -> "toInt", "toRealDouble" -> "toDouble",
-    "$eq$eq" -> "fEq", "$bang$eq" -> "nNotEq", "apply" -> "fApply", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
+    "mkString" -> "fMkString", "sameElements" -> "fSameElements",
+    "$eq$eq" -> "fEq", "$bang$eq" -> "fNotEq", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
+    "apply" -> "fApply", "union" -> "fUnion", "intersect" -> "fIntersect", "diff" -> "fDiff",
     "$plus" -> "fPlus", "$minus" -> "fMinus", "$times" -> "fTimes", "$div" -> "fDiv", "$percent" -> "fMod",
     "abs" -> "fAbs", "signum" -> "fSignum", "max" -> "fMax", "min" -> "fMin", "contains" -> "fContains",
     "toInt" -> "fToInt", "toLong" -> "fToLong", "toFloat" -> "fToFloat", "toDouble" -> "fToDouble",

@@ -5,6 +5,9 @@ import java.io.Serializable
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
+// FIXME: I've written four Evaluator classes and two Evaluator objects
+// Should I replicate the try catch in the first class in the other three?
+// Do you have a preference on whether/how to shrink the code given how similar the classes (and objects) are?
 class Evaluator[T](t: String)(implicit tct: ClassTag[T])
   extends Serializable {
   @transient var p: Option[T] = None
@@ -50,6 +53,9 @@ class EvaluatorWithValueTransform[T, S](t: String, f: T => S)(implicit tct: Clas
   }
 }
 
+// FIXME: I moved TreeTranformer here from Filter, and have Evaluators with TreeTransform pass through a Map[String, String] rather than (Tree) => Tree.
+// For now, all our TreeMaps are created from String maps via , and this fixed serialization errors in the generated evaluator code in Filter and ExportTSV
+// that came from using new FilterTreeMap(Filter.nameMap).transform where I now just use Filter.nameMap.  What do you think?
 class EvaluatorWithTreeTransform[T](t: String, nameMap: Map[String, String])(implicit tct: ClassTag[T])
   extends Serializable {
   @transient var p: Option[T] = None
@@ -90,7 +96,7 @@ object Evaluator {
   import scala.tools.reflect.ToolBox
 
   def eval[T](t: String): T = {
-    //println(s"t = $t")
+    println(s"t = $t") //uncomment to print generated code
     val toolbox = currentMirror.mkToolBox()
     val ast = toolbox.parse(t)
     toolbox.typeCheck(ast)
@@ -103,7 +109,7 @@ object EvaluatorWithTreeTransform {
   import scala.tools.reflect.ToolBox
 
   def eval[T](t: String, nameMap: Map[String, String]): T = {
-    //println(s"t = $t")
+    println(s"t = $t") //uncomment to print generated code
     val toolbox = currentMirror.mkToolBox()
     val ast = new TreeTransformer(nameMap).transform(toolbox.parse(t))
     toolbox.typeCheck(ast)
