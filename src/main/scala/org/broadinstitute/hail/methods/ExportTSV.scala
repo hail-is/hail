@@ -70,7 +70,7 @@ class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
         |  val v: ExportVariant = new ExportVariant(__v)
         |  ${signatures(vas, "__vaClass", makeToString = true)}
         |  ${instantiate("va", "__vaClass", "__va")}
-        |  Array[Any]($list).map(toTSVString).mkString("\t")
+        |  Array[Any]($list).map(toTSVString).mkRealString("\t")
         |}: String
     """.stripMargin,
     Filter.nameMap) {
@@ -87,7 +87,7 @@ class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
         |
         |  ${signatures(sas, "__saClass", makeToString = true)}
         |  ${instantiate("sa", "__saClass", "__sa")}
-        |  Array[Any]($list).map(toTSVString).mkString("\t")
+        |  Array[Any]($list).map(toTSVString).mkRealString("\t")
         |}: String
     """.stripMargin,
     Filter.nameMap) {
@@ -120,7 +120,7 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |      g: org.broadinstitute.hail.variant.Genotype) => {
         |        val sa = __saArray(__sIndex)
         |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
-        |        Array[Any]($list).map(toTSVString).mkString("\t")
+        |        Array[Any]($list).map(toTSVString).mkRealString("\t")
         |      }: String
         |   }
         | }

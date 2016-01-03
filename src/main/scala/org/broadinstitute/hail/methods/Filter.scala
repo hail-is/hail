@@ -581,7 +581,7 @@ object Filter {
 
   // FIXME: I think this nameMap belongs in Filter given all the definitions above, but it is used by Export as well. Is that okay?
   val nameMap = Map(
-    "toRealInt" -> "toInt", "toRealDouble" -> "toDouble",
+    "toRealInt" -> "toInt", "toRealDouble" -> "toDouble", "mkRealString" -> "mkString",
     "mkString" -> "fMkString", "sameElements" -> "fSameElements",
     "$eq$eq" -> "fEq", "$bang$eq" -> "fNotEq", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
     "apply" -> "fApply", "union" -> "fUnion", "intersect" -> "fIntersect", "diff" -> "fDiff",

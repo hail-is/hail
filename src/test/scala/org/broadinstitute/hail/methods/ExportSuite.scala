@@ -28,8 +28,9 @@ class ExportSuite extends SparkSuite {
     assert(toTSVString(Array(1,2,3,4,5)) == "1,2,3,4,5")
     assert(toTSVString(5.124) == "5.1240e+00")
 
+
     ExportSamples.run(postSampleQC, Array("-o", "/tmp/exportSamples", "-c",
-      "s.id, sa.qc.nCalled,sa.qc.nNotCalled,sa.qc.nHomRef,sa.qc.nHet,sa.qc.nHomVar,sa.qc.nSNP,sa.qc.nInsertion," +
+      "s.id,sa.qc.nCalled,sa.qc.nNotCalled,sa.qc.nHomRef,sa.qc.nHet,sa.qc.nHomVar,sa.qc.nSNP,sa.qc.nInsertion," +
         "sa.qc.nDeletion,sa.qc.nSingleton,sa.qc.nTransition,sa.qc.nTransversion,sa.qc.dpMean,sa.qc.dpStDev," +
         "sa.qc.dpMeanHomRef,sa.qc.dpStDevHomRef,sa.qc.dpMeanHet,sa.qc.dpStDevHet,sa.qc.dpMeanHomVar," +
         "sa.qc.dpStDevHomVar,sa.qc.gqMean,sa.qc.gqStDev,sa.qc.gqMeanHomRef,sa.qc.gqStDevHomRef,sa.qc.gqMeanHet," +
