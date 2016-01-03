@@ -64,8 +64,8 @@ object AnnotationClassBuilder {
             s"""  def __fields: Array[String] = Array(
                 |    ${subMap.keys.toArray.sorted.map(s => s"""toTSVString($s)""").mkString(",")}
                 |  )
-                |  override def toString: String = __fields.mkString(";")
-                |  def all: String = __fields.mkString("\t")""".stripMargin
+                |  override def toString: String = __fields.mkRealString(";")
+                |  def all: String = __fields.mkRealString("\t")""".stripMargin
           } else ""
         }
         s"""class __$subclass(subMap: Map[String, String]) extends Serializable {
