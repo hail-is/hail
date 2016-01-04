@@ -96,7 +96,7 @@ object Evaluator {
   import scala.tools.reflect.ToolBox
 
   def eval[T](t: String): T = {
-    println(s"t = $t") //uncomment to print generated code
+    // println(s"t = $t")
     val toolbox = currentMirror.mkToolBox()
     val ast = toolbox.parse(t)
     toolbox.typeCheck(ast)
@@ -109,7 +109,7 @@ object EvaluatorWithTreeTransform {
   import scala.tools.reflect.ToolBox
 
   def eval[T](t: String, nameMap: Map[String, String]): T = {
-    println(s"t = $t") //uncomment to print generated code
+    // println(s"t = $t")
     val toolbox = currentMirror.mkToolBox()
     val ast = new TreeTransformer(nameMap).transform(toolbox.parse(t))
     toolbox.typeCheck(ast)
