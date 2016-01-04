@@ -33,16 +33,25 @@ object ExportTSV {
         .mkString("\t"), cond)
   }
 
-  val variantRegex = """v\.(\w+)""".r
   val topLevelVariantAnnoRegex = """va\.(\w+)""".r
-  val printMapVariantRegex = """va\.(\w+)\.all""".r
-  val sampleRegex = """s\.(\w+)""".r
   val topLevelSampleAnnoRegex = """sa\.(\w+)""".r
-  val printMapSampleRegex = """sa\.(\w+)\.all""".r
-  val annoRegex = """\wa\.(.+)""".r
+  val variantAllRegex = """va\.(.+)\.all""".r
+  val sampleAllRegex = """sa\.(.+)\.all""".r
 
-  def mapColumnNames(input: String, vas: Option[AnnotationSignatures],
-    sas: Option[AnnotationSignatures]): String = {
+  def getSortedKeys[T](a: Option[Annotations[T]], map: String): Array[String] = {
+    if (a.isDefined) {
+      assert(a.get.hasMap(map))
+      a
+        .get
+        .maps(map)
+        .keys
+        .toArray
+        .sorted
+    }
+    else
+      Array.empty[String]
+  }
+  def mapColumnNames(input: String, vas: Option[AnnotationSignatures], sas: Option[AnnotationSignatures]): String = {
     input match {
       case "s" => "Sample"
       case "v" => "Variant"
@@ -51,34 +60,8 @@ object ExportTSV {
         fatal("parse error in condition: cannot print 'va', choose a group or value in annotations")
       case "sa" =>
         fatal("parse error in condition: cannot print 'sa', choose a group or value in annotations")
-      case variantRegex(x) => x
-      case topLevelVariantAnnoRegex(x) =>
-        if (vas.isEmpty)
-          fatal("parse error in condition: tried to export 'va' in exportsamples")
-        if (vas.get.maps.contains(x)) {
-          val keys = vas.get.maps(x).keys.toArray.sorted
-          if (keys.isEmpty) x else s"$x:" + keys.mkString("\t")
-        }
-        else x
-      case topLevelSampleAnnoRegex(x) =>
-        if (sas.isEmpty)
-          fatal("parse error in condition: tried to export 'sa' in exportvariants")
-        if (sas.get.maps.contains(x)) {
-          val keys = sas.get.maps(x).keys.toArray.sorted
-          if (keys.isEmpty) x else s"$x:" + keys.mkString("\t")
-        }
-        else x
-      case printMapVariantRegex(x) =>
-        if (vas.isEmpty)
-          fatal("parse error in condition: tried to export 'va' in exportsamples")
-        val keys = vas.get.maps(x).keys
-        if (keys.isEmpty) x else keys.mkString("\t")
-      case printMapSampleRegex(x) =>
-        if (sas.isEmpty)
-          fatal("parse error in condition: tried to export 'sa' in exportvariants")
-        val keys = sas.get.maps(x).keys
-        if (keys.isEmpty) x else keys.mkString("\t")
-      case annoRegex(x) => x
+      case variantAllRegex(x) => getSortedKeys(vas, x).map(field => s"va.$x.$field").mkString("\t")
+      case sampleAllRegex(x) => getSortedKeys(sas, x).map(field => s"sa.$x.$field").mkString("\t")
       case _ => input
     }
   }
