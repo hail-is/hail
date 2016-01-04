@@ -12,7 +12,7 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object VariantQCCombiner {
-  val header = "callRate\tAC\tAN\tnCalled\t" +
+  val header = "callRate\tMAC\tnCalled\t" +
     "nNotCalled\t" +
     "nHomRef\t" +
     "nHet\t" +
@@ -32,8 +32,7 @@ object VariantQCCombiner {
     "rExpectedHetFrequency\tpHWE\t"
 
   val signatures = Map("callRate" -> new SimpleSignature("Double", "toDouble"),
-    "AC" -> new SimpleSignature("Int", "toInt"),
-    "AN" -> new SimpleSignature("Int", "toInt"),
+    "MAC" -> new SimpleSignature("Int", "toInt"),
     "nCalled" -> new SimpleSignature("Int", "toInt"),
     "nNotCalled" -> new SimpleSignature("Int", "toInt"),
     "nHomRef" -> new SimpleSignature("Int", "toInt"),
@@ -154,13 +153,10 @@ class VariantQCCombiner extends Serializable {
 
     val callRate = divOption(nCalled, nCalled + nNotCalled)
     val ac = nHet + 2 * nHomVar
-    val an = 2 * (nHomRef + nHet + nHomVar)
 
     sb.tsvAppend(callRate)
     sb += '\t'
     sb.append(ac)
-    sb += '\t'
-    sb.append(an)
     sb += '\t'
     sb.append(nCalled)
     sb += '\t'
@@ -225,12 +221,10 @@ class VariantQCCombiner extends Serializable {
     val nCalled = nHomRef + nHet + nHomVar
     val hwe = HWEStats
     val callrate = divOption(nCalled, nCalled + nNotCalled)
-    val ac = nHet + 2 * nHomVar
-    val an = 2 * nCalled
+    val mac = nHet + 2 * nHomVar
 
     Map[String, Any]("callRate" -> divOption(nCalled, nCalled + nNotCalled),
-      "AC" -> ac,
-      "AN" -> an,
+      "MAC" -> mac,
       "nCalled" -> nCalled,
       "nNotCalled" -> nNotCalled,
       "nHomRef" -> nHomRef,
