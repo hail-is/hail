@@ -107,6 +107,7 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
+        |  import org.broadinstitute.hail.methods.FilterGenotype
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
         |  ${signatures(metadata.sampleAnnotationSignatures, "__saClass", makeToString = true)}
@@ -117,9 +118,10 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |    ${signatures(metadata.variantAnnotationSignatures, "__vaClass")}
         |    ${instantiate("va", "__vaClass", "__va")}
         |    (__sIndex: Int,
-        |      g: org.broadinstitute.hail.variant.Genotype) => {
+        |     __g: org.broadinstitute.hail.variant.Genotype) => {
         |        val sa = __saArray(__sIndex)
         |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+        |        val g = new FilterGenotype(__g)
         |        Array[Any]($list).map(toTSVString).mkRealString("\t")
         |      }: String
         |   }

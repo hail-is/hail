@@ -532,9 +532,22 @@ class FilterOptionDouble(val o: Option[Double]) {
   */
 }
 
-//class FilterGenotype(val g: Genotype) extends AnyVal {
-//  def gq: FilterOption[Int] = new FilterOption(Some(g.gq))
-//}
+class FilterGenotype(val g: Genotype) extends AnyVal {
+  def gt: FilterOption[Int] = new FilterOption(g.call.map(_.gt))
+  def ad: FilterOption[Array[Int]] = FilterOption(Array(g.ad._1, g.ad._2))
+  def dp: FilterOption[Int] = FilterOption(g.dp)
+  def gq: FilterOption[Int] = FilterOption(g.gq)
+
+  def nNonRef: FilterOption[Int] = FilterOption(g.nNonRef)
+  def pAB(theta: Double = 0.5): FilterOption[Double] = FilterOption(g.pAB(theta))
+
+  def isHomRef: FilterOption[Boolean] = FilterOption(g.isHomRef)
+  def isHet: FilterOption[Boolean] = FilterOption(g.isHet)
+  def isHomVar: FilterOption[Boolean] = FilterOption(g.isHomVar)
+
+  def isCalled: FilterOption[Boolean] = FilterOption(g.isCalled)
+  def isNotCalled: FilterOption[Boolean] = FilterOption(g.isNotCalled)
+}
 
 object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
@@ -627,6 +640,7 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
        |  __ids: IndexedSeq[String]) => {
        |  import org.broadinstitute.hail.methods.FilterUtils._
        |  import org.broadinstitute.hail.methods.FilterOption
+       |  import org.broadinstitute.hail.methods.FilterGenotype
        |  ${signatures(metadata.sampleAnnotationSignatures, "__saClass")}
        |  ${instantiateIndexedSeq("__saArray", "__saClass", "__sa")}
        |  (v: org.broadinstitute.hail.variant.Variant,
@@ -634,9 +648,11 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
        |    ${signatures(metadata.variantAnnotationSignatures, "__vaClass")}
        |    ${instantiate("va", "__vaClass",  "__va")}
        |    (__sIndex: Int,
-       |     g: org.broadinstitute.hail.variant.Genotype) => {
+       |     __g: org.broadinstitute.hail.variant.Genotype) => {
        |      val sa = __saArray(__sIndex)
-       |      val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex));
+       |      val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+       |      val g = new FilterGenotype(__g)
+       |
        |      {$cond}: FilterOption[Boolean]
        |    }
        |  }
