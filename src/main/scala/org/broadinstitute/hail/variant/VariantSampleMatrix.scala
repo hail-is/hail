@@ -326,7 +326,7 @@ class RichVDS(vds: VariantDataset) {
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
     vds.rdd
-      .map { case (v, va, gs) => (v, va, gs.toGenotypeStream(v, compress)) }
+      .map { case (v, va, gs) => (v, va.toArrays, gs.toGenotypeStream(v, compress)) }
       .toDF()
       .saveAsParquetFile(dirname + "/rdd.parquet")
   }
