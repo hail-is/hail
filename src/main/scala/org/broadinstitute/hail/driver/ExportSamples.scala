@@ -15,7 +15,7 @@ object ExportSamples extends Command {
     var output: String = _
 
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
-      usage = "Comma-separated list of fields to be printed to tsv")
+      usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
   }
 
@@ -27,54 +27,22 @@ object ExportSamples extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-
+    val sas = vds.metadata.sampleAnnotationSignatures
     val cond = options.condition
-
     val output = options.output
 
-    val sas = vds.metadata.sampleAnnotationSignatures
-    val makeString: (Sample, Annotations[String]) => String = {
-      try {
-        val ese = new ExportSamplesEvaluator(cond, sas)
-        ese.typeCheck()
-        ese.apply
-      } catch {
-        case e: scala.tools.reflect.ToolBoxError =>
-          /* e.message looks like:
-             reflective compilation has failed:
+    val (header, fields) = ExportTSV.parseExpression(cond, vds.sparkContext, sas = Some(sas))
 
-             ';' expected but '.' found. */
-          fatal("parse error in condition: " + e.message.split("\n").last)
-      }
+    val makeString: (Sample, Annotations[String]) => String = {
+      val ese = new ExportSamplesEvaluator(fields, sas)
+      ese.typeCheck()
+      ese.apply
     }
 
     // FIXME add additional command parsing functionality
-    val sampleRegex = """s\.(\w+)""".r
-    val topLevelAnnoRegex = """sa\.(\w+)""".r
-    val printMapRegex = """sa\.(\w+)\.all""".r
-    val annoRegex = """sa\.(.+)""".r
-    def mapColumnNames(input: String): String = {
-      input match {
-        case "v" => "Sample"
-        case "sa" =>
-          fatal("parse error in condition: cannot print 'sa', choose a group or value in annotations")
-        case sampleRegex(x) => x
-        case topLevelAnnoRegex(x) =>
-          if (sas.maps.contains(x)) {
-            val keys = sas.maps(x).keys.toArray.sorted
-            if (keys.isEmpty) x else s"$x:" + keys.mkString(";")
-          }
-          else x
-        case printMapRegex(x) =>
-          val keys = sas.maps(x).keys
-          if (keys.isEmpty) x else keys.mkString("\t")
-        case annoRegex(x) => x
-        case _ => input
-      }
-    }
 
     writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(cond.split(",").map(_.split("\\.").last).mkString(";"))
+      s.write(header)
       s.write("\n")
     }
 
