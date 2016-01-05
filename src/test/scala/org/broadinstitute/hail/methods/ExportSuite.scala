@@ -40,6 +40,7 @@ class ExportSuite extends SparkSuite {
         "rTiTv=sa.qc.rTiTv,rHetHomVar=sa.qc.rHetHomVar," +
         "rDelIns=sa.qc.rDeletionInsertion"))
 
+
     val sQcOutput = Source.fromFile("/tmp/sampleQC/part-00000")
       .getLines().toSet
     val sExportOutput = Source.fromFile("/tmp/exportSamples/part-00000")
@@ -51,7 +52,8 @@ class ExportSuite extends SparkSuite {
     val postVariantQC = VariantQC.run(state, Array("--store"))
 
     ExportVariants.run(postVariantQC, Array("-o", "/tmp/exportVariants", "-c",
-      "chr=v.contig,pos=v.start,ref=v.ref,alt=v.alt,callRate=va.qc.callRate,nCalled=va.qc.nCalled,nNotCalled=va.qc.nNotCalled," +
+      "chr=v.contig,pos=v.start,ref=v.ref,alt=v.alt,callRate=va.qc.callRate,MAC=va.qc.MAC,nCalled=va.qc.nCalled," +
+        "nNotCalled=va.qc.nNotCalled," +
         "nHomRef=va.qc.nHomRef,nHet=va.qc.nHet,nHomVar=va.qc.nHomVar,dpM=va.qc.dpMean,dpSD=va.qc.dpStDev," +
         "dpMHR=va.qc.dpMeanHomRef,dpSDHR=va.qc.dpStDevHomRef,dpMH=va.qc.dpMeanHet,dpSDH=va.qc.dpStDevHet," +
         "dpMHV=va.qc.dpMeanHomVar,dpSDHV=va.qc.dpStDevHomVar,gqM=va.qc.gqMean,gqSD=va.qc.gqStDev," +
@@ -60,6 +62,7 @@ class ExportSuite extends SparkSuite {
         "MAF=va.qc.MAF,nNonRef=va.qc.nNonRef," +
         "rHet=va.qc.rHeterozygosity,rHetHomVar=va.qc.rHetHomVar,rExpHetFreq=va.qc.rExpectedHetFrequency," +
         "pHWE=va.qc.pHWE"))
+
 
     val vQcOutput = Source.fromFile("/tmp/variantQC/part-00000")
       .getLines().toSet

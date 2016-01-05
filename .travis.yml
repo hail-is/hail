@@ -5,6 +5,8 @@ jdk:
 cache:
   directories:
   - ~/.gradle
+script:
+ - gradle --info --stacktrace check
 after_success:
 - gradle coverage
 branches:

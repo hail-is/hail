@@ -24,13 +24,19 @@ object VariantSampleMatrix {
     require(dirname.endsWith(".vds"))
     import RichRow._
 
-    val metadata = readObjectFile(dirname + "/metadata.ser", sqlContext.sparkContext.hadoopConfiguration)(
-      _.readObject().asInstanceOf[VariantMetadata])
+    val (localSamples, metadata) = readObjectFile(dirname + "/metadata.ser",
+      sqlContext.sparkContext.hadoopConfiguration) { s =>
+      (s.readObject().asInstanceOf[Array[Int]],
+        s.readObject().asInstanceOf[VariantMetadata])
+    }
 
     // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
-    new VariantSampleMatrix[Genotype](metadata, df.rdd.map(r =>
-      (r.getVariant(0), r.getVariantAnnotations(1), r.getGenotypeStream(2))))
+    // FIXME annotations
+    new VariantSampleMatrix[Genotype](metadata,
+      localSamples,
+      df.rdd.map(r =>
+        (r.getVariant(0), r.getVariantAnnotations(1), r.getGenotypeStream(2))))
   }
 }
 
@@ -127,6 +133,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }
   }
 
+  def mapAnnotations(f: (Variant, AnnotationData) => AnnotationData): VariantSampleMatrix[T] =
+    copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va), gs) })
+
   def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     flatMapWithKeys((v, s, g) => f(g))
 
@@ -144,17 +153,19 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
     filterVariants((v, va) => ilist.contains(v.contig, v.start))
 
-  // see if we can remove broadcasts elsewhere in the code
+  // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (Int, AnnotationData) => Boolean): VariantSampleMatrix[T] = {
     val mask = localSamples.zip(metadata.sampleAnnotations).map { case (s, sa) => p(s, sa) }
     val maskBc = sparkContext.broadcast(mask)
+    val localtct = tct
     copy[T](localSamples = localSamples.zipWithIndex
       .filter { case (s, i) => mask(i) }
       .map(_._1),
       rdd = rdd.map { case (v, va, gs) =>
-        (v, va, maskBc.value.view.zip(gs.view)
+        (v, va, maskBc.value.iterator.zip(gs.iterator)
           .filter(_._1)
-          .map(_._2))
+          .map(_._2)
+          .toArray[T](localtct): Iterable[T])
       })
   }
 
@@ -268,7 +279,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         }
         }.reduce(_ && _)
   }
-    def mapAnnotationsWithAggregate[U](zeroValue: U)(
+
+  def mapAnnotationsWithAggregate[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U,
     mapOp: (AnnotationData, U) => AnnotationData)
@@ -321,12 +333,15 @@ class RichVDS(vds: VariantDataset) {
 
     val hConf = vds.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
-    writeObjectFile(dirname + "/metadata.ser", hConf)(
-      _.writeObject(vds.metadata))
+    writeObjectFile(dirname + "/metadata.ser", hConf) { s =>
+      s.writeObject(vds.localSamples)
+      s.writeObject(vds.metadata)
+    }
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
+    // FIXME write annotations: va
     vds.rdd
-      .map { case (v, va, gs) => (v, va, gs.toGenotypeStream(v, compress)) }
+      .map { case (v, va, gs) => (v, va.toArrays, gs.toGenotypeStream(v, compress)) }
       .toDF()
       .saveAsParquetFile(dirname + "/rdd.parquet")
   }

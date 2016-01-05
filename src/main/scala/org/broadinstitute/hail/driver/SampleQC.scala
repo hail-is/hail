@@ -12,7 +12,8 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object SampleQCCombiner {
-  val header = "nCalled\t" +
+  val header = "callRate\t" +
+    "nCalled\t" +
     "nNotCalled\t" +
     "nHomRef\t" +
     "nHet\t" +
@@ -36,7 +37,8 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rDeletionInsertion"
 
-  val signatures = Map("nCalled" -> new SimpleSignature("Int", "toInt"),
+  val signatures = Map("callRate" -> new SimpleSignature("Double", "toDouble"),
+    "nCalled" -> new SimpleSignature("Int", "toInt"),
     "nNotCalled" -> new SimpleSignature("Int", "toInt"),
     "nHomRef" -> new SimpleSignature("Int", "toInt"),
     "nHet" -> new SimpleSignature("Int", "toInt"),
@@ -191,7 +193,10 @@ class SampleQCCombiner extends Serializable {
 
   def emit(sb: mutable.StringBuilder) {
     val nCalled = nHomRef + nHet + nHomVar
+    val callRate = divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled)
 
+    sb.tsvAppend(callRate)
+    sb += '\t'
     sb.append(nCalled)
     sb += '\t'
     sb.append(nNotCalled)
@@ -254,7 +259,8 @@ class SampleQCCombiner extends Serializable {
   }
 
   def asMap: Map[String, String] = {
-    Map[String, Any]("nCalled" -> (nHomRef + nHet + nHomVar),
+    Map[String, Any]("callRate" -> divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
+      "nCalled" -> (nHomRef + nHet + nHomVar),
       "nNotCalled" -> nNotCalled,
       "nHomRef" -> nHomRef,
       "nHet" -> nHet,

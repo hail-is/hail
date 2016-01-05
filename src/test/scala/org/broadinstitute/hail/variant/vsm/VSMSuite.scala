@@ -24,7 +24,7 @@ class VSMSuite extends SparkSuite {
       Annotations.emptyOfSignature())
     val mdata4 = new VariantMetadata(Seq.empty[(String, String)], Array("S1", "S2"), None,
       Annotations.emptyOfArrayString(2), Annotations.emptyOfSignature(), Annotations.emptyOfSignature()
-      .addMap("dummy", Map.empty[String, AnnotationSignature]))
+        .addMap("dummy", Map.empty[String, AnnotationSignature]))
 
     assert(mdata1 != mdata2)
 
@@ -133,8 +133,7 @@ class VSMSuite extends SparkSuite {
       }
 
       val localKeep = keep
-      val filtered = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
-        .filterSamples((s, sa) => localKeep(s))
+      val filtered = vds.filterSamples((s, sa) => localKeep(s))
 
       val filteredAsMap = filtered.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
       filteredAsMap.foreach { case (k, g) => simpleAssert(vdsAsMap(k) == g) }
@@ -144,6 +143,13 @@ class VSMSuite extends SparkSuite {
 
       val sampleKeys = filtered.mapWithKeys((v, s, g) => s).distinct.collect()
       assert(sampleKeys.toSet == keep)
+
+      val filteredOut = "/tmp/test_filtered.vds"
+      hadoopDelete(filteredOut, sc.hadoopConfiguration, true)
+      filtered.write(sqlContext, filteredOut, compress = true)
+
+      val filtered2 = VariantSampleMatrix.read(sqlContext, filteredOut)
+      assert(filtered2.same(filtered))
     }
   }
 }
