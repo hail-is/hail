@@ -47,7 +47,7 @@ class ExportSuite extends SparkSuite {
     val postVariantQC = VariantQC.run(state, Array("--store"))
 
     ExportVariants.run(postVariantQC, Array("-o", "/tmp/exportVariants", "-c",
-      "v.contig,v.start,v.ref,v.alt,va.qc.callRate,va.qc.AC,va.qc.AN,va.qc.nCalled,va.qc.nNotCalled,va.qc.nHomRef,va.qc.nHet,va.qc.nHomVar,va.qc.dpMean,va.qc.dpStDev," +
+      "v.contig,v.start,v.ref,v.alt,va.qc.callRate,va.qc.MAC,va.qc.nCalled,va.qc.nNotCalled,va.qc.nHomRef,va.qc.nHet,va.qc.nHomVar,va.qc.dpMean,va.qc.dpStDev," +
         "va.qc.dpMeanHomRef,va.qc.dpStDevHomRef,va.qc.dpMeanHet,va.qc.dpStDevHet,va.qc.dpMeanHomVar," +
         "va.qc.dpStDevHomVar,va.qc.gqMean,va.qc.gqStDev,va.qc.gqMeanHomRef,va.qc.gqStDevHomRef," +
         "va.qc.gqMeanHet,va.qc.gqStDevHet,va.qc.gqMeanHomVar,va.qc.gqStDevHomVar,va.qc.MAF,va.qc.nNonRef," +
