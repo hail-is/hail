@@ -9,6 +9,7 @@ import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.mutable
@@ -216,11 +217,21 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     r.saveAsTextFile(filename)
   }
 
-  def writeSingleFile(filename: String, header: String = null, tmpdir: String, overwrite:Boolean = true, deleteSource:Boolean = true) {
+  def writeSingleFile(filename: String, header: String = null, tmpdir: String,
+                      overwrite:Boolean = true, deleteSource:Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
     val tmpFileName = hadoopGetTemporaryFile(tmpdir,hConf)
     writeTable(tmpFileName,header)
     hadoopCopyMergeCustom(tmpFileName, filename,hConf,overwrite,deleteSource,addString = null)
+  }
+
+  def writeBGzipFile(filename: String, header: String = null, tmpdir: String,
+                     overwrite:Boolean = true, deleteSource:Boolean = true) = {
+    val hConf = r.sparkContext.hadoopConfiguration
+    //org.broadinstitute.hail.io.compress.BGzipCodec
+    hConf.setBoolean("mapred.output.compress",true)
+    val tmpFileName = hadoopGetTemporaryFile(tmpdir,hConf)
+    r.saveAsTextFile(tmpFileName,classOf[BGzipCodec])
   }
 }
 

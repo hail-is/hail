@@ -57,7 +57,7 @@ object ExportVCF extends Command {
     hadoopDelete(options.output, state.hadoopConf, true)
 
     vds.rdd.repartitionAndSortWithinPartitions(new RangePartitioner[Variant,Iterable[Genotype]](vds.rdd.partitions.length,vds.rdd))
-      .map{case (v,gs) => vcfRow(v,gs)}.writeSingleFile(options.output,header,options.tmpdir)
+      .map{case (v,gs) => vcfRow(v,gs)}.writeBGzipFile(options.output,header,options.tmpdir)
     state
   }
 }
