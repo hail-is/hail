@@ -113,5 +113,12 @@ class AnnotationsSuite extends SparkSuite {
       .getVal("pass").contains("true"))
     assert(variantAnnotationMap(anotherVariant)
       .getVal("pass").contains("false"))
+
+    // Check that VDS can be written to disk and retrieved while staying the same
+    hadoopDelete("/tmp/sample.vds", sc.hadoopConfiguration, recursive = true)
+    vds.write(sqlContext, "/tmp/sample.vds")
+    val readBack = Read.run(state, Array("-i", "/tmp/sample.vds"))
+    readBack.vds.nVariants
+    assert(readBack.vds.same(vds))
   }
 }

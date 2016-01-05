@@ -6,7 +6,7 @@ cache:
   directories:
   - ~/.gradle
 script:
- - gradle --debug check
+ - gradle --info --stacktrace check
 after_success:
 - gradle coverage
 branches:

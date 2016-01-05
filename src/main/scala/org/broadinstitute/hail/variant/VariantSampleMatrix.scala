@@ -36,7 +36,7 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
       df.rdd.map(r =>
-        (r.getVariant(0), Annotations.emptyOfData(), r.getGenotypeStream(1))))
+        (r.getVariant(0), r.getVariantAnnotations(1), r.getGenotypeStream(2))))
   }
 }
 
@@ -341,7 +341,7 @@ class RichVDS(vds: VariantDataset) {
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
     // FIXME write annotations: va
     vds.rdd
-      .map[(Variant, GenotypeStream)] { case (v, va, gs) => (v, gs.toGenotypeStream(v, compress)) }
+      .map { case (v, va, gs) => (v, va.toArrays, gs.toGenotypeStream(v, compress)) }
       .toDF()
       .saveAsParquetFile(dirname + "/rdd.parquet")
   }
