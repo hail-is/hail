@@ -113,8 +113,6 @@ class VSMSuite extends SparkSuite {
 
   @Test def testFilterSamples() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
-      // FIXME
-      .mapAnnotations((v, va) => Annotations.emptyOfData())
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
     val nSamples = vds.nSamples
     assert(nSamples == vds.nLocalSamples)

@@ -36,7 +36,7 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
       df.rdd.map(r =>
-        (r.getVariant(0), Annotations.emptyOfData(), r.getGenotypeStream(1))))
+        (r.getVariant(0), r.getVariantAnnotations(1), r.getGenotypeStream(2))))
   }
 }
 
