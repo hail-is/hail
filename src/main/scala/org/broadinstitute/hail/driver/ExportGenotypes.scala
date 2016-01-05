@@ -32,7 +32,7 @@ object ExportGenotypes extends Command {
     val vas: AnnotationSignatures = vds.metadata.variantAnnotationSignatures
     val sas: AnnotationSignatures = vds.metadata.sampleAnnotationSignatures
 
-    val (header, fields) = ExportTSV.parseExpression(cond, vds.sparkContext, vas = Some(vas), sas = Some(sas))
+    val (header, fields) = ExportTSV.parseExpression(cond)
 
     val makeString: ((Variant, AnnotationData) =>
       ((Int, Genotype) => String)) = {

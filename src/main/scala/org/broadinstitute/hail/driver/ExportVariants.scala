@@ -33,7 +33,7 @@ object ExportVariants extends Command {
     val cond = options.condition
     val output = options.output
 
-    val (header, fields) = ExportTSV.parseExpression(cond, vds.sparkContext, vas = Some(vas))
+    val (header, fields) = ExportTSV.parseExpression(cond)
 
     val makeString: (Variant, Annotations[String]) => String = {
       val eve = new ExportVariantsEvaluator(fields, vas)

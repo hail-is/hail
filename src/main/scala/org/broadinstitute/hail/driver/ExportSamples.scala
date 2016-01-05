@@ -31,7 +31,7 @@ object ExportSamples extends Command {
     val cond = options.condition
     val output = options.output
 
-    val (header, fields) = ExportTSV.parseExpression(cond, vds.sparkContext, sas = Some(sas))
+    val (header, fields) = ExportTSV.parseExpression(cond)
 
     val makeString: (Sample, Annotations[String]) => String = {
       val ese = new ExportSamplesEvaluator(fields, sas)
