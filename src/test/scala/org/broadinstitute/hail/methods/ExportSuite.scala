@@ -32,7 +32,7 @@ class ExportSuite extends SparkSuite {
       "sample=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
         "nHet=sa.qc.nHet,nHomVar=sa.qc.nHomVar,nSNP=sa.qc.nSNP,nInsertion=sa.qc.nInsertion," +
         "nDeletion=sa.qc.nDeletion,nSingelton=sa.qc.nSingleton,nTransition=sa.qc.nTransition," +
-        "nTransversion=sa.qc.nTransversion,dpM=sa.qc.dpMean,dpSD=sa.qc.tpStDev," +
+        "nTransversion=sa.qc.nTransversion,dpM=sa.qc.dpMean,dpSD=sa.qc.dpStDev," +
         "dpMHR=sa.qc.dpMeanHomRef,dpSDHR=sa.qc.dpStDevHomRef,dpMH=sa.qc.dpMeanHet,dpSDH=sa.qc.dpStDevHet," +
         "dpMHV=sa.qc.dpMeanHomVar,DPSDHV=sa.qc.dpStDevHomVar,gqM=sa.qc.gqMean,GQSD=sa.qc.gqStDev," +
         "GQMHR=sa.qc.gqMeanHomRef,GQSDHR=sa.qc.gqStDevHomRef,GQMH=sa.qc.gqMeanHet," +
@@ -52,14 +52,14 @@ class ExportSuite extends SparkSuite {
     val postVariantQC = VariantQC.run(state, Array("--store"))
 
     ExportVariants.run(postVariantQC, Array("-o", "/tmp/exportVariants", "-c",
-      "chr=v.contig,pos=v.start,ref=v.ref,alt=v.alt,callRate=va.qc.callRate,MAC=va.qc.MAC,nCalled=va.qc.nCalled," +
-        "nNotCalled=va.qc.nNotCalled," +
+      "chr=v.contig,pos=v.start,ref=v.ref,alt=v.alt,callRate=va.qc.callRate,MAC=va.qc.MAC,MAF=va.qc.MAF," +
+        "nCalled=va.qc.nCalled,nNotCalled=va.qc.nNotCalled," +
         "nHomRef=va.qc.nHomRef,nHet=va.qc.nHet,nHomVar=va.qc.nHomVar,dpM=va.qc.dpMean,dpSD=va.qc.dpStDev," +
         "dpMHR=va.qc.dpMeanHomRef,dpSDHR=va.qc.dpStDevHomRef,dpMH=va.qc.dpMeanHet,dpSDH=va.qc.dpStDevHet," +
         "dpMHV=va.qc.dpMeanHomVar,dpSDHV=va.qc.dpStDevHomVar,gqM=va.qc.gqMean,gqSD=va.qc.gqStDev," +
         "gqMHR=va.qc.gqMeanHomRef,gqSDHR=va.qc.gqStDevHomRef," +
         "gqMH=va.qc.gqMeanHet,gqSDH=va.qc.gqStDevHet,gqMHV=va.qc.gqMeanHomVar,gqSDHV=va.qc.gqStDevHomVar," +
-        "MAF=va.qc.MAF,nNonRef=va.qc.nNonRef," +
+        "nNonRef=va.qc.nNonRef," +
         "rHet=va.qc.rHeterozygosity,rHetHomVar=va.qc.rHetHomVar,rExpHetFreq=va.qc.rExpectedHetFrequency," +
         "pHWE=va.qc.pHWE"))
 

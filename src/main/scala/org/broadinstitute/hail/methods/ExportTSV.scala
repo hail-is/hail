@@ -1,11 +1,9 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.SparkContext
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Variant, Genotype}
-import scala.io.Source
 import scala.language.implicitConversions
 
 object ExportTSV {
@@ -23,68 +21,8 @@ object ExportTSV {
         })
         .unzip
     }
-    println(s"headers = ${headers.mkString("\t")}")
-    println(s"exprs = ${expressions.mkString(",")}")
     (headers.mkString("\t"), expressions.mkString(","))
   }
-//
-//
-//  def parseExpression(cond: String, sc: SparkContext,
-//    vas: Option[AnnotationSignatures] = None,
-//    sas: Option[AnnotationSignatures] = None): (String, String) = {
-//    if (cond.endsWith(".columns")) {
-//      val lines = Source
-//        .fromInputStream(hadoopOpen(cond, sc.hadoopConfiguration))
-//        .getLines()
-//        .map(_.split("\t"))
-//        .toList
-//      //        println(lines.map(_.mkString("; ")).mkString("\t"))
-//      /* Check errors in user input format here.  Bad input that satisfies this check will throw
-//        errors in makeString */
-//      if (lines.isEmpty) {
-//        fatal("parse error in .columns file: empty file")
-//      }
-//      if (!lines.forall(_.length == 2))
-//        fatal("parse error in .columns file: expect 2 tab-separated fields per line")
-//      (lines.map(_.apply(0)).mkString("\t"), lines.map(_.apply(1)).mkString(","))
-//    } else
-//      (cond.split(",")
-//        .map(mapColumnNames(_, vas, sas))
-//        .mkString("\t"), cond)
-//  }
-//
-//  val topLevelVariantAnnoRegex = """va\.(\w+)""".r
-//  val topLevelSampleAnnoRegex = """sa\.(\w+)""".r
-//  val variantAllRegex = """va\.(.+)\.all""".r
-//  val sampleAllRegex = """sa\.(.+)\.all""".r
-//
-//  def getSortedKeys[T](a: Option[Annotations[T]], map: String): Array[String] = {
-//    if (a.isDefined) {
-//      assert(a.get.hasMap(map))
-//      a
-//        .get
-//        .maps(map)
-//        .keys
-//        .toArray
-//        .sorted
-//    }
-//    else
-//      Array.empty[String]
-//  }
-//  def mapColumnNames(input: String, vas: Option[AnnotationSignatures], sas: Option[AnnotationSignatures]): String = {
-//    input match {
-//      case "s" => "Sample"
-//      case "v" => "Variant"
-//      case "g" => "Genotype"
-//      case "va" =>
-//        fatal("parse error in condition: cannot print 'va', choose a group or value in annotations")
-//      case "sa" =>
-//        fatal("parse error in condition: cannot print 'sa', choose a group or value in annotations")
-//      case variantAllRegex(x) => getSortedKeys(vas, x).map(field => s"va.$x.$field").mkString("\t")
-//      case sampleAllRegex(x) => getSortedKeys(sas, x).map(field => s"sa.$x.$field").mkString("\t")
-//      case _ => input
-//    }
-//  }
 }
 
 object UserExportUtils {
