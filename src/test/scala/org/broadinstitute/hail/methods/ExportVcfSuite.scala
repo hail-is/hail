@@ -19,6 +19,7 @@ class ExportVcfSuite extends SparkSuite {
     val stateNew = State("", sc, sqlContext, vdsNew)
 
     // test that new VDS is same as old VDS
+    //fails on .same because metadata is not equal...
     assert(stateOrig.vds.same(stateNew.vds))
   }
 
@@ -47,11 +48,12 @@ class ExportVcfSuite extends SparkSuite {
       }
     }
 
-    // check output is sorted
-    val coordinates:Array[Coordinate] = Source.fromFile(outFile).getLines().filter(line => !line.isEmpty && line(0) != '#').map(line => line.split("\t")).take(5).map(a => new Coordinate(a(0),a(1).toInt,a(3),a(4))).toArray
-    val sortedCoordinates = coordinates.sorted
+    val coordinates:Array[Coordinate] = Source.fromFile(outFile).getLines()
+      .filter(line => !line.isEmpty && line(0) != '#')
+      .map(line => line.split("\t")).take(5).map(a => new Coordinate(a(0),a(1).toInt,a(3),a(4))).toArray
+
+    val sortedCoordinates = coordinates.sortWith{case (c1,c2) => c1.compare(c2) < 0}
 
     assert(sortedCoordinates.sameElements(coordinates))
-
   }
 }
