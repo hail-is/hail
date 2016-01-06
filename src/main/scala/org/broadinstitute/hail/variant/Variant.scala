@@ -35,6 +35,8 @@ case class Variant(contig: String,
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
   def inParX(pos: Int): Boolean = (60001 <= pos && pos <= 2699520) || (154931044 <= pos && pos <= 155260560)
   def inParY(pos: Int): Boolean = (10001 <= pos && pos <= 2649520) || ( 59034050 <= pos && pos <=  59363566)
+  def inParX: Boolean = inParX(start)
+  def inParY: Boolean = inParY(start)
   def isHemizygous(sex: Sex.Sex): Boolean = (sex == Sex.Male) &&
       (contig == "X" && !inParX(start)) || (contig == "Y" && !inParY(start))
 

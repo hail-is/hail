@@ -2,7 +2,7 @@ package org.broadinstitute.hail.vcf
 
 import htsjdk.variant.variantcontext.Allele
 import org.broadinstitute.hail.variant._
-
+import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
@@ -13,17 +13,40 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 
   override def next(): String = bit.next()
 
-  override def remove() { throw new UnsupportedOperationException }
+  override def remove() {
+    throw new UnsupportedOperationException
+  }
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
-  def readRecord(line: String): Iterator[(Variant, Iterator[Genotype])] = {
 
+  def readRecord(line: String): Iterator[(Variant, AnnotationData, Iterator[Genotype])] = {
     val vc = codec.decode(line)
+    //maybe count tabs to get filter field
+    val pass = (vc.filtersWereApplied() && vc.getFilters.size() == 0).toString
+    val filts = {
+      if (vc.filtersWereApplied && vc.isNotFiltered)
+        "PASS"
+      else {
+        if (vc.getFilters.isEmpty)
+          ""
+        else
+          vc.getFilters.toArray.map(_.toString).mkString(",")
+      }
+    }
+    val rsid = vc.getID
     if (vc.isBiallelic) {
       val variant = Variant(vc.getContig, vc.getStart, vc.getReference.getBaseString,
         vc.getAlternateAllele(0).getBaseString)
-      Iterator.single((variant,
+      Iterator.single((variant, Annotations[String](Map[String, Map[String, String]]("info" -> vc.getAttributes
+        .asScala
+        .mapValues(HtsjdkRecordReader.infoToString)
+        .toMap),
+        Map[String, String](
+          "qual" -> vc.getPhredScaledQual.toString,
+          "filters" -> filts,
+          "pass" -> pass,
+          "rsid" -> rsid)),
         for (g <- vc.getGenotypes.iterator.asScala) yield {
 
           val gt = if (g.isNoCall)
@@ -64,12 +87,22 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 //      build one biallelic variant and set of genotypes for each alternate allele (except spanning deletions)
       val ref = vc.getReference
       val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
-//      index in the VCF, used to access AD and PL fields:
-      val altIndices = alts.map(vc.getAlleleIndex)
-//      FIXME: need to normalize strings
-      val biVs = alts.map{ alt => Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true) }
+      val altIndices = alts.map(vc.getAlleleIndex) // index in the VCF, used to access AD and PL fields
+      val biVs = alts.map { alt =>
+          (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true),
+          Annotations[String](Map[String, Map[String, String]]("info" -> vc.getAttributes
+            .asScala
+            .mapValues(HtsjdkRecordReader.infoToString)
+            .toMap),
+            Map[String, String](
+              "qual" -> vc.getPhredScaledQual.toString,
+              "filters" -> filts,
+              "pass" -> pass,
+              "rsid" -> rsid,
+              "multiallelic" -> "true")))
+        } //FixMe: need to normalize strings
       val n = vc.getNAlleles
-      val biGBs = Array.fill(n - 1){ new ArrayBuffer[Genotype] }
+      val biGBs = alts.map { _ => new ArrayBuffer[Genotype] }
 
       for (g <- vc.getGenotypes.iterator.asScala) {
 
@@ -103,7 +136,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 //            val gpl = g.getPL
 //            (gpl(0), gpl(j * (j + 1) / 2), gpl(j * (j + 1) / 2 + j))
             } else
-              (0,0,0)
+              (0, 0, 0)
           } else
             null
 
@@ -114,7 +147,9 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
           biGBs(i) += Genotype(gt, ad, dp, pl, fakeRef)
         }
       }
-      biVs.iterator.zip(biGBs.iterator.map(_.iterator))
+      biVs.iterator.zip(biGBs.iterator.map(_.iterator)).map {
+        case ((v, vi), gs) => (v, vi, gs)
+      }
     }
   }
 }
@@ -124,5 +159,13 @@ object HtsjdkRecordReader {
     val codec = new htsjdk.variant.vcf.VCFCodec()
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)
+  }
+
+  def infoToString(ar: AnyRef): String = {
+    ar match {
+      case arr: java.util.ArrayList[_] => arr.toArray.map(_.toString).mkString(",")
+      case iter: Iterable[_] => if (iter.isEmpty) "" else iter.map(_.toString).mkString(",")
+      case _ => ar.toString
+    }
   }
 }

@@ -2,6 +2,7 @@ package org.broadinstitute.hail.utils
 
 import scala.util.Random
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.annotations._
 import org.apache.spark.SparkContext
 import scala.math
 
@@ -83,7 +84,7 @@ object TestRDDBuilder {
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF
     sc(SparkContext) -- spark context in which to operate
-    vsmtype(String) -- sparky, tuple, or managed
+    vsmtype(String) -- sparky
     gqArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
     dpArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
     Returns a test VDS of the given parameters */
@@ -118,8 +119,8 @@ object TestRDDBuilder {
 
           b += Genotype(gt, ad, dp, pl)
         }
-        (variant, b.result(): Iterable[Genotype])
+        (variant, Annotations.emptyOfData(), b.result(): Iterable[Genotype])
     }
-    VariantSampleMatrix(VariantMetadata(Map("1" -> 1000000), sampleList), streamRDD)
+    VariantSampleMatrix(VariantMetadata(sampleList), streamRDD)
   }
 }

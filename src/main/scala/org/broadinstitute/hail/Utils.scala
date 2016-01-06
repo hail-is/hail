@@ -18,8 +18,7 @@ import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVect
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
+
 
 // FIXME AnyVal in Scala 2.11
 class RichVector[T](v: Vector[T]) {
@@ -212,8 +211,10 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
   def writeTable(filename: String, header: String = null) {
     if (header != null)
-      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
+      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {
+        _.write(header)
+      }
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
     r.saveAsTextFile(filename)
   }
 
@@ -248,11 +249,8 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
-  def tsvAppend[T](v: Option[T]) {
-    v match {
-      case Some(x) => sb.append(x)
-      case None => sb.append("NA")
-    }
+  def tsvAppend(a: Any) {
+    sb.append(org.broadinstitute.hail.methods.UserExportUtils.toTSVString(a))
   }
 }
 
@@ -351,8 +349,9 @@ object Utils {
     sys.exit(1)
   }
 
-  def fail() {
+  def fail(): Nothing = {
     assert(false)
+    sys.exit(1)
   }
 
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
@@ -536,11 +535,6 @@ object Utils {
     }
   }
 
-  def toTSVString(a: Any): String = a match {
-    case o: Option[Any] => o.map(toTSVString).getOrElse("NA")
-    case _ => a.toString
-  }
-
   def someIf[T](p: Boolean, x: => T): Option[T] =
     if (p)
       Some(x)
@@ -577,14 +571,6 @@ object Utils {
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 
-
-  def eval[T](t: String): T = {
-    val toolbox = currentMirror.mkToolBox()
-    val ast = toolbox.parse(t)
-    toolbox.typeCheck(ast)
-    toolbox.eval(ast).asInstanceOf[T]
-  }
-
   def genOption[T](g: Gen[T], someFrequency: Int = 4): Gen[Option[T]] =
     Gen.frequency((1, Gen.const(None)),
       (someFrequency, g.map(Some(_))))
@@ -596,5 +582,4 @@ object Utils {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
-
 }
