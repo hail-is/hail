@@ -6,19 +6,33 @@ import org.testng.annotations.Test
 import scala.io.Source
 
 class ExportVcfSuite extends SparkSuite {
-  @Test def test() {
+  @Test def testSameAsOrig() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val tmpDir = "/tmp/"
     val outFile = tmpDir + "testExportVcf.vcf"
 
-    val vdsOrig = LoadVCF(sc,vcfFile,nPartitions = Some(10))
+    val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State("", sc, sqlContext, vdsOrig)
-    ExportVCF.run(stateOrig, Array("-o",outFile,"-t",tmpDir))
+    ExportVCF.run(stateOrig, Array("-o", outFile, "-t", tmpDir))
 
-    val vdsNew = LoadVCF(sc,outFile,nPartitions = Some(10))
+    val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
     val stateNew = State("", sc, sqlContext, vdsNew)
 
+    // test that new VDS is same as old VDS
     assert(stateOrig.vds.same(stateNew.vds))
+  }
+
+  @Test def testSorted() {
+    val vcfFile = "src/test/resources/multipleChromosomes.vcf"
+    val tmpDir = "/tmp/"
+    val outFile = tmpDir + "testExportVcf.vcf"
+
+    val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
+    val stateOrig = State("", sc, sqlContext, vdsOrig)
+    ExportVCF.run(stateOrig, Array("-o", outFile, "-t", tmpDir))
+
+    val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
+    val stateNew = State("", sc, sqlContext, vdsNew)
 
     case class Coordinate(contig:String,start:Int,ref:String,alt:String) extends Ordered[Coordinate] {
       def compare(that:Coordinate) = {

@@ -4,6 +4,7 @@ import java.io._
 import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
+import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.fs.FileUtil._
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
@@ -216,11 +217,11 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     r.saveAsTextFile(filename)
   }
 
-  def writeSingleFile(filename: String, header: String = null, tmpdir: String, overwrite:Boolean = true, deleteSource:Boolean = true) {
+  def writeTableSingleFile(filename: String, header: String = null, tmpdir: String, overwrite:Boolean = true, deleteSource:Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
     val tmpFileName = hadoopGetTemporaryFile(tmpdir,hConf)
     writeTable(tmpFileName,header)
-    hadoopCopyMergeCustom(tmpFileName, filename,hConf,overwrite,deleteSource,addString = null)
+    hadoopCopyMerge(Array(tmpFileName + ".header",tmpFileName), filename,hConf,overwrite,deleteSource)
   }
 }
 
@@ -380,35 +381,25 @@ object Utils {
     hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
   }
 
-  def hadoopGetTemporaryFile(tmpdir:String, hConf:hadoop.conf.Configuration,nChar:Int=10,prefix:String=null,suffix:String=null):String = {
-    //val tmpdir = hConf.get("hadoop.tmp.dir")
-    val destFS = hadoopFS(tmpdir,hConf)
-    val prefixString = if (prefix != null) prefix + "-" else ""
-    val suffixString = if (suffix != null) "." + suffix else ""
-    val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
-    val fileStatus = destFS.globStatus(new hadoop.fs.Path(randomName))
+  def hadoopGetTemporaryFile(tmpdir:String, hConf:hadoop.conf.Configuration,nChar:Int=10,
+                             prefix:Option[String]= None,suffix:Option[String]= None):String = {
 
-    if (fileStatus == null)
+    val destFS = hadoopFS(tmpdir,hConf)
+    val prefixString = if (prefix.isDefined) prefix + "-" else ""
+    val suffixString = if (suffix.isDefined) "." + suffix else ""
+    val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
+    val fileExists = destFS.exists(new hadoop.fs.Path(randomName))
+
+    if (!fileExists)
       randomName
     else
       hadoopGetTemporaryFile(tmpdir,hConf,nChar,prefix,suffix)
   }
 
-  def hadoopCopyMerge(filenameSrc: String, filenameDest:String, hConf: hadoop.conf.Configuration,deleteSource:Boolean=false,addString:String=null) {
-    copyMerge(hadoopFS(filenameSrc,hConf),new hadoop.fs.Path(filenameSrc),hadoopFS(filenameDest,hConf),new hadoop.fs.Path(filenameDest),deleteSource,hConf,addString)
-  }
+  def hadoopCopyMerge(srcFilenames: Array[String], destFilename:String, hConf: hadoop.conf.Configuration, overwrite:Boolean=true, deleteSource:Boolean=false) {
 
-  def hadoopCopyMergeCustom(srcFilename: String, destFilename:String, hConf: hadoop.conf.Configuration, overwrite:Boolean=true, deleteSource:Boolean=false, addString:String=null) {
-    val srcPath = new hadoop.fs.Path(srcFilename)
     val destPath = new hadoop.fs.Path(destFilename)
-    val srcFS = hadoopFS(srcFilename,hConf)
     val destFS = hadoopFS(destFilename,hConf)
-
-    val successExists = srcFS.getFileStatus(new hadoop.fs.Path(srcFilename + "/_SUCCESS")).isFile
-
-    require(srcPath != destPath && successExists)
-
-    if (!srcFS.getFileStatus(srcPath).isDirectory) throw new UnsupportedOperationException
 
     if (destFS.exists(destPath)) {
       val destFileStatus = destFS.getFileStatus(destPath)
@@ -418,17 +409,25 @@ object Utils {
         destFS.delete(destPath,true)
     }
 
+    def globAndSort(filename:String):Array[FileStatus] = {
+      val fs = hadoopFS(filename,hConf)
+      val isDir = fs.getFileStatus(new hadoop.fs.Path(filename)).isDirectory
+      val path = if (isDir) new hadoop.fs.Path(filename + "/*") else new hadoop.fs.Path(filename)
+
+      fs.globStatus(path).sortWith(_.compareTo(_) < 0)
+    }
+
+    val srcFileStatuses = srcFilenames.flatMap{case p => globAndSort(p)}
+    require(srcFileStatuses.forall{case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile})
+
     val outputStream = destFS.create(destPath)
 
     try {
-      val headerPath = new hadoop.fs.Path(srcFilename + ".header")
-
-      val fileStatuses = {Array(srcFS.getFileStatus(headerPath)).filter{fs => fs.isFile && fs.getLen != 0} ++ srcFS.listStatus(srcPath).filter{fs => fs.isFile && fs.getLen != 0 && fs.getPath.getName.startsWith("part")}.sortBy(fs => fs.getPath.getName)}.toIterator
-      for (fs <- fileStatuses) {
-        val inputStream = srcFS.open(fs.getPath)
+      for (fileStatus <- srcFileStatuses) {
+        val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
+        val inputStream = srcFS.open(fileStatus.getPath)
         try {
           copyBytes(inputStream, outputStream, hConf, false)
-          if (addString != null && fileStatuses.hasNext) outputStream.write(addString.getBytes("UTF-8"))
         }
         finally {
           inputStream.close()
@@ -440,8 +439,7 @@ object Utils {
     }
 
     if (deleteSource) {
-      hadoopDelete(srcFilename,hConf,true)
-      hadoopDelete(srcFilename + ".header",hConf,true)
+      srcFileStatuses.foreach{case fileStatus => hadoopDelete(fileStatus.getPath.toString,hConf,true)}
     }
   }
 
