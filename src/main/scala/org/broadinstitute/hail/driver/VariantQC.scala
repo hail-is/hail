@@ -12,7 +12,7 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object VariantQCCombiner {
-  val header = "nCalled\t" +
+  val header = "callRate\tMAC\tnCalled\t" +
     "nNotCalled\t" +
     "nHomRef\t" +
     "nHet\t" +
@@ -31,7 +31,9 @@ object VariantQCCombiner {
     "rHetHomVar\t" +
     "rExpectedHetFrequency\tpHWE\t"
 
-  val signatures = Map("nCalled" -> new SimpleSignature("Int", "toInt"),
+  val signatures = Map("callRate" -> new SimpleSignature("Double", "toDouble"),
+    "MAC" -> new SimpleSignature("Int", "toInt"),
+    "nCalled" -> new SimpleSignature("Int", "toInt"),
     "nNotCalled" -> new SimpleSignature("Int", "toInt"),
     "nHomRef" -> new SimpleSignature("Int", "toInt"),
     "nHet" -> new SimpleSignature("Int", "toInt"),
@@ -149,6 +151,13 @@ class VariantQCCombiner extends Serializable {
   def emit(sb: mutable.StringBuilder) {
     val nCalled = nHomRef + nHet + nHomVar
 
+    val callRate = divOption(nCalled, nCalled + nNotCalled)
+    val ac = nHet + 2 * nHomVar
+
+    sb.tsvAppend(callRate)
+    sb += '\t'
+    sb.append(ac)
+    sb += '\t'
     sb.append(nCalled)
     sb += '\t'
     sb.append(nNotCalled)
@@ -209,9 +218,14 @@ class VariantQCCombiner extends Serializable {
       val altAlleles = nHomVar * 2 + nHet
       divOption(altAlleles, refAlleles + altAlleles)}
 
+    val nCalled = nHomRef + nHet + nHomVar
     val hwe = HWEStats
+    val callrate = divOption(nCalled, nCalled + nNotCalled)
+    val mac = nHet + 2 * nHomVar
 
-    Map[String, Any]("nCalled" -> (nHomRef + nHet + nHomVar),
+    Map[String, Any]("callRate" -> divOption(nCalled, nCalled + nNotCalled),
+      "MAC" -> mac,
+      "nCalled" -> nCalled,
       "nNotCalled" -> nNotCalled,
       "nHomRef" -> nHomRef,
       "nHet" -> nHet,

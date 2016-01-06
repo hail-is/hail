@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.annotations
 
+import org.broadinstitute.hail.Utils._
+
 case class Annotations[T](maps: Map[String, Map[String, T]], vals: Map[String, T]) extends Serializable {
 
   def hasMap(str: String): Boolean = maps.contains(str)
@@ -28,9 +30,26 @@ case class Annotations[T](maps: Map[String, Map[String, T]], vals: Map[String, T
   def ++(other: Annotations[T]): Annotations[T] = {
     new Annotations(maps ++ other.maps, vals ++ other.vals)
   }
+
+  def toArrays(): (Array[(String, String, T)], Array[(String, T)]) = {
+    (maps.toArray.flatMap {
+      case (mapName, map) => map
+        .toArray
+        .map{ case (s, t) => (mapName, s, t) }},
+      vals.toArray)
+  }
 }
 
 object Annotations {
+
+  def fromIndexedSeqs[T](arr1: IndexedSeq[(String, String, T)], arr2: IndexedSeq[(String, T)]): Annotations[T] = {
+    val maps = arr1
+      .groupBy(_._1)
+      .mapValues(l => l.map {
+        case (name, fieldName, field) => (fieldName, field) }.toMap).force
+    val vals = arr2.toMap.force
+    Annotations(maps, vals)
+  }
 
   def empty[T](): Annotations[T] =
     Annotations(Map.empty[String, Map[String, T]], Map.empty[String, T])
