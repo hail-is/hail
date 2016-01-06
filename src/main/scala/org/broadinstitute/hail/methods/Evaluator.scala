@@ -4,30 +4,7 @@ import java.io.Serializable
 
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
-
-class Evaluator[T](t: String, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]) extends Serializable {
-  @transient var p: Option[T] = None
-
-  def this(t: String)(implicit tct: ClassTag[T]) = this(t, Map.empty)
-
-  def typeCheck() {
-    require(p.isEmpty)
-    try
-      p = Some(Evaluator.eval[T](t, treeMap))
-    catch {
-      case e: scala.tools.reflect.ToolBoxError =>
-        org.broadinstitute.hail.Utils.fatal("parse error in condition:" + e.message.dropWhile(_ != ':').tail)
-    }
-  }
-
-  def eval(): T = p match {
-    case null | None =>
-      val v = Evaluator.eval[T](t, treeMap)
-      p = Some(v)
-      v
-    case Some(v) => v
-  }
-}
+import org.broadinstitute.hail.Utils._
 
 class EvaluatorWithValueTransform[T, S](t: String, f: T => S, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]) extends Serializable {
   @transient var p: Option[S] = None
@@ -40,7 +17,7 @@ class EvaluatorWithValueTransform[T, S](t: String, f: T => S, treeMap: (Tree) =>
       p = Some(f(Evaluator.eval[T](t, treeMap)))
     catch {
       case e: scala.tools.reflect.ToolBoxError =>
-        org.broadinstitute.hail.Utils.fatal("parse error in condition:" + e.message.dropWhile(_ != ':').tail)
+        fatal("parse error in condition:" + e.message.dropWhile(_ != ':').tail)
     }
   }
 
@@ -53,15 +30,14 @@ class EvaluatorWithValueTransform[T, S](t: String, f: T => S, treeMap: (Tree) =>
   }
 }
 
+class Evaluator[T](t: String, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]) extends EvaluatorWithValueTransform[T,T](t, identity, treeMap) {
+
+  def this(t: String)(implicit tct: ClassTag[T]) = this(t, Map.empty)
+}
 
 object Evaluator {
   import scala.reflect.runtime.currentMirror
   import scala.tools.reflect.ToolBox
-
-//  def apply[T](t: String): EvaluatorWithValueAndTreeTransform[T, T] = new EvaluatorWithValueAndTreeTransform[T, T](t, identity, None)
-//  def apply[T, S](t: String, f: T => S): EvaluatorWithValueAndTreeTransform[T, S]
-//  def apply[T](t: String, nameMap: Map[String, String])
-//  def apply[T, S](t: String, f: T => S, nameMap: Map[String, String])
 
   def eval[U](t: String): U = {
     // println(s"t = $t")

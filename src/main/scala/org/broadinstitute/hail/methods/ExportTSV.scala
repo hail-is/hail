@@ -73,7 +73,7 @@ class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
         |  Array[Any]($list).map(toTSVString).mkRealString("\t")
         |}: String
     """.stripMargin,
-    Filter.renameSymbols(Filter.nameMap)) {
+    Filter.renameSymbols) {
   def apply(v: Variant, va: AnnotationData): String = eval()(v, va)
 }
 
@@ -90,7 +90,7 @@ class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
         |  Array[Any]($list).map(toTSVString).mkRealString("\t")
         |}: String
     """.stripMargin,
-    Filter.renameSymbols(Filter.nameMap)) {
+    Filter.renameSymbols) {
   def apply(s: Sample, sa: AnnotationData): String = eval()(s, sa)
 }
 
@@ -128,7 +128,7 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         | }
       """.stripMargin,
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
-    Filter.renameSymbols(Filter.nameMap)) {
+    Filter.renameSymbols) {
 
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): String =
     eval()(v, va)(sIndex, g)

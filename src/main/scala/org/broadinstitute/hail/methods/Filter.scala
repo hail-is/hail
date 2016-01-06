@@ -88,7 +88,6 @@ class FilterOptionArray[T](val o: Option[Array[T]]) extends AnyVal {
 
   def length: FilterOption[Int] = new FilterOption(o.map(_.length))
 
-  // FIXME: by adding the ClassTag, this now returns an Array rather than an ArraySeq. If you're happy with this solution, I'll delete the fixme.
   def fConcat(that: FilterOptionArray[T])(implicit tag: ClassTag[T]): FilterOption[Array[T]] = new FilterOption(o.flatMap(a => that.o.map(a ++ _)))
 
   def isEmpty: FilterOption[Boolean] = new FilterOption(o.map(_.isEmpty))
@@ -584,7 +583,7 @@ object Filter {
     "toInt" -> "fToInt", "toLong" -> "fToLong", "toFloat" -> "fToFloat", "toDouble" -> "fToDouble",
     "$less" -> "fLt", "$greater" -> "fGt", "$less$eq" -> "fLe", "$greater$eq" -> "fGe")
 
-  def renameSymbols(nameMap: Map[String, String])(t: Tree): Tree = {
+  def renameSymbols(t: Tree): Tree = {
     val xformer = new Transformer {
       override def transform(t: Tree): Tree = t match {
         case Select(exp, TermName(n)) =>
@@ -610,7 +609,7 @@ class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
        |  {$cond}: FilterOption[Boolean]
        |}
     """.stripMargin,
-    Filter.renameSymbols(Filter.nameMap)) {
+    Filter.renameSymbols) {
   def apply(v: Variant, va: AnnotationData): FilterOption[Boolean] = eval()(v, va)
 }
 
@@ -625,7 +624,7 @@ class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
        |  {$cond}: FilterOption[Boolean]
        |}
     """.stripMargin,
-    Filter.renameSymbols(Filter.nameMap)) {
+    Filter.renameSymbols) {
   def apply(s: Sample, sa: AnnotationData): FilterOption[Boolean] = eval()(s, sa)
 }
 
@@ -654,7 +653,7 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
        |}
       """.stripMargin,
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
-    Filter.renameSymbols(Filter.nameMap)) {
+    Filter.renameSymbols) {
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): FilterOption[Boolean] =
     eval()(v, va)(sIndex, g)
 }

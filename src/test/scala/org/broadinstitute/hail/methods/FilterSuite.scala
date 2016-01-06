@@ -358,11 +358,10 @@ class FilterSuite extends SparkSuite {
     import scala.tools.reflect.ToolBox
 
     val toolbox = currentMirror.mkToolBox()
-    val ast = toolbox.parse("(a: Int, b: Int) => a foo (-b foo 4) bar true")
-    val ast2 = toolbox.parse("(a: Int, b: Int) => a FOO (-b FOO 4) BAR true")
-    val nameMap = Map("foo" -> "FOO", "bar" -> "BAR")
+    val ast = toolbox.parse("(a: Int, b: Int) => a > (-b min 4) == true")
+    val ast2 = toolbox.parse("(a: Int, b: Int) => a fGt (-b fMin 4) fEq true")
 
-    assert(Filter.renameSymbols(nameMap)(ast) equalsStructure ast2)
+    assert(Filter.renameSymbols(ast) equalsStructure ast2)
   }
 
   @Test def filterTest() {
