@@ -16,7 +16,7 @@ class Evaluator[T](t: String, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]
       p = Some(Evaluator.eval[T](t, treeMap))
     catch {
       case e: scala.tools.reflect.ToolBoxError =>
-        org.broadinstitute.hail.Utils.fatal("parse error in condition: " + e.message.dropWhile(_ != ':').tail)
+        org.broadinstitute.hail.Utils.fatal("parse error in condition:" + e.message.dropWhile(_ != ':').tail)
     }
   }
 
@@ -77,16 +77,5 @@ object Evaluator {
     val ast = treeMap(toolbox.parse(t))
     toolbox.typeCheck(ast)
     toolbox.eval(ast).asInstanceOf[U]
-  }
-}
-
-class SymbolRenamer(nameMap: Map[String, String]) extends Transformer with Serializable {
-  override def transform(t: Tree): Tree = t match {
-    case Select(exp, TermName(n)) =>
-      nameMap.get(n) match {
-        case Some(newName) => Select(transform(exp), TermName(newName))
-        case None => super.transform(t)
-      }
-    case _ => super.transform(t)
   }
 }

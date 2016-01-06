@@ -6,6 +6,7 @@ import org.broadinstitute.hail.methods.FilterUtils.{FilterGenotypePostSA, Filter
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Genotype, Variant}
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
 
 class FilterString(val s: String) extends AnyVal {
   def ~(t: String): Boolean = s.r.findFirstIn(t).isDefined
@@ -573,7 +574,7 @@ object Filter {
       case None => false
     }
 
-  val nameMap = Map(
+  val nameMap: Map[String, String] = Map(
     "toRealInt" -> "toInt", "toRealDouble" -> "toDouble", "mkRealString" -> "mkString",
     "mkString" -> "fMkString", "sameElements" -> "fSameElements",
     "$eq$eq" -> "fEq", "$bang$eq" -> "fNotEq", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
@@ -583,7 +584,19 @@ object Filter {
     "toInt" -> "fToInt", "toLong" -> "fToLong", "toFloat" -> "fToFloat", "toDouble" -> "fToDouble",
     "$less" -> "fLt", "$greater" -> "fGt", "$less$eq" -> "fLe", "$greater$eq" -> "fGe")
 
-  val treeMap = new SymbolRenamer(nameMap).transform _
+  def renameSymbols(nameMap: Map[String, String])(t: Tree): Tree = {
+    val xformer = new Transformer {
+      override def transform(t: Tree): Tree = t match {
+        case Select(exp, TermName(n)) =>
+          nameMap.get(n) match {
+            case Some(newName) => Select(transform(exp), TermName(newName))
+            case None => super.transform(t)
+          }
+        case _ => super.transform(t)
+      }
+    }
+    xformer.transform(t)
+  }
 }
 
 class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
@@ -597,7 +610,7 @@ class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
        |  {$cond}: FilterOption[Boolean]
        |}
     """.stripMargin,
-    Filter.treeMap) {
+    Filter.renameSymbols(Filter.nameMap)) {
   def apply(v: Variant, va: AnnotationData): FilterOption[Boolean] = eval()(v, va)
 }
 
@@ -612,7 +625,7 @@ class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
        |  {$cond}: FilterOption[Boolean]
        |}
     """.stripMargin,
-    Filter.treeMap) {
+    Filter.renameSymbols(Filter.nameMap)) {
   def apply(s: Sample, sa: AnnotationData): FilterOption[Boolean] = eval()(s, sa)
 }
 
@@ -641,7 +654,7 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
        |}
       """.stripMargin,
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
-    Filter.treeMap) {
+    Filter.renameSymbols(Filter.nameMap)) {
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): FilterOption[Boolean] =
     eval()(v, va)(sIndex, g)
 }

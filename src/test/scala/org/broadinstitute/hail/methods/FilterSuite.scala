@@ -360,9 +360,9 @@ class FilterSuite extends SparkSuite {
     val toolbox = currentMirror.mkToolBox()
     val ast = toolbox.parse("(a: Int, b: Int) => a foo (-b foo 4) bar true")
     val ast2 = toolbox.parse("(a: Int, b: Int) => a FOO (-b FOO 4) BAR true")
-    def treeTransformer = new SymbolRenamer(Map("foo" -> "FOO", "bar" -> "BAR"))
+    val nameMap = Map("foo" -> "FOO", "bar" -> "BAR")
 
-    assert(treeTransformer.transform(ast) equalsStructure ast2)
+    assert(Filter.renameSymbols(nameMap)(ast) equalsStructure ast2)
   }
 
   @Test def filterTest() {
@@ -428,9 +428,6 @@ class FilterSuite extends SparkSuite {
 
     assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar.isNotMissing"))
       .vds.nVariants == 117)
-
-    // FIXME: need to handle genotypes with options and finish these tests.
-
 
     val highGQ = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
       .vds.expand().collect()
