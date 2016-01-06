@@ -44,7 +44,7 @@ object ExportSamples extends Command {
              reflective compilation has failed:
 
              ';' expected but '.' found. */
-          fatal("parse error in condition: " + e.message.split("\n").last)
+          fatal("parse error in condition: " + e.message)//.split("\n").last)
       }
     }
 

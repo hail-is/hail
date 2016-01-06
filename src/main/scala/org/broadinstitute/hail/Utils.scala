@@ -339,8 +339,9 @@ object Utils {
     sys.exit(1)
   }
 
-  def fail() {
+  def fail(): Nothing = {
     assert(false)
+    sys.exit(1)
   }
 
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
