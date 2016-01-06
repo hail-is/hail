@@ -66,11 +66,16 @@ object AnnotationClassBuilder {
 
   def signatures(sigs: AnnotationSignatures, className: String,
     makeToString: Boolean = false): String = {
+    def realConversion(s: String) = s match {
+      case "toDouble" => "toRealDouble"
+      case "toInt" => "toRealInt"
+      case _ => s
+    }
     val internalClasses = sigs.maps.map {
       case (subclass, subMap) =>
         val attrs = subMap
           .map { case (k, sig) =>
-            s"""  val $k: Option[${sig.emitType}] = subMap.get("$k").map(_.${sig.emitConversionIdentifier})"""
+            s"""  val $k: FilterOption[${sig.emitType}] = new FilterOption(subMap.get("$k").map(_.${realConversion(sig.emitConversionIdentifier)}))"""
           }
           .mkString("\n")
         val methods: String = {
@@ -78,8 +83,8 @@ object AnnotationClassBuilder {
             s"""  def __fields: Array[String] = Array(
                 |    ${subMap.keys.toArray.sorted.map(s => s"""toTSVString($s)""").mkString(",")}
                 |  )
-                |  override def toString: String = __fields.mkString(";")
-                |  def all: String = __fields.mkString("\t")""".stripMargin
+                |  override def toString: String = __fields.mkRealString(";")
+                |  def all: String = __fields.mkRealString("\t")""".stripMargin
           } else ""
         }
         s"""class __$subclass(subMap: Map[String, String]) extends Serializable {
@@ -96,7 +101,7 @@ object AnnotationClassBuilder {
         }
           .mkString("\n")
       val vals = sigs.vals.map { case (k, sig) =>
-        s"""  val $k: Option[${sig.emitType}] = annot.getVal("$k").map(_.${sig.emitConversionIdentifier})"""
+        s"""  val $k: FilterOption[${sig.emitType}] = new FilterOption[${sig.emitType}](annot.getVal("$k").map(_.${realConversion(sig.emitConversionIdentifier)}))"""
       }
         .mkString("\n")
       s"""class $className(annot: org.broadinstitute.hail.annotations.AnnotationData)

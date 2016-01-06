@@ -83,26 +83,31 @@ class LinRegBuilder extends Serializable {
     this
   }
 
-  def stats(y: DenseVector[Double], n: Int): (SparseVector[Double], Double, Double, Int) = {
-    assert(sumX > 0) //FIXME: better error handling
-
+  def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double, Int)] = {
     val missingRowsArray = missingRows.result()
     val nMissing = missingRowsArray.size
-    val meanX = sumX.toDouble / (n - nMissing)
-    rowsX ++= missingRowsArray
-    (0 until nMissing).foreach(_ => valsX += meanX)
+    val nPresent = n - nMissing
 
-    val rowsXArray = rowsX.result()
-    val valsXArray = valsX.result()
+    // all HomRef | all Het | all HomVar
+    if (sumX == 0 || (sumX == nPresent && sumXX == nPresent) || sumX == 2 * nPresent)
+      None
+    else {
+      val meanX = sumX.toDouble / nPresent
+      rowsX ++= missingRowsArray
+      (0 until nMissing).foreach(_ => valsX += meanX)
 
-    //SparseVector constructor expects sorted indices
-    val indices = Array.range(0, rowsXArray.size)
-    indices.sortBy(i => rowsXArray(i))
-    val x = new SparseVector[Double](indices.map(rowsXArray(_)), indices.map(valsXArray(_)), n)
-    val xx = sumXX + meanX * meanX * nMissing
-    val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
+      val rowsXArray = rowsX.result()
+      val valsXArray = valsX.result()
 
-    (x, xx, xy, nMissing)
+      //SparseVector constructor expects sorted indices
+      val indices = Array.range(0, rowsXArray.size)
+      indices.sortBy(i => rowsXArray(i))
+      val x = new SparseVector[Double](indices.map(rowsXArray(_)), indices.map(valsXArray(_)), n)
+      val xx = sumXX + meanX * meanX * nMissing
+      val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
+
+      Some((x, xx, xy, nMissing))
+    }
   }
 }
 
@@ -141,30 +146,34 @@ object LinearRegression {
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
         (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
-      .mapValues{ lrb =>
-        val (x, xx, xy, nMissing) = lrb.stats(yBc.value, n)
+      .mapValues { lrb =>
+        lrb.stats(yBc.value, n).map { stats => {
+          val (x, xx, xy, nMissing) = stats
 
-        val qtx = qtBc.value * x
-        val qty = qtyBc.value
-        val xxp: Double = xx - (qtx dot qtx)
-        val xyp: Double = xy - (qtx dot qty)
-        val yyp: Double = yypBc.value
+          val qtx = qtBc.value * x
+          val qty = qtyBc.value
+          val xxp: Double = xx - (qtx dot qtx)
+          val xyp: Double = xy - (qtx dot qty)
+          val yyp: Double = yypBc.value
 
-        val b: Double = xyp / xxp
-        val se = math.sqrt((yyp / xxp - b * b) / d)
-        val t = b / se
-        val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+          val b: Double = xyp / xxp
+          val se = math.sqrt((yyp / xxp - b * b) / d)
+          val t = b / se
+          val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-        LinRegStats(nMissing, b, se, t, p)
+          LinRegStats(nMissing, b, se, t, p) }
+        }
       }
     )
   }
 }
 
-case class LinearRegression(lr: RDD[(Variant, LinRegStats)]) {
+case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
   def write(filename: String) {
-    def toLine(v: Variant, lrs: LinRegStats) = v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt +
-      "\t" + lrs.nMissing + "\t" + lrs.beta + "\t" + lrs.se + "\t" + lrs.t + "\t" + lrs.p
+    def toLine(v: Variant, olrs: Option[LinRegStats]) = olrs match {
+      case Some(lrs) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + lrs.nMissing + "\t" + lrs.beta + "\t" + lrs.se + "\t" + lrs.t + "\t" + lrs.p
+      case None => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\tNA\tNA\tNA\tNA\tNA"
+    }
     lr.map((toLine _).tupled)
       .writeTable(filename, "CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP\n")
   }

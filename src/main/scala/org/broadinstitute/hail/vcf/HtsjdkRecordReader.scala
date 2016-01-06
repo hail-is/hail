@@ -163,7 +163,8 @@ object HtsjdkRecordReader {
 
   def infoToString(ar: AnyRef): String = {
     ar match {
-      case iter: Iterable[_] => if (iter.isEmpty) "" else iter.map(_.toString).mkString(", ")
+      case arr: java.util.ArrayList[_] => arr.toArray.map(_.toString).mkString(",")
+      case iter: Iterable[_] => if (iter.isEmpty) "" else iter.map(_.toString).mkString(",")
       case _ => ar.toString
     }
   }
