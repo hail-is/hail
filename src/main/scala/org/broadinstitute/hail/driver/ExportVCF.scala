@@ -3,7 +3,6 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.RangePartitioner
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{Variant,Genotype}
-import org.broadinstitute.hail.annotations.AnnotationData
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
 
@@ -51,11 +50,11 @@ object ExportVCF extends Command {
       sb.result()
     }
 
-    def vcfRow(v:Variant,a:AnnotationData,gs:Iterable[Genotype]):String = {
-      val id = a.getVal("ID").getOrElse(".")
-      val qual = a.getVal("QUAL").getOrElse(".")
-      val filter = a.getVal("FILTER").getOrElse(".")
-      val info = a.getVal("INFO").getOrElse(".")
+    def vcfRow(v:Variant,gs:Iterable[Genotype]):String = {
+      val id = "." //get this from tim's annotations
+      val qual = "." //get this from tim's annotations
+      val filter = "." //get this from tim's annotations
+      val info = "." //get this from tim's annotations
       val format = "GT:AD:DP:GQ:PL"
 
       val sb = new StringBuilder()
@@ -83,11 +82,8 @@ object ExportVCF extends Command {
 
     hadoopDelete(options.output, state.hadoopConf, true)
 
-    vds.rdd
-      .map{case (v,a,gs) => (v,(a,gs))}
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant,(AnnotationData,Iterable[Genotype])](vds.rdd.partitions.length,vds.rdd.map{case (v,a,gs) => (v,(a,gs))}))
-      .map{case (v,(a,gs)) => vcfRow(v,a,gs)}
-      .writeTableSingleFile(options.output,header,options.tmpdir,true,true)
+    vds.rdd.repartitionAndSortWithinPartitions(new RangePartitioner[Variant,Iterable[Genotype]](vds.rdd.partitions.length,vds.rdd))
+      .map{case (v,gs) => vcfRow(v,gs)}.writeTableSingleFile(options.output,header,options.tmpdir,true,true)
     state
   }
 }
