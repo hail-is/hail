@@ -5,119 +5,82 @@ import java.io.Serializable
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
-// FIXME: I've written four Evaluator classes and two Evaluator objects
-// Should I replicate the try catch in the first class in the other three?
-// Do you have a preference on whether/how to shrink the code given how similar the classes (and objects) are?
-class Evaluator[T](t: String)(implicit tct: ClassTag[T])
-  extends Serializable {
+class Evaluator[T](t: String, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]) extends Serializable {
   @transient var p: Option[T] = None
+
+  def this(t: String)(implicit tct: ClassTag[T]) = this(t, Map.empty)
 
   def typeCheck() {
     require(p.isEmpty)
-    try {
-      p = Some(Evaluator.eval[T](t))
-    }
+    try
+      p = Some(Evaluator.eval[T](t, treeMap))
     catch {
       case e: scala.tools.reflect.ToolBoxError =>
-        /* e.message looks like:
-           reflective compilation has failed:
-
-           ';' expected but '.' found. */
-        org.broadinstitute.hail.Utils.fatal("parse error in condition: " + e.message) //FIXME not quite right / add to other evaluators?
+        org.broadinstitute.hail.Utils.fatal("parse error in condition: " + e.message.dropWhile(_ != ':').tail)
     }
   }
 
   def eval(): T = p match {
     case null | None =>
-      val v = Evaluator.eval[T](t)
+      val v = Evaluator.eval[T](t, treeMap)
       p = Some(v)
       v
     case Some(v) => v
   }
 }
 
-class EvaluatorWithValueTransform[T, S](t: String, f: T => S)(implicit tct: ClassTag[T]) extends Serializable {
+class EvaluatorWithValueTransform[T, S](t: String, f: T => S, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]) extends Serializable {
   @transient var p: Option[S] = None
 
+  def this(t: String, f: T => S)(implicit tct: ClassTag[T]) = this(t, f, Map.empty)
+  
   def typeCheck() {
     require(p.isEmpty)
-    p = Some(f(Evaluator.eval[T](t)))
+    try
+      p = Some(f(Evaluator.eval[T](t, treeMap)))
+    catch {
+      case e: scala.tools.reflect.ToolBoxError =>
+        org.broadinstitute.hail.Utils.fatal("parse error in condition:" + e.message.dropWhile(_ != ':').tail)
+    }
   }
 
   def eval(): S = p match {
     case null | None =>
-      val v = f(Evaluator.eval[T](t))
+      val v = f(Evaluator.eval[T](t, treeMap))
       p = Some(v)
       v
     case Some(v) => v
   }
 }
 
-// FIXME: I moved TreeTranformer here from Filter, and have Evaluators with TreeTransform pass through a Map[String, String] rather than (Tree) => Tree.
-// For now, all our TreeMaps are created from String maps via , and this fixed serialization errors in the generated evaluator code in Filter and ExportTSV
-// that came from using new FilterTreeMap(Filter.nameMap).transform where I now just use Filter.nameMap.  What do you think?
-class EvaluatorWithTreeTransform[T](t: String, nameMap: Map[String, String])(implicit tct: ClassTag[T])
-  extends Serializable {
-  @transient var p: Option[T] = None
-
-  def typeCheck() {
-    require(p.isEmpty)
-    p = Some(EvaluatorWithTreeTransform.eval[T](t, nameMap))
-  }
-
-  def eval(): T = p match {
-    case null | None =>
-      val v = EvaluatorWithTreeTransform.eval[T](t, nameMap)
-      p = Some(v)
-      v
-    case Some(v) => v
-  }
-}
-
-class EvaluatorWithValueAndTreeTransform[T, S](t: String, f: T => S, nameMap: Map[String, String])(implicit tct: ClassTag[T]) extends Serializable {
-  @transient var p: Option[S] = None
-
-  def typeCheck() {
-    require(p.isEmpty)
-    p = Some(f(EvaluatorWithTreeTransform.eval[T](t, nameMap)))
-  }
-
-  def eval(): S = p match {
-    case null | None =>
-      val v = f(EvaluatorWithTreeTransform.eval[T](t, nameMap))
-      p = Some(v)
-      v
-    case Some(v) => v
-  }
-}
 
 object Evaluator {
   import scala.reflect.runtime.currentMirror
   import scala.tools.reflect.ToolBox
 
-  def eval[T](t: String): T = {
+//  def apply[T](t: String): EvaluatorWithValueAndTreeTransform[T, T] = new EvaluatorWithValueAndTreeTransform[T, T](t, identity, None)
+//  def apply[T, S](t: String, f: T => S): EvaluatorWithValueAndTreeTransform[T, S]
+//  def apply[T](t: String, nameMap: Map[String, String])
+//  def apply[T, S](t: String, f: T => S, nameMap: Map[String, String])
+
+  def eval[U](t: String): U = {
     // println(s"t = $t")
     val toolbox = currentMirror.mkToolBox()
     val ast = toolbox.parse(t)
     toolbox.typeCheck(ast)
-    toolbox.eval(ast).asInstanceOf[T]
+    toolbox.eval(ast).asInstanceOf[U]
   }
-}
 
-object EvaluatorWithTreeTransform {
-  import scala.reflect.runtime.currentMirror
-  import scala.tools.reflect.ToolBox
-
-  def eval[T](t: String, nameMap: Map[String, String]): T = {
+  def eval[U](t: String, treeMap: (Tree) => Tree): U = {
     // println(s"t = $t")
     val toolbox = currentMirror.mkToolBox()
-    val ast = new TreeTransformer(nameMap).transform(toolbox.parse(t))
+    val ast = treeMap(toolbox.parse(t))
     toolbox.typeCheck(ast)
-    toolbox.eval(ast).asInstanceOf[T]
+    toolbox.eval(ast).asInstanceOf[U]
   }
 }
 
-class TreeTransformer(nameMap: Map[String, String]) extends Transformer {
+class SymbolRenamer(nameMap: Map[String, String]) extends Transformer with Serializable {
   override def transform(t: Tree): Tree = t match {
     case Select(exp, TermName(n)) =>
       nameMap.get(n) match {

@@ -68,8 +68,8 @@ class FilterOptionString(val o: Option[String]) extends AnyVal {
   def fToDouble: FilterOption[Double] = new FilterOption(o.map(_.toDouble))
 }
 
-// FIXME: Should I support FilterOptions as array indices?  Seems an improbable use case.
 class FilterOptionArray[T](val o: Option[Array[T]]) extends AnyVal {
+  def fApply(fo: FilterOption[Int]): FilterOption[T] = FilterOption[Array[T], Int, T](o, fo.o, _.apply(_))
   def fApply(i: Int): FilterOption[T] = new FilterOption(o.map(_ (i)))
 
   def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Array[T], T, Boolean](o, fo.o, _.contains(_))
@@ -415,9 +415,6 @@ class FilterOptionFloat(val o: Option[Float]) {
   def fGe(that: Long): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
   def fGe(that: Float): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
   def fGe(that: Double): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
-
-  //FIXME: See end of FilterOptionDouble
-  // def fRound: FilterOption[Int] = new FilterOption[Int](o.map(scala.math.round))
 }
 
 class FilterOptionDouble(val o: Option[Double]) {
@@ -514,22 +511,6 @@ class FilterOptionDouble(val o: Option[Double]) {
   def fGe(that: Long): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
   def fGe(that: Float): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
   def fGe(that: Double): FilterOption[Boolean] = new FilterOption(o.map(_ >= that))
-
-  //FIXME: how to include operations like sqrt, round, and log which analysts may need? I've written (and commented out) all non-trig operations in scala.math (there's one more in FilterOptionFloat)
-  /*
-  def fPow(that: FilterOptionDouble): FilterOption[Double] = FilterOption[Double, Double, Double](o, that.o, scala.math.pow)
-  def fPow(that: Double): FilterOption[Double] = new FilterOption(o.map(scala.math.pow(_, that)))
-
-  def fCbrt: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.cbrt))
-  def fCeil: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.ceil))
-  def fExp: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.exp))
-  def fFloor: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.floor))
-  def fLog: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.log))
-  def fLog10: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.log10))
-  def fRint: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.rint))
-  def fRound: FilterOption[Long] = new FilterOption[Long](o.map(scala.math.round))
-  def fSqrt: FilterOption[Double] = new FilterOption[Double](o.map(scala.math.sqrt))
-  */
 }
 
 class FilterGenotype(val g: Genotype) extends AnyVal {
@@ -592,7 +573,6 @@ object Filter {
       case None => false
     }
 
-  // FIXME: I think this nameMap belongs in Filter given all the definitions above, but it is used by Export as well. Is that okay?
   val nameMap = Map(
     "toRealInt" -> "toInt", "toRealDouble" -> "toDouble", "mkRealString" -> "mkString",
     "mkString" -> "fMkString", "sameElements" -> "fSameElements",
@@ -602,10 +582,12 @@ object Filter {
     "abs" -> "fAbs", "signum" -> "fSignum", "max" -> "fMax", "min" -> "fMin", "contains" -> "fContains",
     "toInt" -> "fToInt", "toLong" -> "fToLong", "toFloat" -> "fToFloat", "toDouble" -> "fToDouble",
     "$less" -> "fLt", "$greater" -> "fGt", "$less$eq" -> "fLe", "$greater$eq" -> "fGe")
+
+  val treeMap = new SymbolRenamer(nameMap).transform _
 }
 
 class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
-  extends EvaluatorWithTreeTransform[(Variant, AnnotationData) => FilterOption[Boolean]](
+  extends Evaluator[(Variant, AnnotationData) => FilterOption[Boolean]](
     s"""(v: org.broadinstitute.hail.variant.Variant,
        |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
        |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -615,12 +597,12 @@ class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
        |  {$cond}: FilterOption[Boolean]
        |}
     """.stripMargin,
-    Filter.nameMap) {
+    Filter.treeMap) {
   def apply(v: Variant, va: AnnotationData): FilterOption[Boolean] = eval()(v, va)
 }
 
 class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
-  extends EvaluatorWithTreeTransform[(Sample, AnnotationData) => FilterOption[Boolean]](
+  extends Evaluator[(Sample, AnnotationData) => FilterOption[Boolean]](
     s"""(s: org.broadinstitute.hail.variant.Sample,
        |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
        |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -630,12 +612,12 @@ class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
        |  {$cond}: FilterOption[Boolean]
        |}
     """.stripMargin,
-    Filter.nameMap) {
+    Filter.treeMap) {
   def apply(s: Sample, sa: AnnotationData): FilterOption[Boolean] = eval()(s, sa)
 }
 
 class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
-  extends EvaluatorWithValueAndTreeTransform[FilterGenotypeWithSA, FilterGenotypePostSA](
+  extends EvaluatorWithValueTransform[FilterGenotypeWithSA, FilterGenotypePostSA](
     s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
        |  __ids: IndexedSeq[String]) => {
        |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -659,7 +641,7 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
        |}
       """.stripMargin,
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
-    Filter.nameMap) {
+    Filter.treeMap) {
   def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): FilterOption[Boolean] =
     eval()(v, va)(sIndex, g)
 }

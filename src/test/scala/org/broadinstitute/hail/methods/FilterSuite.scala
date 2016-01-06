@@ -109,11 +109,16 @@ class FilterSuite extends SparkSuite {
     val fArrayIntNone = new FilterOption[Array[Int]](None)
     val fIntNone = new FilterOption[Int](None)
 
+    fAssert(Array(1,2).fApply(0)fEq 1)
+    fAssert(Array(1,2).fApply(fZero)fEq 1)
     fAssert(fArrayInt.fApply(0) fEq 1)
+    fAssert(fArrayInt.fApply(fZero) fEq 1)
     fAssert(fArrayInt.fApply(0) fEq fOne)
     fEmpty(fArrayIntNone.fApply(0) fEq 1)
+    fEmpty(fArrayIntNone.fApply(fZero) fEq 1)
     fEmpty(fArrayInt.fApply(0) fEq fIntNone)
 
+    fAssert(Array(1,2).fContains(0) fEq false)
     fAssert(fArrayInt.fContains(0) fEq false)
     fAssert(fArrayInt.fContains(1) fEq true)
     fEmpty(fArrayIntNone.fContains(0) fEq false)
@@ -355,7 +360,7 @@ class FilterSuite extends SparkSuite {
     val toolbox = currentMirror.mkToolBox()
     val ast = toolbox.parse("(a: Int, b: Int) => a foo (-b foo 4) bar true")
     val ast2 = toolbox.parse("(a: Int, b: Int) => a FOO (-b FOO 4) BAR true")
-    def treeTransformer = new TreeTransformer(Map("foo" -> "FOO", "bar" -> "BAR"))
+    def treeTransformer = new SymbolRenamer(Map("foo" -> "FOO", "bar" -> "BAR"))
 
     assert(treeTransformer.transform(ast) equalsStructure ast2)
   }
