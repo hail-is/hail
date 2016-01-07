@@ -6,6 +6,7 @@ import org.testng.annotations.Test
 import scala.io.Source
 
 class ExportVcfSuite extends SparkSuite {
+  
   @Test def testSameAsOrig() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val tmpDir = "/tmp/"
@@ -19,7 +20,6 @@ class ExportVcfSuite extends SparkSuite {
     val stateNew = State("", sc, sqlContext, vdsNew)
 
     // test that new VDS is same as old VDS
-    //fails on .same because metadata is not equal...
     assert(stateOrig.vds.same(stateNew.vds))
   }
 

@@ -13,6 +13,7 @@ import org.apache.spark.rdd.RDD
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.mutable
+import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
@@ -218,11 +219,21 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     r.saveAsTextFile(filename)
   }
 
-  def writeTableSingleFile(filename: String, header: String = null, tmpdir: String, overwrite:Boolean = true, deleteSource:Boolean = true) {
+  def writeTableSingleFile(filename: String, header: String = null, tmpdir: String, overwrite:Boolean = true, deleteTmpFiles:Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
+    val destPath = new hadoop.fs.Path(filename)
+    val destFS = hadoopFS(filename,hConf)
+
+    if (!overwrite && destFS.exists(destPath)) throw new IOException(s"Destination already exists: $filename")
+
     val tmpFileName = hadoopGetTemporaryFile(tmpdir,hConf)
     writeTable(tmpFileName,header)
-    hadoopCopyMerge(Array(tmpFileName + ".header",tmpFileName), filename,hConf,overwrite,deleteSource)
+    hadoopCopyMerge(Array(tmpFileName + ".header",tmpFileName), filename,hConf,overwrite,deleteTmpFiles)
+
+    if (deleteTmpFiles) {
+      hadoopDelete(tmpFileName, hConf, recursive = true)
+      hadoopDelete(tmpFileName + ".header", hConf, recursive = true)
+    }
   }
 }
 
@@ -395,7 +406,7 @@ object Utils {
       hadoopGetTemporaryFile(tmpdir,hConf,nChar,prefix,suffix)
   }
 
-  def hadoopCopyMerge(srcFilenames: Array[String], destFilename:String, hConf: hadoop.conf.Configuration, overwrite:Boolean=true, deleteSource:Boolean=false) {
+  def hadoopCopyMerge(srcFilenames: Array[String], destFilename:String, hConf: hadoop.conf.Configuration, overwrite:Boolean=true, deleteSource:Boolean=true) {
 
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = hadoopFS(destFilename,hConf)

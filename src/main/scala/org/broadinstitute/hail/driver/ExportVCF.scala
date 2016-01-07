@@ -36,7 +36,9 @@ object ExportVCF extends Command {
 ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
 ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">\n"""
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">"""
+
+      val filterHeader = vds.metadata.filters.map{case (key,desc) => s"""##FILTER=<ID=$key,Description="$desc">"""}.mkString("\n")
 
       val infoHeader = vds.metadata.variantAnnotationSignatures.getMap("info") match {
         case Some(m) => m.map{case (key,sig) =>
@@ -56,6 +58,8 @@ object ExportVCF extends Command {
       sb.append(date)
       sb.append(source)
       sb.append(format)
+      sb.append("\n")
+      sb.append(filterHeader)
       sb.append("\n")
       sb.append(infoHeader)
       sb.append(headerFragment)
@@ -97,13 +101,11 @@ object ExportVCF extends Command {
       sb.result()
     }
 
-    hadoopDelete(options.output, state.hadoopConf, true)
-
     vds.rdd
       .map{case (v,a,gs) => (v,(a,gs))}
       .repartitionAndSortWithinPartitions(new RangePartitioner[Variant,(AnnotationData,Iterable[Genotype])](vds.rdd.partitions.length,vds.rdd.map{case (v,a,gs) => (v,(a,gs))}))
       .map{case (v,(a,gs)) => vcfRow(v,a,gs)}
-      .writeTableSingleFile(options.output,header,options.tmpdir,true,true)
+      .writeTableSingleFile(options.output,header,options.tmpdir,overwrite = true,deleteTmpFiles = true)
     state
   }
 }

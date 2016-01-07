@@ -76,7 +76,7 @@ object LoadVCF {
       }
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      headerLines, Annotations.emptyOfArrayString(sampleIds.length), Annotations.emptyOfSignature(),
+      Annotations.emptyOfArrayString(sampleIds.length), Annotations.emptyOfSignature(),
       variantAnnotationSignatures), genotypes)
   }
 }
