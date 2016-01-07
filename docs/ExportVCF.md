@@ -23,3 +23,5 @@ Hail's VCF header will not contain:
  - lines added by external tools (bcftools, GATK, etc.)
   
 Hail's INFO field will contain the same fields as the original VCF, but the ordering may be different.
+
+Hail's VCF will not contain any added sample or variant annotations.
