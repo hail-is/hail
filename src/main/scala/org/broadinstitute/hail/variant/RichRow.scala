@@ -1,5 +1,8 @@
 package org.broadinstitute.hail.variant
 
+import org.broadinstitute.hail.annotations._
+
+import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
@@ -42,5 +45,17 @@ class RichRow(r: Row) {
     GenotypeStream(ir.getVariant(0),
       if (ir.isNullAt(1)) None else Some(ir.getInt(1)),
       ir.getAs[Array[Byte]](2))
+  }
+
+  def getTuple2String(i: Int): (String, String) = (r.getString(0), r.getString(1))
+  def getTuple3String(i: Int): (String, String, String) = (r.getString(0), r.getString(1), r.getString(2))
+
+  def getVariantAnnotations(i: Int): AnnotationData = {
+    val ir = r.getAs[Row](i)
+    val mapR = ir.getAs[ArrayBuffer[Row]](0)
+    val valR = ir.getAs[ArrayBuffer[Row]](1)
+  org.broadinstitute.hail.Utils
+    Annotations.fromIndexedSeqs[String]((0 until mapR.length).map(i => mapR(i).getTuple3String(i)),
+      (0 until valR.length).map(i => valR(i).getTuple2String(i)))
   }
 }

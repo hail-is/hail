@@ -1,10 +1,14 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.vcf.BufferedLineIterator
+
 import scala.io.Source
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.SparkContext
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.vcf
+import org.broadinstitute.hail.annotations._
+import scala.collection.JavaConversions._
 
 object LoadVCF {
   // FIXME move to VariantDataset
@@ -25,6 +29,31 @@ object LoadVCF {
         .toArray
     }
 
+    val codec = new htsjdk.variant.vcf.VCFCodec()
+
+    val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+      .getHeaderValue
+      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+
+    // FIXME get descriptions when HTSJDK is fixed to expose filter descriptions
+    val filters: List[(String, String)] = header
+      .getFilterLines
+      .toList
+      .map(line => (line.getID, ""))
+
+    val infoSignatures = header
+      .getInfoHeaderLines
+      .toList
+      .map(line => (line.getID, VCFSignature.parse(line)))
+      .toMap
+
+    val variantAnnotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> infoSignatures),
+        Map("filters" -> new SimpleSignature("Set[String]","toSetString"),
+        "pass" -> new SimpleSignature("Boolean", "toBoolean"),
+        "multiallelic" -> new SimpleSignature("Boolean", "toBoolean"),
+        "qual" -> new SimpleSignature("Double", "toDouble"),
+        "rsid" -> new SimpleSignature("String", "toString")))
+
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
 
@@ -38,15 +67,16 @@ object LoadVCF {
         val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
         lines.filter(line => !line.isEmpty && line(0) != '#')
           .flatMap(reader.readRecord)
-          .map { case (v, gs) =>
+          .map { case (v, va, gs) =>
             val b = new GenotypeStreamBuilder(v, compress)
             for (g <- gs)
               b += g
-            (v, b.result(): Iterable[Genotype])
+            (v, va, b.result(): Iterable[Genotype])
           }
       }
 
-    // FIXME null should be contig lengths
-    VariantSampleMatrix(VariantMetadata(null, sampleIds), genotypes)
+    VariantSampleMatrix(VariantMetadata(filters, sampleIds,
+      Annotations.emptyOfArrayString(sampleIds.length), Annotations.emptyOfSignature(),
+      variantAnnotationSignatures), genotypes)
   }
 }

@@ -74,7 +74,9 @@ object Main {
       Repartition,
       SampleQC,
       VariantQC,
-      Write
+      Write,
+      ExportVariants,
+      ExportSamples
     )
 
     val nameCommand = commands
