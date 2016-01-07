@@ -13,6 +13,7 @@ object ExportTSV {
   def parseColumnsFile(path: String, conf: Configuration): (Option[String], String) = {
     val pairs = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
+      .filter(!_.isEmpty)
       .map(_.split("\t", 2))
       .toList
 
