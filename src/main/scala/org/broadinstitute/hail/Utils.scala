@@ -4,6 +4,8 @@ import java.io._
 import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
+import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
@@ -214,6 +216,23 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
     r.saveAsTextFile(filename)
   }
+
+  def writeTableSingleFile(tmpdir: String, filename: String, header: String = null, deleteTmpFiles: Boolean = true) {
+    val hConf = r.sparkContext.hadoopConfiguration
+    val destPath = new hadoop.fs.Path(filename)
+    val destFS = hadoopFS(filename, hConf)
+    val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
+
+    hadoopDelete(filename,hConf,true) // overwriting by default
+
+    writeTable(tmpFileName, header)
+    hadoopCopyMerge(Array(tmpFileName + ".header", tmpFileName), filename, hConf, deleteTmpFiles)
+
+    if (deleteTmpFiles) {
+      hadoopDelete(tmpFileName, hConf, recursive = true)
+      hadoopDelete(tmpFileName + ".header", hConf, recursive = true)
+    }
+  }
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
@@ -370,8 +389,64 @@ object Utils {
     hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
   }
 
+  def hadoopGetTemporaryFile(tmpdir: String, hConf: hadoop.conf.Configuration, nChar: Int = 10,
+                             prefix: Option[String] = None, suffix: Option[String] = None): String = {
+
+    val destFS = hadoopFS(tmpdir, hConf)
+    val prefixString = if (prefix.isDefined) prefix + "-" else ""
+    val suffixString = if (suffix.isDefined) "." + suffix else ""
+
+    def getRandomName: String = {
+      val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
+      val fileExists = destFS.exists(new hadoop.fs.Path(randomName))
+
+      if (!fileExists)
+        randomName
+      else
+        getRandomName
+    }
+    getRandomName
+  }
+
+  def hadoopCopyMerge(srcFilenames: Array[String], destFilename: String, hConf: hadoop.conf.Configuration, deleteSource: Boolean = true) {
+
+    val destPath = new hadoop.fs.Path(destFilename)
+    val destFS = hadoopFS(destFilename, hConf)
+
+    def globAndSort(filename: String): Array[FileStatus] = {
+      val fs = hadoopFS(filename, hConf)
+      val isDir = fs.getFileStatus(new hadoop.fs.Path(filename)).isDirectory
+      val path = if (isDir) new hadoop.fs.Path(filename + "/*") else new hadoop.fs.Path(filename)
+
+      fs.globStatus(path).sortWith(_.compareTo(_) < 0)
+    }
+
+    val srcFileStatuses = srcFilenames.flatMap { case p => globAndSort(p) }
+    require(srcFileStatuses.forall { case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile })
+
+    val outputStream = destFS.create(destPath)
+
+    try {
+      for (fileStatus <- srcFileStatuses) {
+        val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
+        val inputStream = srcFS.open(fileStatus.getPath)
+        try {
+          copyBytes(inputStream, outputStream, hConf, false)
+        } finally {
+          inputStream.close()
+        }
+      }
+    } finally {
+      outputStream.close()
+    }
+
+    if (deleteSource) {
+      srcFileStatuses.foreach { case fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, true) }
+    }
+  }
+
   def writeObjectFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
+                         hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
     try {
       f(oos)
@@ -381,7 +456,7 @@ object Utils {
   }
 
   def readObjectFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
+                        hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
     try {
       f(ois)
@@ -391,7 +466,7 @@ object Utils {
   }
 
   def writeTextFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
+                       hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
     val fw = new OutputStreamWriter(oos)
     try {
@@ -402,7 +477,7 @@ object Utils {
   }
 
   def readFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
+                  hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
     val is = hadoopOpen(filename, hConf)
     try {
       reader(is)
@@ -412,7 +487,7 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-    lines: Traversable[String], header: String = null) {
+                 lines: Traversable[String], header: String = null) {
     writeTextFile(filename, hConf) {
       fw =>
         if (header != null) fw.write(header)
