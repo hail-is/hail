@@ -61,6 +61,11 @@ class FilterOptionString(val o: Option[String]) extends AnyVal {
 
   def length: FilterOption[Int] = new FilterOption(o.map(_.length))
 
+  def split(delimiter: String): FilterOption[Array[String]] = new FilterOption(o.map(_.split(delimiter)))
+
+  def split(delimiter: String, fields: Int): FilterOption[Array[String]] =
+    new FilterOption(o.map(_.split(delimiter, fields)))
+
   def fConcat(that: FilterOptionString) = FilterOption[String, String, String](o, that.o, _ + _)
 
   def fToInt: FilterOption[Int] = new FilterOption(o.map(_.toInt))

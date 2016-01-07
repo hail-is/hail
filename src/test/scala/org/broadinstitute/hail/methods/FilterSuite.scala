@@ -63,6 +63,7 @@ class FilterSuite extends SparkSuite {
     // FilterOptionString
     val fString1 = FilterOption("1")
     val fString2 = FilterOption("2.0")
+    val fString3 = FilterOption("1,2,3,4,5")
     val fStringNone = new FilterOption[String](None)
 
     val fChar = FilterOption('1')
@@ -88,12 +89,14 @@ class FilterSuite extends SparkSuite {
     fAssert("12.0" fEq (fString1 fConcat "2.0"))
     fAssert(fString1 fConcat fString2 fEq "12.0")
     fAssert("12.0" fEq (fString1 fConcat fString2))
+    fAssert(fString3.split(",") fSameElements FilterOption(Array("1", "2", "3", "4", "5")))
 
     fEmpty(fString1 fConcat fStringNone fEq "12.0")
     fEmpty(fStringNone fConcat fString2 fEq "12.0")
     fEmpty("1" fConcat fStringNone fEq "12.0")
     fEmpty(fStringNone fConcat "2.0" fEq "12.0")
     fEmpty(fString1 fConcat fString2 fEq fStringNone)
+    fEmpty(fStringNone.split(","))
 
     fAssert("1".fToInt fEq 1)
     fAssert(fString1.fToInt fEq 1)
