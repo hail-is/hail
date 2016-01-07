@@ -9,21 +9,37 @@ object UserExportUtils {
 
   class ExportVariant(val v: Variant) extends AnyVal {
     def contig = v.contig
+
     def start = v.start
+
     def ref = v.ref
+
     def alt = v.alt
+
     def variantType = v.variantType
+
     def inParX = v.inParX
+
     def inParY = v.inParY
+
     def isSNP = v.isSNP
+
     def isMNP = v.isMNP
+
     def isInsertion = v.isInsertion
+
     def isDeletion = v.isDeletion
+
     def isIndel = v.isIndel
+
     def isComplex = v.isComplex
+
     def isTransition = v.isTransition
+
     def isTransversion = v.isTransversion
+
     def nMismatch = v.nMismatch
+
     override def toString: String = {
       s"${contig}_${start}_${ref}_$alt"
     }
