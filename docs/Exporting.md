@@ -13,13 +13,13 @@ Command line arguments:
 
 ## Export modules
 
- - `exportsamples` will print one line per sample in the VDS.  The accessible namespace includes:
+1. `exportsamples` will print one line per sample in the VDS.  The accessible namespace includes:
    - `s` (sample)
    - `sa` (sample annotations)
- - `exportvariants` will print one line per variant in the VDS.  The accessible namespace includes:
+2. `exportvariants` will print one line per variant in the VDS.  The accessible namespace includes:
    - `v` (variant)
    - `va` (variant annotations)
- - `exportgenotypes` will print one line per unique (variant, sample) in the VDS.   **WARNING: This is an operation with an output length of M x N.  Use it wisely if you value your gigabytes.** The accessible namespace includes:
+3. `exportgenotypes` will print one line per unique (variant, sample) in the VDS.   **WARNING: This is an operation with an output length of M x N.  Use it wisely if you value your gigabytes.** The accessible namespace includes:
    - `g` (genotype)
    - `s` (sample)
    - `sa` (sample annotations)
@@ -32,7 +32,7 @@ Hail supports reading in a file ending with ".columns" to assign column names an
 
 ```
 $ cat exportVariants.columns
-VARIANTv
+VARIANT	v
 PASS	va.pass
 FILTERS	va.filters
 MISSINGNESS	va.qc.nCalled.get.toDouble/(va.qc.nCalled.get + va.qc.nNotCalled.get)
@@ -48,7 +48,7 @@ ANNO1	va.MyAnnotations.anno1
 ANNO2	va.MyAnnotations.anno2
 ```
  
-## Designating output with an export expression
+## Designating output with an expression
 
 Much like [filtering](Filtering.md) modules, exporting allows flexible expressions to be written on the command line.  While the filtering modules expect an expression that evaluates to true or false, export modules expect a comma-separated list of fields to print.  These fields should take the form `IDENTIFIER = <expression>`.  Below are examples of acceptable export expressions:
 
@@ -135,4 +135,4 @@ There are no mandatory methods for annotation classes.  Annotations are generate
 ## Exporting groups of annotations
 
 We have added a convenience to allow export of groups of annotations as one field.  As an example, we will use the [QC metrics](QC.md) which could be in the variant annotations class.  Any field in this group can be exported easily by using its identifier: `va.qc.MAF`, for example.  However, if one wants to export **all** QC statistics, there is an easier way than writing an expression with ~30 semicolon-delimited references.
- - `va.qc              String` -- writing this motif will print every field in `va.qc`, **separated by semicolons**.
+ - `va.qc:             String` -- writing this motif will print every field in `va.qc`, separated by semicolons.

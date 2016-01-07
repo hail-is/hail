@@ -4,9 +4,9 @@
 
 ## Table of Contents
 1. [Importing](docs/Importing.md)
-2. [Filtering](docs/Filtering.md)
-3. [Exporting](docs/Exporting.md)
-4. [QC](docs/QC.md)
+2. [QC](docs/QC.md)
+3. [Filtering](docs/Filtering.md)
+4. [Exporting to TSVs](docs/Exporting.md)
 
 ## Tools
 

@@ -4,7 +4,7 @@ Hail includes two QC modules:
  - `sampleqc`
  - `variantqc`
  
-These modules compute a variety of statistics from the genotype data, collapsing either variants or samples.  The output from these modes can be written to hadoop TSV files, or stored within sample and variant annotations for later use and export.  
+These modules compute a variety of statistics from the genotype data, collapsing either variants or samples.  The output from these modes can be written to TSV files, or stored within sample and variant annotations for later use in [filtering](Filtering.md) and [export](Exporting.md).  
   
 Command line arguments:
  - `-o` -- writes computed statistics to the following path as a TSV file
@@ -12,9 +12,9 @@ Command line arguments:
  
 The sets of statistics, their types, and brief descriptions of how they are calculated are listed below.
 
-**Note:** all standard deviations are calculated with zero degrees of freedom.
+**Note:** All standard deviations are calculated with zero degrees of freedom.
 
-**Note:** many values can be missing (`NA`).  Missingness is handled properly in filtering and is written as "NA" in export modules.
+**Note:** Many values can be missing (`NA`).  Missingness is handled properly in filtering and is written as "NA" in export modules.
 
 ## Sample QC
  - `callRate:             Double` -- Fraction of variants with called genotypes
