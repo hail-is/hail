@@ -1,27 +1,51 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.hadoop.conf.Configuration
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Variant, Genotype}
+import scala.io.Source
 import scala.language.implicitConversions
 
 object ExportTSV {
-  def parseExpression(cond: String): (String, String) = {
+
+  def parseColumnsFile(path: String, conf: Configuration): (Option[String], String) = {
+    val pairs = Source.fromInputStream(hadoopOpen(path, conf))
+      .getLines()
+      .map(_.split("\t", 2))
+      .toList
+
+    if (!pairs.forall(_.length == 2))
+      fatal("invalid .columns file.  Include 2 columns, separated by a tab")
+
+    (Some(pairs.map(_.apply(0)).mkString("\t")), pairs.map(_.apply(1)).mkString(","))
+  }
+
+  def parseExpression(cond: String): (Option[String], String) = {
     import scala.tools.reflect.ToolBox
     import scala.reflect.runtime.currentMirror
     import scala.reflect.runtime.universe._
     val toolbox = currentMirror.mkToolBox()
     val tree = toolbox.parse(s"dummy($cond)")
-    val (headers, expressions) = tree match {
+    val (headersOptions, expressionsOptions) = tree match {
       case Apply(_, args: List[_]) =>
         args.map(t => t match {
-          case (AssignOrNamedArg(Ident(name), expr)) => (name.toString, expr.toString)
-          case _ => println(t); fatal("invalid export expression")
+          case (AssignOrNamedArg(Ident(name), expr)) => (Some(name.toString), Some(expr.toString))
+          case _ => (None, Some(t.toString()))
         })
-        .unzip
+          .unzip
     }
-    (headers.mkString("\t"), expressions.mkString(","))
+
+    val headers = headersOptions.flatMap(o => o)
+    val exprs = expressionsOptions.flatMap(o => o)
+
+    if (!(headers.isEmpty || headers.length == exprs.length))
+      fatal("invalid export command.  Name every column or name nothing for a file with no header")
+    else if (headers.isEmpty)
+      (None, exprs.mkString(","))
+    else
+      (Some(headers.mkString("\t")), exprs.mkString(","))
   }
 }
 

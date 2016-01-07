@@ -32,7 +32,10 @@ object ExportGenotypes extends Command {
     val vas: AnnotationSignatures = vds.metadata.variantAnnotationSignatures
     val sas: AnnotationSignatures = vds.metadata.sampleAnnotationSignatures
 
-    val (header, fields) = ExportTSV.parseExpression(cond)
+    val (header, fields) = if (cond.endsWith(".columns"))
+      ExportTSV.parseColumnsFile(cond, state.hadoopConf)
+    else
+      ExportTSV.parseExpression(cond)
 
     val makeString: ((Variant, AnnotationData) =>
       ((Int, Genotype) => String)) = {
@@ -46,9 +49,12 @@ object ExportGenotypes extends Command {
         (s: Int, g: Genotype) =>
           makeString(v, va)(s, g))
 
-    writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(header)
-      s.write("\n")
+    header match {
+      case Some(str) =>
+        writeTextFile(output + ".header", state.hadoopConf) { s =>
+          s.write(str)
+          s.write("\n")
+        }
     }
 
     hadoopDelete(output, state.hadoopConf, recursive = true)

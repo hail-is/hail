@@ -33,7 +33,10 @@ object ExportVariants extends Command {
     val cond = options.condition
     val output = options.output
 
-    val (header, fields) = ExportTSV.parseExpression(cond)
+    val (header, fields) = if (cond.endsWith(".columns"))
+      ExportTSV.parseColumnsFile(cond, state.hadoopConf)
+    else
+      ExportTSV.parseExpression(cond)
 
     val makeString: (Variant, Annotations[String]) => String = {
       val eve = new ExportVariantsEvaluator(fields, vas)
@@ -41,9 +44,12 @@ object ExportVariants extends Command {
       eve.apply
     }
 
-    writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(header)
-      s.write("\n")
+    header match {
+      case Some(str) =>
+        writeTextFile(output + ".header", state.hadoopConf) { s =>
+          s.write(str)
+          s.write("\n")
+        }
     }
 
     hadoopDelete(output, state.hadoopConf, recursive = true)

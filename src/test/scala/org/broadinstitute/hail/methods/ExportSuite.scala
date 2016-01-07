@@ -1,19 +1,11 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
-import org.broadinstitute.hail.variant.Sample
 import org.testng.annotations.Test
 import scala.io.Source
 
-/**
-  * This testing suite evaluates the [[org.broadinstitute.hail.driver.ExportVariants]]
-  * and [[org.broadinstitute.hail.driver.ExportSamples]] commands, and verifies that
-  * their output agrees with [[org.broadinstitute.hail.driver.VariantQC]] and
-  * [[org.broadinstitute.hail.driver.SampleQC]] commands.
-  */
 class ExportSuite extends SparkSuite {
 
   @Test def test() {
@@ -25,9 +17,9 @@ class ExportSuite extends SparkSuite {
 
     assert(toTSVString(FilterOption(5.1)) == "5.1000e+00")
     assert(toTSVString(FilterOption.empty) == "NA")
-    assert(toTSVString(Array(1,2,3,4,5)) == "1,2,3,4,5")
+    assert(toTSVString(Array(1, 2, 3, 4, 5)) == "1,2,3,4,5")
     assert(toTSVString(5.124) == "5.1240e+00")
-    
+
     ExportSamples.run(postSampleQC, Array("-o", "/tmp/exportSamples", "-c",
       "sample=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
         "nHet=sa.qc.nHet,nHomVar=sa.qc.nHomVar,nSNP=sa.qc.nSNP,nInsertion=sa.qc.nInsertion," +
@@ -71,6 +63,13 @@ class ExportSuite extends SparkSuite {
 
     assert(vQcOutput == vExportOutput)
 
-    val (headers, exprs) = ExportTSV.parseExpression("maf=5, foobar=va.qc.FOOBAR")
+    // Test ExportTSV.parseExpression
+    assert(ExportTSV.parseExpression("maf=5, foobar=va.qc.FOOBAR") ==(Some("maf\tfoobar"), "5,va.qc.FOOBAR"))
+    assert(ExportTSV.parseExpression("5, va.qc.FOOBAR") ==(None, "5,va.qc.FOOBAR"))
+
+    // Test ExportTSV.parseColumnsFile
+    assert(ExportTSV.parseColumnsFile("src/test/resources/exportTest.columns", sc.hadoopConfiguration) ==
+      (Some("COL1\tMAF\tEXPR1\tSTRING"),
+        """definition of col 1,va.qc.maf,v.start + g.gq - 100,va.filters.mkString("\t")"""))
   }
 }

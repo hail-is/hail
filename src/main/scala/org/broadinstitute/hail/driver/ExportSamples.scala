@@ -31,7 +31,10 @@ object ExportSamples extends Command {
     val cond = options.condition
     val output = options.output
 
-    val (header, fields) = ExportTSV.parseExpression(cond)
+    val (header, fields) = if (cond.endsWith(".columns"))
+      ExportTSV.parseColumnsFile(cond, state.hadoopConf)
+    else
+      ExportTSV.parseExpression(cond)
 
     val makeString: (Sample, Annotations[String]) => String = {
       val ese = new ExportSamplesEvaluator(fields, sas)
@@ -41,9 +44,12 @@ object ExportSamples extends Command {
 
     // FIXME add additional command parsing functionality
 
-    writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write(header)
-      s.write("\n")
+    header match {
+      case Some(str) =>
+        writeTextFile(output + ".header", state.hadoopConf) { s =>
+          s.write(str)
+          s.write("\n")
+        }
     }
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
