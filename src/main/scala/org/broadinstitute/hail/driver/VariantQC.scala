@@ -12,7 +12,7 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object VariantQCCombiner {
-  val header = "callRate\tMAC\tnCalled\t" +
+  val header = "callRate\tMAC\tMAF\tnCalled\t" +
     "nNotCalled\t" +
     "nHomRef\t" +
     "nHet\t" +
@@ -25,7 +25,6 @@ object VariantQCCombiner {
     "gqMeanHomRef\tgqStDevHomRef\t" +
     "gqMeanHet\tgqStDevHet\t" +
     "gqMeanHomVar\tgqStDevHomVar\t" +
-    "MAF\t" +
     "nNonRef\t" +
     "rHeterozygosity\t" +
     "rHetHomVar\t" +
@@ -33,6 +32,7 @@ object VariantQCCombiner {
 
   val signatures = Map("callRate" -> new SimpleSignature("Double", "toDouble"),
     "MAC" -> new SimpleSignature("Int", "toInt"),
+    "MAF" -> new SimpleSignature("Double", "toDouble"),
     "nCalled" -> new SimpleSignature("Int", "toInt"),
     "nNotCalled" -> new SimpleSignature("Int", "toInt"),
     "nHomRef" -> new SimpleSignature("Int", "toInt"),
@@ -54,7 +54,6 @@ object VariantQCCombiner {
     "gqStDevHet" -> new SimpleSignature("Double", "toDouble"),
     "gqMeanHomVar" -> new SimpleSignature("Double", "toDouble"),
     "gqStDevHomVar" -> new SimpleSignature("Double", "toDouble"),
-    "MAF" -> new SimpleSignature("Double", "toDouble"),
     "nNonRef" -> new SimpleSignature("Int", "toInt"),
     "rHeterozygosity" -> new SimpleSignature("Double", "toDouble"),
     "rHetHomVar" -> new SimpleSignature("Double", "toDouble"),
@@ -152,11 +151,16 @@ class VariantQCCombiner extends Serializable {
     val nCalled = nHomRef + nHet + nHomVar
 
     val callRate = divOption(nCalled, nCalled + nNotCalled)
-    val ac = nHet + 2 * nHomVar
+    val mac = nHet + 2 * nHomVar
 
     sb.tsvAppend(callRate)
     sb += '\t'
-    sb.append(ac)
+    sb.append(mac)
+    sb += '\t'
+    // MAF
+    val refAlleles = nHomRef * 2 + nHet
+    val altAlleles = nHomVar * 2 + nHet
+    sb.tsvAppend(divOption(altAlleles, refAlleles + altAlleles))
     sb += '\t'
     sb.append(nCalled)
     sb += '\t'
@@ -185,12 +189,6 @@ class VariantQCCombiner extends Serializable {
     emitSC(sb, gqHetSC)
     sb += '\t'
     emitSC(sb, gqHomVarSC)
-    sb += '\t'
-
-    // MAF
-    val refAlleles = nHomRef * 2 + nHet
-    val altAlleles = nHomVar * 2 + nHet
-    sb.tsvAppend(divOption(altAlleles, refAlleles + altAlleles))
     sb += '\t'
 
     // nNonRef
@@ -225,6 +223,7 @@ class VariantQCCombiner extends Serializable {
 
     Map[String, Any]("callRate" -> divOption(nCalled, nCalled + nNotCalled),
       "MAC" -> mac,
+      "MAF" -> maf,
       "nCalled" -> nCalled,
       "nNotCalled" -> nNotCalled,
       "nHomRef" -> nHomRef,
@@ -246,7 +245,6 @@ class VariantQCCombiner extends Serializable {
       "gqStDevHet" -> someIf(gqHetSC.count > 0, gqHetSC.stdev),
       "gqMeanHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.mean),
       "gqStDevHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.stdev),
-      "MAF" -> maf,
       "nNonRef" -> (nHet + nHomVar),
       "rHeterozygosity" -> divOption(nHet, nHomRef + nHet + nHomVar),
       "rHetHomVar" -> divOption(nHet, nHomVar),

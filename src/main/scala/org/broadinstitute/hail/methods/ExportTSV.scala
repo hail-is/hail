@@ -1,45 +1,74 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.hadoop.conf.Configuration
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Variant, Genotype}
+import scala.io.Source
 import scala.language.implicitConversions
+
+object ExportTSV {
+
+  def parseColumnsFile(path: String, conf: Configuration): (Option[String], String) = {
+    val pairs = Source.fromInputStream(hadoopOpen(path, conf))
+      .getLines()
+      .filter(!_.isEmpty)
+      .map(_.split("\t", 2))
+      .toList
+
+    if (!pairs.forall(_.length == 2))
+      fatal("invalid .columns file.  Include 2 columns, separated by a tab")
+
+    (Some(pairs.map(_.apply(0)).mkString("\t")), pairs.map(_.apply(1)).mkString(","))
+  }
+
+  def parseExpression(cond: String): (Option[String], String) = {
+    import scala.tools.reflect.ToolBox
+    import scala.reflect.runtime.currentMirror
+    import scala.reflect.runtime.universe._
+    val toolbox = currentMirror.mkToolBox()
+    val tree = toolbox.parse(s"dummy($cond)")
+    val (headersOptions, expressionsOptions) = tree match {
+      case Apply(_, args: List[_]) =>
+        args.map(t => t match {
+          case (AssignOrNamedArg(Ident(name), expr)) => (Some(name.toString), Some(expr.toString))
+          case _ => (None, Some(t.toString()))
+        })
+          .unzip
+    }
+
+    val headers = headersOptions.flatMap(o => o)
+    val exprs = expressionsOptions.flatMap(o => o)
+
+    if (!(headers.isEmpty || headers.length == exprs.length))
+      fatal("invalid export command.  Name every column or name nothing for a file with no header")
+    else if (headers.isEmpty)
+      (None, exprs.mkString(","))
+    else
+      (Some(headers.mkString("\t")), exprs.mkString(","))
+  }
+}
 
 object UserExportUtils {
 
   class ExportVariant(val v: Variant) extends AnyVal {
     def contig = v.contig
-
     def start = v.start
-
     def ref = v.ref
-
     def alt = v.alt
-
     def variantType = v.variantType
-
     def inParX = v.inParX
-
     def inParY = v.inParY
-
     def isSNP = v.isSNP
-
     def isMNP = v.isMNP
-
     def isInsertion = v.isInsertion
-
     def isDeletion = v.isDeletion
-
     def isIndel = v.isIndel
-
     def isComplex = v.isComplex
-
     def isTransition = v.isTransition
-
     def isTransversion = v.isTransversion
-
     def nMismatch = v.nMismatch
-
     override def toString: String = {
       s"${contig}_${start}_${ref}_$alt"
     }

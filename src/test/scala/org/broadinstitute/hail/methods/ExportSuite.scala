@@ -1,19 +1,11 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
-import org.broadinstitute.hail.variant.Sample
 import org.testng.annotations.Test
 import scala.io.Source
 
-/**
-  * This testing suite evaluates the [[org.broadinstitute.hail.driver.ExportVariants]]
-  * and [[org.broadinstitute.hail.driver.ExportSamples]] commands, and verifies that
-  * their output agrees with [[org.broadinstitute.hail.driver.VariantQC]] and
-  * [[org.broadinstitute.hail.driver.SampleQC]] commands.
-  */
 class ExportSuite extends SparkSuite {
 
   @Test def test() {
@@ -25,16 +17,21 @@ class ExportSuite extends SparkSuite {
 
     assert(toTSVString(FilterOption(5.1)) == "5.1000e+00")
     assert(toTSVString(FilterOption.empty) == "NA")
-    assert(toTSVString(Array(1,2,3,4,5)) == "1,2,3,4,5")
+    assert(toTSVString(Array(1, 2, 3, 4, 5)) == "1,2,3,4,5")
     assert(toTSVString(5.124) == "5.1240e+00")
-    
+
     ExportSamples.run(postSampleQC, Array("-o", "/tmp/exportSamples", "-c",
-      "s.id, sa.qc.callRate, sa.qc.nCalled,sa.qc.nNotCalled,sa.qc.nHomRef,sa.qc.nHet,sa.qc.nHomVar,sa.qc.nSNP,sa.qc.nInsertion," +
-        "sa.qc.nDeletion,sa.qc.nSingleton,sa.qc.nTransition,sa.qc.nTransversion,sa.qc.dpMean,sa.qc.dpStDev," +
-        "sa.qc.dpMeanHomRef,sa.qc.dpStDevHomRef,sa.qc.dpMeanHet,sa.qc.dpStDevHet,sa.qc.dpMeanHomVar," +
-        "sa.qc.dpStDevHomVar,sa.qc.gqMean,sa.qc.gqStDev,sa.qc.gqMeanHomRef,sa.qc.gqStDevHomRef,sa.qc.gqMeanHet," +
-        "sa.qc.gqStDevHet,sa.qc.gqMeanHomVar,sa.qc.gqStDevHomVar,sa.qc.nNonRef,sa.qc.rTiTv,sa.qc.rHetHomVar," +
-        "sa.qc.rDeletionInsertion"))
+      "sample=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
+        "nHet=sa.qc.nHet,nHomVar=sa.qc.nHomVar,nSNP=sa.qc.nSNP,nInsertion=sa.qc.nInsertion," +
+        "nDeletion=sa.qc.nDeletion,nSingelton=sa.qc.nSingleton,nTransition=sa.qc.nTransition," +
+        "nTransversion=sa.qc.nTransversion,dpM=sa.qc.dpMean,dpSD=sa.qc.dpStDev," +
+        "dpMHR=sa.qc.dpMeanHomRef,dpSDHR=sa.qc.dpStDevHomRef,dpMH=sa.qc.dpMeanHet,dpSDH=sa.qc.dpStDevHet," +
+        "dpMHV=sa.qc.dpMeanHomVar,DPSDHV=sa.qc.dpStDevHomVar,gqM=sa.qc.gqMean,GQSD=sa.qc.gqStDev," +
+        "GQMHR=sa.qc.gqMeanHomRef,GQSDHR=sa.qc.gqStDevHomRef,GQMH=sa.qc.gqMeanHet," +
+        "GQSDH=sa.qc.gqStDevHet,GQMHV=sa.qc.gqMeanHomVar,GQSDHV=sa.qc.gqStDevHomVar,nNonRef=sa.qc.nNonRef," +
+        "rTiTv=sa.qc.rTiTv,rHetHomVar=sa.qc.rHetHomVar," +
+        "rDelIns=sa.qc.rDeletionInsertion"))
+
 
     val sQcOutput = Source.fromFile("/tmp/sampleQC/part-00000")
       .getLines().toSet
@@ -47,11 +44,17 @@ class ExportSuite extends SparkSuite {
     val postVariantQC = VariantQC.run(state, Array("--store"))
 
     ExportVariants.run(postVariantQC, Array("-o", "/tmp/exportVariants", "-c",
-      "v.contig,v.start,v.ref,v.alt,va.qc.callRate,va.qc.MAC,va.qc.nCalled,va.qc.nNotCalled,va.qc.nHomRef,va.qc.nHet,va.qc.nHomVar,va.qc.dpMean,va.qc.dpStDev," +
-        "va.qc.dpMeanHomRef,va.qc.dpStDevHomRef,va.qc.dpMeanHet,va.qc.dpStDevHet,va.qc.dpMeanHomVar," +
-        "va.qc.dpStDevHomVar,va.qc.gqMean,va.qc.gqStDev,va.qc.gqMeanHomRef,va.qc.gqStDevHomRef," +
-        "va.qc.gqMeanHet,va.qc.gqStDevHet,va.qc.gqMeanHomVar,va.qc.gqStDevHomVar,va.qc.MAF,va.qc.nNonRef," +
-        "va.qc.rHeterozygosity,va.qc.rHetHomVar,va.qc.rExpectedHetFrequency,va.qc.pHWE"))
+      "chr=v.contig,pos=v.start,ref=v.ref,alt=v.alt,callRate=va.qc.callRate,MAC=va.qc.MAC,MAF=va.qc.MAF," +
+        "nCalled=va.qc.nCalled,nNotCalled=va.qc.nNotCalled," +
+        "nHomRef=va.qc.nHomRef,nHet=va.qc.nHet,nHomVar=va.qc.nHomVar,dpM=va.qc.dpMean,dpSD=va.qc.dpStDev," +
+        "dpMHR=va.qc.dpMeanHomRef,dpSDHR=va.qc.dpStDevHomRef,dpMH=va.qc.dpMeanHet,dpSDH=va.qc.dpStDevHet," +
+        "dpMHV=va.qc.dpMeanHomVar,dpSDHV=va.qc.dpStDevHomVar,gqM=va.qc.gqMean,gqSD=va.qc.gqStDev," +
+        "gqMHR=va.qc.gqMeanHomRef,gqSDHR=va.qc.gqStDevHomRef," +
+        "gqMH=va.qc.gqMeanHet,gqSDH=va.qc.gqStDevHet,gqMHV=va.qc.gqMeanHomVar,gqSDHV=va.qc.gqStDevHomVar," +
+        "nNonRef=va.qc.nNonRef," +
+        "rHet=va.qc.rHeterozygosity,rHetHomVar=va.qc.rHetHomVar,rExpHetFreq=va.qc.rExpectedHetFrequency," +
+        "pHWE=va.qc.pHWE"))
+
 
     val vQcOutput = Source.fromFile("/tmp/variantQC/part-00000")
       .getLines().toSet
@@ -59,5 +62,14 @@ class ExportSuite extends SparkSuite {
       .getLines().toSet
 
     assert(vQcOutput == vExportOutput)
+
+    // Test ExportTSV.parseExpression
+    assert(ExportTSV.parseExpression("maf=5, foobar=va.qc.FOOBAR") ==(Some("maf\tfoobar"), "5,va.qc.FOOBAR"))
+    assert(ExportTSV.parseExpression("5, va.qc.FOOBAR") ==(None, "5,va.qc.FOOBAR"))
+
+    // Test ExportTSV.parseColumnsFile
+    assert(ExportTSV.parseColumnsFile("src/test/resources/exportTest.columns", sc.hadoopConfiguration) ==
+      (Some("COL1\tMAF\tEXPR1\tSTRING"),
+        """definition of col 1,va.qc.maf,v.start + g.gq - 100,va.filters.mkString("\t")"""))
   }
 }
