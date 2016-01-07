@@ -37,6 +37,7 @@ class BGzipConstants {
 class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) {
   val constants = new BGzipConstants
 
+  var numBlocks = 0
   var numUncompressedBytes = 0
   var uncompressedBuffer = new Array[Byte](constants.defaultUncompressedBlockSize)
   var compressedBuffer = new Array[Byte](constants.maxCompressedBlockSize - constants.blockHeaderLength)
@@ -98,8 +99,10 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     crc32.update(uncompressedBuffer, 0, numUncompressedBytes)
 
     val totalBlockSize: Int = writeGzipBlock(compressedSize, numUncompressedBytes, crc32.getValue)
-    numUncompressedBytes = 0 // reset variable
 
+    numBlocks += 1
+    println(s"$numBlocks $numUncompressedBytes $compressedSize")
+    numUncompressedBytes = 0 // reset variable
     totalBlockSize
   }
 

@@ -112,7 +112,7 @@ object ExportVCF extends Command {
     kvRDD
       .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length,kvRDD))
       .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
-      .writeTableSingleFile(options.tmpdir, options.output, header, deleteTmpFiles = true)
+      .writeBGzipFile(options.tmpdir, options.output, header, deleteTmpFiles = true)
     state
   }
 }

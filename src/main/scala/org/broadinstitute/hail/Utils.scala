@@ -236,11 +236,10 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
   }
 
-  def writeBGzipFile(filename: String, header: String = null, tmpdir: String,
-                     overwrite:Boolean = true, deleteSource:Boolean = true) = {
+  def writeBGzipFile(tmpdir: String, filename: String, header: String = null, deleteTmpFiles:Boolean = true) = {
     val hConf = r.sparkContext.hadoopConfiguration
     //org.broadinstitute.hail.io.compress.BGzipCodec
-    hConf.setBoolean("mapred.output.compress",true)
+    //hConf.setBoolean("mapred.output.compress",true)
     val tmpFileName = hadoopGetTemporaryFile(tmpdir,hConf)
     r.saveAsTextFile(tmpFileName,classOf[BGzipCodec])
   }
