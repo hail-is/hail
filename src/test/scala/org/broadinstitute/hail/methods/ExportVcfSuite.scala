@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 import scala.io.Source
 
 class ExportVcfSuite extends SparkSuite {
-  
+
   @Test def testSameAsOrig() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val tmpDir = "/tmp/"
