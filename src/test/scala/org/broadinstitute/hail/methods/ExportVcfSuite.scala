@@ -35,8 +35,8 @@ class ExportVcfSuite extends SparkSuite {
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
     val stateNew = State("", sc, sqlContext, vdsNew)
 
-    case class Coordinate(contig:String,start:Int,ref:String,alt:String) extends Ordered[Coordinate] {
-      def compare(that:Coordinate) = {
+    case class Coordinate(contig: String, start: Int, ref: String, alt: String) extends Ordered[Coordinate] {
+      def compare(that: Coordinate) = {
         if (this.contig != that.contig)
           this.contig.compareTo(that.contig)
         else if (this.start != that.start)
@@ -48,11 +48,11 @@ class ExportVcfSuite extends SparkSuite {
       }
     }
 
-    val coordinates:Array[Coordinate] = Source.fromFile(outFile).getLines()
+    val coordinates: Array[Coordinate] = Source.fromFile(outFile).getLines()
       .filter(line => !line.isEmpty && line(0) != '#')
-      .map(line => line.split("\t")).take(5).map(a => new Coordinate(a(0),a(1).toInt,a(3),a(4))).toArray
+      .map(line => line.split("\t")).take(5).map(a => new Coordinate(a(0), a(1).toInt, a(3), a(4))).toArray
 
-    val sortedCoordinates = coordinates.sortWith{case (c1,c2) => c1.compare(c2) < 0}
+    val sortedCoordinates = coordinates.sortWith { case (c1, c2) => c1.compare(c2) < 0 }
 
     assert(sortedCoordinates.sameElements(coordinates))
   }

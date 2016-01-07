@@ -217,16 +217,16 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     r.saveAsTextFile(filename)
   }
 
-  def writeTableSingleFile(filename: String, header: String = null, tmpdir: String, overwrite:Boolean = true, deleteTmpFiles:Boolean = true) {
+  def writeTableSingleFile(tmpdir: String, filename: String, header: String = null, deleteTmpFiles: Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
     val destPath = new hadoop.fs.Path(filename)
-    val destFS = hadoopFS(filename,hConf)
+    val destFS = hadoopFS(filename, hConf)
+    val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
 
-    if (!overwrite && destFS.exists(destPath)) throw new IOException(s"Destination already exists: $filename")
+    hadoopDelete(filename,hConf,true) // overwriting by default
 
-    val tmpFileName = hadoopGetTemporaryFile(tmpdir,hConf)
-    writeTable(tmpFileName,header)
-    hadoopCopyMerge(Array(tmpFileName + ".header",tmpFileName), filename,hConf,overwrite,deleteTmpFiles)
+    writeTable(tmpFileName, header)
+    hadoopCopyMerge(Array(tmpFileName + ".header", tmpFileName), filename, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName, hConf, recursive = true)
@@ -389,44 +389,40 @@ object Utils {
     hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
   }
 
-  def hadoopGetTemporaryFile(tmpdir:String, hConf:hadoop.conf.Configuration,nChar:Int=10,
-                             prefix:Option[String]= None,suffix:Option[String]= None):String = {
+  def hadoopGetTemporaryFile(tmpdir: String, hConf: hadoop.conf.Configuration, nChar: Int = 10,
+                             prefix: Option[String] = None, suffix: Option[String] = None): String = {
 
-    val destFS = hadoopFS(tmpdir,hConf)
+    val destFS = hadoopFS(tmpdir, hConf)
     val prefixString = if (prefix.isDefined) prefix + "-" else ""
     val suffixString = if (suffix.isDefined) "." + suffix else ""
-    val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
-    val fileExists = destFS.exists(new hadoop.fs.Path(randomName))
 
-    if (!fileExists)
-      randomName
-    else
-      hadoopGetTemporaryFile(tmpdir,hConf,nChar,prefix,suffix)
+    def getRandomName: String = {
+      val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
+      val fileExists = destFS.exists(new hadoop.fs.Path(randomName))
+
+      if (!fileExists)
+        randomName
+      else
+        getRandomName
+    }
+    getRandomName
   }
 
-  def hadoopCopyMerge(srcFilenames: Array[String], destFilename:String, hConf: hadoop.conf.Configuration, overwrite:Boolean=true, deleteSource:Boolean=true) {
+  def hadoopCopyMerge(srcFilenames: Array[String], destFilename: String, hConf: hadoop.conf.Configuration, deleteSource: Boolean = true) {
 
     val destPath = new hadoop.fs.Path(destFilename)
-    val destFS = hadoopFS(destFilename,hConf)
+    val destFS = hadoopFS(destFilename, hConf)
 
-    if (destFS.exists(destPath)) {
-      val destFileStatus = destFS.getFileStatus(destPath)
-      if ((destFileStatus.isDirectory || destFileStatus.isFile) && !overwrite)
-        throw new IOException(s"Destination already exists: $destPath")
-      else
-        destFS.delete(destPath,true)
-    }
-
-    def globAndSort(filename:String):Array[FileStatus] = {
-      val fs = hadoopFS(filename,hConf)
+    def globAndSort(filename: String): Array[FileStatus] = {
+      val fs = hadoopFS(filename, hConf)
       val isDir = fs.getFileStatus(new hadoop.fs.Path(filename)).isDirectory
       val path = if (isDir) new hadoop.fs.Path(filename + "/*") else new hadoop.fs.Path(filename)
 
       fs.globStatus(path).sortWith(_.compareTo(_) < 0)
     }
 
-    val srcFileStatuses = srcFilenames.flatMap{case p => globAndSort(p)}
-    require(srcFileStatuses.forall{case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile})
+    val srcFileStatuses = srcFilenames.flatMap { case p => globAndSort(p) }
+    require(srcFileStatuses.forall { case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile })
 
     val outputStream = destFS.create(destPath)
 
@@ -436,23 +432,21 @@ object Utils {
         val inputStream = srcFS.open(fileStatus.getPath)
         try {
           copyBytes(inputStream, outputStream, hConf, false)
-        }
-        finally {
+        } finally {
           inputStream.close()
         }
       }
-    }
-    finally {
+    } finally {
       outputStream.close()
     }
 
     if (deleteSource) {
-      srcFileStatuses.foreach{case fileStatus => hadoopDelete(fileStatus.getPath.toString,hConf,true)}
+      srcFileStatuses.foreach { case fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, true) }
     }
   }
 
   def writeObjectFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
+                         hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
     try {
       f(oos)
@@ -462,7 +456,7 @@ object Utils {
   }
 
   def readObjectFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
+                        hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
     try {
       f(ois)
@@ -472,7 +466,7 @@ object Utils {
   }
 
   def writeTextFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
+                       hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
     val fw = new OutputStreamWriter(oos)
     try {
@@ -483,7 +477,7 @@ object Utils {
   }
 
   def readFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
+                  hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
     val is = hadoopOpen(filename, hConf)
     try {
       reader(is)
@@ -493,7 +487,7 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-    lines: Traversable[String], header: String = null) {
+                 lines: Traversable[String], header: String = null) {
     writeTextFile(filename, hConf) {
       fw =>
         if (header != null) fw.write(header)
