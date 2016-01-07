@@ -6,7 +6,8 @@
 1. [Importing](docs/Importing.md)
 2. [QC](docs/QC.md)
 3. [Filtering](docs/Filtering.md)
-4. [Exporting to TSVs](docs/Exporting.md)
+4. [Exporting to TSVs](docs/ExportTSV.md)
+5. [Exporting to VCF](docs/ExportVCF.md)
 
 ## Tools
 
