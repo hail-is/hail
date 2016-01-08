@@ -19,10 +19,10 @@ class VSMSuite extends SparkSuite {
 
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
-    val mdata3 = new VariantMetadata(Seq.empty[(String, String)], Array("S1", "S2"),
+    val mdata3 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
       Annotations.emptyOfArrayString(2).map(_.addVal("1", "5")), Annotations.emptyOfSignature(),
       Annotations.emptyOfSignature())
-    val mdata4 = new VariantMetadata(Seq.empty[(String, String)], Array("S1", "S2"),
+    val mdata4 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
       Annotations.emptyOfArrayString(2), Annotations.emptyOfSignature(), Annotations.emptyOfSignature()
         .addMap("dummy", Map.empty[String, AnnotationSignature]))
 
