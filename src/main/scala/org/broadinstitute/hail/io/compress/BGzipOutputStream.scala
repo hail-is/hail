@@ -2,7 +2,6 @@ package org.broadinstitute.hail.io.compress
 
 import java.io.OutputStream
 import java.util.zip.{CRC32, Deflater}
-
 import org.apache.hadoop.io.compress.CompressionOutputStream
 
 class BGzipConstants {
@@ -101,7 +100,6 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     val totalBlockSize: Int = writeGzipBlock(compressedSize, numUncompressedBytes, crc32.getValue)
 
     numBlocks += 1
-    println(s"$numBlocks $numUncompressedBytes $compressedSize")
     numUncompressedBytes = 0 // reset variable
     totalBlockSize
   }
@@ -136,7 +134,7 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     writeInt8(constants.bgzfId2)
     writeInt16(constants.bgzfLen)
     writeInt16(totalBlockSize - 1)
-    out.write(compressedBuffer)
+    out.write(compressedBuffer.slice(0,compressedSize))
     writeInt32(crc32val.toInt)
     writeInt32(bytesToCompress)
     totalBlockSize
@@ -147,7 +145,6 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
   override def finish() = {
     if (numUncompressedBytes != 0)
       deflateBlock
-
     out.write(constants.emptyGzipBlock)
   }
 

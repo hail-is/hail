@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import java.io.File
 
+import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
