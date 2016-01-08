@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.annotations
 
+import java.io.{DataInputStream, DataOutputStream}
 import org.broadinstitute.hail.Utils._
 
 case class Annotations[T](maps: Map[String, Map[String, T]], vals: Map[String, T]) extends Serializable {
@@ -35,18 +36,36 @@ case class Annotations[T](maps: Map[String, Map[String, T]], vals: Map[String, T
     (maps.toArray.flatMap {
       case (mapName, map) => map
         .toArray
-        .map{ case (s, t) => (mapName, s, t) }},
+        .map { case (s, t) => (mapName, s, t) }
+    },
       vals.toArray)
   }
 }
 
 object Annotations {
 
+  implicit def writableAnnotations[T](implicit writableT: DataWritable[T]): DataWritable[Annotations[T]] =
+    new DataWritable[Annotations[T]] {
+      def write(dos: DataOutputStream, t: Annotations[T]) {
+        writeData(dos, t.maps)
+        writeData(dos, t.vals)
+      }
+    }
+
+  implicit def readableAnnotations[T](implicit readableT: DataReadable[T]): DataReadable[Annotations[T]] =
+    new DataReadable[Annotations[T]] {
+      def read(dis: DataInputStream): Annotations[T] = {
+        Annotations(readData[Map[String, Map[String, T]]](dis),
+          readData[Map[String, T]](dis))
+      }
+    }
+
   def fromIndexedSeqs[T](arr1: IndexedSeq[(String, String, T)], arr2: IndexedSeq[(String, T)]): Annotations[T] = {
     val maps = arr1
       .groupBy(_._1)
       .mapValues(l => l.map {
-        case (name, fieldName, field) => (fieldName, field) }.toMap).force
+        case (name, fieldName, field) => (fieldName, field)
+      }.toMap).force
     val vals = arr2.toMap.force
     Annotations(maps, vals)
   }

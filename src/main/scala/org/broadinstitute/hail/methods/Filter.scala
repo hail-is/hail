@@ -591,9 +591,9 @@ object Filter {
   def renameSymbols(t: Tree): Tree = {
     val xformer = new Transformer {
       override def transform(t: Tree): Tree = t match {
-        case Select(exp, TermName(n)) =>
-          nameMap.get(n) match {
-            case Some(newName) => Select(transform(exp), TermName(newName))
+        case Select(exp, n) =>
+          nameMap.get(n.toString) match {
+            case Some(newName) => Select(transform(exp), newTermName(newName))
             case None => super.transform(t)
           }
         case _ => super.transform(t)

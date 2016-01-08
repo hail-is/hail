@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.annotations._
+import scala.collection.mutable
 
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
@@ -52,8 +53,8 @@ class RichRow(r: Row) {
 
   def getVariantAnnotations(i: Int): AnnotationData = {
     val ir = r.getAs[Row](i)
-    val mapR = ir.getAs[ArrayBuffer[Row]](0)
-    val valR = ir.getAs[ArrayBuffer[Row]](1)
+    val mapR = ir.getAs[mutable.WrappedArray[Row]](0)
+    val valR = ir.getAs[mutable.WrappedArray[Row]](1)
   org.broadinstitute.hail.Utils
     Annotations.fromIndexedSeqs[String]((0 until mapR.length).map(i => mapR(i).getTuple3String(i)),
       (0 until valR.length).map(i => valR(i).getTuple2String(i)))
