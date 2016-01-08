@@ -223,10 +223,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     val hConf = r.sparkContext.hadoopConfiguration
     val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
 
-    hadoopDelete(filename,hConf,true) // overwriting by default
+    hadoopDelete(filename, hConf, true) // overwriting by default
 
     writeTable(tmpFileName, header)
-    hadoopCopyMerge(Array(tmpFileName + ".header", tmpFileName), filename, hConf, deleteTmpFiles)
+
+    val filesToMerge = if (header != null) Array(tmpFileName + ".header", tmpFileName) else Array(tmpFileName)
+    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName, hConf, recursive = true)

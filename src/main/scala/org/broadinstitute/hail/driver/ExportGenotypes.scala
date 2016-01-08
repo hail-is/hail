@@ -49,12 +49,11 @@ object ExportGenotypes extends Command {
         (s: Int, g: Genotype) =>
           makeString(v, va)(s, g))
 
-    header match {
-      case Some(str) =>
-        writeTextFile(output + ".header", state.hadoopConf) { s =>
-          s.write(str)
-          s.write("\n")
-        }
+    header.foreach { str =>
+      writeTextFile(output + ".header", state.hadoopConf) { s =>
+        s.write(str)
+        s.write("\n")
+      }
     }
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
