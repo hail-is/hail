@@ -134,13 +134,13 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def writeMendel(filename: String) {
     val sampleIdsBc = sc.broadcast(sampleIds)
     mendelErrors.map(_.toLineMendel(sampleIdsBc.value))
-      .writeTable(filename, "FID\tKID\tCHR\tSNP\tCODE\tERROR\n")
+      .writeTable(filename, Some("FID\tKID\tCHR\tSNP\tCODE\tERROR\n"))
   }
 
   def writeMendelL(filename: String) {
     nErrorPerVariant.map{ case (v, n) =>
       v.contig + "\t" + v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + n
-    }.writeTable(filename, "CHR\tSNP\tN\n")
+    }.writeTable(filename, Some("CHR\tSNP\tN\n"))
   }
 
   def writeMendelF(filename: String) {

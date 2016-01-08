@@ -12,7 +12,7 @@ object MendelErrorsCommand extends Command {
   def description = "Compute Mendel errors and count per variant, nuclear family, and individual"
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output root filename")
+    @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output root fileName")
     var output: String = _
 
     @Args4jOption(required = true, name = "-f", aliases = Array("--fam"), usage = ".fam file")

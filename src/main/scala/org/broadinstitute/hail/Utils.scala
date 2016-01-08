@@ -6,9 +6,12 @@ import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
+import org.apache.hadoop.io.{Text, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
+import org.apache.hadoop.mapred.TextOutputFormat
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.io.hadoop.TextOutputFormatNoNewlines
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.mutable
@@ -208,33 +211,53 @@ class RichArray[T](a: Array[T]) {
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
-  def writeTable(filename: String, header: String = null) {
-    if (header != null)
-      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {
-        _.write(header)
+  def writeTable(fileName: String, header: Option[String], newLines: Boolean = true) {
+    header.foreach { h =>
+      writeTextFile(fileName + ".header", r.sparkContext.hadoopConfiguration) {
+        _.write(h)
       }
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
-    r.saveAsTextFile(filename)
+    }
+
+    hadoopDelete(fileName, r.sparkContext.hadoopConfiguration, recursive = true)
+    if (newLines)
+      r.saveAsTextFile(fileName)
+    else
+    r.saveAsTextFileNoNewlines(fileName)
   }
 
-  def writeTableSingleFile(tmpdir: String, filename: String, header: String = null, deleteTmpFiles: Boolean = true) {
+  def writeTableSingleFile(tmpdir: String, fileName: String, header: Option[String] = None,
+    deleteTmpFiles: Boolean = true, newLines: Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
-    val destPath = new hadoop.fs.Path(filename)
-    val destFS = hadoopFS(filename, hConf)
+    val destPath = new hadoop.fs.Path(fileName)
+    val destFS = hadoopFS(fileName, hConf)
     val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
 
-    hadoopDelete(filename, hConf, true) // overwriting by default
+    hadoopDelete(fileName, hConf, recursive = true) // overwriting by default
 
-    writeTable(tmpFileName, header)
+    writeTable(tmpFileName, header, newLines)
 
     val filesToMerge = if (header != null) Array(tmpFileName + ".header", tmpFileName) else Array(tmpFileName)
-    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+    hadoopCopyMerge(filesToMerge, fileName, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName, hConf, recursive = true)
       hadoopDelete(tmpFileName + ".header", hConf, recursive = true)
     }
   }
+
+  def saveAsTextFileNoNewlines(path: String) {
+      val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
+      val textClassTag = implicitly[ClassTag[Text]]
+      val rMapped = r.mapPartitions { iter =>
+        val text = new Text()
+        iter.map { x =>
+          text.set(x.toString)
+          (NullWritable.get(), text)
+        }
+      }
+      RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, textClassTag, null)
+        .saveAsHadoopFile[TextOutputFormatNoNewlines[NullWritable, Text]](path)
+    }
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
