@@ -35,7 +35,7 @@ $ cat exportVariants.columns
 VARIANT	v
 PASS	va.pass
 FILTERS	va.filters
-MISSINGNESS	va.qc.nCalled.get.toDouble/(va.qc.nCalled.get + va.qc.nNotCalled.get)
+MISSINGNESS	va.qc.callRate)
 ```
 
 ```
@@ -54,7 +54,7 @@ Much like [filtering](Filtering.md) modules, exporting allows flexible expressio
 
 
 ```
-exportvariants -c 'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = va.qc.nCalled.get.toDouble/(va.qc.nCalled.get + va.qc.nNotCalled.get)'
+exportvariants -c 'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = va.qc.callRate'
 ```
 
 ```
