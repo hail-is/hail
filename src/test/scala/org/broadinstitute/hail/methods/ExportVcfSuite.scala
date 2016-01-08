@@ -74,7 +74,7 @@ class ExportVcfSuite extends SparkSuite {
           this.alt.compareTo(that.alt)
       }
     }
-    val coordinates: Array[Coordinate] = readFile(outFile,stateNew.hadoopConf){ s =>
+    val coordinates: Array[Coordinate] = readFile(outFile, stateNew.hadoopConf) { s =>
       Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty && line(0) != '#')

@@ -77,7 +77,8 @@ object ExportVCF extends Command {
       val info = if (a.hasMap("info")) a.maps("info").toArray.sorted.map { case (k, v) =>
         val sig = varAnnSig.getInMap("info", k).get.asInstanceOf[VCFSignature]
         if (sig.vcfType != "Flag") s"$k=$v" else s"$k"
-      }.mkString(";") else "."
+      }.mkString(";")
+      else "."
 
       val format = "GT:AD:DP:GQ:PL"
 
@@ -106,15 +107,13 @@ object ExportVCF extends Command {
       sb.result()
     }
 
-    hadoopDelete(options.output, state.hadoopConf, true)
-
-    val kvRDD = vds.rdd.map{ case (v,a,gs) => (v,(a,gs))}
+    val kvRDD = vds.rdd.map { case (v, a, gs) => (v, (a, gs)) }
 
     if (options.output.endsWith(".bgz")) {
       kvRDD
         .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
         .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
-        .writeBGzipFile(options.tmpdir, options.output, header, deleteTmpFiles = true)
+        .writeTableSingleFileBGzip(options.tmpdir, options.output, header, deleteTmpFiles = true)
     } else {
       kvRDD
         .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))

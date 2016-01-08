@@ -9,7 +9,7 @@ import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.io.compress.{BGzipCodec,BGzipOutputStream}
+import org.broadinstitute.hail.io.compress.{BGzipCodec, BGzipOutputStream}
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.mutable
@@ -218,6 +218,15 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     r.saveAsTextFile(filename)
   }
 
+  def writeTableBGzip(filename: String, header: String = null) {
+    if (header != null) {
+      writeTextFile(filename + ".header.bgz", r.sparkContext.hadoopConfiguration) {
+        _.write(header)
+      }
+    }
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
+    r.saveAsTextFile(filename, classOf[BGzipCodec])
+  }
 
   def writeTableSingleFile(tmpdir: String, filename: String, header: String = null, deleteTmpFiles: Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
@@ -236,21 +245,16 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
   }
 
-  def writeBGzipFile(tmpdir: String, filename: String, header: String = null, deleteTmpFiles:Boolean = true) = {
+  def writeTableSingleFileBGzip(tmpdir: String, filename: String, header: String = null, deleteTmpFiles: Boolean = true) = {
     val hConf = r.sparkContext.hadoopConfiguration
-    val tmpFileName = hadoopGetTemporaryFile(tmpdir,hConf)
+    val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
 
-    hadoopDelete(filename,hConf,true) //overwriting by default
+    hadoopDelete(filename, hConf, true) //overwriting by default
 
-    if (header != null) {
-      writeTextFile(tmpFileName + ".header.bgz", hConf) {
-        _.write(header)
-      }
-    }
-    r.saveAsTextFile(tmpFileName,classOf[BGzipCodec])
+    writeTableBGzip(tmpFileName, header)
 
-    //FIXME need to make sure if statement with whteht header
-    hadoopCopyMerge(Array(tmpFileName + ".header.bgz", tmpFileName), filename, hConf, deleteTmpFiles)
+    val filesToMerge = if (header != null) Array(tmpFileName + ".header.bgz", tmpFileName) else Array(tmpFileName)
+    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName, hConf, recursive = true)
@@ -391,7 +395,7 @@ object Utils {
     hadoop.fs.FileSystem.get(new URI(filename), hConf)
 
   def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
-    val fs = hadoopFS(filename,hConf)
+    val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val os = fs.create(hPath)
     val codecFactory = new CompressionCodecFactory(hConf)
