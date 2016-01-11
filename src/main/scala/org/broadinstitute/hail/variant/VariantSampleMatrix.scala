@@ -585,115 +585,195 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def joinInnerInner[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(T,S)] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleInnerJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleInnerJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantInnerJoin[T,S],
       annotationInnerJoin[AnnotationData,AnnotationData],
-      (a: Iterable[T], b:  Iterable[S], n: Int) => genotypeInnerInnerJoin[T,S](a, b, n))
+      (a: Iterable[T], b:  Iterable[S], n: Int) => genotypeInnerInnerJoin[T,S](a, b, n)(tctLocal, sctLocal))
   }
 
   def joinInnerLeft[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(T,Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleInnerJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleInnerJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantLeftJoin[T,S],
       annotationLeftJoin[AnnotationData,Option[AnnotationData]],
-      (a: Iterable[T], b: Option[Iterable[S]], n: Int) => genotypeInnerLeftJoin[T,S](a,b,n))
+      (a: Iterable[T], b: Option[Iterable[S]], n: Int) => genotypeInnerLeftJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinInnerRight[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],S)] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleInnerJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleInnerJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantRightJoin[T,S],
       annotationRightJoin[Option[AnnotationData],AnnotationData],
-      (a: Option[Iterable[T]], b:  Iterable[S], n: Int) => genotypeInnerRightJoin[T,S](a,b,n))
+      (a: Option[Iterable[T]], b:  Iterable[S], n: Int) => genotypeInnerRightJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinInnerOuter[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleInnerJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleInnerJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantOuterJoin[T,S],
       annotationOuterJoin[Option[AnnotationData],Option[AnnotationData]],
-      (a: Option[Iterable[T]], b:  Option[Iterable[S]], n: Int) => genotypeInnerOuterJoin[T,S](a,b,n))
+      (a: Option[Iterable[T]], b:  Option[Iterable[S]], n: Int) => genotypeInnerOuterJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinLeftInner[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(T,Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleLeftJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleLeftJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantInnerJoin[T,Option[S]],
       annotationInnerJoin[AnnotationData,AnnotationData],
-      (a: Iterable[T], b:  Iterable[Option[S]], n: Int) => genotypeLeftInnerJoin[T,S](a,b,n))
+      (a: Iterable[T], b:  Iterable[Option[S]], n: Int) => genotypeLeftInnerJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinLeftLeft[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(T,Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleLeftJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleLeftJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantLeftJoin[T,Option[S]],
       annotationLeftJoin[AnnotationData,Option[AnnotationData]],
-      (a: Iterable[T], b: Option[Iterable[Option[S]]], n: Int) => genotypeLeftLeftJoin[T,S](a,b,n))
+      (a: Iterable[T], b: Option[Iterable[Option[S]]], n: Int) => genotypeLeftLeftJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinLeftRight[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleLeftJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleLeftJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantRightJoin[T,Option[S]],
       annotationRightJoin[Option[AnnotationData],AnnotationData],
-      (a: Option[Iterable[T]], b:  Iterable[Option[S]], n: Int) => genotypeLeftRightJoin[T,S](a,b,n))
+      (a: Option[Iterable[T]], b:  Iterable[Option[S]], n: Int) => genotypeLeftRightJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinLeftOuter[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleLeftJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleLeftJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantOuterJoin[T,Option[S]],
       annotationOuterJoin[Option[AnnotationData],Option[AnnotationData]],
-      (a: Option[Iterable[T]], b: Option[Iterable[Option[S]]], n: Int) => genotypeLeftOuterJoin[T,S](a,b,n))
+      (a: Option[Iterable[T]], b: Option[Iterable[Option[S]]], n: Int) => genotypeLeftOuterJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinRightInner[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],S)] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleRightJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleRightJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantInnerJoin[Option[T],S],
       annotationInnerJoin[AnnotationData,AnnotationData],
-      (a: Iterable[Option[T]], b:  Iterable[S], n: Int) => genotypeRightInnerJoin[T,S](a,b,n))
+      (a: Iterable[Option[T]], b:  Iterable[S], n: Int) => genotypeRightInnerJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinRightLeft[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleRightJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleRightJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantLeftJoin[Option[T],S],
       annotationLeftJoin[AnnotationData,Option[AnnotationData]],
-      (a: Iterable[Option[T]], b:  Option[Iterable[S]], n: Int) => genotypeRightLeftJoin[T,S](a,b,n))
+      (a: Iterable[Option[T]], b:  Option[Iterable[S]], n: Int) => genotypeRightLeftJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinRightRight[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],S)] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleRightJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleRightJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantRightJoin[Option[T],S],
       annotationRightJoin[Option[AnnotationData],AnnotationData],
-      (a: Option[Iterable[Option[T]]], b: Iterable[S], n: Int) => genotypeRightRightJoin[T,S](a,b,n))
+      (a: Option[Iterable[Option[T]]], b: Iterable[S], n: Int) => genotypeRightRightJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinRightOuter[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleRightJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleRightJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantOuterJoin[Option[T],S],
       annotationOuterJoin[Option[AnnotationData],Option[AnnotationData]],
-      (a: Option[Iterable[Option[T]]], b: Option[Iterable[S]], n: Int) => genotypeRightOuterJoin[T,S](a,b,n))
+      (a: Option[Iterable[Option[T]]], b: Option[Iterable[S]], n: Int) => genotypeRightOuterJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinOuterInner[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleOuterJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleOuterJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantInnerJoin[Option[T],Option[S]],
       annotationInnerJoin[AnnotationData,AnnotationData],
-      (a: Iterable[Option[T]], b: Iterable[Option[S]], n: Int) => genotypeOuterInnerJoin[T,S](a,b,n))
+      (a: Iterable[Option[T]], b: Iterable[Option[S]], n: Int) => genotypeOuterInnerJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinOuterLeft[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleOuterJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleOuterJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantLeftJoin[Option[T],Option[S]],
       annotationLeftJoin[AnnotationData,Option[AnnotationData]],
-      (a: Iterable[Option[T]], b: Option[Iterable[Option[S]]], n: Int) => genotypeOuterLeftJoin[T,S](a,b,n))
+      (a: Iterable[Option[T]], b: Option[Iterable[Option[S]]], n: Int) => genotypeOuterLeftJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinOuterRight[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleOuterJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleOuterJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantRightJoin[Option[T],Option[S]],
       annotationRightJoin[Option[AnnotationData],AnnotationData],
-      (a: Option[Iterable[Option[T]]], b:  Iterable[Option[S]], n: Int) => genotypeOuterRightJoin[T,S](a,b,n))
+      (a: Option[Iterable[Option[T]]], b:  Iterable[Option[S]], n: Int) => genotypeOuterRightJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 
   def joinOuterOuter[S](other:VariantSampleMatrix[S])(implicit stt: TypeTag[S], sct: ClassTag[S]):VariantSampleMatrix[(Option[T],Option[S])] = {
-    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleOuterJoin[T,S](a,b),
+    val tttLocal = ttt
+    val sttLocal = stt
+    val tctLocal = tct
+    val sctLocal = sct
+
+    join(other, (a: VariantSampleMatrix[T], b: VariantSampleMatrix[S]) => sampleOuterJoin[T,S](a,b)(tttLocal, tctLocal, sttLocal, sctLocal),
       variantOuterJoin[Option[T],Option[S]],
       annotationOuterJoin[Option[AnnotationData],Option[AnnotationData]],
-      (a: Option[Iterable[Option[T]]], b: Option[Iterable[Option[S]]], n: Int) => genotypeOuterOuterJoin[T,S](a,b,n))
+      (a: Option[Iterable[Option[T]]], b: Option[Iterable[Option[S]]], n: Int) => genotypeOuterOuterJoin[T,S](a,b,n)(tctLocal, sctLocal))
   }
 }
 
