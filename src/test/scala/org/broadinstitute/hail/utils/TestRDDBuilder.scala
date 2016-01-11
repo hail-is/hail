@@ -100,15 +100,15 @@ object TestRDDBuilder {
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>
       (Variant("1", i, defaultRef, defaultAlt),
-        (gqArray.map(_(i)),
-          dpArray.map(_(i)),
-          gtArray.map(_(i)))))
+        (gqArray.map(_ (i)),
+          dpArray.map(_ (i)),
+          gtArray.map(_ (i)))))
       .toArray
 
     val variantRDD = sc.parallelize(variantArray)
 
     val streamRDD = variantRDD.map {
-      case (variant, (gqArr, dpArr,gtArr)) =>
+      case (variant, (gqArr, dpArr, gtArr)) =>
         val b = new GenotypeStreamBuilder(variant)
         for (sample <- 0 until nSamples) {
           val gt = gtArr match {
@@ -117,11 +117,11 @@ object TestRDDBuilder {
           }
           val gq = gqArr match {
             case Some(arr) => arr(sample)
-            case None => normInt(gqMean, gqStDev, floor=gqMin, ceil=gqMax)
+            case None => normInt(gqMean, gqStDev, floor = gqMin, ceil = gqMax)
           }
           val dp = dpArr match {
             case Some(arr) => arr(sample)
-            case None => normInt(dpMean, dpStDev, floor=dpMin, ceil=dpMax)
+            case None => normInt(dpMean, dpStDev, floor = dpMin, ceil = dpMax)
           }
           val ad = adFromDP(dp, gt)
           val pl = plFromGQ(gq, gt)
