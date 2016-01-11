@@ -86,7 +86,7 @@ object TestRDDBuilder {
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF
     sc(SparkContext) -- spark context in which to operate
-    vsmtype(String) -- sparky, tuple, or managed
+    gtArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
     gqArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
     dpArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
     Returns a test VDS of the given parameters */
