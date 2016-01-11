@@ -3,8 +3,6 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
-//import org.broadinstitute.hail.variant.VariantSampleMatrix._
-//import org.broadinstitute.hail.variant.{Genotype}
 
 class JoinSuite extends SparkSuite {
   @Test def test() {

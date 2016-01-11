@@ -2,6 +2,7 @@ package org.broadinstitute.hail.utils
 
 import scala.util.Random
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.annotations._
 import org.apache.spark.SparkContext
 import scala.math
 
@@ -105,6 +106,7 @@ object TestRDDBuilder {
       .toArray
 
     val variantRDD = sc.parallelize(variantArray)
+
     val streamRDD = variantRDD.map {
       case (variant, (gqArr, dpArr,gtArr)) =>
         val b = new GenotypeStreamBuilder(variant)
@@ -126,8 +128,8 @@ object TestRDDBuilder {
 
           b += Genotype(gt, ad, dp, pl)
         }
-        (variant, b.result(): Iterable[Genotype])
+        (variant, new AnnotationData(Map(), Map()), b.result(): Iterable[Genotype])
     }
-    VariantSampleMatrix(VariantMetadata(Map("1" -> 1000000), sampleList, None), streamRDD)
+    VariantSampleMatrix(VariantMetadata(sampleList), streamRDD)
   }
 }
