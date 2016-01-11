@@ -209,56 +209,40 @@ class RichArray[T](a: Array[T]) {
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
-  def writeTable(filename: String, header: String = null) {
-    if (header != null)
-      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {
-        _.write(header)
-      }
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
-    r.saveAsTextFile(filename)
-  }
+  def writeTable(filename: String, header: String = null, codec: Option[hadoop.io.compress.CompressionCodec] = None) {
+    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
 
-  def writeTableBGzip(filename: String, header: String = null) {
-    if (header != null) {
-      writeTextFile(filename + ".header.bgz", r.sparkContext.hadoopConfiguration) {
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
+    hadoopDelete(filename + ".header" + headerExt, r.sparkContext.hadoopConfiguration, recursive = true)
+
+    if (header != null)
+      writeTextFile(filename + ".header" + headerExt, r.sparkContext.hadoopConfiguration) {
         _.write(header)
       }
+
+    codec match {
+      case Some(x) => r.saveAsTextFile(filename, x.getClass)
+      case None => r.saveAsTextFile(filename)
     }
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
-    r.saveAsTextFile(filename, classOf[BGzipCodec])
   }
 
   def writeTableSingleFile(tmpdir: String, filename: String, header: String = null, deleteTmpFiles: Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
     val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = codecFactory.getCodec(new hadoop.fs.Path(filename))
+    val headerExt = if (codec != null) codec.getDefaultExtension else ""
 
     hadoopDelete(filename, hConf, true) // overwriting by default
 
-    writeTable(tmpFileName, header)
+    writeTable(tmpFileName, header, Option(codec))
 
-    val filesToMerge = if (header != null) Array(tmpFileName + ".header", tmpFileName) else Array(tmpFileName)
+    val filesToMerge = if (header != null) Array(tmpFileName + ".header" + headerExt, tmpFileName) else Array(tmpFileName)
     hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName, hConf, recursive = true)
-      hadoopDelete(tmpFileName + ".header", hConf, recursive = true)
-    }
-  }
-
-  def writeTableSingleFileBGzip(tmpdir: String, filename: String, header: String = null, deleteTmpFiles: Boolean = true) = {
-    val hConf = r.sparkContext.hadoopConfiguration
-    val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
-
-    hadoopDelete(filename, hConf, true) //overwriting by default
-
-    writeTableBGzip(tmpFileName, header)
-
-    val filesToMerge = if (header != null) Array(tmpFileName + ".header.bgz", tmpFileName) else Array(tmpFileName)
-    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
-
-    if (deleteTmpFiles) {
-      hadoopDelete(tmpFileName, hConf, recursive = true)
-      hadoopDelete(tmpFileName + ".header.bgz", hConf, recursive = true)
+      hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = true)
     }
   }
 }

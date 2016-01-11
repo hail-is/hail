@@ -109,17 +109,10 @@ object ExportVCF extends Command {
 
     val kvRDD = vds.rdd.map { case (v, a, gs) => (v, (a, gs)) }
 
-    if (options.output.endsWith(".bgz")) {
-      kvRDD
-        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-        .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
-        .writeTableSingleFileBGzip(options.tmpdir, options.output, header, deleteTmpFiles = true)
-    } else {
-      kvRDD
-        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-        .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
-        .writeTableSingleFile(options.tmpdir, options.output, header, deleteTmpFiles = true)
-    }
+    kvRDD
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+      .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
+      .writeTableSingleFile(options.tmpdir, options.output, header, deleteTmpFiles = false)
 
     state
   }
