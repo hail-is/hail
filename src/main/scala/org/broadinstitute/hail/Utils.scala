@@ -6,12 +6,12 @@ import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{Text, NullWritable}
+import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.hadoop.mapred.TextOutputFormat
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.io.hadoop.TextOutputFormatNoNewlines
+import org.broadinstitute.hail.io.hadoop.{BytesWritableUnseparated, ByteArrayOutputFormat}
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.mutable
@@ -222,7 +222,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     if (newLines)
       r.saveAsTextFile(fileName)
     else
-    r.saveAsTextFileNoNewlines(fileName)
+      saveFromByteArrays(fileName)
   }
 
   def writeTableSingleFile(tmpdir: String, fileName: String, header: Option[String] = None,
@@ -236,7 +236,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     writeTable(tmpFileName, header, newLines)
 
-    val filesToMerge = if (header != null) Array(tmpFileName + ".header", tmpFileName) else Array(tmpFileName)
+    val filesToMerge = if (header.isDefined) Array(tmpFileName + ".header", tmpFileName) else Array(tmpFileName)
     hadoopCopyMerge(filesToMerge, fileName, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
@@ -245,18 +245,22 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
   }
 
-  def saveAsTextFileNoNewlines(path: String) {
+  def saveFromByteArrays(path: String) {
       val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
       val textClassTag = implicitly[ClassTag[Text]]
+      val bytesClassTag = implicitly[ClassTag[BytesWritableUnseparated]]
       val rMapped = r.mapPartitions { iter =>
-        val text = new Text()
-        iter.map { x =>
-          text.set(x.toString)
-          (NullWritable.get(), text)
+        val bw = new BytesWritableUnseparated()
+        iter.map { x => x match {
+          case bb: Array[Byte] => bw.set(new BytesWritable(bb))
+          case _ => throw new IOException("passed a non-byte-array to saveFromByteArrays")
+        }
+          (NullWritable.get(), bw)
         }
       }
-      RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, textClassTag, null)
-        .saveAsHadoopFile[TextOutputFormatNoNewlines[NullWritable, Text]](path)
+
+      RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
+        .saveAsHadoopFile[ByteArrayOutputFormat[NullWritable, BytesWritableUnseparated]](path)
     }
 }
 

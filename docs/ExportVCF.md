@@ -3,8 +3,8 @@
 Hail contains an `exportvcf` module which will write out the internal VDS in a vcf file to the [VCF 4.2 spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf).
 
 Command line arguments:
- - `-o` -- path of output file
- - `-t` -- path of temporary directory (see below)
+ - `-o | --output <file>` -- path of output file
+ - `-t | --tmpdir <directory>` -- path of temporary directory (see below)
 
 Example `exportvcf` command:
 ```

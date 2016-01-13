@@ -2,12 +2,13 @@
 
 # Hail
 
-## Table of Contents
-1. [Importing](docs/Importing.md)
-2. [QC](docs/QC.md)
-3. [Filtering](docs/Filtering.md)
-4. [Exporting to TSVs](docs/ExportTSV.md)
-5. [Exporting to VCF](docs/ExportVCF.md)
+# Table of Contents
+## [Importing](docs/Importing.md)
+## [QC](docs/QC.md)
+## [Filtering](docs/Filtering.md)
+## [Exporting to TSVs](docs/ExportTSV.md)
+## [Exporting to VCF](docs/ExportVCF.md)
+## [Exporting to Plink](docs/ExportPlink.md)
 
 ## Tools
 

@@ -60,6 +60,9 @@ object Main {
       Cache,
       Count,
       DownsampleVariants,
+      ExportPlink,
+      ExportSamples,
+      ExportVariants,
       ExportVCF,
       FilterGenotypes,
       FamSummary,
@@ -74,9 +77,7 @@ object Main {
       Repartition,
       SampleQC,
       VariantQC,
-      Write,
-      ExportVariants,
-      ExportSamples
+      Write
     )
 
     val nameCommand = commands
