@@ -22,8 +22,8 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 
   def implicatedSamples: Iterator[Int] =
     if      (code == 2 || code == 1)                             Iterator(trio.kid, trio.dad, trio.mom)
-    else if (code == 6 || code == 3)                             Iterator(trio.kid, trio.dad)
-    else if (code == 4 || code == 7 || code == 9 || code == 10)  Iterator(trio.kid, trio.mom)
+    else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.dad)
+    else if (code == 4 || code == 7 || code == 9  || code == 10) Iterator(trio.kid, trio.mom)
     else                                                         Iterator(trio.kid)
 
   def toLineMendel(sampleIds: IndexedSeq[String]): String = {
@@ -38,7 +38,7 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 object MendelErrors {
 
   def getCode(gts: IndexedSeq[GenotypeType], ploidy: Ploidy): Int = {
-    (gts(1), gts(2), gts(0), ploidy) match { // gtDad, gtMom, gtKid, isHemizygous
+    (gts(1), gts(2), gts(0), ploidy) match {       // gtDad, gtMom, gtKid, isHemizygous
       case (HomRef, HomRef,    Het,  Auto) => 2    // Kid is het and not hemizygous
       case (HomVar, HomVar,    Het,  Auto) => 1
       case (HomRef, HomRef, HomVar,  Auto) => 5    // Kid is homvar and not hemizygous
