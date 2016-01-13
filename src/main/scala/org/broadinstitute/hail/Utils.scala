@@ -307,6 +307,109 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 
 object Utils {
 
+  trait DataWritable[T] {
+    def write(dos: DataOutputStream, t: T): Unit
+  }
+
+  trait DataReadable[T] {
+    def read(dis: DataInputStream): T
+  }
+
+  def writeData[T](dos: DataOutputStream, t: T)(implicit dw: DataWritable[T]) {
+    dw.write(dos, t)
+  }
+
+  def readData[T](dis: DataInputStream)(implicit dr: DataReadable[T]): T = dr.read(dis)
+
+  implicit def writableInt: DataWritable[Int] = new DataWritable[Int] {
+    def write(dos: DataOutputStream, t: Int) {
+      dos.writeInt(t)
+    }
+  }
+
+  implicit def readableInt: DataReadable[Int] = new DataReadable[Int] {
+    def read(dis: DataInputStream): Int = dis.readInt()
+  }
+
+  implicit def writableString: DataWritable[String] = new DataWritable[String] {
+    def write(dos: DataOutputStream, t: String) {
+      dos.writeUTF(t)
+    }
+  }
+
+  implicit def readableString: DataReadable[String] = new DataReadable[String] {
+    def read(dis: DataInputStream): String = dis.readUTF()
+  }
+
+  implicit def readableArray[T](implicit readableT: DataReadable[T], tct: ClassTag[T]): DataReadable[Array[T]] =
+    new DataReadable[Array[T]] {
+      def read(dis: DataInputStream): Array[T] = {
+        val length = dis.readInt()
+        val r = new Array[T](length)
+        for (i <- 0 until length)
+          r(i) = readData[T](dis)
+        r
+      }
+    }
+
+  implicit def writableIndexedSeq[T](implicit writableT: DataWritable[T]): DataWritable[IndexedSeq[T]] =
+    new DataWritable[IndexedSeq[T]] {
+      def write(dos: DataOutputStream, t: IndexedSeq[T]) {
+        writeData[Int](dos, t.length)
+        for (ti <- t)
+          writeData[T](dos, ti)
+      }
+    }
+
+  implicit def readableIndexedSeq[T](implicit readableT: DataReadable[T], tct: ClassTag[T]): DataReadable[IndexedSeq[T]] =
+    new DataReadable[IndexedSeq[T]] {
+      def read(dis: DataInputStream): IndexedSeq[T] = {
+        readData[Array[T]](dis): IndexedSeq[T]
+      }
+    }
+
+  implicit def writableTuple2[T, S](implicit writableT: DataWritable[T],
+    writableS: DataWritable[S]): DataWritable[(T, S)] =
+    new DataWritable[(T, S)] {
+      def write(dos: DataOutputStream, t: (T, S)) {
+        writeData[T](dos, t._1)
+        writeData[S](dos, t._2)
+      }
+    }
+
+  implicit def readableTuple2[T, S](implicit readableT: DataReadable[T],
+    writableS: DataReadable[S]): DataReadable[(T, S)] =
+    new DataReadable[(T, S)] {
+      def read(dis: DataInputStream): (T, S) = (readData[T](dis), readData[S](dis))
+    }
+
+  implicit def writableMap[T, S](implicit writableT: DataWritable[T],
+    writableS: DataWritable[S]): DataWritable[Map[T, S]] =
+    new DataWritable[Map[T, S]] {
+      def write(dos: DataOutputStream, t: Map[T, S]) {
+        writeData[Int](dos, t.size)
+        for ((k, v) <- t) {
+          writeData[T](dos, k)
+          writeData[S](dos, v)
+        }
+      }
+    }
+
+  implicit def readableMap[T, S](implicit readableT: DataReadable[T],
+    readableS: DataReadable[S]): DataReadable[Map[T, S]] =
+    new DataReadable[Map[T, S]] {
+      def read(dis: DataInputStream): Map[T, S] = {
+        val b = new mutable.MapBuilder[T, S, Map[T, S]](Map.empty[T, S])
+        val length = readData[Int](dis)
+        for (i <- 0 until length) {
+          val k = readData[T](dis)
+          val v = readData[S](dis)
+          b += k -> v
+        }
+        b.result()
+      }
+    }
+
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
@@ -419,7 +522,7 @@ object Utils {
   }
 
   def hadoopGetTemporaryFile(tmpdir: String, hConf: hadoop.conf.Configuration, nChar: Int = 10,
-                             prefix: Option[String] = None, suffix: Option[String] = None): String = {
+    prefix: Option[String] = None, suffix: Option[String] = None): String = {
 
     val destFS = hadoopFS(tmpdir, hConf)
     val prefixString = if (prefix.isDefined) prefix + "-" else ""
@@ -450,8 +553,12 @@ object Utils {
       fs.globStatus(path).sortWith(_.compareTo(_) < 0)
     }
 
-    val srcFileStatuses = srcFilenames.flatMap { case p => globAndSort(p) }
-    require(srcFileStatuses.forall { case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile })
+    val srcFileStatuses = srcFilenames.flatMap {
+      case p => globAndSort(p)
+    }
+    require(srcFileStatuses.forall {
+      case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
+    })
 
     val outputStream = destFS.create(destPath)
 
@@ -470,12 +577,14 @@ object Utils {
     }
 
     if (deleteSource) {
-      srcFileStatuses.foreach { case fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, true) }
+      srcFileStatuses.foreach {
+        case fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, true)
+      }
     }
   }
 
   def writeObjectFile[T](filename: String,
-                         hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
     try {
       f(oos)
@@ -485,7 +594,7 @@ object Utils {
   }
 
   def readObjectFile[T](filename: String,
-                        hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
     try {
       f(ois)
@@ -494,8 +603,18 @@ object Utils {
     }
   }
 
+  def readDataFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(f: (DataInputStream) => T): T = {
+    val dis = new DataInputStream(hadoopOpen(filename, hConf))
+    try {
+      f(dis)
+    } finally {
+      dis.close()
+    }
+  }
+
   def writeTextFile[T](filename: String,
-                       hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
+    hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
     val fw = new OutputStreamWriter(oos)
     try {
@@ -505,8 +624,19 @@ object Utils {
     }
   }
 
+  def writeDataFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(writer: (DataOutputStream) => T): T = {
+    val oos = hadoopCreate(filename, hConf)
+    val dos = new DataOutputStream(oos)
+    try {
+      writer(dos)
+    } finally {
+      dos.close()
+    }
+  }
+
   def readFile[T](filename: String,
-                  hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
+    hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
     val is = hadoopOpen(filename, hConf)
     try {
       reader(is)
@@ -516,7 +646,7 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-                 lines: Traversable[String], header: String = null) {
+    lines: Traversable[String], header: String = null) {
     writeTextFile(filename, hConf) {
       fw =>
         if (header != null) fw.write(header)

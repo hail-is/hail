@@ -36,10 +36,11 @@ object LoadVCF {
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
     // FIXME get descriptions when HTSJDK is fixed to expose filter descriptions
-    val filters: List[(String, String)] = header
+    val filters: IndexedSeq[(String, String)] = header
       .getFilterLines
       .toList
       .map(line => (line.getID, ""))
+      .toArray[(String, String)]
 
     val infoSignatures = header
       .getInfoHeaderLines
@@ -48,7 +49,7 @@ object LoadVCF {
       .toMap
 
     val variantAnnotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> infoSignatures),
-        Map("filters" -> new SimpleSignature("Set[String]","toSetString"),
+      Map("filters" -> new SimpleSignature("Set[String]", "toSetString"),
         "pass" -> new SimpleSignature("Boolean", "toBoolean"),
         "multiallelic" -> new SimpleSignature("Boolean", "toBoolean"),
         "qual" -> new SimpleSignature("Double", "toDouble"),
