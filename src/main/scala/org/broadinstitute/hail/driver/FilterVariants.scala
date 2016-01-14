@@ -36,7 +36,7 @@ object FilterVariants extends Command {
     val vas = vds.metadata.variantAnnotationSignatures
     val p: (Variant, Annotations[String]) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
-        val ilist = IntervalList.read(options.condition)
+        val ilist = IntervalList.read(options.condition, state.hadoopConf)
         (v: Variant, va: Annotations[String]) => ilist.contains(v.contig, v.start)
       case c: String =>
         val cf = new FilterVariantCondition(c, vas)
