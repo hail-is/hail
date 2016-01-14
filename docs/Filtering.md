@@ -154,7 +154,6 @@ There are no mandatory methods for annotation classes.  Annotations are generate
  - `va.filters:   Set[String]` -- set containing the list of filters applied to a variant.  Accessible using `va.filters.contains("VQSRTranche99.5...")`, for example
  - `va.rsid:           String` -- rsid of the variant, if it has one ("." otherwise)
  - `va.qual:           Double` -- the number in the qual field
- - `va.multiallelic:  Boolean` -- true if the variant is multiallelic or was split
  - `va.info.<field>:      Any` -- matches (with proper capitalization) any defined info field.  Data types match the definition in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array.
  
 If `variantqc --store` has been run:

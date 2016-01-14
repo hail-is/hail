@@ -1,14 +1,8 @@
 package org.broadinstitute.hail.annotations
 
 abstract class AnnotationSignature {
-  def emitUtilities: String
-  def emitConversionIdentifier: String
-  def emitType: String
-
+  def typeOf: Class
+  def optional: Boolean
 }
 
-case class SimpleSignature(emitType: String, emitConversionIdentifier: String) extends AnnotationSignature {
-
-  def emitUtilities = ""
-
-}
+case class SimpleSignature(typeOf: Class, optional: Boolean = false) extends AnnotationSignature

@@ -20,33 +20,28 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
 
-  def readRecord(line: String): Iterator[(Variant, AnnotationData, Iterator[Genotype])] = {
+  def readRecord(line: String): Iterator[(Variant, Annotations, Iterator[Genotype])] = {
     val vc = codec.decode(line)
     //maybe count tabs to get filter field
-    val pass = (vc.filtersWereApplied() && vc.getFilters.size() == 0).toString
+    val pass = (vc.filtersWereApplied() && vc.getFilters.size() == 0)
     val filts = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
-        "PASS"
-      else {
-        if (vc.getFilters.isEmpty)
-          ""
-        else
-          vc.getFilters.toArray.map(_.toString).mkString(",")
-      }
+        Set("PASS")
+      else
+        vc.getFilters.asScala
     }
     val rsid = vc.getID
     if (vc.isBiallelic) {
       val variant = Variant(vc.getContig, vc.getStart, vc.getReference.getBaseString,
         vc.getAlternateAllele(0).getBaseString)
-      Iterator.single((variant, Annotations[String](Map[String, Map[String, String]]("info" -> vc.getAttributes
+      Iterator.single((variant, Annotations(Map[String, Any]("info" -> vc.getAttributes
         .asScala
-        .mapValues(HtsjdkRecordReader.infoToString)
-        .toMap),
-        Map[String, String](
-          "qual" -> vc.getPhredScaledQual.toString,
-          "filters" -> filts,
-          "pass" -> pass,
-          "rsid" -> rsid)),
+        .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
+        .toMap,
+        "qual" -> vc.getPhredScaledQual,
+        "filters" -> filts,
+        "pass" -> pass,
+        "rsid" -> rsid)),
         for (g <- vc.getGenotypes.iterator.asScala) yield {
 
           val gt = if (g.isNoCall)
@@ -84,22 +79,20 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         }))
     } else {
 
-//      build one biallelic variant and set of genotypes for each alternate allele (except spanning deletions)
+      //      build one biallelic variant and set of genotypes for each alternate allele (except spanning deletions)
       val ref = vc.getReference
       val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
       val altIndices = alts.map(vc.getAlleleIndex) // index in the VCF, used to access AD and PL fields
       val biVs = alts.map { alt =>
           (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true),
-          Annotations[String](Map[String, Map[String, String]]("info" -> vc.getAttributes
-            .asScala
-            .mapValues(HtsjdkRecordReader.infoToString)
-            .toMap),
-            Map[String, String](
-              "qual" -> vc.getPhredScaledQual.toString,
+            Annotations(Map[String, Any]("info" -> vc.getAttributes
+              .asScala
+              .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
+              .toMap,
+              "qual" -> vc.getPhredScaledQual,
               "filters" -> filts,
               "pass" -> pass,
-              "rsid" -> rsid,
-              "multiallelic" -> "true")))
+              "rsid" -> rsid)))
         } //FixMe: need to normalize strings
       val n = vc.getNAlleles
       val biGBs = alts.map { _ => new ArrayBuffer[Genotype] }
@@ -112,29 +105,29 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         for (((alt, j), i) <- alts.zip(altIndices).zipWithIndex) {
 
           val gt = if (g.isCalled)
-//            downcode other alts to ref, preserving the count of this alt:
+          //            downcode other alts to ref, preserving the count of this alt:
             g.getAlleles.asScala.count(_ == alt)
           else
             -1
 
           val ad = if (g.hasAD) {
             val gad = g.getAD
-//            consistent with downcoding other alts to the ref:
+            //            consistent with downcoding other alts to the ref:
             (gadSum - gad(j), gad(j))
-//            what bcftools does:
-//            (gad(0), gad(j))
+            //            what bcftools does:
+            //            (gad(0), gad(j))
           } else
             (0, 0)
 
           val pl = if (g.isCalled) {
             if (g.hasPL) {
-//              for each downcoded genotype, minimum PL among original genotypes that downcode to it:
+              //              for each downcoded genotype, minimum PL among original genotypes that downcode to it:
               def pl(gt: Int) = (for (k <- 0 until n; l <- k until n; if List(k, l).count(_ == j) == gt)
                 yield l * (l + 1) / 2 + k).map(g.getPL.apply).min
               (pl(0), pl(1), pl(2))
-//            what bcftools does; ignores all het-non-ref PLs
-//            val gpl = g.getPL
-//            (gpl(0), gpl(j * (j + 1) / 2), gpl(j * (j + 1) / 2 + j))
+              //            what bcftools does; ignores all het-non-ref PLs
+              //            val gpl = g.getPL
+              //            (gpl(0), gpl(j * (j + 1) / 2), gpl(j * (j + 1) / 2 + j))
             } else
               (0, 0, 0)
           } else
@@ -148,7 +141,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         }
       }
       biVs.iterator.zip(biGBs.iterator.map(_.iterator)).map {
-        case ((v, vi), gs) => (v, vi, gs)
+        case ((v, va), gs) => (v, va, gs)
       }
     }
   }
@@ -161,11 +154,10 @@ object HtsjdkRecordReader {
     new HtsjdkRecordReader(codec)
   }
 
-  def infoToString(ar: AnyRef): String = {
+  def purgeJavaArraylists(ar: AnyRef): Any = {
     ar match {
-      case arr: java.util.ArrayList[_] => arr.toArray.map(_.toString).mkString(",")
-      case iter: Iterable[_] => if (iter.isEmpty) "" else iter.map(_.toString).mkString(",")
-      case _ => ar.toString
+      case arr: java.util.ArrayList[_] => arr.toArray
+      case _ => ar
     }
   }
 }

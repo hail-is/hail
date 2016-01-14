@@ -4,6 +4,7 @@ import org.broadinstitute.hail.annotations._
 
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
+import com.esotericsoftware.kryo
 
 import org.apache.spark.sql.Row
 
@@ -51,6 +52,7 @@ class RichRow(r: Row) {
   def getTuple3String(i: Int): (String, String, String) = (r.getString(0), r.getString(1), r.getString(2))
 
   def getVariantAnnotations(i: Int): AnnotationData = {
+
     val ir = r.getAs[Row](i)
     val mapR = ir.getAs[ArrayBuffer[Row]](0)
     val valR = ir.getAs[ArrayBuffer[Row]](1)

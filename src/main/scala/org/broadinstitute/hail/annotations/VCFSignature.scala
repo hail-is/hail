@@ -2,18 +2,10 @@ package org.broadinstitute.hail.annotations
 
 import htsjdk.variant.vcf.{VCFInfoHeaderLine, VCFHeaderLineCount, VCFHeaderLineType}
 
-case class VCFSignature(vcfType: String, emitType: String, number: String,
-  emitConversionIdentifier: String, description: String)
-  extends AnnotationSignature {
-
-  def emitUtilities: String = ""
-}
+case class VCFSignature(typeOf: Class, optional: Boolean, vcfType: String, number: String, description: String)
+  extends AnnotationSignature
 
 object VCFSignature {
-
-  val arrayRegex = """Array\[(\w+)\]""".r
-  val setRegex = """Set\[(\w+)\]""".r
-  val integerRegex = """(\d+)""".r
 
   def parseConversionIdentifier(str: String): String = {
     str match {
@@ -26,11 +18,11 @@ object VCFSignature {
   def parse(line: VCFInfoHeaderLine): AnnotationSignature = {
     val vcfType = line.getType.toString
     val parsedType = line.getType match {
-      case VCFHeaderLineType.Integer => "Int"
-      case VCFHeaderLineType.Float => "Double"
-      case VCFHeaderLineType.String => "String"
-      case VCFHeaderLineType.Character => "Character"
-      case VCFHeaderLineType.Flag => "Boolean"
+      case VCFHeaderLineType.Integer => Class[Int]
+      case VCFHeaderLineType.Float => Class[Double]
+      case VCFHeaderLineType.String => Class[String]
+      case VCFHeaderLineType.Character => Class[Character]
+      case VCFHeaderLineType.Flag => Class[Boolean]
     }
     val parsedCount = line.getCountType match {
       case VCFHeaderLineCount.A => "A"

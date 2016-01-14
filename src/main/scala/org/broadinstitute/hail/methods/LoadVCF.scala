@@ -9,6 +9,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.vcf
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConversions._
+import scala.reflect.ClassTag
 
 object LoadVCF {
   // FIXME move to VariantDataset
@@ -47,12 +48,11 @@ object LoadVCF {
       .map(line => (line.getID, VCFSignature.parse(line)))
       .toMap
 
-    val variantAnnotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> infoSignatures),
-        Map("filters" -> new SimpleSignature("Set[String]","toSetString"),
-        "pass" -> new SimpleSignature("Boolean", "toBoolean"),
-        "multiallelic" -> new SimpleSignature("Boolean", "toBoolean"),
-        "qual" -> new SimpleSignature("Double", "toDouble"),
-        "rsid" -> new SimpleSignature("String", "toString")))
+    val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
+      "filters" -> new SimpleSignature(Class[Set[String]]),
+        "pass" -> new SimpleSignature(Class[Boolean]),
+        "qual" -> new SimpleSignature(Class[Double]),
+        "rsid" -> new SimpleSignature(Class[String])))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -76,7 +76,7 @@ object LoadVCF {
       }
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyOfArrayString(sampleIds.length), Annotations.emptyOfSignature(),
+      IndexedSeq.fill(sampleIds.length)(Annotations.empty()), Annotations.empty(),
       variantAnnotationSignatures), genotypes)
   }
 }
