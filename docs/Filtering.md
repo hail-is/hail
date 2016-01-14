@@ -124,7 +124,8 @@ filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
  - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
  - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
  - `g.nNonRef:            Int` -- the number of called alternate alleles
- - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution
+ - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5
+ - `g.pAB(theta):      Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean `theta`
  
 **Variant:** `v`
  - `v.contig:          String` -- string representation of contig, exactly as imported.  _NB: Hail stores contigs as strings.  Use double-quotes when checking contig equality_
