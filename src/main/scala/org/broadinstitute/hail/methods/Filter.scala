@@ -526,6 +526,7 @@ class FilterGenotype(val g: Genotype) extends AnyVal {
 
   def nNonRef: FilterOption[Int] = FilterOption(g.nNonRef)
   def pAB(theta: Double = 0.5): FilterOption[Double] = FilterOption(g.pAB(theta))
+  def pAB: FilterOption[Double] = FilterOption(g.pAB())
 
   def isHomRef: FilterOption[Boolean] = FilterOption(g.isHomRef)
   def isHet: FilterOption[Boolean] = FilterOption(g.isHet)
