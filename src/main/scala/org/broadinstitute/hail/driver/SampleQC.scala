@@ -37,38 +37,38 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rDeletionInsertion"
 
-  val signatures = Map("callRate" -> new SimpleSignature(ClassOf[Double], true),
-    "nCalled" -> new SimpleSignature(ClassOf[Int]),
-    "nNotCalled" -> new SimpleSignature(ClassOf[Int]),
-    "nHomRef" -> new SimpleSignature(ClassOf[Int]),
-    "nHet" -> new SimpleSignature(ClassOf[Int]),
-    "nHomVar" -> new SimpleSignature(ClassOf[Int]),
-    "nSNP" -> new SimpleSignature(ClassOf[Int]),
-    "nInsertion" -> new SimpleSignature(ClassOf[Int]),
-    "nDeletion" -> new SimpleSignature(ClassOf[Int]),
-    "nSingleton" -> new SimpleSignature(ClassOf[Int]),
-    "nTransition" -> new SimpleSignature(ClassOf[Int]),
-    "nTransversion" -> new SimpleSignature(ClassOf[Int]),
-    "dpMean" -> new SimpleSignature(ClassOf[Double], true),
-    "dpStDev" -> new SimpleSignature(ClassOf[Double], true),
-    "dpMeanHomRef" -> new SimpleSignature(ClassOf[Double], true),
-    "dpStDevHomRef" -> new SimpleSignature(ClassOf[Double], true),
-    "dpMeanHet" -> new SimpleSignature(ClassOf[Double], true),
-    "dpStDevHet" -> new SimpleSignature(ClassOf[Double], true),
-    "dpMeanHomVar" -> new SimpleSignature(ClassOf[Double], true),
-    "dpStDevHomVar" -> new SimpleSignature(ClassOf[Double], true),
-    "gqMean" -> new SimpleSignature(ClassOf[Double], true),
-    "gqStDev" -> new SimpleSignature(ClassOf[Double], true),
-    "gqMeanHomRef" -> new SimpleSignature(ClassOf[Double], true),
-    "gqStDevHomRef" -> new SimpleSignature(ClassOf[Double], true),
-    "gqMeanHet" -> new SimpleSignature(ClassOf[Double], true),
-    "gqStDevHet" -> new SimpleSignature(ClassOf[Double], true),
-    "gqMeanHomVar" -> new SimpleSignature(ClassOf[Double], true),
-    "gqStDevHomVar" -> new SimpleSignature(ClassOf[Double], true),
-    "nNonRef" -> new SimpleSignature(ClassOf[Int]),
-    "rTiTv" -> new SimpleSignature(ClassOf[Double], true),
-    "rHetHomVar" -> new SimpleSignature(ClassOf[Double], true),
-    "rDeletionInsertion" -> new SimpleSignature(ClassOf[Double], true))
+  val signatures = Map("callRate" -> new SimpleSignature("Double"),
+    "nCalled" -> new SimpleSignature("Int"),
+    "nNotCalled" -> new SimpleSignature("Int"),
+    "nHomRef" -> new SimpleSignature("Int"),
+    "nHet" -> new SimpleSignature("Int"),
+    "nHomVar" -> new SimpleSignature("Int"),
+    "nSNP" -> new SimpleSignature("Int"),
+    "nInsertion" -> new SimpleSignature("Int"),
+    "nDeletion" -> new SimpleSignature("Int"),
+    "nSingleton" -> new SimpleSignature("Int"),
+    "nTransition" -> new SimpleSignature("Int"),
+    "nTransversion" -> new SimpleSignature("Int"),
+    "dpMean" -> new SimpleSignature("Double"),
+    "dpStDev" -> new SimpleSignature("Double"),
+    "dpMeanHomRef" -> new SimpleSignature("Double"),
+    "dpStDevHomRef" -> new SimpleSignature("Double"),
+    "dpMeanHet" -> new SimpleSignature("Double"),
+    "dpStDevHet" -> new SimpleSignature("Double"),
+    "dpMeanHomVar" -> new SimpleSignature("Double"),
+    "dpStDevHomVar" -> new SimpleSignature("Double"),
+    "gqMean" -> new SimpleSignature("Double"),
+    "gqStDev" -> new SimpleSignature("Double"),
+    "gqMeanHomRef" -> new SimpleSignature("Double"),
+    "gqStDevHomRef" -> new SimpleSignature("Double"),
+    "gqMeanHet" -> new SimpleSignature("Double"),
+    "gqStDevHet" -> new SimpleSignature("Double"),
+    "gqMeanHomVar" -> new SimpleSignature("Double"),
+    "gqStDevHomVar" -> new SimpleSignature("Double"),
+    "nNonRef" -> new SimpleSignature("Int"),
+    "rTiTv" -> new SimpleSignature("Double"),
+    "rHetHomVar" -> new SimpleSignature("Double"),
+    "rDeletionInsertion" -> new SimpleSignature("Double"))
 }
 
 class SampleQCCombiner extends Serializable {
@@ -334,7 +334,7 @@ object SampleQC extends Command {
     val localSamplesBc = vds.sparkContext.broadcast(vds.localSamples)
     vds
       .rdd
-      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, AnnotationData, Iterable[Genotype])]) =>
+      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Annotations, Iterable[Genotype])]) =>
       val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
       localSamplesBc.value.iterator
         .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>

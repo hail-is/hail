@@ -49,10 +49,10 @@ object LoadVCF {
       .toMap
 
     val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
-      "filters" -> new SimpleSignature(Class[Set[String]]),
-        "pass" -> new SimpleSignature(Class[Boolean]),
-        "qual" -> new SimpleSignature(Class[Double]),
-        "rsid" -> new SimpleSignature(Class[String])))
+      "filters" -> new SimpleSignature("Set[String]"),
+        "pass" -> new SimpleSignature("Boolean"),
+        "qual" -> new SimpleSignature("Double"),
+        "rsid" -> new SimpleSignature("String")))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')

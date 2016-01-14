@@ -55,16 +55,9 @@ object AnnotationClassBuilder {
              |${spaces}val $key: __$key = new __$key(${castPath + """attrs("$key")"""})
              |""".stripMargin
         case sig: AnnotationSignature =>
-          if (sig.optional)
             s"${spaces}val $key: ${sig.typeOf} = ${
               path +
                 s""".asInstanceOf[org.broadinstitute.hail.annotations.Annotations].attrs.get("$key").asInstanceOf[${sig.typeOf}]
-                    |""".stripMargin
-            }"
-          else
-            s"${spaces}val $key: ${sig.typeOf} = ${
-              path +
-                s""".asInstanceOf[org.broadinstitute.hail.annotations.Annotations].attrs("$key").asInstanceOf[${sig.typeOf}]
                     |""".stripMargin
             }"
         case _ => "somebody goofed\n"

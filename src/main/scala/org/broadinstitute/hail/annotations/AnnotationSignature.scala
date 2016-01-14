@@ -1,8 +1,8 @@
 package org.broadinstitute.hail.annotations
 
+
 abstract class AnnotationSignature {
-  def typeOf: Class
-  def optional: Boolean
+  def typeOf: String
 }
 
-case class SimpleSignature(typeOf: Class, optional: Boolean = false) extends AnnotationSignature
+case class SimpleSignature(typeOf: String) extends AnnotationSignature
