@@ -17,7 +17,7 @@ class SampleQCSuite extends SparkSuite {
 
     //Get QC metrics
     val stateQC1 = SampleQC.run(stateOrig,Array("-s"))
-    val stateFilt1 = FilterSamples.run(stateQC1,Array("--remove","-c","src/test/resources/remove1sample.sample_list"))
+    val stateFilt1 = FilterSamples.run(stateQC1,Array("--remove","-c","""s.id ~ "C1046::HG02024" """))
     val stateQC2 = SampleQC.run(stateFilt1,Array("-s"))
   }
 }
