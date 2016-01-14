@@ -14,7 +14,7 @@ Command line arguments:
 ## Using inclusion/exclusion files
 
 1. `filtervariants` -- ".interval_list" file
- - Hail expects a .interval_list file to contain either three or five fields per line in the following formats: `contig  start  end` or `contig  start  end  direction  target`.  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the `.interval_list` file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  
+ - Hail expects a .interval_list file to contain either three or five fields per line in the following formats: `contig:start-end` or `contig  start  end  direction  target` (TSV).  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the `.interval_list` file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  
  - _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
 
 2. `filtersamples` -- ".sample_list" file
