@@ -425,6 +425,12 @@ class FilterSuite extends SparkSuite {
     assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar >= 0"))
       .vds.nVariants == 117)
 
+    assert(FilterGenotypes.run(state, Array("--keep", "-c", "g.pAB > 1e-5")).vds.nVariants ==
+      FilterGenotypes.run(state, Array("--keep", "-c", "g.pAB() > 1e-5")).vds.nVariants)
+
+    assert(FilterGenotypes.run(state, Array("--keep", "-c", "g.pAB > 1e-5")).vds.nVariants ==
+      FilterGenotypes.run(state, Array("--keep", "-c", "g.pAB(.5) > 1e-5")).vds.nVariants)
+
     assert(FilterVariants.run(stateWithVariantQC, Array("--remove", "-c", "va.qc.rHetHomVar.isMissing"))
       .vds.nVariants == 117)
 
