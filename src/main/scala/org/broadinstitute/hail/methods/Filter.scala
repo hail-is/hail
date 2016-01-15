@@ -106,10 +106,6 @@ class FilterOptionArray[T](val o: Option[Array[T]]) extends AnyVal {
 }
 
 class FilterOptionSet[T](val o: Option[Set[T]]) extends AnyVal {
-  def fApply(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Set[T], T, Boolean](o, fo.o, _.apply(_))
-
-  def fApply(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.apply(t)))
-
   def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Set[T], T, Boolean](o, fo.o, _.contains(_))
 
   def fContains(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.contains(t)))
@@ -883,7 +879,7 @@ object Filter {
     "toRealInt" -> "toInt", "toRealDouble" -> "toDouble", "mkRealString" -> "mkString",
     "mkString" -> "fMkString", "sameElements" -> "fSameElements",
     "$eq$eq" -> "fEq", "$bang$eq" -> "fNotEq", "$amp$amp" -> "fAnd", "$bar$bar" -> "fOr",
-    "apply" -> "fApply", "union" -> "fUnion", "intersect" -> "fIntersect", "diff" -> "fDiff",
+    "at" -> "fApply", "union" -> "fUnion", "intersect" -> "fIntersect", "diff" -> "fDiff",
     "$plus" -> "fPlus", "$minus" -> "fMinus", "$times" -> "fTimes", "$div" -> "fDiv", "$percent" -> "fMod",
     "abs" -> "fAbs", "signum" -> "fSignum", "max" -> "fMax", "min" -> "fMin", "contains" -> "fContains",
     "toInt" -> "fToInt", "toLong" -> "fToLong", "toFloat" -> "fToFloat", "toDouble" -> "fToDouble",

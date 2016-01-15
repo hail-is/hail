@@ -4,6 +4,8 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
+import scala.reflect.runtime.universe._
+
 
 class FilterSuite extends SparkSuite {
 
@@ -151,12 +153,6 @@ class FilterSuite extends SparkSuite {
     val fSetInt2 = FilterOption(Set(2))
 
     val fSetIntNone = new FilterOption[Set[Int]](None)
-
-    fAssert(fSetInt12.fApply(0) fEq false)
-    fAssert(fSetInt12.fApply(1) fEq true)
-    fEmpty(fSetIntNone.fApply(0) fEq false)
-    fEmpty(fSetIntNone.fApply(1) fEq true)
-    fEmpty(fSetInt12.fApply(fIntNone) fEq true)
 
     fAssert(fSetInt12.fContains(0) fEq false)
     fAssert(fSetInt12.fContains(1) fEq true)
@@ -449,6 +445,8 @@ class FilterSuite extends SparkSuite {
 
     val vds2 = LoadVCF(sc, "src/test/resources/sample_filter.vcf")
     val state2 = State("", sc, sqlContext, vds2.cache())
+
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad.at(0) < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
 
     val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
 
