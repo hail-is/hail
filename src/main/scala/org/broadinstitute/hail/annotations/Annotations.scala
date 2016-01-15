@@ -13,10 +13,15 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
   def isValue(elem: String): Boolean = !attrs(elem).isInstanceOf[Annotations]
 
   def + (key: String, value: Any): Annotations = Annotations(attrs + (key -> value))
+
+  def ++ (map: Map[String, Any]): Annotations = Annotations(attrs ++ map)
+
+  def ++ (other: Annotations): Annotations = this ++ other.attrs
 }
 
 object Annotations {
   def empty(): Annotations = Annotations(Map.empty[String, Any])
+  def emptyIndexedSeq(n: Int): IndexedSeq[Annotations] = IndexedSeq.fill(n)(Annotations.empty())
 //  def toArrays(): (Array[(String, String, T)], Array[(String, T)]) = {
 //    (maps.toArray.flatMap {
 //      case (mapName, map) => map

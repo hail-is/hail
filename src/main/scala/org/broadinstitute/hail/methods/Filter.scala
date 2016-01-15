@@ -828,9 +828,9 @@ class FilterGenotype(val g: Genotype) extends AnyVal {
 object FilterUtils {
   implicit def toFilterString(s: String): FilterString = new FilterString(s)
 
-  type FilterGenotypeWithSA = ((IndexedSeq[AnnotationData], IndexedSeq[String]) =>
-    ((Variant, AnnotationData) => ((Int, Genotype) => FilterOption[Boolean])))
-  type FilterGenotypePostSA = (Variant, AnnotationData) => ((Int, Genotype) => FilterOption[Boolean])
+  type FilterGenotypeWithSA = ((IndexedSeq[Annotations], IndexedSeq[String]) =>
+    ((Variant, Annotations) => ((Int, Genotype) => FilterOption[Boolean])))
+  type FilterGenotypePostSA = (Variant, Annotations) => ((Int, Genotype) => FilterOption[Boolean])
 
   implicit def toAnnotationValueString(s: String): AnnotationValueString = new AnnotationValueString(s)
 
@@ -904,8 +904,8 @@ object Filter {
   }
 }
 
-class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
-  extends Evaluator[(Variant, AnnotationData) => FilterOption[Boolean]](
+class FilterVariantCondition(cond: String, vas: Annotations)
+  extends Evaluator[(Variant, Annotations) => FilterOption[Boolean]](
     s"""(v: org.broadinstitute.hail.variant.Variant,
         |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -916,11 +916,11 @@ class FilterVariantCondition(cond: String, vas: AnnotationSignatures)
         |}
     """.stripMargin,
     Filter.renameSymbols) {
-  def apply(v: Variant, va: AnnotationData): FilterOption[Boolean] = eval()(v, va)
+  def apply(v: Variant, va: Annotations): FilterOption[Boolean] = eval()(v, va)
 }
 
-class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
-  extends Evaluator[(Sample, AnnotationData) => FilterOption[Boolean]](
+class FilterSampleCondition(cond: String, sas: Annotations)
+  extends Evaluator[(Sample, Annotations) => FilterOption[Boolean]](
     s"""(s: org.broadinstitute.hail.variant.Sample,
         |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -931,7 +931,7 @@ class FilterSampleCondition(cond: String, sas: AnnotationSignatures)
         |}
     """.stripMargin,
     Filter.renameSymbols) {
-  def apply(s: Sample, sa: AnnotationData): FilterOption[Boolean] = eval()(s, sa)
+  def apply(s: Sample, sa: Annotations): FilterOption[Boolean] = eval()(s, sa)
 }
 
 class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
@@ -960,6 +960,6 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
       """.stripMargin,
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
     Filter.renameSymbols) {
-  def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): FilterOption[Boolean] =
+  def apply(v: Variant, va: Annotations)(sIndex: Int, g: Genotype): FilterOption[Boolean] =
     eval()(v, va)(sIndex, g)
 }

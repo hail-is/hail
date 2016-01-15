@@ -88,8 +88,8 @@ object UserExportUtils {
   }
 }
 
-class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
-  extends Evaluator[(Variant, AnnotationData) => String](
+class ExportVariantsEvaluator(list: String, vas: Annotations)
+  extends Evaluator[(Variant, Annotations) => String](
     s"""(__v: org.broadinstitute.hail.variant.Variant,
         |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -103,11 +103,11 @@ class ExportVariantsEvaluator(list: String, vas: AnnotationSignatures)
         |}: String
     """.stripMargin,
     Filter.renameSymbols) {
-  def apply(v: Variant, va: AnnotationData): String = eval()(v, va)
+  def apply(v: Variant, va: Annotations): String = eval()(v, va)
 }
 
-class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
-  extends Evaluator[(Sample, AnnotationData) => String](
+class ExportSamplesEvaluator(list: String, sas: Annotations)
+  extends Evaluator[(Sample, Annotations) => String](
     s"""(s: org.broadinstitute.hail.variant.Sample,
         |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
@@ -120,13 +120,13 @@ class ExportSamplesEvaluator(list: String, sas: AnnotationSignatures)
         |}: String
     """.stripMargin,
     Filter.renameSymbols) {
-  def apply(s: Sample, sa: AnnotationData): String = eval()(s, sa)
+  def apply(s: Sample, sa: Annotations): String = eval()(s, sa)
 }
 
 object ExportGenotypeEvaluator {
-  type ExportGenotypeWithSA = ((IndexedSeq[AnnotationData], IndexedSeq[String]) =>
-    ((Variant, AnnotationData) => ((Int, Genotype) => String)))
-  type ExportGenotypePostSA = (Variant, AnnotationData) => ((Int, Genotype) => String)
+  type ExportGenotypeWithSA = ((IndexedSeq[Annotations], IndexedSeq[String]) =>
+    ((Variant, Annotations) => ((Int, Genotype) => String)))
+  type ExportGenotypePostSA = (Variant, Annotations) => ((Int, Genotype) => String)
 }
 
 class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
@@ -159,6 +159,6 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
     Filter.renameSymbols) {
 
-  def apply(v: Variant, va: AnnotationData)(sIndex: Int, g: Genotype): String =
+  def apply(v: Variant, va: Annotations)(sIndex: Int, g: Genotype): String =
     eval()(v, va)(sIndex, g)
 }

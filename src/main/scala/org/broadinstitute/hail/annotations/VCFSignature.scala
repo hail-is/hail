@@ -6,15 +6,7 @@ case class VCFSignature(typeOf: String, vcfType: String, number: String, descrip
   extends AnnotationSignature
 
 object VCFSignature {
-
-  def parseConversionIdentifier(str: String): String = {
-    str match {
-      case arrayRegex(subType) => s"toArray$subType"
-      case setRegex(subType) => s"toSet$subType"
-      case _ => s"to$str"
-    }
-  }
-
+  val integerRegex = """(\d+)""".r
   def parse(line: VCFInfoHeaderLine): AnnotationSignature = {
     val vcfType = line.getType.toString
     val parsedType = line.getType match {
@@ -36,12 +28,8 @@ object VCFSignature {
       case integerRegex(i) => if (i.toInt > 1) s"Array[$parsedType]" else parsedType
       case _ => parsedType
     }
-    val conversionMethod = parseConversionIdentifier(scalaType)
     val desc = line.getDescription
 
-
-    new VCFSignature(vcfType, scalaType, parsedCount, conversionMethod, desc)
-
-
+    new VCFSignature(scalaType, vcfType, parsedCount, desc)
   }
 }

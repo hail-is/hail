@@ -290,8 +290,8 @@ object VariantQC extends Command {
     if (options.store)
       state.copy(vds = vds.mapAnnotationsWithAggregate(new VariantQCCombiner)((comb, v, s, g) => comb.merge(g),
         (comb1, comb2) => comb1.merge(comb2),
-        (ad: AnnotationData, comb: VariantQCCombiner) => ad.addMap("qc", comb.asMap))
-        .addVariantMapSignatures("qc", VariantQCCombiner.signatures))
+        (va: Annotations, comb: VariantQCCombiner) => va + ("qc", Annotations(comb.asMap)))
+        .addVariantAnnotationSignatures("qc", Annotations(VariantQCCombiner.signatures)))
     else {
       writeTextFile(output + ".header", state.hadoopConf) { s =>
         s.write("Chrom\tPos\tRef\tAlt\t")

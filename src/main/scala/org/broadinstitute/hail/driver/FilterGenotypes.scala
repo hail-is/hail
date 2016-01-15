@@ -32,19 +32,19 @@ object FilterGenotypes extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val p: ((Variant, AnnotationData) => ((Int, Genotype) => Boolean)) = {
+    val p: ((Variant, Annotations) => ((Int, Genotype) => Boolean)) = {
       val cf = new FilterGenotypeCondition(options.condition, vds.metadata)
       cf.typeCheck()
 
       val keep = options.keep
-      (v: Variant, va: AnnotationData) => {
+      (v: Variant, va: Annotations) => {
         val h = cf(v,va) _
         (sIndex: Int, g: Genotype) => Filter.keepThis(h(sIndex, g), keep)
       }
     }
 
     val newVDS = vds.mapValuesWithPartialApplication(
-      (v: Variant, va: AnnotationData) =>
+      (v: Variant, va: Annotations) =>
         (s: Int, g: Genotype) =>
           if (p(v, va)(s, g)) 
             g

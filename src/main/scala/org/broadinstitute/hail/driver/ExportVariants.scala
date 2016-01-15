@@ -38,7 +38,7 @@ object ExportVariants extends Command {
     else
       ExportTSV.parseExpression(cond)
 
-    val makeString: (Variant, Annotations[String]) => String = {
+    val makeString: (Variant, Annotations) => String = {
       val eve = new ExportVariantsEvaluator(fields, vas)
       eve.typeCheck()
       eve.apply

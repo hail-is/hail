@@ -358,12 +358,12 @@ object SampleQC extends Command {
     if (options.store) {
       val newAnnotations = vds.metadata.sampleAnnotations
         .zipWithIndex
-        .map { case (sa, s) => sa.addMap("qc", r.collectAsMap()(s).asMap) }
+        .map { case (sa, s) => sa + ("qc", Annotations(r.collectAsMap()(s).asMap)) }
       state.copy(
         vds = vds.copy(
           metadata = vds.metadata.copy(
             sampleAnnotationSignatures = vds.metadata.sampleAnnotationSignatures
-              .addMap("qc", SampleQCCombiner.signatures),
+              + ("qc", SampleQCCombiner.signatures),
             sampleAnnotations = vds.metadata.sampleAnnotations
               .zip(newAnnotations)
               .map { case (oldAnno, newAnno) => oldAnno ++ newAnno})))
