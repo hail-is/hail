@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
 
 class FilterSuite extends SparkSuite {
@@ -470,4 +471,21 @@ class FilterSuite extends SparkSuite {
     assert(homRefOnChr1.count(_._3.isCalled) == 9 * 11 - (9 + 3 + 3) - 2) // keep does not retain the 2 missing genotypes
 
   }
+
+  @Test def filterFromFileTest() {
+
+    val vds = TestRDDBuilder.buildRDD(8, 8, sc)
+
+    val state = State("", sc, sqlContext, vds)
+
+    assert(FilterSamples.run(state, Array("--keep", "-c", "src/test/resources/filter.sample_list")).vds.nLocalSamples == 3)
+
+    assert(FilterSamples.run(state, Array("--remove", "-c", "src/test/resources/filter.sample_list")).vds.nLocalSamples == 5)
+
+    assert(FilterVariants.run(state, Array("--keep", "-c", "src/test/resources/filter.interval_list")).vds.nVariants == 6)
+
+    assert(FilterVariants.run(state, Array("--remove", "-c", "src/test/resources/filter.interval_list")).vds.nVariants == 2)
+
+  }
+
 }
