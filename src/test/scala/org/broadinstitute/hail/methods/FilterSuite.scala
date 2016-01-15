@@ -448,6 +448,8 @@ class FilterSuite extends SparkSuite {
 
     assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad.at(0) < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
 
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad.at(1).toDouble / g.dp > 0.05")).vds.expand().collect().count(_._3.isCalled) == 3)
+
     val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
 
     assert(!highGQ2.vds.expand().collect().exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
