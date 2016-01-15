@@ -2,7 +2,7 @@ package org.broadinstitute.hail.annotations
 
 import htsjdk.variant.vcf.{VCFInfoHeaderLine, VCFHeaderLineCount, VCFHeaderLineType}
 
-case class VCFSignature(typeOf: String, optional: Boolean, vcfType: String, number: String, description: String)
+case class VCFSignature(typeOf: String, vcfType: String, number: String, description: String)
   extends AnnotationSignature
 
 object VCFSignature {
