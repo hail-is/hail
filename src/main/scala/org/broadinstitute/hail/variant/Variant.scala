@@ -6,11 +6,11 @@ object VariantType extends Enumeration {
 }
 
 case class Variant(contig: String,
-                   // FIXME: 0- or 1-based?
                    start: Int,
                    ref: String,
                    alt: String,
                    wasSplit: Boolean = false) extends Ordered[Variant]{
+  require(start >= 0)
   require(ref != alt)
 
   import VariantType._
