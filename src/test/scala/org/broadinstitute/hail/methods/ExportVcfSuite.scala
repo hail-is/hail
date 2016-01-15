@@ -15,16 +15,13 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State("", sc, sqlContext, vdsOrig)
-    stateOrig.hadoopConf.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
 
     ExportVCF.run(stateOrig, Array("-o", outFile, "-t", tmpDir))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
-    val stateNew = State("", sc, sqlContext, vdsNew)
 
     // test that new VDS is same as old VDS
-    assert(stateOrig.vds.same(stateNew.vds))
+    assert(vdsOrig.same(vdsNew))
   }
 
   @Test def testSameAsOrigNoCompression() {
@@ -34,16 +31,13 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State("", sc, sqlContext, vdsOrig)
-    stateOrig.hadoopConf.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
 
     ExportVCF.run(stateOrig, Array("-o", outFile, "-t", tmpDir))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
-    val stateNew = State("", sc, sqlContext, vdsNew)
 
     // test that new VDS is same as old VDS
-    assert(stateOrig.vds.same(stateNew.vds))
+    assert(vdsOrig.same(vdsNew))
   }
 
   @Test def testSorted() {
@@ -53,9 +47,6 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State("", sc, sqlContext, vdsOrig)
-
-    stateOrig.hadoopConf.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
 
     ExportVCF.run(stateOrig, Array("-o", outFile, "-t", tmpDir))
 

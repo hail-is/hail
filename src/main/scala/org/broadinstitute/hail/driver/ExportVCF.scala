@@ -76,9 +76,14 @@ object ExportVCF extends Command {
       val filter = a.getVal("filters").getOrElse(".")
       val info = if (a.hasMap("info")) a.maps("info").toArray.sorted.map { case (k, v) =>
         val sig = varAnnSig.getInMap("info", k).get.asInstanceOf[VCFSignature]
-        if (sig.vcfType != "Flag") s"$k=$v" else s"$k"
-      }.mkString(";")
-      else "."
+        if (sig.vcfType != "Flag")
+          s"$k=$v"
+        else
+          s"$k"
+      }
+        .mkString(";")
+      else
+        "."
 
       val format = "GT:AD:DP:GQ:PL"
 

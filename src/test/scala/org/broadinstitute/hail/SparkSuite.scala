@@ -21,6 +21,9 @@ class SparkSuite(master: String = "local", verbose: Boolean = false) extends Tes
     sc = new SparkContext(conf)
     sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
+    sc.hadoopConfiguration.set("io.compression.codecs",
+      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
+
     if (!verbose) {
       Logger.getLogger("org").setLevel(Level.OFF)
       Logger.getLogger("akka").setLevel(Level.OFF)

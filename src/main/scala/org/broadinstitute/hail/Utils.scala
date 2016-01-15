@@ -230,12 +230,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     val hConf = r.sparkContext.hadoopConfiguration
     val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
     val codecFactory = new CompressionCodecFactory(hConf)
-    val codec = codecFactory.getCodec(new hadoop.fs.Path(filename))
-    val headerExt = if (codec != null) codec.getDefaultExtension else ""
+    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
+    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
 
     hadoopDelete(filename, hConf, true) // overwriting by default
 
-    writeTable(tmpFileName, header, Option(codec))
+    writeTable(tmpFileName, header, codec)
 
     val filesToMerge = if (header != null) Array(tmpFileName + ".header" + headerExt, tmpFileName) else Array(tmpFileName)
     hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
