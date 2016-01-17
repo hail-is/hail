@@ -23,10 +23,10 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
   def nSNP = if (variant.isSNP) 1 else 0
 
   def implicatedSamplesWithCounts: Iterator[(Int, (Int, Int))] = {
-    if (code == 2 || code == 1) Iterator(trio.kid, trio.dad, trio.mom)
-    else if (code == 6 || code == 3) Iterator(trio.kid, trio.dad)
-    else if (code == 4 || code == 7 || code == 9 || code == 10) Iterator(trio.kid, trio.mom)
-    else Iterator(trio.kid) }
+    if      (code == 2 || code == 1)                             Iterator(trio.kid, trio.dad, trio.mom)
+    else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.dad)
+    else if (code == 4 || code == 7 || code == 9  || code == 10) Iterator(trio.kid, trio.mom)
+    else                                                         Iterator(trio.kid) }
     .map((_, (1, nSNP)))
 
   def toLineMendel(sampleIds: IndexedSeq[String]): String = {
