@@ -44,13 +44,14 @@ object FilterSamples extends Command {
           .filter(line => !line.isEmpty)
           .map(indexOfSample)
           .toSet
-        (s: Int, sa: AnnotationData) => Filter.keepThis(samples.contains(s), keep)
+        (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val cf = new FilterSampleCondition(c, vds.metadata.sampleAnnotationSignatures)
         cf.typeCheck()
 
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-        (s: Int, sa: AnnotationData) => Filter.keepThis(cf(Sample(sampleIdsBc.value(s)), vds.metadata.sampleAnnotations(s)), keep)
+        (s: Int, sa: Annotations) =>
+          Filter.keepThis(cf(Sample(sampleIdsBc.value(s)), vds.metadata.sampleAnnotations(s)), keep)
     }
 
     state.copy(vds = vds.filterSamples(p))

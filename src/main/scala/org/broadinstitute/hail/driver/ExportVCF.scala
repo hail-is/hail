@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.RangePartitioner
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
-import org.broadinstitute.hail.annotations.{VCFSignature, AnnotationData}
+import org.broadinstitute.hail.annotations.{VCFSignature, Annotations}
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
 
@@ -42,8 +42,8 @@ object ExportVCF extends Command {
 
       val filterHeader = vds.metadata.filters.map { case (key, desc) => s"""##FILTER=<ID=$key,Description="$desc">""" }.mkString("\n")
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.getMap("info") match {
-        case Some(m) => m.map { case (key, sig) =>
+      val infoHeader = vds.metadata.variantAnnotationSignatures.attrs.get("info") match {
+        case Some(anno: Annotations) => anno.attrs.map { case (key, sig) =>
           val vcfsig = sig.asInstanceOf[VCFSignature]
           val vcfsigType = vcfsig.vcfType
           val vcfsigNumber = vcfsig.number
@@ -70,14 +70,24 @@ object ExportVCF extends Command {
       sb.result()
     }
 
-    def vcfRow(v: Variant, a: AnnotationData, gs: Iterable[Genotype]): String = {
-      val id = a.getVal("rsid").getOrElse(".")
-      val qual = a.getVal("qual").getOrElse(".")
-      val filter = a.getVal("filters").getOrElse(".")
-      val info = if (a.hasMap("info")) a.maps("info").toArray.sorted.map { case (k, v) =>
-        val sig = varAnnSig.getInMap("info", k).get.asInstanceOf[VCFSignature]
-        if (sig.vcfType != "Flag") s"$k=$v" else s"$k"
-      }.mkString(";") else "."
+    def vcfRow(v: Variant, a: Annotations, gs: Iterable[Genotype]): String = {
+      val id = a.attrs.getOrElse("rsid", ".")
+      val qual = a.attrs.getOrElse("qual", ".")
+      val filter = a.attrs.getOrElse("filters", ".")
+      val info = if (a.attrs.contains("info"))
+        a.attrs("info")
+          .asInstanceOf[Annotations]
+          .attrs
+          .toArray
+          .sortWith(_._1 < _._1)
+          .map { case (k, v) =>
+            val sig = varAnnSig.attrs("info")
+              .asInstanceOf[Annotations]
+              .attrs(k)
+              .asInstanceOf[VCFSignature]
+            if (sig.vcfType != "Flag") s"$k=$v" else s"$k"
+          }.mkString(";")
+      else "."
 
       val format = "GT:AD:DP:GQ:PL"
 
@@ -106,9 +116,10 @@ object ExportVCF extends Command {
       sb.result()
     }
 
-    val kvRDD = vds.rdd.map{ case (v,a,gs) => (v,(a,gs))}
+    val kvRDD = vds.rdd.map { case (v, a, gs) => (v, (a, gs)) }
     kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length,kvRDD))
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotations, Iterable[Genotype])]
+      (vds.rdd.partitions.length, kvRDD))
       .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
       .writeTableSingleFile(options.tmpdir, options.output, header, deleteTmpFiles = true)
     state

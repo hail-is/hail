@@ -20,24 +20,43 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
 
-  def readRecord(line: String): Iterator[(Variant, Annotations, Iterator[Genotype])] = {
+  def readRecord(line: String, typeMap: Map[String, Any]): Iterator[(Variant, Annotations, Iterator[Genotype])] = {
     val vc = codec.decode(line)
+    //    println(vc.getAttributes)
+    //    println(vc.getAttributes.asScala)
+    //    vc.getAttributes
+    //      .asScala
+    //      .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
+    //      .toMap
+    //      .foreach { case (k, v) => println(s"$k -> ${v.toString}, ${v.getClass.getName}")}
+//    vc.getAttributes
+//      .asScala
+//      .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
+//      .toMap
+//        .map {
+//          case (k, v) => (k, HtsjdkRecordReader.mapType(v, typeMap(k).asInstanceOf[VCFSignature]))
+//        }
+//      .foreach { case (k, v) => println(s"$k -> ${v.toString}, ${v.getClass.getName}")}
+    //    fatal("quit")
     //maybe count tabs to get filter field
-    val pass = (vc.filtersWereApplied() && vc.getFilters.size() == 0)
+    val pass = vc.filtersWereApplied() && vc.getFilters.size() == 0
     val filts = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
         Set("PASS")
       else
-        vc.getFilters.asScala
+        vc.getFilters.asScala.toSet
     }
     val rsid = vc.getID
     if (vc.isBiallelic) {
       val variant = Variant(vc.getContig, vc.getStart, vc.getReference.getBaseString,
         vc.getAlternateAllele(0).getBaseString)
-      Iterator.single((variant, Annotations(Map[String, Any]("info" -> vc.getAttributes
+      Iterator.single((variant, Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
         .asScala
         .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
-        .toMap,
+        .toMap
+        .map {
+          case (k, v) => (k, HtsjdkRecordReader.mapType(v, typeMap(k).asInstanceOf[VCFSignature]))
+        }),
         "qual" -> vc.getPhredScaledQual,
         "filters" -> filts,
         "pass" -> pass,
@@ -83,12 +102,16 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       val ref = vc.getReference
       val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
       val altIndices = alts.map(vc.getAlleleIndex) // index in the VCF, used to access AD and PL fields
-      val biVs = alts.map { alt =>
+      val biVs = alts.zipWithIndex.map { case (alt, index) =>
           (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true),
-            Annotations(Map[String, Any]("info" -> vc.getAttributes
+            Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
               .asScala
               .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
-              .toMap,
+              .toMap
+              .map {
+                case (k, v) => (k, HtsjdkRecordReader.mapTypeMultiallelic(v, typeMap(k).asInstanceOf[VCFSignature],
+                  index))
+              }),
               "qual" -> vc.getPhredScaledQual,
               "filters" -> filts,
               "pass" -> pass,
@@ -158,6 +181,48 @@ object HtsjdkRecordReader {
     ar match {
       case arr: java.util.ArrayList[_] => arr.toArray
       case _ => ar
+    }
+  }
+
+  def mapType(value: Any, sig: VCFSignature): Any = {
+    value match {
+      case str: String =>
+        sig.typeOf match {
+          case "Int" => str.toInt
+          case "Double" => str.toDouble
+          case "IndexedSeq[Int]" => str.split(",").map(_.toInt).toIndexedSeq
+          case "IndexedSeq[Double]" => str.split(",").map(_.toDouble).toIndexedSeq
+          case _ => value
+        }
+      case _ => value
+    }
+  }
+
+  def mapTypeMultiallelic(value: Any, sig: VCFSignature, altIndex: Int): Any = {
+    value match {
+      case str: String =>
+        sig.typeOf match {
+          case "Int" => str.toInt
+          case "Double" => str.toDouble
+          case "IndexedSeq[Int]" =>
+            sig.number match {
+              case "A" => Array(str.split(",").map(_.toInt).apply(altIndex))
+              case "R" =>
+                val arr = str.split(",").map(_.toInt)
+                Array(arr(0), arr(altIndex + 1))
+              case "G" => throw new UnsupportedOperationException("don't currently support VCFs with 'G' in info number")
+            }
+          case "IndexedSeq[Double]" =>
+            sig.number match {
+              case "A" => Array(str.split(",").map(_.toDouble).apply(altIndex))
+              case "R" =>
+                val arr = str.split(",").map(_.toDouble)
+                Array(arr(0), arr(altIndex + 1))
+              case "G" => throw new UnsupportedOperationException("don't currently support VCFs with 'G' in info number")
+              case _ => value
+            }
+          case _ => value
+        }
     }
   }
 }

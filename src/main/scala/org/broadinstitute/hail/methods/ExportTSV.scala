@@ -97,8 +97,7 @@ class ExportVariantsEvaluator(list: String, vas: Annotations)
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
         |  val v: ExportVariant = new ExportVariant(__v)
-        |  ${signatures(vas, "__vaClass", makeToString = true)}
-        |  ${instantiate("va", "__vaClass", "__va")}
+        |  ${makeDeclarations(vas, "sa", "__sa", nSpace = 2)}
         |  Array[Any]($list).map(toTSVString).mkRealString("\t")
         |}: String
     """.stripMargin,
@@ -114,8 +113,7 @@ class ExportSamplesEvaluator(list: String, sas: Annotations)
         |  import org.broadinstitute.hail.methods.FilterOption
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
-        |  ${signatures(sas, "__saClass", makeToString = true)}
-        |  ${instantiate("sa", "__saClass", "__sa")}
+        |  ${makeDeclarations(sas, "sa", "__sa", nSpace = 2)}
         |  Array[Any]($list).map(toTSVString).mkRealString("\t")
         |}: String
     """.stripMargin,
@@ -139,13 +137,12 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |  import org.broadinstitute.hail.methods.FilterGenotype
         |  import org.broadinstitute.hail.methods.UserExportUtils._
         |
-        |  ${signatures(metadata.sampleAnnotationSignatures, "__saClass", makeToString = true)}
-        |  ${instantiateIndexedSeq("__saArray", "__saClass", "__sa")}
+        |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "sa", "__sa", nSpace = 2)}
+        |
         |  (__v: org.broadinstitute.hail.variant.Variant,
         |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
         |    val v = new ExportVariant(__v)
-        |    ${signatures(metadata.variantAnnotationSignatures, "__vaClass")}
-        |    ${instantiate("va", "__vaClass", "__va")}
+        |    ${makeDeclarations(metadata.variantAnnotationSignatures, "sa", "__sa", nSpace = 4)}
         |    (__sIndex: Int,
         |     __g: org.broadinstitute.hail.variant.Genotype) => {
         |        val sa = __saArray(__sIndex)

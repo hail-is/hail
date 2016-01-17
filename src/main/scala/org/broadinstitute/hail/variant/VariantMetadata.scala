@@ -8,22 +8,27 @@ object VariantMetadata {
   implicit def writableVariantMetadata: DataWritable[VariantMetadata] =
     new DataWritable[VariantMetadata] {
       def write(dos: DataOutputStream, t: VariantMetadata) {
+//        throw new UnsupportedOperationException
         writeData(dos, t.filters)
         writeData(dos, t.sampleIds)
-        writeData(dos, t.sampleAnnotations)
-        writeData(dos, t.sampleAnnotationSignatures)
-        writeData(dos, t.variantAnnotationSignatures)
+//        writeData(dos, t.sampleAnnotations)
+//        writeData(dos, t.sampleAnnotationSignatures)
+//        writeData(dos, t.variantAnnotationSignatures)
       }
     }
 
   implicit def readableVariantMetadata: DataReadable[VariantMetadata] =
   new DataReadable[VariantMetadata] {
     def read(dis: DataInputStream): VariantMetadata = {
-      VariantMetadata(readData[IndexedSeq[(String, String)]](dis),
-      readData[IndexedSeq[String]](dis),
-      readData[IndexedSeq[Annotations]](dis),
-      readData[Annotations](dis),
-      readData[Annotations](dis))
+      val filters = readData[IndexedSeq[(String, String)]](dis)
+      val ids = readData[IndexedSeq[String]](dis)
+      VariantMetadata(filters, ids,
+        Annotations.emptyIndexedSeq(ids.length),
+        Annotations.empty(),
+        Annotations.empty())
+//      readData[IndexedSeq[Annotations]](dis),
+//      readData[Annotations](dis),
+//      readData[Annotations](dis))
     }
   }
 

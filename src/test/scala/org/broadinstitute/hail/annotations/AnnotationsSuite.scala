@@ -1,5 +1,10 @@
 package org.broadinstitute.hail.annotations
 
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+
+import com.esotericsoftware.kryo.io.{ByteBufferOutputStream, Output}
+import org.apache.spark.serializer.KryoSerializer
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver._
@@ -8,6 +13,7 @@ import org.testng.annotations.Test
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.methods.FilterUtils.toAnnotationValueString
 import scala.language.implicitConversions
+import com.esotericsoftware.kryo._
 
 /**
   * This testing suite evaluates the functionality of the [[org.broadinstitute.hail.annotations]] package
@@ -33,92 +39,91 @@ class AnnotationsSuite extends SparkSuite {
     assert(variantAnnotationMap.contains(anotherVariant))
 
     // type Int - INFO.DP
-    assert(vas.getInMap("info", "DP").contains(VCFSignature("Integer", "Int", "1", "toInt",
+    assert(vas.getAnnotations("info").attrs.get("DP").contains(VCFSignature("Int", "Integer", "1",
       "Approximate read depth; some reads may have been filtered")))
     assert(variantAnnotationMap(firstVariant)
-      .getInMap("info", "DP")
-      .contains("77560") &&
-      variantAnnotationMap(firstVariant)
-        .getInMap("info", "DP").get.toInt == 77560)
+        .getAnnotations("info").attrs.get("DP")
+        .get.asInstanceOf[Int] == 77560)
     assert(variantAnnotationMap(anotherVariant)
-      .getInMap("info", "DP")
-      .contains("20271") &&
-      variantAnnotationMap(anotherVariant)
-        .getInMap("info", "DP").get.toInt == 20271)
+      .getAnnotations("info").attrs.get("DP").get.asInstanceOf[Int] == 20271)
 
     // type Double - INFO.HWP
-    assert(vas.getInMap("info", "HWP").contains(new VCFSignature("Float", "Double", "1", "toDouble",
+    assert(vas.getAnnotations("info").attrs.get("HWP").contains(new VCFSignature("Double", "Float", "1",
       "P value from test of Hardy Weinberg Equilibrium")))
-    assert(variantAnnotationMap(firstVariant)
-      .containsInMap("info", "HWP") &&
+    assert(
       D_==(variantAnnotationMap(firstVariant)
-        .getInMap("info", "HWP").get.toDouble, 0.0001))
-    assert(variantAnnotationMap(anotherVariant)
-      .containsInMap("info", "HWP") &&
-      D_==(variantAnnotationMap(anotherVariant)
-        .getInMap("info", "HWP").get.toDouble, 0.8286))
+        .getAnnotations("info").attrs.get("HWP").get.asInstanceOf[Double], 0.0001))
+    assert(D_==(variantAnnotationMap(anotherVariant)
+        .getAnnotations("info").attrs.get("HWP").get.asInstanceOf[Double], 0.8286))
 
     // type String - INFO.culprit
-    assert(vas.getInMap("info", "culprit").contains(VCFSignature("String", "String", "1", "toString",
+    assert(vas.getAnnotations("info").attrs.get("culprit").contains(VCFSignature("String", "String", "1",
       "The annotation which was the worst performing in the Gaussian mixture model, " +
         "likely the reason why the variant was filtered out")))
     assert(variantAnnotationMap(firstVariant)
-      .getInMap("info", "culprit")
+      .getAnnotations("info").attrs.get("culprit")
       .contains("FS"))
     assert(variantAnnotationMap(anotherVariant)
-      .getInMap("info", "culprit")
+      .getAnnotations("info").attrs.get("culprit")
       .contains("FS"))
 
     // type Array - INFO.AC (allele count)
-    assert(vas.getInMap("info", "AC").contains(VCFSignature("Integer", "Array[Int]", "A", "toArrayInt",
+    assert(vas.getAnnotations("info").attrs.get("AC").contains(VCFSignature("IndexedSeq[Int]", "Integer", "A",
       "Allele count in genotypes, for each ALT allele, in the same order as listed")))
     assert(variantAnnotationMap(firstVariant)
-      .getInMap("info", "AC")
-      .contains("89") &&
-      variantAnnotationMap(firstVariant)
-        .getInMap("info", "AC").get.toArrayInt
-        .sameElements(Array(89)))
+      .getAnnotations("info").attrs.get("AC")
+      .map(_.asInstanceOf[IndexedSeq[Int]])
+      .forall(_.equals(IndexedSeq(89))))
     assert(variantAnnotationMap(anotherVariant)
-      .getInMap("info", "AC")
-      .contains("13") &&
-      variantAnnotationMap(anotherVariant)
-        .getInMap("info", "AC").get.toArrayInt
-        .sameElements(Array(13)))
+      .getAnnotations("info").attrs.get("AC")
+      .map(_.asInstanceOf[IndexedSeq[Int]])
+      .forall(_.equals(IndexedSeq(13))))
 
     // type Boolean/flag - INFO.DB (dbSNP membership)
-    assert(vas.getInMap("info", "DB").contains(new VCFSignature("Flag", "Boolean", "0", "toBoolean",
+    assert(vas.getAnnotations("info").attrs.get("DB").contains(new VCFSignature("Boolean", "Flag", "0",
       "dbSNP Membership")))
     assert(variantAnnotationMap(firstVariant)
-      .getInMap("info", "DB")
-      .contains("true") &&
-      variantAnnotationMap(firstVariant)
-        .getInMap("info", "DB").get.toBoolean) // .get.toBoolean == true
+      .getAnnotations("info").attrs.get("DB")
+      .contains(true))
     assert(!variantAnnotationMap(anotherVariant)
-      .containsInMap("info", "DB"))
+      .getAnnotations("info").attrs.contains("DB"))
 
     //type Set[String]
-    assert(vas.getVal("filters").contains(new SimpleSignature("Set[String]", "toSetString")))
+    assert(vas.attrs.get("filters").contains(new SimpleSignature("Set[String]")))
     assert(variantAnnotationMap(firstVariant)
-      .getVal("filters").contains("PASS") &&
-      variantAnnotationMap(firstVariant)
-      .getVal("filters").get.toSetString == Set[String]("PASS"))
+      .attrs.get("filters").contains(Set[String]("PASS")))
     assert(variantAnnotationMap(anotherVariant)
-      .getVal("filters").contains("VQSRTrancheSNP99.95to100.00") &&
-      variantAnnotationMap(anotherVariant)
-        .getVal("filters").get.toSetString == Set[String]("VQSRTrancheSNP99.95to100.00"))
+      .attrs.get("filters").contains(Set("VQSRTrancheSNP99.95to100.00")))
 
     // GATK PASS
-    assert(vas.getVal("pass").contains(new SimpleSignature("Boolean", "toBoolean")))
+    assert(vas.attrs.get("pass").contains(new SimpleSignature("Boolean")))
     assert(variantAnnotationMap(firstVariant)
-      .getVal("pass").contains("true"))
+      .attrs.get("pass").contains(true))
     assert(variantAnnotationMap(anotherVariant)
-      .getVal("pass").contains("false"))
+      .attrs.get("pass").contains(false))
+
+    val kryo = new KryoSerializer(sc.getConf).newInstance()
+
+    val bb = kryo.serialize(variantAnnotationMap(anotherVariant))
+    kryo.deserialize(bb).asInstanceOf[Annotations].attrs.foreach(println)
+
+    val arr = kryo.serialize(variantAnnotationMap(firstVariant)).array()
+    kryo.deserialize(ByteBuffer.wrap(arr)).asInstanceOf[Annotations].attrs.foreach(println)
+
+    println(org.broadinstitute.hail.annotations.AnnotationClassBuilder.makeDeclarations
+      (state.vds.metadata.variantAnnotationSignatures,"va", "__va"))
 
     // Check that VDS can be written to disk and retrieved while staying the same
     hadoopDelete("/tmp/sample.vds", sc.hadoopConfiguration, recursive = true)
     vds.write(sqlContext, "/tmp/sample.vds")
     val readBack = Read.run(state, Array("-i", "/tmp/sample.vds"))
+    println(readBack.vds.nVariants)
     readBack.vds.nVariants
+//    vds.variantsAndAnnotations.collect.foreach { case (v, va) => println(v + " " + va.attrs)}
+//    readBack.vds.variantsAndAnnotations.collect.foreach { case (v, va) => println(v + " " + va.attrs)}
+    println(vds.variantsAndAnnotations.collect.apply(0))
+    println(readBack.vds.variantsAndAnnotations.collect.apply(0))
+
     assert(readBack.vds.same(vds))
   }
 }

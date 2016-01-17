@@ -12,11 +12,15 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def isValue(elem: String): Boolean = !attrs(elem).isInstanceOf[Annotations]
 
+  def getAnnotations(key: String): Annotations = attrs(key).asInstanceOf[Annotations]
+
   def + (key: String, value: Any): Annotations = Annotations(attrs + (key -> value))
 
-  def ++ (map: Map[String, Any]): Annotations = Annotations(attrs ++ map)
+  def + (map: Map[String, Any]): Annotations = Annotations(attrs ++ map)
 
-  def ++ (other: Annotations): Annotations = this ++ other.attrs
+  def ++ (other: Annotations): Annotations = this + other.attrs
+
+
 }
 
 object Annotations {
@@ -71,25 +75,19 @@ object Annotations {
 
 object AnnotationClassBuilder {
 
-  def makeDeclarations(a: Annotations, path: String, nSpace: Int = 0): String = {
-    val spaces = (0 until nSpace).map(i => " ").foldLeft("")(_ + _)
-
-    a.attrs.map { case (key, attr) =>
-      val castPath = path + ".asInstanceOf[org.broadinstitute.hail.annotations.Annotations]"
+  def makeDeclarationsRecursive(sigs: Annotations, depth: Int = 1, nSpace: Int = 0): String = {
+    val spaces = (0 until (depth*2 + nSpace)).map(i => " ").foldLeft("")(_ + _)
+    val param = s"a$depth"
+    sigs.attrs.map { case (key, attr) =>
       attr match {
         case a2: Annotations =>
-          s"""${spaces}class __$key(a: Annotations) {
-             |${
-            makeDeclarations(a2,
-              castPath + """attrs("$key")""",
-              nSpace = nSpace + 2)
-          }
-             |${spaces}val $key: __$key = new __$key(${castPath + """attrs("$key")"""})
+          s"""${spaces}class __$key(a${depth+1}: Annotations) {
+             |${makeDeclarationsRecursive(a2, depth = depth + 1)}${spaces}}
+             |${spaces}val $key: __$key = new __$key(${s"""$param.attrs("$key").asInstanceOf[org.broadinstitute.hail.annotations.Annotations]"""})
              |""".stripMargin
         case sig: AnnotationSignature =>
-            s"${spaces}val $key: ${sig.typeOf} = ${
-              path +
-                s""".asInstanceOf[org.broadinstitute.hail.annotations.Annotations].attrs.get("$key").asInstanceOf[${sig.typeOf}]
+            s"${spaces}val $key: FilterOption[${sig.typeOf}] = new FilterOption(${
+                s"""$param.attrs.get("$key").asInstanceOf[Option[${sig.typeOf}]])
                     |""".stripMargin
             }"
         case _ => "somebody goofed\n"
@@ -98,13 +96,21 @@ object AnnotationClassBuilder {
     .foldLeft("")(_ + _)
   }
 
+  def makeDeclarations(sigs: Annotations, exposedName: String, annotationsPath: String, nSpace: Int = 0): String = {
+    val spaces = (0 until nSpace).map(" ").foldRight("")(_ + _)
+    s"""${spaces}class ${annotationsPath}Class(a1: Annotations) {
+       |${makeDeclarationsRecursive(sigs, nSpace = nSpace)}}
+       |${spaces}val $exposedName = new ${annotationsPath}Class($annotationsPath)
+     """.stripMargin
+  }
+
   def signatures(sigs: Annotations, className: String,
     makeToString: Boolean = false): String = {
     throw new UnsupportedOperationException
+  }
 //    val internalClasses = sigs.attrs.map { attr =>
-//
 //      attr match {
-//        ca
+//        case
 //      }
 //      case (subclass, subMap) =>
 //        val attrs = subMap
@@ -150,7 +156,7 @@ object AnnotationClassBuilder {
 //    s"""
 //       |$hiddenClass
 //    """.stripMargin
-  }
+//  }
 
   def instantiate(exposedName: String, className: String, rawName: String): String = {
     s"val $exposedName = new $className($rawName)\n"

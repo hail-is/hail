@@ -910,8 +910,7 @@ class FilterVariantCondition(cond: String, vas: Annotations)
         |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
-        |  ${signatures(vas, "__vaClass")}
-        |  ${instantiate("va", "__vaClass", "__va")};
+        |  ${makeDeclarations(vas, "sa", "__sa", nSpace = 2)}
         |  {$cond}: FilterOption[Boolean]
         |}
     """.stripMargin,
@@ -925,8 +924,7 @@ class FilterSampleCondition(cond: String, sas: Annotations)
         |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
-        |  ${signatures(sas, "__saClass")}
-        |  ${instantiate("sa", "__saClass", "__sa")};
+        |  ${makeDeclarations(sas, "sa", "__sa", nSpace = 2)}
         |  {$cond}: FilterOption[Boolean]
         |}
     """.stripMargin,
@@ -936,28 +934,26 @@ class FilterSampleCondition(cond: String, sas: Annotations)
 
 class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
   extends EvaluatorWithValueTransform[FilterGenotypeWithSA, FilterGenotypePostSA](
-    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
+    {val s = s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
         |  import org.broadinstitute.hail.methods.FilterGenotype
-        |  ${signatures(metadata.sampleAnnotationSignatures, "__saClass")}
-        |  ${instantiateIndexedSeq("__saArray", "__saClass", "__sa")}
+        |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "sa", "__sa", nSpace = 2)}
         |  (v: org.broadinstitute.hail.variant.Variant,
         |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
-        |    ${signatures(metadata.variantAnnotationSignatures, "__vaClass")}
-        |    ${instantiate("va", "__vaClass", "__va")}
+        |    ${makeDeclarations(metadata.variantAnnotationSignatures, "sa", "__sa", nSpace = 4)}
         |    (__sIndex: Int,
         |     __g: org.broadinstitute.hail.variant.Genotype) => {
         |      val sa = __saArray(__sIndex)
         |      val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
         |      val g = new FilterGenotype(__g)
         |
-       |      {$cond}: FilterOption[Boolean]
+        |      {$cond}: FilterOption[Boolean]
         |    }
         |  }
         |}
-      """.stripMargin,
+      """.stripMargin; println(s);s},
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
     Filter.renameSymbols) {
   def apply(v: Variant, va: Annotations)(sIndex: Int, g: Genotype): FilterOption[Boolean] =

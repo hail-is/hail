@@ -9,7 +9,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.vcf
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConversions._
-import scala.reflect.ClassTag
 
 object LoadVCF {
   // FIXME move to VariantDataset
@@ -43,18 +42,37 @@ object LoadVCF {
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-    val infoSignatures = header
+
+    val validScalaRegex = """[\d\w_]+""".r
+    def validScala(s: String): Boolean = s match {
+      case validScalaRegex() => true
+      case _ => false
+    }
+
+    val infoSignatures = Annotations(header
       .getInfoHeaderLines
       .toList
-      .map(line => (line.getID, VCFSignature.parse(line)))
-      .toMap
+      .map(line => {
+        val id = line.getID
+        if (!validScala(id))
+          fatal("""Cannot load info fields with IDs not matching "[\d\w_]+" """)
+        else
+          (line.getID, VCFSignature.parse(line))
+      })
+      .toMap)
+
+    infoSignatures.attrs.foreach {
+      case (k, v) =>
+        v match {
+          case s: VCFSignature => println(k + " -> " + s.typeOf)
+        }
+    }
 
     val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
       "filters" -> new SimpleSignature("Set[String]"),
-        "pass" -> new SimpleSignature("Boolean"),
-        "qual" -> new SimpleSignature("Double"),
-        "rsid" -> new SimpleSignature("String")))
-
+      "pass" -> new SimpleSignature("Boolean"),
+      "qual" -> new SimpleSignature("Double"),
+      "rsid" -> new SimpleSignature("String")))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -63,12 +81,14 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
+    val sigMap = sc.broadcast(infoSignatures.attrs)
+
     val headerLinesBc = sc.broadcast(headerLines)
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
       .mapPartitions { lines =>
         val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
         lines.filter(line => !line.isEmpty && line(0) != '#')
-          .flatMap(reader.readRecord)
+          .flatMap(line => reader.readRecord(line, sigMap.value))
           .map { case (v, va, gs) =>
             val b = new GenotypeStreamBuilder(v, compress)
             for (g <- gs)

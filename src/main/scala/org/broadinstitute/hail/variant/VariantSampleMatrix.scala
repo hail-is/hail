@@ -2,6 +2,7 @@ package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
 
+import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
@@ -33,22 +34,25 @@ object VariantSampleMatrix {
     // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
     // FIXME annotations
+    val kryo = new KryoSerializer(sqlContext.sparkContext.getConf).newInstance()
+
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
-      df.rdd.map(r =>
-        throw new UnsupportedOperationException()))
-//        (r.getVariant(0), r.getVariantAnnotations(1), r.getGenotypeStream(2))))
+      df.rdd.map(r => {
+        val deserializer = SparkEnv.get.serializer.newInstance()
+        (r.getVariant(0), deserializer.deserialize[Annotations](ByteBuffer.wrap(r.getByteArray(1))), r.getGenotypeStream(2))
+      }))
   }
 }
+
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
   val localSamples: Array[Int],
   val rdd: RDD[(Variant, Annotations, Iterable[T])])
-  (implicit ttt: TypeTag[T], tct: ClassTag[T],
-    vct: ClassTag[Variant]) {
+  (implicit tct: ClassTag[T]) {
 
   def this(metadata: VariantMetadata, rdd: RDD[(Variant, Annotations, Iterable[T])])
-    (implicit ttt: TypeTag[T], tct: ClassTag[T]) =
+    (implicit tct: ClassTag[T]) =
     this(metadata, Array.range(0, metadata.nSamples), rdd)
 
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
@@ -60,7 +64,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def copy[U](metadata: VariantMetadata = metadata,
     localSamples: Array[Int] = localSamples,
     rdd: RDD[(Variant, Annotations, Iterable[U])] = rdd)
-    (implicit ttt: TypeTag[U], tct: ClassTag[U]): VariantSampleMatrix[U] =
+    (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix(metadata, localSamples, rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
@@ -96,7 +100,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def mapValuesWithAll[U](f: (Variant, Annotations, Int, T) => U)
-    (implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U] = {
+    (implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
     copy(rdd = rdd.map { case (v, va, gs) =>
       (v, va, localSamplesBc.value.view.zip(gs.view)
@@ -106,7 +110,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def mapValuesWithPartialApplication[U](f: (Variant, Annotations) => ((Int, T) => U))
-    (implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[U] = {
+    (implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
     copy(rdd = rdd.map { case (v, va, gs) =>
       val f2 = f(v, va)
@@ -183,7 +187,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def aggregateBySampleWithAll[U](zeroValue: U)(
     seqOp: (U, Variant, Annotations, Int, T) => U,
-    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Int, U)] = {
+    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Int, U)] = {
 
     val localSamplesBc = sparkContext.broadcast(localSamples)
 
@@ -220,7 +224,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def aggregateByVariantWithAll[U](zeroValue: U)(
     seqOp: (U, Variant, Annotations, Int, T) => U,
-    combOp: (U, U) => U)(implicit utt: TypeTag[U], uct: ClassTag[U]): RDD[(Variant, U)] = {
+    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Variant, U)] = {
 
     val localSamplesBc = sparkContext.broadcast(localSamples)
 
@@ -285,7 +289,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U,
     mapOp: (Annotations, U) => Annotations)
-    (implicit utt: TypeTag[U], uct: ClassTag[U]): VariantSampleMatrix[T] = {
+    (implicit uct: ClassTag[U]): VariantSampleMatrix[T] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
     // Serialize the zero value to a byte array so that we can get a new clone of it on each key
     val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
@@ -305,16 +309,16 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def addVariantAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {
     if (!sig.isInstanceOf[Annotations] && !sig.isInstanceOf[AnnotationSignature])
-      throw new IllegalArgumentException(s"Tried to add ${sig.getClass.getName} to annotation signatures")
+      throw new Exception(s"Tried to add ${sig.getClass.getName} to annotation signatures")
     copy(metadata = metadata.copy(variantAnnotationSignatures =
-      metadata.variantAnnotationSignatures + (name, sig)))
+      metadata.variantAnnotationSignatures +(name, sig)))
   }
 
   def addSampleAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {
     if (!sig.isInstanceOf[Annotations] && !sig.isInstanceOf[AnnotationSignature])
-      throw new IllegalArgumentException(s"Tried to add ${sig.getClass.getName} to annotation signatures")
+      throw new Exception(s"Tried to add ${sig.getClass.getName} to annotation signatures")
     copy(metadata = metadata.copy(sampleAnnotationSignatures =
-      metadata.sampleAnnotationSignatures + (name, sig)))
+      metadata.sampleAnnotationSignatures +(name, sig)))
   }
 }
 
@@ -336,8 +340,15 @@ class RichVDS(vds: VariantDataset) {
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
     // FIXME write annotations: va
+
     vds.rdd
-      .map { case (v, va, gs) => (v, va, gs.toGenotypeStream(v, compress)) }
+      .mapPartitions { iter =>
+        val serializer = SparkEnv.get.serializer.newInstance()
+        iter.map {
+          case (v, va, gs) =>
+            (v, serializer.serialize(va).array(), gs.toGenotypeStream(v, compress))
+        }
+      }
       .toDF()
       .saveAsParquetFile(dirname + "/rdd.parquet")
   }

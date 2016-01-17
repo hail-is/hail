@@ -23,9 +23,10 @@ object VCFSignature {
       case VCFHeaderLineCount.INTEGER => line.getCount.toString
       case VCFHeaderLineCount.UNBOUNDED => "."
     }
+    // FIXME "A" should produce array
     val scalaType = parsedCount match {
-      case "A" | "R" | "G" => s"Array[$parsedType]"
-      case integerRegex(i) => if (i.toInt > 1) s"Array[$parsedType]" else parsedType
+      case "A" | "R" | "G" => s"IndexedSeq[$parsedType]"
+      case integerRegex(i) => if (i.toInt > 1) s"IndexedSeq[$parsedType]" else parsedType
       case _ => parsedType
     }
     val desc = line.getDescription
