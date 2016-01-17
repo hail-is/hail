@@ -76,8 +76,14 @@ object ExportVCF extends Command {
       val filter = a.getVal("filters").getOrElse(".")
       val info = if (a.hasMap("info")) a.maps("info").toArray.sorted.map { case (k, v) =>
         val sig = varAnnSig.getInMap("info", k).get.asInstanceOf[VCFSignature]
-        if (sig.vcfType != "Flag") s"$k=$v" else s"$k"
-      }.mkString(";") else "."
+        if (sig.vcfType != "Flag")
+          s"$k=$v"
+        else
+          s"$k"
+      }
+        .mkString(";")
+      else
+        "."
 
       val format = "GT:AD:DP:GQ:PL"
 
@@ -106,11 +112,13 @@ object ExportVCF extends Command {
       sb.result()
     }
 
-    val kvRDD = vds.rdd.map{ case (v,a,gs) => (v,(a,gs))}
+    val kvRDD = vds.rdd.map { case (v, a, gs) => (v, (a, gs)) }
+
     kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length,kvRDD))
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
       .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
-      .writeTableSingleFile(options.tmpdir, options.output, header, deleteTmpFiles = true)
+      .writeTableSingleFile(options.tmpdir, options.output, header, deleteTmpFiles = false)
+
     state
   }
 }

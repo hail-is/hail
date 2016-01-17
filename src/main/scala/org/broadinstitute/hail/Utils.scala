@@ -9,6 +9,7 @@ import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.io.compress.{BGzipCodec, BGzipOutputStream}
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.mutable
@@ -208,31 +209,40 @@ class RichArray[T](a: Array[T]) {
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
-  def writeTable(filename: String, header: String = null) {
+  def writeTable(filename: String, header: String = null, codec: Option[hadoop.io.compress.CompressionCodec] = None) {
+    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
+
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
+    hadoopDelete(filename + ".header" + headerExt, r.sparkContext.hadoopConfiguration, recursive = true)
+
     if (header != null)
-      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {
+      writeTextFile(filename + ".header" + headerExt, r.sparkContext.hadoopConfiguration) {
         _.write(header)
       }
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
-    r.saveAsTextFile(filename)
+
+    codec match {
+      case Some(x) => r.saveAsTextFile(filename, x.getClass)
+      case None => r.saveAsTextFile(filename)
+    }
   }
 
   def writeTableSingleFile(tmpdir: String, filename: String, header: String = null, deleteTmpFiles: Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
-    val destPath = new hadoop.fs.Path(filename)
-    val destFS = hadoopFS(filename, hConf)
     val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
+    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
 
     hadoopDelete(filename, hConf, true) // overwriting by default
 
-    writeTable(tmpFileName, header)
+    writeTable(tmpFileName, header, codec)
 
-    val filesToMerge = if (header != null) Array(tmpFileName + ".header", tmpFileName) else Array(tmpFileName)
+    val filesToMerge = if (header != null) Array(tmpFileName + ".header" + headerExt, tmpFileName) else Array(tmpFileName)
     hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName, hConf, recursive = true)
-      hadoopDelete(tmpFileName + ".header", hConf, recursive = true)
+      hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = true)
     }
   }
 }
@@ -471,8 +481,18 @@ object Utils {
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
     hadoop.fs.FileSystem.get(new URI(filename), hConf)
 
-  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FSDataOutputStream =
-    hadoopFS(filename, hConf).create(new hadoop.fs.Path(filename))
+  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    val os = fs.create(hPath)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = codecFactory.getCodec(hPath)
+
+    if (codec != null)
+      codec.createOutputStream(os)
+    else
+      os
+  }
 
   def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
     val fs = hadoopFS(filename, hConf)
