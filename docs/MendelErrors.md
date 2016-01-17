@@ -17,13 +17,17 @@ outputs four tsv files which currently adhere to the [Plink mendel formats](http
 - `genomes.imendel` -- count per individual: FID IID N
 - `genomes.lmendel` -- count per locus: CHR SNP N (hadoop)
 
-FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and individual ID, respectively, with missing values set to 0.
-SNP confusingly denotes variant start position; .imendel combines counts for all SNPs and indels starting at a given chromosome and position. CHLD is the number of children in a nuclear family.
-In the table below, ploidy of the child is based on the pseudo-autosomal region (PAR):
-- HemiX -- X and not PAR and male
-- HemiY -- Y and not PAR and male
-- Auto -- otherwise
-Each Mendel error is given a CODE, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel). For each code, those individuals implicated in the error are in bold.
+FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and individual ID, respectively, with missing values set to `0`.
+SNP denotes variant start position; genomes.imendel combines counts for all SNPs and indels starting at a given chromosome and position. CHLD is the number of children in a nuclear family.
+
+Each Mendel error is given a CODE as defined in table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel). Those individuals implicated by each code are in bold.
+Ploidy is based on the pseudo-autosomal region (PAR):
+
+- HemiX -- non-PAR X in male child
+- HemiY -- non-PAR Y in male child
+- Auto -- otherwise (autosome or PAR or female child)
+
+Any refers to {HomRef, Het, HomVar, NoCall} and ! denotes complement in this set.
 
 Code | Dad | Mom | Kid | Ploidy
 ---|---|---|---|---
@@ -41,8 +45,11 @@ Code | Dad | Mom | Kid | Ploidy
 12 | **HomRef** | Any | **HomVar** | HemiY
 
 PAR is currently defined with respect to reference [GRCh37](http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/):
+
 - X: 60001-2699520
 - X: 154931044-155260560
 - Y: 10001-2649520
 - Y: 59034050-59363566
-Note that `mendelerrors` treats all contigs apart from X and Y as autosomal; mitochondrial DNA is not currenly supported.
+
+Note that `mendelerrors` assumes all contigs apart from X and Y are fully autosomal; mitochondrial DNA is not currenly supported.
+
