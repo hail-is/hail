@@ -10,24 +10,22 @@ The command
 ```
 mendelerrors -f trios.fam -o genomes
 ```
-outputs four tsv files based on the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
+outputs four tsv files which currently adhere to the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
 
-- `genomes.mendel` -- all mendel errors (hadoop)
-- `genomes.fmendel` -- error count per nuclear family
-- `genomes.imendel` -- error count per individual
-- `genomes.lmendel` -- error count per locus (hadoop)
+- `genomes.mendel` -- all errors: FID KID CHR SNP CODE ERROR (hadoop)
+- `genomes.fmendel` -- count per nuclear family: FID PAT MAT CHLD N
+- `genomes.imendel` -- count per individual: FID IID N
+- `genomes.lmendel` -- count per locus: CHR SNP N (hadoop)
 
-Each Mendel error is given a code, extending the [Plink Mendel error classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
+FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and individual ID, respectively (missing values are `0`).
+SNP is variant start position. CHLD is the number of children in a nuclear family.
 In the table below, ploidy of the kid is based on the pseudo-autosomal region (PAR):
-
 - Auto -- autosome or PAR or female
 - HemiX -- X and not PAR and male
 - HemiY -- Y and not PAR and male
-
-For each code, those individuals implicated in the error are in bold.
+Each Mendel error is given a CODE, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel). For each code, those individuals implicated in the error are in bold.
 
 Code | Dad | Mom | Kid | Ploidy
---- | --- | --- | --- | ---
 1 | **HomVar** | **HomVar** | **Het** | Auto
 2 | **HomRef** | **HomRef** |  **Het** | Auto
 3 | **HomRef** | Het/HomVar | **HomVar** | Auto
