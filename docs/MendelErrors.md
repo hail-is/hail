@@ -46,11 +46,6 @@ Code | Dad | Mom | Kid | Ploidy
 11 | **HomVar** | Any | **HomRef** | HemiY
 12 | **HomRef** | Any | **HomVar** | HemiY
 
-To run `mendelerrors` on SNPs only, first filter with
-```
-filtervariants -c 'v.isSNP' --keep
-```
-
 PAR is currently defined with respect to reference [GRCh37](http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/):
 
 - X: 60001-2699520
