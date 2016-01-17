@@ -3,8 +3,8 @@
 The `mendelerrors` module finds all violations of Mendelian inheritance in each (dad, mom, kid) trio of samples.
 
 Command line arguments:
- - `-f` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
- - `-o` -- a root name for output files
+ - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
+ - `-o | --output <fileroot>` -- a root name for output files
 
 The command
 ```
