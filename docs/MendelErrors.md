@@ -12,12 +12,17 @@ mendelerrors -f trios.fam -o genomes
 ```
 outputs four tsv files which currently adhere to the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
 
-- `genomes.mendel` -- all errors: FID KID CHR SNP CODE ERROR (hadoop)
-- `genomes.fmendel` -- count per nuclear family: FID PAT MAT CHLD N
-- `genomes.imendel` -- count per individual: FID IID N
-- `genomes.lmendel` -- count per locus: CHR SNP N (hadoop)
+- `genomes.mendel` -- all mendel errors: FID KID CHR SNP CODE ERROR (hadoop)
+- `genomes.fmendel` -- error count per nuclear family: FID PAT MAT CHLD N
+- `genomes.imendel` -- error count per individual: FID IID N
+- `genomes.lmendel` -- error count per variant: CHR SNP N (hadoop)
 
-Each Mendel error is given a CODE as defined in table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel). Those individuals implicated by each code are in bold.
+FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and individual ID, respectively, with missing values set to `0`.
+SNP denotes the variant identifier `chr:pos:ref:alt`.
+CHLD is the number of children in a nuclear family.
+
+Each Mendel error is given a CODE as defined in table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
+Those individuals implicated by each code are in bold.
 Ploidy is based on the pseudo-autosomal region (PAR):
 
 - HemiX -- non-PAR X in male child
@@ -41,11 +46,11 @@ Code | Dad | Mom | Kid | Ploidy
 11 | **HomVar** | Any | **HomRef** | HemiY
 12 | **HomRef** | Any | **HomVar** | HemiY
 
-Notes:
+To run `mendelerrors` on SNPs only, first filter with
+```
+filtervariants -c 'v.isSNP' --keep
+```
 
-FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and individual ID, respectively, with missing values set to `0`.
-SNP denotes start position (.imendel combines counts for all SNPs and indels starting at a given chromosome and position).
-CHLD is the number of children in a nuclear family.
 PAR is currently defined with respect to reference [GRCh37](http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/):
 
 - X: 60001-2699520
