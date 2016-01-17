@@ -25,8 +25,8 @@ In the table below, ploidy of the kid is based on the pseudo-autosomal region (P
 - HemiY -- Y and not PAR and male
 Each Mendel error is given a CODE, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel). For each code, those individuals implicated in the error are in bold.
 
----|---|---|---|---
 Code | Dad | Mom | Kid | Ploidy
+---|---|---|---|---
 1 | **HomVar** | **HomVar** | **Het** | Auto
 2 | **HomRef** | **HomRef** |  **Het** | Auto
 3 | **HomRef** | Het/HomVar | **HomVar** | Auto
