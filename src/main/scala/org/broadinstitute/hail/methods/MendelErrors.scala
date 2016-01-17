@@ -3,6 +3,7 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.utils.MultiArray2
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.variant.Ploidy._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
 
@@ -39,18 +40,20 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 
 object MendelErrors {
 
-  def getCode(gts: IndexedSeq[GenotypeType], isHemizygous: Boolean): Int = {
-    (gts(1), gts(2), gts(0), isHemizygous) match { // gtDad, gtMom, gtKid, isHemizygous
-      case (HomRef, HomRef,    Het, false) => 2    // Kid is het and not hemizygous
-      case (HomVar, HomVar,    Het, false) => 1
-      case (HomRef, HomRef, HomVar, false) => 5    // Kid is homvar and not hemizygous
-      case (HomRef,      _, HomVar, false) => 3
-      case (     _, HomRef, HomVar, false) => 4
-      case (HomVar, HomVar, HomRef, false) => 8    // Kid is homref and not hemizygous
-      case (HomVar,      _, HomRef, false) => 6
-      case (     _, HomVar, HomRef, false) => 7
-      case (     _, HomVar, HomRef,  true) => 9    // Kid is homref and hemizygous
-      case (     _, HomRef, HomVar,  true) => 10   // Kid is homvar and hemizygous
+  def getCode(gts: IndexedSeq[GenotypeType], ploidy: Ploidy): Int = {
+    (gts(1), gts(2), gts(0), ploidy) match {       // gtDad, gtMom, gtKid, isHemizygous
+      case (HomRef, HomRef,    Het,  Auto) => 2    // Kid is het and not hemizygous
+      case (HomVar, HomVar,    Het,  Auto) => 1
+      case (HomRef, HomRef, HomVar,  Auto) => 5    // Kid is homvar and not hemizygous
+      case (HomRef,      _, HomVar,  Auto) => 3
+      case (     _, HomRef, HomVar,  Auto) => 4
+      case (HomVar, HomVar, HomRef,  Auto) => 8    // Kid is homref and not hemizygous
+      case (HomVar,      _, HomRef,  Auto) => 6
+      case (     _, HomVar, HomRef,  Auto) => 7
+      case (     _, HomVar, HomRef, HemiX) => 9    // Kid is homref and hemizygousX
+      case (     _, HomRef, HomVar, HemiX) => 10   // Kid is homvar and hemizygousX
+      case (HomVar,      _, HomRef, HemiY) => 11   // Kid is homref and hemizygousY
+      case (HomRef,      _, HomVar, HemiY) => 12   // Kid is homvar and hemizygousY
       case _                               => 0    // No error
     }
   }
@@ -91,7 +94,7 @@ object MendelErrors {
           (a, v, s, g) => seqOp(a, s, g),
           mergeOp)
         .flatMap { case (v, a) =>
-          a.rows.flatMap { case (row) => val code = getCode(row, v.isHemizygous(trioSexBc.value(row.i)))
+          a.rows.flatMap { case (row) => val code = getCode(row, v.ploidy(trioSexBc.value(row.i)))
             if (code != 0)
               Some(new MendelError(v, triosBc.value(row.i), code, row(0), row(1), row(2)))
             else
