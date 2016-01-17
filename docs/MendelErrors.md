@@ -18,7 +18,7 @@ outputs four tsv files based on the [Plink mendel formats](https://www.cog-genom
 - `genomes.lmendel` -- error count per locus (hadoop)
 
 Each Mendel error is given a code, extending the [Plink Mendel error classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
-In the table below, ploidy of the kid is based on the pseudo-autosomal region (PAR) as follows:
+In the table below, implicated indivuals are bolded and ploidy of the kid is based on the pseudo-autosomal region (PAR):
 
 - Auto -- autosome or PAR or female
 - HemiX -- X and not PAR and male
@@ -26,18 +26,18 @@ In the table below, ploidy of the kid is based on the pseudo-autosomal region (P
 
 Code | Dad | Mom | Kid | Ploidy
 --- | --- | --- | --- | ---
-1 | HomVar | HomVar | Het | Auto
-2 | HomRef | HomRef |  Het | Auto
-3 | HomRef | Het/HomVar | HomVar | Auto
-4 | Het/HomVar | HomRef | HomVar | Auto
-5 | HomRef | HomRef | HomVar | Auto
-6 | HomVar | Het/HomVar | HomRef | Auto
-7 | Het/HomVar | HomVar | HomRef | Auto
-8 | HomVar | HomVar | HomRef | Auto
-9 | Any | HomVar | HomRef | HemiX
-10 | Any | HomRef | HomVar | HemiX
-11 | HomVar | Any | HomRef | HemiY
-12 | HomRef | Any | HomVar | HemiY
+1 | *HomVar* | *HomVar* | *Het* | Auto
+2 | *HomRef* | *HomRef* |  *Het* | Auto
+3 | *HomRef* | Het/HomVar | *HomVar* | Auto
+4 | Het/HomVar | *HomRef* | *HomVar* | Auto
+5 | *HomRef* | *HomRef* | *HomVar* | Auto
+6 | *HomVar* | HomRef/Het | *HomRef* | Auto
+7 | HomRef/Het | *HomVar* | *HomRef* | Auto
+8 | *HomVar* | *HomVar* | *HomRef* | Auto
+9 | Any | *HomVar* | *HomRef* | HemiX
+10 | Any | *HomRef* | *HomVar* | HemiX
+11 | *HomVar* | Any | *HomRef* | HemiY
+12 | *HomRef* | Any | *HomVar* | HemiY
 
 PAR is defined with respect to the reference [GRCh37](http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/):
 
