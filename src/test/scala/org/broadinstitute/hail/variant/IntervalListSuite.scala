@@ -26,14 +26,14 @@ class IntervalListSuite extends TestNGSuite {
 
     assert(!ilist.contains("3", 0))
 
-    val ex1 = IntervalList.read("src/test/resources/example1.interval_list")
+    val ex1 = IntervalList.read("src/test/resources/example1.interval_list", hConf)
 
     // FIXME This is not the right way to handle tmp files.  See issue #60.
     ex1.write("/tmp/example1.interval_list", hConf)
-    val ex1wr = IntervalList.read("/tmp/example1.interval_list")
+    val ex1wr = IntervalList.read("/tmp/example1.interval_list", hConf)
     assert(ex1wr == ex1)
 
-    val ex2 = IntervalList.read("src/test/resources/example2.interval_list")
+    val ex2 = IntervalList.read("src/test/resources/example2.interval_list", hConf)
     assert(ex1 == ex2)
   }
 }
