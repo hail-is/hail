@@ -37,10 +37,10 @@ Code | Dad | Mom | Kid | Ploidy
 2 | **HomRef** | **HomRef** |  **Het** | Auto
 3 | **HomRef** | ! HomRef | **HomVar** | Auto
 4 | ! HomRef | **HomRef** | **HomVar** | Auto
-5 | **HomRef** | **HomRef** | **HomVar** | Auto
+5 | HomRef | HomRef | **HomVar** | Auto
 6 | **HomVar** | ! HomVar | **HomRef** | Auto
 7 | ! HomVar | **HomVar** | **HomRef** | Auto
-8 | **HomVar** | **HomVar** | **HomRef** | Auto
+8 | HomVar | HomVar | **HomRef** | Auto
 9 | Any | **HomVar** | **HomRef** | HemiX
 10 | Any | **HomRef** | **HomVar** | HemiX
 11 | **HomVar** | Any | **HomRef** | HemiY
