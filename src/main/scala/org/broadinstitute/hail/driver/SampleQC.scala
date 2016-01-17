@@ -356,9 +356,14 @@ object SampleQC extends Command {
 
     val r = results(vds)
     if (options.store) {
+      val rMap = r.collectAsMap()
       val newAnnotations = vds.metadata.sampleAnnotations
         .zipWithIndex
-        .map { case (sa, s) => sa + ("qc", Annotations(r.collectAsMap()(s).asMap)) }
+        .map { case (sa, s) => sa + ("qc", rMap.get(s) match {
+          case Some(x) => x.asMap
+          case None => Map.empty[String, String]
+        })}
+
       state.copy(
         vds = vds.copy(
           metadata = vds.metadata.copy(
@@ -375,6 +380,7 @@ object SampleQC extends Command {
       }
 
       hadoopDelete(output, state.hadoopConf, recursive = true)
+
       r.map { case (s, comb) =>
           val sb = new StringBuilder()
           sb.append(sampleIdsBc.value(s))

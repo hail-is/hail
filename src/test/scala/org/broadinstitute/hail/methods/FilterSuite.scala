@@ -373,6 +373,8 @@ class FilterSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = State("", sc, sqlContext, vds.cache())
 
+    FilterGenotypes.run(state, Array("--remove", "-c", "g.ad(0) < 5"))
+    exit(1)
     assert(vds.nVariants == 346)
 
     assert(FilterSamples.run(state, Array("--keep", "-c", "\"^HG\" ~ s.id"))
