@@ -23,15 +23,15 @@ Dad    | Mom    | Kid    | Ploidy | Code
 ---    | ---    | ---    | ---    | ---
 HomVar | HomVar |    Het | Auto   | 1
 HomRef | HomRef |    Het | Auto   | 2
-HomRef | !HomRef | HomVar | Auto   | 3
-!HomRef | HomRef | HomVar | Auto   | 4
+HomRef | Het/HomVar | HomVar | Auto   | 3
+Het/HomVar | HomRef | HomVar | Auto   | 4
 HomRef | HomRef | HomVar | Auto   | 5
-HomVar | !HomRef | HomRef | Auto   | 6
-!HomREf | HomVar | HomRef | Auto   | 7
+HomVar | Het/HomVar | HomRef | Auto   | 6
+Het/HomVar | HomVar | HomRef | Auto   | 7
 HomVar | HomVar | HomRef | Auto   | 8
-      | HomVar | HomRef | HemiX  | 9
-      | HomRef | HomVar | HemiX  | 10
-HomVar |       | HomRef | HemiY  | 11
-HomRef |       | HomVar | HemiY  | 12
+Any   | HomVar | HomRef | HemiX  | 9
+Any   | HomRef | HomVar | HemiX  | 10
+HomVar | Any   | HomRef | HemiY  | 11
+HomRef | Any   | HomVar | HemiY  | 12
 
 Test.
