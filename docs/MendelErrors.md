@@ -13,16 +13,18 @@ mendelerrors -f trios.fam -o genomes
 outputs four tsv files based on the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
 
 - `genomes.mendel` -- all mendel errors (hadoop)
-- `genomes.fmendel` -- error count per trio
+- `genomes.fmendel` -- error count per nuclear family
 - `genomes.imendel` -- error count per individual
 - `genomes.lmendel` -- error count per locus (hadoop)
 
 Each Mendel error is given a code, extending the [Plink Mendel error classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
-In the table below, implicated indivuals are bolded and ploidy of the kid is based on the pseudo-autosomal region (PAR):
+In the table below, ploidy of the kid is based on the pseudo-autosomal region (PAR):
 
 - Auto -- autosome or PAR or female
 - HemiX -- X and not PAR and male
 - HemiY -- Y and not PAR and male
+
+For each code, those individuals implicated in the error are in bold.
 
 Code | Dad | Mom | Kid | Ploidy
 --- | --- | --- | --- | ---
@@ -46,4 +48,4 @@ PAR is defined with respect to the reference [GRCh37](http://www.ncbi.nlm.nih.go
 - Y-10001:2649520
 - Y-59034050:59363566
 
-Mitochondrial DNA is ignored.
+Mitochondrial DNA is ignored. Each trio is treated independently. So a quad consists of two trios. Nuclear family defined by parents.
