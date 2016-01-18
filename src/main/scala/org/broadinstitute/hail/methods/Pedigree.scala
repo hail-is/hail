@@ -48,13 +48,13 @@ object Pedigree {
       Pedigree(Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty)
-        .flatMap{ line => // FIXME: proper input error handling (and possible conflicting trio handing)
+        .flatMap{ line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
           val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
           sampleIndex.get(kid).map( kidId =>
             Trio(
               kidId,
               if (fam != "0") Some(fam) else None,
-              sampleIndex.get(dad), // FIXME: code assumes "0" cannot be a sampleID in a vds, do you agree we should enforce that?
+              sampleIndex.get(dad), // FIXME: code assumes "0" cannot be a (string) sample ID in a vds, do you agree we should enforce that elsewhere?
               sampleIndex.get(mom),
               Sex.withNameOption(sex),
               Phenotype.withNameOption(pheno))
@@ -70,6 +70,8 @@ object Pedigree {
 }
 
 case class Pedigree(trios: Array[Trio]) {
+  if (trios.map(_.kid).toSet.size != trios.size)
+    fatal(".fam sample names are not unique.")
 
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
