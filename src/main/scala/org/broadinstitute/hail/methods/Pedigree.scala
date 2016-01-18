@@ -43,6 +43,7 @@ object Pedigree {
 
     val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
+    // .fam samples not in SampleIds are discarded
     readFile(filename, hConf) { s =>
       Pedigree(Source.fromInputStream(s)
         .getLines()
