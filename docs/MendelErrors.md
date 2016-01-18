@@ -6,8 +6,6 @@ Command line arguments:
  - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
  - `-o | --output <fileroot>` -- a root name for output files
 
-*Note: currently all samples in the .fam file must have defined sex and exist in the variant data set.*
-
 The command
 ```
 mendelerrors -f trios.fam -o genomes
@@ -48,6 +46,10 @@ Code | Dad | Mom | Kid | Ploidy
 10 | Any | **HomRef** | **HomVar** | HemiX
 11 | **HomVar** | Any | **HomRef** | HemiY
 12 | **HomRef** | Any | **HomVar** | HemiY
+
+*Notes:*
+
+Samples not in the stored variant data set are discarded, and then only complete trios are considered. Sex must be defined for all samples in complete trios.
 
 PAR is currently defined with respect to reference [GRCh37](http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/):
 
