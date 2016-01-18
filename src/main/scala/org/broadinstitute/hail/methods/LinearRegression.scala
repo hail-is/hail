@@ -16,7 +16,7 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
 
 object CovariateData {
 
-  // samples not in SampleIds are discarded
+  // .cov samples not in sampleIds are discarded
   def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): CovariateData = {
     val (covName, (covRowSampleBuffer, dataBuffer)) =
       readFile[(Array[String], (ArrayBuffer[Int], ArrayBuffer[Double]))](filename, hConf) { s => {
@@ -31,8 +31,14 @@ object CovariateData {
           { case ((bi, ba), (i, a)) => (bi += i, ba ++= a) })
         }
       }
+
     val covRowSample = covRowSampleBuffer.toArray
-    val data = new DenseMatrix[Double](rows = covRowSample.size, cols = covName.size, data = dataBuffer.toArray, offset = 0, majorStride = covName.size, isTranspose = true)
+    val nRows = covRowSample.size
+
+    if (covRowSample.toSet.size != nRows)
+      fatal("Covariate sample names are not unique.")
+
+    val data = new DenseMatrix[Double](rows = nRows, cols = covName.size, data = dataBuffer.toArray, offset = 0, majorStride = covName.size, isTranspose = true)
 
     CovariateData(covRowSample, covName, data)
   }
