@@ -35,6 +35,7 @@ object CovariateData {
     val covRowSample = covRowSampleBuffer.toArray
     val nRows = covRowSample.size
 
+    // FIXME: should I move this check to the case class body?
     if (covRowSample.toSet.size != nRows)
       fatal("Covariate sample names are not unique.")
 
@@ -119,7 +120,9 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    require(ped.trios.forall(_.pheno.isDefined))
+    require(ped.trios.forall(_.pheno.isDefined), "Undefined phenotypes") // FIXME: better to use require or fatal?
+    require(ped.trios.map(_.kid).sorted sameElements cov.covRowSample.sorted, ".fam samples and .cov samples in vds do not coincide")
+
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
     val n = cov.data.rows
