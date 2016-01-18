@@ -11,11 +11,7 @@ class LinearRegressionSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
     val ped = Pedigree.read("src/test/resources/linearRegression.fam", sc.hadoopConfiguration, vds.sampleIds)
     val cov = CovariateData.read("src/test/resources/linearRegression.cov", sc.hadoopConfiguration, vds.sampleIds)
-
-    println(cov.covRowSample.mkString(" "))
-    println(cov.covName.mkString(" "))
-    println(cov.data)
-
+    
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (2, ., 2, ., 0, 0)
     val v6 = Variant("1", 6, "C", "T")   // x = (0, 0, 0, 0, 0, 0)
