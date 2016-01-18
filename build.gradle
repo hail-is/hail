@@ -51,6 +51,7 @@ shadowJar {
         include(dependency('org.scalanlp:breeze_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
+        include(dependency('org.scalacheck:scalacheck_' + scalaMajorVersion + ':.*'))
 
         // for GC
         // include(dependency('org.scala-lang:scala-compiler:.*'))
