@@ -42,19 +42,24 @@ object Pedigree {
     require(filename.endsWith(".fam"))
 
     val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
-    def maybeId(id: String): Option[Int] = if (id != "0") sampleIndex.get(id) else None
-    def maybeFam(fam: String): Option[String] = if (fam != "0") Some(fam) else None
 
     readFile(filename, hConf) { s =>
       Pedigree(Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty)
-        .map { line => // FIXME: proper input error handling (and possible conflicting trio handing)
+        .flatMap{ line => // FIXME: proper input error handling (and possible conflicting trio handing)
           val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
-
-          Trio(sampleIndex(kid), maybeFam(fam), maybeId(dad), maybeId(mom),
-            Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
-        }.toArray)
+          sampleIndex.get(kid).map( kidId =>
+            Trio(
+              kidId,
+              if (fam != "0") Some(fam) else None,
+              sampleIndex.get(dad), // FIXME: code assumes "0" cannot be a sampleID in a vds, do you agree we should enforce that?
+              sampleIndex.get(mom),
+              Sex.withNameOption(sex),
+              Phenotype.withNameOption(pheno))
+          )
+        }.toArray
+      )
     }
   }
 
