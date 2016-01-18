@@ -251,9 +251,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     hadoopDelete(filename, hConf, recursive = true) // overwriting by default
 
-    writeTable(tmpFileName, header, codec = codec)
+    writeTable(tmpFileName, header, codec = codec, newLines = newLines)
 
-    val filesToMerge = if (header != null) Array(tmpFileName + ".header" + headerExt, tmpFileName) else Array(tmpFileName)
+    val filesToMerge = header match {
+      case Some(line) => Array(tmpFileName + ".header" + headerExt, tmpFileName)
+      case None => Array(tmpFileName)
+    }
     hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
@@ -569,7 +572,8 @@ object Utils {
     getRandomName
   }
 
-  def hadoopCopyMerge(srcFilenames: Array[String], destFilename: String, hConf: hadoop.conf.Configuration, deleteSource: Boolean = true) {
+  def hadoopCopyMerge(srcFilenames: Array[String], destFilename: String, hConf: hadoop.conf.Configuration,
+    deleteSource: Boolean = true) {
 
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = hadoopFS(destFilename, hConf)
