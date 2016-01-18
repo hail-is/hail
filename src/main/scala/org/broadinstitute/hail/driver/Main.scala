@@ -32,7 +32,7 @@ object Main {
     println("user.dir = " + System.getProperty("user.dir"))
 
     def splitBefore[T](a: Array[T], p: (T) => Boolean)
-      (implicit tct: ClassTag[T]): Array[Array[T]] = {
+                      (implicit tct: ClassTag[T]): Array[Array[T]] = {
       val r = mutable.ArrayBuilder.make[Array[T]]()
       val b = mutable.ArrayBuilder.make[T]()
       a.foreach { (x: T) =>
@@ -166,7 +166,9 @@ object Main {
       val cmdName = args(0)
       nameCommand.get(cmdName) match {
         case Some(cmd) =>
-          val (newS, duration) = time {cmd.run(s, args.tail)}
+          val (newS, duration) = time {
+            cmd.run(s, args.tail)
+          }
           times += cmdName -> duration
           newS
         case None =>

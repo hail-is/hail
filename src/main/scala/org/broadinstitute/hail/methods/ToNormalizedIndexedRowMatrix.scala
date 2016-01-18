@@ -6,7 +6,7 @@ import org.apache.spark.mllib.stat.Statistics
 import org.broadinstitute.hail.variant.{Variant, VariantDataset}
 import org.broadinstitute.hail.Utils._
 
-object ToIndexedRowMatrix {
+object ToNormalizedIndexedRowMatrix {
   def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {
     val variants = vds.variants.collect()
     val nVariants = variants.size
@@ -22,10 +22,10 @@ object ToIndexedRowMatrix {
       IndexedRow(s.toLong, Vectors.dense(a))
     }.cache()  // FIXME
 
+    def std(m: Double): Double = math.sqrt(2 * (m / 2) * (1 - m / 2))
     val summary = Statistics.colStats(unnormalized.map(_.vector))
-    val normalized = unnormalized.map(ir =>
-      ir - summary.mean)
-
+    val normalized = unnormalized.map(ir => (ir - summary.mean) :/ summary.mean.map(std))
+    
     (variants, new IndexedRowMatrix(normalized.cache(), nSamples, nVariants))
   }
 }

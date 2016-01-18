@@ -28,6 +28,9 @@ String scalaMajorVersion = '2.10'
 // String scalaVersion = '2.11.7'
 // String scalaMajorVersion = '2.11'
 
+sourceSets.main.scala.srcDir "src/main/java"
+sourceSets.main.java.srcDirs = []
+
 compileScala {
     scalaCompileOptions.additionalParameters = ["-feature"]
     // scalaCompileOptions.forkOptions.jvmArgs = ['-XX:MaxPermSize=512m']

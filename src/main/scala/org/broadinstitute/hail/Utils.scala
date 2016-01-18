@@ -12,6 +12,7 @@ import org.apache.hadoop.mapred.TextOutputFormat
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.io.hadoop.{BytesWritableUnseparated, ByteArrayOutputFormat}
+import org.broadinstitute.hail.io.compress.{BGzipCodec, BGzipOutputStream}
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.mutable
@@ -211,37 +212,53 @@ class RichArray[T](a: Array[T]) {
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
-  def writeTable(fileName: String, header: Option[String], newLines: Boolean = true) {
-    header.foreach { h =>
-      writeTextFile(fileName + ".header", r.sparkContext.hadoopConfiguration) {
-        _.write(h)
-      }
-    }
 
-    hadoopDelete(fileName, r.sparkContext.hadoopConfiguration, recursive = true)
-    if (newLines)
-      r.saveAsTextFile(fileName)
-    else
-      saveFromByteArrays(fileName)
+  def writeTable(filename: String, header: Option[String] = None, newLines: Boolean = true,
+    codec: Option[hadoop.io.compress.CompressionCodec] = None) {
+    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
+
+    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, recursive = true)
+    hadoopDelete(filename + ".header" + headerExt, r.sparkContext.hadoopConfiguration, recursive = true)
+
+    header.foreach(line =>
+      writeTextFile(filename + ".header" + headerExt, r.sparkContext.hadoopConfiguration) {
+        _.write(line)
+      })
+
+    codec match {
+      case Some(x) =>
+        if (newLines)
+          r.saveAsTextFile(filename, x.getClass)
+        else
+          saveFromByteArrays(filename)
+      case None =>
+        if (newLines)
+          r.saveAsTextFile(filename)
+        else
+          saveFromByteArrays(filename)
+    }
   }
 
-  def writeTableSingleFile(tmpdir: String, fileName: String, header: Option[String] = None,
+  def writeTableSingleFile(tmpdir: String, filename: String, header: Option[String] = None,
     deleteTmpFiles: Boolean = true, newLines: Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
-    val destPath = new hadoop.fs.Path(fileName)
-    val destFS = hadoopFS(fileName, hConf)
+    val destPath = new hadoop.fs.Path(filename)
+    val destFS = hadoopFS(filename, hConf)
     val tmpFileName = hadoopGetTemporaryFile(tmpdir, hConf)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
+    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
 
-    hadoopDelete(fileName, hConf, recursive = true) // overwriting by default
+    hadoopDelete(filename, hConf, recursive = true) // overwriting by default
 
-    writeTable(tmpFileName, header, newLines)
+    writeTable(tmpFileName, header, codec = codec)
 
-    val filesToMerge = if (header.isDefined) Array(tmpFileName + ".header", tmpFileName) else Array(tmpFileName)
-    hadoopCopyMerge(filesToMerge, fileName, hConf, deleteTmpFiles)
+    val filesToMerge = if (header != null) Array(tmpFileName + ".header" + headerExt, tmpFileName) else Array(tmpFileName)
+    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName, hConf, recursive = true)
-      hadoopDelete(tmpFileName + ".header", hConf, recursive = true)
+      hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = true)
     }
   }
 
@@ -269,6 +286,8 @@ class RichIndexedRow(val r: IndexedRow) extends AnyVal {
   def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
+
+  def :/(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :/ that)
 }
 
 class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
@@ -498,8 +517,18 @@ object Utils {
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
     hadoop.fs.FileSystem.get(new URI(filename), hConf)
 
-  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FSDataOutputStream =
-    hadoopFS(filename, hConf).create(new hadoop.fs.Path(filename))
+  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    val os = fs.create(hPath)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = codecFactory.getCodec(hPath)
+
+    if (codec != null)
+      codec.createOutputStream(os)
+    else
+      os
+  }
 
   def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
     val fs = hadoopFS(filename, hConf)
