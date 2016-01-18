@@ -23,6 +23,7 @@ class EvaluatorWithValueTransform[T, S](t: String, f: T => S, treeMap: (Tree) =>
 
   def eval(): S = p match {
     case null | None =>
+      println(s"evaluate $this")
       val v = f(Evaluator.eval[T](t, treeMap))
       p = Some(v)
       v

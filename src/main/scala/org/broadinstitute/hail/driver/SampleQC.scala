@@ -373,21 +373,14 @@ object SampleQC extends Command {
               .zip(newAnnotations)
               .map { case (oldAnno, newAnno) => oldAnno ++ newAnno})))
     } else {
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write("sampleID\t")
-        s.write(SampleQCCombiner.header)
-        s.write("\n")
-      }
-
       hadoopDelete(output, state.hadoopConf, recursive = true)
-
       r.map { case (s, comb) =>
           val sb = new StringBuilder()
           sb.append(sampleIdsBc.value(s))
           sb += '\t'
           comb.emit(sb)
           sb.result()
-        }.saveAsTextFile(output)
+        }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
 
       state
     }
