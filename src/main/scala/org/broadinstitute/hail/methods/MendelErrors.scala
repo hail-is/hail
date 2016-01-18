@@ -41,19 +41,19 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 object MendelErrors {
 
   def getCode(gts: IndexedSeq[GenotypeType], ploidy: Ploidy): Int = {
-    (gts(1), gts(2), gts(0), ploidy) match {       // gtDad, gtMom, gtKid, isHemizygous
-      case (HomRef, HomRef,    Het,  Auto) => 2    // Kid is het and not hemizygous
+    (gts(1), gts(2), gts(0), ploidy) match {       // gtDad, gtMom, gtKid, ploidy
+      case (HomRef, HomRef,    Het,  Auto) => 2    // Kid is Het
       case (HomVar, HomVar,    Het,  Auto) => 1
-      case (HomRef, HomRef, HomVar,  Auto) => 5    // Kid is homvar and not hemizygous
+      case (HomRef, HomRef, HomVar,  Auto) => 5    // Kid is HomVar
       case (HomRef,      _, HomVar,  Auto) => 3
       case (     _, HomRef, HomVar,  Auto) => 4
-      case (HomVar, HomVar, HomRef,  Auto) => 8    // Kid is homref and not hemizygous
+      case (HomVar, HomVar, HomRef,  Auto) => 8    // Kid is HomRef
       case (HomVar,      _, HomRef,  Auto) => 6
       case (     _, HomVar, HomRef,  Auto) => 7
-      case (     _, HomVar, HomRef, HemiX) => 9    // Kid is homref and hemizygousX
-      case (     _, HomRef, HomVar, HemiX) => 10   // Kid is homvar and hemizygousX
-      case (HomVar,      _, HomRef, HemiY) => 11   // Kid is homref and hemizygousY
-      case (HomRef,      _, HomVar, HemiY) => 12   // Kid is homvar and hemizygousY
+      case (     _, HomVar, HomRef, HemiX) => 9    // Kid is hemizygous
+      case (     _, HomRef, HomVar, HemiX) => 10
+      case (HomVar,      _, HomRef, HemiY) => 11
+      case (HomRef,      _, HomVar, HemiY) => 12
       case _                               => 0    // No error
     }
   }
