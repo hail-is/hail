@@ -123,7 +123,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def nErrorPerNuclearFamily: RDD[((Int, Int), (Int, Int))] = {
     val parentsRDD = sc.parallelize(nuclearFams.keys.toSeq)
     mendelErrors
-      .map(me => ((me.trio.dad, me.trio.mom), (1, if (me.variant.isSNP) 1 else 0)))
+      .map(me => ((me.trio.dad, me.trio.mom), (1, me.nSNP)))
       .union(parentsRDD.map((_, (0, 0))))
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }

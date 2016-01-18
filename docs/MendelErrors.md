@@ -6,7 +6,7 @@ Command line arguments:
  - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
  - `-o | --output <fileroot>` -- a root name for output files
 
-*Warning: currently all samples in the .fam file must have defined sex and exist in the .vds*
+*Note: currently all samples in the .fam file must have defined sex and exist in the variant data set.*
 
 The command
 ```
