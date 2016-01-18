@@ -15,7 +15,7 @@ class MendelErrorsSuite extends SparkSuite {
     val nPerVariant = men.nErrorPerVariant.collectAsMap()
 
     val son = vds.sampleIds.indexOf("Son1")
-    val dtr = vds.sampleIds.indexOf("Daughter1")
+    val dtr = vds.sampleIds.indexOf("Dtr1")
     val dad = vds.sampleIds.indexOf("Dad1")
     val mom = vds.sampleIds.indexOf("Mom1")
     val dad2 = vds.sampleIds.indexOf("Dad2")
