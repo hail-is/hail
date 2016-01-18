@@ -6,36 +6,34 @@ import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
+import org.scalacheck.Prop.True
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
 case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: DenseMatrix[Double])
 
 object CovariateData {
 
+  // samples not in SampleIds are discarded
   def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): CovariateData = {
-    val lines = readFile(filename, hConf) { s =>
-      Source.fromInputStream(s)
-        .getLines()
-        .filterNot(_.isEmpty)
-        .toArray
-    }
+    val (covName, (covRowSampleBuffer, dataBuffer)) =
+      readFile[(Array[String], (ArrayBuffer[Int], ArrayBuffer[Double]))](filename, hConf) { s => {
+        val lines = Source.fromInputStream(s).getLines().filterNot(_.isEmpty)
 
-    val header = lines(0)
+        (lines.next().split("\\s+").tail,
+        lines.map(_.split("\\s+"))
+          .flatMap(entries =>
+            sampleIds.zipWithIndex.toMap.get(entries(0))
+              .map(si => (si, entries.iterator.drop(1).map(_.toDouble).toArray)))
+          .foldLeft( (ArrayBuffer[Int](), ArrayBuffer[Double]()) )
+          { case ((bi, ba), (i, a)) => (bi += i, ba ++= a) })
+        }
+      }
+    val covRowSample = covRowSampleBuffer.toArray
+    val data = new DenseMatrix[Double](rows = covRowSample.size, cols = covName.size, data = dataBuffer.toArray, offset = 0, majorStride = covName.size, isTranspose = true)
 
-    val covName = header.split("\\s+").tail
-    val nCov = covName.length
-    val nCovRow = lines.length - 1
-    val covRowSample = Array.ofDim[Int](nCovRow)
-    val sampleNameIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
-
-    val data = DenseMatrix.zeros[Double](nCovRow, nCov)
-    for (cr <- 0 until nCovRow) {
-      val entries = lines(cr + 1).split("\\s+")
-      covRowSample(cr) = sampleNameIndex(entries(0))
-      data(cr to cr, ::) := DenseVector(entries.iterator.drop(1).map(_.toDouble).toArray)
-    }
     CovariateData(covRowSample, covName, data)
   }
 }
