@@ -25,7 +25,7 @@ object LoadVCF {
     val headerLines = readFile(file, hConf) { s =>
       Source.fromInputStream(s)
         .getLines()
-        .takeWhile(line => line(0) == '#')
+        .takeWhile { line => line(0) == '#' }
         .toArray
     }
 

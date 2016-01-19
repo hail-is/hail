@@ -13,12 +13,10 @@ import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
-
 object VariantSampleMatrix {
   def apply(metadata: VariantMetadata,
     rdd: RDD[(Variant, Annotations, Iterable[Genotype])]): VariantDataset = {
     new VariantSampleMatrix(metadata, rdd)
-
   }
 
   def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
@@ -31,8 +29,8 @@ object VariantSampleMatrix {
         readData[WritableVariantMetadata](dis).deserialize(SparkEnv.get.serializer.newInstance()))
     }
 
-    // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-    val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
+    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
+    // val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
     // FIXME annotations
 
     new VariantSampleMatrix[Genotype](metadata,
@@ -102,20 +100,22 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
     copy(rdd = rdd.map { case (v, va, gs) =>
-      (v, va, localSamplesBc.value.view.zip(gs.view)
-        .map { case (s, t) => f(v, va, s, t) })
-
+      (v, va,
+        localSamplesBc.value.toIterable.lazyMapWith(gs,
+          (s: Int, g: T) => f(v, va, s, g)))
     })
   }
 
   def mapValuesWithPartialApplication[U](f: (Variant, Annotations) => ((Int, T) => U))
     (implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
-    copy(rdd = rdd.map { case (v, va, gs) =>
-      val f2 = f(v, va)
-      (v, va, localSamplesBc.value.view.zip(gs.view)
-        .map { case (s, t) => f2(s, t) })
-    })
+    copy(rdd =
+      rdd.mapPartitions[(Variant, Annotations, Iterable[U])] { it: Iterator[(Variant, Annotations, Iterable[T])] =>
+        it.map { case (v, va, gs) =>
+          val f2 = f(v, va)
+          (v, va, localSamplesBc.value.toIterable.lazyMapWith(gs, f2))
+        }
+      })
   }
 
   def map[U](f: T => U)(implicit uct: ClassTag[U]): RDD[U] =
@@ -124,16 +124,18 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
     rdd
-      .flatMap { case (v, va, gs) => localSamplesBc.value.view.zip(gs.view)
-        .map { case (s, g) => f(v, s, g) }
+      .flatMap { case (v, va, gs) =>
+        localSamplesBc.value.toIterable.lazyMapWith(gs,
+          (s: Int, g: T) => f(v, s, g))
       }
   }
 
   def mapWithAll[U](f: (Variant, Annotations, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
     rdd
-      .flatMap { case (v, va, gs) => localSamplesBc.value.view.zip(gs.view)
-        .map { case (s, g) => f(v, va, s, g) }
+      .flatMap { case (v, va, gs) =>
+        localSamplesBc.value.toIterable.lazyMapWith(gs,
+          (s: Int, g: T) => f(v, va, s, g))
       }
   }
 
@@ -146,8 +148,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
     rdd
-      .flatMap { case (v, va, gs) => localSamplesBc.value.view.zip(gs.view)
-        .flatMap { case (s, g) => f(v, s, g) }
+      .flatMap { case (v, va, gs) => localSamplesBc.value.toIterable.lazyFlatMapWith(gs,
+        (s: Int, g: T) => f(v, s, g))
       }
   }
 
@@ -166,10 +168,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       .filter { case (s, i) => mask(i) }
       .map(_._1),
       rdd = rdd.map { case (v, va, gs) =>
-        (v, va, maskBc.value.iterator.zip(gs.iterator)
-          .filter(_._1)
-          .map(_._2)
-          .toArray[T](localtct): Iterable[T])
+        (v, va, gs.lazyFilterWith(maskBc.value.toIterable, (g: T, m: Boolean) => m))
       })
   }
 
@@ -232,15 +231,15 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
 
-
     rdd
-      .map { case (v, va, gs) =>
+      .mapPartitions { (it: Iterator[(Variant, Annotations, Iterable[T])]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
-        val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-
-        (v, gs.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
-          seqOp(acc, v, va, localSamplesBc.value(i), g)
-        })
+        it.map { case (v, va, gs) =>
+          val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+          (v, gs.iterator.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
+            seqOp(acc, v, va, localSamplesBc.value(i), g)
+          })
+        }
       }
   }
 
@@ -349,6 +348,7 @@ class RichVDS(vds: VariantDataset) {
         }
       }
       .toDF()
-      .saveAsParquetFile(dirname + "/rdd.parquet")
+      .write.parquet(dirname + "/rdd.parquet")
+    // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
 }

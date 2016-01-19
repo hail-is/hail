@@ -1,11 +1,6 @@
 package org.broadinstitute.hail.variant
 
-import org.broadinstitute.hail.annotations._
-import scala.collection.mutable
-
-import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
-import com.esotericsoftware.kryo
 
 import org.apache.spark.sql.Row
 
@@ -53,13 +48,6 @@ class RichRow(r: Row) {
   def getTuple3String(i: Int): (String, String, String) = (r.getString(0), r.getString(1), r.getString(2))
 
   def getByteArray(i: Int): Array[Byte] = {
-    val ir = r.getAs[Array[Byte]](i)
-    ir
-//    ir.getAs[Array[Byte]](0)
-//    val mapR = ir.getAs[mutable.WrappedArray[Row]](0)
-//    val valR = ir.getAs[mutable.WrappedArray[Row]](1)
-//  org.broadinstitute.hail.Utils
-//    Annotations.fromIndexedSeqs[String]((0 until mapR.length).map(i => mapR(i).getTuple3String(i)),
-//      (0 until valR.length).map(i => valR(i).getTuple2String(i)))
+    r.getAs[Array[Byte]](i)
   }
 }

@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.RangePartitioner
+import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations.{VCFSignature, Annotations}
@@ -12,8 +13,6 @@ object ExportVCF extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
-    @Args4jOption(required = true, name = "-t", aliases = Array("--tmpdir"), usage = "Directory for temporary files")
-    var tmpdir: String = _
   }
 
   def newOptions = new Options
@@ -54,8 +53,6 @@ object ExportVCF extends Command {
         case _ => throw new UnsupportedOperationException("somebody put something bad in info")
       }
 
-      val headerFragment = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t"
-
       val sb = new StringBuilder()
       sb.append(version)
       sb.append(date)
@@ -65,9 +62,14 @@ object ExportVCF extends Command {
       sb.append(filterHeader)
       sb.append("\n")
       sb.append(infoHeader)
+
+      val headerFragment = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT"
       sb.append(headerFragment)
-      sb.append(sampleIds.mkString("\t"))
-      sb.append("\n")
+
+      sampleIds.foreach { id =>
+        sb += '\t'
+        sb.append(id)
+      }
       sb.result()
     }
 
@@ -78,60 +80,79 @@ object ExportVCF extends Command {
       }
     }
 
-    def vcfRow(v: Variant, a: Annotations, gs: Iterable[Genotype]): String = {
-      val id = a.attrs.getOrElse("rsid", ".")
-      val qual = a.attrs.getOrElse("qual", ".")
+    def appendRow(sb: StringBuilder, v: Variant, a: Annotations, gs: Iterable[Genotype]) {
+      sb.append(v.contig)
+      sb += '\t'
+      sb.append(v.start)
+      sb += '\t'
+
+      val id = a.attrs.get("rsid")
+        .map(_.asInstanceOf[String])
+        .getOrElse(".")
+      sb.append(id)
+
+      sb += '\t'
+      sb.append(v.ref)
+      sb += '\t'
+      sb.append(v.alt)
+      sb += '\t'
+
+      val qual = a.attrs.get("qual")
+        .map(_.asInstanceOf[Double])
+        .map(_.formatted("%.2f"))
+        .getOrElse(".")
+      sb.append(qual)
+
+      sb += '\t'
+
       val filter = a.attrs.get("filters")
         .map(_.asInstanceOf[Set[String]].mkString(","))
         .getOrElse(".")
-      val info = if (a.attrs.contains("info"))
-        a.attrs("info")
-          .asInstanceOf[Annotations]
-          .attrs
-          .toArray
-          .sortWith(_._1 < _._1)
-          .map { case (k, v) =>
-            val sig = varAnnSig.attrs("info")
-              .asInstanceOf[Annotations]
-              .attrs(k)
-              .asInstanceOf[VCFSignature]
-            if (sig.vcfType != "Flag") s"$k=${printInfo(v)}" else s"$k"
-          }.mkString(";")
-      else "."
-
-      val format = "GT:AD:DP:GQ:PL"
-
-      val sb = new StringBuilder()
-      sb.append(v.contig)
-      sb.append("\t")
-      sb.append(v.start)
-      sb.append("\t")
-      sb.append(id)
-      sb.append("\t")
-      sb.append(v.ref)
-      sb.append("\t")
-      sb.append(v.alt)
-      sb.append("\t")
-      sb.append(qual)
-      sb.append("\t")
       sb.append(filter)
-      sb.append("\t")
+
+      sb += '\t'
+
+      var first = true
+      val info = a.attrs.get("info")
+        .map(_.asInstanceOf[Annotations].attrs
+          .map {
+            case (k, v) =>
+              if (varAnnSig.attrs("info").asInstanceOf[Annotations].attrs(k).asInstanceOf[VCFSignature].vcfType == "Flag")
+                k
+              else
+                s"$k=${printInfo(v)}"
+          }
+            .mkString(";")
+        )
+          .getOrElse(".")
+
       sb.append(info)
-      sb.append("\t")
-      sb.append(format)
-      sb.append("\t")
-      sb.append(gs.map {
-        _.toString
-      }.mkString("\t"))
-      sb.result()
+
+      sb += '\t'
+      sb.append("GT:AD:DP:GQ:PL")
+
+      gs.foreach { g =>
+        sb += '\t'
+        sb.append(g)
+      }
     }
 
-    val kvRDD = vds.rdd.map { case (v, a, gs) => (v, (a, gs)) }
+    val kvRDD = vds.rdd.map { case (v, a, gs) =>
+      (v, (a, gs.toGenotypeStream(v, compress = false)))
+    }
+    kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
     kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotations, Iterable[Genotype])]
-      (vds.rdd.partitions.length, kvRDD))
-      .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
-      .writeTableSingleFile(options.tmpdir, options.output, header, deleteTmpFiles = true)
-    state
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotations, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+      .mapPartitions { it: Iterator[(Variant, (Annotations, Iterable[Genotype]))] =>
+        val sb = new StringBuilder
+        it.map { case (v, (va, gs)) =>
+          sb.clear()
+          appendRow(sb, v, va, gs)
+          sb.result()
+        }
+      }.writeTable(options.output, Some(header), deleteTmpFiles = true)
+    kvRDD.unpersist()
+
+      state
   }
 }

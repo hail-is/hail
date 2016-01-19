@@ -97,7 +97,7 @@ case class Pedigree(trios: Array[Trio]) {
     def sampleIdOrElse(s: Option[Int]) = if (s.isDefined) sampleIds(s.get) else "0"
     def toLine(t: Trio): String =
       t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + sampleIdOrElse(t.dad) + "\t" +
-        sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0") + "\n"
+        sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0")
     val lines = trios.map(toLine)
     writeTable(filename, hConf, lines)
   }

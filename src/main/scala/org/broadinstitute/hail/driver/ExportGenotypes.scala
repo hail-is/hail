@@ -49,18 +49,11 @@ object ExportGenotypes extends Command {
         (s: Int, g: Genotype) =>
           makeString(v, va)(s, g))
 
-    header.foreach { str =>
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write(str)
-        s.write("\n")
-      }
-    }
-
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     stringVDS.rdd
       .flatMap { case (v, va, strings) => strings }
-      .saveAsTextFile(output)
+      .writeTable(output, header)
 
     state
   }
