@@ -3,8 +3,8 @@ package org.broadinstitute.hail.methods
 import java.io.Serializable
 
 import scala.reflect.ClassTag
-import scala.reflect.runtime.universe._
 import org.broadinstitute.hail.Utils._
+import scala.reflect.runtime.universe._
 
 class EvaluatorWithValueTransform[T, S](t: String, f: T => S, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]) extends Serializable {
   @transient var p: Option[S] = None
@@ -23,6 +23,7 @@ class EvaluatorWithValueTransform[T, S](t: String, f: T => S, treeMap: (Tree) =>
 
   def eval(): S = p match {
     case null | None =>
+      println(s"evaluate $this")
       val v = f(Evaluator.eval[T](t, treeMap))
       p = Some(v)
       v
@@ -36,22 +37,17 @@ class Evaluator[T](t: String, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]
 }
 
 object Evaluator {
-  import scala.reflect.runtime.currentMirror
-  import scala.tools.reflect.ToolBox
-
-  def eval[U](t: String): U = {
-    // println(s"t = $t")
-    val toolbox = currentMirror.mkToolBox()
-    val ast = toolbox.parse(t)
-    toolbox.typeCheck(ast)
-    toolbox.eval(ast).asInstanceOf[U]
-  }
+  def eval[U](t: String): U = eval[U](t, (t: Tree) => t)
 
   def eval[U](t: String, treeMap: (Tree) => Tree): U = {
-    // println(s"t = $t")
-    val toolbox = currentMirror.mkToolBox()
-    val ast = treeMap(toolbox.parse(t))
-    toolbox.typeCheck(ast)
-    toolbox.eval(ast).asInstanceOf[U]
+    this.synchronized {
+      import scala.reflect.runtime.currentMirror
+      import scala.tools.reflect.ToolBox
+      
+      // println(s"t = $t")
+      val toolbox = currentMirror.mkToolBox()
+      val ast = treeMap(toolbox.parse(t))
+      toolbox.eval(ast).asInstanceOf[U]
+    }
   }
 }
