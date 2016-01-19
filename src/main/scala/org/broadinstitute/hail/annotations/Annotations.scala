@@ -33,10 +33,10 @@ object AnnotationClassBuilder {
         case a2: Annotations =>
           s"""${spaces}class __$key(a${depth + 1}: org.broadinstitute.hail.annotations.Annotations) {
              |${makeDeclarationsRecursive(a2, depth = depth + 1, nSpace = nSpace)}${spaces}}
-             |${spaces}val $key: __$key = new __$key(${s"""$param.attrs("$key").asInstanceOf[org.broadinstitute.hail.annotations.Annotations]"""})
+             |${spaces}def $key: __$key = new __$key(${s"""$param.attrs("$key").asInstanceOf[org.broadinstitute.hail.annotations.Annotations]"""})
              |""".stripMargin
         case sig: AnnotationSignature =>
-          s"${spaces}val $key: FilterOption[${sig.typeOf}] = new FilterOption(${
+          s"${spaces}def $key: FilterOption[${sig.typeOf}] = new FilterOption(${
             s"""$param.attrs.get("$key").asInstanceOf[Option[${sig.typeOf}]])
                |""".stripMargin
           }"
