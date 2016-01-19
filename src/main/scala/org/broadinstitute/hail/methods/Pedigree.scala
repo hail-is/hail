@@ -39,7 +39,8 @@ case class CompleteTrio(kid: Int, fam: Option[String], dad: Int, mom: Int, sex: 
 object Pedigree {
 
   def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): Pedigree = {
-    require(filename.endsWith(".fam"))
+    if (!filename.endsWith(".fam"))
+      fatal("-f | --fam filename must end in .fam")
 
     val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
