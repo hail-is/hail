@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.{State, ExportPlink}
+import org.broadinstitute.hail.driver.{HailConfiguration, State, ExportPlink}
 import org.broadinstitute.hail.Utils._
 import org.testng.annotations.Test
 import scala.io.Source
@@ -25,33 +25,34 @@ class ExportPlinkSuite extends SparkSuite {
   @Test def test() {
 
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = State("", sc, sqlContext, vds)
+    val state = State(sc, sqlContext, vds)
+    val tmpDir = HailConfiguration.tmpDir
     vds.rdd.count
     ExportPlink.run(state, Array("-o", "/tmp/hailOut", "-t" ,"/tmp/todelete"))
 
     // use plink to convert sample.vcf to a bed/bim/fam file
-    "plink --vcf src/test/resources/sample.vcf --make-bed --out /tmp/plinkOut --const-fid --keep-allele-order"!
+    s"plink --vcf src/test/resources/sample.vcf --make-bed --out $tmpDir/plinkOut --const-fid --keep-allele-order"!
 
     rewriteBimIDs("/tmp/hailOut.bim")
     rewriteBimIDs("/tmp/plinkOut.bim")
 
     // use plink to assert that the concordance rate is 1
-    val exitCode = "plink --bfile /tmp/plinkOut --bmerge /tmp/hailOut --merge-mode 6 --out /tmp/plinkHailMerge"!
+    val exitCode = s"plink --bfile $tmpDir/plinkOut --bmerge $tmpDir/hailOut --merge-mode 6 --out $tmpDir/plinkHailMerge"!
 
-    hadoopDelete("/tmp/plinkOut.bed", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/plinkOut.bim", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/plinkOut.fam", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete(tmpDir + "/plinkOut.bed", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete(tmpDir + "/plinkOut.bim", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete(tmpDir + "/plinkOut.fam", sc.hadoopConfiguration, recursive = true)
 
-    hadoopDelete("/tmp/hailOut.bed", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/hailOut.bim", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/hailOut.fam", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete(tmpDir + "/hailOut.bed", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete(tmpDir + "/hailOut.bim", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete(tmpDir + "/hailOut.fam", sc.hadoopConfiguration, recursive = true)
 
     // assert that plink exited successfully
     assert(exitCode == 0)
 
     // assert that the .diff file is empty of non-header columns
     assert(
-      Source.fromInputStream(hadoopOpen("/tmp/plinkHailMerge.diff", sc.hadoopConfiguration))
+      Source.fromInputStream(hadoopOpen(tmpDir + "/plinkHailMerge.diff", sc.hadoopConfiguration))
       .getLines()
       .toIndexedSeq
       .map(_.split(" +").filter(!_.isEmpty).toIndexedSeq) == IndexedSeq(IndexedSeq("SNP","FID","IID","NEW","OLD"))

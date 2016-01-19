@@ -46,8 +46,7 @@ object ExportPlink extends Command {
       .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, Array[Byte]](vds.rdd.partitions.length,
         bedRowRDD))
       .map(_._2)
-      .writeTableSingleFile(options.tmpdir, options.output + ".bed", header = Some(header),
-        deleteTmpFiles = true, newLines = false)
+      .saveFromByteArrays(options.output + ".bed", header = Some(header))
 
     val bimRowRDD = vds
       .variantsAndAnnotations
@@ -57,7 +56,7 @@ object ExportPlink extends Command {
     bimRowRDD
       .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, String](vds.rdd.partitions.length, bimRowRDD))
       .map(_._2)
-      .writeTableSingleFile(options.tmpdir, options.output + ".bim", deleteTmpFiles = true)
+      .writeTable(options.output + ".bim")
 
     val fsos = hadoopCreate(options.output + ".fam", state.hadoopConf)
     val famRows = vds

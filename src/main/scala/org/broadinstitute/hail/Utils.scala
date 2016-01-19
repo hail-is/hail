@@ -8,12 +8,10 @@ import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.hadoop.mapred.TextOutputFormat
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.io.hadoop.{BytesWritableUnseparated, ByteArrayOutputFormat}
 import org.broadinstitute.hail.driver.HailConfiguration
-import org.broadinstitute.hail.io.compress.{BGzipCodec, BGzipOutputStream}
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.{TraversableOnce, mutable}
@@ -279,23 +277,45 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
   }
 
-  def saveFromByteArrays(path: String) {
-      val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
-      val textClassTag = implicitly[ClassTag[Text]]
-      val bytesClassTag = implicitly[ClassTag[BytesWritableUnseparated]]
-      val rMapped = r.mapPartitions { iter =>
-        val bw = new BytesWritableUnseparated()
-        iter.map { x => x match {
-          case bb: Array[Byte] => bw.set(new BytesWritable(bb))
-          case _ => throw new IOException("passed a non-byte-array to saveFromByteArrays")
-        }
-          (NullWritable.get(), bw)
-        }
-      }
+  def saveFromByteArrays(filename: String, header: Option[String] = None, deleteTmpFiles: Boolean = true) {
+    val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
+    val textClassTag = implicitly[ClassTag[Text]]
+    val bytesClassTag = implicitly[ClassTag[BytesWritableUnseparated]]
+    val hConf = r.sparkContext.hadoopConfiguration
 
-      RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
-        .saveAsHadoopFile[ByteArrayOutputFormat[NullWritable, BytesWritableUnseparated]](path)
+    val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
+
+    header.foreach { str =>
+      writeTextFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
+        s.write(str)
+      }
     }
+    val filesToMerge = header match {
+      case Some(_) => Array(tmpFileName + ".header", tmpFileName)
+      case None => Array(tmpFileName)
+    }
+
+    val rMapped = r.mapPartitions { iter =>
+      val bw = new BytesWritableUnseparated()
+      iter.map { x => x match {
+        case bb: Array[Byte] => bw.set(new BytesWritable(bb))
+        case _ => throw new IOException("passed a non-byte-array to saveFromByteArrays")
+      }
+        (NullWritable.get(), bw)
+      }
+    }
+
+    RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
+      .saveAsHadoopFile[ByteArrayOutputFormat[NullWritable, BytesWritableUnseparated]](tmpFileName)
+
+    hadoopDelete(filename, hConf, recursive = true) // overwriting by default
+    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+
+    if (deleteTmpFiles) {
+      hadoopDelete(tmpFileName + ".header", hConf, recursive = false)
+      hadoopDelete(tmpFileName, hConf, recursive = true)
+    }
+  }
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {

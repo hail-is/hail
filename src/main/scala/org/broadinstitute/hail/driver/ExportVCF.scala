@@ -129,10 +129,6 @@ object ExportVCF extends Command {
     kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
     kvRDD
       .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-<<<<<<< HEAD
-      .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
-      .writeTableSingleFile(options.tmpdir, options.output, Some(header), deleteTmpFiles = true)
-=======
       .mapPartitions { it: Iterator[(Variant, (AnnotationData, Iterable[Genotype]))] =>
         val sb = new StringBuilder
         it.map { case (v, (va, gs)) =>
@@ -142,8 +138,6 @@ object ExportVCF extends Command {
         }
       }.writeTable(options.output, Some(header), deleteTmpFiles = true)
     kvRDD.unpersist()
-
->>>>>>> origin/master
     state
   }
 }
