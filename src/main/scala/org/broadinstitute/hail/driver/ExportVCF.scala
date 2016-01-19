@@ -51,6 +51,7 @@ object ExportVCF extends Command {
           s"""##INFO=<ID=$key,Number=$vcfsigNumber,Type=$vcfsigType,Description="$vcfsigDesc">"""
         }.mkString("\n") + "\n"
         case None => ""
+        case _ => throw new UnsupportedOperationException("somebody put something bad in info")
       }
 
       val headerFragment = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t"
@@ -70,10 +71,19 @@ object ExportVCF extends Command {
       sb.result()
     }
 
+    def printInfo(a: Any): String = {
+      a match {
+        case iter: Iterable[_] => iter.map(_.toString).mkString(",")
+        case _ => a.toString
+      }
+    }
+
     def vcfRow(v: Variant, a: Annotations, gs: Iterable[Genotype]): String = {
       val id = a.attrs.getOrElse("rsid", ".")
       val qual = a.attrs.getOrElse("qual", ".")
-      val filter = a.attrs.getOrElse("filters", ".")
+      val filter = a.attrs.get("filters")
+        .map(_.asInstanceOf[Set[String]].mkString(","))
+        .getOrElse(".")
       val info = if (a.attrs.contains("info"))
         a.attrs("info")
           .asInstanceOf[Annotations]
@@ -85,7 +95,7 @@ object ExportVCF extends Command {
               .asInstanceOf[Annotations]
               .attrs(k)
               .asInstanceOf[VCFSignature]
-            if (sig.vcfType != "Flag") s"$k=$v" else s"$k"
+            if (sig.vcfType != "Flag") s"$k=${printInfo(v)}" else s"$k"
           }.mkString(";")
       else "."
 

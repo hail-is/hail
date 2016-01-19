@@ -54,21 +54,37 @@ object UserExportUtils {
 
   class ExportVariant(val v: Variant) extends AnyVal {
     def contig = v.contig
+
     def start = v.start
+
     def ref = v.ref
+
     def alt = v.alt
+
     def variantType = v.variantType
+
     def inParX = v.inParX
+
     def inParY = v.inParY
+
     def isSNP = v.isSNP
+
     def isMNP = v.isMNP
+
     def isInsertion = v.isInsertion
+
     def isDeletion = v.isDeletion
+
     def isIndel = v.isIndel
+
     def isComplex = v.isComplex
+
     def isTransition = v.isTransition
+
     def isTransversion = v.isTransversion
+
     def nMismatch = v.nMismatch
+
     override def toString: String = {
       s"${contig}_${start}_${ref}_$alt"
     }
@@ -90,14 +106,15 @@ object UserExportUtils {
 
 class ExportVariantsEvaluator(list: String, vas: Annotations)
   extends Evaluator[(Variant, Annotations) => String](
-    s"""(__v: org.broadinstitute.hail.variant.Variant,
-        |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
+    s"""(v: org.broadinstitute.hail.variant.Variant,
+        |  __va: org.broadinstitute.hail.annotations.Annotations) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
-        |  import org.broadinstitute.hail.methods.UserExportUtils._
+        |  import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
         |
-        |  val v: ExportVariant = new ExportVariant(__v)
-        |  ${makeDeclarations(vas, "sa", "__sa", nSpace = 2)}
+        |  ${makeDeclarations(vas, "__vaClass", nSpace = 2)}
+        |  ${instantiate("va", "__vaClass", "__va")}
+        |
         |  Array[Any]($list).map(toTSVString).mkRealString("\t")
         |}: String
     """.stripMargin,
@@ -108,12 +125,14 @@ class ExportVariantsEvaluator(list: String, vas: Annotations)
 class ExportSamplesEvaluator(list: String, sas: Annotations)
   extends Evaluator[(Sample, Annotations) => String](
     s"""(s: org.broadinstitute.hail.variant.Sample,
-        |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |  __sa: org.broadinstitute.hail.annotations.Annotations) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
-        |  import org.broadinstitute.hail.methods.UserExportUtils._
+        |  import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
         |
-        |  ${makeDeclarations(sas, "sa", "__sa", nSpace = 2)}
+        |  ${makeDeclarations(sas, "__saClass", nSpace = 2)}
+        |  ${instantiate("sa", "__saClass", "__sa")}
+        |
         |  Array[Any]($list).map(toTSVString).mkRealString("\t")
         |}: String
     """.stripMargin,
@@ -130,28 +149,29 @@ object ExportGenotypeEvaluator {
 class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
   extends EvaluatorWithValueTransform[ExportGenotypeEvaluator.ExportGenotypeWithSA,
     ExportGenotypeEvaluator.ExportGenotypePostSA](
-    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
+    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.Annotations],
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
         |  import org.broadinstitute.hail.methods.FilterGenotype
-        |  import org.broadinstitute.hail.methods.UserExportUtils._
+        |  import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
         |
-        |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "sa", "__sa", nSpace = 2)}
+        |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "__saClass", nSpace = 2)}
+        |  ${instantiateIndexedSeq("__saIndexedSeq", "__saClass", "__sa")}
+
+        |  (v: org.broadinstitute.hail.variant.Variant,
+        |    __va: org.broadinstitute.hail.annotations.Annotations) => {
+        |    ${makeDeclarations(metadata.variantAnnotationSignatures, "__vaClass", nSpace = 4)}
+        |    ${instantiate("va", "__vaClass", "__va")}
+        |    (__sIndex: Int, __g: org.broadinstitute.hail.variant.Genotype) => {
+        |      val sa = __saIndexedSeq(__sIndex)
+        |      val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+        |      val g = new FilterGenotype(__g)
         |
-        |  (__v: org.broadinstitute.hail.variant.Variant,
-        |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
-        |    val v = new ExportVariant(__v)
-        |    ${makeDeclarations(metadata.variantAnnotationSignatures, "sa", "__sa", nSpace = 4)}
-        |    (__sIndex: Int,
-        |     __g: org.broadinstitute.hail.variant.Genotype) => {
-        |        val sa = __saArray(__sIndex)
-        |        val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
-        |        val g = new FilterGenotype(__g)
-        |        Array[Any]($list).map(toTSVString).mkRealString("\t")
-        |      }: String
-        |   }
-        | }
+        |      Array[Any]($list).map(toTSVString).mkRealString("\t")
+        |    }: String
+        |  }
+        |}
       """.stripMargin,
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
     Filter.renameSymbols) {

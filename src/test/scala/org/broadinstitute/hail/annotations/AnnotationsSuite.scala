@@ -102,27 +102,10 @@ class AnnotationsSuite extends SparkSuite {
     assert(variantAnnotationMap(anotherVariant)
       .attrs.get("pass").contains(false))
 
-    val kryo = new KryoSerializer(sc.getConf).newInstance()
-
-    val bb = kryo.serialize(variantAnnotationMap(anotherVariant))
-    kryo.deserialize(bb).asInstanceOf[Annotations].attrs.foreach(println)
-
-    val arr = kryo.serialize(variantAnnotationMap(firstVariant)).array()
-    kryo.deserialize(ByteBuffer.wrap(arr)).asInstanceOf[Annotations].attrs.foreach(println)
-
-    println(org.broadinstitute.hail.annotations.AnnotationClassBuilder.makeDeclarations
-      (state.vds.metadata.variantAnnotationSignatures,"va", "__va"))
-
     // Check that VDS can be written to disk and retrieved while staying the same
     hadoopDelete("/tmp/sample.vds", sc.hadoopConfiguration, recursive = true)
     vds.write(sqlContext, "/tmp/sample.vds")
     val readBack = Read.run(state, Array("-i", "/tmp/sample.vds"))
-    println(readBack.vds.nVariants)
-    readBack.vds.nVariants
-//    vds.variantsAndAnnotations.collect.foreach { case (v, va) => println(v + " " + va.attrs)}
-//    readBack.vds.variantsAndAnnotations.collect.foreach { case (v, va) => println(v + " " + va.attrs)}
-    println(vds.variantsAndAnnotations.collect.apply(0))
-    println(readBack.vds.variantsAndAnnotations.collect.apply(0))
 
     assert(readBack.vds.same(vds))
   }

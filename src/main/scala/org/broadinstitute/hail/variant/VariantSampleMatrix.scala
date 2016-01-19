@@ -28,13 +28,12 @@ object VariantSampleMatrix {
     val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
       sqlContext.sparkContext.hadoopConfiguration) { dis =>
       (readData[Array[Int]](dis),
-        readData[VariantMetadata](dis))
+        readData[WritableVariantMetadata](dis).deserialize(SparkEnv.get.serializer.newInstance()))
     }
 
     // val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
     // FIXME annotations
-    val kryo = new KryoSerializer(sqlContext.sparkContext.getConf).newInstance()
 
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
@@ -65,7 +64,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     localSamples: Array[Int] = localSamples,
     rdd: RDD[(Variant, Annotations, Iterable[U])] = rdd)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
-    new VariantSampleMatrix(metadata, localSamples, rdd)
+    new VariantSampleMatrix[U](metadata, localSamples, rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -335,7 +334,7 @@ class RichVDS(vds: VariantDataset) {
     hadoopMkdir(dirname, hConf)
     writeDataFile(dirname + "/metadata.ser", hConf) { dos =>
       writeData[IndexedSeq[Int]](dos, vds.localSamples)
-      writeData[VariantMetadata](dos, vds.metadata)
+      writeData[WritableVariantMetadata](dos, vds.metadata.serialize(SparkEnv.get.serializer.newInstance()))
     }
 
     // rdd.toDF().write.parquet(dirname + "/rdd.parquet")

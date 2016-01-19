@@ -258,7 +258,7 @@ class SampleQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nDel, nIns))
   }
 
-  def asMap: Map[String, String] = {
+  def asMap: Map[String, Any] = {
     Map[String, Any]("callRate" -> divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
       "nCalled" -> (nHomRef + nHet + nHomVar),
       "nNotCalled" -> nNotCalled,
@@ -292,9 +292,9 @@ class SampleQCCombiner extends Serializable {
       "rHetHomVar" -> divOption(nHet, nHomVar),
       "rDeletionInsertion" -> divOption(nDel, nIns))
       .flatMap { case (k, v) => v match {
-        case Some(value) => Some(k, value.toString)
+        case Some(value) => Some(k, value)
         case None => None
-        case _ => Some(k, v.toString)
+        case _ => Some(k, v)
       }}
   }
 
@@ -360,15 +360,15 @@ object SampleQC extends Command {
       val newAnnotations = vds.metadata.sampleAnnotations
         .zipWithIndex
         .map { case (sa, s) => sa + ("qc", rMap.get(s) match {
-          case Some(x) => x.asMap
-          case None => Map.empty[String, String]
+          case Some(x) => Annotations(x.asMap)
+          case None => Annotations(Map.empty[String, String])
         })}
 
       state.copy(
         vds = vds.copy(
           metadata = vds.metadata.copy(
             sampleAnnotationSignatures = vds.metadata.sampleAnnotationSignatures
-              + ("qc", SampleQCCombiner.signatures),
+              + ("qc", Annotations(SampleQCCombiner.signatures)),
             sampleAnnotations = vds.metadata.sampleAnnotations
               .zip(newAnnotations)
               .map { case (oldAnno, newAnno) => oldAnno ++ newAnno})))

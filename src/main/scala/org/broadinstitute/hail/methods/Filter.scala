@@ -61,10 +61,11 @@ class FilterOptionString(val o: Option[String]) extends AnyVal {
 
   def length: FilterOption[Int] = new FilterOption(o.map(_.length))
 
-  def split(delimiter: String): FilterOption[Array[String]] = new FilterOption(o.map(_.split(delimiter)))
+  def split(delimiter: String): FilterOption[IndexedSeq[String]] =
+    new FilterOption(o.map(_.split(delimiter).toIndexedSeq))
 
-  def split(delimiter: String, fields: Int): FilterOption[Array[String]] =
-    new FilterOption(o.map(_.split(delimiter, fields)))
+  def split(delimiter: String, fields: Int): FilterOption[IndexedSeq[String]] =
+    new FilterOption(o.map(_.split(delimiter, fields).toIndexedSeq))
 
   def fConcat(that: FilterOptionString) = FilterOption[String, String, String](o, that.o, _ + _)
 
@@ -77,30 +78,34 @@ class FilterOptionString(val o: Option[String]) extends AnyVal {
   def fToDouble: FilterOption[Double] = new FilterOption(o.map(_.toDouble))
 }
 
-class FilterOptionArray[T](val o: Option[Array[T]]) extends AnyVal {
-  def fApply(fo: FilterOption[Int]): FilterOption[T] = FilterOption[Array[T], Int, T](o, fo.o, _.apply(_))
+class FilterOptionIndexedSeq[T](val o: Option[IndexedSeq[T]]) extends AnyVal {
+  def fApply(fo: FilterOption[Int]): FilterOption[T] = FilterOption[IndexedSeq[T], Int, T](o, fo.o, _.apply(_))
 
   def fApply(i: Int): FilterOption[T] = new FilterOption(o.map(_ (i)))
 
-  def fContains(fo: FilterOption[T]): FilterOption[Boolean] = FilterOption[Array[T], T, Boolean](o, fo.o, _.contains(_))
+  def fContains(fo: FilterOption[T]): FilterOption[Boolean] =
+    FilterOption[IndexedSeq[T], T, Boolean](o, fo.o, _.contains(_))
 
   def fContains(t: T): FilterOption[Boolean] = new FilterOption(o.map(_.contains(t)))
 
   // Use fMkString instead of toString to create string of array elements
   def fMkString(sep: String): FilterOption[String] = new FilterOption(o.map(_.mkString(sep)))
 
-  def fMkString(start: String, sep: String, end: String): FilterOption[String] = new FilterOption(o.map(_.mkString(start, sep, end)))
+  def fMkString(start: String, sep: String, end: String): FilterOption[String] =
+    new FilterOption(o.map(_.mkString(start, sep, end)))
 
   // Use fSameElements instead of fEq to test array equality as same elements
-  def fSameElements(that: FilterOptionArray[T]): FilterOption[Boolean] = FilterOption[Array[T], Array[T], Boolean](o, that.o, _.sameElements(_))
+  def fSameElements(that: FilterOptionIndexedSeq[T]): FilterOption[Boolean] =
+    FilterOption[IndexedSeq[T], IndexedSeq[T], Boolean](o, that.o, _.sameElements(_))
 
-  def fSameElements(that: Array[T]): FilterOption[Boolean] = new FilterOption(o.map(_.sameElements(that)))
+  def fSameElements(that: IndexedSeq[T]): FilterOption[Boolean] = new FilterOption(o.map(_.sameElements(that)))
 
   def size: FilterOption[Int] = new FilterOption(o.map(_.length))
 
   def length: FilterOption[Int] = new FilterOption(o.map(_.length))
 
-  def fConcat(that: FilterOptionArray[T])(implicit tag: ClassTag[T]): FilterOption[Array[T]] = new FilterOption(o.flatMap(a => that.o.map(a ++ _)))
+  def fConcat(that: FilterOptionIndexedSeq[T])(implicit tag: ClassTag[T]): FilterOption[IndexedSeq[T]] =
+    new FilterOption(o.flatMap(a => that.o.map(a ++ _)))
 
   def isEmpty: FilterOption[Boolean] = new FilterOption(o.map(_.isEmpty))
 }
@@ -802,7 +807,7 @@ class FilterOptionDouble(val o: Option[Double]) {
 class FilterGenotype(val g: Genotype) extends AnyVal {
   def gt: FilterOption[Int] = new FilterOption(g.call.map(_.gt))
 
-  def ad: FilterOption[Array[Int]] = FilterOption(Array(g.ad._1, g.ad._2))
+  def ad: FilterOption[IndexedSeq[Int]] = FilterOption(IndexedSeq(g.ad._1, g.ad._2))
 
   def dp: FilterOption[Int] = FilterOption(g.dp)
 
@@ -844,9 +849,11 @@ object FilterUtils {
 
   implicit def toFilterOptionString(fo: FilterOption[String]): FilterOptionString = new FilterOptionString(fo.o)
 
-  implicit def toFilterOptionArray[T](a: Array[T]): FilterOptionArray[T] = new FilterOptionArray(Some(a))
+  implicit def toFilterOptionIndexedSeq[T](a: IndexedSeq[T]): FilterOptionIndexedSeq[T] =
+    new FilterOptionIndexedSeq(Some(a))
 
-  implicit def toFilterOptionArray[T](fo: FilterOption[Array[T]]): FilterOptionArray[T] = new FilterOptionArray[T](fo.o)
+  implicit def toFilterOptionIndexedSeq[T](fo: FilterOption[IndexedSeq[T]]): FilterOptionIndexedSeq[T] =
+    new FilterOptionIndexedSeq[T](fo.o)
 
   implicit def toFilterOptionSet[T](s: Set[T]): FilterOptionSet[T] = new FilterOptionSet(Some(s))
 
@@ -907,10 +914,12 @@ object Filter {
 class FilterVariantCondition(cond: String, vas: Annotations)
   extends Evaluator[(Variant, Annotations) => FilterOption[Boolean]](
     s"""(v: org.broadinstitute.hail.variant.Variant,
-        |  __va: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |  __va: org.broadinstitute.hail.annotations.Annotations) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
-        |  ${makeDeclarations(vas, "sa", "__sa", nSpace = 2)}
+        |  ${makeDeclarations(vas, "__vaClass", nSpace = 2)}
+        |  ${instantiate("va", "__vaClass", "__va")}
+        |
         |  {$cond}: FilterOption[Boolean]
         |}
     """.stripMargin,
@@ -921,10 +930,12 @@ class FilterVariantCondition(cond: String, vas: Annotations)
 class FilterSampleCondition(cond: String, sas: Annotations)
   extends Evaluator[(Sample, Annotations) => FilterOption[Boolean]](
     s"""(s: org.broadinstitute.hail.variant.Sample,
-        |  __sa: org.broadinstitute.hail.annotations.AnnotationData) => {
+        |  __sa: org.broadinstitute.hail.annotations.Annotations) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
-        |  ${makeDeclarations(sas, "sa", "__sa", nSpace = 2)}
+        |  ${makeDeclarations(sas, "__saClass", nSpace = 2)}
+        |  ${instantiate("sa", "__saClass", "__sa")}
+        |
         |  {$cond}: FilterOption[Boolean]
         |}
     """.stripMargin,
@@ -934,18 +945,21 @@ class FilterSampleCondition(cond: String, sas: Annotations)
 
 class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
   extends EvaluatorWithValueTransform[FilterGenotypeWithSA, FilterGenotypePostSA](
-    {val s = s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.AnnotationData],
+    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.Annotations],
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
         |  import org.broadinstitute.hail.methods.FilterGenotype
-        |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "sa", "__sa", nSpace = 2)}
+        |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "__saClass", nSpace = 2)}
+        |  ${instantiateIndexedSeq("__saIndexedSeq", "__saClass", "__sa")}
+
         |  (v: org.broadinstitute.hail.variant.Variant,
-        |    __va: org.broadinstitute.hail.annotations.AnnotationData) => {
-        |    ${makeDeclarations(metadata.variantAnnotationSignatures, "sa", "__sa", nSpace = 4)}
+        |    __va: org.broadinstitute.hail.annotations.Annotations) => {
+        |    ${makeDeclarations(metadata.variantAnnotationSignatures, "__vaClass", nSpace = 4)}
+        |    ${instantiate("va", "__vaClass", "__va")}
         |    (__sIndex: Int,
         |     __g: org.broadinstitute.hail.variant.Genotype) => {
-        |      val sa = __saArray(__sIndex)
+        |      val sa = __saIndexedSeq(__sIndex)
         |      val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
         |      val g = new FilterGenotype(__g)
         |
@@ -953,7 +967,7 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
         |    }
         |  }
         |}
-      """.stripMargin; println(s);s},
+      """.stripMargin,
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
     Filter.renameSymbols) {
   def apply(v: Variant, va: Annotations)(sIndex: Int, g: Genotype): FilterOption[Boolean] =

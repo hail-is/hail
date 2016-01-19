@@ -61,13 +61,6 @@ object LoadVCF {
       })
       .toMap)
 
-    infoSignatures.attrs.foreach {
-      case (k, v) =>
-        v match {
-          case s: VCFSignature => println(k + " -> " + s.typeOf)
-        }
-    }
-
     val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
       "filters" -> new SimpleSignature("Set[String]"),
       "pass" -> new SimpleSignature("Boolean"),

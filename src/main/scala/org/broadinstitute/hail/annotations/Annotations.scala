@@ -81,8 +81,8 @@ object AnnotationClassBuilder {
     sigs.attrs.map { case (key, attr) =>
       attr match {
         case a2: Annotations =>
-          s"""${spaces}class __$key(a${depth+1}: Annotations) {
-             |${makeDeclarationsRecursive(a2, depth = depth + 1)}${spaces}}
+          s"""${spaces}class __$key(a${depth+1}: org.broadinstitute.hail.annotations.Annotations) {
+             |${makeDeclarationsRecursive(a2, depth = depth + 1, nSpace = nSpace)}${spaces}}
              |${spaces}val $key: __$key = new __$key(${s"""$param.attrs("$key").asInstanceOf[org.broadinstitute.hail.annotations.Annotations]"""})
              |""".stripMargin
         case sig: AnnotationSignature =>
@@ -90,80 +90,23 @@ object AnnotationClassBuilder {
                 s"""$param.attrs.get("$key").asInstanceOf[Option[${sig.typeOf}]])
                     |""".stripMargin
             }"
-        case _ => "somebody goofed\n"
+        case _ => s"$key -> $attr \n"
       }
     }
     .foldLeft("")(_ + _)
   }
 
-  def makeDeclarations(sigs: Annotations, exposedName: String, annotationsPath: String, nSpace: Int = 0): String = {
-    val spaces = (0 until nSpace).map(" ").foldRight("")(_ + _)
-    s"""${spaces}class ${annotationsPath}Class(a1: Annotations) {
+  def makeDeclarations(sigs: Annotations, className: String, nSpace: Int = 0): String = {
+    val spaces = (0 until nSpace).map(i => " ").foldRight("")(_ + _)
+    s"""class $className(a1: org.broadinstitute.hail.annotations.Annotations) {
        |${makeDeclarationsRecursive(sigs, nSpace = nSpace)}}
-       |${spaces}val $exposedName = new ${annotationsPath}Class($annotationsPath)
-     """.stripMargin
+       |""".stripMargin
   }
-
-  def signatures(sigs: Annotations, className: String,
-    makeToString: Boolean = false): String = {
-    throw new UnsupportedOperationException
-  }
-//    val internalClasses = sigs.attrs.map { attr =>
-//      attr match {
-//        case
-//      }
-//      case (subclass, subMap) =>
-//        val attrs = subMap
-//          .map { case (k, sig) =>
-//            s"""  val $k: FilterOption[${sig.emitType}] = new FilterOption(subMap.get("$k").map(_.${realConversion(sig.emitConversionIdentifier)}))"""
-//          }
-//          .mkString("\n")
-//        val methods: String = {
-//          if (makeToString) {
-//            s"""  def __fields: Array[String] = Array(
-//                |    ${subMap.keys.toArray.sorted.map(s => s"""toTSVString($s)""").mkString(",")}
-//                |  )
-//                |  override def toString: String = __fields.mkRealString(";")
-//                |  def all: String = __fields.mkRealString("\t")""".stripMargin
-//          } else ""
-//        }
-//        s"""class __$subclass(subMap: Map[String, String]) extends Serializable {
-//            |$attrs
-//            |$methods
-//            |}""".stripMargin
-//    }
-//      .mkString("\n")
-//
-//    val hiddenClass = {
-//      val classes =
-//        sigs.attrs.map { case (subclass, subMap) =>
-//          s"""  val $subclass = new __$subclass(annot.attrs("$subclass"))"""
-//        }
-//          .mkString("\n")
-//      val vals = sigs.vals.map { case (k, sig) =>
-//        s"""  val $k: FilterOption[${sig.emitType}] = new FilterOption[${sig.emitType}](annot.getVal("$k").map(_.${realConversion(sig.emitConversionIdentifier)}))"""
-//      }
-//        .mkString("\n")
-//      s"""class $className(annot: org.broadinstitute.hail.annotations.AnnotationData)
-//          |  extends Serializable {
-//          |  ${if (internalClasses.nonEmpty) internalClasses else "// no internal class declarations"}
-//          |  ${if (classes.nonEmpty) classes else "// no class instantiations"}
-//          |  ${if (vals.nonEmpty) vals else "// no vals"}
-//          |}
-//          |""".stripMargin
-//    }
-//
-//    s"""
-//       |$hiddenClass
-//    """.stripMargin
-//  }
 
   def instantiate(exposedName: String, className: String, rawName: String): String = {
-    s"val $exposedName = new $className($rawName)\n"
+    s"val $exposedName = new $className($rawName)"
   }
 
-  def instantiateIndexedSeq(exposedName: String, classIdentifier: String, rawArrayName: String): String =
-    s"""val $exposedName: IndexedSeq[$classIdentifier] =
-        |  $rawArrayName.map(new $classIdentifier(_))
-     """.stripMargin
+  def instantiateIndexedSeq(exposedName: String, className: String, rawArrayName: String): String =
+    s"""val $exposedName: IndexedSeq[$className] = $rawArrayName.map(new $className(_))""".stripMargin
 }

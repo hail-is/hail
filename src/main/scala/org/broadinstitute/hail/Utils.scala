@@ -9,6 +9,7 @@ import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.apache.spark.serializer.SerializerInstance
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.mutable
@@ -294,6 +295,17 @@ object Utils {
 
   def readData[T](dis: DataInputStream)(implicit dr: DataReadable[T]): T = dr.read(dis)
 
+  implicit def writableByte: DataWritable[Byte] = new DataWritable[Byte] {
+    def write(dos: DataOutputStream, t: Byte) {
+      dos.write(t)
+    }
+  }
+
+  implicit def readableByte: DataReadable[Byte] = new DataReadable[Byte] {
+    def read(dis: DataInputStream): Byte = dis.read().asInstanceOf[Byte]
+  }
+
+
   implicit def writableInt: DataWritable[Int] = new DataWritable[Int] {
     def write(dos: DataOutputStream, t: Int) {
       dos.writeInt(t)
@@ -313,6 +325,15 @@ object Utils {
   implicit def readableString: DataReadable[String] = new DataReadable[String] {
     def read(dis: DataInputStream): String = dis.readUTF()
   }
+
+  implicit def writableArray[T](implicit writableT: DataWritable[T]): DataWritable[Array[T]] =
+    new DataWritable[Array[T]] {
+      def write(dos: DataOutputStream, t: Array[T]) {
+        writeData[Int](dos, t.length)
+        for (ti <- t)
+          writeData[T](dos, ti)
+      }
+    }
 
   implicit def readableArray[T](implicit readableT: DataReadable[T], tct: ClassTag[T]): DataReadable[Array[T]] =
     new DataReadable[Array[T]] {

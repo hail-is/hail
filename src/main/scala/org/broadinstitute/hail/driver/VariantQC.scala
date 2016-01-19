@@ -210,7 +210,7 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(hwe._2)
   }
 
-  def asMap: Map[String, String] = {
+  def asMap: Map[String, Any] = {
     val maf = {
       val refAlleles = nHomRef * 2 + nHet
       val altAlleles = nHomVar * 2 + nHet
@@ -251,10 +251,10 @@ class VariantQCCombiner extends Serializable {
       "rExpectedHetFrequency" -> hwe._1,
       "pHWE" -> hwe._2)
       .flatMap { case (k, v) => v match {
-        case Some(value) => Some(k, value.toString)
+        case Some(value) => Some(k, value)
         case None => None
-        case _ => Some(k, v.toString)
-      }}  
+        case _ => Some(k, v)
+      }}
   }
 }
 
