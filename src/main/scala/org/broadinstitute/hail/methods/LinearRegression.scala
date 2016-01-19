@@ -6,7 +6,6 @@ import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
-import org.scalacheck.Prop.True
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -120,8 +119,11 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    require(ped.trios.forall(_.pheno.isDefined), "Undefined phenotypes") // FIXME: better to use require or fatal?
-    require(ped.trios.map(_.kid).sorted sameElements cov.covRowSample.sorted, ".fam samples and .cov samples in vds do not coincide")
+    if (!ped.trios.forall(_.pheno.isDefined))
+      fatal("Some .fam samples in vds are midding phenotypes")
+
+    if (!(ped.trios.map(_.kid).sorted sameElements cov.covRowSample.sorted))
+      fatal("The .fam samples and .cov samples in vds do not coincide.")
 
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
