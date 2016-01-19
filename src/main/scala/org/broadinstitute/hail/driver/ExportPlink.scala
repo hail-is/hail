@@ -15,10 +15,6 @@ object ExportPlink extends Command {
       usage = "Output file base (will generate .bed, .bim, .fam)")
     var output: String = _
 
-    @Args4jOption(required = true, name = "-t", aliases = Array("--tmpdir"),
-      usage = "Directory for temporary files")
-    var tmpdir: String = _
-
     @Args4jOption(required = false, name = "-c", aliases = Array("--cutoff"),
       usage = "GQ cutoff below which calls will be dropped")
     var cutoff: Int = 0
