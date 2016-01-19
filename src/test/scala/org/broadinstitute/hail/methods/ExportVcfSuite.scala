@@ -34,43 +34,6 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
-    // test that new VDS is same as old VDS
-    println(vdsOrig.metadata == vdsNew.metadata)
-    val rdd1 = vdsOrig.rdd.map{case (v,va,gs) => (v, gs)}.collect().toMap
-    val rdd2 = vdsNew.rdd.map{case (v,va,gs) => (v, gs)}.collect().toMap
-    val ann1 = vdsOrig.variantsAndAnnotations.collect().toMap
-    val ann2 = vdsNew.variantsAndAnnotations.collect().toMap
-
-    rdd1.foreach {
-      case (v, gs) =>
-        val gs2 = rdd2(v)
-        if (!gs.sameElements(gs2)) {
-          println(s"ERROR FOLLOWING ($v):")
-          println(gs)
-          println(gs2)
-        }
-    }
-    ann1.foreach {
-      case (v, va) =>
-        val va2 = ann2(v)
-        if (!(va == va2)) {
-          println(s"ERROR FOLLOWING ($v):")
-          println(va.attrs)
-          println(va2.attrs)
-        }
-    }
-
-
-//    println(vdsOrig.variants.collect().toIndexedSeq == vdsNew.variants.collect().toIndexedSeq)
-//    println(vdsOrig.variants.collect().toSet == vdsNew.variants.collect().toSet)
-//    println(rdd1(0))
-//    println(rdd2(0))
-//    rdd1.zip(rdd2).foreach {
-//      case (a,b) =>
-//        if (!(a == b))
-//          println(a)
-//          println(b)
-//    }
     assert(vdsOrig.same(vdsNew))
   }
 
