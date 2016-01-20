@@ -223,6 +223,7 @@ object HtsjdkRecordReader {
             }
           case _ => value
         }
+      case _ => value
     }
   }
 }
