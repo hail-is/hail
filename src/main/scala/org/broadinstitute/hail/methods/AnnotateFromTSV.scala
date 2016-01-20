@@ -1,14 +1,14 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
 import org.broadinstitute.hail.variant.VariantDataset
 import org.broadinstitute.hail.Utils._
-import org.kohsuke.args4j.CmdLineException
 
 import scala.io.Source
 
 object AnnotateSamples {
 
-  def convertType(a: String, typeString: String, column: String): Option[Any] = {
+  def convertType(typeString: String, column: String)(a: String): Option[Any] = {
     try {
 
       a match {
@@ -29,7 +29,7 @@ object AnnotateSamples {
 
   }
 
-  def fromTSV(path: String, vds: VariantDataset): VariantDataset = {
+  def fromTSV(vds: VariantDataset, path: String, name: String, typeMap: Map[String, String], sampleCol: String): VariantDataset = {
     val lines = Source.fromInputStream(hadoopOpen(path, vds.sparkContext.hadoopConfiguration))
       .getLines()
 
@@ -40,25 +40,28 @@ object AnnotateSamples {
       .next()
       .split("\t")
 
-    if (!(header(0).toLowerCase == "sample"))
-      fatal("first column of annotations file must be 'Sample'")
+    val functions = header.map(col => convertType(typeMap.getOrElse(col, "String"), col))
 
-    val namesAndTypes = header
-      .takeRight(header.length - 1)
-      .map(_.split(":").map(_.trim))
-      .map(arr =>
-        if (arr.length == 1)
-          Array(arr(0), "String")
-        else
-          arr)
+    val sampleColIndex = header.indexOf(sampleCol)
 
-    lines
-      .map(_.split("\t"))
-      .map(i => (i(0), i.takeRight(i.length - 1)))
+    val sampleMap: Map[String, Map[String, Any]] =
+      lines.map(line => {
+        val split = line.split("\t")
+        val sample = split(sampleColIndex)
+        (sample, split.zipWithIndex
+          .flatMap {
+            case (field, index) =>
+              functions(index)(field) match {
+                case Some(ret) => Some(field, ret)
+                case None => None
+              }
+          }
+          .toMap - sampleCol)
+      })
       .toMap
-      .mapValues(arr =>
-       namesAndTypes.zip(arr))
 
+    val signatures = typeMap.mapValues(i => SimpleSignature(i, s"to$i"))
+
+
+    }
   }
-
-}
