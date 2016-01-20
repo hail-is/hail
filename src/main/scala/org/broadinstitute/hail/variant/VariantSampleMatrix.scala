@@ -325,7 +325,6 @@ class RichVDS(vds: VariantDataset) {
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
     import sqlContext.implicits._
-    import VariantMetadata._
 
     require(dirname.endsWith(".vds"))
 
