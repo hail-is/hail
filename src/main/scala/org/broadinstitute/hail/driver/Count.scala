@@ -28,7 +28,8 @@ object Count extends Command {
     println("  nSamples = " + vds.nSamples)
     println("  nLocalSamples = " + nLocalSamples)
     println("  nVariants = " + vds.nVariants)
-    println(s"  nCalled = $called, ${callRate.formatted("%.3f")}%")
+    println(s"  nCalled = $called")
+    println(s"  callRate = ${callRate.formatted("%.3f")}%")
     state
   }
 }
