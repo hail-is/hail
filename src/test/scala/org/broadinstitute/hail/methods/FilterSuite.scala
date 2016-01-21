@@ -400,11 +400,7 @@ class FilterSuite extends SparkSuite {
       .vds.nVariants == 258)
 
     val stateWithSampleQC = SampleQC.run(state, Array("--store"))
-//    stateWithSampleQC.vds.metadata.sampleAnnotations.foreach { case a =>
-//      a.attrs("qc").asInstanceOf[Annotations].attrs.foreach(println)}
-//    stateWithSampleQC.vds.metadata.sampleAnnotations.map(a => a.attrs("qc").asInstanceOf[Annotations].attrs("nCalled").asInstanceOf[Int])
-//        .filter(l => l == 337)
-//        .foreach(println)
+
     assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.nCalled == 337"))
       .vds.nLocalSamples == 17)
 

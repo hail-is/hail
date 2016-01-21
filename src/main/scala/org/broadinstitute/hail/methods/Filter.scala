@@ -954,7 +954,7 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata, sc: Spark
         |  import org.broadinstitute.hail.methods.FilterGenotype
         |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "__saClass", nSpace = 2)}
         |  ${instantiateIndexedSeq("__saIndexedSeq", "__saClass", "__sa")}
-
+        |
         |  (v: org.broadinstitute.hail.variant.Variant,
         |    __va: org.broadinstitute.hail.annotations.Annotations) => {
         |    ${makeDeclarations(metadata.variantAnnotationSignatures, "__vaClass", nSpace = 4)}

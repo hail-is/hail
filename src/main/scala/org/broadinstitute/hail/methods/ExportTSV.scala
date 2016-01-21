@@ -158,7 +158,7 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |
         |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "__saClass", nSpace = 2)}
         |  ${instantiateIndexedSeq("__saIndexedSeq", "__saClass", "__sa")}
-
+        |
         |  (v: org.broadinstitute.hail.variant.Variant,
         |    __va: org.broadinstitute.hail.annotations.Annotations) => {
         |    ${makeDeclarations(metadata.variantAnnotationSignatures, "__vaClass", nSpace = 4)}
