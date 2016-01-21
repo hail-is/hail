@@ -22,13 +22,13 @@ class ExportPlinkSuite extends SparkSuite {
     writeTable(file, sc.hadoopConfiguration, parsed)
   }
 
-  @Test def test() {
+  @Test def testBiallelic() {
 
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = State(sc, sqlContext, vds)
     val tmpDir = HailConfiguration.tmpDir
     vds.rdd.count
-    ExportPlink.run(state, Array("-o", "/tmp/hailOut", "-t" ,"/tmp/todelete"))
+    ExportPlink.run(state, Array("-o", "/tmp/hailOut"))
 
     // use plink to convert sample.vcf to a bed/bim/fam file
     s"plink --vcf src/test/resources/sample.vcf --make-bed --out $tmpDir/plinkOut --const-fid --keep-allele-order"!
