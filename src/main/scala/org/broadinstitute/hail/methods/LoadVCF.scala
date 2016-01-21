@@ -65,6 +65,7 @@ object LoadVCF {
       "filters" -> new SimpleSignature("Set[String]"),
       "pass" -> new SimpleSignature("Boolean"),
       "qual" -> new SimpleSignature("Double"),
+      "multiallelic" -> new SimpleSignature("Boolean"),
       "rsid" -> new SimpleSignature("String")))
 
     val headerLine = headerLines.last

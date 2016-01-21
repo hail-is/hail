@@ -16,7 +16,7 @@ class SplitSuite extends SparkSuite {
     val vds2 = LoadVCF(sc, file2)
 
     // test splitting and downcoding
-    vds1.mapWithKeys((v, s, g) => ((v.copy(wasSplit = false), s), g.copy(fakeRef = false)))
+    vds1.mapWithKeys((v, s, g) => ((v, s), g.copy(fakeRef = false)))
       .join(vds2.mapWithKeys((v, s, g) => ((v, s), g)))
       .foreach { case (k, (g1,  g2)) =>
         if (g1.isNotCalled && g2.isNotCalled)
@@ -26,7 +26,8 @@ class SplitSuite extends SparkSuite {
       }
 
     // test for wasSplit
-    vds1.mapWithKeys((v, s, g) => (v.start, v.wasSplit)).foreach{case (i, b) => simpleAssert(b == (i != 1180))}
+    vds1.mapWithAll((v, va, s, g) => (v.start, va.vals.contains("multiallelic")))
+      .foreach{case (i, b) => simpleAssert(b == (i != 1180))}
 
     // test for fakeRef
     assert(vds1.mapWithKeys((v, s, g) => ((v.start, v.alt, s), g.fakeRef)).filter(_._2).map(_._1.toString).collect.toSet

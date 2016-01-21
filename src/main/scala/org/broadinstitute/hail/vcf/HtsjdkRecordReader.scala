@@ -106,7 +106,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
       val altIndices = alts.map(vc.getAlleleIndex) // index in the VCF, used to access AD and PL fields
       val biVs = alts.zipWithIndex.map { case (alt, index) =>
-          (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true),
+          (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString),
             Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
               .asScala
               .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
@@ -116,9 +116,11 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
                   index))
               }),
               "qual" -> vc.getPhredScaledQual,
+
               "filters" -> filts,
               "pass" -> pass,
-              "rsid" -> rsid)))
+              "rsid" -> rsid,
+              "multiallelic" -> true)))
         } //FixMe: need to normalize strings
       val n = vc.getNAlleles
       val biGBs = alts.map { _ => new ArrayBuffer[Genotype] }
