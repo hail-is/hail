@@ -9,8 +9,7 @@ case class Variant(contig: String,
                    // FIXME: 0- or 1-based?
                    start: Int,
                    ref: String,
-                   alt: String,
-                   wasSplit: Boolean = false) extends Ordered[Variant]{
+                   alt: String) extends Ordered[Variant]{
   require(ref != alt)
 
   import VariantType._
