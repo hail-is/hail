@@ -2,7 +2,7 @@
 
 # Hail
 
-# Table of Contents
+## Table of Contents
 **1. [Importing](docs/Importing.md)**
 
 **2. [QC](docs/QC.md)**
