@@ -107,6 +107,7 @@ object ExportVCF extends Command {
 
       val filter = a.attrs.get("filters")
         .map(_.asInstanceOf[Set[String]].mkString(","))
+        .map(s => if (s.isEmpty) ".")
         .getOrElse(".")
       sb.append(filter)
 

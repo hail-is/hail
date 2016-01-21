@@ -254,7 +254,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       writeTextFile(tmpFileName + ".header" + headerExt, r.sparkContext.hadoopConfiguration) { s =>
         s.write(str)
         s.write("\n")
-      }\
+      }
     }
 
     codec match {

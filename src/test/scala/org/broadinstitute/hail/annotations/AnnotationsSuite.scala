@@ -1,19 +1,12 @@
 package org.broadinstitute.hail.annotations
 
-import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-
-import com.esotericsoftware.kryo.io.{ByteBufferOutputStream, Output}
-import org.apache.spark.serializer.KryoSerializer
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant.{Genotype, IntervalList, Variant}
 import org.testng.annotations.Test
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.methods.FilterUtils.toAnnotationValueString
 import scala.language.implicitConversions
-import com.esotericsoftware.kryo._
 
 /**
   * This testing suite evaluates the functionality of the [[org.broadinstitute.hail.annotations]] package
@@ -29,6 +22,7 @@ class AnnotationsSuite extends SparkSuite {
     */
 
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+
     val state = State(sc, sqlContext, vds)
     val vas = vds.metadata.variantAnnotationSignatures
     val variantAnnotationMap = vds.variantsAndAnnotations.collect().toMap
@@ -102,11 +96,18 @@ class AnnotationsSuite extends SparkSuite {
     assert(variantAnnotationMap(anotherVariant)
       .attrs.get("pass").contains(false))
 
+    val vds2 = LoadVCF(sc, "src/test/resources/sample2.vcf")
+
+
     // Check that VDS can be written to disk and retrieved while staying the same
     hadoopDelete("/tmp/sample.vds", sc.hadoopConfiguration, recursive = true)
-    vds.write(sqlContext, "/tmp/sample.vds")
+    vds2.write(sqlContext, "/tmp/sample.vds")
     val readBack = Read.run(state, Array("-i", "/tmp/sample.vds"))
 
-    assert(readBack.vds.same(vds))
+    println(readBack.vds.metadata == vds2.metadata)
+    println(readBack.vds.variantsAndAnnotations.map{case (v, va) => va}.collect().toSet.diff(vds2.variantsAndAnnotations.map{case (v, va) => va}.collect.toSet))
+    println("read In = " + vds2.nVariants)
+    println("readBack = " + readBack.vds.nVariants)
+    assert(readBack.vds.same(vds2))
   }
 }
