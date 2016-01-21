@@ -4,12 +4,11 @@ Hail contains an `exportplink` module which will write out the internal VDS to a
 
 Command line arguments:
  - `-o | -output <file base>` -- path of output base, will write to `<file base>.bed`, `<file base>.bim`, `<file base>.fam`
- - `-t | --tmpdir <directory>` -- path of temporary directory (see below)
  - `-c | --cutoff <minGQ>` -- set to missing all genotypes below the specified GQ
 
 Example `exportplink` command:
 ```
-hail read -i /path/to/file.vds exportplink -o /path/to/plinkfiles -t /tmp/ --cutoff 20
+hail read -i /path/to/file.vds exportplink -o file:///path/to/plinkfiles -t /tmp/ --cutoff 20
 ```
 
 Hail's output is designed to mirror Plink's own VCF conversion using the following command:
