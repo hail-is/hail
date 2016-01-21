@@ -345,4 +345,12 @@ class RichVDS(vds: VariantDataset) {
       .write.parquet(dirname + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
+
+  def eraseSplit: VariantDataset = {
+    vds.copy(rdd =
+      vds.rdd.map { case (v, va, gs) =>
+        (v, va,
+          gs.map(g => g.copy(fakeRef = false))
+        )})
+  }
 }
