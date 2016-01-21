@@ -22,26 +22,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
   def readRecord(line: String, typeMap: Map[String, Any]): Iterator[(Variant, Annotations, Iterator[Genotype])] = {
     val vc = codec.decode(line)
-    //    println(vc.getAttributes)
-    //    println(vc.getAttributes.asScala)
-//      val tmp = vc.isBiallelic match {
-//      case true =>
-//        vc.getAttributes
-//          .asScala
-//          .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
-//          .map { case (k, v) => (k, HtsjdkRecordReader.mapType(v, typeMap(k).asInstanceOf[VCFSignature])) }
-//          .toMap
-//      case false =>
-//        vc.getAttributes
-//          .asScala
-//          .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
-//          .map { case (k, v) => (k, HtsjdkRecordReader.mapTypeMultiallelic(v, typeMap(k).asInstanceOf[VCFSignature], 0)) }
-//          .toMap
-//    }
-//    tmp("AC") match {
-//      case v: Vector[_] => println("AC= " + tmp("AC") + ", class is " + v(0).getClass.getName);println(typeMap("AC").asInstanceOf[VCFSignature].typeOf)
-//      case _ => 1
-//    }
     val pass = vc.filtersWereApplied() && vc.getFilters.size() == 0
     val filts = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
@@ -116,7 +96,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
                   index))
               }),
               "qual" -> vc.getPhredScaledQual,
-
               "filters" -> filts,
               "pass" -> pass,
               "rsid" -> rsid,
@@ -199,10 +178,10 @@ object HtsjdkRecordReader {
           case "IndexedSeq[Double]" => str.split(",").map(_.toDouble).toIndexedSeq
           case _ => value
         }
-      case i: IndexedSeq[String] =>
+      case i: IndexedSeq[_] =>
         sig.number match {
-          case "IndexedSeq[Int]" => i.map(_.toInt)
-          case "IndexedSeq[Double]" => i.map(_.toDouble)
+          case "IndexedSeq[Int]" => i.map(_.asInstanceOf[String].toInt)
+          case "IndexedSeq[Double]" => i.map(_.asInstanceOf[String].toDouble)
 
         }
       case _ => value
@@ -217,23 +196,23 @@ object HtsjdkRecordReader {
           case "Double" => str.toDouble
           case _ => value
         }
-      case i: IndexedSeq[String] =>
+      case i: IndexedSeq[_] =>
         sig.typeOf match {
           case "IndexedSeq[Int]" =>
             sig.number match {
-              case "A" => IndexedSeq(i(altIndex)).map(_.toInt)
+              case "A" => IndexedSeq(i(altIndex)).map(_.asInstanceOf[String].toInt)
               case "R" =>
-                val arr = IndexedSeq(i(0), i(altIndex+1)).map(_.toInt)
+                val arr = IndexedSeq(i(0), i(altIndex+1)).map(_.asInstanceOf[String].toInt)
               case "G" => throw new UnsupportedOperationException("don't currently support VCFs with 'G' in info number")
-              case _ => i.map(_.toInt)
+              case _ => i.map(_.asInstanceOf[String].toInt)
             }
           case "IndexedSeq[Double]" =>
             sig.number match {
-              case "A" => IndexedSeq(i(altIndex)).map(_.toDouble)
+              case "A" => IndexedSeq(i(altIndex)).map(_.asInstanceOf[String].toDouble)
               case "R" =>
-                val arr = IndexedSeq(i(0), i(altIndex+1)).map(_.toDouble)
+                val arr = IndexedSeq(i(0), i(altIndex+1)).map(_.asInstanceOf[String].toDouble)
               case "G" => throw new UnsupportedOperationException("don't currently support VCFs with 'G' in info number")
-              case _ => i.map(_.toDouble)
+              case _ => i.map(_.asInstanceOf[String].toDouble)
             }
         }
       case _ => value

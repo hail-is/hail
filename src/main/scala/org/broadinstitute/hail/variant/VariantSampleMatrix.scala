@@ -354,7 +354,7 @@ class RichVDS(vds: VariantDataset) {
   def eraseSplit: VariantDataset = {
     vds.copy(rdd =
       vds.rdd.map { case (v, va, gs) =>
-        (v, va,
+        (v, va.copy(attrs = va.attrs - "multiallelic" ),
           gs.map(g => g.copy(fakeRef = false))
         )})
   }

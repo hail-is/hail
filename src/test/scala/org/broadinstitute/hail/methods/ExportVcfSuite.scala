@@ -19,7 +19,6 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
-    // test that new VDS is same as old VDS
     assert(vdsOrig.same(vdsNew))
   }
 
@@ -34,7 +33,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
-    assert(vdsOrig.same(vdsNew))
+    assert(vdsOrig.eraseSplit.same(vdsNew.eraseSplit))
   }
 
   @Test def testSorted() {
