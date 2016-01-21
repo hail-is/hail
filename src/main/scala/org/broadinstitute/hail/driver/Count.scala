@@ -1,9 +1,5 @@
 package org.broadinstitute.hail.driver
 
-import htsjdk.variant.variantcontext.Genotype
-import org.broadinstitute.hail.annotations.AnnotationData
-import org.broadinstitute.hail.variant.Variant
-
 object Count extends Command {
 
   class Options extends BaseOptions
