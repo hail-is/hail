@@ -27,19 +27,19 @@ object AnnotationClassBuilder {
 
   def makeDeclarationsRecursive(sigs: Annotations, depth: Int = 1, nSpace: Int = 0): String = {
     val spaces = (0 until (depth * 2 + nSpace)).map(i => " ").foldLeft("")(_ + _)
-    val param = s"a$depth"
+    val param = s"__a$depth"
     sigs.attrs.map { case (key, attr) =>
       attr match {
         case a2: Annotations =>
-          s"""${spaces}class __$key(a${depth + 1}: org.broadinstitute.hail.annotations.Annotations) {
-             |${makeDeclarationsRecursive(a2, depth = depth + 1, nSpace = nSpace)}${spaces}}
-             |${spaces}def $key: __$key = new __$key(${s"""$param.attrs("$key").asInstanceOf[org.broadinstitute.hail.annotations.Annotations]"""})
+          s"""${spaces}case class __$key(__a${depth + 1}: org.broadinstitute.hail.annotations.Annotations) {
+             |${makeDeclarationsRecursive(a2, depth = depth + 1, nSpace = nSpace)}$spaces}
+             |${spaces}lazy val $key: __$key = new __$key(${
+            s"""$param.attrs("$key").asInstanceOf[org.broadinstitute.hail.annotations.Annotations]"""})
              |""".stripMargin
         case sig: AnnotationSignature =>
-          s"${spaces}def $key: FilterOption[${sig.typeOf}] = new FilterOption(${
+          s"${spaces}lazy val $key: FilterOption[${sig.typeOf}] = new FilterOption(${
             s"""$param.attrs.get("$key").asInstanceOf[Option[${sig.typeOf}]])
-               |""".stripMargin
-          }"
+               |""".stripMargin}"
         case _ => s"$key -> $attr \n"
       }
     }
@@ -48,15 +48,15 @@ object AnnotationClassBuilder {
 
   def makeDeclarations(sigs: Annotations, className: String, nSpace: Int = 0): String = {
     val spaces = (0 until nSpace).map(i => " ").foldRight("")(_ + _)
-    s"""class $className(a1: org.broadinstitute.hail.annotations.Annotations) {
-        |${makeDeclarationsRecursive(sigs, nSpace = nSpace)}}
+    s"""case class $className(__a1: org.broadinstitute.hail.annotations.Annotations) {
+        |${makeDeclarationsRecursive(sigs, nSpace = nSpace)}$spaces}
         |""".stripMargin
   }
 
   def instantiate(exposedName: String, className: String, rawName: String): String = {
-    s"val $exposedName = new $className($rawName)"
+    s"lazy val $exposedName = new $className($rawName)"
   }
 
   def instantiateIndexedSeq(exposedName: String, className: String, rawArrayName: String): String =
-    s"""val $exposedName: IndexedSeq[$className] = $rawArrayName.map(new $className(_))""".stripMargin
+    s"""lazy val $exposedName: IndexedSeq[$className] = $rawArrayName.map(new $className(_))""".stripMargin
 }

@@ -33,7 +33,7 @@ object FilterGenotypes extends Command {
       fatal(name + ": one of `--keep' or `--remove' required")
 
     val p: ((Variant, Annotations) => ((Int, Genotype) => Boolean)) = {
-      val cf = new FilterGenotypeCondition(options.condition, vds.metadata)
+      val cf = new FilterGenotypeCondition(options.condition, vds.metadata, vds.sparkContext)
       cf.typeCheck()
 
       val keep = options.keep

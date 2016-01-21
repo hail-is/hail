@@ -31,17 +31,21 @@ object VariantSampleMatrix {
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     // val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
-    // FIXME annotations
 
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
-      df.rdd.map(r => {
-        val deserializer = SparkEnv.get.serializer.newInstance()
-        (r.getVariant(0), deserializer.deserialize[Annotations](ByteBuffer.wrap(r.getByteArray(1))), r.getGenotypeStream(2))
-      }))
+      df.rdd.map(r =>
+        (r.getVariant(0), r.getByteArray(1), r.getGenotypeStream(2))
+      )
+        .mapPartitions { iter =>
+          val ser = SparkEnv.get.serializer.newInstance()
+          iter.map {
+            case (v, arr, gs) =>
+              (v, ser.deserialize[Annotations](ByteBuffer.wrap(arr)), gs)
+          }
+        })
   }
 }
-
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
   val localSamples: Array[Int],
@@ -335,9 +339,6 @@ class RichVDS(vds: VariantDataset) {
       writeData[WritableVariantMetadata](dos, vds.metadata.serialize(SparkEnv.get.serializer.newInstance()))
     }
 
-    // rdd.toDF().write.parquet(dirname + "/rdd.parquet")
-    // FIXME write annotations: va
-
     vds.rdd
       .mapPartitions { iter =>
         val serializer = SparkEnv.get.serializer.newInstance()
@@ -354,8 +355,9 @@ class RichVDS(vds: VariantDataset) {
   def eraseSplit: VariantDataset = {
     vds.copy(rdd =
       vds.rdd.map { case (v, va, gs) =>
-        (v, va.copy(attrs = va.attrs - "multiallelic" ),
+        (v, va.copy(attrs = va.attrs - "multiallelic"),
           gs.map(g => g.copy(fakeRef = false))
-        )})
+          )
+      })
   }
 }

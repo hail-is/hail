@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.spark.SparkContext
+import org.apache.spark.broadcast.Broadcast
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.methods.FilterUtils.{FilterGenotypePostSA, FilterGenotypeWithSA}
@@ -943,9 +945,9 @@ class FilterSampleCondition(cond: String, sas: Annotations)
   def apply(s: Sample, sa: Annotations): FilterOption[Boolean] = eval()(s, sa)
 }
 
-class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
+class FilterGenotypeCondition(cond: String, metadata: VariantMetadata, sc: SparkContext)
   extends EvaluatorWithValueTransform[FilterGenotypeWithSA, FilterGenotypePostSA](
-    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.Annotations],
+    {val s = s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.Annotations],
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
@@ -958,16 +960,16 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata)
         |    ${makeDeclarations(metadata.variantAnnotationSignatures, "__vaClass", nSpace = 4)}
         |    ${instantiate("va", "__vaClass", "__va")}
         |    (__sIndex: Int,
-        |     __g: org.broadinstitute.hail.variant.Genotype) => {
-        |      val sa = __saIndexedSeq(__sIndex)
-        |      val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+        |      __g: org.broadinstitute.hail.variant.Genotype) => {
+        |      lazy val sa = __saIndexedSeq(__sIndex)
+        |      lazy val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
         |      val g = new FilterGenotype(__g)
         |
         |      {$cond}: FilterOption[Boolean]
         |    }
         |  }
         |}
-      """.stripMargin,
+      """.stripMargin;println(s);s},
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
     Filter.renameSymbols) {
   def apply(v: Variant, va: Annotations)(sIndex: Int, g: Genotype): FilterOption[Boolean] =

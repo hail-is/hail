@@ -164,8 +164,8 @@ class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
         |    ${makeDeclarations(metadata.variantAnnotationSignatures, "__vaClass", nSpace = 4)}
         |    ${instantiate("va", "__vaClass", "__va")}
         |    (__sIndex: Int, __g: org.broadinstitute.hail.variant.Genotype) => {
-        |      val sa = __saIndexedSeq(__sIndex)
-        |      val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
+        |      lazy val sa = __saIndexedSeq(__sIndex)
+        |      lazy val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
         |      val g = new FilterGenotype(__g)
         |
         |      Array[Any]($list).map(toTSVString).mkRealString("\t")
