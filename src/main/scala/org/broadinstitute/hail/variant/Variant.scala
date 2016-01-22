@@ -9,7 +9,9 @@ case class Variant(contig: String,
                    start: Int,
                    ref: String,
                    alt: String,
-                   wasSplit: Boolean = false) extends Ordered[Variant]{
+                   wasSplit: Boolean = false) extends Ordered[Variant] {
+  /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
+     corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
   require(start >= 0)
   require(ref != alt)
 
@@ -34,18 +36,22 @@ case class Variant(contig: String,
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
   def inParX(pos: Int): Boolean = (60001 <= pos && pos <= 2699520) || (154931044 <= pos && pos <= 155260560)
-  def inParY(pos: Int): Boolean = (10001 <= pos && pos <= 2649520) || ( 59034050 <= pos && pos <=  59363566)
+
+  def inParY(pos: Int): Boolean = (10001 <= pos && pos <= 2649520) || (59034050 <= pos && pos <= 59363566)
+
   def inParX: Boolean = inParX(start)
+
   def inParY: Boolean = inParY(start)
+
   def isHemizygous(sex: Sex.Sex): Boolean = (sex == Sex.Male) &&
-      (contig == "X" && !inParX(start)) || (contig == "Y" && !inParY(start))
+    (contig == "X" && !inParX(start)) || (contig == "Y" && !inParY(start))
 
   def isSNP: Boolean = (ref.length == 1 && alt.length == 1) ||
-      (ref.length == alt.length && nMismatch == 1)
+    (ref.length == alt.length && nMismatch == 1)
 
   def isMNP: Boolean = ref.length > 1 &&
-      ref.length == alt.length &&
-      nMismatch > 1
+    ref.length == alt.length &&
+    nMismatch > 1
 
   def isInsertion: Boolean = ref.length < alt.length && alt.startsWith(ref)
 
@@ -56,24 +62,24 @@ case class Variant(contig: String,
   def isComplex: Boolean = ref.length != alt.length && !isInsertion && !isDeletion
 
   def isTransition: Boolean = isSNP && {
-      val (refChar, altChar) = strippedSNP
-      (refChar == 'A' && altChar == 'G') || (refChar == 'G' && altChar == 'A') ||
-        (refChar == 'C' && altChar == 'T') || (refChar == 'T' && altChar == 'C')
+    val (refChar, altChar) = strippedSNP
+    (refChar == 'A' && altChar == 'G') || (refChar == 'G' && altChar == 'A') ||
+      (refChar == 'C' && altChar == 'T') || (refChar == 'T' && altChar == 'C')
   }
 
   def isTransversion: Boolean = isSNP && !isTransition
 
   def nMismatch: Int = {
     require(ref.length == alt.length)
-    (ref,alt).zipped.map((a, b) => if (a == b) 0 else 1).sum
+    (ref, alt).zipped.map((a, b) => if (a == b) 0 else 1).sum
   }
 
   def strippedSNP: (Char, Char) = {
     require(isSNP)
-    (ref,alt).zipped.dropWhile{ case (a, b) => a == b }.head
+    (ref, alt).zipped.dropWhile { case (a, b) => a == b }.head
   }
 
-  def compare(that:Variant):Int = {
+  def compare(that: Variant): Int = {
     if (this.contig != that.contig)
       this.contig.compare(that.contig)
     else if (this.start != that.start)
