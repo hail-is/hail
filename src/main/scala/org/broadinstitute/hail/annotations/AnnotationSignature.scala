@@ -1,14 +1,11 @@
 package org.broadinstitute.hail.annotations
 
+import java.io.{DataInputStream, DataOutputStream}
+import org.broadinstitute.hail.Utils._
+
+
 abstract class AnnotationSignature {
-  def emitUtilities: String
-  def emitConversionIdentifier: String
-  def emitType: String
-
+  def typeOf: String
 }
 
-case class SimpleSignature(emitType: String, emitConversionIdentifier: String) extends AnnotationSignature {
-
-  def emitUtilities = ""
-
-}
+case class SimpleSignature(typeOf: String) extends AnnotationSignature

@@ -1,9 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.RangePartitioner
+import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
-import org.broadinstitute.hail.annotations.{VCFSignature, AnnotationData}
+import org.broadinstitute.hail.annotations.{VCFSignature, Annotations}
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
 
@@ -12,8 +13,6 @@ object ExportVCF extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
-    @Args4jOption(required = true, name = "-t", aliases = Array("--tmpdir"), usage = "Directory for temporary files")
-    var tmpdir: String = _
   }
 
   def newOptions = new Options
@@ -42,18 +41,17 @@ object ExportVCF extends Command {
 
       val filterHeader = vds.metadata.filters.map { case (key, desc) => s"""##FILTER=<ID=$key,Description="$desc">""" }.mkString("\n")
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.getMap("info") match {
-        case Some(m) => m.map { case (key, sig) =>
+      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[Annotations]("info") match {
+        case Some(anno) => anno.attrs.map { case (key, sig) =>
           val vcfsig = sig.asInstanceOf[VCFSignature]
           val vcfsigType = vcfsig.vcfType
           val vcfsigNumber = vcfsig.number
           val vcfsigDesc = vcfsig.description
           s"""##INFO=<ID=$key,Number=$vcfsigNumber,Type=$vcfsigType,Description="$vcfsigDesc">"""
-        }.mkString("\n") + "\n"
-        case None => ""
+        }
+        case None => Iterable.empty[String]
+        case _ => throw new UnsupportedOperationException("somebody put something bad in info")
       }
-
-      val headerFragment = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t"
 
       val sb = new StringBuilder()
       sb.append(version)
@@ -63,54 +61,98 @@ object ExportVCF extends Command {
       sb.append("\n")
       sb.append(filterHeader)
       sb.append("\n")
-      sb.append(infoHeader)
-      sb.append(headerFragment)
-      sb.append(sampleIds.mkString("\t"))
+      sb.appendIterable(infoHeader, "\n")
       sb.append("\n")
+
+      val headerFragment = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT"
+      sb.append(headerFragment)
+
+      sampleIds.foreach { id =>
+        sb += '\t'
+        sb.append(id)
+      }
       sb.result()
     }
 
-    def vcfRow(v: Variant, a: AnnotationData, gs: Iterable[Genotype]): String = {
-      val id = a.getVal("rsid").getOrElse(".")
-      val qual = a.getVal("qual").getOrElse(".")
-      val filter = a.getVal("filters").getOrElse(".")
-      val info = if (a.hasMap("info")) a.maps("info").toArray.sorted.map { case (k, v) =>
-        val sig = varAnnSig.getInMap("info", k).get.asInstanceOf[VCFSignature]
-        if (sig.vcfType != "Flag") s"$k=$v" else s"$k"
-      }.mkString(";") else "."
+    def printInfo(a: Any): String = {
+      a match {
+        case iter: Iterable[_] => iter.map(_.toString).mkString(",")
+        case _ => a.toString
+      }
+    }
 
-      val format = "GT:AD:DP:GQ:PL"
-
-      val sb = new StringBuilder()
+    def appendRow(sb: StringBuilder, v: Variant, a: Annotations, gs: Iterable[Genotype]) {
       sb.append(v.contig)
-      sb.append("\t")
+      sb += '\t'
       sb.append(v.start)
-      sb.append("\t")
+      sb += '\t'
+
+      val id = a.getOption[String]("rsid")
+        .getOrElse(".")
       sb.append(id)
-      sb.append("\t")
+
+      sb += '\t'
       sb.append(v.ref)
-      sb.append("\t")
+      sb += '\t'
       sb.append(v.alt)
-      sb.append("\t")
+      sb += '\t'
+
+      val qual = a.getOption[Double]("qual")
+        .map(_.formatted("%.2f"))
+        .getOrElse(".")
       sb.append(qual)
-      sb.append("\t")
-      sb.append(filter)
-      sb.append("\t")
-      sb.append(info)
-      sb.append("\t")
-      sb.append(format)
-      sb.append("\t")
-      sb.append(gs.map {
-        _.toString
-      }.mkString("\t"))
-      sb.result()
+
+      sb += '\t'
+
+      val filter = a.get[Set[String]]("filters")
+
+      if (filter.nonEmpty)
+        sb.appendIterable(filter, ",")
+      else
+      sb.append(".")
+
+      sb += '\t'
+
+      val info = a.get[Annotations]("info")
+        .attrs
+        .map {
+          case (k, v) =>
+            if (varAnnSig.get[Annotations]("info").get[VCFSignature](k).vcfType == "Flag")
+              k
+            else
+              s"$k=${printInfo(v)}"
+        }
+
+      if (info.nonEmpty)
+        sb.appendIterable(info, ";")
+      else
+        sb.append(".")
+
+      sb += '\t'
+      sb.append("GT:AD:DP:GQ:PL")
+
+      gs.foreach { g =>
+        sb += '\t'
+        sb.append(g)
+      }
     }
 
-    val kvRDD = vds.rdd.map{ case (v,a,gs) => (v,(a,gs))}
+    val kvRDD = vds.rdd.map { case (v, a, gs) =>
+      (v, (a, gs.toGenotypeStream(v, compress = false)))
+    }
+    kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
     kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length,kvRDD))
-      .map { case (v, (a, gs)) => vcfRow(v, a, gs) }
-      .writeTableSingleFile(options.tmpdir, options.output, header, deleteTmpFiles = true)
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotations, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+      .mapPartitions { it: Iterator[(Variant, (Annotations, Iterable[Genotype]))] =>
+        val sb = new StringBuilder
+        it.map { case (v, (va, gs)) =>
+          sb.clear()
+          appendRow(sb, v, va, gs)
+          sb.result()
+        }
+      }.writeTable(options.output, Some(header), deleteTmpFiles = true)
+    kvRDD.unpersist()
+
     state
   }
 }

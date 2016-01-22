@@ -14,7 +14,7 @@ Command line arguments:
 ## Using inclusion/exclusion files
 
 1. `filtervariants` -- ".interval_list" file
- - Hail expects a .interval_list file to contain either three or five fields per line in the following formats: `contig  start  end` or `contig  start  end  direction  target`.  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the `.interval_list` file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  
+ - Hail expects a .interval_list file to contain either three or five fields per line in the following formats: `contig:start-end` or `contig  start  end  direction  target` (TSV).  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the `.interval_list` file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  
  - _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
 
 2. `filtersamples` -- ".sample_list" file
@@ -124,7 +124,8 @@ filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
  - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
  - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
  - `g.nNonRef:            Int` -- the number of called alternate alleles
- - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution
+ - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5
+ - `g.pAB(theta):      Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean `theta`
  
 **Variant:** `v`
  - `v.contig:          String` -- string representation of contig, exactly as imported.  _NB: Hail stores contigs as strings.  Use double-quotes when checking contig equality_

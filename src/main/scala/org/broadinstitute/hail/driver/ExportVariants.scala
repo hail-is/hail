@@ -38,24 +38,17 @@ object ExportVariants extends Command {
     else
       ExportTSV.parseExpression(cond)
 
-    val makeString: (Variant, Annotations[String]) => String = {
+    val makeString: (Variant, Annotations) => String = {
       val eve = new ExportVariantsEvaluator(fields, vas)
       eve.typeCheck()
       eve.apply
-    }
-
-    header.foreach { str =>
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write(str)
-        s.write("\n")
-      }
     }
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     vds.variantsAndAnnotations
       .map { case (v, va) => makeString(v, va) }
-      .saveAsTextFile(output)
+      .writeTable(output, header)
 
     state
   }

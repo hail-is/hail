@@ -36,7 +36,7 @@ object ExportSamples extends Command {
     else
       ExportTSV.parseExpression(cond)
 
-    val makeString: (Sample, Annotations[String]) => String = {
+    val makeString: (Sample, Annotations) => String = {
       val ese = new ExportSamplesEvaluator(fields, sas)
       ese.typeCheck()
       ese.apply
@@ -44,18 +44,11 @@ object ExportSamples extends Command {
 
     // FIXME add additional command parsing functionality
 
-    header.foreach { str =>
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write(str)
-        s.write("\n")
-      }
-    }
-
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     vds.sparkContext.parallelize(vds.sampleIds.map(Sample).zip(vds.metadata.sampleAnnotations))
       .map { case (s, sa) => makeString(s, sa) }
-      .saveAsTextFile(output)
+      .writeTable(output, header)
 
     state
   }

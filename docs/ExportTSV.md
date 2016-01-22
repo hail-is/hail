@@ -35,7 +35,7 @@ $ cat exportVariants.columns
 VARIANT	v
 PASS	va.pass
 FILTERS	va.filters
-MISSINGNESS	va.qc.nCalled.get.toDouble/(va.qc.nCalled.get + va.qc.nNotCalled.get)
+MISSINGNESS	1 - va.qc.callRate)
 ```
 
 ```
@@ -54,7 +54,7 @@ Much like [filtering](Filtering.md) modules, exporting allows flexible expressio
 
 
 ```
-exportvariants -c 'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = va.qc.nCalled.get.toDouble/(va.qc.nCalled.get + va.qc.nNotCalled.get)'
+exportvariants -c 'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate'
 ```
 
 ```
@@ -90,7 +90,9 @@ exportgenotypes -c 'v,s.id,g.gq'
  - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
  - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
  - `g.nNonRef:            Int` -- the number of called alternate alleles
- - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution
+ - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5
+ - `g.pAB(theta):      Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean `theta`
+
  
 **Variant:** `v`
  - `v:                 String` -- String representation of a variant: looks like `CHROM_POS_REF_ALT`

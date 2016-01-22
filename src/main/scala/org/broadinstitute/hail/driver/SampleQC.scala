@@ -37,38 +37,38 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rDeletionInsertion"
 
-  val signatures = Map("callRate" -> new SimpleSignature("Double", "toDouble"),
-    "nCalled" -> new SimpleSignature("Int", "toInt"),
-    "nNotCalled" -> new SimpleSignature("Int", "toInt"),
-    "nHomRef" -> new SimpleSignature("Int", "toInt"),
-    "nHet" -> new SimpleSignature("Int", "toInt"),
-    "nHomVar" -> new SimpleSignature("Int", "toInt"),
-    "nSNP" -> new SimpleSignature("Int", "toInt"),
-    "nInsertion" -> new SimpleSignature("Int", "toInt"),
-    "nDeletion" -> new SimpleSignature("Int", "toInt"),
-    "nSingleton" -> new SimpleSignature("Int", "toInt"),
-    "nTransition" -> new SimpleSignature("Int", "toInt"),
-    "nTransversion" -> new SimpleSignature("Int", "toInt"),
-    "dpMean" -> new SimpleSignature("Double", "toDouble"),
-    "dpStDev" -> new SimpleSignature("Double", "toDouble"),
-    "dpMeanHomRef" -> new SimpleSignature("Double", "toDouble"),
-    "dpStDevHomRef" -> new SimpleSignature("Double", "toDouble"),
-    "dpMeanHet" -> new SimpleSignature("Double", "toDouble"),
-    "dpStDevHet" -> new SimpleSignature("Double", "toDouble"),
-    "dpMeanHomVar" -> new SimpleSignature("Double", "toDouble"),
-    "dpStDevHomVar" -> new SimpleSignature("Double", "toDouble"),
-    "gqMean" -> new SimpleSignature("Double", "toDouble"),
-    "gqStDev" -> new SimpleSignature("Double", "toDouble"),
-    "gqMeanHomRef" -> new SimpleSignature("Double", "toDouble"),
-    "gqStDevHomRef" -> new SimpleSignature("Double", "toDouble"),
-    "gqMeanHet" -> new SimpleSignature("Double", "toDouble"),
-    "gqStDevHet" -> new SimpleSignature("Double", "toDouble"),
-    "gqMeanHomVar" -> new SimpleSignature("Double", "toDouble"),
-    "gqStDevHomVar" -> new SimpleSignature("Double", "toDouble"),
-    "nNonRef" -> new SimpleSignature("Int", "toInt"),
-    "rTiTv" -> new SimpleSignature("Double", "toDouble"),
-    "rHetHomVar" -> new SimpleSignature("Double", "toDouble"),
-    "rDeletionInsertion" -> new SimpleSignature("Double", "toDouble"))
+  val signatures = Map("callRate" -> new SimpleSignature("Double"),
+    "nCalled" -> new SimpleSignature("Int"),
+    "nNotCalled" -> new SimpleSignature("Int"),
+    "nHomRef" -> new SimpleSignature("Int"),
+    "nHet" -> new SimpleSignature("Int"),
+    "nHomVar" -> new SimpleSignature("Int"),
+    "nSNP" -> new SimpleSignature("Int"),
+    "nInsertion" -> new SimpleSignature("Int"),
+    "nDeletion" -> new SimpleSignature("Int"),
+    "nSingleton" -> new SimpleSignature("Int"),
+    "nTransition" -> new SimpleSignature("Int"),
+    "nTransversion" -> new SimpleSignature("Int"),
+    "dpMean" -> new SimpleSignature("Double"),
+    "dpStDev" -> new SimpleSignature("Double"),
+    "dpMeanHomRef" -> new SimpleSignature("Double"),
+    "dpStDevHomRef" -> new SimpleSignature("Double"),
+    "dpMeanHet" -> new SimpleSignature("Double"),
+    "dpStDevHet" -> new SimpleSignature("Double"),
+    "dpMeanHomVar" -> new SimpleSignature("Double"),
+    "dpStDevHomVar" -> new SimpleSignature("Double"),
+    "gqMean" -> new SimpleSignature("Double"),
+    "gqStDev" -> new SimpleSignature("Double"),
+    "gqMeanHomRef" -> new SimpleSignature("Double"),
+    "gqStDevHomRef" -> new SimpleSignature("Double"),
+    "gqMeanHet" -> new SimpleSignature("Double"),
+    "gqStDevHet" -> new SimpleSignature("Double"),
+    "gqMeanHomVar" -> new SimpleSignature("Double"),
+    "gqStDevHomVar" -> new SimpleSignature("Double"),
+    "nNonRef" -> new SimpleSignature("Int"),
+    "rTiTv" -> new SimpleSignature("Double"),
+    "rHetHomVar" -> new SimpleSignature("Double"),
+    "rDeletionInsertion" -> new SimpleSignature("Double"))
 }
 
 class SampleQCCombiner extends Serializable {
@@ -258,7 +258,7 @@ class SampleQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nDel, nIns))
   }
 
-  def asMap: Map[String, String] = {
+  def asMap: Map[String, Any] = {
     Map[String, Any]("callRate" -> divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
       "nCalled" -> (nHomRef + nHet + nHomVar),
       "nNotCalled" -> nNotCalled,
@@ -292,9 +292,9 @@ class SampleQCCombiner extends Serializable {
       "rHetHomVar" -> divOption(nHet, nHomVar),
       "rDeletionInsertion" -> divOption(nDel, nIns))
       .flatMap { case (k, v) => v match {
-        case Some(value) => Some(k, value.toString)
+        case Some(value) => Some(k, value)
         case None => None
-        case _ => Some(k, v.toString)
+        case _ => Some(k, v)
       }}
   }
 
@@ -334,7 +334,7 @@ object SampleQC extends Command {
     val localSamplesBc = vds.sparkContext.broadcast(vds.localSamples)
     vds
       .rdd
-      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, AnnotationData, Iterable[Genotype])]) =>
+      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Annotations, Iterable[Genotype])]) =>
       val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
       localSamplesBc.value.iterator
         .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
@@ -356,24 +356,23 @@ object SampleQC extends Command {
 
     val r = results(vds)
     if (options.store) {
+      val rMap = r.collectAsMap()
       val newAnnotations = vds.metadata.sampleAnnotations
         .zipWithIndex
-        .map { case (sa, s) => sa.addMap("qc", r.collectAsMap()(s).asMap) }
+        .map { case (sa, s) => sa + ("qc", rMap.get(s) match {
+          case Some(x) => Annotations(x.asMap)
+          case None => Annotations(Map.empty[String, String])
+        })}
+
       state.copy(
         vds = vds.copy(
-          metadata = vds.metadata.copy(
-            sampleAnnotationSignatures = vds.metadata.sampleAnnotationSignatures
-              .addMap("qc", SampleQCCombiner.signatures),
-            sampleAnnotations = vds.metadata.sampleAnnotations
-              .zip(newAnnotations)
-              .map { case (oldAnno, newAnno) => oldAnno ++ newAnno})))
-    } else {
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write("sampleID\t")
-        s.write(SampleQCCombiner.header)
-        s.write("\n")
-      }
+          metadata = vds.metadata.addSampleAnnotations(
+            Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
+            newAnnotations)
+        )
+      )
 
+    } else {
       hadoopDelete(output, state.hadoopConf, recursive = true)
       r.map { case (s, comb) =>
           val sb = new StringBuilder()
@@ -381,7 +380,7 @@ object SampleQC extends Command {
           sb += '\t'
           comb.emit(sb)
           sb.result()
-        }.saveAsTextFile(output)
+        }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
 
       state
     }

@@ -34,17 +34,17 @@ object FilterVariants extends Command {
 
     val cond = options.condition
     val vas = vds.metadata.variantAnnotationSignatures
-    val p: (Variant, Annotations[String]) => Boolean = cond match {
+    val keep = options.keep
+    val p: (Variant, Annotations) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
-        val ilist = IntervalList.read(options.condition)
-        (v: Variant, va: Annotations[String]) => ilist.contains(v.contig, v.start)
+        val ilist = IntervalList.read(options.condition, state.hadoopConf)
+        (v: Variant, va: Annotations) => Filter.keepThis(ilist.contains(v.contig, v.start), keep)
       case c: String =>
         val cf = new FilterVariantCondition(c, vas)
         cf.typeCheck()
-        val keep = options.keep
-        (v: Variant, va: AnnotationData) => Filter.keepThis(cf(v, va), keep)
+        (v: Variant, va: Annotations) => Filter.keepThis(cf(v, va), keep)
     }
-    
+
     state.copy(vds = vds.filterVariants(p))
   }
 }

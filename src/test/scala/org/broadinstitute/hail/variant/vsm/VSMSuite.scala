@@ -19,12 +19,12 @@ class VSMSuite extends SparkSuite {
 
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
-    val mdata3 = new VariantMetadata(Seq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyOfArrayString(2).map(_.addVal("1", "5")), Annotations.emptyOfSignature(),
-      Annotations.emptyOfSignature())
-    val mdata4 = new VariantMetadata(Seq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyOfArrayString(2), Annotations.emptyOfSignature(), Annotations.emptyOfSignature()
-        .addMap("dummy", Map.empty[String, AnnotationSignature]))
+    val mdata3 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
+      Annotations.emptyIndexedSeq(2).map(_ + ("1", "5")), Annotations.empty(),
+      Annotations.empty())
+    val mdata4 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
+      Annotations.emptyIndexedSeq(2), Annotations.empty(), Annotations.empty()
+        + ("dummy", Map.empty[String, AnnotationSignature]))
 
     assert(mdata1 != mdata2)
 
@@ -32,9 +32,9 @@ class VSMSuite extends SparkSuite {
     val v2 = Variant("1", 2, "T", "G")
     val v3 = Variant("1", 2, "T", "A")
 
-    val va1 = Annotations(Map("info" -> Map("v1thing" -> "yes")), Map("v1otherThing" -> "yes"))
-    val va2 = Annotations(Map("info" -> Map("v2thing" -> "yes")), Map("v2otherThing" -> "yes"))
-    val va3 = Annotations(Map("info" -> Map("v1thing" -> "no")), Map("v1otherThing" -> "no"))
+    val va1 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v1otherThing" -> "yes"))
+    val va2 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v2otherThing" -> "yes"))
+    val va3 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v1otherThing" -> "no"))
 
     val rdd1 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(-1, (0, 2), 2, null),
