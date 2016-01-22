@@ -29,7 +29,8 @@ object AnnotateSamples {
 
   }
 
-  def fromTSV(vds: VariantDataset, path: String, name: String, typeMap: Map[String, String], sampleCol: String): VariantDataset = {
+  def fromTSV(vds: VariantDataset, path: String, name: String,
+    typeMap: Map[String, String], sampleCol: String): VariantDataset = {
     val lines = Source.fromInputStream(hadoopOpen(path, vds.sparkContext.hadoopConfiguration))
       .getLines()
 
