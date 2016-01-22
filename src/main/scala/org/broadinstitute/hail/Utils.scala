@@ -318,6 +318,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   }
 }
 
+
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def existsExactly1(p: (T) => Boolean): Boolean = {
     var n: Int = 0
@@ -332,130 +333,6 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 }
 
 object Utils {
-
-  trait DataWritable[T] {
-    def write(dos: DataOutputStream, t: T): Unit
-  }
-
-  trait DataReadable[T] {
-    def read(dis: DataInputStream): T
-  }
-
-  def writeData[T](dos: DataOutputStream, t: T)(implicit dw: DataWritable[T]) {
-    dw.write(dos, t)
-  }
-
-  def readData[T](dis: DataInputStream)(implicit dr: DataReadable[T]): T = dr.read(dis)
-
-  implicit def writableByte: DataWritable[Byte] = new DataWritable[Byte] {
-    def write(dos: DataOutputStream, t: Byte) {
-      dos.write(t)
-    }
-  }
-
-  implicit def readableByte: DataReadable[Byte] = new DataReadable[Byte] {
-    def read(dis: DataInputStream): Byte = dis.read().asInstanceOf[Byte]
-  }
-
-
-  implicit def writableInt: DataWritable[Int] = new DataWritable[Int] {
-    def write(dos: DataOutputStream, t: Int) {
-      dos.writeInt(t)
-    }
-  }
-
-  implicit def readableInt: DataReadable[Int] = new DataReadable[Int] {
-    def read(dis: DataInputStream): Int = dis.readInt()
-  }
-
-  implicit def writableString: DataWritable[String] = new DataWritable[String] {
-    def write(dos: DataOutputStream, t: String) {
-      dos.writeUTF(t)
-    }
-  }
-
-  implicit def readableString: DataReadable[String] = new DataReadable[String] {
-    def read(dis: DataInputStream): String = dis.readUTF()
-  }
-
-  implicit def writableArray[T](implicit writableT: DataWritable[T]): DataWritable[Array[T]] =
-    new DataWritable[Array[T]] {
-      def write(dos: DataOutputStream, t: Array[T]) {
-        writeData[Int](dos, t.length)
-        for (ti <- t)
-          writeData[T](dos, ti)
-      }
-    }
-
-  implicit def readableArray[T](implicit readableT: DataReadable[T], tct: ClassTag[T]): DataReadable[Array[T]] =
-    new DataReadable[Array[T]] {
-      def read(dis: DataInputStream): Array[T] = {
-        val length = dis.readInt()
-        val r = new Array[T](length)
-        for (i <- 0 until length)
-          r(i) = readData[T](dis)
-        r
-      }
-    }
-
-  implicit def writableIndexedSeq[T](implicit writableT: DataWritable[T]): DataWritable[IndexedSeq[T]] =
-    new DataWritable[IndexedSeq[T]] {
-      def write(dos: DataOutputStream, t: IndexedSeq[T]) {
-        writeData[Int](dos, t.length)
-        for (ti <- t)
-          writeData[T](dos, ti)
-      }
-    }
-
-  implicit def readableIndexedSeq[T](implicit readableT: DataReadable[T], tct: ClassTag[T]): DataReadable[IndexedSeq[T]] =
-    new DataReadable[IndexedSeq[T]] {
-      def read(dis: DataInputStream): IndexedSeq[T] = {
-        readData[Array[T]](dis): IndexedSeq[T]
-      }
-    }
-
-  implicit def writableTuple2[T, S](implicit writableT: DataWritable[T],
-    writableS: DataWritable[S]): DataWritable[(T, S)] =
-    new DataWritable[(T, S)] {
-      def write(dos: DataOutputStream, t: (T, S)) {
-        writeData[T](dos, t._1)
-        writeData[S](dos, t._2)
-      }
-    }
-
-  implicit def readableTuple2[T, S](implicit readableT: DataReadable[T],
-    writableS: DataReadable[S]): DataReadable[(T, S)] =
-    new DataReadable[(T, S)] {
-      def read(dis: DataInputStream): (T, S) = (readData[T](dis), readData[S](dis))
-    }
-
-  implicit def writableMap[T, S](implicit writableT: DataWritable[T],
-    writableS: DataWritable[S]): DataWritable[Map[T, S]] =
-    new DataWritable[Map[T, S]] {
-      def write(dos: DataOutputStream, t: Map[T, S]) {
-        writeData[Int](dos, t.size)
-        for ((k, v) <- t) {
-          writeData[T](dos, k)
-          writeData[S](dos, v)
-        }
-      }
-    }
-
-  implicit def readableMap[T, S](implicit readableT: DataReadable[T],
-    readableS: DataReadable[S]): DataReadable[Map[T, S]] =
-    new DataReadable[Map[T, S]] {
-      def read(dis: DataInputStream): Map[T, S] = {
-        val b = new mutable.MapBuilder[T, S, Map[T, S]](Map.empty[T, S])
-        val length = readData[Int](dis)
-        for (i <- 0 until length) {
-          val k = readData[T](dis)
-          val v = readData[S](dis)
-          b += k -> v
-        }
-        b.result()
-      }
-    }
-
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
