@@ -41,15 +41,15 @@ object ExportVCF extends Command {
 
       val filterHeader = vds.metadata.filters.map { case (key, desc) => s"""##FILTER=<ID=$key,Description="$desc">""" }.mkString("\n")
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.attrs.get("info") match {
-        case Some(anno: Annotations) => anno.attrs.map { case (key, sig) =>
+      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[Annotations]("info") match {
+        case Some(anno) => anno.attrs.map { case (key, sig) =>
           val vcfsig = sig.asInstanceOf[VCFSignature]
           val vcfsigType = vcfsig.vcfType
           val vcfsigNumber = vcfsig.number
           val vcfsigDesc = vcfsig.description
           s"""##INFO=<ID=$key,Number=$vcfsigNumber,Type=$vcfsigType,Description="$vcfsigDesc">"""
-        }.mkString("\n") + "\n"
-        case None => ""
+        }
+        case None => Iterable.empty[String]
         case _ => throw new UnsupportedOperationException("somebody put something bad in info")
       }
 
@@ -61,7 +61,8 @@ object ExportVCF extends Command {
       sb.append("\n")
       sb.append(filterHeader)
       sb.append("\n")
-      sb.append(infoHeader)
+      sb.appendIterable(infoHeader, "\n")
+      sb.append("\n")
 
       val headerFragment = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT"
       sb.append(headerFragment)
@@ -86,8 +87,7 @@ object ExportVCF extends Command {
       sb.append(v.start)
       sb += '\t'
 
-      val id = a.attrs.get("rsid")
-        .map(_.asInstanceOf[String])
+      val id = a.getOption[String]("rsid")
         .getOrElse(".")
       sb.append(id)
 
@@ -97,8 +97,7 @@ object ExportVCF extends Command {
       sb.append(v.alt)
       sb += '\t'
 
-      val qual = a.attrs.get("qual")
-        .map(_.asInstanceOf[Double])
+      val qual = a.getOption[Double]("qual")
         .map(_.formatted("%.2f"))
         .getOrElse(".")
       sb.append(qual)

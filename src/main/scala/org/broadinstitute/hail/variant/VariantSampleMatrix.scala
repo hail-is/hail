@@ -229,7 +229,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
     val localSamplesBc = sparkContext.broadcast(localSamples)
 
-    // Serialize the zero value to a byte array so that we can get a new clone of it on each key
+    // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
     val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
@@ -292,7 +292,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     mapOp: (Annotations, U) => Annotations)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[T] = {
     val localSamplesBc = sparkContext.broadcast(localSamples)
-    // Serialize the zero value to a byte array so that we can get a new clone of it on each key
+    // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
     val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)

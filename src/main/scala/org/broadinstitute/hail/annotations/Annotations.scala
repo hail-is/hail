@@ -6,9 +6,7 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def get[T](key: String): T = attrs(key).asInstanceOf[T]
 
-  def lift[T](key: String): Option[T] = attrs.lift(key).map(_.asInstanceOf[T])
-
-  def getAnnotations(key: String): Annotations = attrs(key).asInstanceOf[Annotations]
+  def getOption[T](key: String): Option[T] = attrs.lift(key).map(_.asInstanceOf[T])
 
   def +(key: String, value: Any): Annotations = Annotations(attrs + (key -> value))
 
@@ -49,7 +47,7 @@ object AnnotationClassBuilder {
              |""".stripMargin
         case sig: AnnotationSignature =>
           s"${spaces}lazy val `$key`: FilterOption[${sig.typeOf}] = new FilterOption(${
-            s"""$param.lift[${sig.typeOf}]("$key"))
+            s"""$param.getOption[${sig.typeOf}]("$key"))
                |""".stripMargin
           }"
         case _ => s"$key -> $attr \n"

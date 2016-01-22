@@ -33,54 +33,54 @@ class AnnotationsSuite extends SparkSuite {
     assert(variantAnnotationMap.contains(anotherVariant))
 
     // type Int - INFO.DP
-    assert(vas.getAnnotations("info").attrs.get("DP").contains(VCFSignature("Int", "Integer", "1",
+    assert(vas.get[Annotations]("info").attrs.get("DP").contains(VCFSignature("Int", "Integer", "1",
       "Approximate read depth; some reads may have been filtered")))
     assert(variantAnnotationMap(firstVariant)
-        .getAnnotations("info").attrs.get("DP")
+        .get[Annotations]("info").attrs.get("DP")
         .get.asInstanceOf[Int] == 77560)
     assert(variantAnnotationMap(anotherVariant)
-      .getAnnotations("info").attrs.get("DP").get.asInstanceOf[Int] == 20271)
+      .get[Annotations]("info").attrs.get("DP").get.asInstanceOf[Int] == 20271)
 
     // type Double - INFO.HWP
-    assert(vas.getAnnotations("info").attrs.get("HWP").contains(new VCFSignature("Double", "Float", "1",
+    assert(vas.get[Annotations]("info").attrs.get("HWP").contains(new VCFSignature("Double", "Float", "1",
       "P value from test of Hardy Weinberg Equilibrium")))
     assert(
       D_==(variantAnnotationMap(firstVariant)
-        .getAnnotations("info").attrs.get("HWP").get.asInstanceOf[Double], 0.0001))
+        .get[Annotations]("info").attrs.get("HWP").get.asInstanceOf[Double], 0.0001))
     assert(D_==(variantAnnotationMap(anotherVariant)
-        .getAnnotations("info").attrs.get("HWP").get.asInstanceOf[Double], 0.8286))
+        .get[Annotations]("info").attrs.get("HWP").get.asInstanceOf[Double], 0.8286))
 
     // type String - INFO.culprit
-    assert(vas.getAnnotations("info").attrs.get("culprit").contains(VCFSignature("String", "String", "1",
+    assert(vas.get[Annotations]("info").attrs.get("culprit").contains(VCFSignature("String", "String", "1",
       "The annotation which was the worst performing in the Gaussian mixture model, " +
         "likely the reason why the variant was filtered out")))
     assert(variantAnnotationMap(firstVariant)
-      .getAnnotations("info").attrs.get("culprit")
+      .get[Annotations]("info").attrs.get("culprit")
       .contains("FS"))
     assert(variantAnnotationMap(anotherVariant)
-      .getAnnotations("info").attrs.get("culprit")
+      .get[Annotations]("info").attrs.get("culprit")
       .contains("FS"))
 
     // type Array - INFO.AC (allele count)
-    assert(vas.getAnnotations("info").attrs.get("AC").contains(VCFSignature("IndexedSeq[Int]", "Integer", "A",
+    assert(vas.get[Annotations]("info").attrs.get("AC").contains(VCFSignature("IndexedSeq[Int]", "Integer", "A",
       "Allele count in genotypes, for each ALT allele, in the same order as listed")))
     assert(variantAnnotationMap(firstVariant)
-      .getAnnotations("info").attrs.get("AC")
+      .get[Annotations]("info").attrs.get("AC")
       .map(_.asInstanceOf[IndexedSeq[Int]])
       .forall(_.equals(IndexedSeq(89))))
     assert(variantAnnotationMap(anotherVariant)
-      .getAnnotations("info").attrs.get("AC")
+      .get[Annotations]("info").attrs.get("AC")
       .map(_.asInstanceOf[IndexedSeq[Int]])
       .forall(_.equals(IndexedSeq(13))))
 
     // type Boolean/flag - INFO.DB (dbSNP membership)
-    assert(vas.getAnnotations("info").attrs.get("DB").contains(new VCFSignature("Boolean", "Flag", "0",
+    assert(vas.get[Annotations]("info").attrs.get("DB").contains(new VCFSignature("Boolean", "Flag", "0",
       "dbSNP Membership")))
     assert(variantAnnotationMap(firstVariant)
-      .getAnnotations("info").attrs.get("DB")
+      .get[Annotations]("info").attrs.get("DB")
       .contains(true))
     assert(!variantAnnotationMap(anotherVariant)
-      .getAnnotations("info").attrs.contains("DB"))
+      .get[Annotations]("info").attrs.contains("DB"))
 
     //type Set[String]
     assert(vas.attrs.get("filters").contains(new SimpleSignature("Set[String]")))

@@ -35,7 +35,7 @@ object LoadVCF {
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
-    // FIXME get descriptions when HTSJDK is fixed to expose filter descriptions
+    // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
     val filters: IndexedSeq[(String, String)] = header
       .getFilterLines
       .toList
