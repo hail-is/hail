@@ -61,7 +61,5 @@ object AnnotateSamples {
       .toMap
 
     val signatures = typeMap.mapValues(i => SimpleSignature(i, s"to$i"))
-
-
     }
   }
