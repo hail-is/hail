@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.utils.MultiArray2
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.Ploidy._
+import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
 
@@ -37,7 +37,7 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 
 object MendelErrors {
 
-  def getCode(gts: IndexedSeq[GenotypeType], ploidy: Ploidy): Int = {
+  def getCode(gts: IndexedSeq[GenotypeType], ploidy: CopyState): Int = {
     (gts(1), gts(2), gts(0), ploidy) match {       // gtDad, gtMom, gtKid, isHemizygous
       case (HomRef, HomRef,    Het,  Auto) => 2    // Kid is het and not hemizygous
       case (HomVar, HomVar,    Het,  Auto) => 1
