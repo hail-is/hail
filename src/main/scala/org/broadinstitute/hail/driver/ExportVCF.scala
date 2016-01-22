@@ -108,7 +108,7 @@ object ExportVCF extends Command {
       val filter = a.get[Set[String]]("filters")
 
       if (filter.nonEmpty)
-        sb.mkString(filter, ",")
+        sb.appendIterable(filter, ",")
       else
       sb.append(".")
 
@@ -125,7 +125,7 @@ object ExportVCF extends Command {
         }
 
       if (info.nonEmpty)
-        sb.mkString(info, ";")
+        sb.appendIterable(info, ";")
       else
         sb.append(".")
 
