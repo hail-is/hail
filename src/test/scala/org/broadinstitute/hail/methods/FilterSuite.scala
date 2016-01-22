@@ -368,7 +368,7 @@ class FilterSuite extends SparkSuite {
     //for tree debugging, use println(reflect.runtime.universe.reify(expr).tree)
 
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = State("", sc, sqlContext, vds.cache())
+    val state = State(sc, sqlContext, vds.cache())
 
     assert(vds.nVariants == 346)
 
@@ -444,7 +444,7 @@ class FilterSuite extends SparkSuite {
       .vds.expand().collect()
 
     val vds2 = LoadVCF(sc, "src/test/resources/sample_filter.vcf")
-    val state2 = State("", sc, sqlContext, vds2.cache())
+    val state2 = State(sc, sqlContext, vds2.cache())
 
     assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad.at(0) < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
 

@@ -6,11 +6,10 @@ import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 
-case class State(installDir: String,
-  sc: SparkContext,
+case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
-  vds: VariantDataset) {
+  vds: VariantDataset = null) {
   def hadoopConf = vds.sparkContext.hadoopConfiguration
 }
 
