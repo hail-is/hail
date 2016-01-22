@@ -13,7 +13,7 @@ class SampleQCSuite extends SparkSuite {
     val outFile = tmpDir + "testExportVcf.vcf"
 
     val vdsOrig = LoadVCF(sc, vcfFile)
-    val stateOrig = State("", sc, sqlContext, vdsOrig)
+    val stateOrig = State(sc, sqlContext, vdsOrig)
 
     //Get QC metrics
     val stateQC1 = SampleQC.run(stateOrig,Array("-s"))

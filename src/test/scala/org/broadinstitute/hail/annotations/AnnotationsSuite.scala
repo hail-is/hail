@@ -23,7 +23,7 @@ class AnnotationsSuite extends SparkSuite {
     */
 
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = State("", sc, sqlContext, vds)
+    val state = State(sc, sqlContext, vds)
     val vas = vds.metadata.variantAnnotationSignatures
     val variantAnnotationMap = vds.variantsAndAnnotations.collect().toMap
 

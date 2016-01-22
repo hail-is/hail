@@ -44,18 +44,11 @@ object ExportVariants extends Command {
       eve.apply
     }
 
-    header.foreach { str =>
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write(str)
-        s.write("\n")
-      }
-    }
-
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     vds.variantsAndAnnotations
       .map { case (v, va) => makeString(v, va) }
-      .saveAsTextFile(output)
+      .writeTable(output, header)
 
     state
   }

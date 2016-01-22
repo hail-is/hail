@@ -139,7 +139,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def writeMendel(filename: String) {
     val sampleIdsBc = sc.broadcast(sampleIds)
     mendelErrors.map(_.toLineMendel(sampleIdsBc.value))
-      .writeTable(filename, "FID\tKID\tCHR\tSNP\tCODE\tERROR\n")
+      .writeTable(filename, Some("FID\tKID\tCHR\tSNP\tCODE\tERROR"))
   }
 
   def writeMendelF(filename: String) {
@@ -150,7 +150,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
       trioFamBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
         nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\t" + nSNP + "\n"
     }.collect()
-    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\tNSNP\n")
+    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\tNSNP")
   }
 
   def writeMendelI(filename: String) {
@@ -159,12 +159,12 @@ case class MendelErrors(trios:        Array[CompleteTrio],
     val lines = nErrorPerIndiv.map { case (s, (n, nSNP)) =>
       trioFamBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + n + "\t" + nSNP + "\n"
     }.collect()
-    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\tNSNP\n")
+    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\tNSNP")
   }
 
   def writeMendelL(filename: String) {
     nErrorPerVariant.map{ case (v, n) =>
       v.contig + "\t" + v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + n
-    }.writeTable(filename, "CHR\tSNP\tN\n")
+    }.writeTable(filename, Some("CHR\tSNP\tN"))
   }
 }
