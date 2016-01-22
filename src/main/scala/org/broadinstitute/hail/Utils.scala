@@ -208,6 +208,12 @@ class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
     e.values.find(_.toString == name)
 }
 
+class RichMutableMap[K, V](val m: mutable.Map[K, V]) extends AnyVal {
+  def updateValue(k: K, default: V, f: (V) => V) {
+    m += ((k, f(m.getOrElse(k, default))))
+  }
+}
+
 class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
   def mapValuesWithKeys[T](f: (K, V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
 
@@ -271,6 +277,8 @@ class RichBoolean(val b: Boolean) extends AnyVal {
 object Utils {
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
+
+  implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 

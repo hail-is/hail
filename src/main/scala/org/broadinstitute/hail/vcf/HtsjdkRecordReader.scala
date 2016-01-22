@@ -49,29 +49,14 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         else
           Genotype.gtIndex(j, i)
         gb.setGT(gt)
-
-        assert((pl != null) == g.hasPL)
-        if (pl != null) {
-          val plmin = pl.min
-          if (plmin != 0) {
-            pl = pl.clone()
-            for (i <- pl.indices)
-              pl(i) -= plmin
-          }
-
-          // FIXME
-          if (pl(gt) != 0) {
-            pl = pl.clone()
-            pl(gt) = 0
-          }
-        }
       }
 
       if (g.hasAD)
         gb.setAD(g.getAD)
       if (g.hasDP)
         gb.setDP(g.getDP)
-
+      if (g.hasGQ)
+        gb.setGQ(g.getGQ)
       if (pl != null)
         gb.setPL(pl)
 

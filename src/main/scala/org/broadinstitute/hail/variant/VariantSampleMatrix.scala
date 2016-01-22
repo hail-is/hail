@@ -281,7 +281,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
             it1.sameElements(it2)
           case _ => false
         }
-        }.reduce(_ && _)
+        }.fold(true)(_ && _)
   }
 
 }
