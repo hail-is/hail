@@ -17,17 +17,28 @@ object AnnotateSamples extends Command {
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Define types of fields in annotations files")
-    var types: String = _
+    var types: String = ""
+
+    @Args4jOption(required = true, name = "-s", aliases = Array("--sampleheader"),
+      usage = "Identify the name of the column containing the sample IDs")
+    var sampleCol: String = _
   }
 
   def newOptions = new Options
 
   def name = "annotatesamples"
 
-  def description = "Filter samples in current dataset"
+  def description = "Annotate samples in current dataset"
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+
+    val typeMap = options.types.split(",")
+      .map(_.trim())
+      .map(s => s.split("=").map(_.trim()))
+      .toMap
+
+
 
 
     state
