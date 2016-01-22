@@ -15,7 +15,7 @@ class MendelErrorsSuite extends SparkSuite {
     val nPerVariant = men.nErrorPerVariant.collectAsMap()
 
     val son = vds.sampleIds.indexOf("Son1")
-    val dtr = vds.sampleIds.indexOf("Daughter1")
+    val dtr = vds.sampleIds.indexOf("Dtr1")
     val dad = vds.sampleIds.indexOf("Dad1")
     val mom = vds.sampleIds.indexOf("Mom1")
     val dad2 = vds.sampleIds.indexOf("Dad2")
@@ -25,26 +25,30 @@ class MendelErrorsSuite extends SparkSuite {
     val variant2 = Variant("1", 2, "C", "T")
     val variant3 = Variant("X", 1, "C", "T")
     val variant4 = Variant("X", 3, "C", "T")
-    val variant5 = Variant("20", 1, "C", "T")
+    val variant5 = Variant("Y", 1, "C", "T")
+    val variant6 = Variant("Y", 3, "C", "T")
+    val variant7 = Variant("20", 1, "C", "T")
 
     assert(nPerFam.size == 2)
     assert(nPerIndiv.size == 7)
-    assert(nPerVariant.size == 22)
+    assert(nPerVariant.size == 28)
 
-    assert(nPerFam((dad, mom)) == 34)
+    assert(nPerFam((dad, mom)) == 41)
     assert(nPerFam((dad2, mom2)) == 0)
 
-    assert(nPerIndiv(son) == 20)
-    assert(nPerIndiv(dtr) == 14)
-    assert(nPerIndiv(dad) == 15)
-    assert(nPerIndiv(mom) == 18)
+    assert(nPerIndiv(son) == 23)
+    assert(nPerIndiv(dtr) == 18)
+    assert(nPerIndiv(dad) == 19)
+    assert(nPerIndiv(mom) == 22)
     assert(nPerIndiv(dad2) == 0)
 
     assert(nPerVariant(variant1) == 2)
     assert(nPerVariant(variant2) == 1)
     assert(nPerVariant(variant3) == 2)
     assert(nPerVariant(variant4) == 1)
-    assert(nPerVariant.get(variant5).isEmpty)
+    assert(nPerVariant(variant5) == 1)
+    assert(nPerVariant(variant6) == 1)
+    assert(nPerVariant.get(variant7).isEmpty)
 
     //FIXME: How to test these?
     men.writeMendel("/tmp/sample_mendel.mendel")
