@@ -45,11 +45,11 @@ object AnnotateSamples {
 
     val sampleColIndex = header.indexOf(sampleCol)
 
-    val sampleMap: Map[String, Map[String, Any]] =
+    val sampleMap: Map[String, Annotations] =
       lines.map(line => {
         val split = line.split("\t")
         val sample = split(sampleColIndex)
-        (sample, split.zipWithIndex
+        (sample, Annotations(split.zipWithIndex
           .flatMap {
             case (field, index) =>
               functions(index)(field) match {
@@ -57,10 +57,23 @@ object AnnotateSamples {
                 case None => None
               }
           }
-          .toMap - sampleCol)
+          .toMap - sampleCol))
       })
-      .toMap
+        .toMap
 
-    val signatures = typeMap.mapValues(i => SimpleSignature(i, s"to$i"))
-    }
+    val newSampleAnnotations = vds.sampleIds
+      .map(id => sampleMap.getOrElse(id, Annotations.empty()))
+
+    val signatures = typeMap.mapValues(i => SimpleSignature(i))
+
+    val localIds = vds.localSamples.map(vds.sampleIds)
+    val overlap = localIds.map(sampleMap.contains)
+    val missing = overlap.count(_ == false)
+    if (missing > 0)
+      println(s"WARNING: $missing local samples not found in annotations file")
+
+    vds.copy(metadata = vds.metadata.addSampleAnnotations(
+      Annotations(Map(name -> Annotations(signatures))),
+      newSampleAnnotations))
   }
+}
