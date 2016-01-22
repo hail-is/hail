@@ -44,7 +44,7 @@ case class Variant(contig: String,
 
   import CopyState._
 
-  def ploidy(sex: Sex.Sex): CopyState =
+  def copyState(sex: Sex.Sex): CopyState =
     if (sex == Sex.Male)
       if (contig == "X" && !inParX)
         HemiX

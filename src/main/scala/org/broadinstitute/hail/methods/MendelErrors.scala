@@ -20,14 +20,12 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     else
       "./."
 
-  def nSNP = if (variant.isSNP) 1 else 0
-
   def implicatedSamplesWithCounts: Iterator[(Int, (Int, Int))] = {
     if      (code == 2 || code == 1)                             Iterator(trio.kid, trio.dad, trio.mom)
     else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.dad)
     else if (code == 4 || code == 7 || code == 9  || code == 10) Iterator(trio.kid, trio.mom)
     else                                                         Iterator(trio.kid) }
-    .map((_, (1, nSNP)))
+    .map((_, (1, if (variant.isSNP) 1 else 0)))
 
   def toLineMendel(sampleIds: IndexedSeq[String]): String = {
     val v = variant
@@ -40,8 +38,8 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 
 object MendelErrors {
 
-  def getCode(gts: IndexedSeq[GenotypeType], ploidy: CopyState): Int = {
-    (gts(1), gts(2), gts(0), ploidy) match {     // gtDad, gtMom, gtKid, ploidy
+  def getCode(gts: IndexedSeq[GenotypeType], copyState: CopyState): Int = {
+    (gts(1), gts(2), gts(0), copyState) match {  // (gtDad, gtMom, gtKid)
       case (HomRef, HomRef,    Het,  Auto) => 2  // Kid is Het
       case (HomVar, HomVar,    Het,  Auto) => 1
       case (HomRef, HomRef, HomVar,  Auto) => 5  // Kid is HomVar
@@ -94,7 +92,7 @@ object MendelErrors {
           (a, v, s, g) => seqOp(a, s, g),
           mergeOp)
         .flatMap { case (v, a) =>
-          a.rows.flatMap { case (row) => val code = getCode(row, v.ploidy(trioSexBc.value(row.i)))
+          a.rows.flatMap { case (row) => val code = getCode(row, v.copyState(trioSexBc.value(row.i)))
             if (code != 0)
               Some(new MendelError(v, triosBc.value(row.i), code, row(0), row(1), row(2)))
             else
@@ -123,7 +121,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def nErrorPerNuclearFamily: RDD[((Int, Int), (Int, Int))] = {
     val parentsRDD = sc.parallelize(nuclearFams.keys.toSeq)
     mendelErrors
-      .map(me => ((me.trio.dad, me.trio.mom), (1, me.nSNP)))
+      .map(me => ((me.trio.dad, me.trio.mom), (1, if (me.variant.isSNP) 1 else 0)))
       .union(parentsRDD.map((_, (0, 0))))
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }
