@@ -34,16 +34,12 @@ object VariantSampleMatrix {
 
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
-      df.rdd.map(r =>
-        (r.getVariant(0), r.getByteArray(1), r.getGenotypeStream(2))
-      )
-        .mapPartitions { iter =>
-          val ser = SparkEnv.get.serializer.newInstance()
-          iter.map {
-            case (v, arr, gs) =>
-              (v, ser.deserialize[Annotations](ByteBuffer.wrap(arr)), gs)
-          }
-        })
+      df.rdd.mapPartitions(iter => {
+        val ser = SparkEnv.get.serializer.newInstance()
+        iter.map(r =>
+          (r.getVariant(0), ser.deserialize[Annotations](ByteBuffer.wrap(r.getByteArray(1))), r.getGenotypeStream(2))
+        )
+      }))
   }
 }
 
@@ -310,15 +306,15 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def addVariantAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {
-    if (!sig.isInstanceOf[Annotations] && !sig.isInstanceOf[AnnotationSignature])
-      throw new Exception(s"Tried to add ${sig.getClass.getName} to annotation signatures")
+    require(sig.isInstanceOf[AnnotationSignature] ||
+      sig.isInstanceOf[Annotations] && Annotations.validSignatures(sig.asInstanceOf[Annotations]))
     copy(metadata = metadata.copy(variantAnnotationSignatures =
       metadata.variantAnnotationSignatures +(name, sig)))
   }
 
   def addSampleAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {
-    if (!sig.isInstanceOf[Annotations] && !sig.isInstanceOf[AnnotationSignature])
-      throw new Exception(s"Tried to add ${sig.getClass.getName} to annotation signatures")
+    require(sig.isInstanceOf[AnnotationSignature] ||
+      sig.isInstanceOf[Annotations] && Annotations.validSignatures(sig.asInstanceOf[Annotations]))
     copy(metadata = metadata.copy(sampleAnnotationSignatures =
       metadata.sampleAnnotationSignatures +(name, sig)))
   }

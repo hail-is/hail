@@ -947,7 +947,7 @@ class FilterSampleCondition(cond: String, sas: Annotations)
 
 class FilterGenotypeCondition(cond: String, metadata: VariantMetadata, sc: SparkContext)
   extends EvaluatorWithValueTransform[FilterGenotypeWithSA, FilterGenotypePostSA](
-    {val s = s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.Annotations],
+    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.Annotations],
         |  __ids: IndexedSeq[String]) => {
         |  import org.broadinstitute.hail.methods.FilterUtils._
         |  import org.broadinstitute.hail.methods.FilterOption
@@ -969,7 +969,7 @@ class FilterGenotypeCondition(cond: String, metadata: VariantMetadata, sc: Spark
         |    }
         |  }
         |}
-      """.stripMargin;println(s);s},
+      """.stripMargin,
     t => t(metadata.sampleAnnotations, metadata.sampleIds),
     Filter.renameSymbols) {
   def apply(v: Variant, va: Annotations)(sIndex: Int, g: Genotype): FilterOption[Boolean] =

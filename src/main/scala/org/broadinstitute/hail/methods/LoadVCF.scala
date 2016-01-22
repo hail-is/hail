@@ -42,23 +42,10 @@ object LoadVCF {
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-
-    val validScalaRegex = """[\d\w_]+""".r
-    def validScala(s: String): Boolean = s match {
-      case validScalaRegex() => true
-      case _ => false
-    }
-
     val infoSignatures = Annotations(header
       .getInfoHeaderLines
       .toList
-      .map(line => {
-        val id = line.getID
-        if (!validScala(id))
-          fatal("""Cannot load info fields with IDs not matching "[\d\w_]+" """)
-        else
-          (line.getID, VCFSignature.parse(line))
-      })
+      .map(line => (line.getID, VCFSignature.parse(line)))
       .toMap)
 
     val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
@@ -92,7 +79,7 @@ object LoadVCF {
       }
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      IndexedSeq.fill(sampleIds.length)(Annotations.empty()), Annotations.empty(),
+      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
       variantAnnotationSignatures), genotypes)
   }
 }

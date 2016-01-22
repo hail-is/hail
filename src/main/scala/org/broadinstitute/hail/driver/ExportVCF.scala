@@ -105,29 +105,29 @@ object ExportVCF extends Command {
 
       sb += '\t'
 
-      val filter = a.attrs.get("filters")
-        .map(_.asInstanceOf[Set[String]].mkString(","))
-        .map(s => if (s.isEmpty) "." else s)
-        .getOrElse(".")
-      sb.append(filter)
+      val filter = a.get[Set[String]]("filters")
+
+      if (filter.nonEmpty)
+        sb.mkString(filter, ",")
+      else
+      sb.append(".")
 
       sb += '\t'
 
-      var first = true
-      val info = a.attrs.get("info")
-        .map(_.asInstanceOf[Annotations].attrs
-          .map {
-            case (k, v) =>
-              if (varAnnSig.attrs("info").asInstanceOf[Annotations].attrs(k).asInstanceOf[VCFSignature].vcfType == "Flag")
-                k
-              else
-                s"$k=${printInfo(v)}"
-          }
-            .mkString(";")
-        )
-          .getOrElse(".")
+      val info = a.get[Annotations]("info")
+        .attrs
+        .map {
+          case (k, v) =>
+            if (varAnnSig.get[Annotations]("info").get[VCFSignature](k).vcfType == "Flag")
+              k
+            else
+              s"$k=${printInfo(v)}"
+        }
 
-      sb.append(info)
+      if (info.nonEmpty)
+        sb.mkString(info, ";")
+      else
+        sb.append(".")
 
       sb += '\t'
       sb.append("GT:AD:DP:GQ:PL")
@@ -154,6 +154,6 @@ object ExportVCF extends Command {
       }.writeTable(options.output, Some(header), deleteTmpFiles = true)
     kvRDD.unpersist()
 
-      state
+    state
   }
 }

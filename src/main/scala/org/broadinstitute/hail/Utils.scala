@@ -304,6 +304,18 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   def tsvAppend(a: Any) {
     sb.append(org.broadinstitute.hail.methods.UserExportUtils.toTSVString(a))
   }
+  def mkString(iter: Iterable[String], delimiter: String) {
+    var first = true
+    iter.foreach { elem =>
+      if (first) {
+        sb.append(elem)
+        first = false
+      } else {
+        sb.append(delimiter)
+        sb.append(elem)
+      }
+    }
+  }
 }
 
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {

@@ -4,9 +4,9 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def contains(elem: String): Boolean = attrs.contains(elem)
 
-  def isAnnotations(elem: String): Boolean = attrs(elem).isInstanceOf[Annotations]
+  def get[T](key: String): T = attrs(key).asInstanceOf[T]
 
-  def isValue(elem: String): Boolean = !attrs(elem).isInstanceOf[Annotations]
+  def lift[T](key: String): Option[T] = attrs.lift(key).map(_.asInstanceOf[T])
 
   def getAnnotations(key: String): Annotations = attrs(key).asInstanceOf[Annotations]
 
@@ -21,6 +21,16 @@ object Annotations {
   def empty(): Annotations = Annotations(Map.empty[String, Any])
 
   def emptyIndexedSeq(n: Int): IndexedSeq[Annotations] = IndexedSeq.fill(n)(Annotations.empty())
+
+  def validSignatures(a: Annotations): Boolean = {
+    a.attrs.forall { case (key, value) =>
+      value match {
+        case anno: Annotations => validSignatures(anno)
+        case sig: AnnotationSignature => true
+        case _ => false
+      }
+    }
+  }
 }
 
 object AnnotationClassBuilder {
@@ -31,15 +41,17 @@ object AnnotationClassBuilder {
     sigs.attrs.map { case (key, attr) =>
       attr match {
         case a2: Annotations =>
-          s"""${spaces}case class __$key(__a${depth + 1}: org.broadinstitute.hail.annotations.Annotations) {
+          s"""${spaces}case class `__$key`(__a${depth + 1}: org.broadinstitute.hail.annotations.Annotations) {
              |${makeDeclarationsRecursive(a2, depth = depth + 1, nSpace = nSpace)}$spaces}
-             |${spaces}lazy val $key: __$key = new __$key(${
-            s"""$param.attrs("$key").asInstanceOf[org.broadinstitute.hail.annotations.Annotations]"""})
+             |${spaces}lazy val `$key`: `__$key` = new `__$key`(${
+            s"""$param.get[org.broadinstitute.hail.annotations.Annotations]("$key")"""
+          })
              |""".stripMargin
         case sig: AnnotationSignature =>
-          s"${spaces}lazy val $key: FilterOption[${sig.typeOf}] = new FilterOption(${
-            s"""$param.attrs.get("$key").asInstanceOf[Option[${sig.typeOf}]])
-               |""".stripMargin}"
+          s"${spaces}lazy val `$key`: FilterOption[${sig.typeOf}] = new FilterOption(${
+            s"""$param.lift[${sig.typeOf}]("$key"))
+               |""".stripMargin
+          }"
         case _ => s"$key -> $attr \n"
       }
     }

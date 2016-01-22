@@ -366,12 +366,12 @@ object SampleQC extends Command {
 
       state.copy(
         vds = vds.copy(
-          metadata = vds.metadata.copy(
-            sampleAnnotationSignatures = vds.metadata.sampleAnnotationSignatures
-              + ("qc", Annotations(SampleQCCombiner.signatures)),
-            sampleAnnotations = vds.metadata.sampleAnnotations
-              .zip(newAnnotations)
-              .map { case (oldAnno, newAnno) => oldAnno ++ newAnno})))
+          metadata = vds.metadata.addSampleAnnotations(
+            Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
+            newAnnotations)
+        )
+      )
+
     } else {
       hadoopDelete(output, state.hadoopConf, recursive = true)
       r.map { case (s, comb) =>
