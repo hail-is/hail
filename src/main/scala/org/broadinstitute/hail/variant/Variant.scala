@@ -13,10 +13,13 @@ object CopyState extends Enumeration {
 
 
 case class Variant(contig: String,
-                   // FIXME: 0- or 1-based?
                    start: Int,
                    ref: String,
-                   alt: String) extends Ordered[Variant]{
+                   alt: String,
+                   wasSplit: Boolean = false) extends Ordered[Variant] {
+  /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
+     corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
+  require(start >= 0)
   require(ref != alt)
 
   import VariantType._
