@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -214,7 +215,8 @@ class VariantQCCombiner extends Serializable {
     val maf = {
       val refAlleles = nHomRef * 2 + nHet
       val altAlleles = nHomVar * 2 + nHet
-      divOption(altAlleles, refAlleles + altAlleles)}
+      divOption(altAlleles, refAlleles + altAlleles)
+    }
 
     val nCalled = nHomRef + nHet + nHomVar
     val hwe = HWEStats
@@ -254,7 +256,8 @@ class VariantQCCombiner extends Serializable {
         case Some(value) => Some(k, value.toString)
         case None => None
         case _ => Some(k, v.toString)
-      }}  
+      }
+      }
   }
 }
 
@@ -287,14 +290,23 @@ object VariantQC extends Command {
 
     val output = options.output
 
-    if (options.store)
-      state.copy(vds = vds.mapAnnotationsWithAggregate(new VariantQCCombiner)((comb, v, s, g) => comb.merge(g),
-        (comb1, comb2) => comb1.merge(comb2),
-        (ad: AnnotationData, comb: VariantQCCombiner) => ad.addMap("qc", comb.asMap))
-        .addVariantMapSignatures("qc", VariantQCCombiner.signatures))
-    else {
-      val qcResults = results(vds)
+    if (options.store) {
+      val r = results(vds)
+        .mapPartitions { it =>
+          println("computing r...")
+          it
+        }.persist(StorageLevel.MEMORY_AND_DISK)
 
+      state.copy(
+        vds = vds.copy(
+          rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
+            it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
+              assert(v == v2)
+              (v, va.addMap("qc", comb.asMap), gs)
+            }
+          },
+          metadata = vds.metadata.addVariantMapSignatures("qc", VariantQCCombiner.signatures)))
+    } else {
       hadoopDelete(output, state.hadoopConf, recursive = true)
       val r = results(vds)
         .map { case (v, comb) =>

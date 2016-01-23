@@ -18,15 +18,15 @@ object VariantMetadata {
     }
 
   implicit def readableVariantMetadata: DataReadable[VariantMetadata] =
-  new DataReadable[VariantMetadata] {
-    def read(dis: DataInputStream): VariantMetadata = {
-      VariantMetadata(readData[IndexedSeq[(String, String)]](dis),
-      readData[IndexedSeq[String]](dis),
-      readData[IndexedSeq[AnnotationData]](dis),
-      readData[AnnotationSignatures](dis),
-      readData[AnnotationSignatures](dis))
+    new DataReadable[VariantMetadata] {
+      def read(dis: DataInputStream): VariantMetadata = {
+        VariantMetadata(readData[IndexedSeq[(String, String)]](dis),
+          readData[IndexedSeq[String]](dis),
+          readData[IndexedSeq[AnnotationData]](dis),
+          readData[AnnotationSignatures](dis),
+          readData[AnnotationSignatures](dis))
+      }
     }
-  }
 
   def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(IndexedSeq.empty[(String, String)],
     sampleIds, Annotations.emptyOfArrayString(sampleIds.length), Annotations.emptyOfSignature(),
@@ -50,4 +50,8 @@ case class VariantMetadata(filters: IndexedSeq[(String, String)],
     copy(
       sampleAnnotationSignatures = sampleAnnotationSignatures ++ sas,
       sampleAnnotations = sampleAnnotations.zip(sa).map { case (a1, a2) => a1 ++ a2 })
+
+  def addVariantMapSignatures(mapName: String, map: Map[String, AnnotationSignature]): VariantMetadata =
+    copy(
+      variantAnnotationSignatures = variantAnnotationSignatures.addMap(mapName, map))
 }
