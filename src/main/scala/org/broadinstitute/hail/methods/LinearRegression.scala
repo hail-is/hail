@@ -120,7 +120,7 @@ object LinearRegression {
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
     if (!ped.trios.forall(_.pheno.isDefined))
-      fatal("Some .fam samples in vds are midding phenotypes")
+      fatal("Some .fam samples in vds are missing phenotypes")
 
     if (!(ped.trios.map(_.kid).sorted sameElements cov.covRowSample.sorted))
       fatal("The .fam samples and .cov samples in vds do not coincide.")
