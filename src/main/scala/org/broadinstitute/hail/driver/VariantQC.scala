@@ -4,6 +4,7 @@ import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
@@ -31,7 +32,8 @@ object VariantQCCombiner {
     "rHetHomVar\t" +
     "rExpectedHetFrequency\tpHWE"
 
-  val signatures = Map("callRate" -> new SimpleSignature("Double"),
+  val signatures: Annotations = Annotations(Map(
+    "callRate" -> new SimpleSignature("Double"),
     "MAC" -> new SimpleSignature("Int"),
     "MAF" -> new SimpleSignature("Double"),
     "nCalled" -> new SimpleSignature("Int"),
@@ -59,7 +61,7 @@ object VariantQCCombiner {
     "rHeterozygosity" -> new SimpleSignature("Double"),
     "rHetHomVar" -> new SimpleSignature("Double"),
     "rExpectedHetFrequency" -> new SimpleSignature("Double"),
-    "pHWE" -> new SimpleSignature("Double"))
+    "pHWE" -> new SimpleSignature("Double")))
 }
 
 class VariantQCCombiner extends Serializable {
@@ -211,7 +213,7 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(hwe._2)
   }
 
-  def asMap: Map[String, Any] = {
+  def asAnnotations: Annotations = {
     val maf = {
       val refAlleles = nHomRef * 2 + nHet
       val altAlleles = nHomVar * 2 + nHet
@@ -223,7 +225,8 @@ class VariantQCCombiner extends Serializable {
     val callrate = divOption(nCalled, nCalled + nNotCalled)
     val mac = nHet + 2 * nHomVar
 
-    Map[String, Any]("callRate" -> divOption(nCalled, nCalled + nNotCalled),
+    Annotations(Map[String, Any](
+      "callRate" -> divOption(nCalled, nCalled + nNotCalled),
       "MAC" -> mac,
       "MAF" -> maf,
       "nCalled" -> nCalled,
@@ -259,6 +262,7 @@ class VariantQCCombiner extends Serializable {
           case _ => Some(k, v)
         }
       }
+    )
   }
 }
 
@@ -303,11 +307,12 @@ object VariantQC extends Command {
           rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
             it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
               assert(v == v2)
-              (v, va ++ Annotations(Map("qc" -> comb.asMap)), gs)
+              (v, va + ("qc", comb.asAnnotations), gs)
             }
           },
-          metadata = vds.metadata.addVariantAnnotationSignatures(
-            Annotations(Map("qc" -> Annotations(VariantQCCombiner.signatures))))))
+          metadata = vds.metadata.addVariantAnnotationSignatures("qc", VariantQCCombiner.signatures)
+        )
+      )
     } else {
       hadoopDelete(output, state.hadoopConf, recursive = true)
       val r = results(vds)

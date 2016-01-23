@@ -34,4 +34,9 @@ case class VariantMetadata(filters: IndexedSeq[(String, String)],
   def addVariantAnnotationSignatures(newSigs: Annotations): VariantMetadata =
     copy(
       variantAnnotationSignatures = variantAnnotationSignatures ++ newSigs)
+
+  def addVariantAnnotationSignatures(key: String, sig: Any): VariantMetadata =
+    copy(
+      variantAnnotationSignatures = variantAnnotationSignatures + (key, sig)
+    )
 }
