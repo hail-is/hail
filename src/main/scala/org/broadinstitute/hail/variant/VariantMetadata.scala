@@ -30,4 +30,8 @@ case class VariantMetadata(filters: IndexedSeq[(String, String)],
     copy(
       sampleAnnotationSignatures = sampleAnnotationSignatures ++ sas,
       sampleAnnotations = sampleAnnotations.zip(sa).map { case (a1, a2) => a1 ++ a2 })
+
+  def addVariantAnnotationSignatures(newSigs: Annotations): VariantMetadata =
+    copy(
+      variantAnnotationSignatures = variantAnnotationSignatures ++ newSigs)
 }
