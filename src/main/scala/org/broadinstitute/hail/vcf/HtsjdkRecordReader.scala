@@ -89,7 +89,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
       val altIndices = alts.map(vc.getAlleleIndex) // index in the VCF, used to access AD and PL fields
       val biVs = alts.map { alt =>
-          (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true),
+          (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString),
           Annotations[String](Map[String, Map[String, String]]("info" -> vc.getAttributes
             .asScala
             .mapValues(HtsjdkRecordReader.infoToString)

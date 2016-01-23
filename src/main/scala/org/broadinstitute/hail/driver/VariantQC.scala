@@ -28,7 +28,7 @@ object VariantQCCombiner {
     "nNonRef\t" +
     "rHeterozygosity\t" +
     "rHetHomVar\t" +
-    "rExpectedHetFrequency\tpHWE\t"
+    "rExpectedHetFrequency\tpHWE"
 
   val signatures = Map("callRate" -> new SimpleSignature("Double", "toDouble"),
     "MAC" -> new SimpleSignature("Int", "toInt"),
@@ -293,12 +293,6 @@ object VariantQC extends Command {
         (ad: AnnotationData, comb: VariantQCCombiner) => ad.addMap("qc", comb.asMap))
         .addVariantMapSignatures("qc", VariantQCCombiner.signatures))
     else {
-      writeTextFile(output + ".header", state.hadoopConf) { s =>
-        s.write("Chrom\tPos\tRef\tAlt\t")
-        s.write(VariantQCCombiner.header)
-        s.write("\n")
-      }
-
       val qcResults = results(vds)
 
       hadoopDelete(output, state.hadoopConf, recursive = true)
@@ -315,7 +309,7 @@ object VariantQC extends Command {
           sb += '\t'
           comb.emit(sb)
           sb.result()
-        }.saveAsTextFile(output)
+        }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
 
       state
     }

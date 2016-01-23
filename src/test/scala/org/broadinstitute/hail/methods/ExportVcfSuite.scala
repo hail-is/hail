@@ -10,13 +10,12 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val tmpDir = "/tmp/"
-    val outFile = tmpDir + "testExportVcf.vcf.bgz"
+    val outFile = "/tmp/testExportVcf.vcf.bgz"
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
-    val stateOrig = State("", sc, sqlContext, vdsOrig)
+    val stateOrig = State(sc, sqlContext, vdsOrig)
 
-    ExportVCF.run(stateOrig, Array("-o", outFile, "-t", tmpDir))
+    ExportVCF.run(stateOrig, Array("-o", outFile))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
@@ -26,13 +25,12 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testSameAsOrigNoCompression() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val tmpDir = "/tmp/"
-    val outFile = tmpDir + "testExportVcf.vcf"
+    val outFile = "/tmp/testExportVcf.vcf"
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
-    val stateOrig = State("", sc, sqlContext, vdsOrig)
+    val stateOrig = State(sc, sqlContext, vdsOrig)
 
-    ExportVCF.run(stateOrig, Array("-o", outFile, "-t", tmpDir))
+    ExportVCF.run(stateOrig, Array("-o", outFile))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
@@ -42,16 +40,15 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testSorted() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val tmpDir = "/tmp/"
-    val outFile = tmpDir + "testSortVcf.vcf.bgz"
+    val outFile = "/tmp/testSortVcf.vcf.bgz"
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
-    val stateOrig = State("", sc, sqlContext, vdsOrig)
+    val stateOrig = State(sc, sqlContext, vdsOrig)
 
-    ExportVCF.run(stateOrig, Array("-o", outFile, "-t", tmpDir))
+    ExportVCF.run(stateOrig, Array("-o", outFile))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
-    val stateNew = State("", sc, sqlContext, vdsNew)
+    val stateNew = State(sc, sqlContext, vdsNew)
 
     case class Coordinate(contig: String, start: Int, ref: String, alt: String) extends Ordered[Coordinate] {
       def compare(that: Coordinate) = {

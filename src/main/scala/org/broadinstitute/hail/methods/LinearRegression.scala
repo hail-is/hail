@@ -184,6 +184,6 @@ case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
       case None => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\tNA\tNA\tNA\tNA\tNA"
     }
     lr.map((toLine _).tupled)
-      .writeTable(filename, "CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP\n")
+      .writeTable(filename, Some("CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP"))
   }
 }
