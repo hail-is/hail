@@ -476,7 +476,7 @@ class FilterSuite extends SparkSuite {
 
     val vds = TestRDDBuilder.buildRDD(8, 8, sc)
 
-    val state = State("", sc, sqlContext, vds)
+    val state = State(sc, sqlContext, vds)
 
     assert(FilterSamples.run(state, Array("--keep", "-c", "src/test/resources/filter.sample_list")).vds.nLocalSamples == 3)
 
