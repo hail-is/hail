@@ -58,4 +58,4 @@ PAR is currently defined with respect to reference [GRCh37](http://www.ncbi.nlm.
 - Y: 10001-2649520
 - Y: 59034050-59363566
 
-`mendelerrors` assumes all contigs apart from X and Y are fully autosomal; mitochondrial DNA is not currenly supported.
+`mendelerrors` assumes all contigs apart from X and Y are fully autosomal; mitochondria, decoys, etc. are not given special treatment.

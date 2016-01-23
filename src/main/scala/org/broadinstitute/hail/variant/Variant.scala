@@ -6,8 +6,8 @@ object VariantType extends Enumeration {
   val SNP, MNP, Insertion, Deletion, Complex = Value
 }
 
-object Ploidy extends Enumeration {
-  type Ploidy = Value
+object CopyState extends Enumeration {
+  type CopyState = Value
   val Auto, HemiX, HemiY = Value
 }
 
@@ -16,8 +16,7 @@ case class Variant(contig: String,
                    // FIXME: 0- or 1-based?
                    start: Int,
                    ref: String,
-                   alt: String,
-                   wasSplit: Boolean = false) extends Ordered[Variant]{
+                   alt: String) extends Ordered[Variant]{
   require(ref != alt)
 
   import VariantType._
@@ -43,9 +42,9 @@ case class Variant(contig: String,
   def inParX: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
   def inParY: Boolean = (10001 <= start && start <= 2649520) || ( 59034050 <= start && start <=  59363566)
 
-  import Ploidy._
+  import CopyState._
 
-  def ploidy(sex: Sex.Sex): Ploidy =
+  def copyState(sex: Sex.Sex): CopyState =
     if (sex == Sex.Male)
       if (contig == "X" && !inParX)
         HemiX

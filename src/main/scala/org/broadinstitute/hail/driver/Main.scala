@@ -4,6 +4,7 @@ import java.io.File
 
 import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.driver.Main._
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -11,13 +12,20 @@ import scala.reflect.ClassTag
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
+object HailConfiguration {
+  var installDir: String = _
+
+  var tmpDir: String = _
+
+}
+
 object Main {
 
   class Options {
     @Args4jOption(required = false, name = "-h", aliases = Array("--help"), usage = "Print usage")
     var printUsage: Boolean = false
 
-    @Args4jOption(required = false, name = "--master", usage = "Set Spark master (default: system default or local)")
+    @Args4jOption(required = false, name = "--master", usage = "Set Spark master (default: system default or local[*])")
     var master: String = _
 
     @Args4jOption(required = false, name = "--noisy", usage = "Enable Spark INFO messages")
@@ -25,6 +33,9 @@ object Main {
 
     @Args4jOption(required = false, name = "--parquet-compression", usage = "Parquet compression codec")
     var parquetCompression = "uncompressed"
+
+    @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary directory (default: /tmp)")
+    var tmpDir: String = "/tmp"
   }
 
   def main(args: Array[String]) {
@@ -32,7 +43,7 @@ object Main {
     println("user.dir = " + System.getProperty("user.dir"))
 
     def splitBefore[T](a: Array[T], p: (T) => Boolean)
-                      (implicit tct: ClassTag[T]): Array[Array[T]] = {
+      (implicit tct: ClassTag[T]): Array[Array[T]] = {
       val r = mutable.ArrayBuilder.make[Array[T]]()
       val b = mutable.ArrayBuilder.make[T]()
       a.foreach { (x: T) =>
@@ -123,7 +134,7 @@ object Main {
     if (options.master != null)
       conf.setMaster(options.master)
     else if (!conf.contains("spark.master"))
-      conf.setMaster("local")
+      conf.setMaster("local[*]")
 
     conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
@@ -151,16 +162,18 @@ object Main {
       hadoopConf.set("fs.s3n.secret.key", secretAccessKey)
     }
 
+    // FIXME separate entrypoints
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     sc.addJar(jar)
 
-    val installDir = new File(jar).getParent + "/.."
+    HailConfiguration.installDir = new File(jar).getParent + "/.."
+    HailConfiguration.tmpDir = options.tmpDir
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
     val times = mutable.ArrayBuffer.empty[(String, Long)]
 
-    invocations.foldLeft(State(installDir, sc, sqlContext, null)) { case (s, args) =>
+    invocations.foldLeft(State(sc, sqlContext)) { case (s, args) =>
       println("running: " + args.mkString(" "))
       val cmdName = args(0)
       nameCommand.get(cmdName) match {
@@ -174,6 +187,8 @@ object Main {
           fatal("unknown command `" + cmdName + "'")
       }
     }
+
+    // Thread.sleep(60*60*1000)
 
     sc.stop()
 

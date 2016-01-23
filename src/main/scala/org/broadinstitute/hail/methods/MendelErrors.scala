@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.utils.MultiArray2
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.Ploidy._
+import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
 
@@ -20,14 +20,12 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     else
       "./."
 
-  def nSNP = if (variant.isSNP) 1 else 0
-
   def implicatedSamplesWithCounts: Iterator[(Int, (Int, Int))] = {
     if      (code == 2 || code == 1)                             Iterator(trio.kid, trio.dad, trio.mom)
     else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.dad)
     else if (code == 4 || code == 7 || code == 9  || code == 10) Iterator(trio.kid, trio.mom)
     else                                                         Iterator(trio.kid) }
-    .map((_, (1, nSNP)))
+    .map((_, (1, if (variant.isSNP) 1 else 0)))
 
   def toLineMendel(sampleIds: IndexedSeq[String]): String = {
     val v = variant
@@ -40,8 +38,8 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 
 object MendelErrors {
 
-  def getCode(gts: IndexedSeq[GenotypeType], ploidy: Ploidy): Int = {
-    (gts(1), gts(2), gts(0), ploidy) match {     // gtDad, gtMom, gtKid, ploidy
+  def getCode(gts: IndexedSeq[GenotypeType], copyState: CopyState): Int = {
+    (gts(1), gts(2), gts(0), copyState) match {  // (gtDad, gtMom, gtKid)
       case (HomRef, HomRef,    Het,  Auto) => 2  // Kid is Het
       case (HomVar, HomVar,    Het,  Auto) => 1
       case (HomRef, HomRef, HomVar,  Auto) => 5  // Kid is HomVar
@@ -95,7 +93,7 @@ object MendelErrors {
           (a, v, s, g) => seqOp(a, s, g),
           mergeOp)
         .flatMap { case (v, a) =>
-          a.rows.flatMap { case (row) => val code = getCode(row, v.ploidy(trioSexBc.value(row.i)))
+          a.rows.flatMap { case (row) => val code = getCode(row, v.copyState(trioSexBc.value(row.i)))
             if (code != 0)
               Some(new MendelError(v, triosBc.value(row.i), code, row(0), row(1), row(2)))
             else
@@ -124,7 +122,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def nErrorPerNuclearFamily: RDD[((Int, Int), (Int, Int))] = {
     val parentsRDD = sc.parallelize(nuclearFams.keys.toSeq)
     mendelErrors
-      .map(me => ((me.trio.dad, me.trio.mom), (1, me.nSNP)))
+      .map(me => ((me.trio.dad, me.trio.mom), (1, if (me.variant.isSNP) 1 else 0)))
       .union(parentsRDD.map((_, (0, 0))))
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }
@@ -140,7 +138,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def writeMendel(filename: String) {
     val sampleIdsBc = sc.broadcast(sampleIds)
     mendelErrors.map(_.toLineMendel(sampleIdsBc.value))
-      .writeTable(filename, "FID\tKID\tCHR\tSNP\tCODE\tERROR\n")
+      .writeTable(filename, Some("FID\tKID\tCHR\tSNP\tCODE\tERROR"))
   }
 
   def writeMendelF(filename: String) {
@@ -151,7 +149,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
       trioFamBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
         nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\t" + nSNP + "\n"
     }.collect()
-    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\tNSNP\n")
+    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tPAT\tMAT\tCHLD\tN\tNSNP")
   }
 
   def writeMendelI(filename: String) {
@@ -160,12 +158,12 @@ case class MendelErrors(trios:        Array[CompleteTrio],
     val lines = nErrorPerIndiv.map { case (s, (n, nSNP)) =>
       trioFamBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + n + "\t" + nSNP + "\n"
     }.collect()
-    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\tNSNP\n")
+    writeTable(filename, sc.hadoopConfiguration, lines, "FID\tIID\tN\tNSNP")
   }
 
   def writeMendelL(filename: String) {
     nErrorPerVariant.map{ case (v, n) =>
       v.contig + "\t" + v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + n
-    }.writeTable(filename, "CHR\tSNP\tN\n")
+    }.writeTable(filename, Some("CHR\tSNP\tN"))
   }
 }
