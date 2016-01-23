@@ -6,13 +6,11 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def get[T](key: String): T = attrs(key).asInstanceOf[T]
 
-  def getOption[T](key: String): Option[T] = attrs.lift(key).map(_.asInstanceOf[T])
+  def getOption[T](key: String): Option[T] = attrs.get(key).map(_.asInstanceOf[T])
 
   def +(key: String, value: Any): Annotations = Annotations(attrs + (key -> value))
 
-  def +(map: Map[String, Any]): Annotations = Annotations(attrs ++ map)
-
-  def ++(other: Annotations): Annotations = this + other.attrs
+  def ++(other: Annotations): Annotations = Annotations(attrs ++ other.attrs)
 }
 
 object Annotations {

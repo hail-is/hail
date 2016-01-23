@@ -30,6 +30,17 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     }
   }
 
+  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
+    var first = true
+    i.foreach { elem =>
+      if (first)
+        first = false
+      else
+        g()
+      f(elem)
+    }
+  }
+
   def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
     new Iterable[S] with Serializable {
       def iterator: Iterator[S] = new Iterator[S] {
@@ -303,18 +314,6 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   def tsvAppend(a: Any) {
     sb.append(org.broadinstitute.hail.methods.UserExportUtils.toTSVString(a))
-  }
-  def appendIterable(iter: Iterable[String], delimiter: String) {
-    var first = true
-    iter.foreach { elem =>
-      if (first) {
-        sb.append(elem)
-        first = false
-      } else {
-        sb.append(delimiter)
-        sb.append(elem)
-      }
-    }
   }
 }
 
