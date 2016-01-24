@@ -9,7 +9,7 @@ class PedigreeSuite extends SparkSuite {
     val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
     ped.write("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)  // FIXME: this is not right
     val pedwr = Pedigree.read("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
-    assert(ped.trios.sameElements(pedwr.trios)) // in general .fam samples not in .vcf are dropped
+    assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in sample_mendel.vcf
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap

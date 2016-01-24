@@ -25,4 +25,12 @@ class UtilsSuite extends TestNGSuite {
     assert(flushDouble(-8.0E-309) == 0.0)
     assert(flushDouble(0.0) == 0.0)
   }
+
+  @Test def areDistinct() {
+    assert(Array().areDistinct())
+    assert(Array(1).areDistinct())
+    assert(Array(1,2).areDistinct())
+    assert(!Array(1,1).areDistinct())
+    assert(!Array(1,2,1).areDistinct())
+  }
 }

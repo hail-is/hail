@@ -71,7 +71,7 @@ object Pedigree {
 }
 
 case class Pedigree(trios: Array[Trio]) {
-  if (trios.map(_.kid).toSet.size != trios.size)
+  if (!trios.map(_.kid).areDistinct)
     fatal(".fam sample names are not unique.")
 
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
