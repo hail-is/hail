@@ -235,7 +235,7 @@ case class Select(lhs: AST, rhs: String) extends AST(lhs) {
     case (TGenotype, "gt") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.call.map(_.gt))
     case (TGenotype, "ad") =>
-      AST.evalCompose[Genotype](c, lhs)(_.ad)
+      AST.evalCompose[Genotype](c, lhs)(g => Array[Int](g.ad._1, g.ad._2))
     case (TGenotype, "dp") =>
       AST.evalCompose[Genotype](c, lhs)(_.dp)
     case (TGenotype, "gq") =>

@@ -277,8 +277,13 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName)
       case None => Array(tmpFileName)
     }
+
     hadoopDelete(filename, hConf, recursive = true) // overwriting by default
-    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+
+    val (_, dt) = time {
+      hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+    }
+    println("merge time: " + formatTime(dt))
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = false)
