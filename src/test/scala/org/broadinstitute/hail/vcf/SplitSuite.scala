@@ -26,7 +26,7 @@ class SplitSuite extends SparkSuite {
       }
 
     // test for wasSplit
-    vds1.mapWithAll((v, va, s, g) => (v.start, va.vals.contains("multiallelic")))
+    vds1.mapWithAll((v, va, s, g) => (v.start, va.attrs.contains("multiallelic")))
       .foreach{case (i, b) => simpleAssert(b == (i != 1180))}
 
     // test for fakeRef

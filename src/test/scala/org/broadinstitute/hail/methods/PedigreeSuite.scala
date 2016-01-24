@@ -5,11 +5,11 @@ import org.testng.annotations.Test
 
 class PedigreeSuite extends SparkSuite {
   @Test def test() {
-    val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
-    ped.write("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)  // FIXME: this is not right
-    val pedwr = Pedigree.read("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
-    assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in sample_mendel.vcf
+    val vds = LoadVCF(sc, "src/test/resources/pedigree.vcf")
+    val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
+    ped.write("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)  // FIXME: this is not right
+    val pedwr = Pedigree.read("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
+    assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in pedigree.vcf
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap
@@ -33,8 +33,8 @@ class PedigreeSuite extends SparkSuite {
   }
 
   @Test def testWithMismatchedSamples() {
-    val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
+    val vds = LoadVCF(sc, "src/test/resources/pedigree.vcf")
+    val ped = Pedigree.read("src/test/resources/pedigreeWithExtraSample.fam", sc.hadoopConfiguration, vds.sampleIds)
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap
@@ -48,6 +48,6 @@ class PedigreeSuite extends SparkSuite {
   }
 
   //FIXME: How to test
-  //ped.writeSummary("/tmp/sample_mendel.sumfam", sc.hadoopConfiguration)
+  //ped.writeSummary("/tmp/pedigree.sumfam", sc.hadoopConfiguration)
 
 }

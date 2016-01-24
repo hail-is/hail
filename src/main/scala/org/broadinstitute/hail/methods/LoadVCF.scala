@@ -35,25 +35,25 @@ object LoadVCF {
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
-    // FIXME get descriptions when HTSJDK is fixed to expose filter descriptions
+    // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
     val filters: IndexedSeq[(String, String)] = header
       .getFilterLines
       .toList
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-    val infoSignatures = header
+    val infoSignatures = Annotations(header
       .getInfoHeaderLines
       .toList
       .map(line => (line.getID, VCFSignature.parse(line)))
-      .toMap
+      .toMap)
 
-    val variantAnnotationSignatures: AnnotationSignatures = Annotations[AnnotationSignature](Map("info" -> infoSignatures),
-      Map("filters" -> new SimpleSignature("Set[String]", "toSetString"),
-        "pass" -> new SimpleSignature("Boolean", "toBoolean"),
-        "multiallelic" -> new SimpleSignature("Boolean", "toBoolean"),
-        "qual" -> new SimpleSignature("Double", "toDouble"),
-        "rsid" -> new SimpleSignature("String", "toString")))
+    val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
+      "filters" -> new SimpleSignature("Set[String]"),
+      "pass" -> new SimpleSignature("Boolean"),
+      "qual" -> new SimpleSignature("Double"),
+      "multiallelic" -> new SimpleSignature("Boolean"),
+      "rsid" -> new SimpleSignature("String")))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -62,12 +62,14 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
+    val sigMap = sc.broadcast(infoSignatures.attrs)
+
     val headerLinesBc = sc.broadcast(headerLines)
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
       .mapPartitions { lines =>
         val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
         lines.filter(line => !line.isEmpty && line(0) != '#')
-          .flatMap(reader.readRecord)
+          .flatMap(line => reader.readRecord(line, sigMap.value))
           .map { case (v, va, gs) =>
             val b = new GenotypeStreamBuilder(v, compress)
             for (g <- gs)
@@ -77,7 +79,7 @@ object LoadVCF {
       }
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyOfArrayString(sampleIds.length), Annotations.emptyOfSignature(),
+      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
       variantAnnotationSignatures), genotypes)
   }
 }

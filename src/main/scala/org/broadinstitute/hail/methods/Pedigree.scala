@@ -44,24 +44,29 @@ object Pedigree {
 
     val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
 
+    var nSamplesDiscarded = 0
+
     // .fam samples not in sampleIds are discarded
     readFile(filename, hConf) { s =>
-      Pedigree(Source.fromInputStream(s)
+      val trios = Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty)
         .flatMap{ line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
           val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
-          sampleIndex.get(kid).map( kidId =>
-            Trio(
-              kidId,
-              if (fam != "0") Some(fam) else None,
-              sampleIndex.get(dad), // FIXME: code assumes "0" cannot be a (string) sample ID in a vds, do you agree we should enforce that elsewhere?
-              sampleIndex.get(mom),
-              Sex.withNameOption(sex),
-              Phenotype.withNameOption(pheno))
-          )
+          sampleIndex.get(kid) match {
+            case Some(kidId) =>
+              Some(Trio(
+                kidId,
+                if (fam != "0") Some(fam) else None,
+                sampleIndex.get(dad), // FIXME: code assumes "0" cannot be a (string) sample ID in a vds, do you agree we should enforce that elsewhere?
+                sampleIndex.get(mom),
+                Sex.withNameOption(sex),
+                Phenotype.withNameOption(pheno)))
+            case None => nSamplesDiscarded += 1; None
+          }
         }.toArray
-      )
+      warnIfSamplesDiscarded(nSamplesDiscarded, "missing from variant data set discarded.")
+      Pedigree(trios)
     }
   }
 

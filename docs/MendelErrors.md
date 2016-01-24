@@ -49,7 +49,7 @@ Code | Dad | Mom | Kid | Ploidy
 
 *Notes:*
 
-Samples not in the stored variant data set are discarded, and then only complete trios are considered. Sex must be defined for all samples in complete trios.
+`mendelerrors` only considers children with two parents and defined sex.
 
 PAR is currently defined with respect to reference [GRCh37](http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/):
 
