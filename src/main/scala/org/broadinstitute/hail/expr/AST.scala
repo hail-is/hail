@@ -21,7 +21,7 @@ object Type {
     "alt" -> TString)
 }
 
-trait NumericConversion[T] {
+trait NumericConversion[T] extends Serializable {
   def to(numeric: Any): T
 }
 
@@ -214,6 +214,9 @@ case class Select(lhs: AST, rhs: String) extends AST(lhs) {
       case (TGenotype, "dp") => TInt
       case (TGenotype, "gq") => TInt
       case (TGenotype, "pl") => TArray(TInt)
+      case (TGenotype, "isHomRef") => TBoolean
+      case (TGenotype, "isHet") => TBoolean
+      case (TGenotype, "isHomVar") => TBoolean
       case (TVariant, "contig") => TString
       case (TVariant, "start") => TInt
       case (TVariant, "ref") => TString
@@ -239,6 +242,12 @@ case class Select(lhs: AST, rhs: String) extends AST(lhs) {
       AST.evalCompose[Genotype](c, lhs)(_.gq)
     case (TGenotype, "pl") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.call.map(_.pl))
+    case (TGenotype, "isHomRef") =>
+      AST.evalCompose[Genotype](c, lhs)(_.isHomRef)
+    case (TGenotype, "isHet") =>
+      AST.evalCompose[Genotype](c, lhs)(_.isHet)
+    case (TGenotype, "isHomRef") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.isHomRef)
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](c, lhs)(_.contig)
@@ -290,9 +299,7 @@ case class BinaryOp(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs)
   def eval(c: EvalContext): () => Any = (operation, `type`) match {
     case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
     case ("~", TBoolean) => AST.evalCompose[String, String](c, lhs, rhs) { (s, t) =>
-      val r = s.r.findFirstIn(t).isDefined
-      println(s"s=$s t=$t r=$r")
-      r
+      s.r.findFirstIn(t).isDefined
     }
 
     case ("||", TBoolean) => AST.evalCompose[Boolean, Boolean](c, lhs, rhs)(_ || _)
@@ -316,6 +323,9 @@ case class BinaryOp(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs)
     case (TBoolean, "||", TBoolean) => TBoolean
     case (TBoolean, "&&", TBoolean) => TBoolean
     case (lhsType: TNumeric, "+", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case (lhsType: TNumeric, "-", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case (lhsType: TNumeric, "*", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case (lhsType: TNumeric, "/", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
   }
 }
 
@@ -370,7 +380,16 @@ case class UnaryOp(operation: String, operand: AST) extends AST(operand) {
   }
 }
 
-case class Invoke(function: String, args: Array[AST])
+case class Apply(f: AST, args: Array[AST]) extends AST(f +: args) {
+  def eval(c: EvalContext): () => Any = (f.`type`, args.map(_.`type`)) match {
+    case (TArray(elementType), Array(TInt)) =>
+      AST.evalCompose[Array[_], Int](c, f, args(0))((a, i) => a(i))
+  }
+
+  override def typecheckThis(): Type = (f.`type`, args.map(_.`type`)) match {
+    case (TArray(elementType), Array(TInt)) => elementType
+  }
+}
 
 case class SymRef(symbol: String) extends AST {
   def eval(c: EvalContext): () => Any = {

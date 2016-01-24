@@ -36,13 +36,25 @@ class Parser extends JavaTokenParsers {
     }
 
   def tilde_expr: Parser[AST] =
-    dot_expr ~ rep("~" ~ dot_expr) ^^ { case lhs ~ lst =>
+    apply_expr ~ rep("~" ~ apply_expr) ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
     }
 
+  def args: Parser[Array[AST]] =
+    expr ~ rep("," ~> expr) ^^ { case arg ~ lst => (arg :: lst).toArray }
+
+  def apply_expr: Parser[AST] =
+    dot_expr ~ opt(args) ^^ {
+      case f ~ Some(args) => Apply(f, args)
+      case f ~ None => f
+    }
+
   def dot_expr: Parser[AST] =
-    primary_expr ~ rep("." ~ ident) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, _ ~ rhs) => Select(acc, rhs) }
+    primary_expr ~ rep(("." ~ ident) | ("(" ~ args ~ ")")) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) {
+        case (acc, "." ~ sym) => Select(acc, sym)
+        case (acc, "(" ~ (args: Array[AST]) ~ ")") => Apply(acc, args)
+      }
     }
 
   def primary_expr: Parser[AST] =
