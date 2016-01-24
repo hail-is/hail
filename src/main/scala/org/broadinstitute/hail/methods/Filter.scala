@@ -878,6 +878,13 @@ object Filter {
   def keepThis(fo: FilterOption[Boolean], keep: Boolean): Boolean =
     fo.o.map(keepThis(_, keep)).getOrElse(false)
 
+  // FIXME
+  def keepThisAny(a: Any, keep: Boolean): Boolean =
+    if (a == null)
+      false
+    else
+      a.asInstanceOf[Boolean]
+
   def keepThis(b: Boolean, keep: Boolean): Boolean =
     if (keep)
       b

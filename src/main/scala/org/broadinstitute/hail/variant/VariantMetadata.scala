@@ -8,8 +8,10 @@ import org.broadinstitute.hail.annotations._
 
 object VariantMetadata {
 
-  def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(IndexedSeq.empty[(String, String)],
-    sampleIds, Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
+  def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(Array.empty[(String, String)],
+    sampleIds,
+    Annotations.emptyIndexedSeq(sampleIds.length),
+    Annotations.empty(),
     Annotations.empty())
 
   def apply(filters: IndexedSeq[(String, String)], sampleIds: Array[String],

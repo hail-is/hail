@@ -44,6 +44,8 @@ class Parser extends JavaTokenParsers {
     // FIXME L suffix
     floatingPointNumber ^^ (r => Const(r.toDouble, TDouble)) |
     stringLiteral ^^ (r => Const(r, TString)) |
+    "true" ^^ (_ => Const(true, TBoolean)) |
+    "false" ^^ (_ => Const(false, TBoolean)) |
     ident ^^ (r => SymRef(r)) |
     "(" ~> expr <~ ")"
 }

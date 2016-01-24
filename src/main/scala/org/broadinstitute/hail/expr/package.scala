@@ -1,8 +1,8 @@
 package org.broadinstitute.hail
 
 package object expr {
-  type SymbolTable = Map[String, Option[Any]]
-  type TypeSymbolTable = Map[String, Type]
+  type SymbolTable = Map[String, (Int, Type)]
+  type EvalContext = (SymbolTable, Array[Any])
 
   implicit val toInt = IntNumericConversion
   implicit val toLong = LongNumericConversion

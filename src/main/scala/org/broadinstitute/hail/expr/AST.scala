@@ -1,8 +1,11 @@
 package org.broadinstitute.hail.expr
 
-import org.broadinstitute.hail.variant.{Variant, Genotype}
+import org.broadinstitute.hail.variant.{Sample, Variant, Genotype}
 
 object Type {
+  val sampleFields = Map(
+    "id" -> TString)
+
   val genotypeFields = Map(
     "gt" -> TInt,
     "ad" -> TArray(TInt),
@@ -55,6 +58,8 @@ sealed abstract class Type extends Serializable
 
 case object TBoolean extends Type
 
+case object TCharacter extends Type
+
 abstract class TNumeric extends Type
 
 case object TInt extends TNumeric
@@ -76,6 +81,8 @@ case class TSet(elementType: Type) extends Type
 // FIXME name?
 class TAbstractStruct(fields: Map[String, Type]) extends Type
 
+case object TSample extends TAbstractStruct(Type.sampleFields)
+
 case object TGenotype extends TAbstractStruct(Type.genotypeFields)
 
 case object TVariant extends TAbstractStruct(Type.variantFields)
@@ -95,75 +102,104 @@ object AST extends Serializable {
     else
       TInt
 
-  def evalFlatCompose[T](subexpr: AST)
-    (g: (T) => Option[Any]): (SymbolTable) => Option[Any] = {
-    symTab =>
-      subexpr.eval(symTab).flatMap(x => g(x.asInstanceOf[T]))
+  def evalFlatCompose[T](c: EvalContext, subexpr: AST)
+    (g: (T) => Any): () => Any = {
+    val f = subexpr.eval(c)
+    () => {
+      val x = f()
+      if (x != null)
+        g(x.asInstanceOf[T])
+      else
+        null
+    }
   }
 
-  def evalCompose[T](subexpr: AST)
-    (g: (T) => Any): (SymbolTable) => Option[Any] = {
-    symTab =>
-      subexpr.eval(symTab).map(x => g(x.asInstanceOf[T]))
+  def evalCompose[T](c: EvalContext, subexpr: AST)
+    (g: (T) => Any): () => Any = {
+    val f = subexpr.eval(c)
+    () => {
+      val x = f()
+      if (x != null)
+        g(x.asInstanceOf[T])
+      else
+        null
+    }
   }
 
-  def evalCompose[T1, T2](subexpr1: AST, subexpr2: AST)
-    (g: (T1, T2) => Any): (SymbolTable) => Option[Any] = {
-    symTab =>
-      subexpr1.eval(symTab).flatMap {
-        x =>
-          subexpr2.eval(symTab).map {
-            y =>
-              g(x.asInstanceOf[T1], y.asInstanceOf[T2])
-          }
-      }
+  def evalCompose[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
+    (g: (T1, T2) => Any): () => Any = {
+    val f1 = subexpr1.eval(c)
+    val f2 = subexpr2.eval(c)
+    () => {
+      val x = f1()
+      if (x != null) {
+        val y = f2()
+        if (y != null)
+          g(x.asInstanceOf[T1], y.asInstanceOf[T2])
+        else
+          null
+      } else
+        null
+    }
   }
 
-  def evalComposeNumeric[T](subexpr: AST)
+  def evalComposeNumeric[T](c: EvalContext, subexpr: AST)
     (g: (T) => Any)
-    (implicit convT: NumericConversion[T]): (SymbolTable) => Option[Any] = {
-    symTab =>
-      subexpr.eval(symTab).map(x => g(convT.to(x)))
+    (implicit convT: NumericConversion[T]): () => Any = {
+    val f = subexpr.eval(c)
+    () => {
+      val x = f()
+      if (x != null)
+        g(x.asInstanceOf[T])
+      else
+        null
+    }
   }
 
-  def evalComposeNumeric[T1, T2](subexpr1: AST, subexpr2: AST)
+  def evalComposeNumeric[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
     (g: (T1, T2) => Any)
-    (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): (SymbolTable) => Option[Any] = {
-    symTab =>
-      subexpr1.eval(symTab).flatMap {
-        x =>
-          subexpr2.eval(symTab).map {
-            y =>
-              g(convT1.to(x), convT2.to(y))
-          }
-      }
+    (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
+    val f1 = subexpr1.eval(c)
+    val f2 = subexpr2.eval(c)
+    () => {
+      val x = f1()
+      if (x != null) {
+        val y = f2()
+        if (y != null)
+          g(convT1.to(x), convT2.to(y))
+        else
+          null
+      } else
+        null
+    }
   }
 }
 
 // FIXME LexPos
 sealed abstract class AST(subexprs: Array[AST] = Array.empty) extends Serializable {
-  type SymbolTable = Map[String, Option[Any]]
-
   var `type`: Type = null
 
   def this(subexpr1: AST) = this(Array(subexpr1))
 
   def this(subexpr1: AST, subexpr2: AST) = this(Array(subexpr1, subexpr2))
 
-  def eval: SymbolTable => Option[Any]
+  def eval(c: EvalContext): () => Any
 
-  def typecheckThis(typeSymTab: TypeSymbolTable): Type = typecheckThis()
+  def typecheckThis(typeSymTab: SymbolTable): Type = typecheckThis()
 
   def typecheckThis(): Type = throw new UnsupportedOperationException
 
-  def typecheck(typeSymTab: TypeSymbolTable) {
+  def typecheck(typeSymTab: SymbolTable) {
     subexprs.foreach(_.typecheck(typeSymTab))
     `type` = typecheckThis(typeSymTab)
   }
 }
 
 case class Const(value: Any, t: Type) extends AST {
-  def eval = _ => Some(value)
+  def eval(c: EvalContext): () => Any = {
+    val v = value
+    () => v
+  }
 
   override def typecheckThis(): Type = t
 }
@@ -171,7 +207,16 @@ case class Const(value: Any, t: Type) extends AST {
 case class Select(lhs: AST, rhs: String) extends AST(lhs) {
   override def typecheckThis(): Type = {
     (lhs.`type`, rhs) match {
+      case (TSample, "id") => TString
       case (TGenotype, "gt") => TInt
+      case (TGenotype, "ad") => TArray(TInt)
+      case (TGenotype, "dp") => TInt
+      case (TGenotype, "gq") => TInt
+      case (TGenotype, "pl") => TArray(TInt)
+      case (TVariant, "contig") => TString
+      case (TVariant, "start") => TInt
+      case (TVariant, "ref") => TString
+      case (TVariant, "alt") => TString
       case (TStruct(fields), _) => fields(rhs)
       case (t: TNumeric, "toInt") => TInt
       case (t: TNumeric, "toLong") => TLong
@@ -180,54 +225,74 @@ case class Select(lhs: AST, rhs: String) extends AST(lhs) {
     }
   }
 
-  def eval = (lhs.`type`, rhs) match {
+  def eval(c: EvalContext): () => Any = (lhs.`type`, rhs) match {
+    case (TSample, "id") =>
+      AST.evalCompose[Sample](c, lhs)(_.id)
+
     case (TGenotype, "gt") =>
-      AST.evalFlatCompose[Genotype](lhs)(_.call.map(_.gt))
+      AST.evalFlatCompose[Genotype](c, lhs)(_.call.map(_.gt))
+    case (TGenotype, "ad") =>
+      AST.evalCompose[Genotype](c, lhs)(_.ad)
+    case (TGenotype, "dp") =>
+      AST.evalCompose[Genotype](c, lhs)(_.dp)
+    case (TGenotype, "gq") =>
+      AST.evalCompose[Genotype](c, lhs)(_.gq)
+    case (TGenotype, "pl") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.call.map(_.pl))
+
+    case (TVariant, "contig") =>
+      AST.evalCompose[Variant](c, lhs)(_.contig)
+    case (TVariant, "start") =>
+      AST.evalCompose[Variant](c, lhs)(_.start)
+    case (TVariant, "ref") =>
+      AST.evalCompose[Variant](c, lhs)(_.ref)
+    case (TVariant, "alt") =>
+      AST.evalCompose[Variant](c, lhs)(_.alt)
 
     case (TStruct(fields), _) =>
-      AST.evalFlatCompose[Map[String, Any]](lhs)(_.get(rhs))
+      AST.evalFlatCompose[Map[String, Any]](c, lhs)(_.get(rhs))
 
-    case (TInt, "toInt") => AST.evalCompose[Int](lhs)(identity)
-    case (TInt, "toLong") => AST.evalCompose[Int](lhs)(_.toLong)
-    case (TInt, "toFloat") => AST.evalCompose[Int](lhs)(_.toFloat)
-    case (TInt, "toDouble") => AST.evalCompose[Int](lhs)(_.toDouble)
+    case (TInt, "toInt") => lhs.eval(c)
+    case (TInt, "toLong") => AST.evalCompose[Int](c, lhs)(_.toLong)
+    case (TInt, "toFloat") => AST.evalCompose[Int](c, lhs)(_.toFloat)
+    case (TInt, "toDouble") => AST.evalCompose[Int](c, lhs)(_.toDouble)
 
-    case (TLong, "toInt") => AST.evalCompose[Long](lhs)(_.toInt)
-    case (TLong, "toLong") => lhs.eval
-    case (TLong, "toFloat") => AST.evalCompose[Long](lhs)(_.toFloat)
-    case (TLong, "toDouble") => AST.evalCompose[Long](lhs)(_.toDouble)
+    case (TLong, "toInt") => AST.evalCompose[Long](c, lhs)(_.toInt)
+    case (TLong, "toLong") => lhs.eval(c)
+    case (TLong, "toFloat") => AST.evalCompose[Long](c, lhs)(_.toFloat)
+    case (TLong, "toDouble") => AST.evalCompose[Long](c, lhs)(_.toDouble)
 
-    case (TFloat, "toInt") => AST.evalCompose[Float](lhs)(_.toInt)
-    case (TFloat, "toLong") => AST.evalCompose[Float](lhs)(_.toLong)
-    case (TFloat, "toFloat") => lhs.eval
-    case (TFloat, "toDouble") => AST.evalCompose[Float](lhs)(_.toDouble)
+    case (TFloat, "toInt") => AST.evalCompose[Float](c, lhs)(_.toInt)
+    case (TFloat, "toLong") => AST.evalCompose[Float](c, lhs)(_.toLong)
+    case (TFloat, "toFloat") => lhs.eval(c)
+    case (TFloat, "toDouble") => AST.evalCompose[Float](c, lhs)(_.toDouble)
 
-    case (TDouble, "toInt") => AST.evalCompose[Double](lhs)(_.toInt)
-    case (TDouble, "toLong") => AST.evalCompose[Double](lhs)(_.toLong)
-    case (TDouble, "toFloat") => AST.evalCompose[Double](lhs)(_.toFloat)
-    case (TDouble, "toDouble") => lhs.eval
+    case (TDouble, "toInt") => AST.evalCompose[Double](c, lhs)(_.toInt)
+    case (TDouble, "toLong") => AST.evalCompose[Double](c, lhs)(_.toLong)
+    case (TDouble, "toFloat") => AST.evalCompose[Double](c, lhs)(_.toFloat)
+    case (TDouble, "toDouble") => lhs.eval(c)
 
-    case (TString, "toInt") => AST.evalCompose[String](lhs)(_.toInt)
-    case (TString, "toLong") => AST.evalCompose[String](lhs)(_.toLong)
-    case (TString, "toFloat") => AST.evalCompose[String](lhs)(_.toFloat)
-    case (TString, "toDouble") => AST.evalCompose[String](lhs)(_.toDouble)
+    case (TString, "toInt") => AST.evalCompose[String](c, lhs)(_.toInt)
+    case (TString, "toLong") => AST.evalCompose[String](c, lhs)(_.toLong)
+    case (TString, "toFloat") => AST.evalCompose[String](c, lhs)(_.toFloat)
+    case (TString, "toDouble") => AST.evalCompose[String](c, lhs)(_.toDouble)
   }
 }
 
 case class BinaryOp(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs) {
-  def eval = (operation, `type`) match {
-    case ("+", TString) => AST.evalCompose[String, String](lhs, rhs)(_ + _)
+  def eval(c: EvalContext): () => Any = (operation, `type`) match {
+    case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
 
-    case ("+", TInt) => AST.evalComposeNumeric[Int, Int](lhs, rhs)(_ + _)
-    case ("-", TInt) => AST.evalComposeNumeric[Int, Int](lhs, rhs)(_ - _)
-    case ("*", TInt) => AST.evalComposeNumeric[Int, Int](lhs, rhs)(_ * _)
-    case ("/", TInt) => AST.evalComposeNumeric[Int, Int](lhs, rhs)(_ / _)
-    case ("%", TInt) => AST.evalComposeNumeric[Int, Int](lhs, rhs)(_ % _)
+    case ("+", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ + _)
+    case ("-", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ - _)
+    case ("*", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ * _)
+    case ("/", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ / _)
+    case ("%", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ % _)
 
-    case ("+", TDouble) => AST.evalComposeNumeric[Double, Double](lhs, rhs)(_ + _)
-    case ("-", TDouble) => AST.evalComposeNumeric[Double, Double](lhs, rhs)(_ - _)
-    case ("*", TDouble) => AST.evalComposeNumeric[Double, Double](lhs, rhs)(_ * _)
-    case ("/", TDouble) => AST.evalComposeNumeric[Double, Double](lhs, rhs)(_ / _)
+    case ("+", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ + _)
+    case ("-", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ - _)
+    case ("*", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ * _)
+    case ("/", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
   }
 
   override def typecheckThis(): Type = (lhs.`type`, operation, rhs.`type`) match {
@@ -239,17 +304,17 @@ case class BinaryOp(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs)
 case class Comparison(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs) {
   var operandType: Type = null
 
-  def eval = (operation, operandType) match {
-      // FIXME common sueprtype for Array, Set
-    case ("==", TBoolean) => AST.evalCompose[Boolean, Boolean](lhs, rhs)(_ == _)
-    case ("!=", TBoolean) => AST.evalCompose[Boolean, Boolean](lhs, rhs)(_ != _)
+  def eval(c: EvalContext): () => Any = (operation, operandType) match {
+    // FIXME common sueprtype for Array, Set
+    case ("==", TBoolean) => AST.evalCompose[Boolean, Boolean](c, lhs, rhs)(_ == _)
+    case ("!=", TBoolean) => AST.evalCompose[Boolean, Boolean](c, lhs, rhs)(_ != _)
 
-    case ("==", TInt) => AST.evalCompose[Int, Int](lhs, rhs)(_ == _)
-    case ("!=", TInt) => AST.evalCompose[Int, Int](lhs, rhs)(_ != _)
-    case ("<", TInt) => AST.evalCompose[Int, Int](lhs, rhs)(_ < _)
-    case ("<=", TInt) => AST.evalCompose[Int, Int](lhs, rhs)(_ <= _)
-    case (">", TInt) => AST.evalCompose[Int, Int](lhs, rhs)(_ > _)
-    case (">=", TInt) => AST.evalCompose[Int, Int](lhs, rhs)(_ >= _)
+    case ("==", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ == _)
+    case ("!=", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ != _)
+    case ("<", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ < _)
+    case ("<=", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ <= _)
+    case (">", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ > _)
+    case (">=", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ >= _)
   }
 
   override def typecheckThis(): Type = {
@@ -265,13 +330,13 @@ case class Comparison(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rh
 }
 
 case class UnaryOp(operation: String, operand: AST) extends AST(operand) {
-  def eval = (operation, `type`) match {
-    case ("-", TInt) => AST.evalComposeNumeric[Int](operand)(-_)
-    case ("-", TLong) => AST.evalComposeNumeric[Long](operand)(-_)
-    case ("-", TFloat) => AST.evalComposeNumeric[Float](operand)(-_)
-    case ("-", TDouble) => AST.evalComposeNumeric[Double](operand)(-_)
+  def eval(c: EvalContext): () => Any = (operation, `type`) match {
+    case ("-", TInt) => AST.evalComposeNumeric[Int](c, operand)(-_)
+    case ("-", TLong) => AST.evalComposeNumeric[Long](c, operand)(-_)
+    case ("-", TFloat) => AST.evalComposeNumeric[Float](c, operand)(-_)
+    case ("-", TDouble) => AST.evalComposeNumeric[Double](c, operand)(-_)
 
-    case ("!", TBoolean) => AST.evalCompose[Boolean](operand)(!_)
+    case ("!", TBoolean) => AST.evalCompose[Boolean](c, operand)(!_)
   }
 
   override def typecheckThis(): Type = (operation, operand.`type`) match {
@@ -283,8 +348,12 @@ case class UnaryOp(operation: String, operand: AST) extends AST(operand) {
 case class Invoke(function: String, args: Array[AST])
 
 case class SymRef(symbol: String) extends AST {
-  def eval = symTab => symTab.get(symbol)
+  def eval(c: EvalContext): () => Any = {
+    val i = c._1(symbol)._1
+    val a = c._2
+    () => a(i)
+  }
 
-  override def typecheckThis(typeSymTab: TypeSymbolTable): Type =
-    typeSymTab(symbol)
+  override def typecheckThis(typeSymTab: SymbolTable): Type =
+    typeSymTab(symbol)._2
 }

@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype, Sample}
@@ -27,29 +28,41 @@ object FilterGenotypes extends Command {
   def description = "Filter genotypes in current dataset"
 
   def run(state: State, options: Options): State = {
+    val sc = state.sc
     val vds = state.vds
 
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val p: ((Variant, Annotations) => ((Int, Genotype) => Boolean)) = {
-      val cf = new FilterGenotypeCondition(options.condition, vds.metadata, vds.sparkContext)
-      cf.typeCheck()
+    val p = new expr.Parser()
+    val e = p.parseAll(p.expr, options.condition).get
+    val symTab = Map(
+      "v" ->(0, expr.TVariant),
+      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType),
+      "s" ->(2, expr.TSample),
+      "sa" ->(3, vds.metadata.sampleAnnotationSignatures.toExprType),
+      "g" ->(4, expr.TGenotype))
+    e.typecheck(symTab)
 
-      val keep = options.keep
-      (v: Variant, va: Annotations) => {
-        val h = cf(v,va) _
-        (sIndex: Int, g: Genotype) => Filter.keepThis(h(sIndex, g), keep)
-      }
-    }
+    val keep = options.keep
+    val sampleIdsBc = sc.broadcast(vds.sampleIds)
+    val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
+    val a = new Array[Any](5)
+    val f: () => Any = e.eval((symTab, a))
 
-    val newVDS = vds.mapValuesWithPartialApplication(
-      (v: Variant, va: Annotations) =>
-        (s: Int, g: Genotype) =>
-          if (p(v, va)(s, g)) 
-            g
-          else
-            Genotype(-1, (0, 0), 0, null))
+    val noCall = Genotype(-1, (0, 0), 0, null)
+    val newVDS = vds.mapValuesWithAll(
+      (v: Variant, va: Annotations, s: Int, g: Genotype) => {
+        a(0) = v
+        a(1) = va
+        a(2) = sampleIdsBc.value(s)
+        a(3) = sampleAnnotationsBc.value(s)
+        a(4) = g
+        if (Filter.keepThisAny(f(), keep))
+          g
+        else
+          noCall
+      })
     state.copy(vds = newVDS)
   }
 }
