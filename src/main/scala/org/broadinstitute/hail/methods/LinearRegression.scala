@@ -15,31 +15,39 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
 
 object CovariateData {
 
-  // .cov samples not in sampleIds are discarded
   def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): CovariateData = {
-    val (covName, (covRowSampleBuffer, dataBuffer)) =
-      readFile[(Array[String], (ArrayBuffer[Int], ArrayBuffer[Double]))](filename, hConf) { s => {
-        val lines = Source.fromInputStream(s).getLines().filterNot(_.isEmpty)
+    readFile(filename, hConf) { s =>
+      val lines = Source.fromInputStream(s)
+        .getLines()
+        .filterNot(_.isEmpty)
 
-        (lines.next().split("\\s+").tail,
-        lines.map(_.split("\\s+"))
-          .flatMap(entries =>
-            sampleIds.zipWithIndex.toMap.get(entries(0))
-              .map(si => (si, entries.iterator.drop(1).map(_.toDouble).toArray)))
-          .foldLeft( (ArrayBuffer[Int](), ArrayBuffer[Double]()) )
-          { case ((bi, ba), (i, a)) => (bi += i, ba ++= a) })
+      val header = lines.next()
+      val covName = header.split("\\s+").tail
+
+      val covRowSampleBuffer = new ArrayBuffer[Int]
+      val dataBuffer = new ArrayBuffer[Double]
+      var nSamplesDiscarded = 0
+
+      for (line <- lines) {
+        val entries = line.split("\\s+").iterator
+        sampleIds.zipWithIndex.toMap.get(entries.next()) match {
+          case Some(i) => covRowSampleBuffer += i; dataBuffer ++= entries.map(_.toDouble)
+          case None => nSamplesDiscarded += 1
         }
       }
 
-    val covRowSample = covRowSampleBuffer.toArray
+      val covRowSample = covRowSampleBuffer.toArray
 
-    // FIXME: should I move this check to the case class body?
-    if (covRowSample.areDistinct())
-      fatal("Covariate sample names are not unique.")
+      if (!covRowSample.areDistinct()) // FIXME: should I move this check to the case class body?
+        fatal("Covariate sample names are not unique.")
 
-    val data = new DenseMatrix[Double](rows = covRowSample.size, cols = covName.size, data = dataBuffer.toArray, offset = 0, majorStride = covName.size, isTranspose = true)
+      warnIfSamplesDiscarded(nSamplesDiscarded, "in .cov discarded: missing from variant data set.")
 
-    CovariateData(covRowSample, covName, data)
+      val data = new DenseMatrix[Double](rows = covRowSample.size, cols = covName.size, data = dataBuffer.toArray,
+        offset = 0, majorStride = covName.size, isTranspose = true)
+
+      CovariateData(covRowSample, covName, data)
+    }
   }
 }
 
