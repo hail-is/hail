@@ -164,7 +164,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (Int, Annotations) => Boolean): VariantSampleMatrix[T] = {
-    val mask = localSamples.zip(metadata.sampleAnnotations).map { case (s, sa) => p(s, sa) }
+    val mask = localSamples.map((s) => p(s, metadata.sampleAnnotations(s)))
     val maskBc = sparkContext.broadcast(mask)
     val localtct = tct
     copy[T](localSamples = localSamples.zipWithIndex

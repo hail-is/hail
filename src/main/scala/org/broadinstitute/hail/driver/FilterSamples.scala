@@ -53,7 +53,7 @@ object FilterSamples extends Command {
           case parser.Success(result, _) => result.asInstanceOf[expr.AST]
           case parser.NoSuccess(msg, _) => fatal(msg)
         }
-        print(e)
+        // println(e)
         val symTab = Map(
           "s" -> (0, expr.TSample),
           "sa" -> (1, vds.metadata.sampleAnnotationSignatures.toExprType))

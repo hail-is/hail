@@ -34,6 +34,7 @@ object FilterGenotypes extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
+    println(s"c = ${options.condition}")
     val parser = new expr.Parser()
     val e: expr.AST = parser.parseAll(parser.expr, options.condition) match {
       case parser.Success(result, _) => result.asInstanceOf[expr.AST]
