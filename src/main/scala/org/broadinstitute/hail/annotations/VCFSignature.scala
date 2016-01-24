@@ -2,27 +2,11 @@ package org.broadinstitute.hail.annotations
 
 import htsjdk.variant.vcf.{VCFInfoHeaderLine, VCFHeaderLineCount, VCFHeaderLineType}
 
-case class VCFSignature(vcfType: String, emitType: String, number: String,
-  emitConversionIdentifier: String, description: String)
-  extends AnnotationSignature {
-
-  def emitUtilities: String = ""
-}
+case class VCFSignature(typeOf: String, vcfType: String, number: String, description: String)
+  extends AnnotationSignature
 
 object VCFSignature {
-
-  val arrayRegex = """Array\[(\w+)\]""".r
-  val setRegex = """Set\[(\w+)\]""".r
   val integerRegex = """(\d+)""".r
-
-  def parseConversionIdentifier(str: String): String = {
-    str match {
-      case arrayRegex(subType) => s"toArray$subType"
-      case setRegex(subType) => s"toSet$subType"
-      case _ => s"to$str"
-    }
-  }
-
   def parse(line: VCFInfoHeaderLine): AnnotationSignature = {
     val vcfType = line.getType.toString
     val parsedType = line.getType match {
@@ -39,17 +23,14 @@ object VCFSignature {
       case VCFHeaderLineCount.INTEGER => line.getCount.toString
       case VCFHeaderLineCount.UNBOUNDED => "."
     }
+    // FIXME "A" should produce array
     val scalaType = parsedCount match {
-      case "A" | "R" | "G" => s"Array[$parsedType]"
-      case integerRegex(i) => if (i.toInt > 1) s"Array[$parsedType]" else parsedType
+      case "A" | "R" | "G" => s"IndexedSeq[$parsedType]"
+      case integerRegex(i) => if (i.toInt > 1) s"IndexedSeq[$parsedType]" else parsedType
       case _ => parsedType
     }
-    val conversionMethod = parseConversionIdentifier(scalaType)
     val desc = line.getDescription
 
-
-    new VCFSignature(vcfType, scalaType, parsedCount, conversionMethod, desc)
-
-
+    new VCFSignature(scalaType, vcfType, parsedCount, desc)
   }
 }

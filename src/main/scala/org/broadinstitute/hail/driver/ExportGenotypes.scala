@@ -29,15 +29,15 @@ object ExportGenotypes extends Command {
     val vds = state.vds
     val cond = options.condition
     val output = options.output
-    val vas: AnnotationSignatures = vds.metadata.variantAnnotationSignatures
-    val sas: AnnotationSignatures = vds.metadata.sampleAnnotationSignatures
+    val vas = vds.metadata.variantAnnotationSignatures
+    val sas = vds.metadata.sampleAnnotationSignatures
 
     val (header, fields) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(cond, state.hadoopConf)
     else
       ExportTSV.parseExpression(cond)
 
-    val makeString: ((Variant, AnnotationData) =>
+    val makeString: ((Variant, Annotations) =>
       ((Int, Genotype) => String)) = {
       val cf = new ExportGenotypeEvaluator(fields, vds.metadata)
       cf.typeCheck()
@@ -45,7 +45,7 @@ object ExportGenotypes extends Command {
     }
 
     val stringVDS = vds.mapValuesWithPartialApplication(
-      (v: Variant, va: AnnotationData) =>
+      (v: Variant, va: Annotations) =>
         (s: Int, g: Genotype) =>
           makeString(v, va)(s, g))
 

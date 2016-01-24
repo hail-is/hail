@@ -36,7 +36,7 @@ object ExportSamples extends Command {
     else
       ExportTSV.parseExpression(cond)
 
-    val makeString: (Sample, Annotations[String]) => String = {
+    val makeString: (Sample, Annotations) => String = {
       val ese = new ExportSamplesEvaluator(fields, sas)
       ese.typeCheck()
       ese.apply

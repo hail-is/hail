@@ -1,8 +1,12 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
+import scala.reflect.runtime.universe._
+
 
 class FilterSuite extends SparkSuite {
 
@@ -89,7 +93,7 @@ class FilterSuite extends SparkSuite {
     fAssert("12.0" fEq (fString1 fConcat "2.0"))
     fAssert(fString1 fConcat fString2 fEq "12.0")
     fAssert("12.0" fEq (fString1 fConcat fString2))
-    fAssert(fString3.split(",") fSameElements FilterOption(Array("1", "2", "3", "4", "5")))
+    fAssert(fString3.split(",") fSameElements FilterOption(IndexedSeq("1", "2", "3", "4", "5")))
 
     fEmpty(fString1 fConcat fStringNone fEq "12.0")
     fEmpty(fStringNone fConcat fString2 fEq "12.0")
@@ -106,41 +110,41 @@ class FilterSuite extends SparkSuite {
 
     fAssert((fString1.fToInt fPlus fString1.fToInt).fToDouble fEq fString2.fToDouble)
 
-    // FilterOptionArray
-    val fArrayInt = FilterOption(Array(1, 2))
+    // FilterOptionIndexedSeq
+    val fIndexedSeqInt = FilterOption(IndexedSeq(1, 2))
 
-    val fArrayIntNone = new FilterOption[Array[Int]](None)
+    val fIndexedSeqIntNone = new FilterOption[IndexedSeq[Int]](None)
     val fIntNone = new FilterOption[Int](None)
 
-    fAssert(Array(1,2).fApply(0)fEq 1)
-    fAssert(Array(1,2).fApply(fZero)fEq 1)
-    fAssert(fArrayInt.fApply(0) fEq 1)
-    fAssert(fArrayInt.fApply(fZero) fEq 1)
-    fAssert(fArrayInt.fApply(0) fEq fOne)
-    fEmpty(fArrayIntNone.fApply(0) fEq 1)
-    fEmpty(fArrayIntNone.fApply(fZero) fEq 1)
-    fEmpty(fArrayInt.fApply(0) fEq fIntNone)
+    fAssert(IndexedSeq(1,2).fApply(0)fEq 1)
+    fAssert(IndexedSeq(1,2).fApply(fZero)fEq 1)
+    fAssert(fIndexedSeqInt.fApply(0) fEq 1)
+    fAssert(fIndexedSeqInt.fApply(fZero) fEq 1)
+    fAssert(fIndexedSeqInt.fApply(0) fEq fOne)
+    fEmpty(fIndexedSeqIntNone.fApply(0) fEq 1)
+    fEmpty(fIndexedSeqIntNone.fApply(fZero) fEq 1)
+    fEmpty(fIndexedSeqInt.fApply(0) fEq fIntNone)
 
-    fAssert(Array(1,2).fContains(0) fEq false)
-    fAssert(fArrayInt.fContains(0) fEq false)
-    fAssert(fArrayInt.fContains(1) fEq true)
-    fEmpty(fArrayIntNone.fContains(0) fEq false)
-    fEmpty(fArrayIntNone.fContains(1) fEq true)
-    fEmpty(fArrayInt.fContains(fIntNone) fEq true)
+    fAssert(IndexedSeq(1,2).fContains(0) fEq false)
+    fAssert(fIndexedSeqInt.fContains(0) fEq false)
+    fAssert(fIndexedSeqInt.fContains(1) fEq true)
+    fEmpty(fIndexedSeqIntNone.fContains(0) fEq false)
+    fEmpty(fIndexedSeqIntNone.fContains(1) fEq true)
+    fEmpty(fIndexedSeqInt.fContains(fIntNone) fEq true)
 
-    fAssert(fArrayInt.fMkString(", ") fEq "1, 2")
-    fAssert(fArrayInt.fMkString("[", ", ", "]") fEq "[1, 2]")
+    fAssert(fIndexedSeqInt.fMkString(", ") fEq "1, 2")
+    fAssert(fIndexedSeqInt.fMkString("[", ", ", "]") fEq "[1, 2]")
 
-    fAssert(Array(0) fConcat fArrayInt fSameElements FilterOption(Array(0,1,2)))
-    fAssert(fArrayInt fConcat Array(3) fSameElements Array(1,2,3))
-    fAssert(fArrayInt fConcat fArrayInt fSameElements Array(1,2,1,2))
-    fEmpty(fArrayInt fConcat fArrayIntNone fSameElements fArrayIntNone)
-    fEmpty(fArrayIntNone fConcat fArrayInt fSameElements fArrayIntNone)
+    fAssert(IndexedSeq(0) fConcat fIndexedSeqInt fSameElements FilterOption(IndexedSeq(0,1,2)))
+    fAssert(fIndexedSeqInt fConcat IndexedSeq(3) fSameElements IndexedSeq(1,2,3))
+    fAssert(fIndexedSeqInt fConcat fIndexedSeqInt fSameElements IndexedSeq(1,2,1,2))
+    fEmpty(fIndexedSeqInt fConcat fIndexedSeqIntNone fSameElements fIndexedSeqIntNone)
+    fEmpty(fIndexedSeqIntNone fConcat fIndexedSeqInt fSameElements fIndexedSeqIntNone)
 
-    fAssert(fArrayInt.size fEq fTwo)
-    fAssert(fArrayInt.size fEq 2)
-    fEmpty(fArrayIntNone.size fEq 2)
-    fEmpty(fArrayInt.size fEq fIntNone)
+    fAssert(fIndexedSeqInt.size fEq fTwo)
+    fAssert(fIndexedSeqInt.size fEq 2)
+    fEmpty(fIndexedSeqIntNone.size fEq 2)
+    fEmpty(fIndexedSeqInt.size fEq fIntNone)
 
     // FilterOptionSet
     val fSetInt12 = FilterOption(Set(1, 2))
@@ -150,12 +154,6 @@ class FilterSuite extends SparkSuite {
     val fSetInt2 = FilterOption(Set(2))
 
     val fSetIntNone = new FilterOption[Set[Int]](None)
-
-    fAssert(fSetInt12.fApply(0) fEq false)
-    fAssert(fSetInt12.fApply(1) fEq true)
-    fEmpty(fSetIntNone.fApply(0) fEq false)
-    fEmpty(fSetIntNone.fApply(1) fEq true)
-    fEmpty(fSetInt12.fApply(fIntNone) fEq true)
 
     fAssert(fSetInt12.fContains(0) fEq false)
     fAssert(fSetInt12.fContains(1) fEq true)
@@ -373,8 +371,6 @@ class FilterSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = State(sc, sqlContext, vds.cache())
 
-    assert(vds.nVariants == 346)
-
     assert(FilterSamples.run(state, Array("--keep", "-c", "\"^HG\" ~ s.id"))
       .vds.nLocalSamples == 63)
 
@@ -449,6 +445,10 @@ class FilterSuite extends SparkSuite {
     val vds2 = LoadVCF(sc, "src/test/resources/filter.vcf")
     val state2 = State(sc, sqlContext, vds2.cache())
 
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad.at(0) < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
+
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad.at(1).toDouble / g.dp > 0.05")).vds.expand().collect().count(_._3.isCalled) == 3)
+
     val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
 
     assert(!highGQ2.vds.expand().collect().exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
@@ -470,4 +470,21 @@ class FilterSuite extends SparkSuite {
     assert(homRefOnChr1.count(_._3.isCalled) == 9 * 11 - (9 + 3 + 3) - 2) // keep does not retain the 2 missing genotypes
 
   }
+
+  @Test def filterFromFileTest() {
+
+    val vds = TestRDDBuilder.buildRDD(8, 8, sc)
+
+    val state = State(sc, sqlContext, vds)
+
+    assert(FilterSamples.run(state, Array("--keep", "-c", "src/test/resources/filter.sample_list")).vds.nLocalSamples == 3)
+
+    assert(FilterSamples.run(state, Array("--remove", "-c", "src/test/resources/filter.sample_list")).vds.nLocalSamples == 5)
+
+    assert(FilterVariants.run(state, Array("--keep", "-c", "src/test/resources/filter.interval_list")).vds.nVariants == 6)
+
+    assert(FilterVariants.run(state, Array("--remove", "-c", "src/test/resources/filter.interval_list")).vds.nVariants == 2)
+
+  }
+
 }
