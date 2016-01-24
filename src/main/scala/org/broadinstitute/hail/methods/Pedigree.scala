@@ -39,22 +39,29 @@ case class CompleteTrio(kid: Int, fam: Option[String], dad: Int, mom: Int, sex: 
 object Pedigree {
 
   def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): Pedigree = {
-    require(filename.endsWith(".fam"))
+    if (!filename.endsWith(".fam"))
+      fatal("-f | --fam filename must end in .fam")
 
     val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
-    def maybeId(id: String): Option[Int] = if (id != "0") sampleIndex.get(id) else None
-    def maybeFam(fam: String): Option[String] = if (fam != "0") Some(fam) else None
 
+    // .fam samples not in sampleIds are discarded
     readFile(filename, hConf) { s =>
       Pedigree(Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty)
-        .map { line => // FIXME: proper input error handling (and possible conflicting trio handing)
+        .flatMap{ line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
           val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
-
-          Trio(sampleIndex(kid), maybeFam(fam), maybeId(dad), maybeId(mom),
-            Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
-        }.toArray)
+          sampleIndex.get(kid).map( kidId =>
+            Trio(
+              kidId,
+              if (fam != "0") Some(fam) else None,
+              sampleIndex.get(dad), // FIXME: code assumes "0" cannot be a (string) sample ID in a vds, do you agree we should enforce that elsewhere?
+              sampleIndex.get(mom),
+              Sex.withNameOption(sex),
+              Phenotype.withNameOption(pheno))
+          )
+        }.toArray
+      )
     }
   }
 
@@ -64,6 +71,8 @@ object Pedigree {
 }
 
 case class Pedigree(trios: Array[Trio]) {
+  if (!trios.map(_.kid).areDistinct)
+    fatal(".fam sample names are not unique.")
 
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 

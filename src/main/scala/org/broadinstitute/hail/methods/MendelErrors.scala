@@ -57,7 +57,8 @@ object MendelErrors {
   }
 
   def apply(vds: VariantDataset, trios: Array[CompleteTrio]): MendelErrors = {
-    require(trios.forall(_.sex.isDefined))
+    if (!trios.forall(_.sex.isDefined))
+      fatal("Sex must be defined for all .fam samples in vds")
 
     val sampleTrioRoles: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](vds.nSamples)(List())
     trios.zipWithIndex.foreach { case (t, ti) =>
@@ -69,7 +70,7 @@ object MendelErrors {
     val sc = vds.sparkContext
     val sampleTrioRolesBc = sc.broadcast(sampleTrioRoles)
     val triosBc = sc.broadcast(trios)
-    // all trios have defined sex, see require above
+    // all trios have defined sex, see fatal above
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
     val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length,3)(NoCall)

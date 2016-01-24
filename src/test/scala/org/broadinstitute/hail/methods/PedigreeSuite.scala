@@ -9,7 +9,7 @@ class PedigreeSuite extends SparkSuite {
     val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
     ped.write("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)  // FIXME: this is not right
     val pedwr = Pedigree.read("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
-    assert(ped.trios.sameElements(pedwr.trios))
+    assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in sample_mendel.vcf
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap
@@ -30,6 +30,21 @@ class PedigreeSuite extends SparkSuite {
       ped.nSatisfying(_.isComplete, _.isCase, _.isFemale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isMale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isFemale) == 0)
+  }
+
+  @Test def testWithMismatchedSamples() {
+    val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
+    val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
+
+    val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
+    val sampleIndex = vds.sampleIds.zipWithIndex.toMap
+    assert(nuclearFams((sampleIndex("Dad1"), sampleIndex("Mom1"))).toSet ==
+      Set(sampleIndex("Son1"), sampleIndex("Dtr1"))) // Baby1 is dropped since it's not in the vcf
+    assert(nuclearFams((sampleIndex("Dad2"), sampleIndex("Mom2"))).toSet ==
+      Set(sampleIndex("Son2")))
+    assert(nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 7)
+
+    assert(ped.nSatisfying(_.isMale) == 4 && ped.nSatisfying(_.isFemale) == 3)
   }
 
   //FIXME: How to test
