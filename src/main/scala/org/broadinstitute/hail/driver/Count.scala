@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.driver
 
+import org.broadinstitute.hail.Utils._
+
 object Count extends Command {
 
   class Options extends BaseOptions
@@ -13,19 +15,22 @@ object Count extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val nVariants = vds.nVariants
     val nLocalSamples = vds.nLocalSamples
-    val called = vds.rdd.aggregate(0L)({ case (count, (v, va, gs)) =>
-      count + gs.count(_.isCalled)},
-      _ + _)
+    val (nVariants, nCalled) =
+      vds.rdd.map { case (v, va, gs) =>
+        (1L, gs.count(_.isCalled).toLong)
+      }.fold((0L, 0L)) { (comb, x) =>
+        (comb._1 + x._1, comb._2 + x._2)
+      }
+
     val nGenotypes = nVariants.toLong * nLocalSamples.toLong
-    val callRate = called.toDouble / nGenotypes * 100
+    val callRate = divOption(nCalled, nGenotypes)
 
     println("  nSamples = " + vds.nSamples)
     println("  nLocalSamples = " + nLocalSamples)
-    println("  nVariants = " + vds.nVariants)
-    println(s"  nCalled = $called")
-    println(s"  callRate = ${callRate.formatted("%.3f")}%")
+    println("  nVariants = " + nVariants)
+    println(s"  nCalled = $nCalled")
+    println(s"  callRate = ${callRate.map(r => (r * 100).formatted("%.3f")).getOrElse("NA")}%")
     state
   }
 }

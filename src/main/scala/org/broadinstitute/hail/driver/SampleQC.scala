@@ -351,7 +351,6 @@ object SampleQC extends Command {
 
     val output = options.output
 
-    val singletons = sSingletonVariants(vds)
     val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
     val r = results(vds)

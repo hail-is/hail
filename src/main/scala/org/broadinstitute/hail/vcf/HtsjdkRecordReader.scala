@@ -35,7 +35,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         vc.getAlternateAllele(0).getBaseString)
       Iterator.single((variant, Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
         .asScala
-        .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
+        .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
         .toMap
         .map {
           case (k, v) => (k, HtsjdkRecordReader.mapType(v, typeMap(k).asInstanceOf[VCFSignature]))
@@ -89,7 +89,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
           (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString),
             Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
               .asScala
-              .mapValues(HtsjdkRecordReader.purgeJavaArraylists)
+              .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
               .toMap
               .map {
                 case (k, v) => (k, HtsjdkRecordReader.mapTypeMultiallelic(v, typeMap(k).asInstanceOf[VCFSignature],
@@ -161,7 +161,7 @@ object HtsjdkRecordReader {
     new HtsjdkRecordReader(codec)
   }
 
-  def purgeJavaArraylists(ar: AnyRef): Any = {
+  def purgeJavaArrayLists(ar: AnyRef): Any = {
     ar match {
       case arr: java.util.ArrayList[_] => arr.asScala.toIndexedSeq
       case _ => ar

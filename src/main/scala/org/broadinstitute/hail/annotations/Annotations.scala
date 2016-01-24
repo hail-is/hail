@@ -6,13 +6,11 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def get[T](key: String): T = attrs(key).asInstanceOf[T]
 
-  def getOption[T](key: String): Option[T] = attrs.lift(key).map(_.asInstanceOf[T])
+  def getOption[T](key: String): Option[T] = attrs.get(key).map(_.asInstanceOf[T])
 
   def +(key: String, value: Any): Annotations = Annotations(attrs + (key -> value))
 
-  def +(map: Map[String, Any]): Annotations = Annotations(attrs ++ map)
-
-  def ++(other: Annotations): Annotations = this + other.attrs
+  def ++(other: Annotations): Annotations = Annotations(attrs ++ other.attrs)
 }
 
 object Annotations {
@@ -20,13 +18,11 @@ object Annotations {
 
   def emptyIndexedSeq(n: Int): IndexedSeq[Annotations] = IndexedSeq.fill(n)(Annotations.empty())
 
-  def validSignatures(a: Annotations): Boolean = {
-    a.attrs.forall { case (key, value) =>
-      value match {
-        case anno: Annotations => validSignatures(anno)
-        case sig: AnnotationSignature => true
-        case _ => false
-      }
+  def validSignatures(a: Any): Boolean = {
+    a match {
+      case anno1: Annotations => anno1.attrs.forall { case (k, v) => validSignatures(v) }
+      case sig: AnnotationSignature => true
+      case _ => false
     }
   }
 }
