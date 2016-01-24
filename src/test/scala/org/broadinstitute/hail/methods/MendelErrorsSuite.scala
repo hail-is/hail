@@ -6,8 +6,8 @@ import org.testng.annotations.Test
 
 class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
-    val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
+    val vds = LoadVCF(sc, "src/test/resources/mendel.vcf")
+    val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
     val men = MendelErrors(vds, ped.completeTrios)
 
     val nPerFam = men.nErrorPerNuclearFamily.collectAsMap()

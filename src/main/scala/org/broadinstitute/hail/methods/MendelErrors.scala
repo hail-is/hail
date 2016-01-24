@@ -6,6 +6,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
+import org.broadinstitute.hail.driver._
 
 case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
                        gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType) {
@@ -57,8 +58,24 @@ object MendelErrors {
   }
 
   def apply(vds: VariantDataset, trios: Array[CompleteTrio]): MendelErrors = {
-    if (!trios.forall(_.sex.isDefined))
-      fatal("Sex must be defined for all .fam samples in vds")
+    // if (!trios.forall(_.sex.isDefined))
+    //   fatal("Sex must be defined for all .fam samples in vds")
+
+    if (!trios.forall(_.sex.isDefined)) {
+      val newTrios = trios.filter(_.sex.isDefined)
+      val kidsWithDefinedSex = newTrios.map(_.kid).toSet
+      val nSamplesDiscarded = trios.size - kidsWithDefinedSex.size
+
+      if (nSamplesDiscarded > 1)
+        warning(s"$nSamplesDiscarded children in .fam do not have defined sex and were discarded")
+      else
+        warning(s"$nSamplesDiscarded child in .fam does not have defined sex and was discarded")
+
+      val newVds = vds.filterSamples((s, sa) => kidsWithDefinedSex(s))
+      return apply(newVds, newTrios)
+    }
+
+    println("Computing Mendel errors for " + trios.size + (if (trios.size == 1) " child." else " children."))
 
     val sampleTrioRoles: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](vds.nSamples)(List())
     trios.zipWithIndex.foreach { case (t, ti) =>

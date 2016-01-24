@@ -512,6 +512,13 @@ object Utils {
     System.err.println("hail: warning: " + msg)
   }
 
+  def warnIfSamplesDiscarded(nDiscarded: Int, restOfMsg: String) {
+    if (nDiscarded > 1)
+      warning(s"$nDiscarded samples " + restOfMsg)
+    else if (nDiscarded == 1)
+      warning(s"1 sample " + restOfMsg)
+  }
+
   def fatal(msg: String): Nothing = {
     System.err.println("hail: fatal: " + msg)
     sys.exit(1)
