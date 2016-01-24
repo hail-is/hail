@@ -32,13 +32,12 @@ object CovariateData {
       }
 
     val covRowSample = covRowSampleBuffer.toArray
-    val nRows = covRowSample.size
 
     // FIXME: should I move this check to the case class body?
-    if (covRowSample.toSet.size != nRows)
+    if (covRowSample.areDistinct())
       fatal("Covariate sample names are not unique.")
 
-    val data = new DenseMatrix[Double](rows = nRows, cols = covName.size, data = dataBuffer.toArray, offset = 0, majorStride = covName.size, isTranspose = true)
+    val data = new DenseMatrix[Double](rows = covRowSample.size, cols = covName.size, data = dataBuffer.toArray, offset = 0, majorStride = covName.size, isTranspose = true)
 
     CovariateData(covRowSample, covName, data)
   }
