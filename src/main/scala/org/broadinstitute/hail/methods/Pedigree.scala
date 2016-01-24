@@ -65,7 +65,7 @@ object Pedigree {
             case None => nSamplesDiscarded += 1; None
           }
         }.toArray
-      warnIfSamplesDiscarded(nSamplesDiscarded, "in .fam missing from variant data set and discarded.")
+      warnIfSamplesDiscarded(nSamplesDiscarded, "missing from variant data set discarded.")
       Pedigree(trios)
     }
   }

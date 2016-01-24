@@ -6,7 +6,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
-import org.broadinstitute.hail.driver._
 
 case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
                        gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType) {
@@ -57,23 +56,13 @@ object MendelErrors {
     }
   }
 
-  def apply(vds: VariantDataset, trios: Array[CompleteTrio]): MendelErrors = {
-    // if (!trios.forall(_.sex.isDefined))
-    //   fatal("Sex must be defined for all .fam samples in vds")
+  def apply(vds: VariantDataset, preTrios: Array[CompleteTrio]): MendelErrors = {
 
-    if (!trios.forall(_.sex.isDefined)) {
-      val newTrios = trios.filter(_.sex.isDefined)
-      val kidsWithDefinedSex = newTrios.map(_.kid).toSet
-      val nSamplesDiscarded = trios.size - kidsWithDefinedSex.size
+    val trios = preTrios.filter(_.sex.isDefined)
+    val nSamplesDiscarded = preTrios.size - trios.size
 
-      if (nSamplesDiscarded > 1)
-        warning(s"$nSamplesDiscarded children in .fam do not have defined sex and were discarded")
-      else
-        warning(s"$nSamplesDiscarded child in .fam does not have defined sex and was discarded")
-
-      val newVds = vds.filterSamples((s, sa) => kidsWithDefinedSex(s))
-      return apply(newVds, newTrios)
-    }
+    if (nSamplesDiscarded > 0)
+      warning(nSamplesDiscarded + (if (nSamplesDiscarded > 1) " children" else " child") + " with undefined sex discarded.")
 
     println("Computing Mendel errors for " + trios.size + (if (trios.size == 1) " child." else " children."))
 
@@ -87,7 +76,7 @@ object MendelErrors {
     val sc = vds.sparkContext
     val sampleTrioRolesBc = sc.broadcast(sampleTrioRoles)
     val triosBc = sc.broadcast(trios)
-    // all trios have defined sex, see fatal above
+    // all trios have defined sex, see filter above
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
     val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length,3)(NoCall)
