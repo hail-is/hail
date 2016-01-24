@@ -6,12 +6,12 @@ class Parser extends JavaTokenParsers {
   def expr: Parser[AST] = or_expr
 
   def or_expr: Parser[AST] =
-    and_expr ~ rep(("|" | "||") ~ and_expr) ^^ { case lhs ~ lst =>
+    and_expr ~ rep(("||" | "|") ~ and_expr) ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
     }
 
   def and_expr: Parser[AST] =
-    lt_expr ~ rep(("&" | "&&") ~ lt_expr) ^^ { case lhs ~ lst =>
+    lt_expr ~ rep(("&&" | "&") ~ lt_expr) ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
     }
 
@@ -36,16 +36,18 @@ class Parser extends JavaTokenParsers {
     }
 
   def dot_expr: Parser[AST] =
-    primary_expr ~ opt("." ~ ident) ^^ { case lhs ~ None => lhs
-    case lhs ~ Some(_ ~ rhs) => Select(lhs, rhs)
+    primary_expr ~ rep("." ~ ident) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, _ ~ rhs) => Select(acc, rhs) }
     }
 
-  def primary_expr: Parser[AST] = wholeNumber ^^ (r => Const(r.toInt, TInt)) |
-    // FIXME L suffix
-    floatingPointNumber ^^ (r => Const(r.toDouble, TDouble)) |
-    stringLiteral ^^ (r => Const(r, TString)) |
-    "true" ^^ (_ => Const(true, TBoolean)) |
-    "false" ^^ (_ => Const(false, TBoolean)) |
-    ident ^^ (r => SymRef(r)) |
-    "(" ~> expr <~ ")"
+  def primary_expr: Parser[AST] =
+    """-?\d+\.\d+[dD]?""".r ^^ (r => Const(r.toDouble, TDouble)) |
+      """-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r ^^ (r => Const(r.toDouble, TDouble)) |
+      // FIXME L suffix
+      wholeNumber ^^ (r => Const(r.toInt, TInt)) |
+      stringLiteral ^^ (r => Const(r, TString)) |
+      "true" ^^ (_ => Const(true, TBoolean)) |
+      "false" ^^ (_ => Const(false, TBoolean)) |
+      ident ^^ (r => SymRef(r)) |
+      "(" ~> expr <~ ")"
 }

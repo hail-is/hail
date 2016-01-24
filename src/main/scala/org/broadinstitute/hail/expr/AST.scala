@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.expr
 
+import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant.{Sample, Variant, Genotype}
 
 object Type {
@@ -250,7 +251,14 @@ case class Select(lhs: AST, rhs: String) extends AST(lhs) {
       AST.evalCompose[Variant](c, lhs)(_.alt)
 
     case (TStruct(fields), _) =>
-      AST.evalFlatCompose[Map[String, Any]](c, lhs)(_.get(rhs))
+      AST.evalFlatCompose[Map[String, Any]](c, lhs) { m =>
+        val x = m.getOrElse(rhs, null)
+        if (x != null
+          && x.isInstanceOf[Annotations])
+          x.asInstanceOf[Annotations].attrs
+        else
+          x
+      }
 
     case (TInt, "toInt") => lhs.eval(c)
     case (TInt, "toLong") => AST.evalCompose[Int](c, lhs)(_.toLong)
@@ -283,6 +291,9 @@ case class BinaryOp(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs)
   def eval(c: EvalContext): () => Any = (operation, `type`) match {
     case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
 
+    case ("||", TBoolean) => AST.evalCompose[Boolean, Boolean](c, lhs, rhs)(_ || _)
+    case ("&&", TBoolean) => AST.evalCompose[Boolean, Boolean](c, lhs, rhs)(_ && _)
+
     case ("+", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ + _)
     case ("-", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ - _)
     case ("*", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ * _)
@@ -297,6 +308,8 @@ case class BinaryOp(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs)
 
   override def typecheckThis(): Type = (lhs.`type`, operation, rhs.`type`) match {
     case (TString, "+", TString) => TString
+    case (TBoolean, "||", TBoolean) => TBoolean
+    case (TBoolean, "&&", TBoolean) => TBoolean
     case (lhsType: TNumeric, "+", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
   }
 }
@@ -315,6 +328,13 @@ case class Comparison(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rh
     case ("<=", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ <= _)
     case (">", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ > _)
     case (">=", TInt) => AST.evalCompose[Int, Int](c, lhs, rhs)(_ >= _)
+
+    case ("==", TDouble) => AST.evalCompose[Double, Double](c, lhs, rhs)(_ == _)
+    case ("!=", TDouble) => AST.evalCompose[Double, Double](c, lhs, rhs)(_ != _)
+    case ("<", TDouble) => AST.evalCompose[Double, Double](c, lhs, rhs)(_ < _)
+    case ("<=", TDouble) => AST.evalCompose[Double, Double](c, lhs, rhs)(_ <= _)
+    case (">", TDouble) => AST.evalCompose[Double, Double](c, lhs, rhs)(_ > _)
+    case (">=", TDouble) => AST.evalCompose[Double, Double](c, lhs, rhs)(_ >= _)
   }
 
   override def typecheckThis(): Type = {

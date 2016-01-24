@@ -883,7 +883,7 @@ object Filter {
     if (a == null)
       false
     else
-      a.asInstanceOf[Boolean]
+      keepThis(a.asInstanceOf[Boolean], keep)
 
   def keepThis(b: Boolean, keep: Boolean): Boolean =
     if (keep)

@@ -58,7 +58,7 @@ object FilterSamples extends Command {
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
         (s: Int, sa: Annotations) => {
           a(0) = sampleIdsBc.value(s)
-          a(1) = sa
+          a(1) = sa.attrs
           Filter.keepThisAny(f(), keep)
         }
     }

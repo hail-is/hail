@@ -34,8 +34,11 @@ object FilterGenotypes extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val p = new expr.Parser()
-    val e = p.parseAll(p.expr, options.condition).get
+    val parser = new expr.Parser()
+    val e: expr.AST = parser.parseAll(parser.expr, options.condition) match {
+      case parser.Success(result, _) => result.asInstanceOf[expr.AST]
+      case parser.NoSuccess(msg, _) => fatal(msg)
+    }
     val symTab = Map(
       "v" ->(0, expr.TVariant),
       "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType),
@@ -54,9 +57,9 @@ object FilterGenotypes extends Command {
     val newVDS = vds.mapValuesWithAll(
       (v: Variant, va: Annotations, s: Int, g: Genotype) => {
         a(0) = v
-        a(1) = va
+        a(1) = va.attrs
         a(2) = sampleIdsBc.value(s)
-        a(3) = sampleAnnotationsBc.value(s)
+        a(3) = sampleAnnotationsBc.value(s).attrs
         a(4) = g
         if (Filter.keepThisAny(f(), keep))
           g
