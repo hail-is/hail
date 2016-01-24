@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.annotations.Annotations
-import org.broadinstitute.hail.variant.{Sample, Variant, Genotype}
+import org.broadinstitute.hail.variant.{Variant, Genotype}
 
 object Type {
   val sampleFields = Map(
@@ -227,8 +227,7 @@ case class Select(lhs: AST, rhs: String) extends AST(lhs) {
   }
 
   def eval(c: EvalContext): () => Any = (lhs.`type`, rhs) match {
-    case (TSample, "id") =>
-      AST.evalCompose[Sample](c, lhs)(_.id)
+    case (TSample, "id") => lhs.eval(c)
 
     case (TGenotype, "gt") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.call.map(_.gt))
@@ -290,6 +289,11 @@ case class Select(lhs: AST, rhs: String) extends AST(lhs) {
 case class BinaryOp(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs) {
   def eval(c: EvalContext): () => Any = (operation, `type`) match {
     case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
+    case ("~", TBoolean) => AST.evalCompose[String, String](c, lhs, rhs) { (s, t) =>
+      val r = s.r.findFirstIn(t).isDefined
+      println(s"s=$s t=$t r=$r")
+      r
+    }
 
     case ("||", TBoolean) => AST.evalCompose[Boolean, Boolean](c, lhs, rhs)(_ || _)
     case ("&&", TBoolean) => AST.evalCompose[Boolean, Boolean](c, lhs, rhs)(_ && _)
@@ -308,6 +312,7 @@ case class BinaryOp(lhs: AST, operation: String, rhs: AST) extends AST(lhs, rhs)
 
   override def typecheckThis(): Type = (lhs.`type`, operation, rhs.`type`) match {
     case (TString, "+", TString) => TString
+    case (TString, "~", TString) => TBoolean
     case (TBoolean, "||", TBoolean) => TBoolean
     case (TBoolean, "&&", TBoolean) => TBoolean
     case (lhsType: TNumeric, "+", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)

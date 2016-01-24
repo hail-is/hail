@@ -42,6 +42,7 @@ object FilterVariants extends Command {
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
         (v: Variant, va: Annotations) => Filter.keepThis(ilist.contains(v.contig, v.start), keep)
       case c: String =>
+        println(s"c = $c")
         val parser = new expr.Parser()
         val e: expr.AST = parser.parseAll(parser.expr, options.condition) match {
           case parser.Success(result, _) => result.asInstanceOf[expr.AST]

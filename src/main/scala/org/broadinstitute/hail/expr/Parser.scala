@@ -16,7 +16,7 @@ class Parser extends JavaTokenParsers {
     }
 
   def lt_expr: Parser[AST] =
-    eq_expr ~ rep(("<" | "<=" | ">" | ">=") ~ eq_expr) ^^ { case lhs ~ lst =>
+    eq_expr ~ rep(("<=" | ">=" | "<" | ">") ~ eq_expr) ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => Comparison(acc, op, rhs) }
     }
 
@@ -31,7 +31,12 @@ class Parser extends JavaTokenParsers {
     }
 
   def mul_expr: Parser[AST] =
-    dot_expr ~ rep(("*" | "/" | "%") ~ dot_expr) ^^ { case lhs ~ lst =>
+    tilde_expr ~ rep(("*" | "/" | "%") ~ tilde_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
+    }
+
+  def tilde_expr: Parser[AST] =
+    dot_expr ~ rep("~" ~ dot_expr) ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
     }
 
@@ -45,7 +50,10 @@ class Parser extends JavaTokenParsers {
       """-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r ^^ (r => Const(r.toDouble, TDouble)) |
       // FIXME L suffix
       wholeNumber ^^ (r => Const(r.toInt, TInt)) |
-      stringLiteral ^^ (r => Const(r, TString)) |
+      stringLiteral ^^ { r =>
+        assert(r.head == '"' && r.last == '"')
+        Const(r.tail.init, TString)
+      } |
       "true" ^^ (_ => Const(true, TBoolean)) |
       "false" ^^ (_ => Const(false, TBoolean)) |
       ident ^^ (r => SymRef(r)) |

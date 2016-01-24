@@ -47,8 +47,13 @@ object FilterSamples extends Command {
           .toSet
         (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
+        println(s"c = $c")
         val parser = new expr.Parser()
-        val e = parser.parseAll(parser.expr, c).get
+        val e: expr.AST = parser.parseAll(parser.expr, options.condition) match {
+          case parser.Success(result, _) => result.asInstanceOf[expr.AST]
+          case parser.NoSuccess(msg, _) => fatal(msg)
+        }
+        print(e)
         val symTab = Map(
           "s" -> (0, expr.TSample),
           "sa" -> (1, vds.metadata.sampleAnnotationSignatures.toExprType))
