@@ -83,16 +83,8 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-
-    val phenotypedSamples = ped.trios.filter(_.pheno.isDefined)
-
-    val covSamples =
-
-    if (!ped.trios.forall(_.pheno.isDefined))
-      fatal("Some .fam samples in vds are missing phenotypes")
-
-    if (!(ped.trios.map(_.kid).sorted sameElements cov.covRowSample.sorted))
-      fatal("The .fam samples and .cov samples in vds do not coincide.")
+    // LinearRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
+    require(cov.covRowSample.forall(ped.phenotypedSamples))
 
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
@@ -101,6 +93,8 @@ object LinearRegression {
     val d = n - k - 2
     if (d < 1)
       throw new IllegalArgumentException(n + " samples and " + k + " covariates implies " + d + " degrees of freedom.")
+
+    println(s"Running linreg on $n samples and $k covariates...")
 
     val sc = vds.sparkContext
     val sampleCovRowBc = sc.broadcast(sampleCovRow)

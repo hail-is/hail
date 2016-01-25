@@ -7,7 +7,34 @@ import org.broadinstitute.hail.Utils._
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
-case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: DenseMatrix[Double])
+case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: DenseMatrix[Double]) {
+
+  def filterSamples(samplesToKeep: Set[Int]): CovariateData = {
+    val covRowKeep: Array[Boolean] = covRowSample.map(samplesToKeep)
+    val nKeep = covRowKeep.count(identity)
+    val nRow = covRowSample.size
+    val nSamplesDiscarded = nRow - nKeep
+
+    if (nSamplesDiscarded == 0)
+      this
+    else {
+      val filtCovRowSample = Array.ofDim[Int](nKeep)
+      val filtData = DenseMatrix.zeros[Double](nKeep, covName.size)
+      var filtRow = 0
+
+      for (row <- 0 until nRow)
+        if (covRowKeep(row)) {
+          filtCovRowSample(filtRow) = covRowSample(row)
+          filtData(filtRow to filtRow, ::) := data(row, ::).t
+          filtRow += 1
+        }
+
+      warnIfSamplesDiscarded(nSamplesDiscarded, "in .cov discarded: missing phenotype.")
+
+      CovariateData(filtCovRowSample, covName, filtData)
+    }
+  }
+}
 
 object CovariateData {
 

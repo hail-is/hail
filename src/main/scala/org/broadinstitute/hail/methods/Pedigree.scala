@@ -81,6 +81,8 @@ case class Pedigree(trios: Array[Trio]) {
 
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
+  def phenotypedSamples: Set[Int] = trios.filter(_.pheno.isDefined).map(_.kid).toSet
+
   def samplePheno: Map[Int, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_ (t)))
