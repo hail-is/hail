@@ -31,6 +31,7 @@ class EvaluatorWithValueTransform[T, S](t: String, f: T => S, treeMap: (Tree) =>
 }
 
 class Evaluator[T](t: String, treeMap: (Tree) => Tree)(implicit tct: ClassTag[T]) extends EvaluatorWithValueTransform[T,T](t, identity, treeMap) {
+//  println(t)
 
   def this(t: String)(implicit tct: ClassTag[T]) = this(t, Map.empty)
 }
