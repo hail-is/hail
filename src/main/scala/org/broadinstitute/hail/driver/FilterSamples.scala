@@ -47,19 +47,11 @@ object FilterSamples extends Command {
           .toSet
         (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
-        println(s"c = $c")
-        val parser = new expr.Parser()
-        val e: expr.AST = parser.parseAll(parser.expr, options.condition) match {
-          case parser.Success(result, _) => result.asInstanceOf[expr.AST]
-          case parser.NoSuccess(msg, _) => fatal(msg)
-        }
-        // println(e)
         val symTab = Map(
           "s" -> (0, expr.TSample),
           "sa" -> (1, vds.metadata.sampleAnnotationSignatures.toExprType))
-        e.typecheck(symTab)
         val a = new Array[Any](2)
-        val f: () => Any = e.eval((symTab, a))
+        val f: () => Any = expr.Parser.parse(symTab, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
         (s: Int, sa: Annotations) => {
           a(0) = sampleIdsBc.value(s)

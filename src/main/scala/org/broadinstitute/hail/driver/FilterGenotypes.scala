@@ -34,25 +34,20 @@ object FilterGenotypes extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    println(s"c = ${options.condition}")
-    val parser = new expr.Parser()
-    val e: expr.AST = parser.parseAll(parser.expr, options.condition) match {
-      case parser.Success(result, _) => result.asInstanceOf[expr.AST]
-      case parser.NoSuccess(msg, _) => fatal(msg)
-    }
+    val keep = options.keep
+
     val symTab = Map(
       "v" ->(0, expr.TVariant),
       "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType),
       "s" ->(2, expr.TSample),
       "sa" ->(3, vds.metadata.sampleAnnotationSignatures.toExprType),
       "g" ->(4, expr.TGenotype))
-    e.typecheck(symTab)
+    val a = new Array[Any](5)
 
-    val keep = options.keep
+    val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
+
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
-    val a = new Array[Any](5)
-    val f: () => Any = e.eval((symTab, a))
 
     val noCall = Genotype(-1, (0, 0), 0, null)
     val newVDS = vds.mapValuesWithAll(

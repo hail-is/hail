@@ -220,35 +220,6 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 // FIXME AnyVal in Scala 2.11
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
-
-  def foreach2[T2](v2: Iterable[T2], f: (T, T2) => Unit) {
-    val i = a.iterator
-    val i2 = v2.iterator
-    while (i.hasNext && i2.hasNext)
-      f(i.next(), i2.next())
-  }
-
-  // FIXME unify with Vector zipWith above
-  def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V)(implicit vct: ClassTag[V]): Array[V] = {
-    val i = a.iterator
-    val i2 = v2.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext
-
-      def next() = f(i.next(), i2.next())
-    }.toArray
-  }
-
-  def zipWith[T2, T3, V](v2: Iterable[T2], v3: Iterable[T3], f: (T, T2, T3) => V)(implicit vct: ClassTag[V]): Array[V] = {
-    val i = a.iterator
-    val i2 = v2.iterator
-    val i3 = v3.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext && i3.hasNext
-
-      def next() = f(i.next(), i2.next(), i3.next())
-    }.toArray
-  }
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
@@ -318,7 +289,7 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   def tsvAppend(a: Any) {
-    sb.append(org.broadinstitute.hail.methods.UserExportUtils.toTSVString(a))
+    sb.append(Utils.toTSVString(a))
   }
 }
 
@@ -583,11 +554,11 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-    lines: Traversable[String], header: String = null) {
+    lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        if (header != null) {
-          fw.write(header)
+        header.map { h =>
+          fw.write(h)
           fw.write('\n')
         }
         lines.foreach { line =>
@@ -687,4 +658,17 @@ object Utils {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
+
+  // FIXME append
+  def toTSVString(a: Any): String = {
+    a match {
+      case null | None => "NA"
+      case Some(x) => toTSVString(x)
+      case d: Double => d.formatted("%.4e")
+      case i: Iterable[_] => i.map(toTSVString).mkString(",")
+      case arr: Array[_] => arr.map(toTSVString).mkString(",")
+      case _ =>
+        a.toString
+    }
+  }
 }

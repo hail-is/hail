@@ -10,7 +10,7 @@ abstract class AnnotationSignature {
   def toExprType: expr.Type = typeOf match {
     case "Unit" => expr.TUnit
     case "Boolean" => expr.TBoolean
-    case "Character" => expr.TCharacter
+    case "Character" => expr.TChar
     case "Int" => expr.TInt
     case "Long" => expr.TLong
     case "Float" => expr.TFloat
