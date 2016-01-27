@@ -142,6 +142,16 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }
   }
 
+  def mapPartitionsWithAll[U](f: Iterator[(Variant, Annotations, Int, T)] => Iterator[U])(implicit uct: ClassTag[U]): RDD[U] = {
+    val localSamplesBc = sparkContext.broadcast(localSamples)
+    rdd.mapPartitions { it =>
+      f(it.flatMap { case (v, va, gs) =>
+        localSamplesBc.value.iterator.zip(gs.iterator)
+          .map { case (s, g) => (v, va, s, g) }
+      })
+    }
+  }
+
   def mapAnnotations(f: (Variant, Annotations) => Annotations): VariantSampleMatrix[T] =
     copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va), gs) })
 
@@ -164,7 +174,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (Int, Annotations) => Boolean): VariantSampleMatrix[T] = {
-    val mask = localSamples.zip(metadata.sampleAnnotations).map { case (s, sa) => p(s, sa) }
+    val mask = localSamples.map((s) => p(s, metadata.sampleAnnotations(s)))
     val maskBc = sparkContext.broadcast(mask)
     val localtct = tct
     copy[T](localSamples = localSamples.zipWithIndex

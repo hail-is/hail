@@ -297,17 +297,14 @@ object VariantQC extends Command {
 
     if (options.store) {
       val r = results(vds)
-        .mapPartitions { it =>
-          println("computing r...")
-          it
-        }.persist(StorageLevel.MEMORY_AND_DISK)
+        .persist(StorageLevel.MEMORY_AND_DISK)
 
       state.copy(
         vds = vds.copy(
           rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
             it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
               assert(v == v2)
-              (v, va + ("qc", comb.asAnnotations), gs)
+              (v, va +("qc", comb.asAnnotations), gs)
             }
           },
           metadata = vds.metadata.addVariantAnnotationSignatures("qc", VariantQCCombiner.signatures)

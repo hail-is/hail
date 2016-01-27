@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -46,12 +47,17 @@ object FilterSamples extends Command {
           .toSet
         (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
-        val cf = new FilterSampleCondition(c, vds.metadata.sampleAnnotationSignatures)
-        cf.typeCheck()
-
+        val symTab = Map(
+          "s" -> (0, expr.TSample),
+          "sa" -> (1, vds.metadata.sampleAnnotationSignatures.toExprType))
+        val a = new Array[Any](2)
+        val f: () => Any = expr.Parser.parse(symTab, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-        (s: Int, sa: Annotations) =>
-          Filter.keepThis(cf(Sample(sampleIdsBc.value(s)), vds.metadata.sampleAnnotations(s)), keep)
+        (s: Int, sa: Annotations) => {
+          a(0) = sampleIdsBc.value(s)
+          a(1) = sa.attrs
+          Filter.keepThisAny(f(), keep)
+        }
     }
 
     state.copy(vds = vds.filterSamples(p))
