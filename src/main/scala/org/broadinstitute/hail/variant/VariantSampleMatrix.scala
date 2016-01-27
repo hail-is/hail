@@ -142,6 +142,16 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }
   }
 
+  def mapPartitionsWithAll[U](f: Iterator[(Variant, Annotations, Int, T)] => Iterator[U])(implicit uct: ClassTag[U]): RDD[U] = {
+    val localSamplesBc = sparkContext.broadcast(localSamples)
+    rdd.mapPartitions { it =>
+      f(it.flatMap { case (v, va, gs) =>
+        localSamplesBc.value.iterator.zip(gs.iterator)
+          .map { case (s, g) => (v, va, s, g) }
+      })
+    }
+  }
+
   def mapAnnotations(f: (Variant, Annotations) => Annotations): VariantSampleMatrix[T] =
     copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va), gs) })
 

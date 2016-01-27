@@ -52,21 +52,24 @@ object ExportGenotypes extends Command {
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
 
-    val lines = vds.mapWithAll { (v, va, s, g) =>
-      a(0) = v
-      a(1) = va.attrs
-      a(2) = sampleIdsBc.value(s)
-      a(3) = sampleAnnotationsBc.value(s).attrs
-      a(4) = g
-      // FIXME partitions
+    val lines = vds.mapPartitionsWithAll { it =>
       val sb = new StringBuilder()
-      var first = true
-      fs.foreach { f =>
-        if (first)
-          first = false
-        else
-          sb += '\t'
-        sb.append(toTSVString(f()))
+      it.map { case (v, va, s, g) =>
+        a(0) = v
+        a(1) = va.attrs
+        a(2) = sampleIdsBc.value(s)
+        a(3) = sampleAnnotationsBc.value(s).attrs
+        a(4) = g
+        sb.clear()
+        var first = true
+        fs.foreach { f =>
+          if (first)
+            first = false
+          else
+            sb += '\t'
+          sb.tsvAppend(f())
+        }
+        sb.result()
       }
     }.writeTable(output, header)
 

@@ -1,11 +1,39 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{expr, SparkSuite}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
+import org.broadinstitute.hail.Utils._
 
 class FilterSuite extends SparkSuite {
+
+  @Test def exprTest() {
+    val symTab = Map ("i" ->(0, expr.TInt),
+      "j" ->(1, expr.TInt),
+      "d" ->(2, expr.TDouble),
+      "d2" ->(3, expr.TDouble),
+      "s" ->(4, expr.TString),
+      "s2" ->(5, expr.TString))
+    val a = Array[Any](5, -7, 3.14, 5.79e7, "12,34,56,78",
+      "this is a String, there are many like it, but this one is mine")
+
+    def eval[T](s: String): T = {
+      val f = expr.Parser.parse[T](symTab, a, s)
+      f()
+    }
+
+    assert(eval[Int]("i") == 5)
+    assert(eval[Int]("j") == -7)
+    assert(eval[Int]("i.max(j)") == 5)
+    assert(eval[Int]("i.min(j)") == -7)
+    assert(D_==(eval[Double]("d"), 3.14))
+    assert(eval[IndexedSeq[String]]("""s.split(",")""") == (Array("12", "34", "56", "78"): IndexedSeq[String]))
+    assert(eval[Int]("s2.length") == 62)
+
+    // FIXME catch parse errors
+    // assert(eval[Boolean]("i.max(d) == 5"))
+  }
 
   @Test def filterTest() {
 
@@ -72,7 +100,7 @@ class FilterSuite extends SparkSuite {
       .vds.expand().collect()
 
     assert(!highGQ.exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
-    assert(highGQ.count{ case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
+    assert(highGQ.count { case (v, s, g) => g.call.exists(c => c.gq >= 20) } == 31260)
 
     val highGQorMidQGAndLowFS = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20 || (g.gq < 30 && va.info.FS > 30)"))
       .vds.expand().collect()
@@ -88,7 +116,7 @@ class FilterSuite extends SparkSuite {
 
     assert(!highGQ2.vds.expand().collect().exists { case (v, s, g) => g.call.exists(c => c.gq < 20) })
 
-    val chr1 = FilterVariants.run(state2, Array("--keep", "-c", "v.contig == \"1\"" ))
+    val chr1 = FilterVariants.run(state2, Array("--keep", "-c", "v.contig == \"1\""))
 
     assert(chr1.vds.rdd.count == 9)
 

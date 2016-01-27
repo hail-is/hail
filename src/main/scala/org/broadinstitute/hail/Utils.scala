@@ -289,7 +289,30 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   def tsvAppend(a: Any) {
-    sb.append(Utils.toTSVString(a))
+    a match {
+      case null | None => sb.append("NA")
+      case Some(x) => tsvAppend(x)
+      case d: Double => sb.append(d.formatted("%.4e"))
+      case i: Iterable[_] =>
+        var first = true
+        i.foreach { x =>
+          if (first)
+            first = false
+          else
+            sb += ','
+          tsvAppend(x)
+        }
+      case arr: Array[_] =>
+        var first = true
+        arr.foreach { x =>
+          if (first)
+            first = false
+          else
+            sb += ','
+          tsvAppend(x)
+        }
+      case _ => sb.append(a)
+    }
   }
 }
 
@@ -658,17 +681,4 @@ object Utils {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
-
-  // FIXME append
-  def toTSVString(a: Any): String = {
-    a match {
-      case null | None => "NA"
-      case Some(x) => toTSVString(x)
-      case d: Double => d.formatted("%.4e")
-      case i: Iterable[_] => i.map(toTSVString).mkString(",")
-      case arr: Array[_] => arr.map(toTSVString).mkString(",")
-      case _ =>
-        a.toString
-    }
-  }
 }

@@ -48,20 +48,22 @@ object ExportVariants extends Command {
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     vds.variantsAndAnnotations
-      .map { case (v, va) =>
-        // FIXME partitions
+      .mapPartitions { it =>
         val sb = new StringBuilder()
-        var first = true
-        fs.foreach { f =>
-          a(0) = v
-          a(1) = va.attrs
-          if (first)
-            first = false
-          else
-            sb += '\t'
-          sb.append(toTSVString(f()))
+        it.map { case (v, va) =>
+          sb.clear()
+          var first = true
+          fs.foreach { f =>
+            a(0) = v
+            a(1) = va.attrs
+            if (first)
+              first = false
+            else
+              sb += '\t'
+            sb.tsvAppend(f())
+          }
+          sb.result()
         }
-        sb.result()
       }.writeTable(output, header)
 
     state

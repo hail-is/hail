@@ -56,7 +56,7 @@ object ExportSamples extends Command {
           first = false
         else
           sb += '\t'
-        sb.append(toTSVString(f()))
+        sb.tsvAppend(f())
       }
       sb.result()
     }

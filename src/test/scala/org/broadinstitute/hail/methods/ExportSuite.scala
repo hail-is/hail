@@ -15,8 +15,13 @@ class ExportSuite extends SparkSuite {
     SampleQC.run(state, Array("-o", "/tmp/sampleQC.tsv"))
     val postSampleQC = SampleQC.run(state, Array("--store"))
 
-    assert(toTSVString(Array(1, 2, 3, 4, 5)) == "1,2,3,4,5")
-    assert(toTSVString(5.124) == "5.1240e+00")
+    val sb = new StringBuilder()
+    sb.tsvAppend(Array(1, 2, 3, 4, 5))
+    assert(sb.result() == "1,2,3,4,5")
+
+    sb.clear()
+    sb.tsvAppend(5.124)
+    assert(sb.result() == "5.1240e+00")
 
     ExportSamples.run(postSampleQC, Array("-o", "/tmp/exportSamples.tsv", "-c",
       "sampleID=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +

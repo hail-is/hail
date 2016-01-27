@@ -2,20 +2,37 @@ package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
 import scala.util.parsing.combinator.JavaTokenParsers
+import scala.util.parsing.input.Position
+
+object ParserUtils {
+  def error(pos: Position, msg: String): Nothing = {
+    val lineContents = pos.longString.split("\n").head
+    val prefix = s"<input>:${pos.line}:"
+    fatal(
+      s"""$msg
+         |$prefix$lineContents
+         |${" " * prefix.length}${
+        lineContents.take(pos.column - 1).map { c => if (c == '\t') c else ' ' }
+      }^""".stripMargin)
+  }
+}
 
 object Parser extends JavaTokenParsers {
   def parse[T](symTab: Map[String, (Int, Type)], a: Array[Any], code: String): () => T = {
-    println(s"code = $code")
+    // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result.asInstanceOf[AST]
-      case NoSuccess(msg, _) => fatal(msg)
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
-    println(s"t = $t")
+    // println(s"t = $t")
 
     t.typecheck(symTab)
     val f: () => Any = t.eval((symTab, a))
     () => f().asInstanceOf[T]
   }
+
+  def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
+    positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
   def parseExportArgs(symTab: Map[String, (Int, Type)],
     a: Array[Any],
@@ -35,47 +52,47 @@ object Parser extends JavaTokenParsers {
   def expr: Parser[AST] = if_expr | or_expr
 
   def if_expr: Parser[AST] =
-    ("if" ~> "(" ~> expr <~ ")") ~ expr ~ ("else" ~> expr) ^^ { case cond ~ thenTree ~ elseTree =>
-      If(cond, thenTree, elseTree)
+    withPos("if") ~ ("(" ~> expr <~ ")") ~ expr ~ ("else" ~> expr) ^^ { case ifx ~ cond ~ thenTree ~ elseTree =>
+      If(ifx.pos, cond, thenTree, elseTree)
     }
 
   def or_expr: Parser[AST] =
-    and_expr ~ rep(("||" | "|") ~ and_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
+    and_expr ~ rep(withPos("||" | "|") ~ and_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
     }
 
   def and_expr: Parser[AST] =
-    lt_expr ~ rep(("&&" | "&") ~ lt_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
+    lt_expr ~ rep(withPos("&&" | "&") ~ lt_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
     }
 
   def lt_expr: Parser[AST] =
-    eq_expr ~ rep(("<=" | ">=" | "<" | ">") ~ eq_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Comparison(acc, op, rhs) }
+    eq_expr ~ rep(withPos("<=" | ">=" | "<" | ">") ~ eq_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Comparison(op.pos, acc, op.x, rhs) }
     }
 
   def eq_expr: Parser[AST] =
-    add_expr ~ rep(("==" | "!=") ~ add_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Comparison(acc, op, rhs) }
+    add_expr ~ rep(withPos("==" | "!=") ~ add_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Comparison(op.pos, acc, op.x, rhs) }
     }
 
   def add_expr: Parser[AST] =
-    mul_expr ~ rep(("+" | "-") ~ mul_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
+    mul_expr ~ rep(withPos("+" | "-") ~ mul_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
     }
 
   def mul_expr: Parser[AST] =
-    tilde_expr ~ rep(("*" | "/" | "%") ~ tilde_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
+    tilde_expr ~ rep(withPos("*" | "/" | "%") ~ tilde_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
     }
 
   def tilde_expr: Parser[AST] =
-    apply_expr ~ rep("~" ~ apply_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(acc, op, rhs) }
+    dot_expr ~ rep(withPos("~") ~ dot_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
     }
 
   def export_args: Parser[(Option[String], Array[AST])] =
-    // FIXME | not backtracking properly.  Why?
+  // FIXME | not backtracking properly.  Why?
     args ^^ { a => (None, a) } |||
       named_args ^^ { a =>
         (Some(a.map(_._1).mkString("\t")), a.map(_._2))
@@ -87,37 +104,40 @@ object Parser extends JavaTokenParsers {
     }
 
   def named_arg: Parser[(String, AST)] =
-    ident ~ "=" ~ expr ^^ { case id ~ _ ~ expr => (id, expr) }
+    ident ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
 
   def args: Parser[Array[AST]] =
     expr ~ rep("," ~> expr) ^^ { case arg ~ lst => (arg :: lst).toArray }
 
-  def apply_expr: Parser[AST] =
-    dot_expr ~ opt(args) ^^ {
-      case f ~ Some(args) => Apply(f, args)
-      case f ~ None => f
+  def dot_expr: Parser[AST] =
+    unary_expr ~ rep((withPos(".") ~ ident) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
+        case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
+        case (lparen: Positioned[_]) ~ (args: Array[AST]) ~ ")" => Apply(lparen.pos, acc, args)
+      }
+      }
     }
 
-  def dot_expr: Parser[AST] =
-    primary_expr ~ rep(("." ~ ident) | ("(" ~ args ~ ")")) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) {
-        case (acc, "." ~ sym) => Select(acc, sym)
-        case (acc, "(" ~ (args: Array[AST]) ~ ")") => Apply(acc, args)
+  def unary_expr: Parser[AST] =
+    rep(withPos("-" | "!")) ~ primary_expr ^^ { case lst ~ rhs =>
+      lst.foldRight(rhs) { case (op, acc) =>
+        UnaryOp(op.pos, op.x, acc)
       }
     }
 
   def primary_expr: Parser[AST] =
-    """-?\d+\.\d+[dD]?""".r ^^ (r => Const(r.toDouble, TDouble)) |
-      """-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r ^^ (r => Const(r.toDouble, TDouble)) |
+    withPos("""-?\d+\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
+      withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       // FIXME L suffix
-      wholeNumber ^^ (r => Const(r.toInt, TInt)) |
-      stringLiteral ^^ { r =>
-        assert(r.head == '"' && r.last == '"')
-        Const(r.tail.init, TString)
+      withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
+      withPos(stringLiteral) ^^ { r =>
+        val x = r.x
+        assert(x.head == '"' && x.last == '"')
+        Const(r.pos, x.tail.init, TString)
       } |
-      "true" ^^ (_ => Const(true, TBoolean)) |
-      "false" ^^ (_ => Const(false, TBoolean)) |
-      guard(not("if" | "else")) ~> ident ^^ (r => SymRef(r)) |
+      withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
+      withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
+      guard(not("if" | "else")) ~> withPos(ident) ^^ (r => SymRef(r.pos, r.x)) |
       "{" ~> expr <~ "}" |
       "(" ~> expr <~ ")"
 }
