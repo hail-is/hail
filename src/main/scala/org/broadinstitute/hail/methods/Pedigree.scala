@@ -48,6 +48,8 @@ object Pedigree {
 
     // .fam samples not in sampleIds are discarded
     readFile(filename, hConf) { s =>
+      val kidIdSet = collection.mutable.Set[Int]()
+
       val trios = Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty)
@@ -55,6 +57,10 @@ object Pedigree {
           val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
           sampleIndex.get(kid) match {
             case Some(kidId) =>
+              if (kidIdSet(kidId))
+                fatal(".fam sample name is not unique: " + kid)
+              else
+                kidIdSet += kidId
               Some(Trio(
                 kidId,
                 if (fam != "0") Some(fam) else None,
@@ -62,12 +68,15 @@ object Pedigree {
                 sampleIndex.get(mom),
                 Sex.withNameOption(sex),
                 Phenotype.withNameOption(pheno)))
-            case None => nSamplesDiscarded += 1; None
+            case None =>
+              nSamplesDiscarded += 1
+              None
           }
         }.toArray
 
       if (nSamplesDiscarded > 0)
-        warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") + " discarded: missing from variant data set")
+        warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
+          " discarded from .fam: missing from variant data set.")
 
       Pedigree(trios)
     }
@@ -79,8 +88,6 @@ object Pedigree {
 }
 
 case class Pedigree(trios: Array[Trio]) {
-  if (!trios.map(_.kid).areDistinct)
-    fatal(".fam sample names are not unique.")
 
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
