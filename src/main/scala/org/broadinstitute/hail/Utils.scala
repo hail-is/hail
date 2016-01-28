@@ -231,35 +231,6 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
-  def foreach2[T2](v2: Iterable[T2], f: (T, T2) => Unit) {
-    val i = a.iterator
-    val i2 = v2.iterator
-    while (i.hasNext && i2.hasNext)
-      f(i.next(), i2.next())
-  }
-
-  // FIXME unify with Vector zipWith above
-  def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V)(implicit vct: ClassTag[V]): Array[V] = {
-    val i = a.iterator
-    val i2 = v2.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext
-
-      def next() = f(i.next(), i2.next())
-    }.toArray
-  }
-
-  def zipWith[T2, T3, V](v2: Iterable[T2], v3: Iterable[T3], f: (T, T2, T3) => V)(implicit vct: ClassTag[V]): Array[V] = {
-    val i = a.iterator
-    val i2 = v2.iterator
-    val i3 = v3.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext && i3.hasNext
-
-      def next() = f(i.next(), i2.next(), i3.next())
-    }.toArray
-  }
-
   def areDistinct() = a.toIterable.areDistinct()
 }
 
@@ -442,6 +413,18 @@ object Utils {
 
   implicit def toRichOption[T](o: Option[T]): RichOption[T] =
     new RichOption[T](o)
+
+  def plural(n: Int, sing: String, plur: String = null): String =
+    if (n == 1)
+      sing
+    else if (plur == null)
+      sing + "s"
+    else
+      plur
+
+  def info(msg: String) {
+    System.err.println("hail: info: " + msg)
+  }
 
   def warning(msg: String) {
     System.err.println("hail: warning: " + msg)
