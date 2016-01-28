@@ -53,18 +53,24 @@ object CovariateData {
       val dataBuffer = new ArrayBuffer[Double]
       var nSamplesDiscarded = 0
 
+      val sampleIndex = sampleIds.zipWithIndex.toMap
+      val sampleSet = collection.mutable.Set[Int]()
+
       for (line <- lines) {
         val entries = line.split("\\s+").iterator
-        sampleIds.zipWithIndex.toMap.get(entries.next()) match {
-          case Some(i) => covRowSampleBuffer += i; dataBuffer ++= entries.map(_.toDouble)
+        sampleIndex.get(entries.next()) match {
+          case Some(i) =>
+            if (sampleSet(i))
+              fatal(".cov sample name is not unique: " + sampleIds(i))
+            else
+              sampleSet += i
+            covRowSampleBuffer += i
+            dataBuffer ++= entries.map(_.toDouble)
           case None => nSamplesDiscarded += 1
         }
       }
 
       val covRowSample = covRowSampleBuffer.toArray
-
-      if (!covRowSample.areDistinct()) // FIXME: should I move this check to the case class body?
-        fatal("Covariate sample names are not unique.")
 
       if (nSamplesDiscarded > 0)
         warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
