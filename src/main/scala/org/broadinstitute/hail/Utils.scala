@@ -124,6 +124,16 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         def next(): S = current.next()
       }
     }
+
+  def areDistinct(): Boolean = {
+    val seen = mutable.HashSet[T]()
+    for (x <- i)
+      if (seen(x))
+        return false
+      else
+        seen += x
+    true
+  }
 }
 
 class RichHomogenousTuple1[T](val t: Tuple1[T]) extends AnyVal {
