@@ -147,6 +147,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
     mendelErrors.map(_.toLineMendel(sampleIdsBc.value))
       .writeTable(filename, Some("FID\tKID\tCHR\tSNP\tCODE\tERROR"))
   }
+  
 
   def writeMendelF(filename: String) {
     val trioFamBc = sc.broadcast(trioFam)
