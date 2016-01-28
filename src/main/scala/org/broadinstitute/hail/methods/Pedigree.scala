@@ -92,6 +92,8 @@ case class Pedigree(trios: Array[Trio]) {
 
   def samplePheno: Map[Int, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
 
+  def phenotypedSamples: Set[Int] = trios.filter(_.pheno.isDefined).map(_.kid).toSet
+
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_ (t)))
 
   def writeSummary(filename: String, hConf: hadoop.conf.Configuration) = {

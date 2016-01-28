@@ -35,7 +35,7 @@ class LinRegBuilder extends Serializable {
         sumXY += 2 * y(row)
       case None =>
         missingRows += row
-      case _ => throw new IllegalArgumentException("Genotype value " + g.call.map(_.gt).get + " must be 0, 1, or 2.")
+      case _ => throw new IllegalArgumentException(s"Genotype value ${g.call.map(_.gt).get} must be 0, 1, or 2.")
     }
     this
   }
@@ -92,9 +92,9 @@ object LinearRegression {
     val k = cov.data.cols
     val d = n - k - 2
     if (d < 1)
-      throw new IllegalArgumentException(n + " samples and " + k + " covariates implies " + d + " degrees of freedom.")
+      throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
 
-    println(s"Running linreg on $n samples and $k covariates...")
+    info(s"Running linreg on $n samples and $k covariates...")
 
     val sc = vds.sparkContext
     val sampleCovRowBc = sc.broadcast(sampleCovRow)

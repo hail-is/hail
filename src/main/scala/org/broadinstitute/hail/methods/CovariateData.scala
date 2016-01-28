@@ -29,8 +29,7 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
           filtRow += 1
         }
 
-      warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
-        " in .cov discarded: missing phenotype.")
+      warning(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} in .cov discarded: missing phenotype.")
 
       CovariateData(filtCovRowSample, covName, filtData)
     }
@@ -61,7 +60,7 @@ object CovariateData {
         sampleIndex.get(sample) match {
           case Some(s) =>
             if (sampleSet(s))
-              fatal(".cov sample name is not unique: " + sample)
+              fatal(s".cov sample name is not unique: $sample")
             else
               sampleSet += s
             covRowSampleBuffer += s
@@ -73,8 +72,7 @@ object CovariateData {
       val covRowSample = covRowSampleBuffer.toArray
 
       if (nSamplesDiscarded > 0)
-        warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
-          " in .cov discarded: missing from variant data set.")
+        warning(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} in .cov discarded: missing from variant data set.")
 
       val data = new DenseMatrix[Double](rows = covRowSample.size, cols = covName.size, data = dataBuffer.toArray,
         offset = 0, majorStride = covName.size, isTranspose = true)
