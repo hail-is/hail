@@ -48,7 +48,7 @@ object Pedigree {
 
     // .fam samples not in sampleIds are discarded
     readFile(filename, hConf) { s =>
-      val kidIdSet = collection.mutable.Set[Int]()
+      val sampleSet = collection.mutable.Set[Int]()
 
       val trios = Source.fromInputStream(s)
         .getLines()
@@ -56,13 +56,13 @@ object Pedigree {
         .flatMap{ line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
           val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
           sampleIndex.get(kid) match {
-            case Some(kidId) =>
-              if (kidIdSet(kidId))
+            case Some(s) =>
+              if (sampleSet(s))
                 fatal(".fam sample name is not unique: " + kid)
               else
-                kidIdSet += kidId
+                sampleSet += s
               Some(Trio(
-                kidId,
+                s,
                 if (fam != "0") Some(fam) else None,
                 sampleIndex.get(dad), // FIXME: code assumes "0" cannot be a (string) sample ID in a vds, do you agree we should enforce that elsewhere?
                 sampleIndex.get(mom),
