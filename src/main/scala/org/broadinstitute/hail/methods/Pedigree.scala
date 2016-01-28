@@ -65,7 +65,10 @@ object Pedigree {
             case None => nSamplesDiscarded += 1; None
           }
         }.toArray
-      warnIfSamplesDiscarded(nSamplesDiscarded, "missing from variant data set discarded.")
+
+      if (nSamplesDiscarded > 0)
+        warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") + " discarded: missing from variant data set")
+
       Pedigree(trios)
     }
   }
