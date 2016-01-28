@@ -15,6 +15,10 @@ class Parameters(val rng: RandomDataGenerator, val size: Int) {
 
 object Gen {
   val printableChars = (0 to 127).map(_.toChar).filter(!_.isControl).toArray
+  val identifierLeadingChars = (0 to 127).map(_.toChar)
+    .filter(c => c == '_' || c.isLetter)
+  val identifierChars = (0 to 127).map(_.toChar)
+    .filter(c => c == '_' || c.isLetterOrDigit)
 
   def apply[T](gen: (Parameters) => T): Gen[T] = new Gen[T](gen)
 
@@ -49,7 +53,7 @@ object Gen {
     Gen { (p: Parameters) =>
       val v = p.rng.getRandomGenerator.nextInt(outOf)
       val t = java.util.Arrays.binarySearch(running, v)
-      val j = if (t < 0) - t - 2 else t
+      val j = if (t < 0) -t - 2 else t
       assert(j >= 0 && j < wxs.length)
       assert(v >= running(j)
         && (j == wxs.length - 1 || v < running(j + 1)))
@@ -102,11 +106,23 @@ object Gen {
       b.result()
     }
 
+  def randomOneOf[T](rng: RandomDataGenerator, is: IndexedSeq[T]): T =
+    is(rng.getRandomGenerator.nextInt(is.length))
+
+  def identifier: Gen[String] = Gen { (p: Parameters) =>
+    val s = 1 + p.rng.getRandomGenerator.nextInt(11)
+    val b = new StringBuilder()
+    b += randomOneOf(p.rng, identifierLeadingChars)
+    for (_ <- 1 until s)
+      b += randomOneOf(p.rng, identifierChars)
+    b.result()
+  }
+
   def arbString: Gen[String] = Gen { (p: Parameters) =>
     val s = p.rng.getRandomGenerator.nextInt(12)
     val b = new StringBuilder()
-    for (i <- 0 to s)
-      b += printableChars(p.rng.getRandomGenerator.nextInt(printableChars.length))
+    for (i <- 0 until s)
+      b += randomOneOf(p.rng, printableChars)
     b.result()
   }
 

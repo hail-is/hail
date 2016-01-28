@@ -67,7 +67,6 @@ object MultiSplit extends Command {
           gb.setPL(plx)
         }
 
-
         splitGenotypeStreamBuilders(j).write(gb)
       }
     }

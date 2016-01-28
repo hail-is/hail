@@ -26,50 +26,34 @@ object ExportVCF extends Command {
     val varAnnSig = vds.metadata.variantAnnotationSignatures
 
     def header: String = {
-      val today = LocalDate.now.toString
-      val sampleIds: Array[String] = vds.localSamples.map(vds.sampleIds)
-      val version = "##fileformat=VCFv4.2\n"
-      val date = s"##fileDate=$today\n"
-      val source = "##source=Hailv0.0\n" // might be good to have a version variable
+      val sb = new StringBuilder()
 
-      val format =
+      sb.append("##fileformat=VCFv4.2\n")
+      sb.append(s"##fileDate=${LocalDate.now}\n")
+      // FIXME add Hail version
+      sb.append(
         """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-             |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-             |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-             |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-             |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin
+          |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+          |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+          |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+          |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
+          |""".stripMargin)
 
-      val filterHeader = vds.metadata.filters.map { case (key, desc) => s"""##FILTER=<ID=$key,Description="$desc">""" }.mkString("\n")
+      vds.metadata.filters.map { case (key, desc) =>
+        sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
+      }
 
       val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[Annotations]("info").map(_.attrs)
+      infoHeader.foreach { i =>
+        i.foreach { case (key, value) =>
+          val sig = value.asInstanceOf[VCFSignature]
+          sb.append(
+            s"""##INFO=<ID=$key,Number=${sig.number},Type=${sig.vcfType},Description="${sig.description}">\n""")
+        }
+      }
 
-      val sb = new StringBuilder()
-      sb.append(version)
-      sb.append(date)
-      sb.append(source)
-      sb.append(format)
-      sb.append("\n")
-      sb.append(filterHeader)
-      sb.append("\n")
-      infoHeader.foreach{ i =>
-        i.foreachBetween({
-          case (key, value) =>
-            val sig = value.asInstanceOf[VCFSignature]
-            sb.append("##INFO=<ID=")
-            sb.append(key)
-            sb.append(",Number=")
-            sb.append(sig.number)
-            sb.append(",Type=")
-            sb.append(sig.vcfType)
-            sb.append(",Description=\"")
-            sb.append(sig.description)
-            sb.append("\">")
-        })(unit => sb.append("\n"))}
-      sb.append("\n")
-
-      val headerFragment = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT"
-      sb.append(headerFragment)
-
+      sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
+      val sampleIds: Array[String] = vds.localSamples.map(vds.sampleIds)
       sampleIds.foreach { id =>
         sb += '\t'
         sb.append(id)
@@ -97,22 +81,24 @@ object ExportVCF extends Command {
       sb += '\t'
       sb.append(v.ref)
       sb += '\t'
-      sb.append(v.alt)
+      v.altAlleles.foreachBetween(aa =>
+        sb.append(aa.alt))(_ => sb += ',')
       sb += '\t'
 
-      val qual = a.getOption[Double]("qual")
-        .map(_.formatted("%.2f"))
-        .getOrElse(".")
-      sb.append(qual)
-
+      a.getOption[Double]("qual") match {
+        case Some(d) => sb.append(d.formatted("%.2f"))
+        case None => sb += '.'
+      }
       sb += '\t'
 
-      val filter = a.get[Set[String]]("filters")
-
-      if (filter.nonEmpty)
-        filter.foreachBetween(str => sb.append(str))(unit => sb.append(","))
-      else
-        sb.append(".")
+      a.getOption[Set[String]]("filters") match {
+        case Some(f) =>
+          if (f.nonEmpty)
+            f.foreachBetween(s => sb.append(s))(_ => sb += ',')
+          else
+            sb += '.'
+        case None => sb += '.'
+      }
 
       sb += '\t'
 
@@ -123,16 +109,15 @@ object ExportVCF extends Command {
               sb.append(k)
             else {
               sb.append(k)
-              sb.append("=")
+              sb += '='
               v match {
-                case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(unit => sb.append(","))
+                case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(_ => sb.append(","))
                 case _ => sb.append(v)
               }
             }
-          })(unit => sb.append(";"))
-      }
-      else
-        sb.append(".")
+          })(_ => sb += ';')
+      } else
+        sb += '.'
 
       sb += '\t'
       sb.append("GT:AD:DP:GQ:PL")

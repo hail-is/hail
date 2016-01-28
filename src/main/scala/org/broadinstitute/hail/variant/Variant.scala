@@ -97,7 +97,7 @@ object Variant {
     Gen.buildableOfN[Array[Variant], Variant](nVariants, gen)
 
   def gen: Gen[Variant] =
-    for (contig <- Gen.arbString;
+    for (contig <- Gen.identifier;
       start <- Gen.posInt;
       nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
       alleles <- Gen.distinctBuildableOfN[Array[String], String](

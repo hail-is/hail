@@ -1,20 +1,14 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
-
-import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.check.{Arbitrary, Gen}
-import org.broadinstitute.hail.check.Arbitrary._
-import scala.io.Source
+import org.broadinstitute.hail.check.Gen
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
-
 import scala.reflect.ClassTag
-import scala.reflect.runtime.universe._
 
 object VariantSampleMatrix {
   def apply[T](metadata: VariantMetadata,
@@ -72,31 +66,31 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext,
     sampleIds: Array[String],
     variants: Array[Variant],
-    g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-
+    g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val nSamples = sampleIds.length
     for (rows <- Gen.sequence[Seq[(Variant, Annotations, Iterable[T])], (Variant, Annotations, Iterable[T])](
       variants.map(v => Gen.zip(
         Gen.const(v),
         Gen.const(Annotations.empty()),
-        genValues(g(v))))))
+        genValues(nSamples, g(v))))))
       yield VariantSampleMatrix[T](VariantMetadata(sampleIds), sc.parallelize(rows))
   }
 
-  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
-      for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.arbString);
+      for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
         variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
   }
 
-  def gen[T](sc: SparkContext, sampleIds: Array[String], g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+  def gen[T](sc: SparkContext, sampleIds: Array[String], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val variantsGen = Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen)
     variantsGen.flatMap(variants => gen(sc, sampleIds, variants, g))
   }
 
-  def gen[T](sc: SparkContext, variants: Array[Variant], g: (Variant) => Gen[T])(implicit ttt: TypeTag[T], tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val samplesGen = Gen.distinctBuildableOf[Array[String], String](Gen.arbString)
+  def gen[T](sc: SparkContext, variants: Array[Variant], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val samplesGen = Gen.distinctBuildableOf[Array[String], String](Gen.identifier)
     samplesGen.flatMap(sampleIds => gen(sc, sampleIds, variants, g))
   }
 }

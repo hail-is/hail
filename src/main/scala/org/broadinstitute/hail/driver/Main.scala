@@ -76,6 +76,7 @@ object Main {
       FamSummary,
       FilterVariants,
       FilterSamples,
+      GenDataset,
       GQByDP,
       Import,
       LinearRegressionCommand,

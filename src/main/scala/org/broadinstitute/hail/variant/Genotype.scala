@@ -3,7 +3,6 @@ package org.broadinstitute.hail.variant
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.broadinstitute.hail.check.{Gen, Arbitrary}
-
 import scala.language.implicitConversions
 import scala.collection.mutable
 import org.broadinstitute.hail.Utils._
