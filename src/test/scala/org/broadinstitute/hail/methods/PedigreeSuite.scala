@@ -7,7 +7,7 @@ class PedigreeSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/pedigree.vcf")
     val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
-    ped.write("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)  // FIXME: this is not right
+    ped.write("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds) // FIXME: this is not right
     val pedwr = Pedigree.read("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
     assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in pedigree.vcf
 
@@ -30,24 +30,12 @@ class PedigreeSuite extends SparkSuite {
       ped.nSatisfying(_.isComplete, _.isCase, _.isFemale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isMale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isFemale) == 0)
+
+    val ped2 = Pedigree.read("src/test/resources/pedigreeWithExtraSample.fam", sc.hadoopConfiguration, vds.sampleIds)
+
+    assert(ped.trios.toSet == ped2.trios.toSet)
+
+    //FIXME: How to test
+    //ped.writeSummary("/tmp/pedigree.sumfam", sc.hadoopConfiguration)
   }
-
-  @Test def testWithMismatchedSamples() {
-    val vds = LoadVCF(sc, "src/test/resources/pedigree.vcf")
-    val ped = Pedigree.read("src/test/resources/pedigreeWithExtraSample.fam", sc.hadoopConfiguration, vds.sampleIds)
-
-    val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
-    val sampleIndex = vds.sampleIds.zipWithIndex.toMap
-    assert(nuclearFams((sampleIndex("Dad1"), sampleIndex("Mom1"))).toSet ==
-      Set(sampleIndex("Son1"), sampleIndex("Dtr1"))) // Baby1 is dropped since it's not in the vcf
-    assert(nuclearFams((sampleIndex("Dad2"), sampleIndex("Mom2"))).toSet ==
-      Set(sampleIndex("Son2")))
-    assert(nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 7)
-
-    assert(ped.nSatisfying(_.isMale) == 4 && ped.nSatisfying(_.isFemale) == 3)
-  }
-
-  //FIXME: How to test
-  //ped.writeSummary("/tmp/pedigree.sumfam", sc.hadoopConfiguration)
-
 }
