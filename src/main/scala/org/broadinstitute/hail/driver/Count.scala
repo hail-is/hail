@@ -30,7 +30,8 @@ object Count extends Command {
     println("  nLocalSamples = " + nLocalSamples)
     println("  nVariants = " + nVariants)
     println(s"  nCalled = $nCalled")
-    println(s"  callRate = ${callRate.map(r => (r * 100).formatted("%.3f")).getOrElse("NA")}%")
+    println(s"  callRate = ${callRate.map(r => (r * 100).formatted("%.3f%%")).getOrElse("NA")}")
+
     state
   }
 }
