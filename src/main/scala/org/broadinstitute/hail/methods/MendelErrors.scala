@@ -62,7 +62,8 @@ object MendelErrors {
     val nSamplesDiscarded = preTrios.size - trios.size
 
     if (nSamplesDiscarded > 0)
-      warning(nSamplesDiscarded + (if (nSamplesDiscarded > 1) " children" else " child") + " with undefined sex discarded.")
+      warning(nSamplesDiscarded + (if (nSamplesDiscarded > 1) " trios" else " trio") +
+        " discarded: sex of child undefined.")
 
     println("Computing Mendel errors for " + trios.size + (if (trios.size == 1) " child." else " children."))
 
