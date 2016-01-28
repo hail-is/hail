@@ -58,14 +58,14 @@ object Pedigree {
           sampleIndex.get(kid) match {
             case Some(s) =>
               if (sampleSet(s))
-                fatal(".fam sample name is not unique: " + kid)
+                fatal(s".fam sample name is not unique: $kid")
               else
                 sampleSet += s
               Some(Trio(
                 s,
                 if (fam != "0") Some(fam) else None,
-                sampleIndex.get(dad), // FIXME: code assumes "0" cannot be a (string) sample ID in a vds, do you agree we should enforce that elsewhere?
-                sampleIndex.get(mom),
+                if (dad != "0") sampleIndex.get(dad) else None,
+                if (mom != "0") sampleIndex.get(mom) else None,
                 Sex.withNameOption(sex),
                 Phenotype.withNameOption(pheno)))
             case None =>
@@ -75,8 +75,7 @@ object Pedigree {
         }.toArray
 
       if (nSamplesDiscarded > 0)
-        warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
-          " discarded from .fam: missing from variant data set.")
+        warning(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
 
       Pedigree(trios)
     }
