@@ -289,8 +289,13 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName)
       case None => Array(tmpFileName)
     }
+
     hadoopDelete(filename, hConf, recursive = true) // overwriting by default
-    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+
+    val (_, dt) = time {
+      hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+    }
+    println("merge time: " + formatTime(dt))
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = false)
@@ -325,7 +330,30 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   def tsvAppend(a: Any) {
-    sb.append(org.broadinstitute.hail.methods.UserExportUtils.toTSVString(a))
+    a match {
+      case null | None => sb.append("NA")
+      case Some(x) => tsvAppend(x)
+      case d: Double => sb.append(d.formatted("%.4e"))
+      case i: Iterable[_] =>
+        var first = true
+        i.foreach { x =>
+          if (first)
+            first = false
+          else
+            sb += ','
+          tsvAppend(x)
+        }
+      case arr: Array[_] =>
+        var first = true
+        arr.foreach { x =>
+          if (first)
+            first = false
+          else
+            sb += ','
+          tsvAppend(x)
+        }
+      case _ => sb.append(a)
+    }
   }
 }
 
@@ -590,11 +618,11 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-    lines: Traversable[String], header: String = null) {
+    lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        if (header != null) {
-          fw.write(header)
+        header.map { h =>
+          fw.write(h)
           fw.write('\n')
         }
         lines.foreach { line =>

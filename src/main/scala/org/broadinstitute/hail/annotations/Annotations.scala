@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.annotations
 
+import org.broadinstitute.hail.expr
+
 case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def contains(elem: String): Boolean = attrs.contains(elem)
@@ -11,12 +13,18 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
   def +(key: String, value: Any): Annotations = Annotations(attrs + (key -> value))
 
   def ++(other: Annotations): Annotations = Annotations(attrs ++ other.attrs)
+
+  // FIXME for annotation signatures only
+  def toExprType: expr.Type = expr.TStruct(attrs.map {
+    case (k, a: Annotations) => (k, a.toExprType)
+    case (k, as: AnnotationSignature) => (k, as.toExprType)
+  })
 }
 
 object Annotations {
   def empty(): Annotations = Annotations(Map.empty[String, Any])
 
-  def emptyIndexedSeq(n: Int): IndexedSeq[Annotations] = IndexedSeq.fill(n)(Annotations.empty())
+  def emptyIndexedSeq(n: Int): IndexedSeq[Annotations] = Array.fill(n)(Annotations.empty())
 
   def validSignatures(a: Any): Boolean = {
     a match {

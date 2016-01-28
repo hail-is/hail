@@ -295,7 +295,8 @@ class SampleQCCombiner extends Serializable {
         case Some(value) => Some(k, value)
         case None => None
         case _ => Some(k, v)
-      }}
+      }
+      }
   }
 
 }
@@ -355,31 +356,29 @@ object SampleQC extends Command {
 
     val r = results(vds)
     if (options.store) {
-      val rMap = r.collectAsMap()
-      val newAnnotations = vds.metadata.sampleAnnotations
-        .zipWithIndex
-        .map { case (sa, s) => sa + ("qc", rMap.get(s) match {
-          case Some(x) => Annotations(x.asMap)
-          case None => Annotations(Map.empty[String, String])
-        })}
+      val rMap = r
+        .mapValues(_.asMap)
+        .collectAsMap()
+      val qcAnnotations = (0 until vds.nSamples)
+        .map((s) => Annotations(Map("qc" -> rMap.get(s).getOrElse(s, Map.empty))))
 
-      state.copy(
+      val newState = state.copy(
         vds = vds.copy(
           metadata = vds.metadata.addSampleAnnotations(
             Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
-            newAnnotations)
-        )
-      )
+            qcAnnotations)
+        ))
 
+      newState
     } else {
       hadoopDelete(output, state.hadoopConf, recursive = true)
       r.map { case (s, comb) =>
-          val sb = new StringBuilder()
-          sb.append(sampleIdsBc.value(s))
-          sb += '\t'
-          comb.emit(sb)
-          sb.result()
-        }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
+        val sb = new StringBuilder()
+        sb.append(sampleIdsBc.value(s))
+        sb += '\t'
+        comb.emit(sb)
+        sb.result()
+      }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
 
       state
     }
