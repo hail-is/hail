@@ -423,7 +423,7 @@ object Utils {
       plur
 
   def info(msg: String) {
-    println(msg)
+    System.err.println("hail: info: " + msg)
   }
 
   def warning(msg: String) {
