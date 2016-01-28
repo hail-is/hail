@@ -63,10 +63,10 @@ class GenotypeSuite extends TestNGSuite {
       Genotype(Some(-2), Some(Array(2, 0)), Some(2), None)
     }
 
-    val noCall = Genotype(None, Some(Array(2, 0)), Some(2), None, None)
-    val homRef = Genotype(Some(0), Some(Array(10, 0)), Some(10), None, Some(Array(0, 1000, 100)))
-    val het = Genotype(Some(1), Some(Array(5, 5)), Some(12), None, Some(Array(100, 0, 1000)))
-    val homVar = Genotype(Some(2), Some(Array(2, 10)), Some(12), None, Some(Array(100, 1000, 0)))
+    val noCall = Genotype(None, Some(Array(2, 0)), Some(2), None)
+    val homRef = Genotype(Some(0), Some(Array(10, 0)), Some(10), Some(Array(0, 1000, 100)))
+    val het = Genotype(Some(1), Some(Array(5, 5)), Some(12), Some(Array(100, 0, 1000)))
+    val homVar = Genotype(Some(2), Some(Array(2, 10)), Some(12), Some(Array(100, 1000, 0)))
 
     assert(noCall.isNotCalled && !noCall.isCalled && !noCall.isHomRef && !noCall.isHet && !noCall.isHomVar)
     assert(!homRef.isNotCalled && homRef.isCalled && homRef.isHomRef && !homRef.isHet && !homRef.isHomVar)
@@ -85,8 +85,8 @@ class GenotypeSuite extends TestNGSuite {
 
     assert(Genotype(None, None, None, None).pAB().isEmpty)
     assert(D_==(Genotype(None, Some(Array(0, 0)), Some(0), None).pAB().get, 1.0))
-    assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), None, Some(Array(100, 0, 100))).pAB().get, 1.0))
-    assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), None, Some(Array(200, 0, 100))).pAB().get, 0.423950))
+    assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(Array(100, 0, 100))).pAB().get, 1.0))
+    assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(Array(200, 0, 100))).pAB().get, 0.423950))
 
     Spec.check
   }

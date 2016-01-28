@@ -36,27 +36,70 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
       assert(a0.isCalled || a0.isNoCall)
       assert(a1.isCalled || a1.isNoCall)
+      assert(a0.isCalled == a1.isCalled)
 
       gb.clear()
 
-      var pl: Array[Int] = g.getPL
+      var pl = g.getPL
+      if (g.hasPL) {
+        val minPL = pl.min
+        if (minPL != 0) {
+          pl = pl.clone()
+          var i = 0
+          while (i < pl.length) {
+            pl(i) -= minPL
+            i += 1
+          }
+        }
+      }
+
+      var gt = -1 // notCalled
 
       if (a0.isCalled) {
         val i = vc.getAlleleIndex(a0)
         val j = vc.getAlleleIndex(a1)
-        val gt = if (i <= j)
+
+        gt = if (i <= j)
           Genotype.gtIndex(i, j)
         else
           Genotype.gtIndex(j, i)
-        gb.setGT(gt)
+
+        if (g.hasPL && pl(gt) != 0) {
+          def callFromPL(i: Int, newGT: Int): Int = {
+            if (i < pl.length) {
+              if (pl(i) == 0) {
+                if (newGT != -1)
+                  -1
+                else
+                  callFromPL(i + 1, i)
+              } else
+                callFromPL(i + 1, newGT)
+            } else
+              newGT
+          }
+
+          gt = callFromPL(0, -1)
+        }
+
+        if (gt != -1)
+          gb.setGT(gt)
       }
 
+      val ad = g.getAD
+
       if (g.hasAD)
-        gb.setAD(g.getAD)
-      if (g.hasDP)
-        gb.setDP(g.getDP)
-      if (g.hasGQ)
-        gb.setGQ(g.getGQ)
+        gb.setAD(ad)
+      if (g.hasDP) {
+        var dp = g.getDP
+        if (g.hasAD) {
+          val adsum = ad.sum
+          if (dp < adsum)
+            dp = adsum
+        }
+
+        gb.setDP(dp)
+      }
+
       if (pl != null)
         gb.setPL(pl)
 
