@@ -29,7 +29,9 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
           filtRow += 1
         }
 
-      warnIfSamplesDiscarded(nSamplesDiscarded, "in .cov discarded: missing phenotype.")
+      if (nSamplesDiscarded > 0)
+        warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
+          " in .cov discarded: missing phenotype.")
 
       CovariateData(filtCovRowSample, covName, filtData)
     }
@@ -64,7 +66,9 @@ object CovariateData {
       if (!covRowSample.areDistinct()) // FIXME: should I move this check to the case class body?
         fatal("Covariate sample names are not unique.")
 
-      warnIfSamplesDiscarded(nSamplesDiscarded, "in .cov discarded: missing from variant data set.")
+      if (nSamplesDiscarded > 0)
+        warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
+          " in .cov discarded: missing from variant data set.")
 
       val data = new DenseMatrix[Double](rows = covRowSample.size, cols = covName.size, data = dataBuffer.toArray,
         offset = 0, majorStride = covName.size, isTranspose = true)
