@@ -9,6 +9,11 @@ object AltAlleleType extends Enumeration {
   val SNP, MNP, Insertion, Deletion, Complex = Value
 }
 
+object CopyState extends Enumeration {
+  type CopyState = Value
+  val Auto, HemiX, HemiY = Value
+}
+
 object AltAllele {
   def gen(ref: String): Gen[AltAllele] =
     for (alt <- Gen.frequency((10, genDNAString),
@@ -83,12 +88,6 @@ object Variant {
     ref: String,
     alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
 
-  def apply(contig: String,
-    start: Int,
-    ref: String,
-    alt: String,
-    wasSplit: Boolean): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)), wasSplit)
-
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0)
     nAlleles * (nAlleles + 1) / 2
@@ -115,9 +114,10 @@ object Variant {
 case class Variant(contig: String,
   start: Int,
   ref: String,
-  altAlleles: IndexedSeq[AltAllele],
-  wasSplit: Boolean = false) {
-  require(start >= 1)
+  altAlleles: IndexedSeq[AltAllele]) extends Ordered[Variant] {
+  /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
+       corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
+  require(start >= 0)
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -142,10 +142,48 @@ case class Variant(contig: String,
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
-  def inParX(pos: Int): Boolean = (60001 <= pos && pos <= 2699520) || (154931044 <= pos && pos <= 155260560)
+  def inParX: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
 
-  def inParY(pos: Int): Boolean = (10001 <= pos && pos <= 2649520) || (59034050 <= pos && pos <= 59363566)
+  def inParY: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
 
-  def isHemizygous(sex: Sex.Sex): Boolean = (sex == Sex.Male) &&
-    (contig == "X" && !inParX(start)) || (contig == "Y" && !inParY(start))
+  import CopyState._
+
+  def copyState(sex: Sex.Sex): CopyState =
+    if (sex == Sex.Male)
+      if (contig == "X" && !inParX)
+        HemiX
+      else if (contig == "Y" && !inParY)
+        HemiY
+      else
+        Auto
+    else
+      Auto
+
+  def compare(that: Variant): Int = {
+    var c = contig.compare(that.contig)
+    if (c != 0)
+      return c
+
+    c = start.compare(that.start)
+    if (c != 0)
+      return c
+
+    c = ref.compare(that.ref)
+    if (c != 0)
+      return c
+
+    c = nAltAlleles.compare(that.nAltAlleles)
+    if (c != 0)
+      return c
+
+    var i = 0
+    while (i < altAlleles.length) {
+      c = altAlleles(i).alt.compare(that.altAlleles(i).alt)
+      if (c != 0)
+        return c
+      i += 1
+    }
+
+    return 0
+  }
 }

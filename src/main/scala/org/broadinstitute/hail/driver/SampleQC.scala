@@ -1,9 +1,9 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
@@ -12,7 +12,8 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object SampleQCCombiner {
-  val header = "nCalled\t" +
+  val header = "callRate\t" +
+    "nCalled\t" +
     "nNotCalled\t" +
     "nHomRef\t" +
     "nHet\t" +
@@ -35,6 +36,39 @@ object SampleQCCombiner {
     "rTiTv\t" +
     "rHetHomVar\t" +
     "rDeletionInsertion"
+
+  val signatures = Map("callRate" -> new SimpleSignature("Double"),
+    "nCalled" -> new SimpleSignature("Int"),
+    "nNotCalled" -> new SimpleSignature("Int"),
+    "nHomRef" -> new SimpleSignature("Int"),
+    "nHet" -> new SimpleSignature("Int"),
+    "nHomVar" -> new SimpleSignature("Int"),
+    "nSNP" -> new SimpleSignature("Int"),
+    "nInsertion" -> new SimpleSignature("Int"),
+    "nDeletion" -> new SimpleSignature("Int"),
+    "nSingleton" -> new SimpleSignature("Int"),
+    "nTransition" -> new SimpleSignature("Int"),
+    "nTransversion" -> new SimpleSignature("Int"),
+    "dpMean" -> new SimpleSignature("Double"),
+    "dpStDev" -> new SimpleSignature("Double"),
+    "dpMeanHomRef" -> new SimpleSignature("Double"),
+    "dpStDevHomRef" -> new SimpleSignature("Double"),
+    "dpMeanHet" -> new SimpleSignature("Double"),
+    "dpStDevHet" -> new SimpleSignature("Double"),
+    "dpMeanHomVar" -> new SimpleSignature("Double"),
+    "dpStDevHomVar" -> new SimpleSignature("Double"),
+    "gqMean" -> new SimpleSignature("Double"),
+    "gqStDev" -> new SimpleSignature("Double"),
+    "gqMeanHomRef" -> new SimpleSignature("Double"),
+    "gqStDevHomRef" -> new SimpleSignature("Double"),
+    "gqMeanHet" -> new SimpleSignature("Double"),
+    "gqStDevHet" -> new SimpleSignature("Double"),
+    "gqMeanHomVar" -> new SimpleSignature("Double"),
+    "gqStDevHomVar" -> new SimpleSignature("Double"),
+    "nNonRef" -> new SimpleSignature("Int"),
+    "rTiTv" -> new SimpleSignature("Double"),
+    "rHetHomVar" -> new SimpleSignature("Double"),
+    "rDeletionInsertion" -> new SimpleSignature("Double"))
 }
 
 class SampleQCCombiner extends Serializable {
@@ -173,7 +207,10 @@ class SampleQCCombiner extends Serializable {
 
   def emit(sb: mutable.StringBuilder) {
     val nCalled = nHomRef + nHet + nHomVar
+    val callRate = divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled)
 
+    sb.tsvAppend(callRate)
+    sb += '\t'
     sb.append(nCalled)
     sb += '\t'
     sb.append(nNotCalled)
@@ -234,13 +271,62 @@ class SampleQCCombiner extends Serializable {
     // rDeletionInsertion
     sb.tsvAppend(divOption(nDel, nIns))
   }
+
+  def asMap: Map[String, Any] = {
+    Map[String, Any]("callRate" -> divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
+      "nCalled" -> (nHomRef + nHet + nHomVar),
+      "nNotCalled" -> nNotCalled,
+      "nHomRef" -> nHomRef,
+      "nHet" -> nHet,
+      "nHomVar" -> nHomVar,
+      "nSNP" -> nSNP,
+      "nInsertion" -> nIns,
+      "nDeletion" -> nDel,
+      "nSingleton" -> nSingleton,
+      "nTransition" -> nTi,
+      "nTransversion" -> nTv,
+      "dpMean" -> someIf(dpSC.count > 0, dpSC.mean),
+      "dpStDev" -> someIf(dpSC.count > 0, dpSC.stdev),
+      "dpMeanHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.mean),
+      "dpStDevHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.stdev),
+      "dpMeanHet" -> someIf(dpHetSC.count > 0, dpHetSC.mean),
+      "dpStDevHet" -> someIf(dpHetSC.count > 0, dpHetSC.stdev),
+      "dpMeanHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.mean),
+      "dpStDevHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.stdev),
+      "gqMean" -> someIf(gqSC.count > 0, gqSC.mean),
+      "gqStDev" -> someIf(gqSC.count > 0, gqSC.stdev),
+      "gqMeanHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.mean),
+      "gqStDevHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.stdev),
+      "gqMeanHet" -> someIf(gqHetSC.count > 0, gqHetSC.mean),
+      "gqStDevHet" -> someIf(gqHetSC.count > 0, gqHetSC.stdev),
+      "gqMeanHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.mean),
+      "gqStDevHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.stdev),
+      "nNonRef" -> (nHet + nHomVar),
+      "rTiTv" -> divOption(nTi, nTv),
+      "rHetHomVar" -> divOption(nHet, nHomVar),
+      "rDeletionInsertion" -> divOption(nDel, nIns))
+      .flatMap { case (k, v) => v match {
+        case Some(value) => Some(k, value)
+        case None => None
+        case _ => Some(k, v)
+      }
+      }
+  }
+
 }
 
 object SampleQC extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
-    var output: String = _
+
+    @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
+      usage = "Output file", forbids = Array("store"))
+    var output: String = ""
+
+    @Args4jOption(required = false, name = "-s", aliases = Array("--store"),
+      usage = "Store qc output in vds annotations", forbids = Array("output"))
+    var store: Boolean = false
+
   }
 
   def newOptions = new Options
@@ -263,16 +349,16 @@ object SampleQC extends Command {
     val localSamplesBc = vds.sparkContext.broadcast(vds.localSamples)
     vds
       .rdd
-      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Iterable[Genotype])]) =>
-        val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
-        localSamplesBc.value.iterator
-          .zip(it.foldLeft(zeroValue) { case (acc, (v, gs)) =>
-            val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
-            for ((g, i) <- gs.zipWithIndex)
-              acc(i) = acc(i).merge(v, vIsSingleton, g)
-            acc
-          }.iterator)
-      }.foldByKey(new SampleQCCombiner)((comb1, comb2) => comb1.merge(comb2))
+      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Annotations, Iterable[Genotype])]) =>
+      val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
+      localSamplesBc.value.iterator
+        .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
+          val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
+          for ((g, i) <- gs.zipWithIndex)
+            acc(i) = acc(i).merge(v, vIsSingleton, g)
+          acc
+        }.iterator)
+    }.foldByKey(new SampleQCCombiner)((comb1, comb2) => comb1.merge(comb2))
   }
 
   def run(state: State, options: Options): State = {
@@ -280,24 +366,35 @@ object SampleQC extends Command {
 
     val output = options.output
 
-    writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write("sampleID\t")
-      s.write(SampleQCCombiner.header)
-      s.write("\n")
-    }
-
     val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
-    hadoopDelete(output, state.hadoopConf, true)
     val r = results(vds)
-      .map { case (s, comb) =>
+    if (options.store) {
+      val rMap = r
+        .mapValues(_.asMap)
+        .collectAsMap()
+      val qcAnnotations = (0 until vds.nSamples)
+        .map((s) => Annotations(Map("qc" -> rMap.get(s).getOrElse(s, Map.empty))))
+
+      val newState = state.copy(
+        vds = vds.copy(
+          metadata = vds.metadata.addSampleAnnotations(
+            Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
+            qcAnnotations)
+        ))
+
+      newState
+    } else {
+      hadoopDelete(output, state.hadoopConf, recursive = true)
+      r.map { case (s, comb) =>
         val sb = new StringBuilder()
         sb.append(sampleIdsBc.value(s))
         sb += '\t'
         comb.emit(sb)
         sb.result()
-      }.saveAsTextFile(output)
+      }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
 
-    state
+      state
+    }
   }
 }

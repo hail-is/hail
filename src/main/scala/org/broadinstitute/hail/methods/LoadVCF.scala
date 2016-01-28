@@ -3,9 +3,15 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.variant.Sex._
 import scala.io.Source
 import org.apache.spark.{AccumulableParam, SparkConf, SparkContext}
+import org.broadinstitute.hail.vcf.BufferedLineIterator
+
+import scala.io.Source
+import org.apache.spark.SparkContext
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.vcf
+import org.broadinstitute.hail.annotations._
+import scala.collection.JavaConversions._
 
 object LoadVCF {
   // FIXME move to VariantDataset
@@ -22,9 +28,35 @@ object LoadVCF {
     val headerLines = readFile(file, hConf) { s =>
       Source.fromInputStream(s)
         .getLines()
-        .takeWhile(line => line(0) == '#')
+        .takeWhile { line => line(0) == '#' }
         .toArray
     }
+
+    val codec = new htsjdk.variant.vcf.VCFCodec()
+
+    val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+      .getHeaderValue
+      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+
+    // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
+    val filters: IndexedSeq[(String, String)] = header
+      .getFilterLines
+      .toList
+      .map(line => (line.getID, ""))
+      .toArray[(String, String)]
+
+    val infoSignatures = Annotations(header
+      .getInfoHeaderLines
+      .toList
+      .map(line => (line.getID, VCFSignature.parse(line)))
+      .toMap)
+
+    val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
+      "filters" -> new SimpleSignature("Set[String]"),
+      "pass" -> new SimpleSignature("Boolean"),
+      "qual" -> new SimpleSignature("Double"),
+      "multiallelic" -> new SimpleSignature("Boolean"),
+      "rsid" -> new SimpleSignature("String")))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -33,15 +65,18 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
+    val sigMap = sc.broadcast(infoSignatures.attrs)
+
     val headerLinesBc = sc.broadcast(headerLines)
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
       .mapPartitions { lines =>
         val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
         lines.filter(line => !line.isEmpty && line(0) != '#')
-          .map(reader.readRecord)
+          .map(line => reader.readRecord(line, sigMap.value))
       }
 
-    // FIXME null should be contig lengths
-    VariantSampleMatrix(VariantMetadata(null, sampleIds), genotypes)
+    VariantSampleMatrix(VariantMetadata(filters, sampleIds,
+      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
+      variantAnnotationSignatures), genotypes)
   }
 }

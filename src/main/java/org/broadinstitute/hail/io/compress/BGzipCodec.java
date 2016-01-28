@@ -48,12 +48,12 @@ public class BGzipCodec implements SplittableCompressionCodec {
     }
 
     @Override
-    public CompressionOutputStream createOutputStream(OutputStream out) {
-        return null;
+    public CompressionOutputStream createOutputStream(OutputStream out) throws IOException {
+        return new BGzipOutputStream(out);
     }
 
     @Override
-    public CompressionOutputStream createOutputStream(OutputStream out, Compressor compressor) {
+    public CompressionOutputStream createOutputStream(OutputStream out, Compressor compressor) throws IOException {
         return createOutputStream(out);
     }
 

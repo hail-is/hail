@@ -19,26 +19,28 @@ object IntervalList {
     new IntervalList(m)
   }
 
-  def read(filename: String): IntervalList = {
+  def read(filename: String,
+    hConf: hadoop.conf.Configuration): IntervalList = {
     require(filename.endsWith(".interval_list"))
 
     val intervalRegex = """([^:]*):(\d+)-(\d+)""".r
 
-    IntervalList(
-      Source
-        .fromFile(new File(filename))
-        .getLines() // Iterator[String]
-        .filter(line => !line.isEmpty && line(0) != '@')
-        .map {
-        case intervalRegex(contig, start_str, end_str) =>
-          Interval(contig, start_str.toInt, end_str.toInt)
-        case line =>
-          val Array(contig, start, end, direction, target) = line.split("\t")
-          // FIXME proper input error handling
-          assert(direction == "+" || direction == "-")
-          Interval(contig, start.toInt, end.toInt)
-      }
-        .toTraversable)
+    readFile(filename, hConf) { s =>
+      IntervalList(
+        Source.fromInputStream(s)
+          .getLines() // Iterator[String]
+          .filter(line => !line.isEmpty && line(0) != '@')
+          .map {
+            case intervalRegex(contig, start_str, end_str) =>
+              Interval(contig, start_str.toInt, end_str.toInt)
+            case line =>
+              val Array(contig, start, end, direction, target) = line.split("\t")
+              // FIXME proper input error handling
+              assert(direction == "+" || direction == "-")
+              Interval(contig, start.toInt, end.toInt)
+          }
+          .toTraversable)
+    }
   }
 }
 
@@ -57,7 +59,7 @@ class IntervalList(private val m: mutable.Map[String, TreeMap[Int, Int]]) extend
   }
 
   def write(filename: String, hConf: hadoop.conf.Configuration) {
-    writeTextFile(filename, hConf){ fw =>
+    writeTextFile(filename, hConf) { fw =>
       for ((contig, t) <- m;
         entry <- t.entrySet().asScala)
         fw.write(contig + ":" + entry.getKey() + "-" + entry.getValue() + "\n")

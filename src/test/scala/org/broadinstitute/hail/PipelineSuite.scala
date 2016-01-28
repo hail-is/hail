@@ -12,10 +12,13 @@ class PipelineSuite extends SparkSuite {
     s = Write.run(s, Array("-o", "/tmp/sample.vds"))
     s = Read.run(s, Array("-i", "/tmp/sample.vds"))
     s = SampleQC.run(s, Array("-o", "/tmp/sampleqc.tsv"))
-    s = VariantQC.run(s, Array("-o", "/tmp/variantqc.tsv"))
+    s = VariantQC.run(s, Array("-s"))
     s = GQByDP.run(s, Array("-o", "/tmp/gqbydp.tsv"))
     s = MendelErrorsCommand.run(s, Array("-f", "src/test/resources/sample.fam",
       "-o", "/tmp/mendel"))
+    s = Count.run(s, Array.empty[String])
+
+    s = FilterVariants.run(s, Array("--keep", "-c", "va.qc.MAF > 0.01 && va.qc.MAF < 0.99"))
 
     s = PCA.run(s, Array("-o", "/tmp/pca.tsv"))
 

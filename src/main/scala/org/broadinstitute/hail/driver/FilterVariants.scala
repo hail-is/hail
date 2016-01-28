@@ -1,9 +1,12 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr.TVariant
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.expr
 
 object FilterVariants extends Command {
 
@@ -32,31 +35,25 @@ object FilterVariants extends Command {
       fatal(name + ": one of `--keep' or `--remove' required")
 
     val cond = options.condition
-    val p: (Variant) => Boolean = cond match {
+    val vas = vds.metadata.variantAnnotationSignatures
+    val keep = options.keep
+    val p: (Variant, Annotations) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
-        val ilist = IntervalList.read(options.condition)
-        (v: Variant) => ilist.contains(v.contig, v.start)
+        val ilist = IntervalList.read(options.condition, state.hadoopConf)
+        (v: Variant, va: Annotations) => Filter.keepThis(ilist.contains(v.contig, v.start), keep)
       case c: String =>
-        try {
-          val cf = new FilterVariantCondition(c)
-          cf.typeCheck()
-          cf.apply
-        } catch {
-          case e: scala.tools.reflect.ToolBoxError =>
-            /* e.message looks like:
-               reflective compilation has failed:
-
-               ';' expected but '.' found. */
-            fatal("parse error in condition: " + e.message.split("\n").last)
+        val symTab = Map(
+          "v" -> (0, TVariant),
+          "va" -> (1, vds.metadata.variantAnnotationSignatures.toExprType))
+        val a = new Array[Any](2)
+        val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
+        (v: Variant, va: Annotations) => {
+          a(0) = v
+          a(1) = va.attrs
+          Filter.keepThisAny(f(), keep)
         }
     }
 
-    val newVDS = vds.filterVariants(if (options.keep)
-      p
-    else
-      (v: Variant) => !p(v))
-
-    state.copy(vds = newVDS)
+    state.copy(vds = vds.filterVariants(p))
   }
 }
-

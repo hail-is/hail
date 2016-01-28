@@ -40,4 +40,11 @@ class RichRow(r: Row) {
       if (ir.isNullAt(1)) None else Some(ir.getInt(1)),
       ir.getAs[Array[Byte]](2))
   }
+
+  def getTuple2String(i: Int): (String, String) = (r.getString(0), r.getString(1))
+  def getTuple3String(i: Int): (String, String, String) = (r.getString(0), r.getString(1), r.getString(2))
+
+  def getByteArray(i: Int): Array[Byte] = {
+    r.getAs[Array[Byte]](i)
+  }
 }

@@ -4,78 +4,126 @@ import java.io._
 import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
+import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.check.Gen
 import scala.collection.mutable
+import org.broadinstitute.hail.driver.HailConfiguration
+import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
 
-// FIXME AnyVal in Scala 2.11
-class RichVector[T](v: Vector[T]) {
-  def zipExact[T2](v2: Iterable[T2]): Vector[(T, T2)] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    new Iterator[(T, T2)] {
-      def hasNext: Boolean = {
-        assert(i.hasNext == i2.hasNext)
-        i.hasNext
+class RichIterable[T](val i: Iterable[T]) extends Serializable {
+  def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
+    def iterator: Iterator[S] = new Iterator[S] {
+      val it: Iterator[T] = i.iterator
+
+      def hasNext: Boolean = it.hasNext
+
+      def next(): S = f(it.next())
+    }
+  }
+
+  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
+    var first = true
+    i.foreach { elem =>
+      if (first)
+        first = false
+      else
+        g()
+      f(elem)
+    }
+  }
+
+  def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
+
+        def hasNext: Boolean = it.hasNext && it2.hasNext
+
+        def next(): S = f(it.next(), it2.next())
       }
+    }
 
-      def next() = (i.next(), i2.next())
-    }.toVector
-  }
+  def lazyFilterWith[T2](i2: Iterable[T2], p: (T, T2) => Boolean): Iterable[T] =
+    new Iterable[T] with Serializable {
+      def iterator: Iterator[T] = new Iterator[T] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
 
-  def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V): Vector[V] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    new Iterator[V]() {
-      def hasNext = i.hasNext && i2.hasNext
+        var pending: Boolean = false
+        var pendingNext: T = _
 
-      def next() = f(i.next(), i2.next())
-    }.toVector
-  }
+        def hasNext: Boolean = {
+          while (!pending && it.hasNext && it2.hasNext) {
+            val n = it.next()
+            val n2 = it2.next()
+            if (p(n, n2)) {
+              pending = true
+              pendingNext = n
+            }
+          }
+          pending
+        }
 
-  def zipWithExact[T2, V](v2: Iterable[T2], f: (T, T2) => V): Vector[V] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    new Iterator[V] {
-      def hasNext: Boolean = {
-        assert(i.hasNext == i2.hasNext)
-        i.hasNext
+        def next(): T = {
+          assert(pending)
+          pending = false
+          pendingNext
+        }
       }
+    }
 
-      def next() = f(i.next(), i2.next())
-    }.toVector
-  }
+  def lazyFlatMap[S](f: (T) => TraversableOnce[S]): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        var current: Iterator[S] = Iterator.empty
 
-  def zipWithAndIndex[T2, V](v2: Iterable[T2], f: (T, T2, Int) => V): Vector[V] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    val i3 = Iterator.from(0)
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext
+        def hasNext: Boolean =
+          if (current.hasNext)
+            true
+          else {
+            if (it.hasNext) {
+              current = f(it.next()).toIterator
+              hasNext
+            } else
+              false
+          }
 
-      def next() = f(i.next(), i2.next(), i3.next())
-    }.toVector
-  }
+        def next(): S = current.next()
+      }
+    }
 
-  def zipWith[T2, T3, V](v2: Iterable[T2], v3: Iterable[T3], f: (T, T2, T3) => V): Vector[V] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    val i3 = v3.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext && i3.hasNext
+  def lazyFlatMapWith[S, T2](i2: Iterable[T2], f: (T, T2) => TraversableOnce[S]): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
+        var current: Iterator[S] = Iterator.empty
 
-      def next() = f(i.next(), i2.next(), i3.next())
-    }.toVector
-  }
+        def hasNext: Boolean =
+          if (current.hasNext)
+            true
+          else {
+            if (it.hasNext && it2.hasNext) {
+              current = f(it.next(), it2.next()).toIterator
+              hasNext
+            } else
+              false
+          }
+
+        def next(): S = current.next()
+      }
+    }
 }
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
@@ -154,45 +202,46 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 // FIXME AnyVal in Scala 2.11
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
-
-  def foreach2[T2](v2: Iterable[T2], f: (T, T2) => Unit) {
-    val i = a.iterator
-    val i2 = v2.iterator
-    while (i.hasNext && i2.hasNext)
-      f(i.next(), i2.next())
-  }
-
-  // FIXME unify with Vector zipWith above
-  def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V)(implicit vct: ClassTag[V]): Array[V] = {
-    val i = a.iterator
-    val i2 = v2.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext
-
-      def next() = f(i.next(), i2.next())
-    }.toArray
-  }
-
-  def zipWith[T2, T3, V](v2: Iterable[T2], v3: Iterable[T3], f: (T, T2, T3) => V)(implicit vct: ClassTag[V]): Array[V] = {
-    val i = a.iterator
-    val i2 = v2.iterator
-    val i3 = v3.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext && i3.hasNext
-
-      def next() = f(i.next(), i2.next(), i3.next())
-    }.toArray
-  }
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
-  def writeTable(filename: String, header: String = null) {
-    if (header != null)
-      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
-    r.saveAsTextFile(filename)
+  def writeTable(filename: String, header: Option[String] = None, deleteTmpFiles: Boolean = true) {
+    val hConf = r.sparkContext.hadoopConfiguration
+    val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
+    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
+
+    header.foreach { str =>
+      writeTextFile(tmpFileName + ".header" + headerExt, r.sparkContext.hadoopConfiguration) { s =>
+        s.write(str)
+        s.write("\n")
+      }
+    }
+
+    codec match {
+      case Some(x) => r.saveAsTextFile(tmpFileName, x.getClass)
+      case None => r.saveAsTextFile(tmpFileName)
+    }
+
+    val filesToMerge = header match {
+      case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName)
+      case None => Array(tmpFileName)
+    }
+
+    hadoopDelete(filename, hConf, recursive = true) // overwriting by default
+
+    val (_, dt) = time {
+      hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+    }
+    println("merge time: " + formatTime(dt))
+
+    if (deleteTmpFiles) {
+      hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = false)
+      hadoopDelete(tmpFileName, hConf, recursive = true)
+    }
   }
 }
 
@@ -201,6 +250,8 @@ class RichIndexedRow(val r: IndexedRow) extends AnyVal {
   def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
+
+  def :/(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :/ that)
 }
 
 class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
@@ -225,10 +276,30 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
-  def tsvAppend[T](v: Option[T]) {
-    v match {
-      case Some(x) => sb.append(x)
-      case None => sb.append("NA")
+  def tsvAppend(a: Any) {
+    a match {
+      case null | None => sb.append("NA")
+      case Some(x) => tsvAppend(x)
+      case d: Double => sb.append(d.formatted("%.4e"))
+      case i: Iterable[_] =>
+        var first = true
+        i.foreach { x =>
+          if (first)
+            first = false
+          else
+            sb += ','
+          tsvAppend(x)
+        }
+      case arr: Array[_] =>
+        var first = true
+        arr.foreach { x =>
+          if (first)
+            first = false
+          else
+            sb += ','
+          tsvAppend(x)
+        }
+      case _ => sb.append(a)
     }
   }
 }
@@ -275,12 +346,14 @@ class RichBoolean(val b: Boolean) extends AnyVal {
 }
 
 object Utils {
-
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
+
 
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
+
+  implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
     new RichArrayBuilderOfByte(t)
@@ -362,15 +435,26 @@ object Utils {
     System.err.println("hail: warning: " + msg)
   }
 
-  def fail() {
+  def fail(): Nothing = {
     assert(false)
+    sys.exit(1)
   }
 
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
     hadoop.fs.FileSystem.get(new URI(filename), hConf)
 
-  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FSDataOutputStream =
-    hadoopFS(filename, hConf).create(new hadoop.fs.Path(filename))
+  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    val os = fs.create(hPath)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = codecFactory.getCodec(hPath)
+
+    if (codec != null)
+      codec.createOutputStream(os)
+    else
+      os
+  }
 
   def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
     val fs = hadoopFS(filename, hConf)
@@ -390,6 +474,68 @@ object Utils {
 
   def hadoopDelete(filename: String, hConf: hadoop.conf.Configuration, recursive: Boolean) {
     hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
+  }
+
+  def hadoopGetTemporaryFile(tmpdir: String, hConf: hadoop.conf.Configuration, nChar: Int = 10,
+    prefix: Option[String] = None, suffix: Option[String] = None): String = {
+
+    val destFS = hadoopFS(tmpdir, hConf)
+    val prefixString = if (prefix.isDefined) prefix + "-" else ""
+    val suffixString = if (suffix.isDefined) "." + suffix else ""
+
+    def getRandomName: String = {
+      val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
+      val fileExists = destFS.exists(new hadoop.fs.Path(randomName))
+
+      if (!fileExists)
+        randomName
+      else
+        getRandomName
+    }
+    getRandomName
+  }
+
+  def hadoopCopyMerge(srcFilenames: Array[String], destFilename: String, hConf: hadoop.conf.Configuration, deleteSource: Boolean = true) {
+
+    val destPath = new hadoop.fs.Path(destFilename)
+    val destFS = hadoopFS(destFilename, hConf)
+
+    def globAndSort(filename: String): Array[FileStatus] = {
+      val fs = hadoopFS(filename, hConf)
+      val isDir = fs.getFileStatus(new hadoop.fs.Path(filename)).isDirectory
+      val path = if (isDir) new hadoop.fs.Path(filename + "/*") else new hadoop.fs.Path(filename)
+
+      fs.globStatus(path).sortWith(_.compareTo(_) < 0)
+    }
+
+    val srcFileStatuses = srcFilenames.flatMap {
+      case p => globAndSort(p)
+    }
+    require(srcFileStatuses.forall {
+      case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
+    })
+
+    val outputStream = destFS.create(destPath)
+
+    try {
+      for (fileStatus <- srcFileStatuses) {
+        val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
+        val inputStream = srcFS.open(fileStatus.getPath)
+        try {
+          copyBytes(inputStream, outputStream, hConf, false)
+        } finally {
+          inputStream.close()
+        }
+      }
+    } finally {
+      outputStream.close()
+    }
+
+    if (deleteSource) {
+      srcFileStatuses.foreach {
+        case fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, true)
+      }
+    }
   }
 
   def writeObjectFile[T](filename: String,
@@ -412,6 +558,16 @@ object Utils {
     }
   }
 
+  def readDataFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(f: (DataInputStream) => T): T = {
+    val dis = new DataInputStream(hadoopOpen(filename, hConf))
+    try {
+      f(dis)
+    } finally {
+      dis.close()
+    }
+  }
+
   def writeTextFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
@@ -420,6 +576,17 @@ object Utils {
       writer(fw)
     } finally {
       fw.close()
+    }
+  }
+
+  def writeDataFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(writer: (DataOutputStream) => T): T = {
+    val oos = hadoopCreate(filename, hConf)
+    val dos = new DataOutputStream(oos)
+    try {
+      writer(dos)
+    } finally {
+      dos.close()
     }
   }
 
@@ -434,11 +601,17 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-    lines: Traversable[String], header: String = null) {
+    lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        if (header != null) fw.write(header)
-        lines.foreach(fw.write)
+        header.map { h =>
+          fw.write(h)
+          fw.write('\n')
+        }
+        lines.foreach { line =>
+          fw.write(line)
+          fw.write('\n')
+        }
     }
   }
 
@@ -485,11 +658,6 @@ object Utils {
     }
   }
 
-  def toTSVString(a: Any): String = a match {
-    case o: Option[Any] => o.map(toTSVString).getOrElse("NA")
-    case _ => a.toString
-  }
-
   def someIf[T](p: Boolean, x: => T): Option[T] =
     if (p)
       Some(x)
@@ -525,14 +693,6 @@ object Utils {
 
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
-
-
-  def eval[T](t: String): T = {
-    val toolbox = currentMirror.mkToolBox()
-    val ast = toolbox.parse(t)
-    toolbox.typeCheck(ast)
-    toolbox.eval(ast).asInstanceOf[T]
-  }
 
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 

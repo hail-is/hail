@@ -158,7 +158,7 @@ class Genotype(private val _gt: Int,
     }
 
   def nNonRefAlleles: Option[Int] =
-    if (_gt > 0)
+    if (_gt >= 0)
       Some(Genotype.gtPair(_gt).nNonRefAlleles)
     else
       None
@@ -169,7 +169,7 @@ class Genotype(private val _gt: Int,
     b.append(gt.map { gt =>
       val p = Genotype.gtPair(gt)
       s"${p.j}/${p.k}"
-    }.getOrElse("."))
+    }.getOrElse("./."))
     b += ':'
     b.append(ad.map(_.mkString(",")).getOrElse("."))
     b += ':'

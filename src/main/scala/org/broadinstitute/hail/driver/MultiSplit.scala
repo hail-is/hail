@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.driver
 
+import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
@@ -19,14 +20,14 @@ object MultiSplit extends Command {
       (if (p.k == i) 1 else 0)
   }
 
-  def split(v: Variant, it: Iterable[Genotype]): Iterator[(Variant, Iterable[Genotype])] = {
+  def split(v: Variant, va: Annotations, it: Iterable[Genotype]): Iterator[(Variant, Annotations, Iterable[Genotype])] = {
     if (v.isBiallelic)
-      return Iterator((v, it))
+      return Iterator((v, va + ("wasSplit", false), it))
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(_._1.alt != "*")
       .map { case (aa, i) =>
-        (Variant(v.contig, v.start, v.ref, aa.alt, wasSplit = true), i + 1)
+        (Variant(v.contig, v.start, v.ref, aa.alt), i + 1)
       }.toArray
 
     val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv) }
@@ -71,12 +72,17 @@ object MultiSplit extends Command {
       }
     }
 
-    splitVariants.iterator.map(_._1).zip(splitGenotypeStreamBuilders.iterator.map(_.result()))
+    splitVariants.iterator.map(_._1)
+      .zip(splitGenotypeStreamBuilders.iterator)
+      .map { case (v, gsb) =>
+        (v, va + ("wasSplit", true), gsb.result())
+      }
   }
 
   def run(state: State, options: Options): State = {
-    val newVDS = state.vds.copy[Genotype](rdd =
-      state.vds.rdd.flatMap[(Variant, Iterable[Genotype])]((split _).tupled))
+    val newVDS = state.vds.copy[Genotype](
+      metadata = state.vds.metadata.addVariantAnnotationSignatures("wasSplit", "Boolean"),
+      rdd = state.vds.rdd.flatMap[(Variant, Annotations, Iterable[Genotype])]((split _).tupled))
     state.copy(vds = newVDS)
   }
 }
