@@ -124,6 +124,16 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         def next(): S = current.next()
       }
     }
+
+  def areDistinct(): Boolean = {
+    val seen = mutable.HashSet[T]()
+    for (x <- i)
+      if (seen(x))
+        return false
+      else
+        seen += x
+    true
+  }
 }
 
 class RichHomogenousTuple1[T](val t: Tuple1[T]) extends AnyVal {
@@ -220,6 +230,8 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 // FIXME AnyVal in Scala 2.11
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
+
+  def areDistinct() = a.toIterable.areDistinct()
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
@@ -401,6 +413,18 @@ object Utils {
 
   implicit def toRichOption[T](o: Option[T]): RichOption[T] =
     new RichOption[T](o)
+
+  def plural(n: Int, sing: String, plur: String = null): String =
+    if (n == 1)
+      sing
+    else if (plur == null)
+      sing + "s"
+    else
+      plur
+
+  def info(msg: String) {
+    System.err.println("hail: info: " + msg)
+  }
 
   def warning(msg: String) {
     System.err.println("hail: warning: " + msg)
