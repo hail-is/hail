@@ -29,9 +29,8 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
           filtRow += 1
         }
 
-      if (nSamplesDiscarded > 0)
-        warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
-          " in .cov discarded: missing phenotype.")
+      warning((if (nSamplesDiscarded > 1) s"$nSamplesDiscarded samples" else "1 sample") +
+        " in .cov discarded: missing phenotype.")
 
       CovariateData(filtCovRowSample, covName, filtData)
     }
@@ -58,13 +57,14 @@ object CovariateData {
 
       for (line <- lines) {
         val entries = line.split("\\s+").iterator
-        sampleIndex.get(entries.next()) match {
-          case Some(i) =>
-            if (sampleSet(i))
-              fatal(".cov sample name is not unique: " + sampleIds(i))
+        val sample = entries.next()
+        sampleIndex.get(sample) match {
+          case Some(s) =>
+            if (sampleSet(s))
+              fatal(".cov sample name is not unique: " + sample)
             else
-              sampleSet += i
-            covRowSampleBuffer += i
+              sampleSet += s
+            covRowSampleBuffer += s
             dataBuffer ++= entries.map(_.toDouble)
           case None => nSamplesDiscarded += 1
         }
