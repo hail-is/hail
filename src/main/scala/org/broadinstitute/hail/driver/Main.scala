@@ -68,7 +68,10 @@ object Main {
       }
     */
     val commands = Array(
+      AnnotateSamples,
+      AnnotateVariants,
       Cache,
+      ConvertAnnotations,
       Count,
       DownsampleVariants,
       ExportVCF,

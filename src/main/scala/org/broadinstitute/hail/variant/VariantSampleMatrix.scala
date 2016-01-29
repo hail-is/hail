@@ -2,12 +2,10 @@ package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
 
-import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
-import scala.io.Source
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 
@@ -308,11 +306,17 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
+  def addVariantAnnotationSignatures(a: Annotations): VariantSampleMatrix[T] = {
+    require(Annotations.validSignatures(a))
+    copy(metadata = metadata.copy(variantAnnotationSignatures =
+      metadata.variantAnnotationSignatures ++ a))
+  }
+
   def addVariantAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {
     require(sig.isInstanceOf[AnnotationSignature] ||
       sig.isInstanceOf[Annotations] && Annotations.validSignatures(sig.asInstanceOf[Annotations]))
     copy(metadata = metadata.copy(variantAnnotationSignatures =
-      metadata.variantAnnotationSignatures +(name, sig)))
+      metadata.variantAnnotationSignatures + (name, sig)))
   }
 
   def addSampleAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {

@@ -21,13 +21,13 @@ object AnnotateSamples extends Command {
       usage = "Define types of fields in annotations files")
     var types: String = _
 
-    @Args4jOption(required = false, name = "-n", aliases = Array("--name"),
-      usage = "Place annotations in the path 'sa.<name>.<field>'")
+    @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
+      usage = "Place annotations in the path 'sa.<root>.<field>, or sa.<field> if unspecified'")
     var annotationRoot: String = _
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
-      usage = "Specify additional identifiers to be treated as missing (default: 'NA, NaN')")
-    var missingIdentifiers: String = "NA, NaN"
+      usage = "Specify identifiers to be treated as missing (default: 'NA')")
+    var missingIdentifiers: String = "NA"
   }
 
   def newOptions = new Options
@@ -43,7 +43,7 @@ object AnnotateSamples extends Command {
       case null => Map.empty[String, String]
       case _ => options.types.split(",")
         .map(_.trim())
-        .map(s => s.split("=").map(_.trim()))
+        .map(s => s.split(":").map(_.trim()))
         .map { arr =>
           if (arr.length != 2)
             fatal("parse error in type declaration")
@@ -53,18 +53,18 @@ object AnnotateSamples extends Command {
         .toMap
     }
 
-    val missingIds = options.missingIdentifiers
+    val missing = options.missingIdentifiers
       .split(",")
       .map(_.trim())
       .toSet
-    println(missingIds)
+    println(missing)
 
     println(typeMap)
 
     val cond = options.condition
     val newVds = {
-      if (cond.endsWith(".tsv"))
-        Annotate.annotateSamplesFromTSV(vds, cond, options.annotationRoot, options.sampleCol, typeMap, missingIds)
+      if (cond.endsWith(".tsv") || cond.endsWith(".tsv.gz"))
+        Annotate.annotateSamplesFromTSV(vds, cond, options.annotationRoot, options.sampleCol, typeMap, missing)
       else
         null
     }

@@ -12,9 +12,9 @@ case class Interval(contig: String, start: Int, end: Int)
 
 object IntervalList {
   def apply(intervals: Traversable[Interval]): IntervalList = {
-    val m = mutable.Map[String, TreeMap[Int, Int]]()
+    val m = mutable.Map[String, TreeMap[Int, (Int, Option[String])]]()
     intervals.foreach { case Interval(contig, start, end) =>
-      m.getOrElseUpdate(contig, new TreeMap[Int, Int]()).put(start, end)
+      m.getOrElseUpdate(contig, new TreeMap[Int, (Int, Option[String])]()).put(start, (end, None))
     }
     new IntervalList(m)
   }
@@ -44,14 +44,14 @@ object IntervalList {
   }
 }
 
-class IntervalList(private val m: mutable.Map[String, TreeMap[Int, Int]]) extends Serializable {
+class IntervalList(private val m: mutable.Map[String, TreeMap[Int, (Int, Option[String])]]) extends Serializable {
   def contains(p: (String, Int)): Boolean = {
     val (contig, pos) = p
     m.get(contig) match {
       case Some(t) =>
         val entry = t.floorEntry(pos)
         if (entry != null)
-          pos <= entry.getValue()
+          pos <= entry.getValue()._1
         else
           false
       case None => false
@@ -62,7 +62,7 @@ class IntervalList(private val m: mutable.Map[String, TreeMap[Int, Int]]) extend
     writeTextFile(filename, hConf) { fw =>
       for ((contig, t) <- m;
         entry <- t.entrySet().asScala)
-        fw.write(contig + ":" + entry.getKey() + "-" + entry.getValue() + "\n")
+        fw.write(contig + ":" + entry.getKey() + "-" + entry.getValue()._1 + "\n")
     }
   }
 

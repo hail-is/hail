@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.{FilterSamples, AnnotateSamples, State}
+import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 
 class AnnotateFromFilesSuite extends SparkSuite {
@@ -22,4 +22,26 @@ class AnnotateFromFilesSuite extends SparkSuite {
 
   }
 
+  @Test def testVariantTSV() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    println(vds.nVariants)
+
+    val state = State(sc, sqlContext, vds)
+
+    val anno1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "stuff"))
+    val filt1 = FilterVariants.run(anno1, Array("--keep", "-c", "va.stuff.Rand1 < .9"))
+    println(filt1.vds.nVariants)
+  }
+
+  @Test def testVCF() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val state = State(sc, sqlContext, vds)
+    println(vds.nVariants)
+
+    val anno1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "other"))
+    val filt1 = FilterVariants.run(anno1, Array("--keep", "-c", "va.other.pass"))
+    filt1.vds.variantsAndAnnotations.collect().foreach { case (v, va) => println(v, va)}
+    println(filt1.vds.nVariants)
+
+  }
 }

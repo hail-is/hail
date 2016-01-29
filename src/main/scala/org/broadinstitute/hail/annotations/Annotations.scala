@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.annotations
 
-case class Annotations(attrs: Map[String, Any]) extends Serializable {
+case class Annotations(attrs: scala.collection.Map[String, Any]) extends Serializable {
 
   def contains(elem: String): Boolean = attrs.contains(elem)
 
