@@ -1,181 +1,36 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Variant, Genotype}
 import scala.io.Source
 import scala.language.implicitConversions
 
 object ExportTSV {
 
-  def parseColumnsFile(path: String, conf: Configuration): (Option[String], String) = {
-    val pairs = Source.fromInputStream(hadoopOpen(path, conf))
+  def parseColumnsFile(
+    symTab: Map[String, (Int, expr.Type)],
+    a: Array[Any],
+    path: String,
+    hConf: hadoop.conf.Configuration): (Option[String], Array[() => Any]) = {
+    val pairs = Source.fromInputStream(hadoopOpen(path, hConf))
       .getLines()
       .filter(!_.isEmpty)
-      .map(_.split("\t", 2))
-      .toList
+      .map { line =>
+        val cols = line.split("\t")
+        if (cols.length != 2)
+          fatal("invalid .columns file.  Include 2 columns, separated by a tab")
+        (cols(0), cols(1))
+      }.toArray
 
-    if (!pairs.forall(_.length == 2))
-      fatal("invalid .columns file.  Include 2 columns, separated by a tab")
-
-    (Some(pairs.map(_.apply(0)).mkString("\t")), pairs.map(_.apply(1)).mkString(","))
-  }
-
-  def parseExpression(cond: String): (Option[String], String) = {
-    import scala.tools.reflect.ToolBox
-    import scala.reflect.runtime.currentMirror
-    import scala.reflect.runtime.universe._
-    val toolbox = currentMirror.mkToolBox()
-    val tree = toolbox.parse(s"dummy($cond)")
-    val (headersOptions, expressionsOptions) = tree match {
-      case Apply(_, args: List[_]) =>
-        args.map(t => t match {
-          case (AssignOrNamedArg(Ident(name), expr)) => (Some(name.toString), Some(expr.toString))
-          case _ => (None, Some(t.toString()))
-        })
-          .unzip
+    val header = pairs.map(_._1).mkString("\t")
+    val fs = pairs.map { case (_, e) =>
+      expr.Parser.parse[Any](symTab, a, e)
     }
 
-    val headers = headersOptions.flatMap(o => o)
-    val exprs = expressionsOptions.flatMap(o => o)
-
-    if (!(headers.isEmpty || headers.length == exprs.length))
-      fatal("invalid export command.  Name every column or name nothing for a file with no header")
-    else if (headers.isEmpty)
-      (None, exprs.mkString(","))
-    else
-      (Some(headers.mkString("\t")), exprs.mkString(","))
+    (Some(header), fs)
   }
-}
-
-object UserExportUtils {
-
-  class ExportVariant(val v: Variant) extends AnyVal {
-    def contig = v.contig
-
-    def start = v.start
-
-    def ref = v.ref
-
-    def alt = v.alt
-
-    def variantType = v.variantType
-
-    def inParX = v.inParX
-
-    def inParY = v.inParY
-
-    def isSNP = v.isSNP
-
-    def isMNP = v.isMNP
-
-    def isInsertion = v.isInsertion
-
-    def isDeletion = v.isDeletion
-
-    def isIndel = v.isIndel
-
-    def isComplex = v.isComplex
-
-    def isTransition = v.isTransition
-
-    def isTransversion = v.isTransversion
-
-    def nMismatch = v.nMismatch
-
-    override def toString: String = {
-      s"${contig}_${start}_${ref}_$alt"
-    }
-  }
-
-  // FIXME move to Utils after we figure out what is calling the illegal cyclic operation bug
-  def toTSVString(a: Any): String = {
-    a match {
-      case fo: FilterOption[_] => toTSVString(fo.o)
-      case Some(x) => toTSVString(x)
-      case None => "NA"
-      case d: Double => d.formatted("%.4e")
-      case i: Iterable[_] => i.map(toTSVString).mkString(",")
-      case arr: Array[_] => arr.map(toTSVString).mkString(",")
-      case _ => a.toString
-    }
-  }
-}
-
-class ExportVariantsEvaluator(list: String, vas: Annotations)
-  extends Evaluator[(Variant, Annotations) => String](
-    s"""(v: org.broadinstitute.hail.variant.Variant,
-        |  __va: org.broadinstitute.hail.annotations.Annotations) => {
-        |  import org.broadinstitute.hail.methods.FilterUtils._
-        |  import org.broadinstitute.hail.methods.FilterOption
-        |  import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
-        |
-        |  ${makeDeclarations(vas, "__vaClass", nSpace = 2)}
-        |  ${instantiate("va", "__vaClass", "__va")}
-        |
-        |  Array[Any]($list).map(toTSVString).mkRealString("\t")
-        |}: String
-    """.stripMargin,
-    Filter.renameSymbols) {
-  def apply(v: Variant, va: Annotations): String = eval()(v, va)
-}
-
-class ExportSamplesEvaluator(list: String, sas: Annotations)
-  extends Evaluator[(Sample, Annotations) => String](
-    s"""(s: org.broadinstitute.hail.variant.Sample,
-        |  __sa: org.broadinstitute.hail.annotations.Annotations) => {
-        |  import org.broadinstitute.hail.methods.FilterUtils._
-        |  import org.broadinstitute.hail.methods.FilterOption
-        |  import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
-        |
-        |  ${makeDeclarations(sas, "__saClass", nSpace = 2)}
-        |  ${instantiate("sa", "__saClass", "__sa")}
-        |
-        |  Array[Any]($list).map(toTSVString).mkRealString("\t")
-        |}: String
-    """.stripMargin,
-    Filter.renameSymbols) {
-  def apply(s: Sample, sa: Annotations): String = eval()(s, sa)
-}
-
-object ExportGenotypeEvaluator {
-  type ExportGenotypeWithSA = ((IndexedSeq[Annotations], IndexedSeq[String]) =>
-    ((Variant, Annotations) => ((Int, Genotype) => String)))
-  type ExportGenotypePostSA = (Variant, Annotations) => ((Int, Genotype) => String)
-}
-
-class ExportGenotypeEvaluator(list: String, metadata: VariantMetadata)
-  extends EvaluatorWithValueTransform[ExportGenotypeEvaluator.ExportGenotypeWithSA,
-    ExportGenotypeEvaluator.ExportGenotypePostSA](
-    s"""(__sa: IndexedSeq[org.broadinstitute.hail.annotations.Annotations],
-        |  __ids: IndexedSeq[String]) => {
-        |  import org.broadinstitute.hail.methods.FilterUtils._
-        |  import org.broadinstitute.hail.methods.FilterOption
-        |  import org.broadinstitute.hail.methods.FilterGenotype
-        |  import org.broadinstitute.hail.methods.UserExportUtils.toTSVString
-        |
-        |  ${makeDeclarations(metadata.sampleAnnotationSignatures, "__saClass", nSpace = 2)}
-        |  ${instantiateIndexedSeq("__saIndexedSeq", "__saClass", "__sa")}
-        |
-        |  (v: org.broadinstitute.hail.variant.Variant,
-        |    __va: org.broadinstitute.hail.annotations.Annotations) => {
-        |    ${makeDeclarations(metadata.variantAnnotationSignatures, "__vaClass", nSpace = 4)}
-        |    ${instantiate("va", "__vaClass", "__va")}
-        |    (__sIndex: Int, __g: org.broadinstitute.hail.variant.Genotype) => {
-        |      lazy val sa = __saIndexedSeq(__sIndex)
-        |      lazy val s = org.broadinstitute.hail.variant.Sample(__ids(__sIndex))
-        |      val g = new FilterGenotype(__g)
-        |
-        |      Array[Any]($list).map(toTSVString).mkRealString("\t")
-        |    }: String
-        |  }
-        |}
-      """.stripMargin,
-    t => t(metadata.sampleAnnotations, metadata.sampleIds),
-    Filter.renameSymbols) {
-
-  def apply(v: Variant, va: Annotations)(sIndex: Int, g: Genotype): String =
-    eval()(v, va)(sIndex, g)
 }

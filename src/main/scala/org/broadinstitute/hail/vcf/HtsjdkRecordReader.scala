@@ -5,6 +5,7 @@ import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
+import org.broadinstitute.hail.Utils._
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -163,7 +164,7 @@ object HtsjdkRecordReader {
 
   def purgeJavaArrayLists(ar: AnyRef): Any = {
     ar match {
-      case arr: java.util.ArrayList[_] => arr.asScala.toIndexedSeq
+      case arr: java.util.ArrayList[_] => arr.asScala
       case _ => ar
     }
   }
@@ -174,8 +175,8 @@ object HtsjdkRecordReader {
         sig.typeOf match {
           case "Int" => str.toInt
           case "Double" => str.toDouble
-          case "IndexedSeq[Int]" => str.split(",").map(_.toInt).toIndexedSeq
-          case "IndexedSeq[Double]" => str.split(",").map(_.toDouble).toIndexedSeq
+          case "IndexedSeq[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
+          case "IndexedSeq[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
           case _ => value
         }
       case i: IndexedSeq[_] =>
