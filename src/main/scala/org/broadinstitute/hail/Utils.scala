@@ -10,6 +10,7 @@ import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.io.compress.BGzipCodec
 import scala.collection.mutable
 import org.broadinstitute.hail.driver.HailConfiguration
 import scala.collection.{TraversableOnce, mutable}
@@ -227,8 +228,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
 
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName)
-      case None => Array(tmpFileName)
+      case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName + "/part-*")
+      case None => Array(tmpFileName + "/part-*")
     }
 
     hadoopDelete(filename, hConf, recursive = true) // overwriting by default
@@ -500,17 +501,18 @@ object Utils {
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = hadoopFS(destFilename, hConf)
 
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
+    val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
+    val lenAdjust: Long = if (isBGzip) -28 else 0
+
     def globAndSort(filename: String): Array[FileStatus] = {
       val fs = hadoopFS(filename, hConf)
-      val isDir = fs.getFileStatus(new hadoop.fs.Path(filename)).isDirectory
-      val path = if (isDir) new hadoop.fs.Path(filename + "/*") else new hadoop.fs.Path(filename)
-
+      val path = new hadoop.fs.Path(filename)
       fs.globStatus(path).sortWith(_.compareTo(_) < 0)
     }
 
-    val srcFileStatuses = srcFilenames.flatMap {
-      case p => globAndSort(p)
-    }
+    val srcFileStatuses = srcFilenames.flatMap(globAndSort)
     require(srcFileStatuses.forall {
       case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
     })
@@ -522,7 +524,9 @@ object Utils {
         val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
         val inputStream = srcFS.open(fileStatus.getPath)
         try {
-          copyBytes(inputStream, outputStream, hConf, false)
+          copyBytes(inputStream, outputStream,
+            fileStatus.getLen + lenAdjust,
+            false)
         } finally {
           inputStream.close()
         }
