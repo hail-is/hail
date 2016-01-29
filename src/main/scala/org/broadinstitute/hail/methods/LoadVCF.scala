@@ -1,10 +1,7 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.variant.Sex._
-import scala.io.Source
-import org.apache.spark.{AccumulableParam, SparkConf, SparkContext}
+import org.broadinstitute.hail.driver.VCFImportAccumulators
 import org.broadinstitute.hail.vcf.BufferedLineIterator
-
 import scala.io.Source
 import org.apache.spark.SparkContext
 import org.broadinstitute.hail.variant._
@@ -12,9 +9,9 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.vcf
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 
 object LoadVCF {
-  // FIXME move to VariantDataset
   def apply(sc: SparkContext,
     file: String,
     compress: Boolean = true,
@@ -68,11 +65,15 @@ object LoadVCF {
     val sigMap = sc.broadcast(infoSignatures.attrs)
 
     val headerLinesBc = sc.broadcast(headerLines)
+
+    val warnAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
+    VCFImportAccumulators.accumulators ::= (file, warnAcc)
+
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
       .mapPartitions { lines =>
         val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
         lines.filter(line => !line.isEmpty && line(0) != '#')
-          .map(line => reader.readRecord(line, sigMap.value))
+          .map(line => reader.readRecord(warnAcc, line, sigMap.value))
       }
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,

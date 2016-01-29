@@ -12,6 +12,8 @@ object GenDataset extends Command {
 
   def description = "Generate random dataset"
 
+  override def hidden = true
+
   def run(state: State, options: Options): State = {
     state.copy(
       vds = VariantSampleMatrix.gen(state.sc, Genotype.gen).sample())

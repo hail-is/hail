@@ -39,10 +39,10 @@ object Foo {
 }
 
 class Genotype(private val _gt: Int,
-               private val _ad: Array[Int],
-               private val _dp: Int,
-               private val _pl: Array[Int],
-               val fakeRef: Boolean) extends Serializable {
+  private val _ad: Array[Int],
+  private val _dp: Int,
+  private val _pl: Array[Int],
+  val fakeRef: Boolean) extends Serializable {
 
   require(_gt >= -1)
   require(_dp >= -1)
@@ -54,10 +54,10 @@ class Genotype(private val _gt: Int,
   }
 
   def copy(gt: Option[Int] = this.gt,
-           ad: Option[IndexedSeq[Int]] = this.ad,
-           dp: Option[Int] = this.dp,
-           pl: Option[IndexedSeq[Int]] = this.pl,
-           fakeRef: Boolean = this.fakeRef): Genotype = Genotype(gt, ad, dp, pl, fakeRef)
+    ad: Option[IndexedSeq[Int]] = this.ad,
+    dp: Option[Int] = this.dp,
+    pl: Option[IndexedSeq[Int]] = this.pl,
+    fakeRef: Boolean = this.fakeRef): Genotype = Genotype(gt, ad, dp, pl, fakeRef)
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
@@ -91,6 +91,12 @@ class Genotype(private val _gt: Int,
   def dp: Option[Int] =
     if (_dp >= 0)
       Some(_dp)
+    else
+      None
+
+  def od: Option[Int] =
+    if (_dp >= 0 && _ad != null)
+      Some(_dp - _ad.sum)
     else
       None
 
@@ -194,10 +200,10 @@ object Genotype {
   def apply(gtx: Int): Genotype = new Genotype(gtx, null, -1, null, false)
 
   def apply(gt: Option[Int] = None,
-            ad: Option[IndexedSeq[Int]] = None,
-            dp: Option[Int] = None,
-            pl: Option[IndexedSeq[Int]] = None,
-            fakeRef: Boolean = false): Genotype = {
+    ad: Option[IndexedSeq[Int]] = None,
+    dp: Option[Int] = None,
+    pl: Option[IndexedSeq[Int]] = None,
+    fakeRef: Boolean = false): Genotype = {
     new Genotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), pl.map(_.toArray).orNull, fakeRef)
   }
 
@@ -381,11 +387,11 @@ object Genotype {
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-         ad <- Gen.option(Gen.buildableOfN[IndexedSeq[Int], Int](v.nAlleles,
-           Gen.choose(0, m)));
-         dp <- Gen.option(Gen.choose(0, m));
-         pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-           Gen.choose(0, m)))) yield {
+      ad <- Gen.option(Gen.buildableOfN[IndexedSeq[Int], Int](v.nAlleles,
+        Gen.choose(0, m)));
+      dp <- Gen.option(Gen.choose(0, m));
+      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
+        Gen.choose(0, m)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
@@ -398,12 +404,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-         g <- gen(v))
+      g <- gen(v))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-         g <- gen(v))
+      g <- gen(v))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)

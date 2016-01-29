@@ -2,7 +2,7 @@ package org.broadinstitute.hail.vcf
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations.Annotations
-import org.broadinstitute.hail.driver.{MultiSplit, State}
+import org.broadinstitute.hail.driver.{SplitMultiallelic, State}
 import org.broadinstitute.hail.methods.LoadVCF
 import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix, VariantDataset, Variant}
 import org.broadinstitute.hail.check.Properties
@@ -16,7 +16,7 @@ class SplitSuite extends SparkSuite {
     property("fakeRef implies wasSplit") =
       forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vds: VariantDataset) =>
         var s = State(sc, sqlContext, vds)
-        s = MultiSplit.run(s, Array[String]())
+        s = SplitMultiallelic.run(s, Array[String]())
         s.vds.mapWithAll((v: Variant, va: Annotations, _: Int, g: Genotype) =>
           !g.fakeRef || va.attrs("wasSplit").asInstanceOf[Boolean])
           .collect()
@@ -31,7 +31,7 @@ class SplitSuite extends SparkSuite {
 
     var s = State(sc, sqlContext)
     s = s.copy(vds = vds1m)
-    s = MultiSplit.run(s, Array[String]())
+    s = SplitMultiallelic.run(s, Array[String]())
     val vds1 = s.vds
 
     val vds2 = LoadVCF(sc, "src/test/resources/split_test_b.vcf")

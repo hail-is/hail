@@ -1,8 +1,10 @@
 package org.broadinstitute.hail.vcf
 
+import org.apache.spark.Accumulable
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -16,8 +18,22 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   }
 }
 
+object VCFImportWarning {
+  val RecalledGT = 1
+  val UpdatedDP = 2
+  val DroppedOD = 3
+  val ODDPMismatch = 4
+
+  def warningMessage(id: Int, count: Int): String = id match {
+    case RecalledGT => s"recalled GT $count times because PL(GT) != 0"
+    case UpdatedDP => s"updated DP $count times because sum(AD) > DP"
+    case DroppedOD => s"dropped OD $count times because AD not present"
+    case ODDPMismatch => s"DP != sum(AD) + OD $count times; used DP"
+  }
+}
+
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
-  def readRecord(line: String, typeMap: Map[String, Any]): (Variant, Annotations, Iterable[Genotype]) = {
+  def readRecord(warnAcc: Accumulable[mutable.Map[Int, Int], Int], line: String, typeMap: Map[String, Any]): (Variant, Annotations, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
@@ -89,6 +105,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
           Genotype.gtIndex(j, i)
 
         if (g.hasPL && pl(gt) != 0) {
+          warnAcc += VCFImportWarning.RecalledGT
+
           def callFromPL(i: Int, newGT: Int): Int = {
             if (i < pl.length) {
               if (pl(i) == 0) {
@@ -113,12 +131,15 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
       if (g.hasAD)
         gb.setAD(ad)
+
       if (g.hasDP) {
         var dp = g.getDP
         if (g.hasAD) {
           val adsum = ad.sum
-          if (dp < adsum)
+          if (dp < adsum) {
+            warnAcc += VCFImportWarning.UpdatedDP
             dp = adsum
+          }
         }
 
         gb.setDP(dp)
@@ -126,6 +147,20 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
       if (pl != null)
         gb.setPL(pl)
+
+      val odObj = g.getExtendedAttribute("OD")
+      if (odObj != null) {
+        val od = odObj.asInstanceOf[Int]
+        val adsum = ad.sum
+
+        if (g.hasAD) {
+          if (!g.hasDP)
+            gb.setDP(adsum + od)
+          else
+            warnAcc += VCFImportWarning.ODDPMismatch
+        } else
+          warnAcc += VCFImportWarning.DroppedOD
+      }
 
       gsb.write(gb)
     }

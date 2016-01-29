@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.annotations.Annotations
-import org.broadinstitute.hail.variant.{Variant, Genotype}
+import org.broadinstitute.hail.variant.{AltAllele, Variant, Genotype}
 import scala.util.parsing.input.{Position, Positional}
 
 object Type {
@@ -12,14 +12,49 @@ object Type {
     "gt" -> TInt,
     "ad" -> TArray(TInt),
     "dp" -> TInt,
+    "od" -> TInt,
     "gq" -> TInt,
-    "pl" -> TArray(TInt))
+    "pl" -> TArray(TInt),
+    "isHomRef" -> TBoolean,
+    "isHet" -> TBoolean,
+    "isHomVar" -> TBoolean,
+    "isCalledNonRef" -> TBoolean,
+    "isHetNonRef" -> TBoolean,
+    "isHetRef" -> TBoolean,
+    "isNotCalled" -> TBoolean,
+    "isCalled" -> TBoolean,
+    "nNonRefAlleles" -> TInt,
+    "pAB" -> TDouble
+  )
+
+  val altAlleleFields = Map(
+    "ref" -> TString,
+    "alt" -> TString,
+    "isSNP" -> TBoolean,
+    "isMNP" -> TBoolean,
+    "isInsertion" -> TBoolean,
+    "isDeletion" -> TBoolean,
+    "isIndel" -> TBoolean,
+    "isComplex" -> TBoolean,
+    "isTransition" -> TBoolean,
+    "isTransversion" -> TBoolean
+  )
 
   val variantFields = Map(
-    "chrom" -> TString,
+    "contig" -> TString,
     "start" -> TInt,
     "ref" -> TString,
-    "alt" -> TString)
+    "altAlleles" -> TArray(TAltAllele),
+    "altAllele" -> TAltAllele,
+    "nAltAlleles" -> TInt,
+    "nAlleles" -> TInt,
+    "isBiallelic" -> TBoolean,
+    "nGenotypes" -> TInt,
+    "inParX" -> TInt,
+    "inParY" -> TInt,
+    // assume biallelic
+    "alt" -> TString,
+    "altAllele" -> TAltAllele)
 }
 
 trait NumericConversion[T] extends Serializable {
@@ -113,6 +148,10 @@ case object TSample extends TAbstractStruct(Type.sampleFields) {
 
 case object TGenotype extends TAbstractStruct(Type.genotypeFields) {
   override def toString = "Genotype"
+}
+
+case object TAltAllele extends TAbstractStruct(Type.altAlleleFields) {
+  override def toString = "AltAllele"
 }
 
 case object TVariant extends TAbstractStruct(Type.variantFields) {
@@ -267,39 +306,6 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
   override def typecheckThis(): Type = {
     (lhs.`type`, rhs) match {
-      // Sample
-      case (TSample, "id") => TString
-      // Genotype
-      case (TGenotype, "gt") => TInt
-      case (TGenotype, "ad") => TArray(TInt)
-      case (TGenotype, "dp") => TInt
-      case (TGenotype, "gq") => TInt
-      case (TGenotype, "pl") => TArray(TInt)
-      case (TGenotype, "isHomRef") => TBoolean
-      case (TGenotype, "isHet") => TBoolean
-      case (TGenotype, "isHomVar") => TBoolean
-      case (TGenotype, "isCalledNonRef") => TBoolean
-      case (TGenotype, "isCalled") => TBoolean
-      case (TGenotype, "isNotCalled") => TBoolean
-      case (TGenotype, "nNonRef") => TInt
-      case (TGenotype, "pAB") => TFunction(Array(), TDouble)
-      // Variant
-      case (TVariant, "contig") => TString
-      case (TVariant, "start") => TInt
-      case (TVariant, "ref") => TString
-      case (TVariant, "alt") => TString
-      case (TVariant, "wasSplit") => TBoolean
-      case (TVariant, "inParX") => TBoolean
-      case (TVariant, "inParY") => TBoolean
-      case (TVariant, "isSNP") => TBoolean
-      case (TVariant, "isMNP") => TBoolean
-      case (TVariant, "isIndel") => TBoolean
-      case (TVariant, "isInsertion") => TBoolean
-      case (TVariant, "isDeletion") => TBoolean
-      case (TVariant, "isComplex") => TBoolean
-      case (TVariant, "isTransition") => TBoolean
-      case (TVariant, "isTransversion") => TBoolean
-      case (TVariant, "nMismatch") => TInt
       case (t@TStruct(fields), _) => {
         fields.get(rhs) match {
           case Some(t) => t
@@ -340,6 +346,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalFlatCompose[Genotype](c, lhs)(_.ad)
     case (TGenotype, "dp") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.dp)
+    case (TGenotype, "od") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.od)
     case (TGenotype, "gq") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.gq)
     case (TGenotype, "pl") =>
@@ -352,11 +360,15 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Genotype](c, lhs)(_.isHomVar)
     case (TGenotype, "isCalledNonRef") =>
       AST.evalCompose[Genotype](c, lhs)(_.isCalledNonRef)
+    case (TGenotype, "isHetNonRef") =>
+      AST.evalCompose[Genotype](c, lhs)(_.isHetNonRef)
+    case (TGenotype, "isHetRef") =>
+      AST.evalCompose[Genotype](c, lhs)(_.isHetRef)
     case (TGenotype, "isCalled") =>
       AST.evalCompose[Genotype](c, lhs)(_.isCalled)
     case (TGenotype, "isNotCalled") =>
       AST.evalCompose[Genotype](c, lhs)(_.isNotCalled)
-    // case (TGenotype, "nNonRef") => AST.evalFlatCompose[Genotype](c, lhs)(_.nNonRef)
+    case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](c, lhs)(_.nNonRefAlleles)
     case (TGenotype, "pAB") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.pAB())
 
@@ -366,21 +378,36 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Variant](c, lhs)(_.start)
     case (TVariant, "ref") =>
       AST.evalCompose[Variant](c, lhs)(_.ref)
-    case (TVariant, "alt") =>
-      AST.evalCompose[Variant](c, lhs)(_.alt)
+    case (TVariant, "altAlleles") =>
+      AST.evalCompose[Variant](c, lhs)(_.altAlleles)
+    case (TVariant, "nAltAlleles") =>
+      AST.evalCompose[Variant](c, lhs)(_.nAltAlleles)
+    case (TVariant, "nAlleles") =>
+      AST.evalCompose[Variant](c, lhs)(_.nAlleles)
+    case (TVariant, "isBiallelic") =>
+      AST.evalCompose[Variant](c, lhs)(_.isBiallelic)
+    case (TVariant, "nGenotypes") =>
+      AST.evalCompose[Variant](c, lhs)(_.nGenotypes)
     case (TVariant, "inParX") =>
       AST.evalCompose[Variant](c, lhs)(_.inParX)
     case (TVariant, "inParY") =>
       AST.evalCompose[Variant](c, lhs)(_.inParY)
-    // case (TVariant, "isSNP") => AST.evalCompose[Variant](c, lhs)(_.isSNP)
-    // case (TVariant, "isMNP") => AST.evalCompose[Variant](c, lhs)(_.isMNP)
-    // case (TVariant, "isIndel") => AST.evalCompose[Variant](c, lhs)(_.isIndel)
-    // case (TVariant, "isInsertion") => AST.evalCompose[Variant](c, lhs)(_.isInsertion)
-    // case (TVariant, "isDeletion") => AST.evalCompose[Variant](c, lhs)(_.isDeletion)
-    // case (TVariant, "isComplex") => AST.evalCompose[Variant](c, lhs)(_.isComplex)
-    // case (TVariant, "isTransition") => AST.evalCompose[Variant](c, lhs)(_.isTransition)
-    // case (TVariant, "isTransversion") => AST.evalCompose[Variant](c, lhs)(_.isTransversion)
-    // case (TVariant, "nMismatch") => AST.evalCompose[Variant](c, lhs)(_.nMismatch)
+      // assumes biallelic
+    case (TVariant, "alt") =>
+      AST.evalCompose[Variant](c, lhs)(_.alt)
+    case (TVariant, "altAllele") =>
+      AST.evalCompose[Variant](c, lhs)(_.altAllele)
+
+    case (TAltAllele, "ref") => AST.evalCompose[AltAllele](c, lhs)(_.ref)
+    case (TAltAllele, "alt") => AST.evalCompose[AltAllele](c, lhs)(_.alt)
+    case (TAltAllele, "isSNP") => AST.evalCompose[AltAllele](c, lhs)(_.isSNP)
+    case (TAltAllele, "isMNP") => AST.evalCompose[AltAllele](c, lhs)(_.isMNP)
+    case (TAltAllele, "isIndel") => AST.evalCompose[AltAllele](c, lhs)(_.isIndel)
+    case (TAltAllele, "isInsertion") => AST.evalCompose[AltAllele](c, lhs)(_.isInsertion)
+    case (TAltAllele, "isDeletion") => AST.evalCompose[AltAllele](c, lhs)(_.isDeletion)
+    case (TAltAllele, "isComplex") => AST.evalCompose[AltAllele](c, lhs)(_.isComplex)
+    case (TAltAllele, "isTransition") => AST.evalCompose[AltAllele](c, lhs)(_.isTransition)
+    case (TAltAllele, "isTransversion") => AST.evalCompose[AltAllele](c, lhs)(_.isTransversion)
 
     case (TStruct(fields), _) =>
       AST.evalCompose[Map[String, Any]](c, lhs) { m =>

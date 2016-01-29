@@ -2,9 +2,10 @@ package org.broadinstitute.hail.driver
 
 import java.io.File
 
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{Accumulable, SparkContext, SparkConf}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver.Main._
+import org.broadinstitute.hail.vcf.VCFImportWarning
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -17,6 +18,28 @@ object HailConfiguration {
 
   var tmpDir: String = _
 
+}
+
+object VCFImportAccumulators {
+  var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
+
+  def warn() {
+    val sb = new StringBuilder()
+    for ((file, m) <- accumulators) {
+      if (m.value.exists(_._2 != 0)) {
+        sb.clear()
+        sb.append(s"while importing VCF file `$file':")
+        m.value.foreach { case (id, n) =>
+          if (n > 0) {
+            sb += '\n'
+            sb.append("  ")
+            sb.append(VCFImportWarning.warningMessage(id, n))
+          }
+        }
+        warning(sb.result())
+      }
+    }
+  }
 }
 
 object Main {
@@ -81,7 +104,7 @@ object Main {
       Import,
       LinearRegressionCommand,
       MendelErrorsCommand,
-      MultiSplit,
+      SplitMultiallelic,
       PCA,
       Read,
       Repartition,
@@ -112,9 +135,11 @@ object Main {
         new CmdLineParser(new Options).printUsage(System.out)
         println("")
         println("commands:")
-        val maxLen = commands.map(_.name.size).max
-        commands.foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.size + 2))
-          + cmd.description))
+        val visibleCommands = commands.filterNot(_.hidden)
+        val maxLen = visibleCommands.map(_.name.size).max
+        visibleCommands
+          .foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.size + 2))
+            + cmd.description))
         sys.exit(0)
       }
     } catch {
@@ -123,7 +148,7 @@ object Main {
         sys.exit(1)
     }
 
-    if (splitArgs.size == 1)
+    if (splitArgs.length == 1)
       fatal("no commands given")
     val invocations = splitArgs.tail
 
@@ -189,6 +214,8 @@ object Main {
           fatal("unknown command `" + cmdName + "'")
       }
     }
+
+    VCFImportAccumulators.warn()
 
     // Thread.sleep(60*60*1000)
 

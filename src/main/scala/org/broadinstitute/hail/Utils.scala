@@ -7,6 +7,7 @@ import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
+import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.check.Gen
@@ -348,7 +349,6 @@ class RichBoolean(val b: Boolean) extends AnyVal {
 
 object Utils {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
-
 
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
@@ -705,4 +705,20 @@ object Utils {
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def richBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
+
+  implicit def accumulableMapInt[K]: AccumulableParam[mutable.Map[K, Int], K] = new AccumulableParam[mutable.Map[K, Int], K] {
+    def addAccumulator(r: mutable.Map[K, Int], t: K): mutable.Map[K, Int] = {
+      r.updateValue(t, 0, _ + 1)
+      r
+    }
+
+    def addInPlace(r1: mutable.Map[K, Int], r2: mutable.Map[K, Int]): mutable.Map[K, Int] = {
+      for ((k, v) <- r2)
+        r1.updateValue(k, 0, _ + v)
+      r1
+    }
+
+    def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
+      mutable.Map.empty[K, Int]
+  }
 }
