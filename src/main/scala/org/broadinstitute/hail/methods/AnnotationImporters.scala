@@ -15,7 +15,7 @@ import scala.io.Source
 
 object AnnotationImporters {
 
-  final val ITERATOR_SIZE = 1000000
+  final val ITERATOR_SIZE = 2000000
 
   def addToMap(typeString: String, k: String, missing: Set[String], excluded: Set[String]):
   (String) => Option[Any] = {
@@ -103,8 +103,6 @@ class TSVReader(path: String, vColumns: IndexedSeq[String],
       mapIterator
     else {
       read(new Configuration)
-      println(mapIterator.size)
-      println(mapIterator.take(5))
       mapIterator
     }
   }
@@ -160,10 +158,12 @@ class TSVReader(path: String, vColumns: IndexedSeq[String],
     val functions = header.map(col => AnnotationImporters.addToMap(typeMap.getOrElse(col, "String"), col, missing, excluded)).toIndexedSeq
 
     var i = 1
-    val mapIterator = (0 to lines.length / AnnotationImporters.ITERATOR_SIZE)
-      .iterator
-      .map { n =>
-        lines.take(AnnotationImporters.ITERATOR_SIZE).map {
+    val mapIterator = (0 until 1000).iterator
+      .flatMap { n =>
+        if (!lines.hasNext)
+          None
+        else
+        Some(lines.take(AnnotationImporters.ITERATOR_SIZE).map {
           line =>
             i += 1
             if (i % 1000 == 0)
@@ -176,7 +176,7 @@ class TSVReader(path: String, vColumns: IndexedSeq[String],
               .toIndexedSeq
             (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), indexedValues)
         }
-          .toMap
+          .toMap)
       }
     this.mapIterator = mapIterator
 //    this.internalMap = lines.map {

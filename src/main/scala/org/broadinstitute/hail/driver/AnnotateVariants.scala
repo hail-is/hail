@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.apache.hadoop.conf.Configuration
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotations
-import org.broadinstitute.hail.methods.{FilterSampleCondition, Filter, Annotate}
+import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant.Variant
 import org.kohsuke.args4j.{Option => Args4jOption}
 

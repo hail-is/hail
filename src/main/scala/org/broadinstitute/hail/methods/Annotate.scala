@@ -1,17 +1,13 @@
 package org.broadinstitute.hail.methods
 
 import java.nio.ByteBuffer
-import java.sql.Time
 
-import net.jpountz.lz4.LZ4BlockInputStream
-import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkEnv
 import org.apache.spark.serializer.{Serializer, SerializerInstance}
 import org.broadinstitute.hail.annotations.{Annotations, VCFSignature, SimpleSignature}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 
-import scala.annotation.tailrec
 import scala.io.Source
 
 object Annotate {
@@ -106,6 +102,7 @@ object Annotate {
 
     iters.foreach {
       variantMap =>
+        println(variantMap.take(5))
         val variantMapBc = vds.sparkContext.broadcast(variantMap)
         newvds = newvds.mapAnnotations(
           (v, va) => variantMapBc.value.get(v) match {
