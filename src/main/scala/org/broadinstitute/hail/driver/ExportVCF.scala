@@ -21,6 +21,8 @@ object ExportVCF extends Command {
 
   def description = "Write current dataset as VCF file"
 
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val varAnnSig = vds.metadata.variantAnnotationSignatures

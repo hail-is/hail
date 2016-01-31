@@ -91,7 +91,7 @@ object DoubleNumericConversion extends NumericConversion[Double] {
   }
 }
 
-sealed abstract class Type extends Serializable
+sealed abstract class Type
 
 case object TBoolean extends Type {
   override def toString = "Boolean"
@@ -139,30 +139,39 @@ case class TFunction(parameterTypes: Array[Type], returnType: Type) extends Type
   override def toString = s"(${parameterTypes.mkString(",")}) => $returnType"
 }
 
-// FIXME name?
-class TAbstractStruct(fields: Map[String, Type]) extends Type
+abstract class TAbstractStruct extends Type {
+  def fields: Map[String, Type]
+}
 
-case object TSample extends TAbstractStruct(Type.sampleFields) {
+case object TSample extends TAbstractStruct {
+  def fields = Type.sampleFields
+
   override def toString = "Sample"
 }
 
-case object TGenotype extends TAbstractStruct(Type.genotypeFields) {
+case object TGenotype extends TAbstractStruct {
+  def fields = Type.genotypeFields
+
   override def toString = "Genotype"
 }
 
-case object TAltAllele extends TAbstractStruct(Type.altAlleleFields) {
+case object TAltAllele extends TAbstractStruct {
+  def fields = Type.altAlleleFields
+
   override def toString = "AltAllele"
 }
 
-case object TVariant extends TAbstractStruct(Type.variantFields) {
+case object TVariant extends TAbstractStruct {
+  def fields = Type.variantFields
+
   override def toString = "Variant"
 }
 
-case class TStruct(fields: Map[String, Type]) extends TAbstractStruct(fields) {
+case class TStruct(fields: Map[String, Type]) extends TAbstractStruct {
   override def toString = "Struct"
 }
 
-object AST extends Positional with Serializable {
+object AST extends Positional {
   def promoteNumeric(t: TNumeric): Type = t
 
   def promoteNumeric(lhs: TNumeric, rhs: TNumeric): Type =
@@ -176,7 +185,7 @@ object AST extends Positional with Serializable {
       TInt
 
   def evalFlatCompose[T](c: EvalContext, subexpr: AST)
-    (g: (T) => Option[Any]): () => Any = {
+                        (g: (T) => Option[Any]): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -188,7 +197,7 @@ object AST extends Positional with Serializable {
   }
 
   def evalCompose[T](c: EvalContext, subexpr: AST)
-    (g: (T) => Any): () => Any = {
+                    (g: (T) => Any): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -200,7 +209,7 @@ object AST extends Positional with Serializable {
   }
 
   def evalCompose[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
-    (g: (T1, T2) => Any): () => Any = {
+                         (g: (T1, T2) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     () => {
@@ -217,7 +226,7 @@ object AST extends Positional with Serializable {
   }
 
   def evalCompose[T1, T2, T3](c: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST)
-    (g: (T1, T2, T3) => Any): () => Any = {
+                             (g: (T1, T2, T3) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     val f3 = subexpr3.eval(c)
@@ -239,8 +248,8 @@ object AST extends Positional with Serializable {
   }
 
   def evalComposeNumeric[T](c: EvalContext, subexpr: AST)
-    (g: (T) => Any)
-    (implicit convT: NumericConversion[T]): () => Any = {
+                           (g: (T) => Any)
+                           (implicit convT: NumericConversion[T]): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -253,8 +262,8 @@ object AST extends Positional with Serializable {
 
 
   def evalComposeNumeric[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
-    (g: (T1, T2) => Any)
-    (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
+                                (g: (T1, T2) => Any)
+                                (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     () => {
@@ -273,7 +282,7 @@ object AST extends Positional with Serializable {
 
 case class Positioned[T](x: T) extends Positional
 
-sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) extends Serializable {
+sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   var `type`: Type = null
 
   def this(posn: Position, subexpr1: AST) = this(posn, Array(subexpr1))
@@ -306,8 +315,8 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
   override def typecheckThis(): Type = {
     (lhs.`type`, rhs) match {
-      case (t@TStruct(fields), _) => {
-        fields.get(rhs) match {
+      case (t: TAbstractStruct, _) => {
+        t.fields.get(rhs) match {
           case Some(t) => t
           case None => parseError(s"`$t' has no field `$rhs'")
         }
@@ -392,7 +401,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Variant](c, lhs)(_.inParX)
     case (TVariant, "inParY") =>
       AST.evalCompose[Variant](c, lhs)(_.inParY)
-      // assumes biallelic
+    // assumes biallelic
     case (TVariant, "alt") =>
       AST.evalCompose[Variant](c, lhs)(_.alt)
     case (TVariant, "altAllele") =>
@@ -410,8 +419,9 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TAltAllele, "isTransversion") => AST.evalCompose[AltAllele](c, lhs)(_.isTransversion)
 
     case (TStruct(fields), _) =>
+      val localRHS = rhs
       AST.evalCompose[Map[String, Any]](c, lhs) { m =>
-        val x = m.getOrElse(rhs, null)
+        val x = m.getOrElse(localRHS, null)
         if (x != null
           && x.isInstanceOf[Annotations])
           x.asInstanceOf[Annotations].attrs

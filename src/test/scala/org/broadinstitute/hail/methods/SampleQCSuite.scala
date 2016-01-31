@@ -13,11 +13,12 @@ class SampleQCSuite extends SparkSuite {
     val outFile = tmpDir + "testExportVcf.vcf"
 
     val vdsOrig = LoadVCF(sc, vcfFile)
-    val stateOrig = State(sc, sqlContext, vdsOrig)
+    var s = State(sc, sqlContext, vdsOrig)
+    s = SplitMulti.run(s, Array.empty[String])
 
-    //Get QC metrics
-    val stateQC1 = SampleQC.run(stateOrig,Array("-s"))
-    val stateFilt1 = FilterSamples.run(stateQC1,Array("--remove","-c","""s.id ~ "C1046::HG02024" """))
-    val stateQC2 = SampleQC.run(stateFilt1,Array("-s"))
+    // Get QC metrics
+    s = SampleQC.run(s, Array("-s"))
+    s = FilterSamples.run(s, Array("--remove", "-c","""s.id ~ "C1046::HG02024""""))
+    s = SampleQC.run(s, Array("-s"))
   }
 }

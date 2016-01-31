@@ -1,14 +1,16 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
 
-object SplitMultiallelic extends Command {
-  def name = "splitmultiallelic"
+object SplitMulti extends Command {
+  def name = "splitmulti"
 
   def description = "Split multi-allelic sites in the current dataset"
+
+  override def supportsMultiallelic = true
 
   class Options extends BaseOptions
 
@@ -82,7 +84,7 @@ object SplitMultiallelic extends Command {
     val newVDS = state.vds.copy[Genotype](
       metadata = state.vds.metadata
         .copy(wasSplit = true)
-        .addVariantAnnotationSignatures("wasSplit", "Boolean"),
+        .addVariantAnnotationSignatures("wasSplit", new SimpleSignature("Boolean")),
       rdd = state.vds.rdd.flatMap[(Variant, Annotations, Iterable[Genotype])]((split _).tupled))
     state.copy(vds = newVDS)
   }

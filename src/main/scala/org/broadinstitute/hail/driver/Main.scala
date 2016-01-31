@@ -13,6 +13,12 @@ import scala.reflect.ClassTag
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
+object Bench {
+  def main(args: Array[String]) {
+
+  }
+}
+
 object HailConfiguration {
   var installDir: String = _
 
@@ -104,7 +110,7 @@ object Main {
       Import,
       LinearRegressionCommand,
       MendelErrorsCommand,
-      SplitMultiallelic,
+      SplitMulti,
       PCA,
       Read,
       Repartition,
