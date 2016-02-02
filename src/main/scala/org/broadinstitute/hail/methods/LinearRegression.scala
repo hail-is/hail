@@ -7,16 +7,17 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
 
 class LinRegBuilder extends Serializable {
-  private val rowsX: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
-  private val valsX: mutable.ArrayBuilder.ofDouble = new mutable.ArrayBuilder.ofDouble()
-  private var sumX: Int = 0
-  private var sumXX: Int = 0
-  private var sumXY: Double = 0.0
-  private val missingRows: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
+  private val rowsX = ArrayBuffer[Int]()
+  private val valsX = ArrayBuffer[Double]()
+  private var sumX = 0
+  private var sumXX = 0
+  private var sumXY = 0.0
+  private val missingRows = ArrayBuffer[Int]()
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.call.map(_.gt) match {
@@ -52,7 +53,7 @@ class LinRegBuilder extends Serializable {
   }
 
   def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double, Int)] = {
-    val missingRowsArray = missingRows.result()
+    val missingRowsArray = missingRows.toArray
     val nMissing = missingRowsArray.size
     val nPresent = n - nMissing
 
@@ -64,13 +65,8 @@ class LinRegBuilder extends Serializable {
       rowsX ++= missingRowsArray
       (0 until nMissing).foreach(_ => valsX += meanX)
 
-      val rowsXArray = rowsX.result()
-      val valsXArray = valsX.result()
-
-      //SparseVector constructor expects sorted indices
-      val indices = Array.range(0, rowsXArray.size)
-      indices.sortBy(i => rowsXArray(i))
-      val x = new SparseVector[Double](indices.map(rowsXArray(_)), indices.map(valsXArray(_)), n)
+      //SparseVector constructor expects sorted indices, follows from sorting of covRowSample
+      val x = new SparseVector[Double](rowsX.toArray, valsX.toArray, n)
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
 
