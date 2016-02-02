@@ -18,30 +18,27 @@ object HardCallSet {
 
   def read(sqlContext: SQLContext, dirname: String): HardCallSet = {
     require(dirname.endsWith(".hcs"))
-
     import RichRow._
 
-    val nSamples = readDataFile(dirname + "/metadata.ser",
-      sqlContext.sparkContext.hadoopConfiguration) { dis => readData[Int](dis) }
+    // need a better suffix than .ser?
+    val nSamples = readDataFile(dirname + "/metadata.ser", sqlContext.sparkContext.hadoopConfiguration) (_.readInt())
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
-    new HardCallSet(df.rdd.map(r => (r.getVariant(0), r.getAs[CallStream](1))), nSamples)
-
+    new HardCallSet(df.rdd.map(r => (r.getVariant(0), DenseCallStream(r.getByteArray(1)))), nSamples)
   }
 }
 
-case class HardCallSet(rdd: RDD[(Variant, CallStream)], nSamples: Int) {
+case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], nSamples: Int) {
   def write(sqlContext: SQLContext, dirname: String) {
     require(dirname.endsWith(".hcs"))
-
     import sqlContext.implicits._
 
     val hConf = rdd.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
-    writeDataFile(dirname + "/metadata.ser", hConf) { dos => writeData[Int](dos, nSamples) }
+    writeDataFile(dirname + "/metadata.ser", hConf) (_.writeInt(nSamples))
 
-    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
+    rdd.mapValues(_.a).toDF().write.parquet(dirname + "/rdd.parquet")
   }
 }
 
@@ -98,7 +95,15 @@ object DenseCallStream {
   }
 }
 
-case class DenseCallStream(a: Array[Byte]) extends CallStream {
+case class DenseCallStream(a: Array[Byte]) { //extends CallStream {
+
+  def toBinaryString(b: Byte): String = {
+    for (i <- 7 to 0 by -1) yield (b & (1 << i)) >> i
+  }.mkString("")
+
+  def toIntsString(b: Byte): String = {
+    for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i
+  }.mkString(":")
 
   def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
 
