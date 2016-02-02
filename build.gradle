@@ -39,9 +39,7 @@ compileScala {
 }
 
 dependencies {
-    compile 'org.scala-lang:scala-compiler:' + scalaVersion
     compile 'org.scala-lang:scala-library:' + scalaVersion
-    compile 'org.scala-lang:scala-reflect:' + scalaVersion
     // compile 'org.apache.hadoop:hadoop-aws:2.7.1'
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':1.5.0') {
         exclude module: 'hadoop-client'

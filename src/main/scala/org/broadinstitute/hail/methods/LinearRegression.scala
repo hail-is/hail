@@ -1,54 +1,21 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.hadoop
 import breeze.linalg._
 import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
-
-import scala.collection.mutable
-import scala.io.Source
-
-case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: DenseMatrix[Double])
-
-object CovariateData {
-
-  def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): CovariateData = {
-    val lines = readFile(filename, hConf) { s =>
-      Source.fromInputStream(s)
-        .getLines()
-        .filterNot(_.isEmpty)
-        .toArray
-    }
-
-    val header = lines(0)
-
-    val covName = header.split("\\s+").tail
-    val nCov = covName.length
-    val nCovRow = lines.length - 1
-    val covRowSample = Array.ofDim[Int](nCovRow)
-    val sampleNameIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
-
-    val data = DenseMatrix.zeros[Double](nCovRow, nCov)
-    for (cr <- 0 until nCovRow) {
-      val entries = lines(cr + 1).split("\\s+")
-      covRowSample(cr) = sampleNameIndex(entries(0))
-      data(cr to cr, ::) := DenseVector(entries.iterator.drop(1).map(_.toDouble).toArray)
-    }
-    CovariateData(covRowSample, covName, data)
-  }
-}
+import scala.collection.mutable.ArrayBuffer
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
 
 class LinRegBuilder extends Serializable {
-  private val rowsX: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
-  private val valsX: mutable.ArrayBuilder.ofDouble = new mutable.ArrayBuilder.ofDouble()
-  private var sumX: Int = 0
-  private var sumXX: Int = 0
-  private var sumXY: Double = 0.0
-  private val missingRows: mutable.ArrayBuilder.ofInt = new mutable.ArrayBuilder.ofInt()
+  private val rowsX = ArrayBuffer[Int]()
+  private val valsX = ArrayBuffer[Double]()
+  private var sumX = 0
+  private var sumXX = 0
+  private var sumXY = 0.0
+  private val missingRows = ArrayBuffer[Int]()
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.call.map(_.gt) match {
@@ -67,7 +34,7 @@ class LinRegBuilder extends Serializable {
         sumXY += 2 * y(row)
       case None =>
         missingRows += row
-      case _ => throw new IllegalArgumentException("Genotype value " + g.call.map(_.gt).get + " must be 0, 1, or 2.")
+      case _ => throw new IllegalArgumentException(s"Genotype value ${g.call.map(_.gt).get} must be 0, 1, or 2.")
     }
     this
   }
@@ -84,7 +51,7 @@ class LinRegBuilder extends Serializable {
   }
 
   def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double, Int)] = {
-    val missingRowsArray = missingRows.result()
+    val missingRowsArray = missingRows.toArray
     val nMissing = missingRowsArray.size
     val nPresent = n - nMissing
 
@@ -96,13 +63,8 @@ class LinRegBuilder extends Serializable {
       rowsX ++= missingRowsArray
       (0 until nMissing).foreach(_ => valsX += meanX)
 
-      val rowsXArray = rowsX.result()
-      val valsXArray = valsX.result()
-
-      //SparseVector constructor expects sorted indices
-      val indices = Array.range(0, rowsXArray.size)
-      indices.sortBy(i => rowsXArray(i))
-      val x = new SparseVector[Double](indices.map(rowsXArray(_)), indices.map(valsXArray(_)), n)
+      //SparseVector constructor expects sorted indices, follows from sorting of covRowSample
+      val x = new SparseVector[Double](rowsX.toArray, valsX.toArray, n)
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
 
@@ -115,14 +77,18 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    require(ped.trios.forall(_.pheno.isDefined))
+    // LinearRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
+    require(cov.covRowSample.forall(ped.phenotypedSamples))
+
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
     val n = cov.data.rows
     val k = cov.data.cols
     val d = n - k - 2
     if (d < 1)
-      throw new IllegalArgumentException(n + " samples and " + k + " covariates implies " + d + " degrees of freedom.")
+      throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
+
+    info(s"Running linreg on $n samples and $k covariates...")
 
     val sc = vds.sparkContext
     val sampleCovRowBc = sc.broadcast(sampleCovRow)

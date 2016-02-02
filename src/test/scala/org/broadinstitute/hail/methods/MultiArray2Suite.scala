@@ -10,7 +10,7 @@ class MultiArray2Suite extends SparkSuite{
     // test multiarray of size 0 will be created
     val ma0 = MultiArray2.fill[Int](0, 0)(0)
 
-    // test multiarray of size 0 that get nothing out
+    // test multiarray of size 0 that apply nothing out
     intercept[IllegalArgumentException] {
       val ma0 = MultiArray2.fill[Int](0, 0)(0)
       ma0(0,0)
@@ -39,7 +39,7 @@ class MultiArray2Suite extends SparkSuite{
     assert(ma1(2,2) == 4)
     assert(ma1(6,1) == 6)
 
-    // Catch exception if try to get value that is not in indices of multiarray
+    // Catch exception if try to apply value that is not in indices of multiarray
     intercept[IllegalArgumentException] {
       val foo = ma1(100,100)
     }

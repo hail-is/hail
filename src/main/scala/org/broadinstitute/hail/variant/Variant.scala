@@ -1,15 +1,25 @@
 package org.broadinstitute.hail.variant
 
+
 object VariantType extends Enumeration {
   type VariantType = Value
   val SNP, MNP, Insertion, Deletion, Complex = Value
 }
 
+object CopyState extends Enumeration {
+  type CopyState = Value
+  val Auto, HemiX, HemiY = Value
+}
+
+
 case class Variant(contig: String,
-                   // FIXME: 0- or 1-based?
                    start: Int,
                    ref: String,
-                   alt: String) extends Ordered[Variant]{
+                   alt: String,
+                   wasSplit: Boolean = false) extends Ordered[Variant] {
+  /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
+     corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
+  require(start >= 0)
   require(ref != alt)
 
   import VariantType._
@@ -32,12 +42,21 @@ case class Variant(contig: String,
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
-  def inParX(pos: Int): Boolean = (60001 <= pos && pos <= 2699520) || (154931044 <= pos && pos <= 155260560)
-  def inParY(pos: Int): Boolean = (10001 <= pos && pos <= 2649520) || ( 59034050 <= pos && pos <=  59363566)
-  def inParX: Boolean = inParX(start)
-  def inParY: Boolean = inParY(start)
-  def isHemizygous(sex: Sex.Sex): Boolean = (sex == Sex.Male) &&
-      (contig == "X" && !inParX(start)) || (contig == "Y" && !inParY(start))
+  def inParX: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
+  def inParY: Boolean = (10001 <= start && start <= 2649520) || ( 59034050 <= start && start <=  59363566)
+
+  import CopyState._
+
+  def copyState(sex: Sex.Sex): CopyState =
+    if (sex == Sex.Male)
+      if (contig == "X" && !inParX)
+        HemiX
+      else if (contig == "Y" && !inParY)
+        HemiY
+      else
+        Auto
+    else
+      Auto
 
   def isSNP: Boolean = (ref.length == 1 && alt.length == 1) ||
       (ref.length == alt.length && nMismatch == 1)
