@@ -5,8 +5,6 @@ import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
-
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)

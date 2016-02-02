@@ -3,8 +3,6 @@ package org.broadinstitute.hail.methods
 import org.apache.hadoop
 import breeze.linalg._
 import org.broadinstitute.hail.Utils._
-
-import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
 case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: DenseMatrix[Double]) {
