@@ -114,35 +114,48 @@ filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
 ## Accessible fields of exposed classes
 
 **Genotype:** `g`
+ - `g.gt                  Int` -- the call, `gt = k*(k+1)/2+j` for call `j/k`
  - `g.ad:          Array[Int]` -- allelic depth for each allele
  - `g.dp:                 Int` -- the total number of informative reads
+ - `g.od                  Int` -- `od = dp - ad.sum`
+ - `g.gq:                 Int` -- the difference between the two smallest PL entries
  - `g.isHomRef:       Boolean` -- true if this call is `0/0`
  - `g.isHet:          Boolean` -- true if this call is heterozygous
- - `g.isHomVar:       Boolean` -- true if this call is `1/1`
+ - `g.isHetRef:       Boolean` -- true if this call is `0/k` with `k>0`
+ - `g.isHetNonRef:    Boolean` -- true if this call is `j/k` with `j>0`
+ - `g.isHomVar:       Boolean` -- true if this call is `j/j` with `j>0`
  - `g.isCalledNonRef: Boolean` -- true if either `g.isHet` or `g.isHomVar` is true
- - `g.isCalled:       Boolean` -- true if the genotype is `./.`
- - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
- - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
+ - `g.isCalled:       Boolean` -- true if the genotype is not `./.`
+ - `g.isNotCalled:    Boolean` -- true if the genotype is `./.`
  - `g.nNonRef:            Int` -- the number of called alternate alleles
- - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5
+ - `g.pAB():           Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
  
 **Variant:** `v`
- - `v.contig:          String` -- string representation of contig, exactly as imported.  _NB: Hail stores contigs as strings.  Use double-quotes when checking contig equality_
- - `v.start:              Int` -- SNP position or start of an indel
- - `v.ref:             String` -- reference allele
- - `v.alt:             String` -- Alternate allele
- - `v.wasSplit:       Boolean` -- true if this variant was originally multiallelic
- - `v.inParX:         Boolean` -- true if in pseudo-autosomal region on chromosome X
- - `v.inParY:         Boolean` -- true if in pseudo-autosomal region on chromosome Y
- - `v.isSNP:          Boolean` -- true if both `v.ref` and `v.alt` are single bases
- - `v.isMNP:          Boolean` -- true if `v.ref` and `v.alt` are the same (>1) length
- - `v.isIndel:        Boolean` -- true if `v.ref` and `v.alt` are not the same length
- - `v.isInsertion:    Boolean` -- true if `v.ref` is shorter than `v.alt`
- - `v.isDeletion:     Boolean` -- true if `v.ref` is longer than `v.alt`
- - `v.isComplex:      Boolean` -- true if `v` is not an indel, but `v.ref` and `v.alt` length do not match
- - `v.isTransition:   Boolean` -- true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
- - `v.isTransversion: Boolean` -- true if the polymorphism is a purine-pyrimidine flip
- - `v.nMismatch:          Int` -- the total number of bases in `v.ref` and `v.alt` that do not match
+ - `v.contig:                String` -- string representation of contig, exactly as imported.  _NB: Hail stores contigs as strings.  Use double-quotes when checking contig equality_
+ - `v.start:                    Int` -- SNP position or start of an indel
+ - `v.ref:                   String` -- reference allele sequence
+ - `v.isBiallelic:          Boolean` -- true if `v` is biallelic
+ - `v.nAlleles:                 Int` -- number of alleles
+ - `v.nAltAlleles:              Int` -- number of alternate alleles, equal to `nAlleles - 1`
+ - `v.nGenotypes:               Int` -- number of genotypes
+ - `v.altAlleles: Array[AltAlleles]` -- the alternate alleles
+ - `v.inParX:               Boolean` -- true if in pseudo-autosomal region on chromosome X
+ - `v.inParY:               Boolean` -- true if in pseudo-autosomal region on chromosome Y
+ - `v.altAllele:          AltAllele` -- The Alternate allele.  Assumes biallelic.
+ - `v.alt:                   String` -- Alternate allele sequence.  Assumes biallelic.
+
+**AltAllele:**
+ - `aa.ref:             String` -- reference allele sequence
+ - `aa.alt:             String` -- alternate allele sequence
+ - `aa.isSNP:          Boolean` -- true if both `v.ref` and `v.alt` are single bases
+ - `aa.isMNP:          Boolean` -- true if `v.ref` and `v.alt` are the same (>1) length
+ - `aa.isIndel:        Boolean` -- true if `v.ref` and `v.alt` are not the same length
+ - `aa.isInsertion:    Boolean` -- true if `v.ref` is shorter than `v.alt`
+ - `aa.isDeletion:     Boolean` -- true if `v.ref` is longer than `v.alt`
+ - `aa.isComplex:      Boolean` -- true if `v` is not an indel, but `v.ref` and `v.alt` length do not match
+ - `aa.isTransition:   Boolean` -- true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
+ - `aa.isTransversion: Boolean` -- true if the polymorphism is a purine-pyrimidine flip
+ - `aa.nMismatch:          Int` -- the total number of bases in `v.ref` and `v.alt` that do not match
  
 **Sample:** `s`
  - `s.id:              String` The ID of this sample, as read at import-time

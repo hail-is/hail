@@ -3,19 +3,19 @@ package org.broadinstitute.hail.variant
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class VariantSuite extends TestNGSuite {
-  @Test def testVariant() {
+class AltAlleleSuite extends TestNGSuite {
+  @Test def testAltAllele() {
 
-    val ti = Variant("chr1", 1234, "A", "G")
-    val tv = Variant("chr1", 1234, "A", "T")
-    val snp1 = Variant("chr1", 1234, "AT", "AC")
-    val snp2 = Variant("chr1", 1234, "CT", "GT")
-    val mnp1 = Variant("chr1", 1234, "CA", "TT")
-    val mnp2 = Variant("chr1", 1234, "ACTGAC", "ATTGTT")
-    val insertion = Variant("chr1", 1234, "A", "ATGC")
-    val deletion = Variant("chr1", 1234, "ATGC", "A")
-    val complex1 = Variant("chr1", 1234, "CTA", "ATTT")
-    val complex2 = Variant("chr1", 1234, "A", "TATGC")
+    val ti = AltAllele("A", "G")
+    val tv = AltAllele("A", "T")
+    val snp1 = AltAllele("AT", "AC")
+    val snp2 = AltAllele("CT", "GT")
+    val mnp1 = AltAllele("CA", "TT")
+    val mnp2 = AltAllele("ACTGAC", "ATTGTT")
+    val insertion = AltAllele("A", "ATGC")
+    val deletion = AltAllele("ATGC", "A")
+    val complex1 = AltAllele("CTA", "ATTT")
+    val complex2 = AltAllele("A", "TATGC")
 
     assert(ti.nMismatch == 1 &&
       snp1.nMismatch == 1 &&
@@ -56,18 +56,18 @@ class VariantSuite extends TestNGSuite {
       !mnp1.isComplex && !mnp2.isComplex &&
       !insertion.isComplex && !deletion.isComplex)
 
-    import VariantType._
+    import AltAlleleType._
 
-    val variants = Array(ti, tv, snp1, snp2, mnp1, mnp2,
+    val altAlleles = Array(ti, tv, snp1, snp2, mnp1, mnp2,
       insertion, deletion, complex1, complex2)
 
     // FIXME: use ScalaCheck
-    for (v <- variants) {
-      assert((v.variantType == SNP) == v.isSNP)
-      assert((v.variantType == MNP) == v.isMNP)
-      assert((v.variantType == Insertion) == v.isInsertion)
-      assert((v.variantType == Deletion) == v.isDeletion)
-      assert((v.variantType == Complex) == v.isComplex)
+    for (a <- altAlleles) {
+      assert((a.altAlleleType == SNP) == a.isSNP)
+      assert((a.altAlleleType == MNP) == a.isMNP)
+      assert((a.altAlleleType == Insertion) == a.isInsertion)
+      assert((a.altAlleleType == Deletion) == a.isDeletion)
+      assert((a.altAlleleType == Complex) == a.isComplex)
     }
   }
 }

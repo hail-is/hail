@@ -1,22 +1,18 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
-
-import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
-import scala.io.Source
+import org.broadinstitute.hail.check.Gen
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
-
 import scala.reflect.ClassTag
-import scala.reflect.runtime.universe._
 
 object VariantSampleMatrix {
-  def apply(metadata: VariantMetadata,
-    rdd: RDD[(Variant, Annotations, Iterable[Genotype])]): VariantDataset = {
+  def apply[T](metadata: VariantMetadata,
+    rdd: RDD[(Variant, Annotations, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     new VariantSampleMatrix(metadata, rdd)
   }
 
@@ -43,6 +39,59 @@ object VariantSampleMatrix {
           (r.getVariant(0), ser.deserialize[Annotations](ByteBuffer.wrap(r.getByteArray(1))), r.getGenotypeStream(2))
         )
       }))
+  }
+
+  def genValues[T](nSamples: Int, g: Gen[T]): Gen[Iterable[T]] =
+    Gen.buildableOfN[Iterable[T], T](nSamples, g)
+
+  def genValues[T](g: Gen[T]): Gen[Iterable[T]] =
+    Gen.buildableOf[Iterable[T], T](g)
+
+  def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
+    for (v <- Variant.gen;
+      values <- genValues[T](nSamples, g(v)))
+      yield (v, values)
+
+  def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
+    for (v <- Variant.gen;
+      values <- genValues[T](g(v)))
+      yield (v, values)
+
+  def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
+    genVariantValues(Genotype.gen)
+
+  def genVariantGenotypes(nSamples: Int): Gen[(Variant, Iterable[Genotype])] =
+    genVariantValues(nSamples, Genotype.gen)
+
+  def gen[T](sc: SparkContext,
+    sampleIds: Array[String],
+    variants: Array[Variant],
+    g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val nSamples = sampleIds.length
+    for (rows <- Gen.sequence[Seq[(Variant, Annotations, Iterable[T])], (Variant, Annotations, Iterable[T])](
+      variants.map(v => Gen.zip(
+        Gen.const(v),
+        Gen.const(Annotations.empty()),
+        genValues(nSamples, g(v))))))
+      yield VariantSampleMatrix[T](VariantMetadata(sampleIds), sc.parallelize(rows))
+  }
+
+  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val samplesVariantsGen =
+      for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
+        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+        yield (sampleIds, variants)
+    samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
+  }
+
+  def gen[T](sc: SparkContext, sampleIds: Array[String], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val variantsGen = Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen)
+    variantsGen.flatMap(variants => gen(sc, sampleIds, variants, g))
+  }
+
+  def gen[T](sc: SparkContext, variants: Array[Variant], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    val samplesGen = Gen.distinctBuildableOf[Array[String], String](Gen.identifier)
+    samplesGen.flatMap(sampleIds => gen(sc, sampleIds, variants, g))
   }
 }
 
@@ -215,7 +264,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
         localSamplesBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs)) =>
-            for ((g, i) <- gs.zipWithIndex)
+            for ((g, i) <- gs.iterator.zipWithIndex)
               acc(i) = seqOp(acc(i), v, va, localSamplesBc.value(i), g)
             acc
           }.iterator)
@@ -254,6 +303,18 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
           })
         }
       }
+
+    /*
+        rdd
+          .map { case (v, gs) =>
+            val serializer = SparkEnv.get.serializer.newInstance()
+            val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+
+            (v, gs.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
+              seqOp(acc, v, localSamplesBc.value(i), g)
+            })
+          }
+    */
   }
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)] = {
@@ -273,7 +334,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         val arrayZeroValue = Array.fill[T](localSamplesBc.value.length)(copyZeroValue())
         localSamplesBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs)) =>
-            for ((g, i) <- gs.zipWithIndex)
+            for ((g, i) <- gs.iterator.zipWithIndex)
               acc(i) = combOp(acc(i), g)
             acc
           }.iterator)
@@ -293,7 +354,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
             it1.sameElements(it2) && va1 == va2
           case _ => false
         }
-        }.reduce(_ && _)
+        }.fold(true)(_ && _)
   }
 
   def mapAnnotationsWithAggregate[U](zeroValue: U)(
@@ -312,7 +373,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         val serializer = SparkEnv.get.serializer.newInstance()
         val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
 
-        (v, mapOp(va, gs.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
+        (v, mapOp(va, gs.iterator.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
           seqOp(acc, v, localSamplesBc.value(i), g)
         }), gs)
       })
@@ -367,7 +428,7 @@ class RichVDS(vds: VariantDataset) {
     vds.copy(rdd =
       vds.rdd.map { case (v, va, gs) =>
         (v, va.copy(attrs = va.attrs - "multiallelic"),
-          gs.map(g => g.copy(fakeRef = false))
+          gs.lazyMap(g => g.copy(fakeRef = false))
           )
       })
   }

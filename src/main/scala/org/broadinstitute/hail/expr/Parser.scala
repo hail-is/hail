@@ -107,7 +107,7 @@ object Parser extends JavaTokenParsers {
     ident ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
 
   def args: Parser[Array[AST]] =
-    expr ~ rep("," ~> expr) ^^ { case arg ~ lst => (arg :: lst).toArray }
+    repsep(expr, ",") ^^ { _.toArray }
 
   def dot_expr: Parser[AST] =
     unary_expr ~ rep((withPos(".") ~ ident) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>

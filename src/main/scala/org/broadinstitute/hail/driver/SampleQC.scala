@@ -76,10 +76,7 @@ class SampleQCCombiner extends Serializable {
   var nHomRef: Int = 0
   var nHet: Int = 0
   var nHomVar: Int = 0
-  var refDepth: Int = 0
-  var altDepth: Int = 0
 
-  val dpSC = new StatCounter()
   val dpHomRefSC = new StatCounter()
   val dpHetSC = new StatCounter()
   val dpHomVarSC = new StatCounter()
@@ -91,67 +88,84 @@ class SampleQCCombiner extends Serializable {
   var nTi: Int = 0
   var nTv: Int = 0
 
-  val gqSC: StatCounter = new StatCounter()
   val gqHomRefSC: StatCounter = new StatCounter()
   val gqHetSC: StatCounter = new StatCounter()
   val gqHomVarSC: StatCounter = new StatCounter()
 
+  def dpSC: StatCounter = {
+    val r = dpHomRefSC.copy()
+    r.merge(dpHetSC)
+    r.merge(dpHomVarSC)
+    r
+  }
+
+  def gqSC: StatCounter = {
+    val r = gqHomRefSC.copy()
+    r.merge(gqHetSC)
+    r.merge(gqHomVarSC)
+    r
+  }
+
   // FIXME per-genotype
 
   def merge(v: Variant, vIsSingleton: Boolean, g: Genotype): SampleQCCombiner = {
-    g.call.map(_.gt) match {
+    g.gt match {
       case Some(0) =>
         nHomRef += 1
-        dpSC.merge(g.dp)
-        dpHomRefSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomRefSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHomRefSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHomRefSC.merge(v)
+        }
       case Some(1) =>
         nHet += 1
-        refDepth += g.ad._1
-        altDepth += g.ad._2
-        if (v.isSNP) {
+        if (v.altAllele.isSNP) {
           nSNP += 1
-          if (v.isTransition)
+          if (v.altAllele.isTransition)
             nTi += 1
           else {
-            assert(v.isTransversion)
+            assert(v.altAllele.isTransversion)
             nTv += 1
           }
-        } else if (v.isInsertion)
+        } else if (v.altAllele.isInsertion)
           nIns += 1
-        else if (v.isDeletion)
+        else if (v.altAllele.isDeletion)
           nDel += 1
         if (vIsSingleton)
           nSingleton += 1
-        dpSC.merge(g.dp)
-        dpHetSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHetSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHetSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHetSC.merge(v)
+        }
       case Some(2) =>
         nHomVar += 1
-        if (v.isSNP) {
+        if (v.altAllele.isSNP) {
           nSNP += 1
-          if (v.isTransition)
+          if (v.altAllele.isTransition)
             nTi += 1
           else {
-            assert(v.isTransversion)
+            assert(v.altAllele.isTransversion)
             nTv += 1
           }
-        } else if (v.isInsertion)
+        } else if (v.altAllele.isInsertion)
           nIns += 1
-        else if (v.isDeletion)
+        else if (v.altAllele.isDeletion)
           nDel += 1
         if (vIsSingleton)
           nSingleton += 1
-        dpSC.merge(g.dp)
-        dpHomVarSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomVarSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHomVarSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHomVarSC.merge(v)
+        }
       case None =>
         nNotCalled += 1
       case _ =>
-        throw new IllegalArgumentException("Genotype value " + g.call.map(_.gt).get + " must be 0, 1, or 2.")
+        throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
 
     this
@@ -162,8 +176,6 @@ class SampleQCCombiner extends Serializable {
     nHomRef += that.nHomRef
     nHet += that.nHet
     nHomVar += that.nHomVar
-    refDepth += that.refDepth
-    altDepth += that.altDepth
 
     nSNP += that.nSNP
     nIns += that.nIns
@@ -172,12 +184,10 @@ class SampleQCCombiner extends Serializable {
     nTi += that.nTi
     nTv += that.nTv
 
-    dpSC.merge(that.dpSC)
     dpHomRefSC.merge(that.dpHomRefSC)
     dpHetSC.merge(that.dpHetSC)
     dpHomVarSC.merge(that.dpHomVarSC)
 
-    gqSC.merge(that.gqSC)
     gqHomRefSC.merge(that.gqHomRefSC)
     gqHetSC.merge(that.gqHetSC)
     gqHomVarSC.merge(that.gqHomVarSC)
@@ -192,6 +202,7 @@ class SampleQCCombiner extends Serializable {
   }
 
   def emit(sb: mutable.StringBuilder) {
+
     val nCalled = nHomRef + nHet + nHomVar
     val callRate = divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled)
 
@@ -259,6 +270,7 @@ class SampleQCCombiner extends Serializable {
   }
 
   def asMap: Map[String, Any] = {
+
     Map[String, Any]("callRate" -> divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
       "nCalled" -> (nHomRef + nHet + nHomVar),
       "nNotCalled" -> nNotCalled,
@@ -340,7 +352,7 @@ object SampleQC extends Command {
       localSamplesBc.value.iterator
         .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
           val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
-          for ((g, i) <- gs.zipWithIndex)
+          for ((g, i) <- gs.iterator.zipWithIndex)
             acc(i) = acc(i).merge(v, vIsSingleton, g)
           acc
         }.iterator)

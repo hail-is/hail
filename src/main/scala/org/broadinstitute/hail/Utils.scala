@@ -7,17 +7,61 @@ import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
+import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
-import org.scalacheck.Gen
-import org.scalacheck.Arbitrary._
+import org.broadinstitute.hail.variant.Variant
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
+
+final class ByteIterator(val a: Array[Byte]) {
+  var i: Int = 0
+
+  def hasNext: Boolean = i < a.length
+  def next(): Byte = {
+    val r = a(i)
+    i += 1
+    r
+  }
+
+  def readULEB128(): Int = {
+    var b: Byte = next()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+
+    x
+  }
+
+  def readSLEB128(): Int = {
+    var b: Byte = next()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+
+    // sign extend
+    if (shift < 32
+      && (b & 0x40) != 0)
+      x = (x << (32 - shift)) >> (32 - shift)
+
+    x
+  }
+}
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
   def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
@@ -136,61 +180,6 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
   }
 }
 
-class RichHomogenousTuple1[T](val t: Tuple1[T]) extends AnyVal {
-  def at(i: Int) = i match {
-    case 1 => t._1
-  }
-
-  def insert(i: Int, x: T): (T, T) = i match {
-    case 0 => (x, t._1)
-    case 1 => (t._1, x)
-  }
-
-  def remove(i: Int): Unit = {
-    require(i == 0)
-  }
-}
-
-class RichHomogenousTuple2[T](val t: (T, T)) extends AnyVal {
-  def at(i: Int): T = i match {
-    case 1 => t._1
-    case 2 => t._2
-  }
-
-
-  def insert(i: Int, x: T): (T, T, T) = i match {
-    case 0 => (x, t._1, t._2)
-    case 1 => (t._1, x, t._2)
-    case 2 => (t._1, t._2, x)
-  }
-
-  def remove(i: Int): Tuple1[T] = i match {
-    case 1 => Tuple1(t._2)
-    case 2 => Tuple1(t._1)
-  }
-}
-
-class RichHomogenousTuple3[T](val t: (T, T, T)) extends AnyVal {
-  def at(i: Int): T = i match {
-    case 1 => t._1
-    case 2 => t._2
-    case 3 => t._3
-  }
-
-  def insert(i: Int, x: T): (T, T, T, T) = i match {
-    case 0 => (x, t._1, t._2, t._3)
-    case 1 => (t._1, x, t._2, t._3)
-    case 2 => (t._1, t._2, x, t._3)
-    case 3 => (t._1, t._2, t._3, x)
-  }
-
-  def remove(i: Int): (T, T) = i match {
-    case 1 => (t._2, t._3)
-    case 2 => (t._1, t._3)
-    case 3 => (t._1, t._2)
-  }
-}
-
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
   def writeULEB128(x0: Int) {
     require(x0 >= 0)
@@ -210,9 +199,29 @@ class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
       b += c.toByte
     }
   }
+
+  def writeSLEB128(x0: Int) {
+    var more = true
+    var x = x0
+    while (more) {
+      var c = x & 0x7f
+      x >>= 7
+
+      if ((x == 0
+        && (c & 0x40) == 0)
+        || (x == -1
+        && (c & 0x40) == 0x40))
+        more = false
+      else
+        c |= 0x80
+
+      b += c.toByte
+    }
+  }
 }
 
 class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
+  /*
   def readULEB128(): Int = {
     var x: Int = 0
     var shift: Int = 0
@@ -225,6 +234,25 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 
     x
   }
+
+  def readSLEB128(): Int = {
+    var shift: Int = 0
+    var x: Int = 0
+    var b: Byte = 0
+    do {
+      b = i.next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    } while ((b & 0x80) != 0)
+
+    // sign extend
+    if (shift < 32
+      && (b & 0x40) != 0)
+      x = (x << (32 - shift)) >> (32 - shift)
+
+    x
+  }
+  */
 }
 
 // FIXME AnyVal in Scala 2.11
@@ -257,8 +285,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
 
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName)
-      case None => Array(tmpFileName)
+      case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName + "/part-*")
+      case None => Array(tmpFileName + "/part-*")
     }
 
     hadoopDelete(filename, hConf, recursive = true) // overwriting by default
@@ -289,6 +317,12 @@ class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
     e.values.find(_.toString == name)
 }
 
+class RichMutableMap[K, V](val m: mutable.Map[K, V]) extends AnyVal {
+  def updateValue(k: K, default: V, f: (V) => V) {
+    m += ((k, f(m.getOrElse(k, default))))
+  }
+}
+
 class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
   def mapValuesWithKeys[T](f: (K, V) => T): Map[K, T] = m map { case (k, v) => (k, f(k, v)) }
 
@@ -305,6 +339,14 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
       case null | None => sb.append("NA")
       case Some(x) => tsvAppend(x)
       case d: Double => sb.append(d.formatted("%.4e"))
+      case v: Variant => 
+        sb.append(v.contig)
+	sb += ':'
+        sb.append(v.start)
+	sb += ':'
+        sb.append(v.ref)
+	sb += ':'
+        sb.append(v.alt)
       case i: Iterable[_] =>
         var first = true
         i.foreach { x =>
@@ -328,6 +370,28 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
   }
 }
 
+class RichIntPairTraversableOnce[V](val t: TraversableOnce[(Int, V)]) extends AnyVal {
+  def reduceByKeyToArray(n: Int, zero: => V)(f: (V, V) => V)(implicit vct: ClassTag[V]): Array[V] = {
+    val a = Array.fill[V](n)(zero)
+    t.foreach { case (k, v) =>
+      a(k) = f(a(k), v)
+    }
+    a
+  }
+}
+
+class RichPairTraversableOnce[K, V](val t: TraversableOnce[(K, V)]) extends AnyVal {
+  def reduceByKey(f: (V, V) => V): scala.collection.Map[K, V] = {
+    val m = mutable.Map.empty[K, V]
+    t.foreach { case (k, v) =>
+      m.get(k) match {
+        case Some(v2) => m += k -> f(v, v2)
+        case None => m += k -> v
+      }
+    }
+    m
+  }
+}
 
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def existsExactly1(p: (T) => Boolean): Boolean = {
@@ -342,16 +406,19 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   }
 }
 
+class RichBoolean(val b: Boolean) extends AnyVal {
+  def ==>(that: => Boolean): Boolean = !b || that
+  def iff(that: Boolean): Boolean = b == that
+}
+
 object Utils {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
+
+  implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
-
-  implicit def toRichTuple2[T](t: (T, T)): RichHomogenousTuple2[T] = new RichHomogenousTuple2(t)
-
-  implicit def toRichTuple3[T](t: (T, T, T)): RichHomogenousTuple3[T] = new RichHomogenousTuple3(t)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
     new RichArrayBuilderOfByte(t)
@@ -414,6 +481,13 @@ object Utils {
   implicit def toRichOption[T](o: Option[T]): RichOption[T] =
     new RichOption[T](o)
 
+
+  implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]): RichPairTraversableOnce[K, V] =
+    new RichPairTraversableOnce[K, V](t)
+
+  implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
+    new RichIntPairTraversableOnce[V](t)
+
   def plural(n: Int, sing: String, plur: String = null): String =
     if (n == 1)
       sing
@@ -433,6 +507,10 @@ object Utils {
   def fatal(msg: String): Nothing = {
     System.err.println("hail: fatal: " + msg)
     sys.exit(1)
+  }
+
+  def warn(msg: String) {
+    System.err.println("hail: warning: " + msg)
   }
 
   def fail(): Nothing = {
@@ -500,17 +578,18 @@ object Utils {
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = hadoopFS(destFilename, hConf)
 
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
+    val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
+    val lenAdjust: Long = if (isBGzip) -28 else 0
+
     def globAndSort(filename: String): Array[FileStatus] = {
       val fs = hadoopFS(filename, hConf)
-      val isDir = fs.getFileStatus(new hadoop.fs.Path(filename)).isDirectory
-      val path = if (isDir) new hadoop.fs.Path(filename + "/*") else new hadoop.fs.Path(filename)
-
+      val path = new hadoop.fs.Path(filename)
       fs.globStatus(path).sortWith(_.compareTo(_) < 0)
     }
 
-    val srcFileStatuses = srcFilenames.flatMap {
-      case p => globAndSort(p)
-    }
+    val srcFileStatuses = srcFilenames.flatMap(globAndSort)
     require(srcFileStatuses.forall {
       case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
     })
@@ -522,7 +601,9 @@ object Utils {
         val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
         val inputStream = srcFS.open(fileStatus.getPath)
         try {
-          copyBytes(inputStream, outputStream, hConf, false)
+          copyBytes(inputStream, outputStream,
+            fileStatus.getLen + lenAdjust,
+            false)
         } finally {
           inputStream.close()
         }
@@ -658,6 +739,37 @@ object Utils {
     }
   }
 
+  def space[A](f: => A): (A, Long) = {
+    val rt = Runtime.getRuntime
+    System.gc()
+    System.gc()
+    val before = rt.totalMemory() - rt.freeMemory()
+    val r = f
+    System.gc()
+    val after = rt.totalMemory() - rt.freeMemory()
+    (r, after - before)
+  }
+
+  def printSpace[A](f: => A): A = {
+    val (r, ds) = space(f)
+    println("space: " + formatSpace(ds))
+    r
+  }
+
+  def formatSpace(ds: Long) = {
+    val absds = ds.abs
+    if (absds < 1e3)
+      s"${ds}B"
+    else if (absds < 1e6)
+      s"${ds.toDouble/1e3}KB"
+    else if (absds < 1e9)
+      s"${ds.toDouble/1e6}MB"
+    else if (absds < 1e12)
+      s"${ds.toDouble/1e9}GB"
+    else
+      s"${ds.toDouble/1e12}TB"
+  }
+
   def someIf[T](p: Boolean, x: => T): Option[T] =
     if (p)
       Some(x)
@@ -694,15 +806,27 @@ object Utils {
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 
-  def genOption[T](g: Gen[T], someFrequency: Int = 4): Gen[Option[T]] =
-    Gen.frequency((1, Gen.const(None)),
-      (someFrequency, g.map(Some(_))))
-
-  def genNonnegInt: Gen[Int] = arbitrary[Int].map(_ & Int.MaxValue)
-
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
+
+  implicit def richBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
+
+  implicit def accumulableMapInt[K]: AccumulableParam[mutable.Map[K, Int], K] = new AccumulableParam[mutable.Map[K, Int], K] {
+    def addAccumulator(r: mutable.Map[K, Int], t: K): mutable.Map[K, Int] = {
+      r.updateValue(t, 0, _ + 1)
+      r
+    }
+
+    def addInPlace(r1: mutable.Map[K, Int], r2: mutable.Map[K, Int]): mutable.Map[K, Int] = {
+      for ((k, v) <- r2)
+        r1.updateValue(k, 0, _ + v)
+      r1
+    }
+
+    def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
+      mutable.Map.empty[K, Int]
+  }
 }

@@ -5,6 +5,7 @@ import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
+import org.broadinstitute.hail.Utils._
 
 case class State(sc: SparkContext,
   sqlContext: SQLContext,
@@ -29,6 +30,10 @@ abstract class Command {
   def name: String
 
   def description: String
+
+  def hidden: Boolean = false
+
+  def supportsMultiallelic = false
 
   def parseArgs(args: Array[String]): Options = {
     val options = newOptions
@@ -56,6 +61,11 @@ abstract class Command {
 
   def run(state: State, args: Array[String]): State = {
     val options = parseArgs(args)
+    if (!supportsMultiallelic
+      && state.vds != null
+      && !state.vds.metadata.wasSplit)
+      fatal(s"`$name' does not support multiallelics.\n  Run `splitmulti' first.")
+
     run(state, options)
   }
 
