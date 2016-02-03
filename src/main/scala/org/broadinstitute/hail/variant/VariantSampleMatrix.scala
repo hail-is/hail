@@ -264,7 +264,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
         localSamplesBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs)) =>
-            for ((g, i) <- gs.zipWithIndex)
+            for ((g, i) <- gs.iterator.zipWithIndex)
               acc(i) = seqOp(acc(i), v, va, localSamplesBc.value(i), g)
             acc
           }.iterator)
@@ -334,7 +334,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         val arrayZeroValue = Array.fill[T](localSamplesBc.value.length)(copyZeroValue())
         localSamplesBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs)) =>
-            for ((g, i) <- gs.zipWithIndex)
+            for ((g, i) <- gs.iterator.zipWithIndex)
               acc(i) = combOp(acc(i), g)
             acc
           }.iterator)
@@ -373,7 +373,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         val serializer = SparkEnv.get.serializer.newInstance()
         val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
 
-        (v, mapOp(va, gs.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
+        (v, mapOp(va, gs.iterator.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
           seqOp(acc, v, localSamplesBc.value(i), g)
         }), gs)
       })
@@ -428,7 +428,7 @@ class RichVDS(vds: VariantDataset) {
     vds.copy(rdd =
       vds.rdd.map { case (v, va, gs) =>
         (v, va.copy(attrs = va.attrs - "multiallelic"),
-          gs.map(g => g.copy(fakeRef = false))
+          gs.lazyMap(g => g.copy(fakeRef = false))
           )
       })
   }

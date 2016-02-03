@@ -2,6 +2,7 @@ package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant.{AltAllele, Variant, Genotype}
+import scala.collection.mutable
 import scala.util.parsing.input.{Position, Positional}
 
 object Type {
@@ -421,12 +422,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TStruct(fields), _) =>
       val localRHS = rhs
       AST.evalCompose[Map[String, Any]](c, lhs) { m =>
-        val x = m.getOrElse(localRHS, null)
-        if (x != null
-          && x.isInstanceOf[Annotations])
-          x.asInstanceOf[Annotations].attrs
-        else
-          x
+        m.getOrElse(localRHS, null) match {
+          case a: Annotations => a.attrs
+          case wa: mutable.WrappedArray[_] => wa.array
+          case x => x
+        }
       }
 
     case (TInt, "toInt") => lhs.eval(c)
@@ -480,12 +480,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TDouble, "min") => AST.evalCompose[Double](c, lhs)(a => (b: Double) => a.min(b))
 
     case (TString, "length") => AST.evalCompose[String](c, lhs)(_.length)
-    case (TString, "split") => AST.evalCompose[String](c, lhs)(s => (d: String) => s.split(d): IndexedSeq[String])
-    case (TString, "mkString") => AST.evalCompose[String](c, lhs)(s => (d: String) => s.split(d): IndexedSeq[String])
+    case (TString, "split") => AST.evalCompose[String](c, lhs)(s => (d: String) => s.split(d))
+    case (TString, "mkString") => AST.evalCompose[String](c, lhs)(s => (d: String) => s.split(d))
 
-    case (TArray(_), "length") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.length)
-    case (TArray(_), "isEmpty") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.isEmpty)
-    case (TArray(_), "contains") => AST.evalCompose[IndexedSeq[Any]](c, lhs)(s => (x: Any) => s.contains(x))
+    case (TArray(_), "length") => AST.evalCompose[Array[_]](c, lhs)(_.length)
+    case (TArray(_), "isEmpty") => AST.evalCompose[Array[_]](c, lhs)(_.isEmpty)
 
     case (TSet(_), "size") => AST.evalCompose[Set[_]](c, lhs)(_.size)
     case (TSet(_), "isEmpty") => AST.evalCompose[Set[_]](c, lhs)(_.isEmpty)
@@ -647,7 +646,7 @@ case class Apply(posn: Position, f: AST, args: Array[AST]) extends AST(posn, f +
 
   def eval(c: EvalContext): () => Any = ((f.`type`, args.map(_.`type`)): @unchecked) match {
     case (TArray(elementType), Array(TInt)) =>
-      AST.evalCompose[IndexedSeq[_], Int](c, f, args(0))((a, i) => a(i))
+      AST.evalCompose[Array[_], Int](c, f, args(0))((a, i) => a(i))
 
     case (TString, Array(TInt)) =>
       AST.evalCompose[String, Int](c, f, args(0))((s, i) => s(i))

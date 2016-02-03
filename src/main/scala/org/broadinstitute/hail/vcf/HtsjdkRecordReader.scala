@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.vcf
 
 import org.apache.spark.Accumulable
+import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConverters._
@@ -18,22 +19,8 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   }
 }
 
-object VCFImportWarning {
-  val RecalledGT = 1
-  val UpdatedDP = 2
-  val DroppedOD = 3
-  val ODDPMismatch = 4
-
-  def warningMessage(id: Int, count: Int): String = id match {
-    case RecalledGT => s"recalled GT $count times because PL(GT) != 0"
-    case UpdatedDP => s"updated DP $count times because sum(AD) > DP"
-    case DroppedOD => s"dropped OD $count times because AD not present"
-    case ODDPMismatch => s"DP != sum(AD) + OD $count times; used DP"
-  }
-}
-
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
-  def readRecord(warnAcc: Accumulable[mutable.Map[Int, Int], Int], line: String, typeMap: Map[String, Any]): (Variant, Annotations, Iterable[Genotype]) = {
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int], line: String, typeMap: Map[String, Any]): (Variant, Annotations, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
@@ -78,6 +65,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       assert(a1.isCalled || a1.isNoCall)
       assert(a0.isCalled == a1.isCalled)
 
+      var filter = false
       gb.clear()
 
       var pl = g.getPL
@@ -105,22 +93,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
           Genotype.gtIndex(j, i)
 
         if (g.hasPL && pl(gt) != 0) {
-          warnAcc += VCFImportWarning.RecalledGT
-
-          def callFromPL(i: Int, newGT: Int): Int = {
-            if (i < pl.length) {
-              if (pl(i) == 0) {
-                if (newGT != -1)
-                  -1
-                else
-                  callFromPL(i + 1, i)
-              } else
-                callFromPL(i + 1, newGT)
-            } else
-              newGT
-          }
-
-          gt = callFromPL(0, -1)
+          reportAcc += VCFReport.GTPLMismatch
+          filter = true
         }
 
         if (gt != -1)
@@ -137,8 +111,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         if (g.hasAD) {
           val adsum = ad.sum
           if (dp < adsum) {
-            warnAcc += VCFImportWarning.UpdatedDP
-            dp = adsum
+            reportAcc += VCFReport.ADDPMismatch
+            filter = true
           }
         }
 
@@ -156,10 +130,14 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         if (g.hasAD) {
           if (!g.hasDP)
             gb.setDP(adsum + od)
-          else
-            warnAcc += VCFImportWarning.ODDPMismatch
-        } else
-          warnAcc += VCFImportWarning.DroppedOD
+          else {
+            reportAcc += VCFReport.ADODDPPMismatch
+            filter = true
+          }
+        } else {
+          reportAcc += VCFReport.ODMissingAD
+          filter = true
+        }
       }
 
       gsb.write(gb)

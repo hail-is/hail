@@ -2,10 +2,9 @@ package org.broadinstitute.hail.driver
 
 import java.io.File
 
-import org.apache.spark.{Accumulable, SparkContext, SparkConf}
+import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.driver.Main._
-import org.broadinstitute.hail.vcf.VCFImportWarning
+import org.broadinstitute.hail.methods.VCFReport
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -13,39 +12,11 @@ import scala.reflect.ClassTag
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
-object Bench {
-  def main(args: Array[String]) {
-
-  }
-}
-
 object HailConfiguration {
   var installDir: String = _
 
   var tmpDir: String = _
 
-}
-
-object VCFImportAccumulators {
-  var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
-
-  def warn() {
-    val sb = new StringBuilder()
-    for ((file, m) <- accumulators) {
-      if (m.value.exists(_._2 != 0)) {
-        sb.clear()
-        sb.append(s"while importing VCF file `$file':")
-        m.value.foreach { case (id, n) =>
-          if (n > 0) {
-            sb += '\n'
-            sb.append("  ")
-            sb.append(VCFImportWarning.warningMessage(id, n))
-          }
-        }
-        warning(sb.result())
-      }
-    }
-  }
 }
 
 object Main {
@@ -221,7 +192,7 @@ object Main {
       }
     }
 
-    VCFImportAccumulators.warn()
+    VCFReport.report()
 
     // Thread.sleep(60*60*1000)
 

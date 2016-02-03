@@ -12,7 +12,6 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
-import scala.collection.mutable
 import org.broadinstitute.hail.driver.HailConfiguration
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
@@ -20,6 +19,48 @@ import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVect
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.Utils._
+
+final class ByteIterator(val a: Array[Byte]) {
+  var i: Int = 0
+
+  def hasNext: Boolean = i < a.length
+  def next(): Byte = {
+    val r = a(i)
+    i += 1
+    r
+  }
+
+  def readULEB128(): Int = {
+    var b: Byte = next()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+
+    x
+  }
+
+  def readSLEB128(): Int = {
+    var b: Byte = next()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+
+    // sign extend
+    if (shift < 32
+      && (b & 0x40) != 0)
+      x = (x << (32 - shift)) >> (32 - shift)
+
+    x
+  }
+}
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
   def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
@@ -169,6 +210,7 @@ class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
 }
 
 class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
+  /*
   def readULEB128(): Int = {
     var x: Int = 0
     var shift: Int = 0
@@ -199,6 +241,7 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 
     x
   }
+  */
 }
 
 // FIXME AnyVal in Scala 2.11
@@ -422,6 +465,10 @@ object Utils {
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
+
+  def info(msg: String) {
+    System.err.println("hail: info: " + msg)
+  }
 
   def warning(msg: String) {
     System.err.println("hail: warning: " + msg)

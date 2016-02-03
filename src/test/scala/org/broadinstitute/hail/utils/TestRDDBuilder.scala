@@ -53,7 +53,7 @@ object TestRDDBuilder {
     }
   }
 
-  def plFromGQ(gq: Int, gt: Option[Int]): Option[IndexedSeq[Int]] = {
+  def plFromGQ(gq: Int, gt: Option[Int]): Option[Array[Int]] = {
     // supplies example PL values from a GQ and genotype
     gt match {
       case Some(0) => Some(Array(0, gq, plMax))
@@ -63,7 +63,7 @@ object TestRDDBuilder {
     }
   }
 
-  def adFromDP(dp: Int, gt: Option[Int]): Option[IndexedSeq[Int]] = {
+  def adFromDP(dp: Int, gt: Option[Int]): Option[Array[Int]] = {
     // if a homozygous genotype is supplied, assigns all reads to that allele.  If het, 50/50.  If uncalled, (0, 0)
     gt match {
       case Some(0) => Some(Array(dp, 0))

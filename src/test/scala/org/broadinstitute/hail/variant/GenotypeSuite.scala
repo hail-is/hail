@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.variant
 
+import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.check.Prop._
@@ -18,7 +19,7 @@ object GenotypeSuite {
     val gb = new GenotypeBuilder(v)
     gb.set(g)
     gb.write(ab)
-    val g2 = Genotype.read(v, ab.result().iterator)
+    val g2 = Genotype.read(v, new ByteIterator(ab.result()))
     // println(s"g = $g, g2 = $g2")
     g == g2
   }

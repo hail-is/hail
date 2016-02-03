@@ -17,3 +17,4 @@ Command line arguments:
 ``` 
 $ hail import -i /path/to/file.vcf.bgz write -o /path/to/output.vds
 ```
+ - Hail makes certain assumptions about the genotype fields, see [Representation](https://github.com/broadinstitute/hail/blob/master/docs/Representation.md).  On import, Hail filters (sets to no-call) any genotype that violates these assumptions.  Hail interpets the format fields: GT, AD, OD, DP, GQ, PL; all others are silently dropped.

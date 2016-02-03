@@ -1,11 +1,12 @@
 package org.broadinstitute.hail.variant
 
 import net.jpountz.lz4.LZ4Factory
+import org.broadinstitute.hail.ByteIterator
 
 import scala.collection.mutable
 
 // FIXME use zipWithIndex
-class GenotypeStreamIterator(v: Variant, b: Iterator[Byte]) extends Iterator[Genotype] {
+class GenotypeStreamIterator(v: Variant, b: ByteIterator) extends Iterator[Genotype] {
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = {
@@ -43,9 +44,9 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
   override def iterator: GenotypeStreamIterator = {
     decompLenOption match {
       case Some(decompLen) =>
-        new GenotypeStreamIterator(variant, LZ4Utils.decompress(decompLen, a).iterator)
+        new GenotypeStreamIterator(variant, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
-        new GenotypeStreamIterator(variant, a.iterator)
+        new GenotypeStreamIterator(variant, new ByteIterator(a))
     }
   }
 

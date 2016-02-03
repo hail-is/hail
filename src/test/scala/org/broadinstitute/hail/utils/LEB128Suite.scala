@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.utils
 
+import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
@@ -15,13 +16,13 @@ object LEB128Suite {
   def ulebReadWriteEqual(i: Int): Boolean = {
     b.clear()
     b.writeULEB128(i)
-    i == b.result().iterator.readULEB128()
+    i == new ByteIterator(b.result()).readULEB128()
   }
 
   def slebReadWriteEqual(i: Int): Boolean = {
     b.clear()
     b.writeSLEB128(i)
-    i == b.result().iterator.readSLEB128()
+    i == new ByteIterator(b.result()).readSLEB128()
   }
 
   object Spec extends Properties("LEB128") {

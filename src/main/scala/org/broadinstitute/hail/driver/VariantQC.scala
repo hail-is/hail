@@ -69,18 +69,28 @@ class VariantQCCombiner extends Serializable {
   var nHomRef: Int = 0
   var nHet: Int = 0
   var nHomVar: Int = 0
-  var refDepth: Int = 0
-  var altDepth: Int = 0
 
-  val dpSC = new StatCounter()
   val dpHomRefSC = new StatCounter()
   val dpHetSC = new StatCounter()
   val dpHomVarSC = new StatCounter()
 
-  val gqSC: StatCounter = new StatCounter()
   val gqHomRefSC: StatCounter = new StatCounter()
   val gqHetSC: StatCounter = new StatCounter()
   val gqHomVarSC: StatCounter = new StatCounter()
+
+  def dpSC: StatCounter = {
+    val r = dpHomRefSC.copy()
+    r.merge(dpHetSC)
+    r.merge(dpHomVarSC)
+    r
+  }
+
+  def gqSC: StatCounter = {
+    val r = gqHomRefSC.copy()
+    r.merge(gqHetSC)
+    r.merge(gqHomVarSC)
+    r
+  }
 
   // FIXME per-genotype
 
@@ -89,35 +99,25 @@ class VariantQCCombiner extends Serializable {
       case Some(0) =>
         nHomRef += 1
         g.dp.foreach { v =>
-          dpSC.merge(v)
           dpHomRefSC.merge(v)
         }
         g.gq.foreach { v =>
-          gqSC.merge(v)
           gqHomRefSC.merge(v)
         }
       case Some(1) =>
         nHet += 1
-        g.ad.foreach { a =>
-          refDepth += a(0)
-          altDepth += a(1)
-        }
         g.dp.foreach { v =>
-          dpSC.merge(v)
           dpHetSC.merge(v)
         }
         g.gq.foreach { v =>
-          gqSC.merge(v)
           gqHetSC.merge(v)
         }
       case Some(2) =>
         nHomVar += 1
         g.dp.foreach { v =>
-          dpSC.merge(v)
           dpHomVarSC.merge(v)
         }
         g.gq.foreach { v =>
-          gqSC.merge(v)
           gqHomVarSC.merge(v)
         }
       case None =>
@@ -132,15 +132,11 @@ class VariantQCCombiner extends Serializable {
     nHomRef += that.nHomRef
     nHet += that.nHet
     nHomVar += that.nHomVar
-    refDepth += that.refDepth
-    altDepth += that.altDepth
 
-    dpSC.merge(that.dpSC)
     dpHomRefSC.merge(that.dpHomRefSC)
     dpHetSC.merge(that.dpHetSC)
     dpHomVarSC.merge(that.dpHomVarSC)
 
-    gqSC.merge(that.gqSC)
     gqHomRefSC.merge(that.gqHomRefSC)
     gqHetSC.merge(that.gqHetSC)
     gqHomVarSC.merge(that.gqHomVarSC)

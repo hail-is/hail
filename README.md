@@ -1,13 +1,13 @@
-[![Build Status](https://magnum.travis-ci.com/broadinstitute/hail.svg?token=BppUSW8Cb2YatFa34Fpx&branch=master)](https://magnum.travis-ci.com/broadinstitute/hail)
-
 # Hail
 
 ## Table of Contents
-1. [Importing](docs/Importing.md)
-2. [QC](docs/QC.md)
-3. [Filtering](docs/Filtering.md)
-4. [Exporting to TSVs](docs/ExportTSV.md)
-5. [Exporting to VCF](docs/ExportVCF.md)
+1. [Representation](docs/Representation.md)
+2. [Importing](docs/Importing.md)
+3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
+4. [QC](docs/QC.md)
+5. [Filtering](docs/Filtering.md)
+6. [Exporting to TSVs](docs/ExportTSV.md)
+7. [Exporting to VCF](docs/ExportVCF.md)
 
 ## Tools
 

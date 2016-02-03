@@ -1,7 +1,9 @@
 package org.broadinstitute.hail.variant
 
+import java.util
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
+import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.check.{Gen, Arbitrary}
 import scala.language.implicitConversions
 import scala.collection.mutable
@@ -54,9 +56,9 @@ class Genotype(private val _gt: Int,
   }
 
   def copy(gt: Option[Int] = this.gt,
-    ad: Option[IndexedSeq[Int]] = this.ad,
+    ad: Option[Array[Int]] = this.ad,
     dp: Option[Int] = this.dp,
-    pl: Option[IndexedSeq[Int]] = this.pl,
+    pl: Option[Array[Int]] = this.pl,
     fakeRef: Boolean = this.fakeRef): Genotype = Genotype(gt, ad, dp, pl, fakeRef)
 
   override def equals(that: Any): Boolean = that match {
@@ -74,9 +76,9 @@ class Genotype(private val _gt: Int,
   override def hashCode: Int =
     new HashCodeBuilder(43, 19)
       .append(_gt)
-      .append(_ad: IndexedSeq[Int])
+      .append(util.Arrays.hashCode(_ad))
       .append(_dp)
-      .append(_pl: IndexedSeq[Int])
+      .append(util.Arrays.hashCode(_pl))
       .append(fakeRef)
       .toHashCode
 
@@ -86,7 +88,7 @@ class Genotype(private val _gt: Int,
     else
       None
 
-  def ad: Option[IndexedSeq[Int]] = Option(_ad)
+  def ad: Option[Array[Int]] = Option(_ad)
 
   def dp: Option[Int] =
     if (_dp >= 0)
@@ -120,7 +122,7 @@ class Genotype(private val _gt: Int,
       Some(r)
     }
 
-  def pl: Option[IndexedSeq[Int]] = Option(_pl)
+  def pl: Option[Array[Int]] = Option(_pl)
 
   def isHomRef: Boolean = _gt == 0
 
@@ -187,7 +189,7 @@ class Genotype(private val _gt: Int,
     b.result()
   }
 
-  def pAB(theta: Double = 0.5): Option[Double] = ad.map { case IndexedSeq(refDepth, altDepth) =>
+  def pAB(theta: Double = 0.5): Option[Double] = ad.map { case Array(refDepth, altDepth) =>
     val d = new BinomialDistribution(refDepth + altDepth, theta)
     val minDepth = refDepth.min(altDepth)
     val minp = d.probability(minDepth)
@@ -200,9 +202,9 @@ object Genotype {
   def apply(gtx: Int): Genotype = new Genotype(gtx, null, -1, null, false)
 
   def apply(gt: Option[Int] = None,
-    ad: Option[IndexedSeq[Int]] = None,
+    ad: Option[Array[Int]] = None,
     dp: Option[Int] = None,
-    pl: Option[IndexedSeq[Int]] = None,
+    pl: Option[Array[Int]] = None,
     fakeRef: Boolean = false): Genotype = {
     new Genotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), pl.map(_.toArray).orNull, fakeRef)
   }
@@ -313,10 +315,10 @@ object Genotype {
 
   def gtIndex(p: GTPair): Int = gtIndex(p.j, p.k)
 
-  def read(v: Variant, a: Iterator[Byte]): Genotype = {
+  def read(v: Variant, a: ByteIterator): Genotype = {
     val isBiallelic = v.isBiallelic
 
-    val flags = a.readULEB128()
+    val flags = a.next()
 
     val gt: Int =
       if (flagHasGT(isBiallelic, flags)) {
@@ -387,7 +389,7 @@ object Genotype {
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-      ad <- Gen.option(Gen.buildableOfN[IndexedSeq[Int], Int](v.nAlleles,
+      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
         Gen.choose(0, m)));
       dp <- Gen.option(Gen.choose(0, m));
       pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
@@ -396,7 +398,7 @@ object Genotype {
         pl.foreach { pla => pla(gtx) = 0 }
       }
       val g = Genotype(gt, ad,
-        dp.map(_ + ad.map(_.sum).getOrElse(0)), pl.map(pla => pla: IndexedSeq[Int]))
+        dp.map(_ + ad.map(_.sum).getOrElse(0)), pl)
       g.check(v)
       g
     }
@@ -423,9 +425,9 @@ class GenotypeBuilder(v: Variant) {
   var flags: Int = 0
 
   private var gt: Int = 0
-  private var ad: IndexedSeq[Int] = _
+  private var ad: Array[Int] = _
   private var dp: Int = 0
-  private var pl: IndexedSeq[Int] = _
+  private var pl: Array[Int] = _
 
   def clear() {
     flags = 0
@@ -441,7 +443,7 @@ class GenotypeBuilder(v: Variant) {
     gt = newGT
   }
 
-  def setAD(newAD: IndexedSeq[Int]) {
+  def setAD(newAD: Array[Int]) {
     require(newAD.length == v.nAlleles)
     flags = Genotype.flagSetHasAD(flags)
     ad = newAD
@@ -453,7 +455,7 @@ class GenotypeBuilder(v: Variant) {
     dp = newDP
   }
 
-  def setPL(newPL: IndexedSeq[Int]) {
+  def setPL(newPL: Array[Int]) {
     require(newPL.length == v.nGenotypes)
     flags = Genotype.flagSetHasPL(flags)
     pl = newPL
@@ -513,7 +515,7 @@ class GenotypeBuilder(v: Variant) {
       println(s"  dp = $dp")
     */
 
-    b.writeULEB128(flags)
+    b += flags.toByte
 
     if (hasGT && !Genotype.flagStoresGT(isBiallelic, flags))
       b.writeULEB128(gt)
