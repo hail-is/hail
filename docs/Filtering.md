@@ -114,8 +114,11 @@ filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
 ## Accessible fields of exposed classes
 
 **Genotype:** `g`
+ - `g.gt                  Int` -- the call, `gt = k*(k+1)/2+j` for call `j/k`
  - `g.ad:          Array[Int]` -- allelic depth for each allele
  - `g.dp:                 Int` -- the total number of informative reads
+ - `g.od                  Int` -- `od = dp - ad.sum`
+ - `g.gq:                 Int` -- the difference between the two lowest PL entries
  - `g.isHomRef:       Boolean` -- true if this call is `0/0`
  - `g.isHet:          Boolean` -- true if this call is heterozygous
  - `g.isHetRef:       Boolean` -- true if this call is `0/k` with k > 0
@@ -124,7 +127,6 @@ filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
  - `g.isCalledNonRef: Boolean` -- true if either `g.isHet` or `g.isHomVar` is true
  - `g.isCalled:       Boolean` -- true if the genotype is not `./.`
  - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
- - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
  - `g.nNonRef:            Int` -- the number of called alternate alleles
  - `g.pAB():           Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
  
