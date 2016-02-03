@@ -19,10 +19,10 @@ object VCFReport {
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
   def warningMessage(id: Int, count: Int): String = id match {
-    case GTPLMismatch => s"$count times: PL(GT) != 0"
-    case ADDPMismatch => s"$count times: sum(AD) > DP"
-    case ODMissingAD => s"$count times: OD present but AD missing"
-    case ADODDPPMismatch => s"$count times: DP != sum(AD) + OD"
+    case GTPLMismatch => s"$count ${plural(count, "time")}: PL(GT) != 0"
+    case ADDPMismatch => s"$count ${plural(count, "time")}: sum(AD) > DP"
+    case ODMissingAD => s"$count ${plural(count, "time")}: OD present but AD missing"
+    case ADODDPPMismatch => s"$count ${plural(count, "time")}: DP != sum(AD) + OD"
   }
 
   def report() {

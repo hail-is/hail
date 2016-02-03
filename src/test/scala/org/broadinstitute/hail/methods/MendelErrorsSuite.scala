@@ -6,8 +6,8 @@ import org.testng.annotations.Test
 
 class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
-    val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
+    val vds = LoadVCF(sc, "src/test/resources/mendel.vcf")
+    val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
     val men = MendelErrors(vds, ped.completeTrios)
 
     val nPerFam = men.nErrorPerNuclearFamily.collectAsMap()
@@ -33,14 +33,14 @@ class MendelErrorsSuite extends SparkSuite {
     assert(nPerIndiv.size == 7)
     assert(nPerVariant.size == 28)
 
-    assert(nPerFam((dad, mom)) == (41, 39))
-    assert(nPerFam((dad2, mom2)) == (0, 0))
+    assert(nPerFam((dad, mom)) ==(41, 39))
+    assert(nPerFam((dad2, mom2)) ==(0, 0))
 
-    assert(nPerIndiv(son) == (23, 22))
-    assert(nPerIndiv(dtr) == (18, 17))
-    assert(nPerIndiv(dad) == (19, 18))
-    assert(nPerIndiv(mom) == (22, 21))
-    assert(nPerIndiv(dad2) == (0, 0))
+    assert(nPerIndiv(son) ==(23, 22))
+    assert(nPerIndiv(dtr) ==(18, 17))
+    assert(nPerIndiv(dad) ==(19, 18))
+    assert(nPerIndiv(mom) ==(22, 21))
+    assert(nPerIndiv(dad2) ==(0, 0))
 
     assert(nPerVariant(variant1) == 2)
     assert(nPerVariant(variant2) == 1)
@@ -55,5 +55,10 @@ class MendelErrorsSuite extends SparkSuite {
     men.writeMendelL("/tmp/sample_mendel.lmendel")
     men.writeMendelF("/tmp/sample_mendel.fmendel")
     men.writeMendelI("/tmp/sample_mendel.imendel")
+
+    val ped2 = Pedigree.read("src/test/resources/mendelWithMissingSex.fam", sc.hadoopConfiguration, vds.sampleIds)
+    val men2 = MendelErrors(vds, ped2.completeTrios)
+
+    assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == 2).collect().toSet)
   }
 }

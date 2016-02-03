@@ -56,8 +56,15 @@ object MendelErrors {
     }
   }
 
-  def apply(vds: VariantDataset, trios: Array[CompleteTrio]): MendelErrors = {
-    require(trios.forall(_.sex.isDefined))
+  def apply(vds: VariantDataset, preTrios: Array[CompleteTrio]): MendelErrors = {
+
+    val trios = preTrios.filter(_.sex.isDefined)
+    val nSamplesDiscarded = preTrios.size - trios.size
+
+    if (nSamplesDiscarded > 0)
+      warning(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
+
+    info(s"Computing Mendel errors for ${trios.size} ${plural(trios.size, "trio")}.")
 
     val sampleTrioRoles: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](vds.nSamples)(List())
     trios.zipWithIndex.foreach { case (t, ti) =>
@@ -69,7 +76,7 @@ object MendelErrors {
     val sc = vds.sparkContext
     val sampleTrioRolesBc = sc.broadcast(sampleTrioRoles)
     val triosBc = sc.broadcast(trios)
-    // all trios have defined sex, see require above
+    // all trios have defined sex, see filter above
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
     val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length,3)(NoCall)

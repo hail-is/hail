@@ -108,7 +108,7 @@ class FilterSuite extends SparkSuite {
     val highGQorMidQGAndLowFS = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20 || (g.gq < 30 && va.info.FS > 30)"))
       .vds.expand().collect()
 
-    val vds2 = LoadVCF(sc, "src/test/resources/sample_filter.vcf")
+    val vds2 = LoadVCF(sc, "src/test/resources/filter.vcf")
     var state2 = State(sc, sqlContext, vds2.cache())
     state2 = SplitMulti.run(state2, Array.empty[String])
 

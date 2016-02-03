@@ -8,6 +8,7 @@
 5. [Filtering](docs/Filtering.md)
 6. [Exporting to TSVs](docs/ExportTSV.md)
 7. [Exporting to VCF](docs/ExportVCF.md)
+8. [Mendel errors](docs/MendelErrors.md)
 
 ## Tools
 
