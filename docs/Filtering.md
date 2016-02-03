@@ -126,16 +126,21 @@ filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
  - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
  - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
  - `g.nNonRef:            Int` -- the number of called alternate alleles
- - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
+ - `g.pAB():           Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
  
 **Variant:** `v`
- - `v.contig:          String` -- string representation of contig, exactly as imported.  _NB: Hail stores contigs as strings.  Use double-quotes when checking contig equality_
- - `v.start:              Int` -- SNP position or start of an indel
- - `v.ref:             String` -- reference allele sequence
- - `v.altAllele:    AltAllele` -- Alternate allele.  Assumes biallelic.
- - `v.alt:             String` -- Alternate allele sequence.  Assumes biallelic.
- - `v.inParX:         Boolean` -- true if in pseudo-autosomal region on chromosome X
- - `v.inParY:         Boolean` -- true if in pseudo-autosomal region on chromosome Y
+ - `v.contig:                String` -- string representation of contig, exactly as imported.  _NB: Hail stores contigs as strings.  Use double-quotes when checking contig equality_
+ - `v.start:                    Int` -- SNP position or start of an indel
+ - `v.ref:                   String` -- reference allele sequence
+ - `v.isBiallelic:          Boolean` -- true if `v` is biallelic
+ - `v.nAlleles:                 Int` -- number of alleles
+ - `v.nAltAlleles:              Int` -- number of alternate alleles, equal to `nAlleles - 1`
+ - `v.nGenotypes:               Int` -- number of genotypes
+ - `v.altAlleles: Array[AltAlleles]` -- the alternate alleles
+ - `v.inParX:               Boolean` -- true if in pseudo-autosomal region on chromosome X
+ - `v.inParY:               Boolean` -- true if in pseudo-autosomal region on chromosome Y
+ - `v.altAllele:          AltAllele` -- The Alternate allele.  Assumes biallelic.
+ - `v.alt:                   String` -- Alternate allele sequence.  Assumes biallelic.
 
 **AltAllele:**
  - `aa.ref:             String` -- reference allele sequence
