@@ -11,6 +11,7 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.variant.Variant
 import org.scalacheck.Gen
 import org.scalacheck.Arbitrary._
 import scala.collection.{TraversableOnce, mutable}
@@ -306,6 +307,14 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
       case null | None => sb.append("NA")
       case Some(x) => tsvAppend(x)
       case d: Double => sb.append(d.formatted("%.4e"))
+      case v: Variant => 
+        sb.append(v.contig)
+	sb += ':'
+        sb.append(v.start)
+	sb += ':'
+        sb.append(v.ref)
+	sb += ':'
+        sb.append(v.alt)
       case i: Iterable[_] =>
         var first = true
         i.foreach { x =>
