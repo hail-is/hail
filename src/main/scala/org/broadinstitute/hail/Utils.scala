@@ -739,6 +739,37 @@ object Utils {
     }
   }
 
+  def space[A](f: => A): (A, Long) = {
+    val rt = Runtime.getRuntime
+    System.gc()
+    System.gc()
+    val before = rt.totalMemory() - rt.freeMemory()
+    val r = f
+    System.gc()
+    val after = rt.totalMemory() - rt.freeMemory()
+    (r, after - before)
+  }
+
+  def printSpace[A](f: => A): A = {
+    val (r, ds) = space(f)
+    println("space: " + formatSpace(ds))
+    r
+  }
+
+  def formatSpace(ds: Long) = {
+    val absds = ds.abs
+    if (absds < 1e3)
+      s"${ds}B"
+    else if (absds < 1e6)
+      s"${ds.toDouble/1e3}KB"
+    else if (absds < 1e9)
+      s"${ds.toDouble/1e6}MB"
+    else if (absds < 1e12)
+      s"${ds.toDouble/1e9}GB"
+    else
+      s"${ds.toDouble/1e12}TB"
+  }
+
   def someIf[T](p: Boolean, x: => T): Option[T] =
     if (p)
       Some(x)

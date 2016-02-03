@@ -16,7 +16,7 @@ We use the following development tools:
  - git
  - Scala
  - Gradle for build management
- - TestNG and [ScalaCheck](https://www.scalacheck.org/) for testing
+ - TestNG for testing
  - Travis-CI for automated testing
  - Jacoco for code coverage
  - args4j for command line parsing
