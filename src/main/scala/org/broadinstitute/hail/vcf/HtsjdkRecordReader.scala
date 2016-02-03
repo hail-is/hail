@@ -53,6 +53,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     val gb = new GenotypeBuilder(v)
 
     // FIXME compress
+    val noCall = Genotype()
     val gsb = new GenotypeStreamBuilder(v, true)
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
@@ -102,7 +103,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       }
 
       val ad = g.getAD
-
       if (g.hasAD)
         gb.setAD(ad)
 
@@ -110,7 +110,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         var dp = g.getDP
         if (g.hasAD) {
           val adsum = ad.sum
-          if (dp < adsum) {
+          if (!filter && dp < adsum) {
             reportAcc += VCFReport.ADDPMismatch
             filter = true
           }
@@ -122,25 +122,56 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       if (pl != null)
         gb.setPL(pl)
 
+      if (g.hasGQ) {
+        val gq = g.getGQ
+
+        if (pl != null) {
+          var m = Int.MaxValue
+          var m2 = Int.MaxValue
+          var i = 0
+          while (i < pl.length) {
+            if (pl(i) < m) {
+              m2 = m
+              m = pl(i)
+            } else if (pl(i) < m2)
+              m2 = pl(i)
+            i += 1
+          }
+          println(s"$m, $m2")
+          val gqFromPL = (m2 - m).min(99)
+          println(s"$gq, $gqFromPL")
+          if (!filter && gq != gqFromPL) {
+            reportAcc += VCFReport.GQPLMismatch
+            filter = true
+          }
+        } else if (!filter) {
+          reportAcc += VCFReport.GQMissingPL
+          filter = true
+        }
+      }
+
       val odObj = g.getExtendedAttribute("OD")
       if (odObj != null) {
-        val od = odObj.asInstanceOf[Int]
-        val adsum = ad.sum
+        val od = odObj.asInstanceOf[String].toInt
 
         if (g.hasAD) {
+          val adsum = ad.sum
           if (!g.hasDP)
             gb.setDP(adsum + od)
-          else {
+          else if (!filter && adsum + od != g.getDP) {
             reportAcc += VCFReport.ADODDPPMismatch
             filter = true
           }
-        } else {
+        } else if (!filter) {
           reportAcc += VCFReport.ODMissingAD
           filter = true
         }
       }
 
-      gsb.write(gb)
+      if (filter)
+        gsb += noCall
+      else
+        gsb.write(gb)
     }
 
     (v, va, gsb.result())

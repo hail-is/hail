@@ -12,13 +12,12 @@ In addition, Hail considers OD = DP - sum(AD).
 
 Hail makes the following assumptions about the genotype fields:
  - if both are present, PL(GT) = 0
- - GQ is the difference of the smallest two PL entries
- - sum(AD) <= DP
+ - if GQ is present, then PL is present
+ - GQ is the difference of the two smallest PL entries
+ - if OD is present, then AD is present
  - if they are all present, sum(AD) + OD = DP
- - if OD is present, then AD is present (*)
+ - sum(AD) <= DP
 
 Internally, Hail preserves these invariants.  On import, Hail filters
 (sets to no-call) any genotype that violates these invariants and
 prints a warning message.
-
-(*) This is needlessly strict and maybe relaxed in the future.

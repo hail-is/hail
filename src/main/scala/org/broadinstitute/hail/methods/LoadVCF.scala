@@ -15,14 +15,21 @@ object VCFReport {
   val ADDPMismatch = 2
   val ODMissingAD = 3
   val ADODDPPMismatch = 4
+  val GQPLMismatch = 5
+  val GQMissingPL = 6
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
-  def warningMessage(id: Int, count: Int): String = id match {
-    case GTPLMismatch => s"$count ${plural(count, "time")}: PL(GT) != 0"
-    case ADDPMismatch => s"$count ${plural(count, "time")}: sum(AD) > DP"
-    case ODMissingAD => s"$count ${plural(count, "time")}: OD present but AD missing"
-    case ADODDPPMismatch => s"$count ${plural(count, "time")}: DP != sum(AD) + OD"
+  def warningMessage(id: Int, count: Int): String = {
+    val desc = id match {
+      case GTPLMismatch => "PL(GT) != 0"
+      case ADDPMismatch => "sum(AD) > DP"
+      case ODMissingAD => "OD present but AD missing"
+      case ADODDPPMismatch => "DP != sum(AD) + OD"
+      case GQPLMismatch => "GQ != difference of two smallest PL entries"
+      case GQMissingPL => "GQ present but PL missing"
+    }
+    s"$count ${plural(count, "time")}: $desc"
   }
 
   def report() {
@@ -104,7 +111,7 @@ object LoadVCF {
     val headerLinesBc = sc.broadcast(headerLines)
 
     val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-    VCFReport.accumulators ::= (file, reportAcc)
+    VCFReport.accumulators ::=(file, reportAcc)
 
     val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
       .mapPartitions { lines =>
