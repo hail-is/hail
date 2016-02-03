@@ -4,7 +4,7 @@ import java.io.File
 
 import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.driver.Main._
+import org.broadinstitute.hail.methods.VCFReport
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -74,23 +74,26 @@ object Main {
       ConvertAnnotations,
       Count,
       DownsampleVariants,
+      ExportGenotypes,
+      ExportSamples,
+      ExportVariants,
       ExportVCF,
       FilterGenotypes,
       FamSummary,
       FilterVariants,
       FilterSamples,
+      GenDataset,
       GQByDP,
       Import,
       LinearRegressionCommand,
       MendelErrorsCommand,
+      SplitMulti,
       PCA,
       Read,
       Repartition,
       SampleQC,
       VariantQC,
-      Write,
-      ExportVariants,
-      ExportSamples
+      Write
     )
 
     val nameCommand = commands
@@ -113,9 +116,11 @@ object Main {
         new CmdLineParser(new Options).printUsage(System.out)
         println("")
         println("commands:")
-        val maxLen = commands.map(_.name.size).max
-        commands.foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.size + 2))
-          + cmd.description))
+        val visibleCommands = commands.filterNot(_.hidden)
+        val maxLen = visibleCommands.map(_.name.size).max
+        visibleCommands
+          .foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.size + 2))
+            + cmd.description))
         sys.exit(0)
       }
     } catch {
@@ -124,7 +129,7 @@ object Main {
         sys.exit(1)
     }
 
-    if (splitArgs.size == 1)
+    if (splitArgs.length == 1)
       fatal("no commands given")
     val invocations = splitArgs.tail
 
@@ -190,6 +195,8 @@ object Main {
           fatal("unknown command `" + cmdName + "'")
       }
     }
+
+    VCFReport.report()
 
     // Thread.sleep(60*60*1000)
 

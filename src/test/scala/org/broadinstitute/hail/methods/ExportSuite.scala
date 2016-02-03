@@ -10,7 +10,8 @@ class ExportSuite extends SparkSuite {
 
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = State(sc, sqlContext, vds)
+    var state = State(sc, sqlContext, vds)
+    state = SplitMulti.run(state, Array.empty[String])
 
     SampleQC.run(state, Array("-o", "/tmp/sampleQC.tsv"))
     val postSampleQC = SampleQC.run(state, Array("--store"))

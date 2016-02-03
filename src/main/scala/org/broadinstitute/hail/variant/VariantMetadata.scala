@@ -24,7 +24,8 @@ case class VariantMetadata(filters: IndexedSeq[(String, String)],
   sampleIds: IndexedSeq[String],
   sampleAnnotations: IndexedSeq[Annotations],
   sampleAnnotationSignatures: Annotations,
-  variantAnnotationSignatures: Annotations) {
+  variantAnnotationSignatures: Annotations,
+  wasSplit: Boolean = false) {
 
   def nSamples: Int = sampleIds.length
 

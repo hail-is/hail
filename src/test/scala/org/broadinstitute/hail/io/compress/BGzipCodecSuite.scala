@@ -74,6 +74,6 @@ class BGzipCodecSuite extends SparkSuite {
     */
 
     assert(uncompLines.collect().toSet
-      .sameElements(decompLines.collect().toSet))
+      == decompLines.collect().toSet)
   }
 }
