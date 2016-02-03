@@ -13,6 +13,11 @@ import scala.collection.JavaConverters._
 
 import scala.io.Source
 
+
+abstract class AnnotationImporter[T] extends Serializable {
+  def getValues: T
+}
+
 object AnnotationImporters {
 
   final val ITERATOR_SIZE = 2000000
@@ -82,33 +87,22 @@ object AnnotationImporters {
 }
 
 class TSVReader(path: String, vColumns: IndexedSeq[String],
-  typeMap: Map[String, String], missing: Set[String]) extends Serializable {
-//  @transient var internalMap: Map[Variant, IndexedSeq[Option[Any]]] = null
-  @transient var mapIterator: Iterator[Map[Variant, IndexedSeq[Option[Any]]]] = null
+  typeMap: Map[String, String], missing: Set[String])
+  extends AnnotationImporter[Map[Variant, IndexedSeq[Option[Any]]]] {
+  @transient var internalMap: Map[Variant, IndexedSeq[Option[Any]]] = null
 
-//
-//  def getMap: Map[Variant, IndexedSeq[Any]] = {
-//    if (internalMap != null)
-//      internalMap
-//    else {
-//      read(new Configuration)
-//      println(internalMap.size)
-//      println(internalMap.take(5))
-//      internalMap
-//    }
-//  }
-
-  def getIters: Iterator[Map[Variant, IndexedSeq[Any]]] = {
-    if (mapIterator != null)
-      mapIterator
+  def getValues: Map[Variant, IndexedSeq[Option[Any]]] = {
+    if (internalMap != null)
+      internalMap
     else {
       read(new Configuration)
-      mapIterator
+      println(internalMap.size)
+      println(internalMap.take(5))
+      internalMap
     }
   }
 
-
-  def metadata(conf: Configuration, vColumns: IndexedSeq[String]): (IndexedSeq[String], Annotations) = {
+  def metadata(conf: Configuration): (IndexedSeq[String], Annotations) = {
     readFile(path, conf)(is => {
       val header = Source.fromInputStream(is)
         .getLines()
@@ -155,44 +149,25 @@ class TSVReader(path: String, vColumns: IndexedSeq[String],
     }
 
     val excluded = vColumns.toSet
-    val functions = header.map(col => AnnotationImporters.addToMap(typeMap.getOrElse(col, "String"), col, missing, excluded)).toIndexedSeq
+    val functions = header.map(col => AnnotationImporters.addToMap(typeMap.getOrElse(col, "String"),
+      col, missing, excluded)).toIndexedSeq
 
     var i = 1
-    val mapIterator = (0 until 1000).iterator
-      .flatMap { n =>
-        if (!lines.hasNext)
-          None
-        else
-        Some(lines.take(AnnotationImporters.ITERATOR_SIZE).map {
-          line =>
-            i += 1
-            if (i % 1000 == 0)
-              println("line " + i)
-            val split = line.split("\t")
-            val indexedValues = split.iterator.zipWithIndex.map {
-              case (field, index) =>
-                functions(index)(field)
-            }
-              .toIndexedSeq
-            (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), indexedValues)
+    val variantMap = lines.map {
+      line =>
+        i += 1
+        if (i % 1000 == 0)
+          println("line " + i)
+        val split = line.split("\t")
+        val indexedValues = split.iterator.zipWithIndex.map {
+          case (field, index) =>
+            functions(index)(field)
         }
-          .toMap)
-      }
-    this.mapIterator = mapIterator
-//    this.internalMap = lines.map {
-//      line =>
-//        i += 1
-//        if (i % 1000 == 0)
-//          println("line " + i)
-//        val split = line.split("\t")
-//        val indexedValues = split.iterator.zipWithIndex.map {
-//          case (field, index) =>
-//            functions(index)(field)
-//        }
-//          .toIndexedSeq
-//        (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), indexedValues)
-//    }
-//      .toMap
+          .toIndexedSeq
+        (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), indexedValues)
+    }
+      .toMap
+    this.internalMap = variantMap
 
     val t1 = System.nanoTime()
     println(s"read tsv took ${formatTime(t1 - t0)} seconds")
@@ -200,19 +175,19 @@ class TSVReader(path: String, vColumns: IndexedSeq[String],
 }
 
 
-class VCFReader(path: String) {
-  @transient var vMap: Map[Variant, Annotations] = null
+class VCFReader(path: String) extends AnnotationImporter[Map[Variant, Annotations]] {
+  @transient var internalMap: Map[Variant, Annotations] = null
 
-  def getInfo: Map[Variant, Annotations] = {
-    if (vMap != null)
-      vMap
+  def getValues: Map[Variant, Annotations] = {
+    if (internalMap != null)
+      internalMap
     else {
       read(new Configuration())
-      vMap
+      internalMap
     }
   }
 
-  def signatures(conf: Configuration): Annotations = {
+  def metadata(conf: Configuration): Annotations = {
     val lineIterator = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
 
@@ -261,7 +236,7 @@ class VCFReader(path: String) {
       .map(line => (line.getID, VCFSignature.parse(line)))
       .toMap)
 
-    vMap = lineIterator.flatMap { line =>
+    internalMap = lineIterator.flatMap { line =>
       val vc = codec.decode(line)
       val pass = vc.filtersWereApplied() && vc.getFilters.size() == 0
       val filts = {
@@ -317,8 +292,7 @@ class VCFReader(path: String) {
   }
 }
 
-
-class KryoReader(path: String) extends Serializable {
+class KryoReader(path: String) extends AnnotationImporter {
   @transient var variantIndexes: Map[Variant, (Int, Int)] = null
   @transient var compressedBytes: IndexedSeq[(Int, Array[Byte])] = null
 
@@ -368,13 +342,10 @@ class KryoReader(path: String) extends Serializable {
   }
 }
 
-
-class IntervalAnnotationReader(path: String, iCols: IndexedSeq[String], typeMap: Map[String, String],
-  identifier: String)
-  extends Serializable {
+class BedReader(path: String) extends AnnotationImporter[IntervalList] {
   @transient var intervalList: IntervalList = null
 
-  def getIntervalList: IntervalList = {
+  def getValues: IntervalList = {
     if (intervalList != null)
       intervalList
     else {
@@ -383,7 +354,44 @@ class IntervalAnnotationReader(path: String, iCols: IndexedSeq[String], typeMap:
     }
   }
 
-  def read(conf: hadoop.conf.Configuration): Annotations = {
+  def metadata(conf: Configuration): Annotations = {
+    val lines = Source.fromInputStream(hadoopOpen(path, conf))
+      .getLines()
+
+    val headerLines = lines.takeWhile(line =>
+      line.startsWith("browser") ||
+        line.startsWith("track") ||
+      line.matches("""^\w+=("[\w\d ]+"|\d+)"""))
+
+    headerLines.foreach(println)
+
+    Annotations.empty()
+  }
+
+  def read(conf: Configuration) {
+
+  }
+}
+
+class IntervalAnnotationReader(path: String, iCols: IndexedSeq[String], typeMap: Map[String, String],
+  identifier: String)
+  extends AnnotationImporter[IntervalList] {
+  @transient var intervalList: IntervalList = null
+
+  def getValues: IntervalList = {
+    if (intervalList != null)
+      intervalList
+    else {
+      read(new Configuration)
+      intervalList
+    }
+  }
+
+  def metadata(conf: Configuration): Annotations = {
+    throw new UnsupportedOperationException
+  }
+
+  def read(conf: Configuration): Annotations = {
     val lines = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
     val header = lines.next().split("\t")

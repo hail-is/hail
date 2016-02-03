@@ -69,7 +69,7 @@ object Main {
     */
     val commands = Array(
       AnnotateSamples,
-      AnnotateVariants,
+      AnnotateVaria`nts,
       Cache,
       ConvertAnnotations,
       Count,
