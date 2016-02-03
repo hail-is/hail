@@ -166,9 +166,10 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         }
       }
 
-      if (filter)
+      if (filter) {
         gsb += noCall
-      else
+        println(v)
+      } else
         gsb.write(gb)
     }
 
