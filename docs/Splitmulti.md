@@ -3,9 +3,9 @@
 Hail has infrastructure for representing multiallelic variants, but
 most analytic methods only support analyzing data represented as
 biallelics.  Therefore, the current recommendation is to split
-multiallelics using the command `multisplit` when import a VCF.
+multiallelics using the command `splitmulti` when import a VCF.
 
-`multisplit takes no arguments.  Example `multisplit`
+`splitmulti` takes no arguments.  Example `splitmulti` command:
 ```
 $ hail import -i /path/to/file.vcf splitmulti write -o /path/to/file.vds
 ```
@@ -26,7 +26,7 @@ We will explain by example.  Consider a hypothetical 3-allelic variant
 A	C,T	0/2:7,2,6:15:45:99,50,99,0,45,99
 ```
 
-`multisplit` will create two biallelic variants (one for each
+`splitmulti` will create two biallelic variants (one for each
 alternate allele) at the same position:
 ```
 A	C	0/0:13,2:15:45:0,45,99
