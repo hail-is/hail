@@ -52,28 +52,24 @@ object DenseCallStream {
     val a = Array.ofDim[Byte]((gts.length + 3) / 4)
 
     var i = 0
-    var s = 0
-    while (s < gts.length - 4) {
-      a(i) = (gts(s) | gts(s + 1) << 2 | gts(s + 2) << 4 | gts(s + 3) << 6).toByte
-      i += 1
-      s += 4
+    var j = 0
+    while (i < gts.length - 4) {
+      a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4 | gts(i + 3) << 6).toByte
+      i += 4
+      j += 1
     }
 
-    if (gts.length != s)
-      a(i) = (
-        if (gts.length == s + 1)
-          gts(s)
-        else if (gts.length == s + 2)
-          gts(s) | gts(s + 1) << 2
-        else
-          gts(s) | gts(s + 1) << 2 | gts(s + 2) << 4
-        ).toByte
+    gts.length - i match {
+      case 1 => a(j) = gts(i).toByte
+      case 2 => a(j) = (gts(i) | gts(i + 1) << 2).toByte
+      case 3 => a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4).toByte
+      case _ =>
+    }
 
     DenseCallStream(a)
   }
 }
 
-case class DenseStats(x: DenseVector[Double], xx: Double, xy: Double, nMissing: Int)
 
 case class DenseCallStream(a: Array[Byte]) { //extends CallStream {
 
@@ -93,10 +89,10 @@ case class DenseCallStream(a: Array[Byte]) { //extends CallStream {
     val mask00110000 = 3 << 4
     val mask11000000 = 3 << 6
 
-    def doStuff(i: Int, gt: Int) {
+    def merge(i: Int, gt: Int) {
       gt match {
         case 0 =>
-          x(i) = 0 // could initialize to all 0 and leave this out
+          x(i) = 0 // would it be faster to initialize to 0 and leave this case out?
         case 1 =>
           x(i) = 1
           sumX += 1
@@ -112,15 +108,25 @@ case class DenseCallStream(a: Array[Byte]) { //extends CallStream {
       }
     }
 
-    while (j < a.length) {
+    while (i < n - 4) {
       val b = a(j)
-      doStuff(i,     b & mask00000011)
-      doStuff(i + 1, b & mask00001100)
-      doStuff(i + 2, b & mask00110000)
-      doStuff(i + 3, b & mask11000000)
+      merge(i,     b & mask00000011)
+      merge(i + 1, b & mask00001100)
+      merge(i + 2, b & mask00110000)
+      merge(i + 3, b & mask11000000)
 
       i += 4
       j += 1
+    }
+
+    n - i match {
+      case 1 =>  merge(i,     a(j) & mask00000011)
+      case 2 =>  merge(i,     a(j) & mask00000011)
+                 merge(i + 1, a(j) & mask00001100)
+      case 3 =>  merge(i,     a(j) & mask00000011)
+                 merge(i + 1, a(j) & mask00001100)
+                 merge(i + 2, a(j) & mask00110000)
+      case _ =>
     }
 
     val nMissing = missingRows.size
