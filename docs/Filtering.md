@@ -121,9 +121,9 @@ filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
  - `g.gq:                 Int` -- the difference between the two lowest PL entries
  - `g.isHomRef:       Boolean` -- true if this call is `0/0`
  - `g.isHet:          Boolean` -- true if this call is heterozygous
- - `g.isHetRef:       Boolean` -- true if this call is `0/k` with k > 0
- - `g.isHetNonRef:    Boolean` -- true if this call is `j/k` with j > 0
- - `g.isHomVar:       Boolean` -- true if this call is `j/j` with j > 0
+ - `g.isHetRef:       Boolean` -- true if this call is `0/k` with `k>0`
+ - `g.isHetNonRef:    Boolean` -- true if this call is `j/k` with `j>0`
+ - `g.isHomVar:       Boolean` -- true if this call is `j/j` with `j>0`
  - `g.isCalledNonRef: Boolean` -- true if either `g.isHet` or `g.isHomVar` is true
  - `g.isCalled:       Boolean` -- true if the genotype is not `./.`
  - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
