@@ -137,9 +137,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
               m2 = pl(i)
             i += 1
           }
-          println(s"$m, $m2")
           val gqFromPL = (m2 - m).min(99)
-          println(s"$gq, $gqFromPL")
           if (!filter && gq != gqFromPL) {
             reportAcc += VCFReport.GQPLMismatch
             filter = true
