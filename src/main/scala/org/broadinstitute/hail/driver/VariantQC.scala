@@ -69,43 +69,57 @@ class VariantQCCombiner extends Serializable {
   var nHomRef: Int = 0
   var nHet: Int = 0
   var nHomVar: Int = 0
-  var refDepth: Int = 0
-  var altDepth: Int = 0
 
-  val dpSC = new StatCounter()
   val dpHomRefSC = new StatCounter()
   val dpHetSC = new StatCounter()
   val dpHomVarSC = new StatCounter()
 
-  val gqSC: StatCounter = new StatCounter()
   val gqHomRefSC: StatCounter = new StatCounter()
   val gqHetSC: StatCounter = new StatCounter()
   val gqHomVarSC: StatCounter = new StatCounter()
 
+  def dpSC: StatCounter = {
+    val r = dpHomRefSC.copy()
+    r.merge(dpHetSC)
+    r.merge(dpHomVarSC)
+    r
+  }
+
+  def gqSC: StatCounter = {
+    val r = gqHomRefSC.copy()
+    r.merge(gqHetSC)
+    r.merge(gqHomVarSC)
+    r
+  }
+
   // FIXME per-genotype
 
   def merge(g: Genotype): VariantQCCombiner = {
-    (g.call.map(_.gt): @unchecked) match {
+    (g.gt: @unchecked) match {
       case Some(0) =>
         nHomRef += 1
-        dpSC.merge(g.dp)
-        dpHomRefSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomRefSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHomRefSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHomRefSC.merge(v)
+        }
       case Some(1) =>
         nHet += 1
-        refDepth += g.ad._1
-        altDepth += g.ad._2
-        dpSC.merge(g.dp)
-        dpHetSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHetSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHetSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHetSC.merge(v)
+        }
       case Some(2) =>
         nHomVar += 1
-        dpSC.merge(g.dp)
-        dpHomVarSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomVarSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHomVarSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHomVarSC.merge(v)
+        }
       case None =>
         nNotCalled += 1
     }
@@ -118,15 +132,11 @@ class VariantQCCombiner extends Serializable {
     nHomRef += that.nHomRef
     nHet += that.nHet
     nHomVar += that.nHomVar
-    refDepth += that.refDepth
-    altDepth += that.altDepth
 
-    dpSC.merge(that.dpSC)
     dpHomRefSC.merge(that.dpHomRefSC)
     dpHetSC.merge(that.dpHetSC)
     dpHomVarSC.merge(that.dpHomVarSC)
 
-    gqSC.merge(that.gqSC)
     gqHomRefSC.merge(that.gqHomRefSC)
     gqHetSC.merge(that.gqHetSC)
     gqHomVarSC.merge(that.gqHomVarSC)
