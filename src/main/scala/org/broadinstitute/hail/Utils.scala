@@ -14,8 +14,6 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.variant.Variant
-import org.scalacheck.Gen
-import org.scalacheck.Arbitrary._
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
