@@ -380,7 +380,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Genotype](c, lhs)(_.isNotCalled)
     case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](c, lhs)(_.nNonRefAlleles)
     case (TGenotype, "pAB") =>
-      AST.evalFlatCompose[Genotype](c, lhs)(_.pAB())
+      AST.evalFlatCompose[Genotype](c, lhs)(g => () => g.pAB())
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](c, lhs)(_.contig)
@@ -651,6 +651,8 @@ case class Apply(posn: Position, f: AST, args: Array[AST]) extends AST(posn, f +
     case (TString, Array(TInt)) =>
       AST.evalCompose[String, Int](c, f, args(0))((s, i) => s(i))
 
+    case (TFunction(Array(), returnType), Array()) =>
+      AST.evalCompose[() => Any](c, f)(f => f())
     case (TFunction(Array(paramType), returnType), Array(argType)) =>
       AST.evalCompose[(Any) => Any, Any](c, f, args(0))((f, a) => f(a))
     case (TFunction(Array(param1Type, param2Type), returnType), Array(arg1Type, arg2Type)) =>
