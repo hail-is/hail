@@ -83,6 +83,7 @@ object Main {
       GQByDP,
       Import,
       LinearRegressionCommand,
+      LinearRegressionFromHardCallSetCommand,
       MendelErrorsCommand,
       SplitMulti,
       PCA,
@@ -90,7 +91,8 @@ object Main {
       Repartition,
       SampleQC,
       VariantQC,
-      Write
+      Write,
+      WriteHardCallSet
     )
 
     val nameCommand = commands

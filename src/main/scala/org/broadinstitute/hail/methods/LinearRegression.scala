@@ -134,6 +134,65 @@ object LinearRegression {
   }
 }
 
+object LinearRegressionFromHardCallSet {
+  def name = "LinearRegressionFromHardCallSet"
+
+  def apply(hcs: HardCallSet, ped: Pedigree, cov: CovariateData): LinearRegression = {
+    // LinearRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
+    require(cov.covRowSample.forall(ped.phenotypedSamples)) // FIXME: filtering for hcs
+
+    val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
+
+    val n = cov.data.rows
+    val k = cov.data.cols
+    val d = n - k - 2
+    if (d < 1)
+      throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
+
+    info(s"Running linreg on $n samples and $k covariates...")
+
+    val sc = hcs.rdd.sparkContext
+    val sampleCovRowBc = sc.broadcast(sampleCovRow)
+    val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
+    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
+
+    val samplePheno = ped.samplePheno
+    val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
+    val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
+    val y = DenseVector[Double](yArray)
+    val qt = qr.reduced.justQ(covAndOnesVector).t
+    val qty = qt * y
+
+    val yBc = sc.broadcast(y)
+    val qtBc = sc.broadcast(qt)
+    val qtyBc = sc.broadcast(qty)
+    val yypBc = sc.broadcast((y dot y) - (qty dot qty))
+
+    new LinearRegression(hcs.rdd
+      .mapValues{ dcs =>
+        val DenseStats(x, xx, xy, nMissing) = dcs.denseStats(yBc.value, n)
+
+        if (x.length == 0 || (x.length == n && xx == n) || xx == 4 * n) // Could store as Boolean rather than checking here
+          None
+        else {
+          val qtx = qtBc.value * x
+          val qty = qtyBc.value
+          val xxp: Double = xx - (qtx dot qtx)
+          val xyp: Double = xy - (qtx dot qty)
+          val yyp: Double = yypBc.value
+
+          val b: Double = xyp / xxp
+          val se = math.sqrt((yyp / xxp - b * b) / d)
+          val t = b / se
+          val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+
+          Some(LinRegStats(nMissing, b, se, t, p))
+        }
+      }
+    )
+  }
+}
+
 case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
   def write(filename: String) {
     def toLine(v: Variant, olrs: Option[LinRegStats]) = olrs match {

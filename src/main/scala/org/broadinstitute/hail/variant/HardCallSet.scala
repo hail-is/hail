@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.variant
 
 import breeze.linalg.DenseVector
+import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
@@ -10,34 +11,46 @@ import scala.collection.mutable.ArrayBuffer
 
 object HardCallSet {
   def apply(vds: VariantDataset): HardCallSet = {
-
     val n = vds.nSamples
 
-    HardCallSet(vds.rdd.map{ case (v, va, gs) => (v, DenseCallStream(gs, n)) }, n)
+    new HardCallSet(
+      vds.rdd.map { case (v, va, gs) => (v, DenseCallStream(gs, n)) },
+      vds.metadata.sampleIds)
   }
 
   def read(sqlContext: SQLContext, dirname: String): HardCallSet = {
     require(dirname.endsWith(".hcs"))
     import RichRow._
 
-    // need a better suffix than .ser?
-    val nSamples = readDataFile(dirname + "/metadata.ser", sqlContext.sparkContext.hadoopConfiguration) (_.readInt())
+    val sampleIds = readDataFile(dirname + "/sampleIds.ser",
+      sqlContext.sparkContext.hadoopConfiguration) {
+      dis => {
+        val serializer = SparkEnv.get.serializer.newInstance()
+        serializer.deserializeStream(dis).readObject[IndexedSeq[String]]
+      }
+    }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
-    new HardCallSet(df.rdd.map(r =>
-      (r.getVariant(0), r.getDenseCallStream(1))), nSamples)
+    new HardCallSet(
+      df.rdd.map(r => (r.getVariant(0), r.getDenseCallStream(1))),
+      sampleIds)
   }
 }
 
-case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], nSamples: Int) {
+case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], sampleIds: IndexedSeq[String]) {
   def write(sqlContext: SQLContext, dirname: String) {
     require(dirname.endsWith(".hcs"))
     import sqlContext.implicits._
 
     val hConf = rdd.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
-    writeDataFile(dirname + "/metadata.ser", hConf) (_.writeInt(nSamples))
+    writeDataFile(dirname + "/sampleIds.ser", hConf) {
+      dos => {
+        val serializer = SparkEnv.get.serializer.newInstance()
+        serializer.serializeStream(dos).writeObject(sampleIds)
+      }
+    }
 
     rdd.toDF().write.parquet(dirname + "/rdd.parquet")
   }
@@ -45,14 +58,17 @@ case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], nSamples: Int) {
 
 object DenseCallStream {
 
-  def apply(gs: Iterable[Genotype], n: Int): DenseCallStream = {
+  def apply(gs: Iterable[Genotype], n: Int) =
+    DenseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
+
+  def DenseCallStreamFromGtStream(gts: Iterable[Int], n: Int): DenseCallStream = {
     var x = Array.ofDim[Int](n)
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
 
-    for ((g, i) <- gs.view.zipWithIndex)
-      g.call.map(_.gt).getOrElse(3) match {
+    for ((gt, i) <- gts.view.zipWithIndex)
+      gt match {
         case 0 =>
           x(i) = 0
         case 1 =>
@@ -64,10 +80,11 @@ object DenseCallStream {
           sumX += 2
           sumXX += 4
         case _ =>
+          x(i) = 3
           nMissing += 1
       }
 
-    val meanX = sumX.toDouble / n
+    val meanX = sumX.toDouble / (n - nMissing)
 
     new DenseCallStream(
       denseByteArray(x),
@@ -82,7 +99,7 @@ object DenseCallStream {
 
     var i = 0
     var j = 0
-    while (i < gts.length - 4) {
+    while (i < gts.length - 3) {
       a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4 | gts(i + 3) << 6).toByte
       i += 4
       j += 1
@@ -131,24 +148,24 @@ case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissin
       }
     }
 
-    while (i < n - 4) {
+    while (i < n - 3) {
       val b = a(j)
-      merge(i,     b & mask00000011)
-      merge(i + 1, b & mask00001100)
-      merge(i + 2, b & mask00110000)
-      merge(i + 3, b & mask11000000)
+      merge(i,      b & mask00000011)
+      merge(i + 1, (b & mask00001100) >> 2)
+      merge(i + 2, (b & mask00110000) >> 4)
+      merge(i + 3, (b & mask11000000) >> 6)
 
       i += 4
       j += 1
     }
 
     n - i match {
-      case 1 =>  merge(i,     a(j) & mask00000011)
-      case 2 =>  merge(i,     a(j) & mask00000011)
-                 merge(i + 1, a(j) & mask00001100)
-      case 3 =>  merge(i,     a(j) & mask00000011)
-                 merge(i + 1, a(j) & mask00001100)
-                 merge(i + 2, a(j) & mask00110000)
+      case 1 =>  merge(i,      a(j) & mask00000011)
+      case 2 =>  merge(i,      a(j) & mask00000011)
+                 merge(i + 1, (a(j) & mask00001100) >> 2)
+      case 3 =>  merge(i,      a(j) & mask00000011)
+                 merge(i + 1, (a(j) & mask00001100) >> 2)
+                 merge(i + 2, (a(j) & mask00110000) >> 4)
       case _ =>
     }
 
@@ -165,7 +182,7 @@ case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissin
 
   def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
 
-  override def toString = a.map(b => toIntsString(b)).mkString("[", ", ", "]")
+  override def toString = s"${a.map(b => toIntsString(b)).mkString("[", ", ", "]")}, $meanX, $sumXX, $nMissing"
 }
 
 /*
