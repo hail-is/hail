@@ -49,7 +49,7 @@ object FilterGenotypes extends Command {
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
 
-    val noCall = Genotype(-1, (0, 0), 0, null)
+    val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
       (v: Variant, va: Annotations, s: Int, g: Genotype) => {
         a(0) = v

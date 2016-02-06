@@ -25,7 +25,7 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.dad)
     else if (code == 4 || code == 7 || code == 9  || code == 10) Iterator(trio.kid, trio.mom)
     else                                                         Iterator(trio.kid) }
-    .map((_, (1, if (variant.isSNP) 1 else 0)))
+    .map((_, (1, if (variant.altAllele.isSNP) 1 else 0)))
 
   def toLineMendel(sampleIds: IndexedSeq[String]): String = {
     val v = variant
@@ -128,7 +128,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def nErrorPerNuclearFamily: RDD[((Int, Int), (Int, Int))] = {
     val parentsRDD = sc.parallelize(nuclearFams.keys.toSeq)
     mendelErrors
-      .map(me => ((me.trio.dad, me.trio.mom), (1, if (me.variant.isSNP) 1 else 0)))
+      .map(me => ((me.trio.dad, me.trio.mom), (1, if (me.variant.altAllele.isSNP) 1 else 0)))
       .union(parentsRDD.map((_, (0, 0))))
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }

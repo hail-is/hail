@@ -1,33 +1,51 @@
 package org.broadinstitute.hail.vcf
 
-import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.driver.{SplitMulti, State}
 import org.broadinstitute.hail.methods.LoadVCF
+import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix, VariantDataset, Variant}
+import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.check.Prop._
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils.simpleAssert
 
 class SplitSuite extends SparkSuite {
-  @Test def SplitTest() {
 
-    val file1 = "src/test/resources/split_test.vcf"
-    val file2 = "src/test/resources/split_test_b.vcf"
+  object Spec extends Properties("MultiSplit") {
+    property("fakeRef implies wasSplit") =
+      forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vds: VariantDataset) =>
+        var s = State(sc, sqlContext, vds)
+        s = SplitMulti.run(s, Array[String]())
+        s.vds.mapWithAll((v: Variant, va: Annotations, _: Int, g: Genotype) =>
+          !g.fakeRef || va.attrs("wasSplit").asInstanceOf[Boolean])
+          .collect()
+          .forall(identity)
+      }
+  }
 
-    val vds1 = LoadVCF(sc, file1)
-    val vds2 = LoadVCF(sc, file2)
+  @Test def splitTest() {
+    Spec.check()
+
+    val vds1m = LoadVCF(sc, "src/test/resources/split_test.vcf")
+
+    var s = State(sc, sqlContext)
+    s = s.copy(vds = vds1m)
+    s = SplitMulti.run(s, Array[String]())
+    val vds1 = s.vds
+
+    val vds2 = LoadVCF(sc, "src/test/resources/split_test_b.vcf")
 
     // test splitting and downcoding
     vds1.mapWithKeys((v, s, g) => ((v, s), g.copy(fakeRef = false)))
       .join(vds2.mapWithKeys((v, s, g) => ((v, s), g)))
-      .foreach { case (k, (g1,  g2)) =>
-        if (g1.isNotCalled && g2.isNotCalled)
-          None
-        else
-          simpleAssert(g1 == g2)
-      }
+      .foreach { case (k, (g1, g2)) => simpleAssert(g1 == g2) }
 
     // test for wasSplit
-    vds1.mapWithAll((v, va, s, g) => (v.start, va.attrs.contains("multiallelic")))
-      .foreach{case (i, b) => simpleAssert(b == (i != 1180))}
+    vds1.mapWithAll((v, va, s, g) => (v.start, va.attrs("wasSplit").asInstanceOf[Boolean]))
+      .foreach { case (i, b) =>
+        simpleAssert(b == (i != 1180))
+      }
 
     // test for fakeRef
     assert(vds1.mapWithKeys((v, s, g) => ((v.start, v.alt, s), g.fakeRef)).filter(_._2).map(_._1.toString).collect.toSet
