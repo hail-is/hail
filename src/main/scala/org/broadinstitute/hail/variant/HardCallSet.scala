@@ -4,19 +4,16 @@ import breeze.linalg.DenseVector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.methods.DenseStats
 
 import scala.collection.mutable.ArrayBuffer
 
 object HardCallSet {
   def apply(vds: VariantDataset): HardCallSet = {
 
-    def toDenseCallStream(gs: Iterable[Genotype]): DenseCallStream = {
-      DenseCallStream( gs.iterator.map(g => g.call.map(_.gt).getOrElse(3)).toArray )
-    }
+    val n = vds.nSamples
 
-    HardCallSet(
-      vds.rdd.map{ case (v, va, gs) => (v, toDenseCallStream(gs)) },
-      vds.nSamples)
+    HardCallSet(vds.rdd.map{ case (v, va, gs) => (v, DenseCallStream(gs, n)) }, n)
   }
 
   def read(sqlContext: SQLContext, dirname: String): HardCallSet = {
@@ -28,7 +25,8 @@ object HardCallSet {
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
-    new HardCallSet(df.rdd.map(r => (r.getVariant(0), DenseCallStream(r.getByteArray(1)))), nSamples)
+    new HardCallSet(df.rdd.map(r =>
+      (r.getVariant(0), r.getDenseCallStream(1))), nSamples)
   }
 }
 
@@ -41,13 +39,44 @@ case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], nSamples: Int) {
     hadoopMkdir(dirname, hConf)
     writeDataFile(dirname + "/metadata.ser", hConf) (_.writeInt(nSamples))
 
-    rdd.mapValues(_.a).toDF().write.parquet(dirname + "/rdd.parquet")
+    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
   }
 }
 
 object DenseCallStream {
 
-  def apply(gts: Array[Int]): DenseCallStream = {
+  def apply(gs: Iterable[Genotype], n: Int): DenseCallStream = {
+    var x = Array.ofDim[Int](n)
+    var sumX = 0
+    var sumXX = 0
+    var nMissing = 0
+
+    for ((g, i) <- gs.view.zipWithIndex)
+      g.call.map(_.gt).getOrElse(3) match {
+        case 0 =>
+          x(i) = 0
+        case 1 =>
+          x(i) = 1
+          sumX += 1
+          sumXX += 1
+        case 2 =>
+          x(i) = 2
+          sumX += 2
+          sumXX += 4
+        case _ =>
+          nMissing += 1
+      }
+
+    val meanX = sumX.toDouble / n
+
+    new DenseCallStream(
+      denseByteArray(x),
+      meanX,
+      sumXX + meanX * meanX * nMissing,
+      nMissing)
+  }
+
+  def denseByteArray(gts: Array[Int]): Array[Byte] = {
 
     val a = Array.ofDim[Byte]((gts.length + 3) / 4)
 
@@ -66,12 +95,12 @@ object DenseCallStream {
       case _ =>
     }
 
-    DenseCallStream(a)
+    a
   }
 }
 
 
-case class DenseCallStream(a: Array[Byte]) { //extends CallStream {
+case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int) { //extends CallStream {
 
   def denseStats(y: DenseVector[Double] , n: Int): DenseStats = {
 
@@ -79,10 +108,7 @@ case class DenseCallStream(a: Array[Byte]) { //extends CallStream {
     var j = 0
 
     val x = Array.ofDim[Double](n)
-    var sumX = 0
-    var sumXX = 0
     var sumXY = 0.0
-    val missingRows = ArrayBuffer[Int]()
 
     val mask00000011 = 3
     val mask00001100 = 3 << 2
@@ -92,19 +118,16 @@ case class DenseCallStream(a: Array[Byte]) { //extends CallStream {
     def merge(i: Int, gt: Int) {
       gt match {
         case 0 =>
-          x(i) = 0 // would it be faster to initialize to 0 and leave this case out?
+          x(i) = 0
         case 1 =>
           x(i) = 1
-          sumX += 1
-          sumXX += 1
           sumXY += y(i)
         case 2 =>
           x(i) = 2
-          sumX += 2
-          sumXX += 4
           sumXY += 2 * y(i)
         case 3 =>
-          missingRows += i
+          x(i) = this.meanX
+          sumXY += this.meanX * y(i)
       }
     }
 
@@ -128,16 +151,6 @@ case class DenseCallStream(a: Array[Byte]) { //extends CallStream {
                  merge(i + 2, a(j) & mask00110000)
       case _ =>
     }
-
-    val nMissing = missingRows.size
-    val nPresent = n - nMissing
-    val meanX = sumX.toDouble / nPresent
-
-    for (r <- missingRows)
-      x(r) = meanX
-
-    val xx = sumXX + meanX * meanX * nMissing
-    val xy = sumXY + meanX * missingRows.iterator.map(y(_)).sum
 
     DenseStats(DenseVector(x), sumXX, sumXY, nMissing)
   }
