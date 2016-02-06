@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 
 class HardCallSetSuite extends SparkSuite {
   @Test def test() {
-    val d = DenseCallStream(Array[Int](0,1,2,3,3,2,1,0,1,2))
+    val d = DenseCallStream.DenseCallStreamFromGtStream(Array(0,1,2,3), 4)
 
     println(d)
 
