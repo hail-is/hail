@@ -45,8 +45,8 @@ class TSVCompressor(path: String, vColumns: IndexedSeq[String],
       .toMap)
 
     val excluded = vColumns.toSet
-    val functions = header.map(col => AnnotationImporters.addToMap(typeMap.getOrElse(col, "String"), col, missing, excluded)).toIndexedSeq
-    val bbb = new ByteBlockBuilder[IndexedSeq[Option[Any]]]()
+    val functions = header.map(col => VariantAnnotator.addToMap(typeMap.getOrElse(col, "String"), col, missing, excluded)).toIndexedSeq
+    val bbb = new ByteBlockBuilder[IndexedSeq[Option[Any]]](serializer)
 
     var i = 1
     val variantMap = lines.map {
@@ -63,7 +63,7 @@ class TSVCompressor(path: String, vColumns: IndexedSeq[String],
           .toIndexedSeq
         if (i % 100000 == 0)
           println("line " + i + " " + indexedValues)
-        val variantIndex = bbb.add(indexedValues, serializer)
+        val variantIndex = bbb.add(indexedValues)
         (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), variantIndex)
     }
       .toArray
@@ -74,7 +74,7 @@ class TSVCompressor(path: String, vColumns: IndexedSeq[String],
     (header.flatMap(line => if (!vColumns.contains(line)) Some(line) else None).toIndexedSeq,
       signatures,
       variantMap,
-      bbb.finish(serializer))
+      bbb.result())
   }
 }
 
@@ -110,7 +110,7 @@ class VCFCompressor(path: String) {
       "multiallelic" -> new SimpleSignature("Boolean"),
       "rsid" -> new SimpleSignature("String")))
 
-    val bbb = new ByteBlockBuilder[Annotations]()
+    val bbb = new ByteBlockBuilder[Annotations](serializer)
 
 
     val variantMap = Source.fromInputStream(hadoopOpen(path, conf))
@@ -140,7 +140,7 @@ class VCFCompressor(path: String) {
             "filters" -> filts,
             "pass" -> pass,
             "rsid" -> rsid))
-          val variantIndex = bbb.add(anno, serializer)
+          val variantIndex = bbb.add(anno)
           Iterator.single((variant, variantIndex))
         }
         else {
@@ -153,7 +153,7 @@ class VCFCompressor(path: String) {
               .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
               .toMap
               .map {
-                case (k, v) => (k, HtsjdkRecordReader.mapTypeMultiallelic(v, infoSignatures.get[VCFSignature](k),
+                case (k, v) => (k, VCFReader.mapTypeMultiallelic(v, infoSignatures.get[VCFSignature](k),
                   index))
               }),
               "qual" -> vc.getPhredScaledQual,
@@ -161,7 +161,7 @@ class VCFCompressor(path: String) {
               "pass" -> pass,
               "rsid" -> rsid,
               "multiallelic" -> true))
-            val variantIndex = bbb.add(anno, serializer)
+            val variantIndex = bbb.add(anno)
             (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString), variantIndex)
           }
             .iterator
@@ -172,18 +172,18 @@ class VCFCompressor(path: String) {
     val t1 = System.nanoTime()
     println(s"read vcf took ${formatTime(t1 - t0)} seconds")
 
-    (signatures, variantMap, bbb.finish(serializer))
+    (signatures, variantMap, bbb.result())
   }
 }
 
-class ByteBlockBuilder[T](blockSize: Int = 3)(implicit ev: ClassTag[T]) {
+class ByteBlockBuilder[T](ser: SerializerInstance, blockSize: Int = 10)(implicit ev: ClassTag[T]) {
   val compressedArrays = mutable.ArrayBuilder.make[(Int, Array[Byte])]
   var buildingBlock = mutable.ArrayBuilder.make[T]
   var count = 0
   var index = 0
 
 
-  def add(element: T, ser: SerializerInstance): (Int, Int) = {
+  def add(element: T): (Int, Int) = {
     buildingBlock += element
     val innerIndex = count
     count += 1
@@ -200,7 +200,7 @@ class ByteBlockBuilder[T](blockSize: Int = 3)(implicit ev: ClassTag[T]) {
       (index, innerIndex)
   }
 
-  def finish(ser: SerializerInstance): Array[(Int, Array[Byte])] = {
+  def result(): Array[(Int, Array[Byte])] = {
     val res = ser.serialize(buildingBlock.result()).array()
     compressedArrays += ((res.length, LZ4Utils.compress(res)))
     val compressedResult = compressedArrays.result()

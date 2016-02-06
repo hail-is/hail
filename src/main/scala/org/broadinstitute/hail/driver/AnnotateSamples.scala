@@ -36,6 +36,8 @@ object AnnotateSamples extends Command {
 
   def description = "Annotate samples in current dataset"
 
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 

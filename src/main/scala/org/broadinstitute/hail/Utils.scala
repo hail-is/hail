@@ -509,6 +509,11 @@ object Utils {
     sys.exit(1)
   }
 
+  def fatalIf(b: Boolean, msg: String): Unit = {
+    if (b)
+      fatal(msg)
+  }
+
   def warn(msg: String) {
     System.err.println("hail: warning: " + msg)
   }

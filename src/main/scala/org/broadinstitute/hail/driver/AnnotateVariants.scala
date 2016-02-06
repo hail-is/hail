@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.SparkEnv
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.methods._
@@ -20,15 +21,11 @@ object AnnotateVariants extends Command {
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
       usage = "Place annotations in the path 'va.<root>.<field>, or va.<field> if not specified'")
-    var annotationRoot: String = _
+    var root: String = _
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = "Specify additional identifiers to be treated as missing (default: 'NA')")
     var missingIdentifiers: String = "NA"
-
-    @Args4jOption(required = false, name = "--intervals",
-      usage = "indicates that the given TSV is an interval file")
-    var intervalFile: Boolean = _
 
     @Args4jOption(required = false, name = "--identifier", usage = "For an interval list, use one boolean " +
       "for all intervals (set to true) with the given identifier.  If not specified, will expect a target column")
@@ -38,11 +35,6 @@ object AnnotateVariants extends Command {
       usage = "Specify the column identifiers for chromosome, position, ref, and alt (in that order)" +
         " (default: 'Chromosome,Position,Ref,Alt'")
     var vCols: String = "Chromosome, Position, Ref, Alt"
-
-    @Args4jOption(required = false, name = "--icolumns",
-      usage = "Specify the column identifiers for chromosome, start, and end (in that order)" +
-        " (default: 'Chromosome,Start,End'")
-    var iCols: String = "Chromosome,Start,End"
   }
 
   def newOptions = new Options
@@ -50,6 +42,24 @@ object AnnotateVariants extends Command {
   def name = "annotatevariants"
 
   def description = "Annotate variants in current dataset"
+
+  def parseTypeMap(s: String): Map[String, String] = {
+    s.split(",")
+      .map(_.trim())
+      .map(s => s.split(":").map(_.trim()))
+      .map { arr =>
+        fatalIf(arr.length != 2, "parse error in type declaration")
+        arr
+      }
+      .map(arr => (arr(0), arr(1)))
+      .toMap
+  }
+
+  def parseMissing(s: String): Set[String] = {
+    s.split(",")
+      .map(_.trim())
+      .toSet
+  }
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -63,55 +73,42 @@ object AnnotateVariants extends Command {
     BED
     VCF info field
     */
-    val typeMap = options.types match {
-      case null => Map.empty[String, String]
-      case _ => options.types.split(",")
-        .map(_.trim())
-        .map(s => s.split(":").map(_.trim()))
-        .map { arr =>
-          if (arr.length != 2)
-            fatal("parse error in type declaration")
-          arr
-        }
-        .map(arr => (arr(0), arr(1)))
-        .toMap
-    }
-
-    val missing = options.missingIdentifiers
-      .split(",")
-      .map(_.trim())
-      .toSet
 
     val cond = options.condition
-    val newVds = {
-      if (cond.endsWith(".ser") || cond.endsWith(".ser.gz")) {
-        Annotate.annotateVariantsFromKryo(vds, cond, options.annotationRoot)
+
+    val annotator: VariantAnnotator = {
+      if (cond.endsWith(".interval_list") || cond.endsWith(".interval_list.gz")) {
+        fatalIf(options.identifier == null, "annotating from .interval_list files requires the argument 'identifier'")
+        new IntervalListAnnotator(cond, options.identifier, options.root)
       }
       else if (cond.endsWith(".tsv") || cond.endsWith(".tsv.gz")) {
         // this group works for interval lists and chr pos ref alt
-        if (options.intervalFile) {
-          val iCols = options.iCols.split(",").map(_.trim)
-          if (iCols.length != 3)
-            fatal(s"""Cannot read chr, start, end columns from "${options.iCols}": enter 3 comma-separated column identifiers""")
-          Annotate.annotateVariantsFromIntervalList(vds, cond, options.annotationRoot, typeMap, iCols, options.identifier)
-        }
-
         val vCols = options.vCols.split(",").map(_.trim)
-        if (vCols.length != 4)
-          fatal(s"""Cannot read chr, pos, ref, alt columns from "${options.vCols}": enter 4 comma-separated column identifiers""")
-
-        Annotate.annotateVariantsFromTSV(vds, cond, options.annotationRoot, typeMap, missing, vCols)
+        fatalIf(vCols.length != 4,
+          "Cannot read chr, pos, ref, alt columns from" + options.vCols +
+            ": enter 4 comma-separated column identifiers")
+        new TSVAnnotatorCompressed(cond, vCols, parseTypeMap(options.types),
+          parseMissing(options.missingIdentifiers), options.root)
       }
       else if (cond.endsWith(".bed") || cond.endsWith(".bed.gz"))
-        Annotate.annotateVariantsFromBed(vds, cond, options.annotationRoot)
+        new BedAnnotator(cond, options.root)
       else if (cond.endsWith(".vcf") || cond.endsWith(".vcf.gz") || cond.endsWith(".vcf.bgz")) {
-
-        Annotate.annotateVariantsFromVCF(vds, cond, options.annotationRoot)
+        new VCFAnnotatorCompressed(cond, options.root)
       }
       else
         throw new UnsupportedOperationException
     }
 
-    state.copy(vds = newVds)
+    val annotatorBc = vds.sparkContext.broadcast(annotator)
+
+    val newRdd = vds.rdd.mapPartitions(
+      iter => {
+        lazy val sz = SparkEnv.get.serializer.newInstance()
+        iter.map {
+          case (v, va, gs) => (v, annotatorBc.value.annotate(v, va, sz), gs)
+        }
+      })
+
+    state.copy(vds = vds.copy(rdd = newRdd))
   }
 }

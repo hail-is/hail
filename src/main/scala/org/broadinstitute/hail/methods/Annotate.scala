@@ -31,7 +31,7 @@ object Annotate {
         Some(line)
     }
 
-    val functions = header.map(col => AnnotationImporters.addToMap(
+    val functions = header.map(col => VariantAnnotator.addToMap(
       typeMap.getOrElse(col, "String"), col, missing, Set(sampleCol)))
 
     val sampleColIndex = header.indexOf(sampleCol)
@@ -50,13 +50,14 @@ object Annotate {
         .toMap
     }
 
-    println(sampleMap)
-
     val newSampleAnnotations = vds.sampleIds
       .map(id => sampleMap.get(id))
       .map(o => o match {
         case Some(values) =>
-          Annotations(cleanHeader.zip(values).toMap)
+          if (root != null)
+            Annotations(Map(root -> Annotations(cleanHeader.zip(values).toMap)))
+          else
+            Annotations(cleanHeader.zip(values).toMap)
         case None => Annotations.empty()
       })
 
@@ -74,7 +75,6 @@ object Annotate {
       else
         Annotations(Map(root -> Annotations(signatures)))
     }
-    println(sigsToAdd)
 
     val localIds = vds.localSamples.map(vds.sampleIds)
     val overlap = localIds.map(sampleMap.contains)
@@ -84,125 +84,5 @@ object Annotate {
 
     vds.copy(metadata = vds.metadata.addSampleAnnotations(
       sigsToAdd, newSampleAnnotations))
-  }
-
-  def annotateVariantsFromTSV(vds: VariantDataset, path: String, root: String, typeMap: Map[String, String],
-    missing: Set[String], vCols: IndexedSeq[String]): VariantDataset = {
-
-    val reader = new TSVReader(path, vCols, typeMap, missing)
-
-    val (header, sigs) = reader.metadata(vds.sparkContext.hadoopConfiguration)
-
-    println(root, sigs)
-
-    val headerBc = vds.sparkContext.broadcast(header)
-
-    val mapBc = vds.sparkContext.broadcast(reader.getValues)
-
-    vds.mapAnnotations(
-      (v, va) =>
-        mapBc.value.get(v) match {
-          case (Some(values)) =>
-            val va2 = Annotations(headerBc.value.zip(values).toMap)
-            if (root == null)
-              va ++ va2
-            else
-              va +(root, va2)
-          case None => va
-        })
-      .addVariantAnnotationSignatures(if (root == null) sigs else Annotations(Map(root -> sigs)))
-  }
-
-  def annotateVariantsFromIntervalList(vds: VariantDataset, path: String, root: String, typeMap: Map[String, String],
-    iCols: IndexedSeq[String], identifier: String): VariantDataset = {
-
-    throw new UnsupportedOperationException
-  }
-
-  def annotateVariantsFromBed(vds: VariantDataset, path: String, root: String): VariantDataset = {
-
-    throw new UnsupportedOperationException
-  }
-
-
-  def annotateVariantsFromVCF(vds: VariantDataset, path: String, root: String): VariantDataset = {
-    val reader = new VCFReader(path)
-    val signatures = reader.metadata(vds.sparkContext.hadoopConfiguration)
-    println(signatures)
-    val annotationMapBc = vds.sparkContext.broadcast(reader.getValues)
-    vds.mapAnnotations {
-      case (v, va) =>
-        annotationMapBc.value.get(v) match {
-          case Some(va2) => va ++ va2
-          case None => va
-        }
-    }
-      .addVariantAnnotationSignatures(root, signatures)
-  }
-
-  def annotateVariantsFromKryo(vds: VariantDataset, path: String, root: String): VariantDataset = {
-    println("starting read")
-
-    val reader = new KryoReader(path)
-
-    val (source, header, signatures) = reader.metadata(vds.sparkContext.hadoopConfiguration)
-
-    val valsBc = vds.sparkContext.broadcast(reader.getValues)
-
-    val headerBc = vds.sparkContext.broadcast(header)
-
-    val f: (Int, Int, SerializerInstance) => Annotations = {
-      source match {
-        case "vcf" =>
-          (index, innerIndex, ser) =>
-            val (length, bytes) = valsBc.value._2(index)
-            ser.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
-              .apply(innerIndex)
-        case "tsv" =>
-          (index, innerIndex, ser) =>
-            val (length, bytes) = valsBc.value._2(index)
-            Annotations(header.zip(
-              ser.deserialize[Array[IndexedSeq[Option[Any]]]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
-                .apply(innerIndex))
-              .flatMap {
-                case (k, v) => v match {
-                  case Some(value) => Some((k, value))
-                  case None => None
-                }
-              }
-              .toMap)
-        case _ => throw new UnsupportedOperationException
-      }
-    }
-
-    val newVds = vds.copy(rdd =
-      vds.rdd.mapPartitions(iter => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        iter.map {
-          case (v, va, gs) =>
-            valsBc.value._1.get(v) match {
-              case Some((index, innerIndex)) =>
-                val va2 = f(index, innerIndex, serializer)
-                if (root == null)
-                  (v, va ++ va2, gs)
-                else
-                  (v, va +(root, va2), gs)
-              case _ =>
-                if (root == null)
-                  (v, va, gs)
-                else
-                  (v, va +(root, Annotations.empty()), gs)
-            }
-        }
-      })
-    )
-      .addVariantAnnotationSignatures(
-        if (root == null)
-          signatures
-        else
-          Annotations(Map(root -> signatures))
-      )
-
-    newVds
   }
 }

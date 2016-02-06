@@ -65,11 +65,12 @@ object Main {
           acc :+ Array(s)
         else
           acc.init :+ (acc.last :+ s)
+
       }
     */
     val commands = Array(
       AnnotateSamples,
-      AnnotateVaria`nts,
+      AnnotateVariants,
       Cache,
       ConvertAnnotations,
       Count,
