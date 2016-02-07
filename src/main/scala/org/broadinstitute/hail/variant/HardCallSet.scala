@@ -11,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
 
 object HardCallSet {
   def apply(vds: VariantDataset): HardCallSet = {
-    val n = vds.nSamples
+    val n = vds.nLocalSamples
 
     new HardCallSet(
       vds.rdd.map { case (v, va, gs) => (v, DenseCallStream(gs, n)) },
@@ -85,6 +85,8 @@ object DenseCallStream {
       }
 
     val meanX = sumX.toDouble / (n - nMissing)
+
+    println(s"${x.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=$sumXX")
 
     new DenseCallStream(
       denseByteArray(x),

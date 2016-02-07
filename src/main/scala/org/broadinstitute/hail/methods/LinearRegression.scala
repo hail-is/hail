@@ -172,8 +172,12 @@ object LinearRegressionFromHardCallSet {
       .mapValues{ dcs =>
         val DenseStats(x, xx, xy, nMissing) = dcs.denseStats(yBc.value, n)
 
-        if (x.length == 0 || (x.length == n && xx == n) || xx == 4 * n) // Could store as Boolean rather than checking here
+        // FIXME: het condition is wrong, should store boolean instead.
+        println(s"$n samples, $xx sum of squares")
+        if (xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n) {
+          println(xx)
           None
+        }
         else {
           val qtx = qtBc.value * x
           val qty = qtyBc.value
