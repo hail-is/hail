@@ -13,7 +13,7 @@ object LinearRegressionFromHardCallSetCommand extends Command {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output root filename")
     var output: String = _
 
-    @Args4jOption(required = true, name = "-h", aliases = Array("--hcs"), usage = ".hcs file")
+    @Args4jOption(required = true, name = "-hcs", aliases = Array("--hcs"), usage = ".hcs file")
     var hcsFilename: String = _
 
     @Args4jOption(required = true, name = "-f", aliases = Array("--fam"), usage = ".fam file")
@@ -28,8 +28,9 @@ object LinearRegressionFromHardCallSetCommand extends Command {
     val hcs = HardCallSet.read(state.sqlContext, options.hcsFilename) // FIXME: assumes vds agrees with HardCallSet
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, hcs.sampleIds)
     val cov = CovariateData.read(options.covFilename, state.hadoopConf, hcs.sampleIds)
+      .filterSamples(ped.phenotypedSamples)
 
-    val linreg = LinearRegressionFromHardCallSet(hcs, ped, cov.filterSamples(ped.phenotypedSamples))
+    val linreg = LinearRegressionFromHardCallSet(hcs, ped, cov)
 
     linreg.write(options.output)
 

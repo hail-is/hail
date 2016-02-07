@@ -70,7 +70,7 @@ object DenseCallStream {
     for ((gt, i) <- gts.view.zipWithIndex)
       gt match {
         case 0 =>
-          x(i) = 0
+         // x(i) = 0
         case 1 =>
           x(i) = 1
           sumX += 1
@@ -86,7 +86,7 @@ object DenseCallStream {
 
     val meanX = sumX.toDouble / (n - nMissing)
 
-    println(s"${x.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=$sumXX")
+    // println(s"${x.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=$sumXX")
 
     new DenseCallStream(
       denseByteArray(x),
@@ -137,7 +137,7 @@ case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissin
     def merge(i: Int, gt: Int) {
       gt match {
         case 0 =>
-          x(i) = 0
+          // x(i) = 0
         case 1 =>
           x(i) = 1
           sumXY += y(i)

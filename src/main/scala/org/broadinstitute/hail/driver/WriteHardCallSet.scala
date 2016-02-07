@@ -28,9 +28,9 @@ object WriteHardCallSet extends Command {
     val sampleFilter: Int => Boolean =
       (options.famFilename, options.covFilename) match {
         case (null, null) => s => true
-        case (null,    _) =>
+        case (   _, null) =>
           Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds).phenotypedSamples
-        case (_   , null) =>
+        case (null,    _) =>
           CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds).covRowSample.toSet
         case _            =>
           Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds).phenotypedSamples intersect

@@ -17,9 +17,11 @@ class HardCallSetSuite extends SparkSuite {
     println(e.sampleIds)
     e.rdd.foreach(println)
 
-    //e.write(sqlContext, "/tmp/hardcalls.hcs")
-    //val f = HardCallSet.read(sqlContext, "/tmp/hardcalls.hcs")
-    //def toComp(hcs: HardCallSet) = hcs.rdd.mapValues(_.a.toList).collect().toSet
-    //assert(toComp(e) == toComp(f))
+    e.write(sqlContext, "/tmp/hardcalls.hcs")
+    val f = HardCallSet.read(sqlContext, "/tmp/hardcalls.hcs")
+
+    println(f.sampleIds)
+    def toComp(hcs: HardCallSet) = hcs.rdd.mapValues(_.a.toList).collect().toSet
+    assert(toComp(e) == toComp(f))
   }
 }
