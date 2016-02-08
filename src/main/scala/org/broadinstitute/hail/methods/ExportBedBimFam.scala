@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 
 object ExportBedBimFam {
 

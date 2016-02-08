@@ -4,10 +4,8 @@ import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.ExportBedBimFam
-import org.broadinstitute.hail.variant.{Variant, Genotype}
-import org.broadinstitute.hail.annotations.{VCFSignature, AnnotationData}
+import org.broadinstitute.hail.variant.Variant
 import org.kohsuke.args4j.{Option => Args4jOption}
-import java.time._
 
 object ExportPlink extends Command {
 

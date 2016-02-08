@@ -16,6 +16,6 @@ Hail's output is designed to mirror Plink's own VCF conversion using the followi
 plink --vcf ~/hail/src/test/resources/sample.vcf --make-bed --out sample --const-fid --keep-allele-order
 ```
 All differences between Hail's output and Plink's are enumerated below.
- - **.bed file**: equivalent within sample ordering
+ - **.bed file**: equivalent within multiallelic split variant ordering
  - **.fam file:**: agrees when Plink is run with `--const-fid` argument (FID is set to "0")
  - **.bim file:**: ID field will be different.  The above Plink command will copy the "RSID" field of the VCF into the .bim ID column, leaving huge numbers of IDs as ".".  Instead, Hail will encode each variant with an ID in the format "CHR:POS:REF:ALT".
