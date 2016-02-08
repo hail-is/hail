@@ -14,6 +14,8 @@ class BedAnnotator(path: String, root: String) extends VariantAnnotator {
   var name: String = null
   var f: (Variant, Annotations) => Annotations = null
 
+  val rooted = Annotator.rootFunction(root)
+
   def annotate(v: Variant, va: Annotations, sz: SerializerInstance): Annotations = {
     check()
     f(v, va)
@@ -67,22 +69,18 @@ class BedAnnotator(path: String, root: String) extends VariantAnnotator {
       case "String" =>
         (v, va) =>
           intervalList.query(v.contig, v.start) match {
-            case Some(result) => if (root == null) va +(name, result) else va +(root, Annotations(Map(name -> result)))
+            case Some(result) => va ++ rooted(Annotations(Map(name -> result)))
             case None => va
           }
       case "Boolean" =>
         (v, va) =>
           if (intervalList.contains(v.contig, v.start))
-            if (root == null) va +(name, true) else va +(root, Annotations(Map(name -> true)))
+            va ++ rooted(Annotations(Map(name -> true)))
           else
             va
     }
 
-    if (root == null)
-      Annotations(Map(name -> SimpleSignature(if (linesBoolean) "Boolean" else "String")))
-    else
-      Annotations(Map(root -> Annotations(Map(name -> SimpleSignature(if (linesBoolean) "Boolean" else "String")))))
-
+    rooted(Annotations(Map(name -> SimpleSignature(if (linesBoolean) "Boolean" else "String"))))
   }
 
   def read(conf: Configuration) {

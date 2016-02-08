@@ -18,13 +18,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
   @transient var compressedBlocks: IndexedSeq[(Int, Array[Byte])] = null
   @transient var headerIndex: IndexedSeq[String] = null
 
-  val rootFunction: Annotations => Annotations = {
-    va =>
-      if (root == null)
-        va
-      else
-        Annotations(Map(root -> va))
-  }
+  val rooted = Annotator.rootFunction(root)
 
   def annotate(v: Variant, va: Annotations, sz: SerializerInstance): Annotations = {
     check(sz)
@@ -43,7 +37,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
               }
           }
           .toMap
-        rootFunction(Annotations(map))
+        rooted(Annotations(map))
       case None => va
     }
   }
@@ -78,10 +72,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
           None)
         .toMap)
 
-      if (root == null)
-        anno
-      else
-        Annotations(Map(root -> anno))
+        rooted(Annotations(Map(root -> anno)))
     })
   }
 

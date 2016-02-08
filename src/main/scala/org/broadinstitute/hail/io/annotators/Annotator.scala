@@ -23,6 +23,14 @@ abstract class SampleAnnotator {
 
 object Annotator {
 
+  def rootFunction(root: String): Annotations => Annotations = {
+      va =>
+        if (root == null)
+          va
+        else
+          Annotations(Map(root -> va))
+    }
+
   def parseField(typeString: String, k: String, missing: Set[String], excluded: Set[String]):
   (String) => Option[Any] = {
 

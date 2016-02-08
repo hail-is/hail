@@ -12,6 +12,8 @@ class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, S
 
   val (parsedHeader, signatures, sampleMap) = read(new Configuration())
 
+  val rooted = Annotator.rootFunction(root)
+
   def annotate(s: String, sa: Annotations): Annotations = {
     sampleMap.get(s) match {
       case Some(fields) =>
@@ -23,10 +25,7 @@ class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, S
             }
           }
           .toMap)
-        if (root != null)
-          sa +(root, sa2)
-        else
-          sa ++ sa2
+          sa ++ rooted(sa2)
       case None => sa
     }
   }
