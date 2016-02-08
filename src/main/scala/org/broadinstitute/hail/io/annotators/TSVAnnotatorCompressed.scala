@@ -37,7 +37,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
               }
           }
           .toMap
-        rooted(Annotations(map))
+        va ++ rooted(Annotations(map))
       case None => va
     }
   }
@@ -72,13 +72,11 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
           None)
         .toMap)
 
-        rooted(Annotations(Map(root -> anno)))
+      rooted(anno)
     })
   }
 
   def read(conf: Configuration, serializer: SerializerInstance) {
-    println("starting parse")
-    val t0 = System.nanoTime()
     val lines = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
       .filter(line => !line.isEmpty)
@@ -129,10 +127,21 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
     }
       .toMap
 
-    val t1 = System.nanoTime()
-    println(s"read tsv took ${formatTime(t1 - t0)} seconds")
-
     internalMap = variantMap
     compressedBlocks = bbb.result()
+  }
+
+  def serialize(path: String, sz: SerializerInstance) {
+    val conf = new Configuration()
+    val signatures = metadata(conf)
+    check(sz)
+
+    val stream = sz.serializeStream(hadoopCreate(path, conf))
+      .writeObject[String]("tsv")
+      .writeObject[IndexedSeq[String]](headerIndex)
+      .writeObject[Annotations](signatures)
+      .writeObject(internalMap)
+      .writeObject(compressedBlocks)
+      .close()
   }
 }

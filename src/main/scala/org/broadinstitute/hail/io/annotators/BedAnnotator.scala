@@ -10,9 +10,9 @@ import scala.io.Source
 
 class BedAnnotator(path: String, root: String) extends VariantAnnotator {
   @transient var intervalList: IntervalList = null
-  var extractType: String = null
-  var name: String = null
-  var f: (Variant, Annotations) => Annotations = null
+  @transient var extractType: String = null
+  @transient var name: String = null
+  @transient var f: (Variant, Annotations) => Annotations = null
 
   val rooted = Annotator.rootFunction(root)
 
@@ -35,8 +35,6 @@ class BedAnnotator(path: String, root: String) extends VariantAnnotator {
         line.startsWith("track") ||
         line.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
       .toList
-
-    println(headerLines)
 
     val filt = headerLines.filter(s => s.startsWith("track"))
     if (filt.length != 1)
@@ -84,7 +82,6 @@ class BedAnnotator(path: String, root: String) extends VariantAnnotator {
   }
 
   def read(conf: Configuration) {
-    println("READING THE FILE")
     val headerLength = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
       .takeWhile(line =>

@@ -51,14 +51,15 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
   @transient var indexMap: Map[Variant, (Int, Int)] = null
   @transient var compressedBlocks: IndexedSeq[(Int, Array[Byte])] = null
 
+  val rooted = Annotator.rootFunction(root)
+
   def annotate(v: Variant, va: Annotations, sz: SerializerInstance): Annotations = {
     check(sz)
     indexMap.get(v) match {
       case Some((i, j)) =>
         val (length, bytes) = compressedBlocks(i)
-        val va2 = Annotations(Map(root -> sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
+        va  ++ Annotations(Map(root -> sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
           .apply(j)))
-        va ++ va2
       case None => va
     }
   }
@@ -88,17 +89,16 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
       .map(line => (line.getID, VCFSignature.parse(line)))
       .toMap)
 
-    Annotations(Map("info" -> infoSignatures,
+    rooted(Annotations(Map("info" -> infoSignatures,
       "filters" -> new SimpleSignature("Set[String]"),
       "pass" -> new SimpleSignature("Boolean"),
       "qual" -> new SimpleSignature("Double"),
       "wasSplit" -> new SimpleSignature("Boolean"),
-      "rsid" -> new SimpleSignature("String")))
+      "rsid" -> new SimpleSignature("String"))))
   }
 
 
   def read(conf: Configuration, sz: SerializerInstance) {
-    val t0 = System.nanoTime()
 
     val headerLines = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
@@ -175,8 +175,19 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
       .toMap
 
     compressedBlocks = bbb.result()
+  }
 
-    val t1 = System.nanoTime()
-    println(s"read vcf took ${formatTime(t1 - t0)} seconds")
+  def serialize(path: String, sz: SerializerInstance) {
+    val conf = new Configuration()
+    val signatures = metadata(conf)
+    check(sz)
+
+    val stream = sz.serializeStream(hadoopCreate(path, conf))
+      .writeObject[String]("vcf")
+      .writeObject[IndexedSeq[String]](null)
+      .writeObject[Annotations](signatures)
+      .writeObject(indexMap)
+      .writeObject(compressedBlocks)
+      .close()
   }
 }

@@ -28,7 +28,6 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
   }
 
   def read(conf: Configuration, sz: SerializerInstance) {
-    println("starting kryo read")
     val t0 = System.nanoTime()
     val dsStream = sz
       .deserializeStream(hadoopOpen(path, conf))
@@ -37,7 +36,7 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
     cleanHeader = dsStream.readObject[IndexedSeq[String]]
     val sigs = dsStream.readObject[Annotations]
     variantIndexes = dsStream.readObject[Map[Variant, (Int, Int)]]
-    compressedBytes = dsStream.readObject[Array[(Int, Array[Byte])]]
+    compressedBytes = dsStream.readObject[IndexedSeq[(Int, Array[Byte])]]
 
     f = {
       inputType match {
@@ -69,9 +68,6 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
         case _ => throw new UnsupportedOperationException
       }
     }
-
-    val t1 = System.nanoTime()
-    println(s"kryo read took ${formatTime(t1 - t0)} seconds")
   }
 
   def metadata(conf: Configuration): Annotations = {
@@ -81,6 +77,6 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
       .deserializeStream(hadoopOpen(path, conf))
     val (source, header) = (serializerStream.readObject[String],
       serializerStream.readObject[IndexedSeq[String]])
-    serializerStream.readObject[Annotations]
+    rooted(serializerStream.readObject[Annotations])
   }
 }

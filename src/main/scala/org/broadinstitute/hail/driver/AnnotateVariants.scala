@@ -63,6 +63,14 @@ object AnnotateVariants extends Command {
       .toSet
   }
 
+  def parseColumns(s: String): Array[String] = {
+    val split = s.split(",").map(_.trim)
+    fatalIf(split.length != 4,
+      "Cannot read chr, pos, ref, alt columns from '" + s +
+      "': enter 4 comma-separated column identifiers")
+    split
+  }
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -74,18 +82,16 @@ object AnnotateVariants extends Command {
         new IntervalListAnnotator(cond, options.identifier, options.root)
       }
       else if (cond.endsWith(".tsv") || cond.endsWith(".tsv.gz")) {
-        // this group works for interval lists and chr pos ref alt
-        val vCols = options.vCols.split(",").map(_.trim)
-        fatalIf(vCols.length != 4,
-          "Cannot read chr, pos, ref, alt columns from" + options.vCols +
-            ": enter 4 comma-separated column identifiers")
-        new TSVAnnotatorCompressed(cond, vCols, parseTypeMap(options.types),
+        new TSVAnnotatorCompressed(cond, parseColumns(options.vCols), parseTypeMap(options.types),
           parseMissing(options.missingIdentifiers), options.root)
       }
       else if (cond.endsWith(".bed") || cond.endsWith(".bed.gz"))
         new BedAnnotator(cond, options.root)
       else if (cond.endsWith(".vcf") || cond.endsWith(".vcf.gz") || cond.endsWith(".vcf.bgz")) {
         new VCFAnnotatorCompressed(cond, options.root)
+      }
+      else if (cond.endsWith(".ser") || cond.endsWith(".ser.gz")) {
+        new SerializedAnnotator(cond, options.root)
       }
       else
         throw new UnsupportedOperationException

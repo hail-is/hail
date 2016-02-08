@@ -11,8 +11,8 @@ import scala.io.Source
 class IntervalListAnnotator(path: String, identifier: String, root: String)
   extends VariantAnnotator {
   @transient var intervalList: IntervalList = null
-  var extractType: String = null
-  var f: (Variant, Annotations) => Annotations = null
+  @transient var extractType: String = null
+  @transient var f: (Variant, Annotations) => Annotations = null
 
 val rooted = Annotator.rootFunction(root)
 
@@ -42,13 +42,13 @@ val rooted = Annotator.rootFunction(root)
       case "String" =>
         (v, va) =>
           intervalList.query(v.contig, v.start) match {
-            case Some(result) => rooted(Annotations(Map(identifier -> result)))
+            case Some(result) => va ++ rooted(Annotations(Map(identifier -> result)))
             case None => va
           }
       case "Boolean" =>
         (v, va) =>
           if (intervalList.contains(v.contig, v.start))
-            if (root == null) va +(identifier, true) else va +(root, Annotations(Map(identifier -> true)))
+            va ++ rooted(Annotations(Map(identifier -> true)))
           else
             va
       case _ => throw new UnsupportedOperationException
@@ -68,7 +68,6 @@ val rooted = Annotator.rootFunction(root)
           Interval(contig, start.toInt, end.toInt, Some(target))
       case "Boolean" =>
         line =>
-          println(line)
           line match {
             case IntervalList.intervalRegex(contig, start_str, end_str) =>
               Interval(contig, start_str.toInt, end_str.toInt)
