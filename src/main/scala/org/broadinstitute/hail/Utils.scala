@@ -276,8 +276,10 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       hadoopDelete(tmpFileName, hConf, recursive = true)
     }
   }
+}
 
-  def saveFromByteArrays(filename: String, header: Option[String] = None, deleteTmpFiles: Boolean = true) {
+class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
+  def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
     val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
     val textClassTag = implicitly[ClassTag[Text]]
     val bytesClassTag = implicitly[ClassTag[BytesWritableUnseparated]]
@@ -286,10 +288,11 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
 
     header.foreach { str =>
-      writeTextFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
+      writeDataFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
         s.write(str)
       }
     }
+
     val filesToMerge = header match {
       case Some(_) => Array(tmpFileName + ".header", tmpFileName)
       case None => Array(tmpFileName)
@@ -297,10 +300,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     val rMapped = r.mapPartitions { iter =>
       val bw = new BytesWritableUnseparated()
-      iter.map { x => x match {
-        case bb: Array[Byte] => bw.set(new BytesWritable(bb))
-        case _ => throw new IOException("passed a non-byte-array to saveFromByteArrays")
-      }
+      iter.map { bb =>
+        bw.set(new BytesWritable(bb))
         (NullWritable.get(), bw)
       }
     }
@@ -470,6 +471,8 @@ object Utils {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
+  implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
+  
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichTuple2[T](t: (T, T)): RichHomogenousTuple2[T] = new RichHomogenousTuple2(t)

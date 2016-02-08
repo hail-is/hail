@@ -36,7 +36,7 @@ object ExportBedBimFam {
       .toArray
   }
 
-  def makeBimRow(v: Variant, va: AnnotationData): String = {
+  def makeBimRow(v: Variant): String = {
     val id = s"${v.contig}:${v.start}:${v.ref}:${v.alt}"
     s"""${v.contig}\t$id\t0\t${v.start}\t${v.alt}\t${v.ref}"""
   }

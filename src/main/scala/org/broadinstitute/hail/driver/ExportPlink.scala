@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.RangePartitioner
+import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.ExportBedBimFam
 import org.broadinstitute.hail.variant.{Variant, Genotype}
@@ -32,29 +33,34 @@ object ExportPlink extends Command {
     val localCutoff = options.cutoff
 
     // FIXME magic numbers in header
-    val header = new String(Array[Byte](108, 27, 1))
+    val bedHeader = Array[Byte](108, 27, 1)
     val bedRowRDD = vds
       .rdd
       .map {
         case (v, va, gs) => (v, ExportBedBimFam.makeBedRow(v.start, gs, localCutoff))
       }
+
+    bedRowRDD.persist(StorageLevel.MEMORY_AND_DISK)
     bedRowRDD
       .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, Array[Byte]](vds.rdd.partitions.length,
         bedRowRDD))
       .map(_._2)
-      .saveFromByteArrays(options.output + ".bed", header = Some(header))
+      .saveFromByteArrays(options.output + ".bed", header = Some(bedHeader))
+    bedRowRDD.unpersist()
 
     val bimRowRDD = vds
       .variantsAndAnnotations
       .map {
-        case (v, va) => (v, ExportBedBimFam.makeBimRow(v, va))
+        case (v, va) => (v, ExportBedBimFam.makeBimRow(v))
       }
+
+    bimRowRDD.persist(StorageLevel.MEMORY_AND_DISK)
     bimRowRDD
       .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, String](vds.rdd.partitions.length, bimRowRDD))
       .map(_._2)
       .writeTable(options.output + ".bim")
+    bimRowRDD.unpersist()
 
-    val fsos = hadoopCreate(options.output + ".fam", state.hadoopConf)
     val famRows = vds
       .localSamples
       .map(vds.sampleIds)
