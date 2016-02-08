@@ -6,6 +6,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.io.annotators.{SampleAnnotator, VariantAnnotator}
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
@@ -49,12 +50,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](nSamples, g(v)))
+         values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](g(v)))
+         values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -79,7 +80,7 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
   }
@@ -379,6 +380,24 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
+  def annotateVariants(annotator: VariantAnnotator): VariantSampleMatrix[T] = {
+    val annotatorBc = sparkContext.broadcast(annotator)
+    copy(rdd = rdd.mapPartitions(
+      iter => {
+        lazy val sz = SparkEnv.get.serializer.newInstance()
+        iter.map {
+          case (v, va, gs) =>
+            (v, annotatorBc.value.annotate(v, va, sz), gs)
+        }
+      })
+    )
+      .addVariantAnnotationSignatures(annotator.metadata(sparkContext.hadoopConfiguration))
+  }
+
+  def annotateSamples(annotator: SampleAnnotator): VariantSampleMatrix[T] = {
+    copy(metadata = metadata.annotateSamples(annotator))
+  }
+
   def addVariantAnnotationSignatures(a: Annotations): VariantSampleMatrix[T] = {
     require(Annotations.validSignatures(a))
     copy(metadata = metadata.copy(variantAnnotationSignatures =
@@ -389,7 +408,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     require(sig.isInstanceOf[AnnotationSignature] ||
       sig.isInstanceOf[Annotations] && Annotations.validSignatures(sig.asInstanceOf[Annotations]))
     copy(metadata = metadata.copy(variantAnnotationSignatures =
-      metadata.variantAnnotationSignatures + (name, sig)))
+      metadata.variantAnnotationSignatures +(name, sig)))
   }
 
   def addSampleAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {
@@ -433,7 +452,7 @@ class RichVDS(vds: VariantDataset) {
   def eraseSplit: VariantDataset = {
     vds.copy(rdd =
       vds.rdd.map { case (v, va, gs) =>
-        (v, va.copy(attrs = va.attrs - "multiallelic"),
+        (v, va.copy(attrs = va.attrs - "wasSplit"),
           gs.lazyMap(g => g.copy(fakeRef = false))
           )
       })

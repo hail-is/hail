@@ -1,12 +1,8 @@
 package org.broadinstitute.hail.driver
 
-import java.nio.channels.Channels
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkEnv
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant.Variant
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ConvertAnnotations extends Command {
@@ -54,7 +50,7 @@ object ConvertAnnotations extends Command {
   def description = "Convert a tsv or vcf file containing variant annotations into the fast hail format"
 
   def run(state: State, options: Options): State = {
-    val vds = state.vds
+   /* val vds = state.vds
 
     if (!options.output.endsWith(".ser") && !options.output.endsWith(".ser.gz"))
       fatal("Output path must end in '.ser' or '.ser.gz'")
@@ -137,7 +133,7 @@ object ConvertAnnotations extends Command {
         """This module requires an input file ending in one of the following:
           |  .tsv (tab separated values with chr, pos, ref, alt)
           |  .vcf (vcf, only the info field / filters / qual are parsed here)""".stripMargin)
-
+*/
     state
   }
 }

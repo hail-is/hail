@@ -1,10 +1,7 @@
 package org.broadinstitute.hail.variant
 
-import java.io.{DataInputStream, DataOutputStream}
-import java.nio.ByteBuffer
-import org.apache.spark.serializer.{SerializerInstance, KryoSerializer}
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.io.annotators.SampleAnnotator
 
 object VariantMetadata {
 
@@ -29,6 +26,13 @@ case class VariantMetadata(filters: IndexedSeq[(String, String)],
 
   def nSamples: Int = sampleIds.length
 
+  def annotateSamples(annotator: SampleAnnotator): VariantMetadata = {
+    copy(sampleAnnotations = sampleIds.zip(sampleAnnotations)
+      .map { case (id, sa) => annotator.annotate(id, sa)},
+      sampleAnnotationSignatures = annotator.metadata() ++ sampleAnnotationSignatures
+    )
+  }
+
   def addSampleAnnotations(sas: Annotations, sa: IndexedSeq[Annotations]): VariantMetadata =
     copy(
       sampleAnnotationSignatures = sampleAnnotationSignatures ++ sas,
@@ -40,6 +44,6 @@ case class VariantMetadata(filters: IndexedSeq[(String, String)],
 
   def addVariantAnnotationSignatures(key: String, sig: Any): VariantMetadata =
     copy(
-      variantAnnotationSignatures = variantAnnotationSignatures + (key, sig)
+      variantAnnotationSignatures = variantAnnotationSignatures +(key, sig)
     )
 }

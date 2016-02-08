@@ -4,6 +4,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkEnv
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.io.annotators._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant.Variant
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -27,7 +28,8 @@ object AnnotateVariants extends Command {
       usage = "Specify additional identifiers to be treated as missing (default: 'NA')")
     var missingIdentifiers: String = "NA"
 
-    @Args4jOption(required = false, name = "--identifier", usage = "For an interval list, use one boolean " +
+    @Args4jOption(required = false, name = "-i", aliases = Array("--identifier"),
+      usage = "For an interval list, use one boolean " +
       "for all intervals (set to true) with the given identifier.  If not specified, will expect a target column")
     var identifier: String = _
 
@@ -64,16 +66,6 @@ object AnnotateVariants extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    // FIXME -- support this stuff
-    /*
-    to support:
-    tsv + header (chr pos ref alt, like annotate samples)
-    interval list, boolean
-    interval list, include target
-    BED
-    VCF info field
-    */
-
     val cond = options.condition
 
     val annotator: VariantAnnotator = {
@@ -99,16 +91,6 @@ object AnnotateVariants extends Command {
         throw new UnsupportedOperationException
     }
 
-    val annotatorBc = vds.sparkContext.broadcast(annotator)
-
-    val newRdd = vds.rdd.mapPartitions(
-      iter => {
-        lazy val sz = SparkEnv.get.serializer.newInstance()
-        iter.map {
-          case (v, va, gs) => (v, annotatorBc.value.annotate(v, va, sz), gs)
-        }
-      })
-
-    state.copy(vds = vds.copy(rdd = newRdd))
+    state.copy(vds = vds.annotateVariants(annotator))
   }
 }
