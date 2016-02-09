@@ -50,7 +50,7 @@ object AnnotateSamples extends Command {
           AnnotateVariants.parseMissing(options.missingIdentifiers),
           options.root)
       else
-        fatal("specify either a tsv or fam file")
+        fatal("specify a tsv file")
     }
     state.copy(vds = vds.annotateSamples(annotator))
   }

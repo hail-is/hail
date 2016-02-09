@@ -23,7 +23,7 @@ object VCFAnnotatorCompressed {
         }
       case i: IndexedSeq[_] =>
         sig.typeOf match {
-          case "IndexedSeq[Int]" =>
+          case "Array[Int]" =>
             sig.number match {
               case "A" => IndexedSeq(i(altIndex)).map(_.asInstanceOf[String].toInt)
               case "R" =>
@@ -32,7 +32,7 @@ object VCFAnnotatorCompressed {
                 throw new UnsupportedOperationException("don't currently support VCFs with 'G' in info number")
               case _ => i.map(_.asInstanceOf[String].toInt)
             }
-          case "IndexedSeq[Double]" =>
+          case "Array[Double]" =>
             sig.number match {
               case "A" => IndexedSeq(i(altIndex)).map(_.asInstanceOf[String].toDouble)
               case "R" =>

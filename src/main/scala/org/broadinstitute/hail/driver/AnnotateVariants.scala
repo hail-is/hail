@@ -33,7 +33,7 @@ object AnnotateVariants extends Command {
         "for all intervals (set to true) with the given identifier.  If not specified, will expect a target column")
     var identifier: String = _
 
-    @Args4jOption(required = false, name = "--vcolumns",
+    @Args4jOption(required = false, name = "-v", aliases = Array("--vcolumns"),
       usage = "Specify the column identifiers for chromosome, position, ref, and alt (in that order)" +
         " (default: 'Chromosome,Position,Ref,Alt'")
     var vCols: String = "Chromosome, Position, Ref, Alt"
