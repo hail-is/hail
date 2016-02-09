@@ -11,6 +11,7 @@ Most command line arguments differ between the two modules and individual file f
 ## Annotating Samples
 
 There is currently one file type supported for annotating samples: 
+
 1. tab separated values (tsv, tsv.gz).  This file **requires** a column containing sample IDs as present in the imported vcf, and every other column in the file will be written to sample annotations.  The individual command line arguments for this format are as follows:
  - `-s | --sampleheader <column header>` -- specify the name of the column containing sample IDs (required)
  - `-t | --types <type string>` -- specify data types of fields, in a comma-delimited string of `name:Type` elements.  If a field is not found in this type map, it will be interpreted as a string. (optional)
@@ -19,6 +20,7 @@ There is currently one file type supported for annotating samples:
 ## Annotating Variants
 
 There are currently five file types supported for annotating variants:
+
 1. Tab separated values (tsv, tsv.gz).  This file format **requires** 4 columns for contig, position, ref, and alt.  Each other column in the file will be written to variant annotations.  The following command line arguments exist for .tsv files:
  - `-v | --vcolumns <columns>` -- specify the column headers for the contig, position, ref, and alt fields.  Default: Chromosome,Position,Ref,Alt
  - `-t | --types <type string>` -- specify data types of fields, in a comma-delimited string of `name:Type` elements.  If a field is not found in this type map, it will be interpreted as a string. (optional)
