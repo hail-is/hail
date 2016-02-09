@@ -35,8 +35,15 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
     val inputType = dsStream.readObject[String]
     cleanHeader = dsStream.readObject[IndexedSeq[String]]
     val sigs = dsStream.readObject[Annotations]
-    variantIndexes = dsStream.readObject[Map[Variant, (Int, Int)]]
-    compressedBytes = dsStream.readObject[IndexedSeq[(Int, Array[Byte])]]
+    variantIndexes = {
+      val length = dsStream.readObject[Int]
+      (0 until length).map(i => dsStream.readObject[(Variant, (Int, Int))])
+        .toMap
+    }
+    compressedBytes = {
+      val length = dsStream.readObject[Int]
+      (0 until length).map(i => dsStream.readObject[(Int, Array[Byte])])
+    }
 
     f = {
       inputType match {

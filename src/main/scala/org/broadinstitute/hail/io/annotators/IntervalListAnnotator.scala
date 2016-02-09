@@ -14,7 +14,7 @@ class IntervalListAnnotator(path: String, identifier: String, root: String)
   @transient var extractType: String = null
   @transient var f: (Variant, Annotations) => Annotations = null
 
-val rooted = Annotator.rootFunction(root)
+  val rooted = Annotator.rootFunction(root)
 
   def annotate(v: Variant, va: Annotations, sz: SerializerInstance = null): Annotations = {
     check()
@@ -54,7 +54,7 @@ val rooted = Annotator.rootFunction(root)
       case _ => throw new UnsupportedOperationException
     }
 
-      rooted(Annotations(Map(identifier -> SimpleSignature(extractType))))
+    rooted(Annotations(Map(identifier -> SimpleSignature(extractType))))
   }
 
   def read(conf: Configuration) {

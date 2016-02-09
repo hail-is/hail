@@ -30,7 +30,7 @@ object AnnotateVariants extends Command {
 
     @Args4jOption(required = false, name = "-i", aliases = Array("--identifier"),
       usage = "For an interval list, use one boolean " +
-      "for all intervals (set to true) with the given identifier.  If not specified, will expect a target column")
+        "for all intervals (set to true) with the given identifier.  If not specified, will expect a target column")
     var identifier: String = _
 
     @Args4jOption(required = false, name = "--vcolumns",
@@ -67,7 +67,7 @@ object AnnotateVariants extends Command {
     val split = s.split(",").map(_.trim)
     fatalIf(split.length != 4,
       "Cannot read chr, pos, ref, alt columns from '" + s +
-      "': enter 4 comma-separated column identifiers")
+        "': enter 4 comma-separated column identifiers")
     split
   }
 

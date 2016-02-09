@@ -25,7 +25,7 @@ class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, S
             }
           }
           .toMap)
-          sa ++ rooted(sa2)
+        sa ++ rooted(sa2)
       case None => sa
     }
   }

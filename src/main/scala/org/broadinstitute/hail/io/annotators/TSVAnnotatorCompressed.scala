@@ -120,8 +120,6 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
               None
         }
           .toIndexedSeq
-        if (i % 10000 == 0)
-          println("line " + i + " " + indexedValues)
         val variantIndex = bbb.add(indexedValues)
         (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), variantIndex)
     }
@@ -140,8 +138,10 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
       .writeObject[String]("tsv")
       .writeObject[IndexedSeq[String]](headerIndex)
       .writeObject[Annotations](signatures)
-      .writeObject(internalMap)
-      .writeObject(compressedBlocks)
+      .writeObject(internalMap.size)
+      .writeAll(internalMap.iterator)
+      .writeObject(compressedBlocks.length)
+      .writeAll(compressedBlocks.iterator)
       .close()
   }
 }

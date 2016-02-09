@@ -58,7 +58,7 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
     indexMap.get(v) match {
       case Some((i, j)) =>
         val (length, bytes) = compressedBlocks(i)
-        va  ++ Annotations(Map(root -> sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
+        va ++ Annotations(Map(root -> sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
           .apply(j)))
       case None => va
     }
@@ -186,8 +186,10 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
       .writeObject[String]("vcf")
       .writeObject[IndexedSeq[String]](null)
       .writeObject[Annotations](signatures)
-      .writeObject(indexMap)
-      .writeObject(compressedBlocks)
+      .writeObject(indexMap.size)
+      .writeAll(indexMap.iterator)
+      .writeObject(compressedBlocks.length)
+      .writeAll(compressedBlocks.iterator)
       .close()
   }
 }
