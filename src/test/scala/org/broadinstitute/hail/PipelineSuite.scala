@@ -11,7 +11,7 @@ class PipelineSuite extends SparkSuite {
     s = Write.run(s, Array("-o", "/tmp/sample.vds"))
     s = Read.run(s, Array("-i", "/tmp/sample.vds"))
     s = SampleQC.run(s, Array("-o", "/tmp/sampleqc.tsv"))
-    s = VariantQC.run(s, Array("-s"))
+    s = VariantQC.run(s, Array.empty[String])
     s = GQByDP.run(s, Array("-o", "/tmp/gqbydp.tsv"))
     s = MendelErrorsCommand.run(s, Array("-f", "src/test/resources/sample.fam",
       "-o", "/tmp/mendel"))

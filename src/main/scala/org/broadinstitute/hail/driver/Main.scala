@@ -93,6 +93,7 @@ object Main {
       Read,
       Repartition,
       SampleQC,
+      ShowAnnotations,
       VariantQC,
       Write
     )
