@@ -24,10 +24,8 @@ object HardCallSet {
 
     val sampleIds = readDataFile(dirname + "/sampleIds.ser",
       sqlContext.sparkContext.hadoopConfiguration) {
-      dis => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.deserializeStream(dis).readObject[IndexedSeq[String]]
-      }
+      ds =>
+        ds.readObject[IndexedSeq[String]]
     }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
@@ -46,10 +44,8 @@ case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], sampleIds: IndexedS
     val hConf = rdd.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
     writeDataFile(dirname + "/sampleIds.ser", hConf) {
-      dos => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.serializeStream(dos).writeObject(sampleIds)
-      }
+      ss =>
+        ss.writeObject(sampleIds)
     }
 
     rdd.toDF().write.parquet(dirname + "/rdd.parquet")

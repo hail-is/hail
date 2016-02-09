@@ -3,11 +3,11 @@ package org.broadinstitute.hail
 import java.io._
 import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
-import org.apache.hadoop
+import org.apache.{spark, hadoop}
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.AccumulableParam
+import org.apache.spark.{SparkEnv, AccumulableParam}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.check.Gen
@@ -640,12 +640,13 @@ object Utils {
   }
 
   def readDataFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (DataInputStream) => T): T = {
-    val dis = new DataInputStream(hadoopOpen(filename, hConf))
+                      hConf: hadoop.conf.Configuration)(f: (spark.serializer.DeserializationStream) => T): T = {
+    val serializer = SparkEnv.get.serializer.newInstance()
+    val ds = serializer.deserializeStream(hadoopOpen(filename, hConf))
     try {
-      f(dis)
+      f(ds)
     } finally {
-      dis.close()
+      ds.close()
     }
   }
 
@@ -661,13 +662,13 @@ object Utils {
   }
 
   def writeDataFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(writer: (DataOutputStream) => T): T = {
-    val oos = hadoopCreate(filename, hConf)
-    val dos = new DataOutputStream(oos)
+                      hConf: hadoop.conf.Configuration)(f: (spark.serializer.SerializationStream) => T): T = {
+    val serializer = SparkEnv.get.serializer.newInstance()
+    val ss = serializer.serializeStream(hadoopCreate(filename, hConf))
     try {
-      writer(dos)
+      f(ss)
     } finally {
-      dos.close()
+      ss.close()
     }
   }
 

@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.methods.{LinearRegressionFromHardCallSet, CovariateData, Pedigree}
 import org.broadinstitute.hail.variant.HardCallSet
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.Utils._
 
 object LinearRegressionFromHardCallSetCommand extends Command {
 
@@ -25,10 +26,14 @@ object LinearRegressionFromHardCallSetCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    val hcs = HardCallSet.read(state.sqlContext, options.hcsFilename) // FIXME: assumes vds agrees with HardCallSet
+    val hcs = HardCallSet.read(state.sqlContext, options.hcsFilename)
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, hcs.sampleIds)
     val cov = CovariateData.read(options.covFilename, state.hadoopConf, hcs.sampleIds)
       .filterSamples(ped.phenotypedSamples)
+
+    // FIXME: won't want to check this in production, should ensure it elsewhere
+    if (!(hcs.sampleIds.toArray sameElements cov.covRowSample))
+      fatal("Samples misaligned, recreate .hcs using .ped and .cov")
 
     val linreg = LinearRegressionFromHardCallSet(hcs, ped, cov)
 
