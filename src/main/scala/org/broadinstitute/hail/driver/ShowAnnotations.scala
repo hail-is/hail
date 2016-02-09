@@ -61,17 +61,17 @@ object ShowAnnotations extends Command {
       fatal("showannotations requires a non-null variant dataset, import or read one first")
 
     val sampleSB = new StringBuilder()
-    printSignatures(sampleSB, vds.metadata.sampleAnnotationSignatures, 2, "sa")
+    printSignatures(sampleSB, vds.metadata.sampleAnnotationSignatures, 4, "sa")
 
     val variantSB = new StringBuilder()
-    printSignatures(variantSB, vds.metadata.variantAnnotationSignatures, 2, "va")
+    printSignatures(variantSB, vds.metadata.variantAnnotationSignatures, 4, "va")
 
     val combinedSB = new StringBuilder()
-    combinedSB.append("Sample annotations: sa.<identifier>")
+    combinedSB.append("  Sample annotations: sa.<identifier>")
     combinedSB.append("\n")
     combinedSB.append(sampleSB.result())
     combinedSB.append("\n")
-    combinedSB.append("Variant annotations: sa.<identifier>")
+    combinedSB.append("  Variant annotations: va.<identifier>")
     combinedSB.append("\n")
     combinedSB.append(variantSB.result())
     val result = combinedSB.result()
