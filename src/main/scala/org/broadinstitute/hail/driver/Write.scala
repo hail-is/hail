@@ -15,6 +15,7 @@ object Write extends Command {
 
   def name = "write"
   def description = "Write current dataset as .vds file"
+  override def supportsMultiallelic = true
 
   def run(state: State, options: Options): State = {
     hadoopDelete(options.output, state.hadoopConf, true)

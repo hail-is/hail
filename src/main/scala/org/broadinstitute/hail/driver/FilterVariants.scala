@@ -1,10 +1,12 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr.TVariant
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.expr
 
 object FilterVariants extends Command {
 
@@ -35,17 +37,23 @@ object FilterVariants extends Command {
     val cond = options.condition
     val vas = vds.metadata.variantAnnotationSignatures
     val keep = options.keep
-    val p: (Variant, Annotations[String]) => Boolean = cond match {
+    val p: (Variant, Annotations) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
-        (v: Variant, va: Annotations[String]) => Filter.keepThis(ilist.contains(v.contig, v.start), keep)
+        (v: Variant, va: Annotations) => Filter.keepThis(ilist.contains(v.contig, v.start), keep)
       case c: String =>
-        val cf = new FilterVariantCondition(c, vas)
-        cf.typeCheck()
-        (v: Variant, va: AnnotationData) => Filter.keepThis(cf(v, va), keep)
+        val symTab = Map(
+          "v" -> (0, TVariant),
+          "va" -> (1, vds.metadata.variantAnnotationSignatures.toExprType))
+        val a = new Array[Any](2)
+        val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
+        (v: Variant, va: Annotations) => {
+          a(0) = v
+          a(1) = va.attrs
+          Filter.keepThisAny(f(), keep)
+        }
     }
 
     state.copy(vds = vds.filterVariants(p))
   }
 }
-

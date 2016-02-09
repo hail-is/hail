@@ -28,10 +28,13 @@ class gqDpStatsSuite extends SparkSuite {
     
     dpVariantR.collect().foreach {
       case (v, a) =>
-//        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].get,
-//          variantMeans(v.start),a(1).asInstanceOf[Option[Double]].get, variantDevs(v.start)))
-        simpleAssert(D_==(a.dpSC.mean, variantMeans(v.start)))
-        simpleAssert(D_==(a.dpSC.stdev, variantDevs(v.start)))
+//        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].apply,
+//          variantMeans(v.start),a(1).asInstanceOf[Option[Double]].apply, variantDevs(v.start)))
+
+
+
+        simpleAssert(D_==(a.dpSC.mean, variantMeans(v.start - 1)))
+        simpleAssert(D_==(a.dpSC.stdev, variantDevs(v.start - 1)))
     }
 
       dpSampleR.foreach {
@@ -52,8 +55,8 @@ class gqDpStatsSuite extends SparkSuite {
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
 //          .asInstanceOf[Double], variantDevs(v.start)))
 
-        simpleAssert(D_==(a.gqSC.mean, variantMeans(v.start)))
-        simpleAssert(D_==(a.gqSC.stdev, variantDevs(v.start)))
+        simpleAssert(D_==(a.gqSC.mean, variantMeans(v.start - 1)))
+        simpleAssert(D_==(a.gqSC.stdev, variantDevs(v.start - 1)))
     }
 
     gqSampleR.foreach {

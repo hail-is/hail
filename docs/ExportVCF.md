@@ -4,11 +4,10 @@ Hail contains an `exportvcf` module which will write out the internal VDS in a v
 
 Command line arguments:
  - `-o | --output <file>` -- path of output file
- - `-t | --tmpdir <directory>` -- path of temporary directory (see below)
 
 Example `exportvcf` command:
 ```
-hail read -i /path/to/file.vds exportvcf -o /path/to/file.vcf -t /tmp/
+hail read -i /path/to/file.vds exportvcf -o /path/to/file.vcf
 ```
 
 ## Information written
