@@ -59,7 +59,7 @@ object TestRDDBuilder {
       case Some(0) => Some(Array(0, gq, plMax))
       case Some(1) => Some(Array(gq, 0, plDefault))
       case Some(2) => Some(Array(plMax, gq, 0))
-      case None => None
+      case _ => None
     }
   }
 
@@ -72,7 +72,7 @@ object TestRDDBuilder {
         val refReads = dp / 2
         val altReads = dp - refReads
         Some(Array(refReads, altReads))
-      case None => None
+      case _ => None
     }
   }
 
