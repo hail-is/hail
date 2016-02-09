@@ -197,14 +197,14 @@ object HtsjdkRecordReader {
         sig.typeOf match {
           case "Int" => str.toInt
           case "Double" => str.toDouble
-          case "IndexedSeq[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
-          case "IndexedSeq[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
+          case "Array[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
+          case "Array[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
           case _ => value
         }
       case i: IndexedSeq[_] =>
         sig.number match {
-          case "IndexedSeq[Int]" => i.map(_.asInstanceOf[String].toInt)
-          case "IndexedSeq[Double]" => i.map(_.asInstanceOf[String].toDouble)
+          case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
+          case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)
 
         }
       case _ => value
