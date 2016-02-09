@@ -280,7 +280,7 @@ object VariantQC extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
-      usage = "Output file", forbids = Array("store"))
+      usage = "Output file")
     var output: String = _
   }
 
@@ -301,39 +301,36 @@ object VariantQC extends Command {
 
     val output = options.output
 
-    if (output == null) {
-      val r = results(vds)
-        .persist(StorageLevel.MEMORY_AND_DISK)
+    val r = results(vds).persist(StorageLevel.MEMORY_AND_DISK)
 
-      state.copy(
-        vds = vds.copy(
-          rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
-            it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
-              assert(v == v2)
-              (v, va +("qc", comb.asAnnotations), gs)
-            }
-          },
-          metadata = vds.metadata.addVariantAnnotationSignatures("qc", VariantQCCombiner.signatures)
-        )
-      )
-    } else {
+
+    if (output != null) {
       hadoopDelete(output, state.hadoopConf, recursive = true)
-      val r = results(vds)
-        .map { case (v, comb) =>
-          val sb = new StringBuilder()
-          sb.append(v.contig)
-          sb += '\t'
-          sb.append(v.start)
-          sb += '\t'
-          sb.append(v.ref)
-          sb += '\t'
-          sb.append(v.alt)
-          sb += '\t'
-          comb.emit(sb)
-          sb.result()
-        }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
-
-      state
+      r.map { case (v, comb) =>
+        val sb = new StringBuilder()
+        sb.append(v.contig)
+        sb += '\t'
+        sb.append(v.start)
+        sb += '\t'
+        sb.append(v.ref)
+        sb += '\t'
+        sb.append(v.alt)
+        sb += '\t'
+        comb.emit(sb)
+        sb.result()
+      }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
     }
+
+    state.copy(
+      vds = vds.copy(
+        rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
+          it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
+            assert(v == v2)
+            (v, va +("qc", comb.asAnnotations), gs)
+          }
+        },
+        metadata = vds.metadata.addVariantAnnotationSignatures("qc", VariantQCCombiner.signatures)
+      )
+    )
   }
 }

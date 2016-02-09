@@ -19,14 +19,14 @@ Command line arguments:
 2. `exportvariants` will print one line per variant in the VDS.  The accessible namespace includes:
    - `v` (variant)
    - `va` (variant annotations)
-3. `exportgenotypes` will print one line per unique (variant, sample) in the VDS<sup>*<sup>.  The accessible namespace includes:
+3. `exportgenotypes` will print one line per unique (variant, sample) in the VDS<sup>*</sup>.  The accessible namespace includes:
    - `g` (genotype)
    - `s` (sample)
    - `sa` (sample annotations)
    - `v` (variant)
    - `va` (variant annotations). 
    
-<sup>*<sup>The `exportgenotypes` module does not print hom-ref or missing genotypes by default, in order to restrict the size of the file produced.  There are command line arguments to turn on these print modes:
+<sup>*</sup>The `exportgenotypes` module does not print hom-ref or missing genotypes by default, in order to restrict the size of the file produced.  There are command line arguments to turn on these print modes:
  - `--print-ref`
  - `--print-missing`
    

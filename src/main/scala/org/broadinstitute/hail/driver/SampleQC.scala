@@ -318,7 +318,7 @@ object SampleQC extends Command {
   class Options extends BaseOptions {
 
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
-      usage = "Output file", forbids = Array("store"))
+      usage = "Output file")
     var output: String = _
   }
 
@@ -362,22 +362,8 @@ object SampleQC extends Command {
     val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
     val r = results(vds)
-    if (output == null) {
-      val rMap = r
-        .mapValues(_.asMap)
-        .collectAsMap()
-      val qcAnnotations = (0 until vds.nSamples)
-        .map((s) => Annotations(Map("qc" -> rMap.get(s).getOrElse(s, Map.empty))))
 
-      val newState = state.copy(
-        vds = vds.copy(
-          metadata = vds.metadata.addSampleAnnotations(
-            Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
-            qcAnnotations)
-        ))
-
-      newState
-    } else {
+    if (output != null) {
       hadoopDelete(output, state.hadoopConf, recursive = true)
       r.map { case (s, comb) =>
         val sb = new StringBuilder()
@@ -386,8 +372,18 @@ object SampleQC extends Command {
         comb.emit(sb)
         sb.result()
       }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
-
-      state
     }
+    val rMap = r
+      .mapValues(_.asMap)
+      .collectAsMap()
+    val qcAnnotations = (0 until vds.nSamples)
+      .map((s) => Annotations(Map("qc" -> rMap.get(s).getOrElse(s, Map.empty))))
+
+    state.copy(
+      vds = vds.copy(
+        metadata = vds.metadata.addSampleAnnotations(
+          Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
+          qcAnnotations)
+      ))
   }
 }
