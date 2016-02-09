@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.{HailConfiguration, State, ExportPlink}
+import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.Utils._
 import org.testng.annotations.Test
 import scala.io.Source
@@ -25,7 +25,7 @@ class ExportPlinkSuite extends SparkSuite {
   @Test def testBiallelic() {
 
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = State(sc, sqlContext, vds)
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     val tmpDir = HailConfiguration.tmpDir
     vds.rdd.count
     ExportPlink.run(state, Array("-o", "/tmp/hailOut"))

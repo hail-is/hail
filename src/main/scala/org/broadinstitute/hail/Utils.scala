@@ -322,8 +322,8 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     }
 
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header", tmpFileName)
-      case None => Array(tmpFileName)
+      case Some(_) => Array(tmpFileName + ".header", tmpFileName + "/part-*")
+      case None => Array(tmpFileName + "/part-*")
     }
 
     val rMapped = r.mapPartitions { iter =>
@@ -338,7 +338,11 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       .saveAsHadoopFile[ByteArrayOutputFormat[NullWritable, BytesWritableUnseparated]](tmpFileName)
 
     hadoopDelete(filename, hConf, recursive = true) // overwriting by default
-    hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+
+    val (_, dt) = time {
+      hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+    }
+    println("merge time: " + formatTime(dt))
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName + ".header", hConf, recursive = false)
@@ -637,8 +641,11 @@ object Utils {
     }
 
     val srcFileStatuses = srcFilenames.flatMap(globAndSort)
+    println("DestPath = " + destPath)
     require(srcFileStatuses.forall {
-      case fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
+      case fileStatus =>
+        println("file status: path = " + fileStatus.getPath + ", isFile = " + fileStatus.isFile)
+        fileStatus.getPath != destPath && fileStatus.isFile
     })
 
     val outputStream = destFS.create(destPath)

@@ -6,10 +6,10 @@ object ExportBedBimFam {
 
   def makeBedRow(pos: Int, gs: Iterable[Genotype], cutoff: Int): Array[Byte] = {
     gs.map(g =>
-      if (g.gq < cutoff)
+      if (!g.gq.forall(i => i > cutoff))
         1
       else {
-        g.call.map(_.gt) match {
+        g.gt match {
           case Some(0) => 3
           case Some(1) => 2
           case Some(2) => 0
@@ -19,10 +19,8 @@ object ExportBedBimFam {
       .grouped(4)
       .map(_.toIndexedSeq)
       .map(i =>
-
         if (i.size == 4) {
           i(0) | (i(1) << 2) | (i(2) << 4) | (i(3) << 6)
-
         }
         else {
           var ret = 0

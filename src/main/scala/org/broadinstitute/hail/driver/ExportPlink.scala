@@ -16,7 +16,7 @@ object ExportPlink extends Command {
 
     @Args4jOption(required = false, name = "-c", aliases = Array("--cutoff"),
       usage = "GQ cutoff below which calls will be dropped")
-    var cutoff: Int = 0
+    var cutoff: Int = -1
   }
 
   def newOptions = new Options
