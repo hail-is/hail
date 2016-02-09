@@ -8,9 +8,8 @@ These modules compute a variety of statistics from the genotype data, collapsing
   
 Command line arguments:
  - `-o` -- writes computed statistics to the following path as a TSV file
- - `--store, -s` -- stores all computed statistics within hail in `annotations` objects, to be used with downstream [filter](Filtering.md) and [export](Exporting.md) modules.
  
-The sets of statistics, their types, and brief descriptions of how they are calculated are listed below.
+If no output file is specified, all computed statistics will be stored within hail in `annotations` objects, to be used with downstream [filter](Filtering.md) and [export](Exporting.md) modules.  These can be accessed with `va.qc.<identifier>` and `sa.qc.<identifier>` for variant and sample qc, respectively.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
 
 **Note:** All standard deviations are calculated with zero degrees of freedom.
 

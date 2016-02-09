@@ -281,11 +281,7 @@ object VariantQC extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
       usage = "Output file", forbids = Array("store"))
-    var output: String = ""
-
-    @Args4jOption(required = false, name = "-s", aliases = Array("--store"),
-      usage = "Store qc output in vds annotations", forbids = Array("output"))
-    var store: Boolean = false
+    var output: String = _
   }
 
   def newOptions = new Options
@@ -305,7 +301,7 @@ object VariantQC extends Command {
 
     val output = options.output
 
-    if (options.store) {
+    if (output == null) {
       val r = results(vds)
         .persist(StorageLevel.MEMORY_AND_DISK)
 

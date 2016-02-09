@@ -319,12 +319,7 @@ object SampleQC extends Command {
 
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
       usage = "Output file", forbids = Array("store"))
-    var output: String = ""
-
-    @Args4jOption(required = false, name = "-s", aliases = Array("--store"),
-      usage = "Store qc output in vds annotations", forbids = Array("output"))
-    var store: Boolean = false
-
+    var output: String = _
   }
 
   def newOptions = new Options
@@ -367,7 +362,7 @@ object SampleQC extends Command {
     val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
     val r = results(vds)
-    if (options.store) {
+    if (output == null) {
       val rMap = r
         .mapValues(_.asMap)
         .collectAsMap()
