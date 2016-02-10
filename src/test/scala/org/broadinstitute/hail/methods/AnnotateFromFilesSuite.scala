@@ -112,7 +112,7 @@ class AnnotateFromFilesSuite extends SparkSuite {
 
   @Test def testBedIntervalAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val state = Cache.run(SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String]), Array.empty[String])
 
     val bed1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/example1.bed"))
     val bed1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example1.bed", "-r", "bed"))

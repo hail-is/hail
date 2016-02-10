@@ -14,9 +14,9 @@ object AnnotateSamples extends Command {
       usage = "Annotation file path")
     var condition: String = _
 
-    @Args4jOption(required = true, name = "-s", aliases = Array("--sampleheader"),
+    @Args4jOption(name = "-s", aliases = Array("--sampleheader"),
       usage = "Identify the name of the column containing the sample IDs")
-    var sampleCol: String = _
+    var sampleCol: String = "Sample"
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Define types of fields in annotations files")

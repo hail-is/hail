@@ -17,6 +17,7 @@ abstract class AnnotationSignature {
     case "Double" => expr.TDouble
     case "Array[Int]" => expr.TArray(expr.TInt)
     case "Array[Double]" => expr.TArray(expr.TInt)
+    case "Array[String]" => expr.TArray(expr.TString)
     case "Set[Int]" => expr.TSet(expr.TInt)
     case "Set[String]" => expr.TSet(expr.TString)
     case "String" => expr.TString

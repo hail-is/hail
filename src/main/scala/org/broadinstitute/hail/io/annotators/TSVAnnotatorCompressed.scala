@@ -15,8 +15,8 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
   extends VariantAnnotator {
 
   @transient var internalMap: Map[Variant, (Int, Int)] = null
-  @transient var compressedBlocks: IndexedSeq[(Int, Array[Byte])] = null
-  @transient var headerIndex: IndexedSeq[String] = null
+  @transient var compressedBlocks: Array[(Int, Array[Byte])] = null
+  @transient var headerIndex: Array[String] = null
 
   val rooted = Annotator.rootFunction(root)
 
@@ -26,7 +26,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
       case Some((i, j)) =>
         val (length, bytes) = compressedBlocks(i)
         val map = headerIndex.iterator.zip(
-          sz.deserialize[Array[IndexedSeq[Option[Any]]]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
+          sz.deserialize[Array[Array[Option[Any]]]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
             .apply(j)
             .iterator)
           .flatMap {
@@ -89,7 +89,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
         header.indexOf(vColumns(2)),
         header.indexOf(vColumns(3)))
 
-    headerIndex = header.flatMap(line => if (!vColumns.contains(line)) Some(line) else None).toIndexedSeq
+    headerIndex = header.flatMap(line => if (!vColumns.contains(line)) Some(line) else None)
 
     if (chrIndex < 0 || posIndex < 0 || refIndex < 0 || altIndex < 0) {
       val notFound = vColumns.flatMap(i => if (header.indexOf(i) < 0) Some(i) else None)
@@ -105,7 +105,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
 
     val excluded = vColumns.toSet
     val functions = header.map(col => Annotator.parseField(typeMap.getOrElse(col, "String"), col, missing, excluded)).toIndexedSeq
-    val bbb = new ByteBlockBuilder[IndexedSeq[Option[Any]]](serializer)
+    val bbb = new ByteBlockBuilder[Array[Option[Any]]](serializer)
 
     var i = 1
     val variantMap = lines.map {
@@ -119,7 +119,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
             else
               None
         }
-          .toIndexedSeq
+          .toArray
         val variantIndex = bbb.add(indexedValues)
         (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), variantIndex)
     }
@@ -136,7 +136,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
 
     val stream = sz.serializeStream(hadoopCreate(path, conf))
       .writeObject[String]("tsv")
-      .writeObject[IndexedSeq[String]](headerIndex)
+      .writeObject[Array[String]](headerIndex)
       .writeObject[Annotations](signatures)
       .writeObject(internalMap.size)
       .writeAll(internalMap.iterator)

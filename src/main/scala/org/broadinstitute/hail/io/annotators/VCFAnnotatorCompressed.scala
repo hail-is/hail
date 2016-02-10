@@ -5,6 +5,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.serializer.SerializerInstance
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotations, SimpleSignature, VCFSignature}
+import org.broadinstitute.hail.driver.ShowAnnotations
 import org.broadinstitute.hail.variant.{LZ4Utils, Variant}
 import org.broadinstitute.hail.vcf.{BufferedLineIterator, HtsjdkRecordReader}
 import scala.collection.JavaConverters._
@@ -49,7 +50,7 @@ object VCFAnnotatorCompressed {
 
 class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotator {
   @transient var indexMap: Map[Variant, (Int, Int)] = null
-  @transient var compressedBlocks: IndexedSeq[(Int, Array[Byte])] = null
+  @transient var compressedBlocks: Array[(Int, Array[Byte])] = null
 
   val rooted = Annotator.rootFunction(root)
 
@@ -180,11 +181,14 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
   def serialize(path: String, sz: SerializerInstance) {
     val conf = new Configuration()
     val signatures = metadata(conf)
+    val sb = new StringBuilder()
+    ShowAnnotations.printSignatures(sb, signatures, 2, "va")
+    println(sb.result())
     check(sz)
 
     val stream = sz.serializeStream(hadoopCreate(path, conf))
       .writeObject[String]("vcf")
-      .writeObject[IndexedSeq[String]](null)
+      .writeObject[Array[String]](null)
       .writeObject[Annotations](signatures)
       .writeObject(indexMap.size)
       .writeAll(indexMap.iterator)

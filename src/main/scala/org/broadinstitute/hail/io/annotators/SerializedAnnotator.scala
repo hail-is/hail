@@ -33,7 +33,7 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
       .deserializeStream(hadoopOpen(path, conf))
 
     val inputType = dsStream.readObject[String]
-    cleanHeader = dsStream.readObject[IndexedSeq[String]]
+    cleanHeader = dsStream.readObject[Array[String]]
     val sigs = dsStream.readObject[Annotations]
     variantIndexes = {
       val length = dsStream.readObject[Int]
@@ -51,7 +51,7 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
           (v, va, sz) => variantIndexes.get(v) match {
             case Some((i, j)) =>
               val (length, bytes) = compressedBytes(i)
-              va ++ rooted(Annotations(cleanHeader.iterator.zip(sz.deserialize[Array[IndexedSeq[Option[Any]]]](
+              va ++ rooted(Annotations(cleanHeader.iterator.zip(sz.deserialize[Array[Array[Option[Any]]]](
                 ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
                 .apply(j)
                 .iterator)
@@ -83,7 +83,7 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
       .newInstance()
       .deserializeStream(hadoopOpen(path, conf))
     val (source, header) = (serializerStream.readObject[String],
-      serializerStream.readObject[IndexedSeq[String]])
+      serializerStream.readObject[Array[String]])
     rooted(serializerStream.readObject[Annotations])
   }
 }
