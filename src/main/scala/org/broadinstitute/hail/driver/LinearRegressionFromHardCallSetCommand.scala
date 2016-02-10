@@ -14,9 +14,6 @@ object LinearRegressionFromHardCallSetCommand extends Command {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output root filename")
     var output: String = _
 
-    @Args4jOption(required = true, name = "-hcs", aliases = Array("--hcs"), usage = ".hcs file")
-    var hcsFilename: String = _
-
     @Args4jOption(required = true, name = "-f", aliases = Array("--fam"), usage = ".fam file")
     var famFilename: String = _
 
@@ -26,13 +23,13 @@ object LinearRegressionFromHardCallSetCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    val hcs = HardCallSet.read(state.sqlContext, options.hcsFilename)
+    val hcs = state.hcs
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, hcs.sampleIds)
     val cov = CovariateData.read(options.covFilename, state.hadoopConf, hcs.sampleIds)
       .filterSamples(ped.phenotypedSamples)
 
     // FIXME: won't want to check this in production, should ensure it elsewhere
-    if (!(hcs.sampleIds.toArray sameElements cov.covRowSample))
+    if (!(hcs.localSamples sameElements cov.covRowSample))
       fatal("Samples misaligned, recreate .hcs using .ped and .cov")
 
     val linreg = LinearRegressionFromHardCallSet(hcs, ped, cov)

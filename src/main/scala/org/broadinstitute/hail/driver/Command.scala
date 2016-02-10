@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
-import org.broadinstitute.hail.variant.VariantDataset
+import org.broadinstitute.hail.variant.{HardCallSet, VariantDataset}
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import org.broadinstitute.hail.Utils._
@@ -10,8 +10,9 @@ import org.broadinstitute.hail.Utils._
 case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
-  vds: VariantDataset = null) {
-  def hadoopConf = vds.sparkContext.hadoopConfiguration
+  vds: VariantDataset = null,
+  hcs: HardCallSet = null) {
+  def hadoopConf = sc.hadoopConfiguration
 }
 
 // FIXME: HasArgs vs Command

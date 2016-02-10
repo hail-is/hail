@@ -69,6 +69,7 @@ object Main {
     */
     val commands = Array(
       Cache,
+      CacheHcs,
       Count,
       DownsampleVariants,
       ExportGenotypes,
@@ -88,6 +89,7 @@ object Main {
       SplitMulti,
       PCA,
       Read,
+      ReadHcs,
       Repartition,
       SampleQC,
       VariantQC,

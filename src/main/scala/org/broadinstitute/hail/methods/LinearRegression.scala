@@ -170,7 +170,7 @@ object LinearRegressionFromHardCallSet {
 
     new LinearRegression(hcs.rdd
       .mapValues{ dcs =>
-        val DenseStats(x, xx, xy, nMissing) = dcs.denseStats(yBc.value, n)
+        val GtVectorAndStats(x, xx, xy, nMissing) = dcs.denseStats(yBc.value, n)
 
         // FIXME: store in boolean instead?
         if (xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n)
