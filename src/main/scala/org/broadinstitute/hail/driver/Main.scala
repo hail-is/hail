@@ -179,6 +179,8 @@ object Main {
 
     val times = mutable.ArrayBuffer.empty[(String, Long)]
 
+    // Check command line arguments and
+
     invocations.foldLeft(State(sc, sqlContext)) { case (s, args) =>
       println("running: " + args.mkString(" "))
       val cmdName = args(0)
