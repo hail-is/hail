@@ -57,7 +57,7 @@ object CovariateData {
         val sample = entries.next()
         sampleIndex.get(sample) match {
           case Some(s) =>
-            if (sampleCovs.keySet(s))
+            if (sampleCovs.contains(s))
               fatal(s".cov sample name is not unique: $sample")
             else
               sampleCovs += s -> entries.map(_.toDouble)
