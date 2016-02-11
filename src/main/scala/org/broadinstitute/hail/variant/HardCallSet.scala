@@ -7,6 +7,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
 
+import scala.collection.mutable.ArrayBuffer
+
 object HardCallSet {
   def apply(vds: VariantDataset): HardCallSet = {
     val n = vds.nLocalSamples
@@ -128,9 +130,6 @@ case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissin
 
   def denseStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
 
-    var i = 0
-    var j = 0
-
     val x = Array.ofDim[Double](n)
     var sumXY = 0.0
 
@@ -142,18 +141,21 @@ case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissin
     def merge(i: Int, gt: Int) {
       gt match {
         case 0 =>
-          // x(i) = 0
+          // x(i) = 0.0
         case 1 =>
-          x(i) = 1
+          x(i) = 1.0
           sumXY += y(i)
         case 2 =>
-          x(i) = 2
+          x(i) = 2.0
           sumXY += 2 * y(i)
         case 3 =>
           x(i) = this.meanX
           sumXY += this.meanX * y(i)
       }
     }
+
+    var i = 0
+    var j = 0
 
     while (i < n - 3) {
       val b = a(j)
@@ -200,7 +202,8 @@ object SparseCallStream {
     SparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
 
   def SparseCallStreamFromGtStream(gts: Iterable[Int], n: Int): SparseCallStream = {
-    var x = Array.ofDim[Int](n)
+    var rowX = ArrayBuffer[Int]()
+    var valX = ArrayBuffer[Int]()
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
@@ -210,15 +213,18 @@ object SparseCallStream {
         case 0 =>
         // x(i) = 0
         case 1 =>
-          x(i) = 1
+          rowX += i
+          valX += 1
           sumX += 1
           sumXX += 1
         case 2 =>
-          x(i) = 2
+          rowX += i
+          valX += 2
           sumX += 2
           sumXX += 4
         case _ =>
-          x(i) = 3
+          rowX += i
+          valX += 3
           nMissing += 1
       }
 
@@ -227,13 +233,13 @@ object SparseCallStream {
     // println(s"${x.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=$sumXX")
 
     new SparseCallStream(
-      sparseByteArray(x),
+      sparseByteArray(rowX.toArray, valX.toArray),
       meanX,
       sumXX + meanX * meanX * nMissing,
       nMissing)
   }
 
-  def sparseByteArray(gts: Array[Int]): Array[Byte] = {
+  def sparseByteArray(rows: Array[Int], gts: Array[Int]): Array[Byte] = {
 
     val a = Array.ofDim[Byte]((gts.length + 3) / 4)
 
@@ -261,10 +267,9 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
 
   def sparseStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
 
-    var i = 0
-    var j = 0
-
-    val x = Array.ofDim[Double](n)
+    //FIXME: these don't need to be buffers...can compute length from meanX, sumXX, etc
+    val rowX = ArrayBuffer[Int]()
+    val valX = ArrayBuffer[Double]()
     var sumXY = 0.0
 
     val mask00000011 = 3
@@ -275,18 +280,26 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
     def merge(i: Int, gt: Int) {
       gt match {
         case 0 =>
-        // x(i) = 0
+        // x(i) = 0.0
         case 1 =>
-          x(i) = 1
+          rowX += i
+          valX += 1.0
           sumXY += y(i)
         case 2 =>
-          x(i) = 2
+          rowX += i
+          valX += 2.0
           sumXY += 2 * y(i)
         case 3 =>
-          x(i) = this.meanX
+          rowX += i
+          valX += this.meanX
           sumXY += this.meanX * y(i)
       }
     }
+
+
+    //FIXME: rewrite all the rest for sparse
+    var i = 0
+    var j = 0
 
     while (i < n - 3) {
       val b = a(j)
@@ -302,14 +315,14 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
     n - i match {
       case 1 =>  merge(i,      a(j) & mask00000011)
       case 2 =>  merge(i,      a(j) & mask00000011)
-        merge(i + 1, (a(j) & mask00001100) >> 2)
+                 merge(i + 1, (a(j) & mask00001100) >> 2)
       case 3 =>  merge(i,      a(j) & mask00000011)
-        merge(i + 1, (a(j) & mask00001100) >> 2)
-        merge(i + 2, (a(j) & mask00110000) >> 4)
+                 merge(i + 1, (a(j) & mask00001100) >> 2)
+                 merge(i + 2, (a(j) & mask00110000) >> 4)
       case _ =>
     }
 
-    GtVectorAndStats(DenseVector(x), sumXX, sumXY, nMissing)  // FIXME: SparseVector
+    GtVectorAndStats(new SparseVector(n, rowX.toArray, valX.toArray), sumXX, sumXY, nMissing)
   }
 
   def toBinaryString(b: Byte): String = {
