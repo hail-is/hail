@@ -20,10 +20,6 @@ object DownsampleVariants extends Command {
 
   def description = "Downsample variants in current dataset"
 
-  override def checkArgs(args: Array[String]) {
-    parseArgs(args)
-  }
-
   def run(state: State, options: Options): State = {
     val nVariants = state.vds.nVariants
     val vds = state.vds

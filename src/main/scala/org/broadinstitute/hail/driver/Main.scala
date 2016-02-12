@@ -129,7 +129,17 @@ object Main {
 
     if (splitArgs.length == 1)
       fatal("no commands given")
-    val invocations = splitArgs.tail
+
+    val invocations: Array[(Command, Command#Options, String)] = splitArgs.tail
+      .map(args => {
+        val cmdName = args(0)
+        nameCommand.get(cmdName) match {
+          case Some(cmd) =>
+            (cmd, cmd.parseArgs(args.tail), args.mkString(" "))
+          case None =>
+            fatal("unknown command `" + cmdName + "'")
+        }
+      })
 
     if (!options.noisy) {
       Logger.getLogger("org").setLevel(Level.OFF)
@@ -181,19 +191,13 @@ object Main {
 
     // Check command line arguments and
 
-    invocations.foldLeft(State(sc, sqlContext)) { case (s, args) =>
-      println("running: " + args.mkString(" "))
-      val cmdName = args(0)
-      nameCommand.get(cmdName) match {
-        case Some(cmd) =>
-          val (newS, duration) = time {
-            cmd.run(s, args.tail)
-          }
-          times += cmdName -> duration
-          newS
-        case None =>
-          fatal("unknown command `" + cmdName + "'")
+    invocations.foldLeft(State(sc, sqlContext)) { case (s, (cmd, cmdOpts, cmdArgs)) =>
+      println("running: " + cmdArgs)
+      val (newS, duration) = time {
+        cmd.run(s, cmdOpts.asInstanceOf[cmd.Options])
       }
+      times += cmd.name -> duration
+      newS
     }
 
     VCFReport.report()

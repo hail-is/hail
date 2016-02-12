@@ -35,6 +35,12 @@ abstract class Command {
 
   def supportsMultiallelic = false
 
+  def preCheck(args: Array[String]) {
+    parseArgs(args)
+  }
+
+
+
   def parseArgs(args: Array[String]): Options = {
     val options = newOptions
     val parser = new CmdLineParser(options)
@@ -52,7 +58,7 @@ abstract class Command {
       }
     } catch {
       case e: CmdLineException =>
-        println(e.getMessage)
+        println("Parse error in " + name + ": " + e.getMessage)
         sys.exit(1)
     }
 
