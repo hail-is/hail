@@ -4,7 +4,7 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.2'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
     }
 }
 
@@ -56,7 +56,7 @@ dependencies {
     compile 'org.scalacheck:scalacheck_' + scalaMajorVersion + ':1.12.4'
     compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
     compile 'args4j:args4j:2.32'
-    compile 'com.github.samtools:htsjdk:1.139'
+    compile 'com.github.samtools:htsjdk:1.143'
 
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'

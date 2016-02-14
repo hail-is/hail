@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkException, SparkContext}
 import org.apache.spark.sql.SQLContext
+import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
@@ -11,7 +12,7 @@ case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
   vds: VariantDataset = null) {
-  def hadoopConf = vds.sparkContext.hadoopConfiguration
+  def hadoopConf = sc.hadoopConfiguration
 }
 
 // FIXME: HasArgs vs Command
@@ -66,7 +67,53 @@ abstract class Command {
       && !state.vds.metadata.wasSplit)
       fatal(s"`$name' does not support multiallelics.\n  Run `splitmulti' first.")
 
-    run(state, options)
+    try {
+      run(state, options)
+    } catch {
+      case f: FatalException =>
+        System.err.println(s"hail: $name: fatal: ${f.getMessage}")
+        log.error(f.getMessage)
+        sys.exit(1)
+
+      case e: SparkException =>
+        val msg = e.getMessage
+        val fatalExceptionStr = "org.broadinstitute.hail.FatalException: "
+
+        var pos = msg.indexOf(fatalExceptionStr)
+        if (pos >= 0) {
+          val atpos = msg.indexOf("\n\tat")
+          val submsg = msg.substring(pos + fatalExceptionStr.length, atpos)
+          System.err.println(s"hail: $name: fatal: $submsg")
+          sys.exit(1)
+        }
+
+        val tribbleExceptionStr = "org.broadinstitute.hail.PropagatedTribbleException: "
+        pos = msg.indexOf(tribbleExceptionStr)
+        if (pos != -1) {
+          val atpos = msg.indexOf("\n\tat")
+          val submsg = msg.substring(pos + tribbleExceptionStr.length, atpos)
+          System.err.println(s"hail: $name: fatal: $submsg\n  see log for details")
+          sys.exit(1)
+        }
+
+        // else
+        log.error(s"$name: exception", e)
+        if (HailConfiguration.stacktrace)
+          throw e
+        else {
+          System.err.println(s"hail: $name: caught exception: ${e.getClass.getName}: ${e.getMessage}")
+          sys.exit(1)
+        }
+
+      case e: Exception =>
+        log.error(s"$name: exception", e)
+        if (HailConfiguration.stacktrace)
+          throw e
+        else {
+          System.err.println(s"hail: $name: caught exception: ${e.getClass.getName}: ${e.getMessage}")
+          sys.exit(1)
+        }
+    }
   }
 
   def run(state: State, options: Options): State

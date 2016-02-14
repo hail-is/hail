@@ -1,11 +1,12 @@
 package org.broadinstitute.hail.methods
 
+import htsjdk.tribble.TribbleException
 import org.broadinstitute.hail.vcf.BufferedLineIterator
 import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.vcf
+import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -38,7 +39,7 @@ object VCFReport {
       sb.clear()
       val nFiltered = m.value.values.sum
       if (nFiltered > 0) {
-        sb.append(s"filtered $nFiltered genotypes while importing:\n  $file\ndetails:")
+        sb.append(s"filtered $nFiltered genotypes while importing:\n    $file\n  details:")
         m.value.foreach { case (id, n) =>
           if (n > 0) {
             sb += '\n'
@@ -46,7 +47,7 @@ object VCFReport {
             sb.append(warningMessage(id, n))
           }
         }
-        warning(sb.result())
+        warn(sb.result())
       } else {
         sb.append(s"import clean while importing:\n  $file")
         info(sb.result())
@@ -57,16 +58,14 @@ object VCFReport {
 
 object LoadVCF {
   def apply(sc: SparkContext,
-    file: String,
+    file1: String,
+    files: Array[String] = null, // FIXME hack
+    storeGQ: Boolean = false,
     compress: Boolean = true,
     nPartitions: Option[Int] = None): VariantDataset = {
 
-    require(file.endsWith(".vcf")
-      || file.endsWith(".vcf.bgz")
-      || file.endsWith(".vcf.gz"))
-
     val hConf = sc.hadoopConfiguration
-    val headerLines = readFile(file, hConf) { s =>
+    val headerLines = readFile(file1, hConf) { s =>
       Source.fromInputStream(s)
         .getLines()
         .takeWhile { line => line(0) == '#' }
@@ -110,18 +109,34 @@ object LoadVCF {
 
     val headerLinesBc = sc.broadcast(headerLines)
 
-    val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-    VCFReport.accumulators ::=(file, reportAcc)
+    val files2 = if (files == null)
+      Array(file1)
+    else
+      files
 
-    val genotypes = sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
-      .mapPartitions { lines =>
-        val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
-        lines.filter(line => !line.isEmpty && line(0) != '#')
-          .map(line => reader.readRecord(reportAcc, line, sigMap.value))
-      }
+    val genotypes = sc.union(files2.map { file =>
+      val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
+      VCFReport.accumulators ::=(file, reportAcc)
+
+      sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
+        .mapPartitions { lines =>
+          val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
+          lines.filter(line => !line.isEmpty && line(0) != '#')
+            .map { line =>
+              try {
+                reader.readRecord(reportAcc, line, sigMap.value, storeGQ)
+              } catch {
+                case e: TribbleException =>
+                  log.error(s"${e.getMessage}\n  line: $line", e)
+                  throw new PropagatedTribbleException(e.getMessage)
+              }
+            }
+        }
+    })
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
       Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
       variantAnnotationSignatures), genotypes)
   }
+
 }

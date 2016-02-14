@@ -43,6 +43,7 @@ object Foo {
 class Genotype(private val _gt: Int,
   private val _ad: Array[Int],
   private val _dp: Int,
+  private val _gq: Int,
   private val _pl: Array[Int],
   val fakeRef: Boolean) extends Serializable {
 
@@ -58,8 +59,9 @@ class Genotype(private val _gt: Int,
   def copy(gt: Option[Int] = this.gt,
     ad: Option[Array[Int]] = this.ad,
     dp: Option[Int] = this.dp,
+    gq: Option[Int] = this.gq,
     pl: Option[Array[Int]] = this.pl,
-    fakeRef: Boolean = this.fakeRef): Genotype = Genotype(gt, ad, dp, pl, fakeRef)
+    fakeRef: Boolean = this.fakeRef): Genotype = Genotype(gt, ad, dp, gq, pl, fakeRef)
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
@@ -67,6 +69,7 @@ class Genotype(private val _gt: Int,
         ((_ad == null && g._ad == null)
           || (_ad != null && g._ad != null && _ad.sameElements(g._ad))) &&
         _dp == g._dp &&
+        _gq == g._gq &&
         ((_pl == null && g._pl == null)
           || (_pl != null && g._pl != null && _pl.sameElements(g._pl)))
 
@@ -78,6 +81,7 @@ class Genotype(private val _gt: Int,
       .append(_gt)
       .append(util.Arrays.hashCode(_ad))
       .append(_dp)
+      .append(_gq)
       .append(util.Arrays.hashCode(_pl))
       .append(fakeRef)
       .toHashCode
@@ -103,24 +107,10 @@ class Genotype(private val _gt: Int,
       None
 
   def gq: Option[Int] =
-    if (_gt == -1 || _pl == null)
+    if (_gq >= 0)
+      Some(_gq)
+    else
       None
-    else {
-      var r = 99
-      var i = 0
-      while (i < _gt) {
-        if (_pl(i) < r)
-          r = _pl(i)
-        i += 1
-      }
-      i += 1
-      while (i < _pl.length) {
-        if (_pl(i) < r)
-          r = _pl(i)
-        i += 1
-      }
-      Some(r)
-    }
 
   def pl: Option[Array[Int]] = Option(_pl)
 
@@ -199,14 +189,15 @@ class Genotype(private val _gt: Int,
 }
 
 object Genotype {
-  def apply(gtx: Int): Genotype = new Genotype(gtx, null, -1, null, false)
+  def apply(gtx: Int): Genotype = new Genotype(gtx, null, -1, -1, null, false)
 
   def apply(gt: Option[Int] = None,
     ad: Option[Array[Int]] = None,
     dp: Option[Int] = None,
+    gq: Option[Int] = None,
     pl: Option[Array[Int]] = None,
     fakeRef: Boolean = false): Genotype = {
-    new Genotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), pl.map(_.toArray).orNull, fakeRef)
+    new Genotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), pl.map(_.toArray).orNull, fakeRef)
   }
 
   final val flagMultiHasGTBit = 0x1
@@ -214,10 +205,12 @@ object Genotype {
   final val flagBiGTMask = 0x3
   final val flagHasADBit = 0x4
   final val flagHasDPBit = 0x8
-  final val flagHasPLBit = 0x10
-  final val flagSimpleADBit = 0x20
-  final val flagSimpleDPBit = 0x40
-  final val flagFakeRefBit = 0x80
+  final val flagHasGQBit = 0x10
+  final val flagHasPLBit = 0x20
+  final val flagSimpleADBit = 0x40
+  final val flagSimpleDPBit = 0x80
+  final val flagSimpleGQBit = 0x100
+  final val flagFakeRefBit = 0x200
 
   def flagHasGT(isBiallelic: Boolean, flags: Int) =
     if (isBiallelic)
@@ -254,11 +247,15 @@ object Genotype {
 
   def flagHasDP(flags: Int): Boolean = (flags & flagHasDPBit) != 0
 
+  def flagHasGQ(flags: Int): Boolean = (flags & flagHasGQBit) != 0
+
   def flagHasPL(flags: Int): Boolean = (flags & flagHasPLBit) != 0
 
   def flagSetHasAD(flags: Int): Int = flags | flagHasADBit
 
   def flagSetHasDP(flags: Int): Int = flags | flagHasDPBit
+
+  def flagSetHasGQ(flags: Int): Int = flags | flagHasGQBit
 
   def flagSetHasPL(flags: Int): Int = flags | flagHasPLBit
 
@@ -266,13 +263,33 @@ object Genotype {
 
   def flagSimpleDP(flags: Int): Boolean = (flags & flagSimpleDPBit) != 0
 
+  def flagSimpleGQ(flags: Int): Boolean = (flags & flagSimpleGQBit) != 0
+
   def flagSetSimpleAD(flags: Int): Int = flags | flagSimpleADBit
 
   def flagSetSimpleDP(flags: Int): Int = flags | flagSimpleDPBit
 
+  def flagSetSimpleGQ(flags: Int): Int = flags | flagSimpleGQBit
+
   def flagFakeRef(flags: Int): Boolean = (flags & flagFakeRefBit) != 0
 
   def flagSetFakeRef(flags: Int): Int = flags | flagFakeRefBit
+
+  def gqFromPL(pl: Array[Int]): Int = {
+    var m = 99
+    var m2 = 99
+    var i = 0
+    while (i < pl.length) {
+      if (pl(i) < m) {
+        m2 = m
+        m = pl(i)
+      } else if (pl(i) < m2)
+        m2 = pl(i)
+      i += 1
+    }
+    assert(m == 0)
+    m2
+  }
 
   val smallGTPair = Array(GTPair(0, 0), GTPair(0, 1), GTPair(1, 1),
     GTPair(0, 2), GTPair(1, 2), GTPair(2, 2),
@@ -318,7 +335,7 @@ object Genotype {
   def read(v: Variant, a: ByteIterator): Genotype = {
     val isBiallelic = v.isBiallelic
 
-    val flags = a.next()
+    val flags = a.readULEB128()
 
     val gt: Int =
       if (flagHasGT(isBiallelic, flags)) {
@@ -383,7 +400,16 @@ object Genotype {
       } else
         null
 
-    new Genotype(gt, ad, dp, pl, flagFakeRef(flags))
+    val gq: Int =
+      if (flagHasGQ(flags)) {
+        if (flagSimpleGQ(flags))
+          gqFromPL(pl)
+        else
+          a.readULEB128()
+      } else
+        -1
+
+    new Genotype(gt, ad, dp, gq, pl, flagFakeRef(flags))
   }
 
   def gen(v: Variant): Gen[Genotype] = {
@@ -392,13 +418,22 @@ object Genotype {
       ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
         Gen.choose(0, m)));
       dp <- Gen.option(Gen.choose(0, m));
+      gq <- Gen.option(Gen.choose(0, 10000));
       pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
         Gen.choose(0, m)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
+      pl.foreach { pla =>
+        val m = pla.min
+        var i =  0
+        while (i < pla.length) {
+          pla(i) -= m
+          i += 1
+        }
+      }
       val g = Genotype(gt, ad,
-        dp.map(_ + ad.map(_.sum).getOrElse(0)), pl)
+        dp.map(_ + ad.map(_.sum).getOrElse(0)), gq, pl)
       g.check(v)
       g
     }
@@ -427,6 +462,7 @@ class GenotypeBuilder(v: Variant) {
   private var gt: Int = 0
   private var ad: Array[Int] = _
   private var dp: Int = 0
+  private var gq: Int = 0
   private var pl: Array[Int] = _
 
   def clear() {
@@ -455,6 +491,12 @@ class GenotypeBuilder(v: Variant) {
     dp = newDP
   }
 
+  def setGQ(newGQ: Int) {
+    assert(newGQ >= 0)
+    flags = Genotype.flagSetHasGQ(flags)
+    gq = newGQ
+  }
+
   def setPL(newPL: Array[Int]) {
     require(newPL.length == v.nGenotypes)
     flags = Genotype.flagSetHasPL(flags)
@@ -469,6 +511,7 @@ class GenotypeBuilder(v: Variant) {
     g.gt.foreach(setGT)
     g.ad.foreach(setAD)
     g.dp.foreach(setDP)
+    g.gq.foreach(setGQ)
     g.pl.foreach(setPL)
     if (g.fakeRef)
       setFakeRef()
@@ -479,6 +522,7 @@ class GenotypeBuilder(v: Variant) {
 
     val hasAD = Genotype.flagHasAD(flags)
     val hasDP = Genotype.flagHasDP(flags)
+    val hasGQ = Genotype.flagHasGQ(flags)
     val hasPL = Genotype.flagHasPL(flags)
 
     var j = 0
@@ -507,6 +551,12 @@ class GenotypeBuilder(v: Variant) {
         flags = Genotype.flagSetSimpleDP(flags)
     }
 
+    if (hasPL && hasGQ) {
+      val gqFromPL = Genotype.gqFromPL(pl)
+      if (gq == gqFromPL)
+        flags = Genotype.flagSetSimpleGQ(flags)
+    }
+
     /*
     println("flags:")
     if (Genotype.flagHasGT(isBiallelic, flags))
@@ -515,7 +565,7 @@ class GenotypeBuilder(v: Variant) {
       println(s"  dp = $dp")
     */
 
-    b += flags.toByte
+    b.writeULEB128(flags)
 
     if (hasGT && !Genotype.flagStoresGT(isBiallelic, flags))
       b.writeULEB128(gt)
@@ -551,6 +601,11 @@ class GenotypeBuilder(v: Variant) {
         }
       } else
         pl.foreach(b.writeULEB128)
+    }
+
+    if (hasGQ) {
+      if (!Genotype.flagSimpleGQ(flags))
+        b.writeULEB128(gq)
     }
   }
 }
