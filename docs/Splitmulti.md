@@ -5,7 +5,10 @@ most analytic methods only support analyzing data represented as
 biallelics.  Therefore, the current recommendation is to split
 multiallelics using the command `splitmulti` when import a VCF.
 
-`splitmulti` takes no arguments.  Example `splitmulti` command:
+Command line options:
+ - `--propagate-gq` -- Propagate GQ instead of computing from PL.  Intended for use with the Michigan GotCloud calling pipeline which stores PLs but sets the GQ to the quality of the posterior probabilities.  This option is experimental and will be removed when Hail supports posterior probabilities (PP).
+
+Example `splitmulti` command:
 ```
 $ hail import -i /path/to/file.vcf splitmulti write -o /path/to/file.vds
 ```
@@ -56,6 +59,10 @@ biallelic AD entry for an allele is just the sum of the multiallelic
 AD entries for alleles that map to that allele.  Similarly, the
 biallelic PL entry for a genotype is the minimum over multiallelic PL
 entries for genotypes that map to that genotype.
+
+By default, GQ is recomputed from PL.  If `--propagate-gq` is used,
+the biallelic GQ field is simply the multiallelic GQ field, that is,
+genotype qualities are unchanged.
 
 Here is a second example for a het non-ref:
 ```
