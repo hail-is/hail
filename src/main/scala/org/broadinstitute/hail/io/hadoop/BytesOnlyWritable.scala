@@ -3,7 +3,7 @@ package org.broadinstitute.hail.io.hadoop
 import java.io.DataOutput
 import org.apache.hadoop.io.BytesWritable
 
-class BytesWritableUnseparated(var bytes: Array[Byte])
+class BytesOnlyWritable(var bytes: Array[Byte])
   extends BytesWritable(bytes, bytes.length) {
 
   def this() = this(Array.empty[Byte])

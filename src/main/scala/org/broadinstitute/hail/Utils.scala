@@ -11,7 +11,7 @@ import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.io.hadoop.{BytesWritableUnseparated, ByteArrayOutputFormat}
+import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
@@ -309,7 +309,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
     val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
-    val bytesClassTag = implicitly[ClassTag[BytesWritableUnseparated]]
+    val bytesClassTag = implicitly[ClassTag[BytesOnlyWritable]]
     val hConf = r.sparkContext.hadoopConfiguration
 
     val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
@@ -326,7 +326,7 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     }
 
     val rMapped = r.mapPartitions { iter =>
-      val bw = new BytesWritableUnseparated()
+      val bw = new BytesOnlyWritable()
       iter.map { bb =>
         bw.set(new BytesWritable(bb))
         (NullWritable.get(), bw)
