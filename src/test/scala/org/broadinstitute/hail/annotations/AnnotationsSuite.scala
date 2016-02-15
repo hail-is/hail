@@ -62,7 +62,7 @@ class AnnotationsSuite extends SparkSuite {
       .contains("FS"))
 
     // type Array - INFO.AC (allele count)
-    assert(vas.get[Annotations]("info").attrs.get("AC").contains(VCFSignature("IndexedSeq[Int]", "Integer", "A",
+    assert(vas.get[Annotations]("info").attrs.get("AC").contains(VCFSignature("Array[Int]", "Integer", "A",
       "Allele count in genotypes, for each ALT allele, in the same order as listed")))
     assert(variantAnnotationMap(firstVariant)
       .get[Annotations]("info").attrs.get("AC")

@@ -17,8 +17,8 @@ class SampleQCSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
 
     // Get QC metrics
-    s = SampleQC.run(s, Array("-s"))
+    s = SampleQC.run(s, Array.empty[String])
     s = FilterSamples.run(s, Array("--remove", "-c","""s.id ~ "C1046::HG02024""""))
-    s = SampleQC.run(s, Array("-s"))
+    s = SampleQC.run(s, Array.empty[String])
   }
 }

@@ -5,9 +5,13 @@ Hail contains an `exportvcf` module which will write out the internal VDS in a v
 Command line arguments:
  - `-o | --output <file>` -- path of output file
 
-Example `exportvcf` command:
+Example `exportvcf` commands:
 ```
 hail read -i /path/to/file.vds exportvcf -o /path/to/file.vcf
+```
+
+```
+hail read -i /path/to/file.vds exportvcf -o /path/to/file.vcf.bgz
 ```
 
 ## Information written

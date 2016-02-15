@@ -52,7 +52,7 @@ abstract class Command {
       }
     } catch {
       case e: CmdLineException =>
-        println(e.getMessage)
+        println("Parse error in " + name + ": " + e.getMessage)
         sys.exit(1)
     }
 
