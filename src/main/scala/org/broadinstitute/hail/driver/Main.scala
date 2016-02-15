@@ -80,7 +80,7 @@ object Main {
       cmd.runCommand(s, cmdOpts.asInstanceOf[cmd.Options])
     } catch {
       case f: FatalException =>
-        System.err.println(s"hail: $cmd.name: fatal: ${f.getMessage}")
+        System.err.println(s"hail: ${cmd.name}: fatal: ${f.getMessage}")
         log.error(f.getMessage)
         sys.exit(1)
 
