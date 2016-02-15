@@ -1,36 +1,34 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.variant._
+import scala.collection.mutable
 
 object ExportBedBimFam {
 
   def makeBedRow(pos: Int, gs: Iterable[Genotype], cutoff: Int): Array[Byte] = {
-    gs.map(g =>
-      if (!g.gq.forall(i => i > cutoff))
-        1
-      else {
-        g.gt match {
-          case Some(0) => 3
-          case Some(1) => 2
-          case Some(2) => 0
-          case _ => 1
-        }
-      })
-      .grouped(4)
-      .map(_.toIndexedSeq)
-      .map(i =>
-        if (i.size == 4) {
-          i(0) | (i(1) << 2) | (i(2) << 4) | (i(3) << 6)
-        }
-        else {
-          var ret = 0
-          for ((gt, ind) <- i.zipWithIndex) {
-            ret = ret | (gt << 2 * ind)
-          }
-          ret
-        })
-      .map(_.toByte)
-      .toArray
+    val ab = new mutable.ArrayBuilder.ofByte()
+    var j = 0
+    var b = 0
+    for (g <- gs) {
+      // FIXME <= right?  cutoff inclusive?
+      val i = g.gt.filter(_ >= cutoff) match {
+        case Some(0) => 3
+        case Some(1) => 2
+        case Some(2) => 0
+        case _ => 1
+      }
+      b |= i << (j * 2)
+      if (j == 3) {
+        ab += b.toByte
+        b = 0
+        j = 0
+      } else
+        j += 1
+    }
+    if (j > 0)
+      ab += b.toByte
+
+    ab.result()
   }
 
   def makeBimRow(v: Variant): String = {

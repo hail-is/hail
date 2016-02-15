@@ -309,7 +309,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
     val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
-    val textClassTag = implicitly[ClassTag[Text]]
     val bytesClassTag = implicitly[ClassTag[BytesWritableUnseparated]]
     val hConf = r.sparkContext.hadoopConfiguration
 
@@ -335,7 +334,7 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     }
 
     RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
-      .saveAsHadoopFile[ByteArrayOutputFormat[NullWritable, BytesWritableUnseparated]](tmpFileName)
+      .saveAsHadoopFile[ByteArrayOutputFormat](tmpFileName)
 
     hadoopDelete(filename, hConf, recursive = true) // overwriting by default
 
@@ -641,10 +640,8 @@ object Utils {
     }
 
     val srcFileStatuses = srcFilenames.flatMap(globAndSort)
-    println("DestPath = " + destPath)
     require(srcFileStatuses.forall {
       case fileStatus =>
-        println("file status: path = " + fileStatus.getPath + ", isFile = " + fileStatus.isFile)
         fileStatus.getPath != destPath && fileStatus.isFile
     })
 

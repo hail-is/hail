@@ -32,40 +32,42 @@ object ExportPlink extends Command {
 
     // FIXME magic numbers in header
     val bedHeader = Array[Byte](108, 27, 1)
-    val bedRowRDD = vds
+    val plinkVariantRDD = vds
       .rdd
       .map {
-        case (v, va, gs) => (v, ExportBedBimFam.makeBedRow(v.start, gs, localCutoff))
+        case (v, va, gs) =>
+          (v,
+            (ExportBedBimFam.makeBedRow(v.start, gs, localCutoff),
+              ExportBedBimFam.makeBimRow(v)))
       }
 
-    bedRowRDD.persist(StorageLevel.MEMORY_AND_DISK)
-    bedRowRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, Array[Byte]](vds.rdd.partitions.length,
-        bedRowRDD))
-      .map(_._2)
+    plinkVariantRDD.persist(StorageLevel.MEMORY_AND_DISK)
+
+    val sortedPlinkRDD = plinkVariantRDD
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Array[Byte], String)]
+      (vds.rdd.partitions.length, plinkVariantRDD))
+      .persist(StorageLevel.MEMORY_AND_DISK)
+
+    plinkVariantRDD.unpersist()
+
+    sortedPlinkRDD.map { case (v, (bed, bim)) => bed }
       .saveFromByteArrays(options.output + ".bed", header = Some(bedHeader))
-    bedRowRDD.unpersist()
 
-    val bimRowRDD = vds
-      .variantsAndAnnotations
-      .map {
-        case (v, va) => (v, ExportBedBimFam.makeBimRow(v))
-      }
-
-    bimRowRDD.persist(StorageLevel.MEMORY_AND_DISK)
-    bimRowRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, String](vds.rdd.partitions.length, bimRowRDD))
-      .map(_._2)
+    sortedPlinkRDD.map { case (v, (bed, bim)) => bim }
       .writeTable(options.output + ".bim")
-    bimRowRDD.unpersist()
+
+    sortedPlinkRDD.unpersist()
 
     val famRows = vds
-      .localSamples
+      .localSamples.iterator
       .map(vds.sampleIds)
       .map(ExportBedBimFam.makeFamRow)
-      .map(_ + "\n")
 
-    writeTextFile(options.output + ".fam", state.hadoopConf)(oos => famRows.foreach(line => oos.write(line)))
+    writeTextFile(options.output + ".fam", state.hadoopConf)(oos =>
+      famRows.foreach(line => {
+        oos.write(line)
+        oos.write("\n")
+      }))
 
     state
   }

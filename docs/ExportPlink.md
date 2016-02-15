@@ -4,7 +4,7 @@ Hail contains an `exportplink` module which will write out the internal VDS to a
 
 Command line arguments:
  - `-o | -output <file base>` -- path of output base, will write to `<file base>.bed`, `<file base>.bim`, `<file base>.fam`
- - `-c | --cutoff <minGQ>` -- set to missing all genotypes below the specified GQ
+ - `-c | --cutoff <minGQ>` -- set to missing all genotypes below the specified GQ (default: no cutoff)
 
 Example `exportplink` command:
 ```
