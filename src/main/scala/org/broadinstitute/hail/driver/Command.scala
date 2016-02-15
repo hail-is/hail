@@ -53,68 +53,23 @@ abstract class Command {
       }
     } catch {
       case e: CmdLineException =>
-        println("Parse error in " + name + ": " + e.getMessage)
-        sys.exit(1)
+        fatal(s"$name: parse error: ${e.getMessage}")
     }
 
     options
   }
 
-  def run(state: State, args: Array[String]): State = {
-    val options = parseArgs(args)
+  def runCommand(state: State, options: Options): State = {
     if (!supportsMultiallelic
       && state.vds != null
       && !state.vds.metadata.wasSplit)
       fatal(s"`$name' does not support multiallelics.\n  Run `splitmulti' first.")
 
-    try {
-      run(state, options)
-    } catch {
-      case f: FatalException =>
-        System.err.println(s"hail: $name: fatal: ${f.getMessage}")
-        log.error(f.getMessage)
-        sys.exit(1)
-
-      case e: SparkException =>
-        val msg = e.getMessage
-        val fatalExceptionStr = "org.broadinstitute.hail.FatalException: "
-
-        var pos = msg.indexOf(fatalExceptionStr)
-        if (pos >= 0) {
-          val atpos = msg.indexOf("\n\tat")
-          val submsg = msg.substring(pos + fatalExceptionStr.length, atpos)
-          System.err.println(s"hail: $name: fatal: $submsg")
-          sys.exit(1)
-        }
-
-        val tribbleExceptionStr = "org.broadinstitute.hail.PropagatedTribbleException: "
-        pos = msg.indexOf(tribbleExceptionStr)
-        if (pos != -1) {
-          val atpos = msg.indexOf("\n\tat")
-          val submsg = msg.substring(pos + tribbleExceptionStr.length, atpos)
-          System.err.println(s"hail: $name: fatal: $submsg\n  see log for details")
-          sys.exit(1)
-        }
-
-        // else
-        log.error(s"$name: exception", e)
-        if (HailConfiguration.stacktrace)
-          throw e
-        else {
-          System.err.println(s"hail: $name: caught exception: ${e.getClass.getName}: ${e.getMessage}")
-          sys.exit(1)
-        }
-
-      case e: Exception =>
-        log.error(s"$name: exception", e)
-        if (HailConfiguration.stacktrace)
-          throw e
-        else {
-          System.err.println(s"hail: $name: caught exception: ${e.getClass.getName}: ${e.getMessage}")
-          sys.exit(1)
-        }
-    }
+    run(state, options)
   }
 
-  def run(state: State, options: Options): State
+  def run(state: State, args: Array[String]): State =
+    runCommand(state, parseArgs(args))
+
+  protected def run(state: State, options: Options): State
 }

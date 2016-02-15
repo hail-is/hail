@@ -3,8 +3,10 @@ package org.broadinstitute.hail.driver
 import java.io.File
 import java.util.Properties
 import org.apache.log4j.{LogManager, PropertyConfigurator}
+import org.apache.spark.sql.SQLContext
 
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{SparkException, SparkContext, SparkConf}
+import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.VCFReport
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
@@ -48,6 +50,80 @@ object Main {
     @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary directory (default: /tmp)")
     var tmpDir: String = "/tmp"
 
+  }
+
+  def logAndPropagateException(cmd: Command, e: Exception): Nothing = {
+    log.error(s"${cmd.name}: exception", e)
+    if (HailConfiguration.stacktrace)
+      throw e
+    else {
+      System.err.println(s"hail: ${cmd.name}: caught exception: ${e.getClass.getName}: ${e.getMessage}")
+      sys.exit(1)
+    }
+  }
+
+  def handlePropagatedException(cmd: Command,
+    exceptionName: String,
+    e: Exception) {
+    val exceptionStr = exceptionName + ": "
+    var pos = e.getMessage.indexOf(exceptionStr)
+    if (pos >= 0) {
+      val atpos = e.getMessage.indexOf("\n\tat")
+      val submsg = e.getMessage.substring(pos + exceptionStr.length, atpos)
+      System.err.println(s"hail: ${cmd.name}: fatal: $submsg")
+      sys.exit(1)
+    }
+  }
+
+  def runCommand(s: State, cmd: Command, cmdOpts: Command#Options): State = {
+    try {
+      cmd.runCommand(s, cmdOpts.asInstanceOf[cmd.Options])
+    } catch {
+      case f: FatalException =>
+        System.err.println(s"hail: $cmd.name: fatal: ${f.getMessage}")
+        log.error(f.getMessage)
+        sys.exit(1)
+
+      case e: SparkException =>
+        handlePropagatedException(cmd, "org.broadinstitute.hail.FatalException", e)
+        handlePropagatedException(cmd, "org.broadinstitute.hail.PropagatedTribbleException", e)
+
+        // else
+        logAndPropagateException(cmd, e)
+
+      case e: Exception =>
+        logAndPropagateException(cmd, e)
+    }
+  }
+
+  def runCommands(sc: SparkContext,
+    sqlContext: SQLContext,
+    invocations: Array[(Command, Command#Options, Array[String])]) {
+
+    val times = mutable.ArrayBuffer.empty[(String, Long)]
+
+    invocations.foldLeft(State(sc, sqlContext)) { case (s, (cmd, cmdOpts, cmdArgs)) =>
+      info(s"running: ${
+        cmdArgs
+          .map { s => if (s.contains(" ")) s"'$s'" else s }
+          .mkString(" ")
+      }")
+      val (newS, duration) = time {
+        runCommand(s, cmd, cmdOpts)
+      }
+      times += cmd.name -> duration
+      newS
+    }
+
+    VCFReport.report()
+
+    // Thread.sleep(60*60*1000)
+
+    info(s"timing:\n${
+      times.map { case (name, duration) =>
+        s"  $name: ${formatTime(duration)}"
+      }.mkString("\n")
+    }")
   }
 
   def main(args: Array[String]) {
@@ -220,32 +296,9 @@ object Main {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
-    val times = mutable.ArrayBuffer.empty[(String, Long)]
-
-    invocations.foldLeft(State(sc, sqlContext)) { case (s, (cmd, cmdOpts, cmdArgs)) =>
-      info(s"running: ${
-        args
-          .map { s => if (s.contains(" ")) s"'$s'" else s }
-          .mkString(" ")
-      }")
-      val (newS, duration) = time {
-        cmd.run(s, cmdOpts.asInstanceOf[cmd.Options])
-      }
-      times += cmd.name -> duration
-      newS
-    }
-
-    VCFReport.report()
-
-    // Thread.sleep(60*60*1000)
+    runCommands(sc, sqlContext, invocations)
 
     sc.stop()
-
-    info(s"timing:\n${
-      times.map { case (name, duration) =>
-        s"  $name: ${formatTime(duration)}"
-      }.mkString("\n")
-    }")
   }
 
 }

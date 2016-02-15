@@ -12,7 +12,7 @@ In addition, Hail considers OD = DP - sum(AD).
 
 Hail makes the following assumptions about the genotype fields:
  - if both are present, PL(GT) = 0
- - if GQ is present, then PL is present
+ - GQ is present if and only if PL is present
  - GQ is the difference of the two smallest PL entries
  - if OD is present, then AD is present
  - if they are all present, sum(AD) + OD = DP

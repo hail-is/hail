@@ -1,0 +1,69 @@
+package org.broadinstitute.hail.methods
+
+import org.apache.spark.SparkException
+import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.driver._
+import org.testng.annotations.Test
+
+class ImportVCFSuite extends SparkSuite {
+  @Test def testStoreGQ() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("--store-gq", "src/test/resources/store_gq.vcf"))
+
+    val gqs = s.vds.flatMapWithKeys { case (v, s, g) =>
+      g.gq.map { gqx => ((v.start, s), gqx) }
+    }.collectAsMap()
+    println(gqs)
+    val expectedGQs = Map(
+      (16050612, 0) -> 27,
+      (16050612, 1) -> 15,
+      (16051453, 0) -> 37,
+      (16051453, 1) -> 52)
+    assert(gqs == expectedGQs)
+
+    s = SplitMulti.run(s, Array("--propagate-gq"))
+
+    ExportVCF.run(s, Array("-o", "/tmp/foo.vcf"))
+
+    var s2 = State(sc, sqlContext)
+    s2 = ImportVCF.run(s, Array("--store-gq", "src/test/resources/store_gq_split.vcf"))
+
+    assert(s.vds.eraseSplit.same(s2.vds))
+  }
+
+  @Test def testGlob() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+
+    var s2 = State(sc, sqlContext)
+    s2 = ImportVCF.run(s2, Array("src/test/resources/samplepart*.vcf"))
+
+    assert(s.vds.nVariants == s2.vds.nVariants)
+  }
+
+  @Test def testUndeclaredInfo() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/undeclaredinfo.vcf"))
+
+    assert(s.vds.metadata.variantAnnotationSignatures.contains("info"))
+    assert(!s.vds.metadata.variantAnnotationSignatures.get[Annotations]("info").contains("undeclared"))
+    assert(!s.vds.metadata.variantAnnotationSignatures.get[Annotations]("info").contains("undeclaredFlag"))
+
+    val info = s.vds.rdd.map { case (v, va, gs) => va }.collect().head
+    assert(info.contains("info"))
+    assert(!info.get[Annotations]("info").contains("undeclared"))
+    assert(!info.get[Annotations]("info").contains("undeclaredFlag"))
+  }
+
+  @Test def testMalformed() {
+    var s = State(sc, sqlContext)
+
+    // FIXME abstract
+    val e = intercept[SparkException] {
+      s = ImportVCF.run(s, Array("src/test/resources/malformed.vcf"))
+      s.vds.rdd.count() // force
+    }
+    assert(e.getMessage.contains("org.broadinstitute.hail.PropagatedTribbleException: "))
+  }
+}
