@@ -13,10 +13,6 @@ object ExportPlink extends Command {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"),
       usage = "Output file base (will generate .bed, .bim, .fam)")
     var output: String = _
-
-    @Args4jOption(required = false, name = "-c", aliases = Array("--cutoff"),
-      usage = "GQ cutoff below which calls will be dropped")
-    var cutoff: Int = -1
   }
 
   def newOptions = new Options
@@ -28,14 +24,12 @@ object ExportPlink extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val localCutoff = options.cutoff
-
     val bedHeader = Array[Byte](108, 27, 1)
     val plinkVariantRDD = vds
       .rdd
       .map {
         case (v, va, gs) =>
-          (v, (ExportBedBimFam.makeBedRow(gs, localCutoff), ExportBedBimFam.makeBimRow(v)))
+          (v, (ExportBedBimFam.makeBedRow(gs), ExportBedBimFam.makeBimRow(v)))
       }
 
     plinkVariantRDD.persist(StorageLevel.MEMORY_AND_DISK)

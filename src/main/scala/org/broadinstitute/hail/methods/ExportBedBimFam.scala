@@ -5,13 +5,12 @@ import scala.collection.mutable
 
 object ExportBedBimFam {
 
-  def makeBedRow(gs: Iterable[Genotype], cutoff: Int): Array[Byte] = {
+  def makeBedRow(gs: Iterable[Genotype]): Array[Byte] = {
     val ab = new mutable.ArrayBuilder.ofByte()
     var j = 0
     var b = 0
     for (g <- gs) {
-      // FIXME <= right?  cutoff inclusive?
-      val i = g.gt.filter(_ >= cutoff) match {
+      val i = g.gt match {
         case Some(0) => 3
         case Some(1) => 2
         case Some(2) => 0
