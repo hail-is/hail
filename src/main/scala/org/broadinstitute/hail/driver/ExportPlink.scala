@@ -30,15 +30,12 @@ object ExportPlink extends Command {
 
     val localCutoff = options.cutoff
 
-    // FIXME magic numbers in header
     val bedHeader = Array[Byte](108, 27, 1)
     val plinkVariantRDD = vds
       .rdd
       .map {
         case (v, va, gs) =>
-          (v,
-            (ExportBedBimFam.makeBedRow(v.start, gs, localCutoff),
-              ExportBedBimFam.makeBimRow(v)))
+          (v, (ExportBedBimFam.makeBedRow(gs, localCutoff), ExportBedBimFam.makeBimRow(v)))
       }
 
     plinkVariantRDD.persist(StorageLevel.MEMORY_AND_DISK)
@@ -46,6 +43,8 @@ object ExportPlink extends Command {
     val sortedPlinkRDD = plinkVariantRDD
       .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Array[Byte], String)]
       (vds.rdd.partitions.length, plinkVariantRDD))
+
+    sortedPlinkRDD
       .persist(StorageLevel.MEMORY_AND_DISK)
 
     plinkVariantRDD.unpersist()

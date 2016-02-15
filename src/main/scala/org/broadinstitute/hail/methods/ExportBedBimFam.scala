@@ -5,7 +5,7 @@ import scala.collection.mutable
 
 object ExportBedBimFam {
 
-  def makeBedRow(pos: Int, gs: Iterable[Genotype], cutoff: Int): Array[Byte] = {
+  def makeBedRow(gs: Iterable[Genotype], cutoff: Int): Array[Byte] = {
     val ab = new mutable.ArrayBuilder.ofByte()
     var j = 0
     var b = 0
