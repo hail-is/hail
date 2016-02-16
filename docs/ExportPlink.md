@@ -7,7 +7,7 @@ Command line arguments:
 
 Example `exportplink` command:
 ```
-hail read -i /path/to/file.vds exportplink -o file:///path/to/plinkfiles -t /tmp/ --cutoff 20
+hail read -i /path/to/file.vds exportplink -o file:///path/to/plinkFileBase
 ```
 
 Hail's output is designed to mirror Plink's own VCF conversion using the following command:
