@@ -25,30 +25,30 @@ object ExportPlink extends Command {
     val vds = state.vds
 
     val bedHeader = Array[Byte](108, 27, 1)
+
     val plinkVariantRDD = vds
       .rdd
       .map {
         case (v, va, gs) =>
-          (v, (ExportBedBimFam.makeBedRow(gs), ExportBedBimFam.makeBimRow(v)))
+          (v, ExportBedBimFam.makeBedRow(gs))
       }
 
     plinkVariantRDD.persist(StorageLevel.MEMORY_AND_DISK)
 
     val sortedPlinkRDD = plinkVariantRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Array[Byte], String)]
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, Array[Byte]]
       (vds.rdd.partitions.length, plinkVariantRDD))
 
     sortedPlinkRDD
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    plinkVariantRDD.unpersist()
-
-    sortedPlinkRDD.map { case (v, (bed, bim)) => bed }
+    sortedPlinkRDD.map { case (v, bed) => bed }
       .saveFromByteArrays(options.output + ".bed", header = Some(bedHeader))
 
-    sortedPlinkRDD.map { case (v, (bed, bim)) => bim }
+    sortedPlinkRDD.map { case (v, bed) => ExportBedBimFam.makeBimRow(v) }
       .writeTable(options.output + ".bim")
 
+    plinkVariantRDD.unpersist()
     sortedPlinkRDD.unpersist()
 
     val famRows = vds
