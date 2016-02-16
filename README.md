@@ -7,9 +7,15 @@
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
 4. [QC](docs/QC.md)
 5. [Filtering](docs/Filtering.md)
+<<<<<<< HEAD
 6. [Exporting to TSVs](docs/ExportTSV.md)
 7. [Exporting to VCF](docs/ExportVCF.md)
 8. [Exporting to Plink](docs/ExportPlink.md
+=======
+6. [Renaming Samples](docs/RenameSamples.md)
+7. [Exporting to TSVs](docs/ExportTSV.md)
+8. [Exporting to VCF](docs/ExportVCF.md)
+>>>>>>> origin/master
 9. [Mendel errors](docs/MendelErrors.md)
 
 ## Tools

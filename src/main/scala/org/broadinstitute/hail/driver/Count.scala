@@ -28,11 +28,13 @@ object Count extends Command {
     val nGenotypes = nVariants.toLong * nLocalSamples.toLong
     val callRate = divOption(nCalled, nGenotypes)
 
-    println("  nSamples = " + vds.nSamples)
-    println("  nLocalSamples = " + nLocalSamples)
-    println("  nVariants = " + nVariants)
-    println(s"  nCalled = $nCalled")
-    println(s"  callRate = ${callRate.map(r => (r * 100).formatted("%.3f%%")).getOrElse("NA")}")
+    info(
+      s"""count:
+          |  nSamples = ${vds.nSamples}
+          |  nLocalSampels = $nLocalSamples
+          |  nVariants = $nVariants
+          |  nCalled = $nCalled
+          |  callRate = ${callRate.map(r => (r * 100).formatted("%.3f%%")).getOrElse("NA")}""".stripMargin)
 
     state
   }

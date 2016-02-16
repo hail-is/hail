@@ -22,12 +22,15 @@ import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
-import org.broadinstitute.hail.Utils._
+import org.slf4j.{Logger, LoggerFactory}
+
+import Utils._
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0
 
   def hasNext: Boolean = i < a.length
+
   def next(): Byte = {
     val r = a(i)
     i += 1
@@ -297,7 +300,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     val (_, dt) = time {
       hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
     }
-    println("merge time: " + formatTime(dt))
+    info(s"while writing:\n    $filename\n  merge time: ${formatTime(dt)}")
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = false)
@@ -386,13 +389,13 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
       case null | None => sb.append("NA")
       case Some(x) => tsvAppend(x)
       case d: Double => sb.append(d.formatted("%.4e"))
-      case v: Variant => 
+      case v: Variant =>
         sb.append(v.contig)
-	sb += ':'
+        sb += ':'
         sb.append(v.start)
-	sb += ':'
+        sb += ':'
         sb.append(v.ref)
-	sb += ':'
+        sb += ':'
         sb.append(v.alt)
       case i: Iterable[_] =>
         var first = true
@@ -455,10 +458,25 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 
 class RichBoolean(val b: Boolean) extends AnyVal {
   def ==>(that: => Boolean): Boolean = !b || that
+
   def iff(that: Boolean): Boolean = b == that
 }
 
-object Utils {
+trait Logging {
+  @transient var log_ : Logger = null
+
+  def log: Logger = {
+    if (log_ == null)
+      log_ = LoggerFactory.getLogger("Hail")
+    log_
+  }
+}
+
+class FatalException(msg: String) extends RuntimeException(msg)
+
+class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
+
+object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
@@ -546,20 +564,22 @@ object Utils {
       plur
 
   def info(msg: String) {
+    log.info(msg)
     System.err.println("hail: info: " + msg)
   }
 
-  def warning(msg: String) {
+  def warn(msg: String) {
+    log.warn(msg)
     System.err.println("hail: warning: " + msg)
+  }
+
+  def error(msg: String) {
+    log.error(msg)
+    System.err.println("hail: error: " + msg)
   }
 
   def fatal(msg: String): Nothing = {
-    System.err.println("hail: fatal: " + msg)
-    sys.exit(1)
-  }
-
-  def warn(msg: String) {
-    System.err.println("hail: warning: " + msg)
+    throw new FatalException(msg)
   }
 
   def fail(): Nothing = {
@@ -568,7 +588,7 @@ object Utils {
   }
 
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
-    hadoop.fs.FileSystem.get(new URI(filename), hConf)
+    new hadoop.fs.Path(filename).getFileSystem(hConf)
 
   def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
     val fs = hadoopFS(filename, hConf)
@@ -622,8 +642,18 @@ object Utils {
     getRandomName
   }
 
-  def hadoopCopyMerge(srcFilenames: Array[String], destFilename: String, hConf: hadoop.conf.Configuration,
-    deleteSource: Boolean = true) {
+  def hadoopGlobAndSort(filename: String, hConf: hadoop.conf.Configuration): Array[FileStatus] = {
+    val fs = hadoopFS(filename, hConf)
+    val path = new hadoop.fs.Path(filename)
+
+    val files = fs.globStatus(path)
+    if (files == null)
+      return Array.empty[FileStatus]
+
+    files.sortWith(_.compareTo(_) < 0)
+  }
+
+  def hadoopCopyMerge(srcFilenames: Array[String], destFilename: String, hConf: hadoop.conf.Configuration, deleteSource: Boolean = true) {
 
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = hadoopFS(destFilename, hConf)
@@ -631,24 +661,22 @@ object Utils {
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
     val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
-    val lenAdjust: Long = if (isBGzip) -28 else 0
 
-    def globAndSort(filename: String): Array[FileStatus] = {
-      val fs = hadoopFS(filename, hConf)
-      val path = new hadoop.fs.Path(filename)
-      fs.globStatus(path).sortWith(_.compareTo(_) < 0)
-    }
-
-    val srcFileStatuses = srcFilenames.flatMap(globAndSort)
+    val srcFileStatuses = srcFilenames.flatMap(f => hadoopGlobAndSort(f, hConf))
     require(srcFileStatuses.forall {
-      case fileStatus =>
-        fileStatus.getPath != destPath && fileStatus.isFile
+      fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
     })
 
     val outputStream = destFS.create(destPath)
 
     try {
-      for (fileStatus <- srcFileStatuses) {
+      var i = 0
+      while (i < srcFileStatuses.length) {
+        val fileStatus = srcFileStatuses(i)
+        val lenAdjust: Long = if (isBGzip && i < srcFileStatuses.length - 1)
+          -28
+        else
+          0
         val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
         val inputStream = srcFS.open(fileStatus.getPath)
         try {
@@ -658,6 +686,7 @@ object Utils {
         } finally {
           inputStream.close()
         }
+        i += 1
       }
     } finally {
       outputStream.close()
@@ -753,7 +782,6 @@ object Utils {
     if (!p) throw new AssertionError
   }
 
-  // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
   def printTime[T](block: => T) = {
     val timed = time(block)
     println("time: " + formatTime(timed._2))
@@ -812,13 +840,13 @@ object Utils {
     if (absds < 1e3)
       s"${ds}B"
     else if (absds < 1e6)
-      s"${ds.toDouble/1e3}KB"
+      s"${ds.toDouble / 1e3}KB"
     else if (absds < 1e9)
-      s"${ds.toDouble/1e6}MB"
+      s"${ds.toDouble / 1e6}MB"
     else if (absds < 1e12)
-      s"${ds.toDouble/1e9}GB"
+      s"${ds.toDouble / 1e9}GB"
     else
-      s"${ds.toDouble/1e12}TB"
+      s"${ds.toDouble / 1e12}TB"
   }
 
   def someIf[T](p: Boolean, x: => T): Option[T] =
@@ -859,7 +887,7 @@ object Utils {
 
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
-  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase).filter(s => !s.isEmpty)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
