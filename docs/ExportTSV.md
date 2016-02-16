@@ -8,8 +8,8 @@ Hail has three export modules which write to TSVs:
 These three export modules take a condition argument (`-c`) similar to [filtering](Filtering.md) expressions, with a similar namespace as well.  However, the expression is not parsed as a boolean, but rather a comma-delimited list of fields or expressions to print.  These fields will be printed in the order they appear in the expression in the header and on each line.
 
 Command line arguments: 
- - `-c` -- export expression (see below) or .columns file
- - `-o` -- file path to which output should be written
+ - `-c | --condition <cond>` -- export expression (see below) or .columns file
+ - `-o | --output <file>` -- file path to which output should be written
 
 ## Export modules
 

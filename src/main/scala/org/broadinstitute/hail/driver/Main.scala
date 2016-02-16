@@ -159,6 +159,7 @@ object Main {
       Cache,
       Count,
       DownsampleVariants,
+      ExportPlink,
       ExportGenotypes,
       ExportSamples,
       ExportVariants,

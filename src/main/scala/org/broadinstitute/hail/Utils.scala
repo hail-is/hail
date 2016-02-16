@@ -6,10 +6,13 @@ import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
+import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
+import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -306,6 +309,50 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 }
 
+class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
+  def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
+    val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
+    val bytesClassTag = implicitly[ClassTag[BytesOnlyWritable]]
+    val hConf = r.sparkContext.hadoopConfiguration
+
+    val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
+
+    header.foreach { str =>
+      writeDataFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
+        s.write(str)
+      }
+    }
+
+    val filesToMerge = header match {
+      case Some(_) => Array(tmpFileName + ".header", tmpFileName + "/part-*")
+      case None => Array(tmpFileName + "/part-*")
+    }
+
+    val rMapped = r.mapPartitions { iter =>
+      val bw = new BytesOnlyWritable()
+      iter.map { bb =>
+        bw.set(new BytesWritable(bb))
+        (NullWritable.get(), bw)
+      }
+    }
+
+    RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
+      .saveAsHadoopFile[ByteArrayOutputFormat](tmpFileName)
+
+    hadoopDelete(filename, hConf, recursive = true) // overwriting by default
+
+    val (_, dt) = time {
+      hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+    }
+    println("merge time: " + formatTime(dt))
+
+    if (deleteTmpFiles) {
+      hadoopDelete(tmpFileName + ".header", hConf, recursive = false)
+      hadoopDelete(tmpFileName, hConf, recursive = true)
+    }
+  }
+}
+
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
 
   def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
@@ -436,6 +483,8 @@ object Utils extends Logging {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
+  implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
+  
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
