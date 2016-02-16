@@ -20,14 +20,9 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
-<<<<<<< HEAD
-
-  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int], line: String, typeMap: Map[String, Any]): (Variant, Annotations, Iterable[Genotype]) = {
-=======
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     line: String,
     typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
->>>>>>> origin/master
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
