@@ -54,10 +54,9 @@ class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, S
 
     val sampleColIndex = header.indexOf(sampleCol)
 
-    val signatures = Annotations(
+    val signatures = rooted(Annotations(
       cleanHeader.map(column => (column, SimpleSignature(typeMap.getOrElse(column, "String"))))
-        .toMap
-    )
+        .toMap))
 
     val sampleMap: Map[String, IndexedSeq[Option[Any]]] = {
       lines.map(line => {

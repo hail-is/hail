@@ -3,13 +3,14 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.io.annotators.Annotator
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
 import scala.io.Source
 import org.broadinstitute.hail.Utils._
 
-class AnnotateFromFilesSuite extends SparkSuite {
+class ImportAnnotationsSuite extends SparkSuite {
 
   @Test def testSampleTSVAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
@@ -196,5 +197,20 @@ class AnnotateFromFilesSuite extends SparkSuite {
     assert(tsv1.vds.same(tsvSer1.vds))
     assert(tsv1r.vds.same(tsvSer1r.vds))
     assert(vcf1.vds.same(vcfSer1.vds))
+  }
+
+  @Test def testRootFunction() {
+    val f1 = Annotator.rootFunction(null)
+    val f2 = Annotator.rootFunction("info")
+    val f3 = Annotator.rootFunction("other.info")
+    val f4 = Annotator.rootFunction("a.b.c.d.e")
+    val annotations = Annotations(Map("test" -> true))
+    assert(f1(annotations) == Annotations(Map("test" -> true)))
+    assert(f2(annotations) == Annotations(Map("info" -> Annotations(Map("test" -> true)))))
+    assert(f3(annotations) == Annotations(Map("other" -> Annotations(
+      Map("info" -> Annotations(Map("test" -> true)))))))
+    assert(f4(annotations) == Annotations(Map("a" -> Annotations(
+      Map("b" -> Annotations(Map("c" -> Annotations(Map("d" -> Annotations(
+        Map("e" -> Annotations(Map("test" -> true)))))))))))))
   }
 }

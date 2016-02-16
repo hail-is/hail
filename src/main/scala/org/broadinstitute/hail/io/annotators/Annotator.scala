@@ -28,7 +28,9 @@ object Annotator {
       if (root == null)
         va
       else
-        Annotations(Map(root -> va))
+        root
+          .split("""\.""")
+          .foldRight(va)((id, annotations) => Annotations(Map(id -> annotations)))
   }
 
   def parseField(typeString: String, k: String, missing: Set[String], excluded: Set[String]):

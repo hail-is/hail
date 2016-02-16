@@ -6,7 +6,7 @@ Hail includes modules for importing annotations from external files, for use in 
  
 Most command line arguments differ between the two modules and individual file formats.  The following are universal:
  - `-c | --condition <path>` -- path of file to read
- - `-r | --root <identifier>` -- root annotations in `va.identifier` or `sa.identifier`.  If no root is provided, all annotations will be placed directly under `va` or `sa`.
+ - `-r | --root <identifier>` -- root annotations in `va.identifier` or `sa.identifier`.  If no root is provided, all annotations will be placed directly under `va` or `sa`.  For arbitrarily deep placement, you can specify a path like `--root this.is.a.big.tree` 
 
 ## Annotating Samples
 
