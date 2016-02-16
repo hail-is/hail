@@ -46,4 +46,8 @@ case class VariantMetadata(filters: IndexedSeq[(String, String)],
     copy(
       variantAnnotationSignatures = variantAnnotationSignatures +(key, sig)
     )
+
+  def removeVariantAnnotationSignatures(key: String): VariantMetadata =
+    copy(
+      variantAnnotationSignatures = variantAnnotationSignatures - key)
 }

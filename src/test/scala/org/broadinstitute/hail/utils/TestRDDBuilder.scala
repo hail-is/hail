@@ -116,7 +116,7 @@ object TestRDDBuilder {
           val pl = plFromGQ(gq, gt)
 
           // FIXME gq
-          b += Genotype(gt, ad, Some(dp), pl)
+          b += Genotype(gt, ad, Some(dp), Some(gq), pl)
         }
         (variant, Annotations.empty(), b.result(): Iterable[Genotype])
     }

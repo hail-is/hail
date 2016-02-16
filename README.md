@@ -7,6 +7,7 @@
 4. [QC](docs/QC.md)
 5. [Importing annotations](docs/ImportAnnotations.md)
 6. [Filtering](docs/Filtering.md)
+6. [Renaming Samples](docs/RenameSamples.md)
 7. [Exporting to TSVs](docs/ExportTSV.md)
 8. [Exporting to VCF](docs/ExportVCF.md)
 9. [Mendel errors](docs/MendelErrors.md)

@@ -62,7 +62,7 @@ object MendelErrors {
     val nSamplesDiscarded = preTrios.size - trios.size
 
     if (nSamplesDiscarded > 0)
-      warning(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
+      warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
 
     info(s"Computing Mendel errors for ${trios.size} ${plural(trios.size, "trio")}.")
 

@@ -24,6 +24,13 @@ class SplitSuite extends SparkSuite {
       }
   }
 
+  @Test def minrep() {
+    assert(SplitMulti.minRep(10, "TAA", "TA") == (10, "TA", "T"))
+    assert(SplitMulti.minRep(10, "ACTG", "ACT") == (12, "TG", "T"))
+    assert(SplitMulti.minRep(10, "AAACAAAC", "AAAC") == (10, "AAACA", "A"))
+    assert(SplitMulti.minRep(10, "AATAA", "AAGAA") == (12, "T", "G"))
+  }
+
   @Test def splitTest() {
     Spec.check()
 
@@ -49,11 +56,11 @@ class SplitSuite extends SparkSuite {
 
     // test for fakeRef
     assert(vds1.mapWithKeys((v, s, g) => ((v.start, v.alt, s), g.fakeRef)).filter(_._2).map(_._1.toString).collect.toSet
-      == Set("(2167,AAAACAAAC,1)", "(2167,A,3)", "(2167,AAAACAAACAAAC,6)", "(1183,C,3)", "(2167,A,6)", "(2167,AAAACAAAC,2)",
-      "(2167,AAAACAAAC,7)", "(2167,AAAACAAACAAAC,7)", "(1783,TAA,3)", "(2167,A,4)", "(2167,A,2)", "(1183,C,6)",
-      "(2167,AAAACAAAC,6)", "(1183,C,7)", "(1783,TAA,4)", "(2167,AAAACAAACAAAC,4)", "(2167,AAAACAAAC,4)", "(1783,T,2)",
-      "(2167,A,1)", "(2167,AAAACAAAC,5)", "(2167,AAAACAAACAAAC,3)", "(1783,T,4)", "(1783,TAA,5)", "(1783,T,1)",
-      "(2167,AAAACAAACAAAC,5)"))
+      == Set("(2167,AAAAC,1)", "(2167,A,3)", "(2167,AAAACAAAC,6)", "(1183,C,3)", "(2167,A,6)", "(2167,AAAAC,2)",
+      "(2167,AAAAC,7)", "(2167,AAAACAAAC,7)", "(1783,TA,3)", "(2167,A,4)", "(2167,A,2)", "(1183,C,6)",
+      "(2167,AAAAC,6)", "(1183,C,7)", "(1783,TA,4)", "(2167,AAAACAAAC,4)", "(2167,AAAAC,4)", "(1783,T,2)",
+      "(2167,A,1)", "(2167,AAAAC,5)", "(2167,AAAACAAAC,3)", "(1783,T,4)", "(1783,TA,5)", "(1783,T,1)",
+      "(2167,AAAACAAAC,5)"))
 
   }
 }

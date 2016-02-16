@@ -20,8 +20,14 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
+<<<<<<< HEAD
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int], line: String, typeMap: Map[String, Any]): (Variant, Annotations, Iterable[Genotype]) = {
+=======
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+    line: String,
+    typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
+>>>>>>> origin/master
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
@@ -43,8 +49,10 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       .asScala
       .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
       .toMap
-      .map {
-        case (k, v) => (k, HtsjdkRecordReader.mapType(v, typeMap(k).asInstanceOf[VCFSignature]))
+      .flatMap { case (k, v) =>
+        typeMap.get(k).map { t =>
+          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
+        }
       }),
       "qual" -> vc.getPhredScaledQual,
       "filters" -> filts,
@@ -125,27 +133,20 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
       if (g.hasGQ) {
         val gq = g.getGQ
+        gb.setGQ(gq)
 
-        if (pl != null) {
-          var m = Int.MaxValue
-          var m2 = Int.MaxValue
-          var i = 0
-          while (i < pl.length) {
-            if (pl(i) < m) {
-              m2 = m
-              m = pl(i)
-            } else if (pl(i) < m2)
-              m2 = pl(i)
-            i += 1
-          }
-          val gqFromPL = (m2 - m).min(99)
-          if (!filter && gq != gqFromPL) {
-            reportAcc += VCFReport.GQPLMismatch
+        if (!storeGQ) {
+          if (pl != null) {
+            val gqFromPL = Genotype.gqFromPL(pl)
+
+            if (!filter && gq != gqFromPL) {
+              reportAcc += VCFReport.GQPLMismatch
+              filter = true
+            }
+          } else if (!filter) {
+            reportAcc += VCFReport.GQMissingPL
             filter = true
           }
-        } else if (!filter) {
-          reportAcc += VCFReport.GQMissingPL
-          filter = true
         }
       }
 

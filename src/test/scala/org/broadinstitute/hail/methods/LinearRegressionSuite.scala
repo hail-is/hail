@@ -20,10 +20,11 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val linReg = LinearRegression(vds, ped, cov)
-    val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.lr.collect().toMap
-    val eps = .001 //FIXME: use D_== when it is ready
+    val linReg = LinearRegression(vds, ped, cov.filterSamples(ped.phenotypedSamples))
 
+    val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.lr.collect().toMap
+
+    val eps = .001 //FIXME: use D_== when it is ready
 
     //linReg.lr.collect().foreach{ case (v, lrs) => println(v + " " + lrs) }
 

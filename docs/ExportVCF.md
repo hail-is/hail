@@ -1,13 +1,18 @@
-# Exporting to VCFs in Hail
+# Exporting to VCF
 
 Hail contains an `exportvcf` module which will write out the internal VDS in a vcf file to the [VCF 4.2 spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf).
 
 Command line arguments:
- - `-o` -- path of output file
+ - `-a <file>` -- File to append to VCF header.  Optional.
+ - `-o <output file> | --output <output file>` -- Output file.  Required.
 
-Example `exportvcf` command:
+Example `exportvcf` commands:
 ```
 hail read -i /path/to/file.vds exportvcf -o /path/to/file.vcf
+```
+
+```
+hail read -i /path/to/file.vds exportvcf -o /path/to/file.vcf.bgz
 ```
 
 ## Information written

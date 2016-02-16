@@ -14,6 +14,8 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def ++(other: Annotations): Annotations = Annotations(attrs ++ other.attrs)
 
+  def -(key: String): Annotations = Annotations(attrs - key)
+
   // FIXME for annotation signatures only
   def toExprType: expr.Type = expr.TStruct(attrs.map {
     case (k, a: Annotations) => (k, a.toExprType)
