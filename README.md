@@ -68,7 +68,7 @@ To generate a code coverage report and view it, do:
 To convert a .vcf.gz to a .vds, do:
 
 ```
-~/hail $ ./build/install/hail/bin/hail import -i src/test/resources/sample.vcf.gz write -o ~/sample.vds
+~/hail $ ./build/install/hail/bin/hail importvcf src/test/resources/sample.vcf.gz write -o ~/sample.vds
 ```
 
 `sample.vcf.gz` is a 182KB test `.vcf.gz` with a hundred or so samples

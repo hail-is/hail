@@ -66,4 +66,16 @@ class ExportSuite extends SparkSuite {
 
     assert(vQcOutput == vExportOutput)
   }
+
+  def testExportSamples() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    s = FilterSamples.run(s, Array("--keep", "-c", """s.id == "C469::HG02026""""))
+    assert(s.vds.nSamples == 1)
+
+    // verify exports localSamples
+    s = ExportSamples.run(s, Array("-o", "/tmp/samples.tsv", "-c", "s.id"))
+    assert(sc.textFile("/tmp/samples.tsv").count() == 1)
+  }
+
 }
