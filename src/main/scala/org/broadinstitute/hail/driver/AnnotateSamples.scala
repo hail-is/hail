@@ -15,7 +15,7 @@ object AnnotateSamples extends Command {
     var condition: String = _
 
     @Args4jOption(name = "-s", aliases = Array("--sampleheader"),
-      usage = "Identify the name of the column containing the sample IDs")
+      usage = "Identify the name of the column containing the sample IDs (default: 'Sample')")
     var sampleCol: String = "Sample"
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
@@ -43,14 +43,14 @@ object AnnotateSamples extends Command {
     val vds = state.vds
 
     val cond = options.condition
-    val annotator = {
-      if (cond.endsWith(".tsv") || cond.endsWith(".tsv.gz"))
+    val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
+    val annotator = stripped match {
+      case tsv if tsv.endsWith(".tsv") =>
         new SampleTSVAnnotator(cond, options.sampleCol,
           AnnotateVariants.parseTypeMap(options.types),
           AnnotateVariants.parseMissing(options.missingIdentifiers),
           options.root)
-      else
-        fatal("specify a tsv file")
+      case _ => fatal(s"unknown file type '$cond'.  Specify a .tsv file")
     }
     state.copy(vds = vds.annotateSamples(annotator))
   }

@@ -2,7 +2,7 @@ package org.broadinstitute.hail.io.annotators
 
 import java.nio.ByteBuffer
 
-import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop
 import org.apache.spark.SparkEnv
 import org.apache.spark.serializer.SerializerInstance
 import org.broadinstitute.hail.Utils._
@@ -12,7 +12,7 @@ import org.broadinstitute.hail.variant.{LZ4Utils, Variant}
 class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
   @transient var variantIndexes: Map[Variant, (Int, Int)] = null
   @transient var compressedBytes: IndexedSeq[(Int, Array[Byte])] = null
-  @transient var cleanHeader: IndexedSeq[String] = null
+  @transient var cleanHeader: Array[String] = null
   @transient var f: (Variant, Annotations, SerializerInstance) => Annotations = null
 
   val rooted = Annotator.rootFunction(root)
@@ -24,10 +24,10 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
 
   def check(sz: SerializerInstance) {
     if (variantIndexes == null || compressedBytes == null)
-      read(new Configuration, sz)
+      read(new hadoop.conf.Configuration, sz)
   }
 
-  def read(conf: Configuration, sz: SerializerInstance) {
+  def read(conf: hadoop.conf.Configuration, sz: SerializerInstance) {
     val t0 = System.nanoTime()
     val dsStream = sz
       .deserializeStream(hadoopOpen(path, conf))
@@ -77,7 +77,7 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
     }
   }
 
-  def metadata(conf: Configuration): Annotations = {
+  def metadata(conf: hadoop.conf.Configuration): Annotations = {
     val serializerStream = SparkEnv.get
       .serializer
       .newInstance()

@@ -6,7 +6,7 @@ import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.compress.CompressionCodecFactory
+import org.apache.hadoop.io.compress.{CompressionCodec, CompressionCodecFactory}
 import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
@@ -654,6 +654,24 @@ object Utils extends Logging {
       }
     }
   }
+
+  def hadoopStripCodec(s: String, conf: hadoop.conf.Configuration): String = {
+    import scala.collection.JavaConverters._
+
+    val ccf = new CompressionCodecFactory(conf)
+    val extensions = CompressionCodecFactory.getCodecClasses(conf)
+      .asScala
+      .toArray
+      .map(a => a.getName)
+      .map(name => ccf.getCodecByClassName(name).getDefaultExtension)
+      .toSet
+
+    if (!s.contains(".") || !extensions(s.substring(s.lastIndexOf("."))))
+      s
+    else
+      s.subSequence(0, s.lastIndexOf(".")).toString
+  }
+
 
   def writeObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {

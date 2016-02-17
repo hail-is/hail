@@ -49,11 +49,10 @@ object AnnotateVariants extends Command {
     s.split(",")
       .map(_.trim())
       .map(s => s.split(":").map(_.trim()))
-      .map { arr =>
-        fatalIf(arr.length != 2, "parse error in type declaration")
-        arr
+      .map {
+        case Array(f, t) => (f, t)
+        case arr => fatal("parse error in type declaration"))
       }
-      .map(arr => (arr(0), arr(1)))
       .toMap
   }
 
@@ -65,9 +64,10 @@ object AnnotateVariants extends Command {
 
   def parseColumns(s: String): Array[String] = {
     val split = s.split(",").map(_.trim)
-    fatalIf(split.length != 4,
+    fatalIf(split.length != 4 && split.length != 1,
       "Cannot read chr, pos, ref, alt columns from '" + s +
-        "': enter 4 comma-separated column identifiers")
+        "': enter 4 comma-separated column identifiers for separate chr/pos/ref/alt columns, " +
+        "or one identifier for chr:pos:ref:alt")
     split
   }
 
@@ -76,25 +76,19 @@ object AnnotateVariants extends Command {
 
     val cond = options.condition
 
-    val annotator: VariantAnnotator = {
-      if (cond.endsWith(".interval_list") || cond.endsWith(".interval_list.gz")) {
+    val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
+
+    val annotator: VariantAnnotator = stripped match {
+      case intervalList if intervalList.endsWith(".interval_list")  =>
         fatalIf(options.identifier == null, "annotating from .interval_list files requires the argument 'identifier'")
         new IntervalListAnnotator(cond, options.identifier, options.root)
-      }
-      else if (cond.endsWith(".tsv") || cond.endsWith(".tsv.gz")) {
+      case tsv if tsv.endsWith(".tsv") =>
         new TSVAnnotatorCompressed(cond, parseColumns(options.vCols), parseTypeMap(options.types),
           parseMissing(options.missingIdentifiers), options.root)
-      }
-      else if (cond.endsWith(".bed") || cond.endsWith(".bed.gz"))
-        new BedAnnotator(cond, options.root)
-      else if (cond.endsWith(".vcf") || cond.endsWith(".vcf.gz") || cond.endsWith(".vcf.bgz")) {
-        new VCFAnnotatorCompressed(cond, options.root)
-      }
-      else if (cond.endsWith(".ser") || cond.endsWith(".ser.gz")) {
-        new SerializedAnnotator(cond, options.root)
-      }
-      else
-        throw new UnsupportedOperationException
+      case bed if bed.endsWith(".bed") => new BedAnnotator(cond, options.root)
+      case vcf if vcf.endsWith(".vcf") => new VCFAnnotatorCompressed(cond, options.root)
+      case ser if ser.endsWith(".ser") => new SerializedAnnotator(cond, options.root)
+      case _ => fatal(s"Unknown file type '$cond'.  Specify a .tsv, .bed, .vcf, .serialized, or .interval_list file")
     }
 
     state.copy(vds = vds.annotateVariants(annotator))

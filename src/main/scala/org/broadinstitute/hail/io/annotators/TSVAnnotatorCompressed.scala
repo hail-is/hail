@@ -2,13 +2,14 @@ package org.broadinstitute.hail.io.annotators
 
 import java.nio.ByteBuffer
 
-import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop
 import org.apache.spark.serializer.SerializerInstance
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotations, SimpleSignature}
-import org.broadinstitute.hail.variant.{LZ4Utils, Variant}
+import org.broadinstitute.hail.variant.{Variant, LZ4Utils}
 
 import scala.io.Source
+import scala.collection.mutable
 
 class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
   typeMap: Map[String, String], missing: Set[String], root: String)
@@ -44,29 +45,18 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
 
   def check(sz: SerializerInstance) {
     if (internalMap == null)
-      read(new Configuration(), sz)
+      read(new hadoop.conf.Configuration(), sz)
   }
 
-  def metadata(conf: Configuration): Annotations = {
+  def metadata(conf: hadoop.conf.Configuration): Annotations = {
     readFile(path, conf)(is => {
       val header = Source.fromInputStream(is)
         .getLines()
         .next()
         .split("\t")
 
-      val (chrIndex, posIndex, refIndex, altIndex) =
-        (header.indexOf(vColumns(0)),
-          header.indexOf(vColumns(1)),
-          header.indexOf(vColumns(2)),
-          header.indexOf(vColumns(3)))
-
-      if (chrIndex < 0 || posIndex < 0 || refIndex < 0 || altIndex < 0) {
-        val notFound = vColumns.flatMap(i => if (header.indexOf(i) < 0) Some(i) else None)
-        fatal(s"Could not find designated identifier column(s): [${notFound.mkString(", ")}]")
-      }
-
       val anno = Annotations(header.flatMap(s =>
-        if (!vColumns.toSet(s))
+        if (!vColumns.contains(s))
           Some(s, SimpleSignature(typeMap.getOrElse(s, "String")))
         else
           None)
@@ -76,61 +66,93 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
     })
   }
 
-  def read(conf: Configuration, serializer: SerializerInstance) {
-    val lines = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
-      .filter(line => !line.isEmpty)
+  def read(conf: hadoop.conf.Configuration, serializer: SerializerInstance) {
+    readFile(path, conf) {
+      reader =>
+        val lines = Source.fromInputStream(reader)
+          .getLines()
+          .filter(line => !line.isEmpty)
 
-    val header = lines.next()
-      .split("\t")
-    val (chrIndex, posIndex, refIndex, altIndex) =
-      (header.indexOf(vColumns(0)),
-        header.indexOf(vColumns(1)),
-        header.indexOf(vColumns(2)),
-        header.indexOf(vColumns(3)))
 
-    headerIndex = header.flatMap(line => if (!vColumns.contains(line)) Some(line) else None)
+        val header = lines.next()
+          .split("\t")
 
-    if (chrIndex < 0 || posIndex < 0 || refIndex < 0 || altIndex < 0) {
-      val notFound = vColumns.flatMap(i => if (header.indexOf(i) < 0) Some(i) else None)
-      fatal(s"Could not find designated identifier column(s): [${notFound.mkString(", ")}]")
-    }
-
-    val signatures = Annotations(header.flatMap(s =>
-      if (!vColumns.toSet(s))
-        Some(s, SimpleSignature(typeMap.getOrElse(s, "String")))
-      else
-        None)
-      .toMap)
-
-    val excluded = vColumns.toSet
-    val functions = header.map(col => Annotator.parseField(typeMap.getOrElse(col, "String"), col, missing, excluded)).toIndexedSeq
-    val bbb = new ByteBlockBuilder[Array[Option[Any]]](serializer)
-
-    var i = 1
-    val variantMap = lines.map {
-      line =>
-        i += 1
-        val split = line.split("\t")
-        val indexedValues = split.iterator.zipWithIndex.flatMap {
-          case (field, index) =>
-            if (index != chrIndex && index != posIndex && index != refIndex && index != altIndex)
-              Some(functions(index)(field))
-            else
-              None
+        headerIndex = header.flatMap { col =>
+          if (!vColumns.contains(col))
+            Some(col)
+          else
+            None
         }
-          .toArray
-        val variantIndex = bbb.add(indexedValues)
-        (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), variantIndex)
-    }
-      .toMap
 
-    internalMap = variantMap
-    compressedBlocks = bbb.result()
+        val excluded = vColumns.toSet
+        val functions = header.map(col => Annotator.parseField(typeMap.getOrElse(col, "String"), col, missing))
+        val bbb = new ByteBlockBuilder[Array[Option[Any]]](serializer)
+        val ab = new mutable.ArrayBuilder.ofRef[Option[Any]]
+
+        val parseLine: String => (Variant, Array[Option[Any]]) = {
+          // format CHR:POS:REF:ALT
+          if (vColumns.length == 1) {
+            val variantIndex = header.indexOf(vColumns.head)
+            fatalIf(variantIndex < 0, s"Could not find designated CHR:POS:REF:ALT column identifier '${vColumns.head}'")
+            line => {
+              val split = line.split("\t")
+              val Array(chr, pos, ref, alt) = split(variantIndex).split(":")
+              split.iterator.zipWithIndex.foreach {
+                case (field, index) =>
+                  if (index != variantIndex)
+                    ab += functions(index)(field)
+              }
+              val result = ab.result()
+              ab.clear()
+              (Variant(chr, pos.toInt, ref, alt), result)
+            }
+          }
+          // format CHR  POS  REF  ALT
+          else {
+            val (chrIndex, posIndex, refIndex, altIndex) =
+              (header.indexOf(vColumns(0)),
+                header.indexOf(vColumns(1)),
+                header.indexOf(vColumns(2)),
+                header.indexOf(vColumns(3)))
+            if (chrIndex < 0 || posIndex < 0 || refIndex < 0 || altIndex < 0) {
+              val notFound = vColumns.flatMap(i => if (header.indexOf(i) < 0) Some(i) else None)
+              fatal(s"Could not find designated identifier column(s): [${notFound.mkString(", ")}]")
+            }
+            line => {
+              val split = line.split("\t")
+              split.iterator.zipWithIndex.foreach {
+                case (field, index) =>
+                  if (index != chrIndex && index != posIndex && index != refIndex && index != altIndex)
+                    ab += functions(index)(field)
+              }
+              val result = ab.result()
+              ab.clear()
+              (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), result)
+            }
+          }
+        }
+
+        val signatures = Annotations(header.flatMap(s =>
+          if (!vColumns.toSet(s))
+            Some(s, SimpleSignature(typeMap.getOrElse(s, "String")))
+          else
+            None)
+          .toMap)
+
+        val variantMap = lines.map {
+          line =>
+            val (variant, fields) = parseLine(line)
+            (variant, bbb.add(fields))
+        }
+          .toMap
+
+        internalMap = variantMap
+        compressedBlocks = bbb.result()
+    }
   }
 
   def serialize(path: String, sz: SerializerInstance) {
-    val conf = new Configuration()
+    val conf = new hadoop.conf.Configuration()
     val signatures = metadata(conf)
     check(sz)
 

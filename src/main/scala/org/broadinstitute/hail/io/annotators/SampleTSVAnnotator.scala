@@ -1,18 +1,18 @@
 package org.broadinstitute.hail.io.annotators
 
-import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
-import org.broadinstitute.hail.variant._
 
 import scala.io.Source
+import scala.collection.mutable
 
 class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, String],
   missing: Set[String], root: String) extends SampleAnnotator {
 
-  val (parsedHeader, signatures, sampleMap) = read(new Configuration())
-
   val rooted = Annotator.rootFunction(root)
+  val (parsedHeader, signatures, sampleMap) = read(new hadoop.conf.Configuration())
+
 
   def annotate(s: String, sa: Annotations): Annotations = {
     sampleMap.get(s) match {
@@ -32,47 +32,53 @@ class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, S
 
   def metadata(): Annotations = signatures
 
-  def read(conf: Configuration): (IndexedSeq[String], Annotations, Map[String, IndexedSeq[Option[Any]]]) = {
-    val lines = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
-    fatalIf(lines.isEmpty, "empty annotations file")
+  def read(conf: hadoop.conf.Configuration): (IndexedSeq[String], Annotations, Map[String, Array[Option[Any]]]) = {
+    readFile(path, conf) { reader =>
+      val lines = Source.fromInputStream(hadoopOpen(path, conf))
+        .getLines()
+      fatalIf(lines.isEmpty, "empty annotations file")
 
-    val header = lines
-      .next()
-      .split("\t")
+      val header = lines
+        .next()
+        .split("\t")
 
-    val cleanHeader = header.flatMap {
-      column =>
-        if (column == sampleCol)
-          None
-        else
-          Some(column)
+      val cleanHeader = header.flatMap {
+        column =>
+          if (column == sampleCol)
+            None
+          else
+            Some(column)
+      }
+
+      val parseFieldFunctions = header.map(col => Annotator.parseField(
+        typeMap.getOrElse(col, "String"), col, missing))
+
+      val sampleColIndex = header.indexOf(sampleCol)
+
+      val signatures = rooted(Annotations(
+        cleanHeader.map(column => (column, SimpleSignature(typeMap.getOrElse(column, "String"))))
+          .toMap))
+
+      val ab = new mutable.ArrayBuilder.ofRef[Option[Any]]
+
+      val sampleMap: Map[String, Array[Option[Any]]] = {
+        lines.map(line => {
+          val split = line.split("\t")
+          val sample = split(sampleColIndex)
+          split.iterator.zipWithIndex.foreach {
+            case (field, index) =>
+              if (index != sampleColIndex)
+                ab += parseFieldFunctions(index)(field)
+          }
+          val result = ab.result()
+          ab.clear()
+          (sample, ab.result())
+        })
+          .toMap
+      }
+
+      (cleanHeader, signatures, sampleMap)
     }
-
-    val parseFieldFunctions = header.map(col => Annotator.parseField(
-      typeMap.getOrElse(col, "String"), col, missing, Set(sampleCol)))
-
-    val sampleColIndex = header.indexOf(sampleCol)
-
-    val signatures = rooted(Annotations(
-      cleanHeader.map(column => (column, SimpleSignature(typeMap.getOrElse(column, "String"))))
-        .toMap))
-
-    val sampleMap: Map[String, IndexedSeq[Option[Any]]] = {
-      lines.map(line => {
-        val split = line.split("\t")
-        val sample = split(sampleColIndex)
-        val indexedValues = split.iterator.zipWithIndex.map {
-          case (field, index) =>
-            parseFieldFunctions(index)(field)
-        }
-          .toIndexedSeq
-        (sample, indexedValues)
-      })
-        .toMap
-    }
-
-    (cleanHeader, signatures, sampleMap)
   }
 }
 

@@ -91,6 +91,17 @@ class ImportAnnotationsSuite extends SparkSuite {
           assert(rand2 == va.getOption[Double]("Rand2"))
           assert(gene == va.getOption[String]("Gene"))
       }
+
+    val anno1alternate = AnnotateVariants.run(state,
+      Array("-c", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
+        "Chromosome:Position:Ref:Alt", "-t", "Rand1:Double,Rand2:Double", "-r", "stuff"))
+
+    val anno2alternate = AnnotateVariants.run(state,
+      Array("-c", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
+        "Chromosome:Position:Ref:Alt", "-t", "Rand1:Double,Rand2:Double"))
+
+    assert(anno1alternate.vds.same(anno1.vds))
+    assert(anno2alternate.vds.same(anno2.vds))
   }
 
   @Test def testVCFAnnotator() {

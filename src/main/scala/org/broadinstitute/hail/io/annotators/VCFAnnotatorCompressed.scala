@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.io.annotators
 
 import htsjdk.variant.variantcontext.Allele
-import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop
 import org.apache.spark.serializer.SerializerInstance
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotations, SimpleSignature, VCFSignature}
@@ -67,44 +67,49 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
 
   def check(sz: SerializerInstance) {
     if (indexMap == null || compressedBlocks == null)
-      read(new Configuration(), sz)
+      read(new hadoop.conf.Configuration(), sz)
   }
 
-  def metadata(conf: Configuration): Annotations = {
-    val lineIterator = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
+  def metadata(conf: hadoop.conf.Configuration): Annotations = {
+    readFile(path, conf) { reader =>
+      val lineIterator = Source.fromInputStream(reader)
+        .getLines()
 
-    val headerLines = lineIterator
-      .takeWhile { line => line(0) == '#' }
-      .toArray
 
-    val codec = new htsjdk.variant.vcf.VCFCodec()
+      val headerLines = lineIterator
+        .takeWhile { line => line(0) == '#' }
+        .toArray
 
-    val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
-      .getHeaderValue
-      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+      val codec = new htsjdk.variant.vcf.VCFCodec()
 
-    val infoSignatures = Annotations(header
-      .getInfoHeaderLines
-      .toList
-      .map(line => (line.getID, VCFSignature.parse(line)))
-      .toMap)
+      val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+        .getHeaderValue
+        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
-    rooted(Annotations(Map("info" -> infoSignatures,
-      "filters" -> new SimpleSignature("Set[String]"),
-      "pass" -> new SimpleSignature("Boolean"),
-      "qual" -> new SimpleSignature("Double"),
-      "wasSplit" -> new SimpleSignature("Boolean"),
-      "rsid" -> new SimpleSignature("String"))))
+      val infoSignatures = Annotations(header
+        .getInfoHeaderLines
+        .toList
+        .map(line => (line.getID, VCFSignature.parse(line)))
+        .toMap)
+
+      rooted(Annotations(Map("info" -> infoSignatures,
+        "filters" -> new SimpleSignature("Set[String]"),
+        "pass" -> new SimpleSignature("Boolean"),
+        "qual" -> new SimpleSignature("Double"),
+        "wasSplit" -> new SimpleSignature("Boolean"),
+        "rsid" -> new SimpleSignature("String"))))
+    }
   }
 
 
-  def read(conf: Configuration, sz: SerializerInstance) {
+  def read(conf: hadoop.conf.Configuration, sz: SerializerInstance) {
 
-    val headerLines = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
-      .takeWhile { line => line(0) == '#' }
-      .toArray
+    val headerLines = readFile(path, conf) { reader =>
+      Source.fromInputStream(reader)
+        .getLines()
+        .takeWhile { line => line(0) == '#' }
+        .toArray
+    }
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
 
@@ -120,80 +125,81 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
 
     val bbb = new ByteBlockBuilder[Annotations](sz)
 
-    indexMap = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
-      .drop(headerLines.length)
-      .flatMap { line =>
-        val vc = codec.decode(line)
-        val pass = vc.filtersWereApplied() && vc.getFilters.size() == 0
-        val filts = {
-          if (vc.filtersWereApplied && vc.isNotFiltered)
-            Set("PASS")
-          else
-            vc.getFilters.asScala.toSet
-        }
-        val rsid = vc.getID
-        if (vc.isBiallelic) {
-          val variant = Variant(vc.getContig, vc.getStart, vc.getReference.getBaseString,
-            vc.getAlternateAllele(0).getBaseString)
-          Iterator.single((variant, Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
-            .asScala
-            .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
-            .toMap
-            .map {
-              case (k, v) => (k, HtsjdkRecordReader.mapType(v, infoSignatures.get[VCFSignature](k)))
-            }),
-            "qual" -> vc.getPhredScaledQual,
-            "filters" -> filts,
-            "pass" -> pass,
-            "rsid" -> rsid))))
-
-        }
-        else {
-          val ref = vc.getReference
-          val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
-          val altIndices = alts.map(vc.getAlleleIndex) // index in the VCF, used to access AD and PL fields
-          alts.zipWithIndex.map { case (alt, index) =>
-            (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString),
-              Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
-                .asScala
-                .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
-                .toMap
-                .map {
-                  case (k, v) => (k, VCFAnnotatorCompressed.mapTypeSplit(v, infoSignatures.get[VCFSignature](k),
-                    index))
-                }),
-                "qual" -> vc.getPhredScaledQual,
-                "filters" -> filts,
-                "pass" -> pass,
-                "rsid" -> rsid,
-                "wasSplit" -> true)))
+    indexMap = readFile(path, conf) { reader =>
+      Source.fromInputStream(reader)
+        .getLines()
+        .drop(headerLines.length)
+        .flatMap { line =>
+          val vc = codec.decode(line)
+          val pass = vc.filtersWereApplied() && vc.getFilters.size() == 0
+          val filts = {
+            if (vc.filtersWereApplied && vc.isNotFiltered)
+              Set("PASS")
+            else
+              vc.getFilters.asScala.toSet
           }
-            .iterator
+          val rsid = vc.getID
+          if (vc.isBiallelic) {
+            val variant = Variant(vc.getContig, vc.getStart, vc.getReference.getBaseString,
+              vc.getAlternateAllele(0).getBaseString)
+            Iterator.single((variant, Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
+              .asScala
+              .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
+              .toMap
+              .map {
+                case (k, v) => (k, HtsjdkRecordReader.mapType(v, infoSignatures.get[VCFSignature](k)))
+              }),
+              "qual" -> vc.getPhredScaledQual,
+              "filters" -> filts,
+              "pass" -> pass,
+              "rsid" -> rsid))))
+
+          }
+          else {
+            val ref = vc.getReference
+            val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
+            val altIndices = alts.map(vc.getAlleleIndex) // index in the VCF, used to access AD and PL fields
+            alts.zipWithIndex.map { case (alt, index) =>
+              (Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString),
+                Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
+                  .asScala
+                  .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
+                  .toMap
+                  .map {
+                    case (k, v) => (k, VCFAnnotatorCompressed.mapTypeSplit(v, infoSignatures.get[VCFSignature](k),
+                      index))
+                  }),
+                  "qual" -> vc.getPhredScaledQual,
+                  "filters" -> filts,
+                  "pass" -> pass,
+                  "rsid" -> rsid,
+                  "wasSplit" -> true)))
+            }
+              .iterator
+          }
         }
-      }
-      .map { case (v, va) => (v, bbb.add(va)) }
-      .toMap
+        .map { case (v, va) => (v, bbb.add(va)) }
+        .toMap
+    }
 
     compressedBlocks = bbb.result()
   }
 
   def serialize(path: String, sz: SerializerInstance) {
-    val conf = new Configuration()
+    val conf = new hadoop.conf.Configuration()
     val signatures = metadata(conf)
     val sb = new StringBuilder()
-    ShowAnnotations.printSignatures(sb, signatures, 2, "va")
-    println(sb.result())
     check(sz)
-
-    val stream = sz.serializeStream(hadoopCreate(path, conf))
-      .writeObject[String]("vcf")
-      .writeObject[Array[String]](null)
-      .writeObject[Annotations](signatures)
-      .writeObject(indexMap.size)
-      .writeAll(indexMap.iterator)
-      .writeObject(compressedBlocks.length)
-      .writeAll(compressedBlocks.iterator)
-      .close()
+    writeDataFile(path, conf) { writer =>
+      val stream = sz.serializeStream(writer)
+        .writeObject[String]("vcf")
+        .writeObject[Array[String]](null)
+        .writeObject[Annotations](signatures)
+        .writeObject(indexMap.size)
+        .writeAll(indexMap.iterator)
+        .writeObject(compressedBlocks.length)
+        .writeAll(compressedBlocks.iterator)
+        .close()
+    }
   }
 }

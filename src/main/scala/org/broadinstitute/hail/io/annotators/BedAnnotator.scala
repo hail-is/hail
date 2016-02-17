@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.io.annotators
 
-import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop
 import org.apache.spark.serializer.SerializerInstance
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotations, SimpleSignature}
@@ -23,10 +23,10 @@ class BedAnnotator(path: String, root: String) extends VariantAnnotator {
 
   def check() {
     if (intervalList == null)
-      read(new Configuration())
+      read(new hadoop.conf.Configuration())
   }
 
-  def metadata(conf: Configuration): (Annotations) = {
+  def metadata(conf: hadoop.conf.Configuration): (Annotations) = {
     val lines = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
 
@@ -81,7 +81,7 @@ class BedAnnotator(path: String, root: String) extends VariantAnnotator {
     rooted(Annotations(Map(name -> SimpleSignature(if (linesBoolean) "Boolean" else "String"))))
   }
 
-  def read(conf: Configuration) {
+  def read(conf: hadoop.conf.Configuration) {
     val headerLength = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
       .takeWhile(line =>

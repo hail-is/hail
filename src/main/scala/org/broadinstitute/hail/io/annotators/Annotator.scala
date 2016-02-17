@@ -24,75 +24,57 @@ abstract class SampleAnnotator {
 object Annotator {
 
   def rootFunction(root: String): Annotations => Annotations = {
-    va =>
-      if (root == null)
-        va
-      else
-        root
+    root match {
+      case null =>
+        va => va
+      case r =>
+        va => r
           .split("""\.""")
           .foldRight(va)((id, annotations) => Annotations(Map(id -> annotations)))
+    }
   }
 
-  def parseField(typeString: String, k: String, missing: Set[String], excluded: Set[String]):
-  (String) => Option[Any] = {
+  def parseField(typeString: String, k: String,
+    missing: Set[String]): (String) => Option[Any] = {
 
-    if (!excluded(k)) {
-      typeString match {
-        case "Double" =>
-          (v: String) =>
-            try {
-              if (!missing(v))
-                Some(v.toDouble)
-              else
-                None
-            }
-            catch {
-              case e: java.lang.NumberFormatException =>
-                fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$k" """)
-            }
-        case "Int" =>
-          (v: String) =>
-            try {
-              if (!missing(v))
-                Some(v.toInt)
-              else
-                None
-            }
-            catch {
-              case e: java.lang.NumberFormatException =>
-                fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Int in column "$k" """)
-            }
-        case "Boolean" =>
-          (v: String) =>
-            try {
-              if (!missing(v))
-                Some(v.toBoolean)
-              else
-                None
-            }
-            catch {
-              case e: java.lang.IllegalArgumentException =>
-                fatal( s"""java.lang.IllegalArgumentException: tried to convert "$v" to Boolean in column "$k" """)
-            }
-        case "String" =>
-          (v: String) =>
-            if (!missing(v))
-              Some(v)
-            else
-              None
-        case _ =>
-          fatal(
-            s"""Unrecognized type "$typeString" in column "$k".  Hail supports the following types in annotations:
-                |  - Double (floating point number)
-                |  - Int  (integer)
-                |  - Boolean
-                |  - String
-                |
+    typeString match {
+      case "Double" =>
+        (v: String) =>
+          try {
+            someIf(!missing(v), v.toDouble)
+          } catch {
+            case e: java.lang.NumberFormatException =>
+              fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$k" """)
+          }
+      case "Int" =>
+        (v: String) =>
+          try {
+            someIf(!missing(v), v.toInt)
+          } catch {
+            case e: java.lang.NumberFormatException =>
+              fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Int in column "$k" """)
+          }
+      case "Boolean" =>
+        (v: String) =>
+          try {
+            someIf(!missing(v), v.toBoolean)
+          } catch {
+            case e: java.lang.IllegalArgumentException =>
+              fatal( s"""java.lang.IllegalArgumentException: tried to convert "$v" to Boolean in column "$k" """)
+          }
+      case "String" =>
+        (v: String) =>
+          someIf(!missing(v), v)
+      case _ =>
+        fatal(
+          s"""Unrecognized type "$typeString" in column "$k".  Hail supports the following types in annotations:
+              |  - Double (floating point number)
+              |  - Int  (integer)
+              |  - Boolean
+              |  - String
+              |
                |  Note that the above types are case sensitive.
              """.stripMargin)
-      }
     }
-    else
-      v => None
   }
 }

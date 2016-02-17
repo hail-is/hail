@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.io.annotators
 
-import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop
 import org.apache.spark.serializer.SerializerInstance
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotations, SimpleSignature}
@@ -23,10 +23,10 @@ class IntervalListAnnotator(path: String, identifier: String, root: String)
 
   def check() {
     if (intervalList == null)
-      read(new Configuration())
+      read(new hadoop.conf.Configuration())
   }
 
-  def metadata(conf: Configuration): Annotations = {
+  def metadata(conf: hadoop.conf.Configuration): Annotations = {
     val firstLine = Source.fromInputStream(hadoopOpen(path, conf))
       .getLines()
       .filter(line => !(line(0) == '@') && !line.isEmpty)
@@ -57,7 +57,7 @@ class IntervalListAnnotator(path: String, identifier: String, root: String)
     rooted(Annotations(Map(identifier -> SimpleSignature(extractType))))
   }
 
-  def read(conf: Configuration) {
+  def read(conf: hadoop.conf.Configuration) {
     if (extractType == null)
       metadata(conf)
 
