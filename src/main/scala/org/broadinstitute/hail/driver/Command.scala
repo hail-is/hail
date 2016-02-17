@@ -1,8 +1,9 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkException, SparkContext}
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.variant.{HardCallSet, VariantDataset}
+import org.broadinstitute.hail.FatalException
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import org.broadinstitute.hail.Utils._
@@ -53,15 +54,13 @@ abstract class Command {
       }
     } catch {
       case e: CmdLineException =>
-        println(e.getMessage)
-        sys.exit(1)
+        fatal(s"$name: parse error: ${e.getMessage}")
     }
 
     options
   }
 
-  def run(state: State, args: Array[String]): State = {
-    val options = parseArgs(args)
+  def runCommand(state: State, options: Options): State = {
     if (!supportsMultiallelic
       && state.vds != null
       && !state.vds.metadata.wasSplit)
@@ -70,5 +69,8 @@ abstract class Command {
     run(state, options)
   }
 
-  def run(state: State, options: Options): State
+  def run(state: State, args: Array[String]): State =
+    runCommand(state, parseArgs(args))
+
+  protected def run(state: State, options: Options): State
 }

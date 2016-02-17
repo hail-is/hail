@@ -20,7 +20,9 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
-  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int], line: String, typeMap: Map[String, Any]): (Variant, Annotations, Iterable[Genotype]) = {
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+    line: String,
+    typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
@@ -42,8 +44,10 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       .asScala
       .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
       .toMap
-      .map {
-        case (k, v) => (k, HtsjdkRecordReader.mapType(v, typeMap(k).asInstanceOf[VCFSignature]))
+      .flatMap { case (k, v) =>
+        typeMap.get(k).map { t =>
+          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
+        }
       }),
       "qual" -> vc.getPhredScaledQual,
       "filters" -> filts,
@@ -124,27 +128,20 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
       if (g.hasGQ) {
         val gq = g.getGQ
+        gb.setGQ(gq)
 
-        if (pl != null) {
-          var m = Int.MaxValue
-          var m2 = Int.MaxValue
-          var i = 0
-          while (i < pl.length) {
-            if (pl(i) < m) {
-              m2 = m
-              m = pl(i)
-            } else if (pl(i) < m2)
-              m2 = pl(i)
-            i += 1
-          }
-          val gqFromPL = (m2 - m).min(99)
-          if (!filter && gq != gqFromPL) {
-            reportAcc += VCFReport.GQPLMismatch
+        if (!storeGQ) {
+          if (pl != null) {
+            val gqFromPL = Genotype.gqFromPL(pl)
+
+            if (!filter && gq != gqFromPL) {
+              reportAcc += VCFReport.GQPLMismatch
+              filter = true
+            }
+          } else if (!filter) {
+            reportAcc += VCFReport.GQMissingPL
             filter = true
           }
-        } else if (!filter) {
-          reportAcc += VCFReport.GQMissingPL
-          filter = true
         }
       }
 
@@ -196,14 +193,14 @@ object HtsjdkRecordReader {
         sig.typeOf match {
           case "Int" => str.toInt
           case "Double" => str.toDouble
-          case "IndexedSeq[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
-          case "IndexedSeq[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
+          case "Array[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
+          case "Array[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
           case _ => value
         }
       case i: IndexedSeq[_] =>
         sig.number match {
-          case "IndexedSeq[Int]" => i.map(_.asInstanceOf[String].toInt)
-          case "IndexedSeq[Double]" => i.map(_.asInstanceOf[String].toDouble)
+          case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
+          case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)
 
         }
       case _ => value

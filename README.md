@@ -1,14 +1,17 @@
 # Hail
 
 ## Table of Contents
+
 1. [Representation](docs/Representation.md)
 2. [Importing](docs/Importing.md)
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
 4. [QC](docs/QC.md)
 5. [Filtering](docs/Filtering.md)
+6. [Renaming Samples](docs/RenameSamples.md)
 6. [Exporting to TSVs](docs/ExportTSV.md)
+8. [Exporting to Plink](docs/ExportPlink.md)
 7. [Exporting to VCF](docs/ExportVCF.md)
-8. [Mendel errors](docs/MendelErrors.md)
+9. [Mendel errors](docs/MendelErrors.md)
 
 ## Tools
 

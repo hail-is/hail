@@ -14,7 +14,7 @@ class ExportSuite extends SparkSuite {
     state = SplitMulti.run(state, Array.empty[String])
 
     SampleQC.run(state, Array("-o", "/tmp/sampleQC.tsv"))
-    val postSampleQC = SampleQC.run(state, Array("--store"))
+    val postSampleQC = SampleQC.run(state, Array.empty[String])
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -45,7 +45,7 @@ class ExportSuite extends SparkSuite {
     assert(sQcOutput == sExportOutput)
 
     VariantQC.run(state, Array("-o", "/tmp/variantQC.tsv"))
-    val postVariantQC = VariantQC.run(state, Array("--store"))
+    val postVariantQC = VariantQC.run(state, Array.empty[String])
 
     ExportVariants.run(postVariantQC, Array("-o", "/tmp/exportVariants.tsv", "-c",
       "Chrom=v.contig,Pos=v.start,Ref=v.ref,Alt=v.alt,callRate=va.qc.callRate,MAC=va.qc.MAC,MAF=va.qc.MAF," +

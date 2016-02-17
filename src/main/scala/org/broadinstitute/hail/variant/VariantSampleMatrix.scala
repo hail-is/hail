@@ -421,11 +421,12 @@ class RichVDS(vds: VariantDataset) {
   }
 
   def eraseSplit: VariantDataset = {
-    vds.copy(rdd =
-      vds.rdd.map { case (v, va, gs) =>
-        (v, va.copy(attrs = va.attrs - "multiallelic"),
-          gs.lazyMap(g => g.copy(fakeRef = false))
-          )
+    vds.copy(metadata = vds.metadata
+      .copy(wasSplit = false)
+      .removeVariantAnnotationSignatures("wasSplit"),
+      rdd = vds.rdd.map { case (v, va, gs) =>
+        (v, va.copy(attrs = va.attrs - "wasSplit"),
+          gs.lazyMap(g => g.copy(fakeRef = false)))
       })
   }
 }

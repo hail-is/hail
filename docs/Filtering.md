@@ -8,8 +8,8 @@ Hail includes three filtering modules:
 The modules share much of their command-line interface, but there are some important differences.  Hail's modern filtering system is distinguished by the user's ability to evaluate a scala expression for each variant, sample, or genotype to determine whether to keep or remove those data.  This system is incredibly powerful, and allows for filtering procedures that might otherwise take multiple iterations or even multiple tools to be completed in one command.
 
 Command line arguments: 
- - `-c` -- a string that refers to either a file path or boolean expression (required)
- - `--keep/--remove` -- determines behavior of file interval/list or boolean expression (one required)
+ - `-c | --condition <cond>` -- filter expression (see below) or path to file of appropriate type
+ - `--keep/--remove` -- determines behavior of file interval/list or boolean expression
   
 ## Using inclusion/exclusion files
 

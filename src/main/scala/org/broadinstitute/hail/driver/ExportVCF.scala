@@ -7,12 +7,17 @@ import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations.{VCFSignature, Annotations}
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
+import scala.io.Source
 
 object ExportVCF extends Command {
 
   class Options extends BaseOptions {
+    @Args4jOption(name = "-a", usage = "Append file to header")
+    var append: String = _
+
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
+
   }
 
   def newOptions = new Options
@@ -51,6 +56,18 @@ object ExportVCF extends Command {
           val sig = value.asInstanceOf[VCFSignature]
           sb.append(
             s"""##INFO=<ID=$key,Number=${sig.number},Type=${sig.vcfType},Description="${sig.description}">\n""")
+        }
+      }
+
+      if (options.append != null) {
+        readFile(options.append, state.hadoopConf) { s =>
+          Source.fromInputStream(s)
+            .getLines()
+            .filterNot(_.isEmpty)
+            .foreach { line =>
+              sb.append(line)
+              sb += '\n'
+            }
         }
       }
 
@@ -145,7 +162,6 @@ object ExportVCF extends Command {
         }
       }.writeTable(options.output, Some(header), deleteTmpFiles = true)
     kvRDD.unpersist()
-
     state
   }
 }

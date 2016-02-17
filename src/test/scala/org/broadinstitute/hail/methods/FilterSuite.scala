@@ -68,7 +68,7 @@ class FilterSuite extends SparkSuite {
     assert(FilterVariants.run(state, Array("--remove", "-c", """va.rsid == ".""""))
       .vds.nVariants == 258)
 
-    val stateWithSampleQC = SampleQC.run(state, Array("--store"))
+    val stateWithSampleQC = SampleQC.run(state, Array.empty[String])
 
     assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.nCalled == 337"))
       .vds.nLocalSamples == 17)
@@ -79,7 +79,7 @@ class FilterSuite extends SparkSuite {
     assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "if (\"^C1048\" ~ s.id) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3"))
       .vds.nLocalSamples == 14)
 
-    val stateWithVariantQC = VariantQC.run(state, Array("--store"))
+    val stateWithVariantQC = VariantQC.run(state, Array.empty[String])
 
     assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.nCalled < 100"))
       .vds.nVariants == 36)

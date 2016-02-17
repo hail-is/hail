@@ -15,8 +15,8 @@ abstract class AnnotationSignature {
     case "Long" => expr.TLong
     case "Float" => expr.TFloat
     case "Double" => expr.TDouble
-    case "IndexedSeq[Int]" => expr.TArray(expr.TInt)
-    case "IndexedSeq[Double]" => expr.TArray(expr.TInt)
+    case "Array[Int]" => expr.TArray(expr.TInt)
+    case "Array[Double]" => expr.TArray(expr.TInt)
     case "Set[Int]" => expr.TSet(expr.TInt)
     case "Set[String]" => expr.TSet(expr.TString)
     case "String" => expr.TString

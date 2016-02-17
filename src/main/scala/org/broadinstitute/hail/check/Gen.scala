@@ -126,8 +126,8 @@ object Gen {
     b.result()
   }
 
-  def option[T](g: Gen[T]): Gen[Option[T]] = Gen { (p: Parameters) =>
-    if (p.frequency(4, 5))
+  def option[T](g: Gen[T], someFraction: Double = 0.8): Gen[Option[T]] = Gen { (p: Parameters) =>
+    if (p.rng.getRandomGenerator.nextDouble < someFraction)
       Some(g(p))
     else
       None

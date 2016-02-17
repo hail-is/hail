@@ -1,18 +1,22 @@
 package org.broadinstitute.hail.driver
 
 import java.io.File
+import java.util.Properties
+import org.apache.log4j.{LogManager, PropertyConfigurator}
+import org.apache.spark.sql.SQLContext
 
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{SparkException, SparkContext, SparkConf}
+import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.VCFReport
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
-import org.apache.log4j.Logger
-import org.apache.log4j.Level
 
 object HailConfiguration {
+  var stacktrace: Boolean = _
+
   var installDir: String = _
 
   var tmpDir: String = _
@@ -22,25 +26,107 @@ object HailConfiguration {
 object Main {
 
   class Options {
+    @Args4jOption(required = false, name = "-a", aliases = Array("--log-append"), usage = "Append to log file")
+    var logAppend: Boolean = false
+
     @Args4jOption(required = false, name = "-h", aliases = Array("--help"), usage = "Print usage")
     var printUsage: Boolean = false
+
+    @Args4jOption(required = false, name = "-l", aliases = Array("--log-file"), usage = "Log file (default: hail.log")
+    var logFile: String = "hail.log"
 
     @Args4jOption(required = false, name = "--master", usage = "Set Spark master (default: system default or local[*])")
     var master: String = _
 
-    @Args4jOption(required = false, name = "--noisy", usage = "Enable Spark INFO messages")
-    var noisy = false
-
     @Args4jOption(required = false, name = "--parquet-compression", usage = "Parquet compression codec")
     var parquetCompression = "uncompressed"
 
+    @Args4jOption(required = false, name = "-q", aliases = Array("--quiet"), usage = "Don't write log file")
+    var logQuiet: Boolean = false
+
+    @Args4jOption(required = false, name = "--stacktrace", usage = "Print stacktrace on exception")
+    var stacktrace: Boolean = false
+
     @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary directory (default: /tmp)")
     var tmpDir: String = "/tmp"
+
+  }
+
+  def logAndPropagateException(cmd: Command, e: Exception): Nothing = {
+    log.error(s"${cmd.name}: exception", e)
+    if (HailConfiguration.stacktrace)
+      throw e
+    else {
+      System.err.println(s"hail: ${cmd.name}: caught exception: ${e.getClass.getName}: ${e.getMessage}")
+      sys.exit(1)
+    }
+  }
+
+  def handlePropagatedException(cmd: Command,
+    exceptionName: String,
+    e: Exception) {
+    val exceptionStr = exceptionName + ": "
+    var pos = e.getMessage.indexOf(exceptionStr)
+    if (pos >= 0) {
+      val atpos = e.getMessage.indexOf("\n\tat")
+      val submsg = e.getMessage.substring(pos + exceptionStr.length, atpos)
+      System.err.println(s"hail: ${cmd.name}: fatal: $submsg")
+      sys.exit(1)
+    }
+  }
+
+  def runCommand(s: State, cmd: Command, cmdOpts: Command#Options): State = {
+    try {
+      cmd.runCommand(s, cmdOpts.asInstanceOf[cmd.Options])
+    } catch {
+      case f: FatalException =>
+        System.err.println(s"hail: ${cmd.name}: fatal: ${f.getMessage}")
+        log.error(f.getMessage)
+        sys.exit(1)
+
+      case e: SparkException =>
+        handlePropagatedException(cmd, "org.broadinstitute.hail.FatalException", e)
+        handlePropagatedException(cmd, "org.broadinstitute.hail.PropagatedTribbleException", e)
+
+        // else
+        logAndPropagateException(cmd, e)
+
+      case e: Exception =>
+        logAndPropagateException(cmd, e)
+    }
+  }
+
+  def runCommands(sc: SparkContext,
+    sqlContext: SQLContext,
+    invocations: Array[(Command, Command#Options, Array[String])]) {
+
+    val times = mutable.ArrayBuffer.empty[(String, Long)]
+
+    invocations.foldLeft(State(sc, sqlContext)) { case (s, (cmd, cmdOpts, cmdArgs)) =>
+      info(s"running: ${
+        cmdArgs
+          .map { s => if (s.contains(" ")) s"'$s'" else s }
+          .mkString(" ")
+      }")
+      val (newS, duration) = time {
+        runCommand(s, cmd, cmdOpts)
+      }
+      times += cmd.name -> duration
+      newS
+    }
+
+    VCFReport.report()
+
+    // Thread.sleep(60*60*1000)
+
+    info(s"timing:\n${
+      times.map { case (name, duration) =>
+        s"  $name: ${formatTime(duration)}"
+      }.mkString("\n")
+    }")
   }
 
   def main(args: Array[String]) {
-
-    println("user.dir = " + System.getProperty("user.dir"))
 
     def splitBefore[T](a: Array[T], p: (T) => Boolean)
       (implicit tct: ClassTag[T]): Array[Array[T]] = {
@@ -57,6 +143,7 @@ object Main {
       b.clear()
       r.result()
     }
+
     /*
     def splitBefore[T](a: Array[T], p: (T) => Boolean)
       (implicit tct: ClassTag[T]): Array[Array[T]] =
@@ -67,11 +154,13 @@ object Main {
           acc.init :+ (acc.last :+ s)
       }
     */
+
     val commands = Array(
       Cache,
       CacheHcs,
       Count,
       DownsampleVariants,
+      ExportPlink,
       ExportGenotypes,
       ExportSamples,
       ExportVariants,
@@ -82,7 +171,7 @@ object Main {
       FilterSamples,
       GenDataset,
       GQByDP,
-      Import,
+      ImportVCF,
       LinearRegressionCommand,
       LinearRegressionFromHardCallSetCommand,
       MendelErrorsCommand,
@@ -90,8 +179,10 @@ object Main {
       PCA,
       Read,
       ReadHcs,
+      RenameSamples,
       Repartition,
       SampleQC,
+      ShowAnnotations,
       VariantQC,
       Write,
       WriteHardCallSet
@@ -118,9 +209,9 @@ object Main {
         println("")
         println("commands:")
         val visibleCommands = commands.filterNot(_.hidden)
-        val maxLen = visibleCommands.map(_.name.size).max
+        val maxLen = visibleCommands.map(_.name.length).max
         visibleCommands
-          .foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.size + 2))
+          .foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.length + 2))
             + cmd.description))
         sys.exit(0)
       }
@@ -130,14 +221,43 @@ object Main {
         sys.exit(1)
     }
 
+
+    val logProps = new Properties()
+    if (options.logQuiet) {
+      logProps.put("log4j.rootLogger", "OFF, stderr")
+
+      logProps.put("log4j.appender.stderr", "org.apache.log4j.ConsoleAppender")
+      logProps.put("log4j.appender.stderr.Target", "System.err")
+      logProps.put("log4j.appender.stderr.threshold", "OFF")
+      logProps.put("log4j.appender.stderr.layout", "org.apache.log4j.PatternLayout")
+      logProps.put("log4j.appender.stderr.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
+    } else {
+      logProps.put("log4j.rootLogger", "INFO, logfile")
+
+      logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
+      logProps.put("log4j.appender.logfile.append", options.logAppend.toString)
+      logProps.put("log4j.appender.logfile.file", options.logFile)
+      logProps.put("log4j.appender.logfile.threshold", "INFO")
+      logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
+      logProps.put("log4j.appender.logfile.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
+    }
+
+    LogManager.resetConfiguration()
+    PropertyConfigurator.configure(logProps)
+
     if (splitArgs.length == 1)
       fatal("no commands given")
-    val invocations = splitArgs.tail
 
-    if (!options.noisy) {
-      Logger.getLogger("org").setLevel(Level.OFF)
-      Logger.getLogger("akka").setLevel(Level.OFF)
-    }
+    val invocations: Array[(Command, Command#Options, Array[String])] = splitArgs.tail
+      .map(args => {
+        val cmdName = args(0)
+        nameCommand.get(cmdName) match {
+          case Some(cmd) =>
+            (cmd, cmd.parseArgs(args.tail), args)
+          case None =>
+            fatal("unknown command `" + cmdName + "'")
+        }
+      })
 
     val conf = new SparkConf().setAppName("Hail")
     if (options.master != null)
@@ -175,37 +295,15 @@ object Main {
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     sc.addJar(jar)
 
+    HailConfiguration.stacktrace = options.stacktrace
     HailConfiguration.installDir = new File(jar).getParent + "/.."
     HailConfiguration.tmpDir = options.tmpDir
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
-    val times = mutable.ArrayBuffer.empty[(String, Long)]
-
-    invocations.foldLeft(State(sc, sqlContext)) { case (s, args) =>
-      println("running: " + args.mkString(" "))
-      val cmdName = args(0)
-      nameCommand.get(cmdName) match {
-        case Some(cmd) =>
-          val (newS, duration) = time {
-            cmd.run(s, args.tail)
-          }
-          times += cmdName -> duration
-          newS
-        case None =>
-          fatal("unknown command `" + cmdName + "'")
-      }
-    }
-
-    VCFReport.report()
-
-    // Thread.sleep(60*60*1000)
+    runCommands(sc, sqlContext, invocations)
 
     sc.stop()
-
-    println("timing:")
-    times.foreach { case (name, duration) =>
-      println("  " + name + ": " + formatTime(duration))
-    }
   }
+
 }

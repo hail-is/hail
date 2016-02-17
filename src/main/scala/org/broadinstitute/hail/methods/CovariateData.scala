@@ -28,7 +28,7 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
           filtRow += 1
         }
 
-      warning(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} in .cov discarded: missing phenotype.")
+      warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} in .cov discarded: missing phenotype.")
 
       CovariateData(filtCovRowSample, covName, filtData)
     }
@@ -57,7 +57,7 @@ object CovariateData {
         val sample = entries.next()
         sampleIndex.get(sample) match {
           case Some(s) =>
-            if (sampleCovs.keySet(s))
+            if (sampleCovs.contains(s))
               fatal(s".cov sample name is not unique: $sample")
             else
               sampleCovs += s -> entries.map(_.toDouble)
@@ -66,7 +66,7 @@ object CovariateData {
       }
 
       if (nSamplesDiscarded > 0)
-        warning(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} in .cov discarded: missing from variant data set.")
+        warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} in .cov discarded: missing from variant data set.")
 
       val covRowSample = sampleCovs.keys.toArray
       scala.util.Sorting.quickSort(covRowSample) // sorts in place, order preserved by filterSamples

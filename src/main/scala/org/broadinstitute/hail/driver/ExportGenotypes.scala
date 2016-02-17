@@ -18,6 +18,13 @@ object ExportGenotypes extends Command {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
+
+    @Args4jOption(name = "--print-ref", usage = "print reference genotypes")
+    var printRef: Boolean = false
+
+    @Args4jOption(name = "--print-missing", usage = "print reference genotypes")
+    var printMissing: Boolean = _
+
   }
 
   def newOptions = new Options
@@ -52,25 +59,33 @@ object ExportGenotypes extends Command {
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
 
+    val localPrintRef = options.printRef
+    val localPrintMissing = options.printMissing
+
+    val filterF: Genotype => Boolean =
+      g => (!g.isHomRef || localPrintRef) && (!g.isNotCalled || localPrintMissing)
+
     val lines = vds.mapPartitionsWithAll { it =>
       val sb = new StringBuilder()
-      it.map { case (v, va, s, g) =>
-        a(0) = v
-        a(1) = va.attrs
-        a(2) = sampleIdsBc.value(s)
-        a(3) = sampleAnnotationsBc.value(s).attrs
-        a(4) = g
-        sb.clear()
-        var first = true
-        fs.foreach { f =>
-          if (first)
-            first = false
-          else
-            sb += '\t'
-          sb.tsvAppend(f())
+      it
+        .filter { case (v, va, s, g) => filterF(g) }
+        .map { case (v, va, s, g) =>
+          a(0) = v
+          a(1) = va.attrs
+          a(2) = sampleIdsBc.value(s)
+          a(3) = sampleAnnotationsBc.value(s).attrs
+          a(4) = g
+          sb.clear()
+          var first = true
+          fs.foreach { f =>
+            if (first)
+              first = false
+            else
+              sb += '\t'
+            sb.tsvAppend(f())
+          }
+          sb.result()
         }
-        sb.result()
-      }
     }.writeTable(output, header)
 
     state

@@ -75,7 +75,7 @@ object Pedigree {
         }.toArray
 
       if (nSamplesDiscarded > 0)
-        warning(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
+        warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
 
       Pedigree(trios)
     }
