@@ -46,7 +46,7 @@ object ExportSamples extends Command {
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     val sb = new StringBuilder()
-    val lines = for (s <- 0 until vds.nSamples) yield {
+    val lines = for (s <- vds.localSamples) yield {
       sb.clear()
       a(0) = vds.sampleIds(s)
       a(1) = vds.metadata.sampleAnnotations(s).attrs

@@ -162,7 +162,6 @@ object ExportVCF extends Command {
         }
       }.writeTable(options.output, Some(header), deleteTmpFiles = true)
     kvRDD.unpersist()
-
     state
   }
 }

@@ -78,7 +78,8 @@ object TestRDDBuilder {
 
   def buildRDD(nSamples: Int, nVariants: Int, sc: SparkContext,
                       gqArray: Option[Array[Array[Int]]] = None,
-                      dpArray: Option[Array[Array[Int]]] = None): VariantDataset = {
+                      dpArray: Option[Array[Array[Int]]] = None,
+                      gtArray: Option[Array[Array[Int]]] = None): VariantDataset = {
     /* Takes the arguments:
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF
@@ -94,16 +95,20 @@ object TestRDDBuilder {
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>
       (Variant("1", i + 1, defaultRef, defaultAlt),
-        (gqArray.map(_(i)),
+        (gtArray.map(_(i)),
+          gqArray.map(_(i)),
           dpArray.map(_(i)))))
       .toArray
 
     val variantRDD = sc.parallelize(variantArray)
     val streamRDD = variantRDD.map {
-      case (variant, (gqArr, dpArr)) =>
+      case (variant, (gtArr, gqArr, dpArr)) =>
         val b = new GenotypeStreamBuilder(variant)
         for (sample <- 0 until nSamples) {
-          val gt = Some(pullGT())
+          val gt = gtArr match {
+            case Some(arr) => Some(arr(sample))
+            case None => Some(pullGT())
+          }
           val gq = gqArr match {
             case Some(arr) => arr(sample)
             case None => normInt(gqMean, gqStDev, floor=gqMin, ceil=gqMax)

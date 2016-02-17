@@ -103,7 +103,6 @@ object SplitMulti extends Command {
           val plx = gplx.iterator.zipWithIndex
             .map { case (p, k) => (splitGT(k, i), p) }
             .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
-          assert(!plx.contains(Int.MaxValue))
           gb.setPL(plx)
 
           if (!propagateGQ) {

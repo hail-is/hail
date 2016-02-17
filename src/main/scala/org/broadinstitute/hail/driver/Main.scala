@@ -163,6 +163,7 @@ object Main {
       ConvertAnnotations,
       Count,
       DownsampleVariants,
+      ExportPlink,
       ExportGenotypes,
       ExportSamples,
       ExportVariants,

@@ -51,7 +51,7 @@ object AnnotateVariants extends Command {
       .map(s => s.split(":").map(_.trim()))
       .map {
         case Array(f, t) => (f, t)
-        case arr => fatal("parse error in type declaration"))
+        case arr => fatal("parse error in type declaration")
       }
       .toMap
   }
