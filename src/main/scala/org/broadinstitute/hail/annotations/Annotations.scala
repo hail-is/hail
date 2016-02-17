@@ -12,7 +12,19 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def +(key: String, value: Any): Annotations = Annotations(attrs + (key -> value))
 
-  def ++(other: Annotations): Annotations = Annotations(attrs ++ other.attrs)
+  def ++(other: Annotations): Annotations = {
+    Annotations(attrs ++ other.attrs.map {
+      case (key, value) =>
+        attrs.get(key) match {
+          case Some(a1: Annotations) =>
+            value match {
+              case a2: Annotations => (key, a1 ++ a2)
+              case _ => (key, value)
+            }
+          case _ => (key, value)
+        }
+    })
+  }
 
   def -(key: String): Annotations = Annotations(attrs - key)
 

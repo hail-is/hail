@@ -106,4 +106,19 @@ class AnnotationsSuite extends SparkSuite {
 
     assert(readBack.vds.same(vds2))
   }
+
+  @Test def testMergeAnnotations() {
+    val map1 = Map[String, Any]("a" -> 1, "b" -> 2, "c" -> 3)
+    val map2 = Map[String, Any]("a" -> 4, "b" -> 5)
+    val map3 = Map[String, Any]("a" -> 6)
+
+    val anno1 = Annotations(Map("a" -> 1))
+    val anno2 = Annotations(Map("a" -> Annotations(map2), "b" -> 2, "c" -> 3))
+    val anno3 = Annotations(Map("a" -> Annotations(Map("a" -> 1))))
+
+    // make sure that adding one deep annotation does the right thing
+    // make sure that overwriting one high annotation does the right thing
+    assert(anno2 ++ anno1 == Annotations(map1))
+    assert(anno2 ++ anno3 == Annotations(Map("a" -> Annotations(Map("a" -> 1, "b" -> 5)), "b" -> 2, "c" -> 3)))
+  }
 }
