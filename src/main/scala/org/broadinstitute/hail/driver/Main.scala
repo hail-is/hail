@@ -174,6 +174,7 @@ object Main {
       LinearRegressionCommand,
       MendelErrorsCommand,
       SplitMulti,
+      ParallelGrep,
       PCA,
       Read,
       RenameSamples,
