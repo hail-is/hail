@@ -2,7 +2,7 @@
 
 Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure ([Patterson, Price and Reich, 2006](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190)).
 
-The procedure is based on the singular value decomposition (SVD) of a standardized genotype matrix $M$, computed as follows. A matrix $C$ records raw biallelic genotypes, with rows indexed by samples and columns indexed by variants; $C_{ij}$ is the number of alternate alleles of variant $j$ carried by sample $i$; its values can be 0, 1, 2, or missing. For each variant $j$ the empirical minor allele frequency $p_j$ is computed as half the mean of the non-missing entries of column $j$. The corresponding column of $M$ is then mean-centered and variance-normalized as
+The procedure is based on the singular value decomposition (SVD) of a standardized genotype matrix $M$, computed as follows. A matrix $C$ records raw biallelic genotypes, with $n$ rows indexed by samples and $m$ columns indexed by variants; $C_{ij}$ is the number of alternate alleles of variant $j$ carried by sample $i$; its values can be 0, 1, 2, or missing. For each variant $j$ the empirical minor allele frequency $p_j$ is computed as half the mean of the non-missing entries of column $j$. The corresponding column of $M$ is then mean-centered and variance-normalized as
 $$
 M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)}}
 $$
