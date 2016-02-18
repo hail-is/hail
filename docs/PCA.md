@@ -16,8 +16,8 @@ where columns of $U$ are the left singular vectors (orthonormal in sample space)
 
 The default output is $MV_k = U_k S_k$, whose rows are the first $k$ principal components of each sample, i.e. the projection of that sample onto the first $k$ PCs in variant space.
 
-One can optionally obtain also the eigenvalues $s_1^2, \ldots, s_k^2$ and the right singular vectors or variant loadings $S_k V_k$.
-(Is this what we want?)
+Optionally one can also output the eigenvalues $s_1^2/m, \ldots, s_k^2/m$ of the genetic relatedness matrix (GRM) $MM'/m$ and the variant loadings $V_k$.
+(Is this what we want? Or do we want $S_k V_k$?)
 
 Command line arguments:
  - `-k <k>`  number of principal components to compute, default `k = 10`
