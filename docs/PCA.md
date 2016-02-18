@@ -4,7 +4,7 @@ Hail supports principal component analysis (PCA) of genotype data, a now-standar
 
 The procedure is based on the singular value decomposition (SVD) of a standardized genotype matrix $M$, computed as follows. A matrix $C$ records raw biallelic genotypes, with $n$ rows indexed by samples and $m$ columns indexed by variants; $C_{ij}$ is the number of alternate alleles of variant $j$ carried by sample $i$; its values can be 0, 1, 2, or missing. For each variant $j$ the empirical minor allele frequency $p_j$ is computed as half the mean of the non-missing entries of column $j$. The corresponding column of $M$ is then mean-centered and variance-normalized as
 $$
-M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)}}
+M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)}},
 $$
 with $M_{ij} = 0$ where $C_{ij}$ is missing (i.e. mean imputation). The denominator is the standard deviation under Hardy-Weinberg equilibrium (i.e. a $\mathrm{Binomial}(2,p_j)$ model) and is further motivated in the paper referenced above.
 
@@ -17,9 +17,13 @@ where columns of $U$ are the left singular vectors (orthonormal in sample space)
 The default output is $MV_k = U_k S_k$, whose rows are the first $k$ principal components of each sample, i.e. the projection of that sample onto the first $k$ PCs in variant space.
 
 Optionally one can also output the eigenvalues $s_1^2/m, \ldots, s_k^2/m$ of the genetic relatedness matrix (GRM) $MM'/m$ and the variant loadings $V_k$.
-(Is this what we want? Or do we want $S_k V_k$?)
+**(Is this what we want? Or do we want $S_k V_k$?)**
 
 Command line arguments:
- - `-k <k>`  number of principal components to compute, default `k = 10`
- - `-var` output the SNP loadings
+ - `-k <k>`  compute k principal components; default is `k = 10`
  - `-val` output the eigenvalues
+ - `-var` output the variant loadings
+
+**Do we want an option for a nontrivial MAF cutoff, or should this be done manually via a filter step? What about including an option to do LD-pruning first once it's implemented?**
+
+**Still to add: description of output file format**
