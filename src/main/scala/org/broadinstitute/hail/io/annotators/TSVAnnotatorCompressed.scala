@@ -12,9 +12,10 @@ import scala.io.Source
 import scala.collection.mutable
 
 class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
-  typeMap: Map[String, String], missing: Set[String], root: String)
+  typeMap: Map[String, String], missing: Set[String], root: String, hConf: hadoop.conf.Configuration)
   extends VariantAnnotator {
 
+  val conf = new SerializableHadoopConfiguration(hConf)
   @transient var internalMap: Map[Variant, (Int, Int)] = null
   @transient var compressedBlocks: Array[(Int, Array[Byte])] = null
   @transient var headerIndex: Array[String] = null
@@ -45,11 +46,11 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
 
   def check(sz: SerializerInstance) {
     if (internalMap == null)
-      read(new hadoop.conf.Configuration(), sz)
+      read(sz)
   }
 
-  def metadata(conf: hadoop.conf.Configuration): Annotations = {
-    readFile(path, conf)(is => {
+  def metadata(): Annotations = {
+    readFile(path, conf.value)(is => {
       val header = Source.fromInputStream(is)
         .getLines()
         .next()
@@ -66,8 +67,8 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
     })
   }
 
-  def read(conf: hadoop.conf.Configuration, serializer: SerializerInstance) {
-    readFile(path, conf) {
+  def read(serializer: SerializerInstance) {
+    readFile(path, conf.value) {
       reader =>
         val lines = Source.fromInputStream(reader)
           .getLines()
@@ -152,18 +153,19 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
   }
 
   def serialize(path: String, sz: SerializerInstance) {
-    val conf = new hadoop.conf.Configuration()
-    val signatures = metadata(conf)
+    val signatures = metadata()
     check(sz)
 
-    val stream = sz.serializeStream(hadoopCreate(path, conf))
-      .writeObject[String]("tsv")
-      .writeObject[Array[String]](headerIndex)
-      .writeObject[Annotations](signatures)
-      .writeObject(internalMap.size)
-      .writeAll(internalMap.iterator)
-      .writeObject(compressedBlocks.length)
-      .writeAll(compressedBlocks.iterator)
-      .close()
+    val stream = writeDataFile(path, conf.value) { writer =>
+      sz.serializeStream(writer)
+        .writeObject[String]("tsv")
+        .writeObject[Array[String]](headerIndex)
+        .writeObject[Annotations](signatures)
+        .writeObject(internalMap.size)
+        .writeAll(internalMap.iterator)
+        .writeObject(compressedBlocks.length)
+        .writeAll(compressedBlocks.iterator)
+        .close()
+    }
   }
 }

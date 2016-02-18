@@ -8,7 +8,11 @@ import org.broadinstitute.hail.variant.{Interval, IntervalList, Variant}
 
 import scala.io.Source
 
-class BedAnnotator(path: String, root: String) extends VariantAnnotator {
+
+class BedAnnotator(path: String, root: String, hConf: hadoop.conf.Configuration) extends VariantAnnotator {
+  // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
+
+  val conf = new SerializableHadoopConfiguration(hConf)
   @transient var intervalList: IntervalList = null
   @transient var extractType: String = null
   @transient var name: String = null
@@ -23,96 +27,90 @@ class BedAnnotator(path: String, root: String) extends VariantAnnotator {
 
   def check() {
     if (intervalList == null)
-      read(new hadoop.conf.Configuration())
+      read()
   }
 
-  def metadata(conf: hadoop.conf.Configuration): (Annotations) = {
-    val lines = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
+  def metadata(): (Annotations) = {
+    readFile(path, conf.value) { reader =>
+      val lines = Source.fromInputStream(reader)
+        .getLines()
 
-    val headerLines = lines.takeWhile(line =>
-      line.startsWith("browser") ||
-        line.startsWith("track") ||
-        line.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
-      .toList
-
-    val filt = headerLines.filter(s => s.startsWith("track"))
-    if (filt.length != 1)
-      fatal("Invalid bed file: found 'track' in more than one header line")
-
-    val nameR = """.*name="([\w\d\s]+)".*""".r
-    name = filt.head match {
-      case nameR(str) => str
-      case _ => fatal("Invalid bed file: could not find identifier 'name'")
-    }
-
-    val linesBoolean = {
-      try {
-        val split = Source.fromInputStream(hadoopOpen(path, conf))
-          .getLines()
-          .take(headerLines.length + 1)
-          .toList
-          .last
-          .split("""\s+""")
-        split.length < 4
-      }
-      catch {
-        case e: java.io.EOFException => fatal("empty bed file")
-      }
-    }
-
-    extractType = if (linesBoolean) "Boolean" else "String"
-
-    f = extractType match {
-      case "String" =>
-        (v, va) =>
-          intervalList.query(v.contig, v.start) match {
-            case Some(result) => va ++ rooted(Annotations(Map(name -> result)))
-            case None => va
-          }
-      case "Boolean" =>
-        (v, va) =>
-          if (intervalList.contains(v.contig, v.start))
-            va ++ rooted(Annotations(Map(name -> true)))
-          else
-            va
-    }
-
-    rooted(Annotations(Map(name -> SimpleSignature(if (linesBoolean) "Boolean" else "String"))))
-  }
-
-  def read(conf: hadoop.conf.Configuration) {
-    val headerLength = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
-      .takeWhile(line =>
+      val headerLines = lines.takeWhile(line =>
         line.startsWith("browser") ||
           line.startsWith("track") ||
           line.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
-      .size
-    val lines = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
+        .toList
 
-    // skip the header
-    lines.drop(headerLength)
+      val filt = headerLines.filter(s => s.startsWith("track"))
+      if (filt.length != 1)
+        fatal("Invalid bed file: found 'track' in more than one header line")
 
-    if (extractType == null)
-      metadata(conf)
+      val nameR = """.*name="([\w\d\s]+)".*""".r
+      name = filt.head match {
+        case nameR(str) => str
+        case _ => fatal("Invalid bed file: could not find identifier 'name'")
+      }
 
-    val intervalListBuilder = IntervalList
+      val linesBoolean = {
+        try {
+          val split = lines.next()
+            .split("""\s+""")
+          split.length < 4
+        }
+        catch {
+          case e: java.io.EOFException => fatal("empty bed file")
+        }
+      }
 
-    val f: Array[String] => Interval = extractType match {
-      case "String" => arr => Interval(arr(0), arr(1).toInt, arr(2).toInt, Some(arr(3)))
-      case _ => arr => Interval(arr(0), arr(1).toInt, arr(2).toInt)
+      extractType = if (linesBoolean) "Boolean" else "String"
+
+      f = extractType match {
+        case "String" =>
+          (v, va) =>
+            intervalList.query(v.contig, v.start) match {
+              case Some(result) => va ++ rooted(Annotations(Map(name -> result)))
+              case None => va
+            }
+        case "Boolean" =>
+          (v, va) =>
+            if (intervalList.contains(v.contig, v.start))
+              va ++ rooted(Annotations(Map(name -> true)))
+            else
+              va
+      }
+
+      rooted(Annotations(Map(name -> SimpleSignature(if (linesBoolean) "Boolean" else "String"))))
     }
+  }
 
-    intervalList = IntervalList(
-      lines
-        .filter(line => !line.isEmpty)
-        .map(
-          line => {
-            val split = line.split("""\s+""", 5)
-            f(split)
-          })
-        .toTraversable)
+  def read() {
+    readFile(path, conf.value) { reader =>
+      val lines = Source.fromInputStream(reader)
+        .getLines()
+        .dropWhile(line =>
+          line.startsWith("browser") ||
+            line.startsWith("track") ||
+            line.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
+
+      if (extractType == null)
+        metadata()
+
+      val intervalListBuilder = IntervalList
+
+      val f: Array[String] => Interval = extractType match {
+        case "String" => arr => Interval(arr(0), arr(1).toInt, arr(2).toInt, Some(arr(3)))
+        case _ => arr => Interval(arr(0), arr(1).toInt, arr(2).toInt)
+      }
+
+      intervalList = IntervalList(
+        lines
+          .filter(line => !line.isEmpty)
+          .map(
+            line => {
+              val split = line.split("""\s+""", 5)
+              f(split)
+            })
+          .toTraversable)
+    }
   }
 }

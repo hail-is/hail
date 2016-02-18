@@ -45,17 +45,18 @@ object ConvertAnnotations extends Command {
 
     val cond = options.condition
 
+    val conf = state.sc.hadoopConfiguration
     val serializer = SparkEnv.get.serializer.newInstance()
     if (cond.endsWith(".tsv") || cond.endsWith(".tsv.gz")) {
       // this group works for interval lists and chr pos ref alt
       new TSVAnnotatorCompressed(cond, AnnotateVariants.parseColumns(options.vCols),
         AnnotateVariants.parseTypeMap(options.types),
         AnnotateVariants.parseMissing(options.missingIdentifiers),
-        null)
+        null, conf)
         .serialize(options.output, serializer)
     }
     else if (cond.endsWith(".vcf") || cond.endsWith(".vcf.gz") || cond.endsWith(".vcf.bgz")) {
-      new VCFAnnotatorCompressed(cond, null)
+      new VCFAnnotatorCompressed(cond, null, conf)
         .serialize(options.output, serializer)
     }
     else
@@ -66,4 +67,5 @@ object ConvertAnnotations extends Command {
 
     state
   }
+  import org.apache.spark.rdd.HadoopRDD
 }

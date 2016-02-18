@@ -19,18 +19,20 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val path1 = "src/test/resources/sampleAnnotations.tsv"
     val anno1 = AnnotateSamples.run(state, Array("-c", path1, "-s", "Sample", "-t", "qPhen:Int"))
-    val fileMap = Source.fromInputStream(hadoopOpen(path1, vds.sparkContext.hadoopConfiguration))
-      .getLines()
-      .filter(line => !line.startsWith("Sample"))
-      .map(line => {
-        val split = line.split("\t")
-        val f3 = split(2) match {
-          case "NA" => None
-          case x => Some(x.toInt)
-        }
-        (split(0), (Some(split(1)), f3))
-      })
-      .toMap
+    val fileMap = readFile(path1, sc.hadoopConfiguration) { reader =>
+      Source.fromInputStream(reader)
+        .getLines()
+        .filter(line => !line.startsWith("Sample"))
+        .map(line => {
+          val split = line.split("\t")
+          val f3 = split(2) match {
+            case "NA" => None
+            case x => Some(x.toInt)
+          }
+          (split(0), (Some(split(1)), f3))
+        })
+        .toMap
+    }
     anno1.vds.metadata.sampleIds.zip(anno1.vds.metadata.sampleAnnotations)
       .forall {
         case (id, sa) =>
@@ -40,7 +42,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
 
     val anno2 = AnnotateSamples.run(state,
-      Array("-c", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "phenotype", "-t", "qPhen:Int"))
+      Array("-c", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.phenotype", "-t", "qPhen:Int"))
     anno2.vds.metadata.sampleIds.zip(anno2.vds.metadata.sampleAnnotations)
       .forall {
         case (id, sa) =>
@@ -52,24 +54,24 @@ class ImportAnnotationsSuite extends SparkSuite {
 
   @Test def testVariantTSVAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
 
-    val fileMap = Source.fromInputStream(hadoopOpen("src/test/resources/variantAnnotations.tsv",
-      sc.hadoopConfiguration))
-      .getLines()
-      .filter(line => !line.startsWith("Chromosome"))
-      .map(line => {
-        val split = line.split("\t")
-        val v = Variant(split(0), split(1).toInt, split(2), split(3))
-        val rand1 = if (split(4) == "NA") None else Some(split(4).toDouble)
-        val rand2 = if (split(5) == "NA") None else Some(split(5).toDouble)
-        val gene = if (split(6) == "NA") None else Some(split(6))
-        (v, (rand1, rand2, gene))
-      })
-      .toMap
-
+    val fileMap = readFile("src/test/resources/variantAnnotations.tsv", sc.hadoopConfiguration) { reader =>
+      Source.fromInputStream(reader)
+        .getLines()
+        .filter(line => !line.startsWith("Chromosome"))
+        .map(line => {
+          val split = line.split("\t")
+          val v = Variant(split(0), split(1).toInt, split(2), split(3))
+          val rand1 = if (split(4) == "NA") None else Some(split(4).toDouble)
+          val rand2 = if (split(5) == "NA") None else Some(split(5).toDouble)
+          val gene = if (split(6) == "NA") None else Some(split(6))
+          (v, (rand1, rand2, gene))
+        })
+        .toMap
+    }
     val anno1 = AnnotateVariants.run(state,
-      Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "stuff"))
+      Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
     anno1.vds.rdd
       .collect()
       .foreach {
@@ -94,7 +96,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val anno1alternate = AnnotateVariants.run(state,
       Array("-c", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
-        "Chromosome:Position:Ref:Alt", "-t", "Rand1:Double,Rand2:Double", "-r", "stuff"))
+        "Chromosome:Position:Ref:Alt", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
     val anno2alternate = AnnotateVariants.run(state,
       Array("-c", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
@@ -106,9 +108,10 @@ class ImportAnnotationsSuite extends SparkSuite {
 
   @Test def testVCFAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
 
-    val anno1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "other"))
+    val anno1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
+    ShowAnnotations.run(anno1, noArgs)
 
     val initialMap = vds.variantsAndAnnotations
       .collect()
@@ -124,14 +127,14 @@ class ImportAnnotationsSuite extends SparkSuite {
 
   @Test def testBedIntervalAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = Cache.run(SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String]), Array.empty[String])
+    val state = Cache.run(SplitMulti.run(State(sc, sqlContext, vds), noArgs), noArgs)
 
     val bed1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/example1.bed"))
-    val bed1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example1.bed", "-r", "bed"))
+    val bed1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example1.bed", "-r", "va.bed"))
     val bed2 = AnnotateVariants.run(state, Array("-c", "src/test/resources/example2.bed"))
-    val bed2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example2.bed", "-r", "bed"))
+    val bed2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example2.bed", "-r", "va.bed"))
     val bed3 = AnnotateVariants.run(state, Array("-c", "src/test/resources/example3.bed"))
-    val bed3r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example3.bed", "-r", "bed"))
+    val bed3r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example3.bed", "-r", "va.bed"))
 
     val map1r = bed1r.vds.variantsAndAnnotations
       .collect()
@@ -167,11 +170,11 @@ class ImportAnnotationsSuite extends SparkSuite {
     val int1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation1.interval_list",
       "-i", "BedTest"))
     val int1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation1.interval_list",
-      "-i", "BedTest", "-r", "bed"))
+      "-i", "BedTest", "-r", "va.bed"))
     val int2 = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation2.interval_list",
       "-i", "BedTest"))
     val int2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation2.interval_list",
-      "-i", "BedTest", "-r", "bed"))
+      "-i", "BedTest", "-r", "va.bed"))
 
     assert(int1.vds.same(bed1.vds))
     assert(int1r.vds.same(bed1r.vds))
@@ -181,14 +184,14 @@ class ImportAnnotationsSuite extends SparkSuite {
 
   @Test def testSerializedAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
 
     val tsv1 = AnnotateVariants.run(state,
       Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double"))
     val tsv1r = AnnotateVariants.run(state,
-      Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "stuff"))
+      Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
-    val vcf1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "other"))
+    val vcf1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
 
     ConvertAnnotations.run(state,
       Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double",
@@ -200,10 +203,10 @@ class ImportAnnotationsSuite extends SparkSuite {
       Array("-c", "/tmp/variantAnnotationsTSV.ser"))
 
     val tsvSer1r = AnnotateVariants.run(state,
-      Array("-c", "/tmp/variantAnnotationsTSV.ser", "-r", "stuff"))
+      Array("-c", "/tmp/variantAnnotationsTSV.ser", "-r", "va.stuff"))
 
     val vcfSer1 = AnnotateVariants.run(state,
-      Array("-c", "/tmp/variantAnnotationsVCF.ser", "-r", "other"))
+      Array("-c", "/tmp/variantAnnotationsVCF.ser", "-r", "va.other"))
 
     assert(tsv1.vds.same(tsvSer1.vds))
     assert(tsv1r.vds.same(tsvSer1r.vds))

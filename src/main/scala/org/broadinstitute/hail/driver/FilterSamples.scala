@@ -40,11 +40,13 @@ object FilterSamples extends Command {
     val keep = options.keep
     val p = options.condition match {
       case f if f.endsWith(".sample_list") =>
-        val samples = Source.fromInputStream(hadoopOpen(f, state.hadoopConf))
-          .getLines()
-          .filter(line => !line.isEmpty)
-          .map(indexOfSample)
-          .toSet
+        val samples = readFile(f, state.hadoopConf) { reader =>
+          Source.fromInputStream(reader)
+            .getLines()
+            .filter(line => !line.isEmpty)
+            .map(indexOfSample)
+            .toSet
+        }
         (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val symTab = Map(

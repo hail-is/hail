@@ -6,7 +6,7 @@ Hail includes modules for importing annotations from external files, for use in 
  
 Most command line arguments differ between the two modules and individual file formats.  The following are universal:
  - `-c | --condition <path>` -- path of file to read
- - `-r | --root <identifier>` -- root annotations in `va.identifier` or `sa.identifier`.  If no root is provided, all annotations will be placed directly under `va` or `sa`.  For arbitrarily deep placement, you can specify a path like `--root this.is.a.big.tree` 
+ - `-r | --root <path>` -- root annotations in `path`.  If no root is provided, all annotations will be placed directly under `va` or `sa`.  For arbitrarily deep placement, you can specify a path like `--root va.this.is.a.big.tree` 
 
 ## Annotating Samples
 
@@ -28,5 +28,5 @@ There are currently five file types supported for annotating variants:
 2. **VCF (vcf, vcf.gz, vcf.bgz).**  This file format **requires** the `--root` command line option so that all info field annotations in the variant dataset are not overwritten.
 3. **Interval list (.interval_list, .interval_list.gz).**  This file extension encompasses two file formats, `chr:start-end` and `chr start end strand target` (tsv).  The former will produce a boolean annotation, while the latter will store the `target` as a string.  The following argument is **required** for interval_list files:
  - `-i | --identifier <name>` -- Choose the name of the annotation in the vds.  If a `root` is specified, it can be found in `va.root.identifier`, otherwise `va.identifier`.
-4. **UCSC bed (.bed, .bed.gz).**  This format is similar to the interval_list format.  The annotation name is designated in the track header of the bed file (`name="identifier"`).  If the body of the file contains the fourth (name) column, the annotation will be stored as a string with that field, otherwise boolean.
+4. **UCSC bed (.bed, .bed.gz).**  This format is similar to the interval_list format.  The annotation name is designated in the track header of the bed file (`name="identifier"`).  If the body of the file contains the fourth (name) column, the annotation will be stored as a string with that field, otherwise boolean.  The spec for UCSC BED files is defined  [here.](https://genome.ucsc.edu/FAQ/FAQformat.html#format1)
 5. **Hail serialized files (.ser, .ser.gz).**  Large TSV and VCF files can be very slow to parse and load into memory.  Since we want to load these files, hail supports reading pre-parsed and serialized files generated with the `convertannotations` module.  Some of these will be provided, like the ExAC summary statistics.

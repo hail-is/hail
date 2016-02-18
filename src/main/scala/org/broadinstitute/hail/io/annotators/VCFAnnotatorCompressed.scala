@@ -48,7 +48,9 @@ object VCFAnnotatorCompressed {
   }
 }
 
-class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotator {
+class VCFAnnotatorCompressed(path: String, root: String, hConf: hadoop.conf.Configuration) extends VariantAnnotator {
+
+  val conf = new SerializableHadoopConfiguration(hConf)
   @transient var indexMap: Map[Variant, (Int, Int)] = null
   @transient var compressedBlocks: Array[(Int, Array[Byte])] = null
 
@@ -67,11 +69,11 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
 
   def check(sz: SerializerInstance) {
     if (indexMap == null || compressedBlocks == null)
-      read(new hadoop.conf.Configuration(), sz)
+      read(sz)
   }
 
-  def metadata(conf: hadoop.conf.Configuration): Annotations = {
-    readFile(path, conf) { reader =>
+  def metadata(): Annotations = {
+    readFile(path, conf.value) { reader =>
       val lineIterator = Source.fromInputStream(reader)
         .getLines()
 
@@ -102,33 +104,30 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
   }
 
 
-  def read(conf: hadoop.conf.Configuration, sz: SerializerInstance) {
+  def read(sz: SerializerInstance) {
 
-    val headerLines = readFile(path, conf) { reader =>
-      Source.fromInputStream(reader)
+    readFile(path, conf.value) { reader =>
+      val lines = Source.fromInputStream(reader)
         .getLines()
+      val headerLines = lines
         .takeWhile { line => line(0) == '#' }
         .toArray
-    }
 
-    val codec = new htsjdk.variant.vcf.VCFCodec()
+      val codec = new htsjdk.variant.vcf.VCFCodec()
 
-    val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
-      .getHeaderValue
-      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+      val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+        .getHeaderValue
+        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
-    val infoSignatures = Annotations(header
-      .getInfoHeaderLines
-      .toList
-      .map(line => (line.getID, VCFSignature.parse(line)))
-      .toMap)
+      val infoSignatures = Annotations(header
+        .getInfoHeaderLines
+        .toList
+        .map(line => (line.getID, VCFSignature.parse(line)))
+        .toMap)
 
-    val bbb = new ByteBlockBuilder[Annotations](sz)
+      val bbb = new ByteBlockBuilder[Annotations](sz)
 
-    indexMap = readFile(path, conf) { reader =>
-      Source.fromInputStream(reader)
-        .getLines()
-        .drop(headerLines.length)
+      indexMap = lines
         .flatMap { line =>
           val vc = codec.decode(line)
           val pass = vc.filtersWereApplied() && vc.getFilters.size() == 0
@@ -180,26 +179,26 @@ class VCFAnnotatorCompressed(path: String, root: String) extends VariantAnnotato
         }
         .map { case (v, va) => (v, bbb.add(va)) }
         .toMap
-    }
 
-    compressedBlocks = bbb.result()
+      compressedBlocks = bbb.result()
+    }
   }
 
   def serialize(path: String, sz: SerializerInstance) {
-    val conf = new hadoop.conf.Configuration()
-    val signatures = metadata(conf)
+    val signatures = metadata()
     val sb = new StringBuilder()
     check(sz)
-    writeDataFile(path, conf) { writer =>
-      val stream = sz.serializeStream(writer)
-        .writeObject[String]("vcf")
-        .writeObject[Array[String]](null)
-        .writeObject[Annotations](signatures)
-        .writeObject(indexMap.size)
-        .writeAll(indexMap.iterator)
-        .writeObject(compressedBlocks.length)
-        .writeAll(compressedBlocks.iterator)
-        .close()
+    writeDataFile(path, conf.value) {
+      writer =>
+        val stream = sz.serializeStream(writer)
+          .writeObject[String]("vcf")
+          .writeObject[Array[String]](null)
+          .writeObject[Annotations](signatures)
+          .writeObject(indexMap.size)
+          .writeAll(indexMap.iterator)
+          .writeObject(compressedBlocks.length)
+          .writeAll(compressedBlocks.iterator)
+          .close()
     }
   }
 }

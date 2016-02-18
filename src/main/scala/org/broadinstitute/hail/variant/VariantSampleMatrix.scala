@@ -391,7 +391,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         }
       })
     )
-      .addVariantAnnotationSignatures(annotator.metadata(sparkContext.hadoopConfiguration))
+      .addVariantAnnotationSignatures(annotator.metadata())
   }
 
   def annotateSamples(annotator: SampleAnnotator): VariantSampleMatrix[T] = {

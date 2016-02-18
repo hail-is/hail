@@ -9,7 +9,9 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant.{LZ4Utils, Variant}
 
-class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
+class SerializedAnnotator(path: String, root: String, hConf: hadoop.conf.Configuration) extends VariantAnnotator {
+
+  val conf = new SerializableHadoopConfiguration(hConf)
   @transient var variantIndexes: Map[Variant, (Int, Int)] = null
   @transient var compressedBytes: IndexedSeq[(Int, Array[Byte])] = null
   @transient var cleanHeader: Array[String] = null
@@ -24,66 +26,69 @@ class SerializedAnnotator(path: String, root: String) extends VariantAnnotator {
 
   def check(sz: SerializerInstance) {
     if (variantIndexes == null || compressedBytes == null)
-      read(new hadoop.conf.Configuration, sz)
+      read(sz)
   }
 
-  def read(conf: hadoop.conf.Configuration, sz: SerializerInstance) {
-    val t0 = System.nanoTime()
-    val dsStream = sz
-      .deserializeStream(hadoopOpen(path, conf))
+  def read(sz: SerializerInstance) {
+    readFile(path, conf.value) { reader =>
+      val dsStream = sz
+        .deserializeStream(reader)
 
-    val inputType = dsStream.readObject[String]
-    cleanHeader = dsStream.readObject[Array[String]]
-    val sigs = dsStream.readObject[Annotations]
-    variantIndexes = {
-      val length = dsStream.readObject[Int]
-      (0 until length).map(i => dsStream.readObject[(Variant, (Int, Int))])
-        .toMap
-    }
-    compressedBytes = {
-      val length = dsStream.readObject[Int]
-      (0 until length).map(i => dsStream.readObject[(Int, Array[Byte])])
-    }
+      val inputType = dsStream.readObject[String]
+      cleanHeader = dsStream.readObject[Array[String]]
+      val sigs = dsStream.readObject[Annotations]
+      variantIndexes = {
+        val length = dsStream.readObject[Int]
+        (0 until length).map(i => dsStream.readObject[(Variant, (Int, Int))])
+          .toMap
+      }
+      compressedBytes = {
+        val length = dsStream.readObject[Int]
+        (0 until length).map(i => dsStream.readObject[(Int, Array[Byte])])
+      }
 
-    f = {
-      inputType match {
-        case "tsv" =>
-          (v, va, sz) => variantIndexes.get(v) match {
-            case Some((i, j)) =>
-              val (length, bytes) = compressedBytes(i)
-              va ++ rooted(Annotations(cleanHeader.iterator.zip(sz.deserialize[Array[Array[Option[Any]]]](
-                ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
-                .apply(j)
-                .iterator)
-                .flatMap {
-                  case (k, v) => v match {
-                    case Some(value) => Some(k, value)
-                    case None => None
+      f = {
+        inputType match {
+          case "tsv" =>
+            (v, va, sz) => variantIndexes.get(v) match {
+              case Some((i, j)) =>
+                val (length, bytes) = compressedBytes(i)
+                va ++ rooted(Annotations(cleanHeader.iterator.zip(sz.deserialize[Array[Array[Option[Any]]]](
+                  ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
+                  .apply(j)
+                  .iterator)
+                  .flatMap {
+                    case (k, v) => v match {
+                      case Some(value) => Some(k, value)
+                      case None => None
+                    }
                   }
-                }
-                .toMap))
-            case None => va
-          }
-        case "vcf" =>
-          (v, va, sz) => variantIndexes.get(v) match {
-            case Some((i, j)) =>
-              val (length, bytes) = compressedBytes(i)
-              va ++ rooted(sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
-                .apply(j))
-            case None => va
-          }
-        case _ => throw new UnsupportedOperationException
+                  .toMap))
+              case None => va
+            }
+          case "vcf" =>
+            (v, va, sz) => variantIndexes.get(v) match {
+              case Some((i, j)) =>
+                val (length, bytes) = compressedBytes(i)
+                va ++ rooted(sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
+                  .apply(j))
+              case None => va
+            }
+          case _ => throw new UnsupportedOperationException
+        }
       }
     }
   }
 
-  def metadata(conf: hadoop.conf.Configuration): Annotations = {
-    val serializerStream = SparkEnv.get
-      .serializer
-      .newInstance()
-      .deserializeStream(hadoopOpen(path, conf))
-    val (source, header) = (serializerStream.readObject[String],
-      serializerStream.readObject[Array[String]])
-    rooted(serializerStream.readObject[Annotations])
+  def metadata(): Annotations = {
+    readFile(path, conf.value) { reader =>
+      val serializerStream = SparkEnv.get
+        .serializer
+        .newInstance()
+        .deserializeStream(reader)
+      val (source, header) = (serializerStream.readObject[String],
+        serializerStream.readObject[Array[String]])
+      rooted(serializerStream.readObject[Annotations])
+    }
   }
 }

@@ -33,8 +33,8 @@ class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, S
   def metadata(): Annotations = signatures
 
   def read(conf: hadoop.conf.Configuration): (IndexedSeq[String], Annotations, Map[String, Array[Option[Any]]]) = {
-    readFile(path, conf) { reader =>
-      val lines = Source.fromInputStream(hadoopOpen(path, conf))
+    readFile[(IndexedSeq[String], Annotations, Map[String, Array[Option[Any]]])](path, conf) { reader =>
+      val lines = Source.fromInputStream(reader)
         .getLines()
       fatalIf(lines.isEmpty, "empty annotations file")
 

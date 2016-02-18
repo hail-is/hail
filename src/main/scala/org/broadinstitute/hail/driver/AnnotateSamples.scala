@@ -43,13 +43,20 @@ object AnnotateSamples extends Command {
     val vds = state.vds
 
     val cond = options.condition
+
+    val root = options.root match {
+      case null => null
+      case r if r.startsWith("sa.") => r.substring(3)
+      case error => fatal(s"invalid root '$error': expect 'sa.<path[.path2...]>'")
+    }
+
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
     val annotator = stripped match {
       case tsv if tsv.endsWith(".tsv") =>
         new SampleTSVAnnotator(cond, options.sampleCol,
           AnnotateVariants.parseTypeMap(options.types),
           AnnotateVariants.parseMissing(options.missingIdentifiers),
-          options.root)
+          root)
       case _ => fatal(s"unknown file type '$cond'.  Specify a .tsv file")
     }
     state.copy(vds = vds.annotateSamples(annotator))

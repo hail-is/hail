@@ -595,7 +595,7 @@ object Utils extends Logging {
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
     new hadoop.fs.Path(filename).getFileSystem(hConf)
 
-  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
+  private def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val os = fs.create(hPath)
@@ -608,7 +608,7 @@ object Utils extends Logging {
       os
   }
 
-  def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
+  private def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val is = fs.open(hPath)

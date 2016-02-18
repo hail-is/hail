@@ -8,8 +8,10 @@ import org.broadinstitute.hail.variant.{Interval, IntervalList, Variant}
 
 import scala.io.Source
 
-class IntervalListAnnotator(path: String, identifier: String, root: String)
+class IntervalListAnnotator(path: String, identifier: String, root: String, hConf: hadoop.conf.Configuration)
   extends VariantAnnotator {
+
+  val conf = new SerializableHadoopConfiguration(hConf)
   @transient var intervalList: IntervalList = null
   @transient var extractType: String = null
   @transient var f: (Variant, Annotations) => Annotations = null
@@ -23,14 +25,16 @@ class IntervalListAnnotator(path: String, identifier: String, root: String)
 
   def check() {
     if (intervalList == null)
-      read(new hadoop.conf.Configuration())
+      read()
   }
 
-  def metadata(conf: hadoop.conf.Configuration): Annotations = {
-    val firstLine = Source.fromInputStream(hadoopOpen(path, conf))
-      .getLines()
-      .filter(line => !(line(0) == '@') && !line.isEmpty)
-      .next()
+  def metadata(): Annotations = {
+    val firstLine = readFile(path, conf.value) { reader =>
+      Source.fromInputStream(reader)
+        .getLines()
+        .filter(line => !(line(0) == '@') && !line.isEmpty)
+        .next()
+    }
 
     extractType = firstLine match {
       case IntervalList.intervalRegex(contig, start_str, end_str) => "Boolean"
@@ -57,9 +61,9 @@ class IntervalListAnnotator(path: String, identifier: String, root: String)
     rooted(Annotations(Map(identifier -> SimpleSignature(extractType))))
   }
 
-  def read(conf: hadoop.conf.Configuration) {
+  def read() {
     if (extractType == null)
-      metadata(conf)
+      metadata()
 
     val f: String => Interval = extractType match {
       case "String" =>
@@ -67,8 +71,7 @@ class IntervalListAnnotator(path: String, identifier: String, root: String)
           val Array(contig, start, end, direction, target) = line.split("\t")
           Interval(contig, start.toInt, end.toInt, Some(target))
       case "Boolean" =>
-        line =>
-          line match {
+        line => line match {
             case IntervalList.intervalRegex(contig, start_str, end_str) =>
               Interval(contig, start_str.toInt, end_str.toInt)
             case _ => fatal("Inconsistent interval file")
@@ -76,11 +79,12 @@ class IntervalListAnnotator(path: String, identifier: String, root: String)
       case _ => throw new UnsupportedOperationException
     }
 
-    intervalList = IntervalList(
-      Source.fromInputStream(hadoopOpen(path, conf))
+    intervalList = readFile(path, conf.value) { reader =>
+      IntervalList(Source.fromInputStream(reader)
         .getLines()
         .filter(line => !line.isEmpty)
         .map(f)
         .toTraversable)
+    }
   }
 }

@@ -1,17 +1,31 @@
 package org.broadinstitute.hail.io.annotators
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
+import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.serializer.SerializerInstance
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant.Variant
 
+class SerializableHadoopConfiguration(@transient var value: Configuration) extends Serializable {
+  private def writeObject(out: ObjectOutputStream) {
+    out.defaultWriteObject()
+    value.write(out)
+  }
+
+  private def readObject(in: ObjectInputStream) {
+    value = new Configuration(false)
+    value.readFields(in)
+  }
+}
 
 abstract class VariantAnnotator extends Serializable {
 
   def annotate(v: Variant, va: Annotations, sz: SerializerInstance): Annotations
 
-  def metadata(conf: Configuration): Annotations
+  def metadata(): Annotations
 }
 
 abstract class SampleAnnotator {
@@ -30,6 +44,7 @@ object Annotator {
       case r =>
         va => r
           .split("""\.""")
+          .filter(!_.isEmpty)
           .foldRight(va)((id, annotations) => Annotations(Map(id -> annotations)))
     }
   }

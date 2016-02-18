@@ -77,17 +77,24 @@ object AnnotateVariants extends Command {
     val cond = options.condition
 
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
+    val root = options.root match {
+      case null => null
+      case r if r.startsWith("va.") => r.substring(3)
+      case error => fatal(s"invalid root '$error': expect 'va.<path[.path2...]>'")
+    }
+
+    val conf = state.sc.hadoopConfiguration
 
     val annotator: VariantAnnotator = stripped match {
       case intervalList if intervalList.endsWith(".interval_list")  =>
         fatalIf(options.identifier == null, "annotating from .interval_list files requires the argument 'identifier'")
-        new IntervalListAnnotator(cond, options.identifier, options.root)
+        new IntervalListAnnotator(cond, options.identifier, root, conf)
       case tsv if tsv.endsWith(".tsv") =>
         new TSVAnnotatorCompressed(cond, parseColumns(options.vCols), parseTypeMap(options.types),
-          parseMissing(options.missingIdentifiers), options.root)
-      case bed if bed.endsWith(".bed") => new BedAnnotator(cond, options.root)
-      case vcf if vcf.endsWith(".vcf") => new VCFAnnotatorCompressed(cond, options.root)
-      case ser if ser.endsWith(".ser") => new SerializedAnnotator(cond, options.root)
+          parseMissing(options.missingIdentifiers), root, conf)
+      case bed if bed.endsWith(".bed") => new BedAnnotator(cond, root, conf)
+      case vcf if vcf.endsWith(".vcf") => new VCFAnnotatorCompressed(cond, root, conf)
+      case ser if ser.endsWith(".ser") => new SerializedAnnotator(cond, root, conf)
       case _ => fatal(s"Unknown file type '$cond'.  Specify a .tsv, .bed, .vcf, .serialized, or .interval_list file")
     }
 
