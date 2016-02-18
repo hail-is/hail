@@ -6,8 +6,8 @@ import org.broadinstitute.hail.variant.VariantDataset
 class SamplePCA(k: Int) {
   def name = "SamplePCA"
   def apply(vds: VariantDataset): Map[Int, SVector] = {
-    val (variants, mat) = ToNormalizedIndexedRowMatrix(vds)
-    val svd = mat.computeSVD(k)
+    val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
+    val svd = mat.computeSVD(k, computeU = false)
     mat
       .multiply(svd.V)
       .rows

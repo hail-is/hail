@@ -20,12 +20,12 @@ object PCA extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val samplePCs = new SamplePCA(options.k)(vds)
+    val samplePCs = (new SamplePCA(options.k))(vds)
 
     writeTextFile(options.output, state.hadoopConf) { s =>
       s.write("sample")
       for (i <- 0 until options.k)
-        s.write("\t" + "PC" + i)
+        s.write("\t" + "PC" + (i + 1))
       s.write("\n")
 
       for (i <- 0 until vds.nSamples) {

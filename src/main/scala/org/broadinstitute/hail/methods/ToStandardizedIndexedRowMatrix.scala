@@ -6,7 +6,7 @@ import org.apache.spark.mllib.stat.Statistics
 import org.broadinstitute.hail.variant.{Variant, VariantDataset}
 import org.broadinstitute.hail.Utils._
 
-object ToNormalizedIndexedRowMatrix {
+object ToStandardizedIndexedRowMatrix {
   def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {
     val variants = vds.variants.collect()
     val nVariants = variants.size
@@ -22,9 +22,22 @@ object ToNormalizedIndexedRowMatrix {
       IndexedRow(s.toLong, Vectors.dense(a))
     }.cache()  // FIXME
 
-    def std(m: Double): Double = math.sqrt(2 * (m / 2) * (1 - m / 2))
-    val summary = Statistics.colStats(unnormalized.map(_.vector))
-    val normalized = unnormalized.map(ir => (ir - summary.mean) :/ summary.mean.map(std))
+    // Per variant normalization by standard deviation, estimated as a function of
+    // the mean assuming a Binomial(n = 2, p) model, i.e. Hardy-Weinberg equilibrium;
+    // see equation (3) in Patterson, Price, Reich (2006).
+    // Ignore variants with MAF below a cutoff
+
+    val cutoff = 0.0
+    def sdNorm(m: Double): Double = {
+      val p = m / 2
+      if (math.min(p, 1 - p) <= cutoff)
+        0.0
+      else
+        1.0 / math.sqrt(2 * p * (1 - p))
+    }
+
+    val mean = Statistics.colStats(unnormalized.map(_.vector)).mean
+    val normalized = unnormalized.map(ir => (ir - mean) :* mean.map(sdNorm))
     
     (variants, new IndexedRowMatrix(normalized.cache(), nSamples, nVariants))
   }

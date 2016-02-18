@@ -283,6 +283,8 @@ class RichIndexedRow(val r: IndexedRow) extends AnyVal {
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
 
+  def :*(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :* that)
+
   def :/(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :/ that)
 }
 
