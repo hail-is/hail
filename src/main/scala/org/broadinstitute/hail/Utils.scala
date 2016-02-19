@@ -318,7 +318,7 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
 
     header.foreach { str =>
-      writeDataFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
+      writeFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
         s.write(str)
       }
     }
@@ -749,6 +749,16 @@ object Utils extends Logging {
       f(ss)
     } finally {
       ss.close()
+    }
+  }
+
+  def writeFile[T](filename: String,
+                       hConf: hadoop.conf.Configuration)(writer: (OutputStream) => T): T = {
+    val os = hadoopCreate(filename, hConf)
+    try {
+      writer(os)
+    } finally {
+      os.close()
     }
   }
 

@@ -148,7 +148,7 @@ case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissin
         case 2 =>
           x(i) = 2.0
           sumXY += 2 * y(i)
-        case 3 =>
+        case missing => // FIXME: Is this equivalent to _?
           x(i) = this.meanX
           sumXY += this.meanX * y(i)
       }
