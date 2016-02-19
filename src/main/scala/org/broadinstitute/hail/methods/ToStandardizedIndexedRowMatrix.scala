@@ -14,13 +14,19 @@ object ToStandardizedIndexedRowMatrix {
     val variantIdxBroadcast = vds.sparkContext.broadcast(variants.index)
 
     val unnormalized = vds
-      .mapWithKeys((v, s, g) => (s, (variantIdxBroadcast.value(v), g.nNonRef)))
-      .groupByKey()
-      .map { case (s, indexGT) =>
-      val a = Array.fill[Double](nVariants)(0.0)
-      indexGT.foreach { case (j, gt) => a(j) = gt.toDouble }
-      IndexedRow(s.toLong, Vectors.dense(a))
-    }.cache()  // FIXME
+      .rdd
+    .map { case (v, va, gs) =>
+
+    }
+
+//      vds
+//      .mapWithKeys((v, s, g) => (s, (variantIdxBroadcast.value(v), g.nNonRef)))
+//      .groupByKey()
+//      .map { case (s, indexGT) =>
+//      val a = Array.fill[Double](nVariants)(0.0)
+//      indexGT.foreach { case (j, gt) => a(j) = gt.toDouble }
+//      IndexedRow(s.toLong, Vectors.dense(a))
+//    }.cache()  // FIXME
 
     // Per variant normalization by standard deviation, estimated as a function of
     // the mean assuming a Binomial(n = 2, p) model, i.e. Hardy-Weinberg equilibrium;
