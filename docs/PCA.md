@@ -10,7 +10,7 @@ $ hail read -i /path/to/input.vds pca -o /path/to/output.tsv
 ```
 
 Command line options:
- - `-k [k]`, `--components [k]` -- Report the first $k$ PCs; by default $k = 10$.
+ - `-k <k>`, `--components <k>` -- Report the first $k$ PCs; by default $k = 10$. `<k>` can be a positive integer or `all`.
  - `-e`, `--eigenvalues` -- Write the leading $k$ sample covariance eigenvalues to `output.eigen.tsv`. Format is a single column, no header.
  - `-l`, `--loadings` -- Write the variant loadings on the leading $k$ PCs to `output.loadings.tsv`. Format is one line per variant plus a header, with columns are `chrom pos ref alt PC1 PC2` etc.
 
@@ -26,7 +26,7 @@ PCA then computes the SVD
 $$
 M = USV'
 $$
-where columns of $U$ are the left singular vectors (orthonormal in sample space), columns of $V$ are the right singular vectors (orthonormal in variant space), and $S=\mathrm{diag}(s_1, s_2, \ldots)$ with ordered singular values $s_1 \ge s_2 \ge \cdots \ge 0$. In fact only the leading $k$ singular vectors and values are computed, yielding the best rank $k$ approximation $U_k S_k V_k'$.
+where columns of $U$ are the left singular vectors (orthonormal in sample space), columns of $V$ are the right singular vectors (orthonormal in variant space), and $S=\mathrm{diag}(s_1, s_2, \ldots)$ with ordered singular values $s_1 \ge s_2 \ge \cdots \ge 0$. In fact only the leading $k$ singular vectors and values are computed, yielding the best rank $k$ approximation $U_k S_k V_k'$. With option `-k all` one has $k = m$ even though there are at most $\mathrm{rank M} \le \min(m,n)$ nonzero singular values.
 
 The default output is $MV_k = U_k S_k$, whose rows are the first $k$ principal components of each sample, i.e. the components of the projection of that sample onto the leading $k$ PCs in variant space. (N.B. This is different from PLINK, which reports $U_k$ without rescaling.)
 
