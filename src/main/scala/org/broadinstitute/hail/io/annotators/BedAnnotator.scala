@@ -17,6 +17,7 @@ class BedAnnotator(path: String, root: String, hConf: hadoop.conf.Configuration)
   @transient var extractType: String = null
   @transient var name: String = null
   @transient var f: (Variant, Annotations) => Annotations = null
+  @transient var signatures: Annotations = null
 
   val rooted = Annotator.rootFunction(root)
 
@@ -28,6 +29,8 @@ class BedAnnotator(path: String, root: String, hConf: hadoop.conf.Configuration)
   def check() {
     if (intervalList == null)
       read()
+    if (signatures == null)
+      signatures = metadata()
   }
 
   def metadata(): (Annotations) = {
@@ -68,15 +71,15 @@ class BedAnnotator(path: String, root: String, hConf: hadoop.conf.Configuration)
         case "String" =>
           (v, va) =>
             intervalList.query(v.contig, v.start) match {
-              case Some(result) => va ++ rooted(Annotations(Map(name -> result)))
-              case None => va
+              case Some(result) => va.update(rooted(Annotations(Map(name -> result))), signatures)
+              case None => va.update(Annotations.empty(), signatures)
             }
         case "Boolean" =>
           (v, va) =>
             if (intervalList.contains(v.contig, v.start))
-              va ++ rooted(Annotations(Map(name -> true)))
+              va.update(rooted(Annotations(Map(name -> true))), signatures)
             else
-              va
+              va.update(rooted(Annotations(Map(name -> false))), signatures)
       }
 
       rooted(Annotations(Map(name -> SimpleSignature(if (linesBoolean) "Boolean" else "String"))))
@@ -84,32 +87,30 @@ class BedAnnotator(path: String, root: String, hConf: hadoop.conf.Configuration)
   }
 
   def read() {
-    readFile(path, conf.value) { reader =>
-      val lines = Source.fromInputStream(reader)
-        .getLines()
-        .dropWhile(line =>
-          line.startsWith("browser") ||
-            line.startsWith("track") ||
-            line.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
-
+    readLines(path, conf.value) { lines =>
       if (extractType == null)
         metadata()
 
       val intervalListBuilder = IntervalList
 
-      val f: Array[String] => Interval = extractType match {
-        case "String" => arr => Interval(arr(0), arr(1).toInt, arr(2).toInt, Some(arr(3)))
-        case _ => arr => Interval(arr(0), arr(1).toInt, arr(2).toInt)
+      val f: Line => Interval = extractType match {
+        case "String" => l => l.transform(line => {
+          val arr = line.value.split("""\s+""")
+          Interval(arr(0), arr(1).toInt, arr(2).toInt, Some(arr(3)))
+        })
+        case _ => l => l.transform(line => {
+          val arr = line.value.split("""\s+""")
+          Interval(arr(0), arr(1).toInt, arr(2).toInt)
+        })
       }
 
       intervalList = IntervalList(
-        lines
-          .filter(line => !line.isEmpty)
-          .map(
-            line => {
-              val split = line.split("""\s+""", 5)
-              f(split)
-            })
+        lines.dropWhile(line =>
+          line.value.startsWith("browser") ||
+            line.value.startsWith("track") ||
+            line.value.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
+          .filter(line => !line.value.isEmpty)
+          .map(f)
           .toTraversable)
     }
   }

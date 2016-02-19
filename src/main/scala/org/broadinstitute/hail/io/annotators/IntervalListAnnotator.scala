@@ -15,6 +15,7 @@ class IntervalListAnnotator(path: String, identifier: String, root: String, hCon
   @transient var intervalList: IntervalList = null
   @transient var extractType: String = null
   @transient var f: (Variant, Annotations) => Annotations = null
+  @transient var signatures: Annotations = null
 
   val rooted = Annotator.rootFunction(root)
 
@@ -26,6 +27,8 @@ class IntervalListAnnotator(path: String, identifier: String, root: String, hCon
   def check() {
     if (intervalList == null)
       read()
+    if (signatures == null)
+      signatures = metadata()
   }
 
   def metadata(): Annotations = {
@@ -46,15 +49,15 @@ class IntervalListAnnotator(path: String, identifier: String, root: String, hCon
       case "String" =>
         (v, va) =>
           intervalList.query(v.contig, v.start) match {
-            case Some(result) => va ++ rooted(Annotations(Map(identifier -> result)))
-            case None => va
+            case Some(result) => va.update(rooted(Annotations(Map(identifier -> result))), signatures)
+            case None => va.update(Annotations.empty(), signatures)
           }
       case "Boolean" =>
         (v, va) =>
           if (intervalList.contains(v.contig, v.start))
-            va ++ rooted(Annotations(Map(identifier -> true)))
+            va.update(rooted(Annotations(Map(identifier -> true))), signatures)
           else
-            va
+            va.update(rooted(Annotations(Map(identifier -> false))), signatures)
       case _ => throw new UnsupportedOperationException
     }
 
@@ -65,26 +68,31 @@ class IntervalListAnnotator(path: String, identifier: String, root: String, hCon
     if (extractType == null)
       metadata()
 
-    val f: String => Interval = extractType match {
-      case "String" =>
-        line =>
-          val Array(contig, start, end, direction, target) = line.split("\t")
-          Interval(contig, start.toInt, end.toInt, Some(target))
+    val f: Line => Interval = extractType match {
+      case "String" => _.transform(line => {
+        line.value.split("\t") match {
+          case Array(contig, start, end, direction, target) =>
+            Interval(contig, start.toInt, end.toInt, Some(target))
+          case arr => fatal("Inconsistent interval file")
+        }
+      })
       case "Boolean" =>
-        line => line match {
+        _.transform(line => {
+          line.value match {
             case IntervalList.intervalRegex(contig, start_str, end_str) =>
               Interval(contig, start_str.toInt, end_str.toInt)
             case _ => fatal("Inconsistent interval file")
           }
+        })
       case _ => throw new UnsupportedOperationException
     }
 
-    intervalList = readFile(path, conf.value) { reader =>
-      IntervalList(Source.fromInputStream(reader)
-        .getLines()
-        .filter(line => !line.isEmpty)
-        .map(f)
-        .toTraversable)
+    intervalList = readLines(path, conf.value) { lines =>
+      IntervalList(
+        lines
+          .filter(line => !line.value.isEmpty)
+          .map(f)
+          .toTraversable)
     }
   }
 }

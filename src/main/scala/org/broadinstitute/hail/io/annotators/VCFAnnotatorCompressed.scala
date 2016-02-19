@@ -53,6 +53,7 @@ class VCFAnnotatorCompressed(path: String, root: String, hConf: hadoop.conf.Conf
   val conf = new SerializableHadoopConfiguration(hConf)
   @transient var indexMap: Map[Variant, (Int, Int)] = null
   @transient var compressedBlocks: Array[(Int, Array[Byte])] = null
+  @transient var signatures: Annotations = null
 
   val rooted = Annotator.rootFunction(root)
 
@@ -61,15 +62,17 @@ class VCFAnnotatorCompressed(path: String, root: String, hConf: hadoop.conf.Conf
     indexMap.get(v) match {
       case Some((i, j)) =>
         val (length, bytes) = compressedBlocks(i)
-        va ++ Annotations(Map(root -> sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
-          .apply(j)))
-      case None => va
+        va.update(Annotations(Map(root -> sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
+          .apply(j))), signatures)
+      case None => va.update(Annotations.empty(), signatures)
     }
   }
 
   def check(sz: SerializerInstance) {
     if (indexMap == null || compressedBlocks == null)
       read(sz)
+    if (signatures == null)
+      signatures = metadata()
   }
 
   def metadata(): Annotations = {
@@ -107,15 +110,13 @@ class VCFAnnotatorCompressed(path: String, root: String, hConf: hadoop.conf.Conf
   def read(sz: SerializerInstance) {
 
     readFile(path, conf.value) { reader =>
-      val lines = Source.fromInputStream(reader)
+      val (headerIterator, dataIterator) = Source.fromInputStream(reader)
         .getLines()
-      val headerLines = lines
-        .takeWhile { line => line(0) == '#' }
-        .toArray
+        .span( line => line(0) == '#' )
 
       val codec = new htsjdk.variant.vcf.VCFCodec()
 
-      val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+      val header = codec.readHeader(new BufferedLineIterator(headerIterator.buffered))
         .getHeaderValue
         .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
@@ -127,7 +128,7 @@ class VCFAnnotatorCompressed(path: String, root: String, hConf: hadoop.conf.Conf
 
       val bbb = new ByteBlockBuilder[Annotations](sz)
 
-      indexMap = lines
+      indexMap = dataIterator
         .flatMap { line =>
           val vc = codec.decode(line)
           val pass = vc.filtersWereApplied() && vc.getFilters.size() == 0

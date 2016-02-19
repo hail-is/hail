@@ -18,6 +18,7 @@ import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.variant.Variant
 import scala.collection.{TraversableOnce, mutable}
+import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
@@ -484,7 +485,7 @@ object Utils extends Logging {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-  
+
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
@@ -784,11 +785,56 @@ object Utils extends Logging {
     }
   }
 
+  case class Line(value: String, position: Int, filename: String) {
+    def fatal(msg: String): Nothing = {
+      val lineToPrint =
+        if (value.length > 100)
+          value.take(100) + "..."
+        else
+          value
+      Utils.fatal(
+        s"""
+           |$msg at $filename:${position + 1}
+           |Offending line: "$lineToPrint""".stripMargin)
+    }
+
+    def transform[T](f: Line => T): T = {
+      try {
+        f(this)
+      } catch {
+        case e: Exception =>
+          val lineToPrint =
+            if (value.length > 100)
+              value.take(100) + "..."
+            else
+              value
+          Utils.fatal(
+            s"""
+               |${e.getClass.getName} at $filename:${position + 1}
+               |Offending line: $lineToPrint
+               |${e.getMessage}""".stripMargin)
+      }
+    }
+  }
+
+  def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {
+    readFile[T](filename, hConf) {
+      is =>
+        val lines = Source.fromInputStream(is)
+          .getLines
+          .zipWithIndex
+          .map {
+            case (value, position) => Line(value, position, filename)
+          }
+        reader(lines)
+    }
+  }
+
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
     lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        header.map { h =>
+        header.foreach { h =>
           fw.write(h)
           fw.write('\n')
         }

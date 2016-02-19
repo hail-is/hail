@@ -16,6 +16,7 @@ class SerializedAnnotator(path: String, root: String, hConf: hadoop.conf.Configu
   @transient var compressedBytes: IndexedSeq[(Int, Array[Byte])] = null
   @transient var cleanHeader: Array[String] = null
   @transient var f: (Variant, Annotations, SerializerInstance) => Annotations = null
+  @transient var signatures: Annotations = null
 
   val rooted = Annotator.rootFunction(root)
 
@@ -27,6 +28,8 @@ class SerializedAnnotator(path: String, root: String, hConf: hadoop.conf.Configu
   def check(sz: SerializerInstance) {
     if (variantIndexes == null || compressedBytes == null)
       read(sz)
+    if (signatures == null)
+      signatures = metadata()
   }
 
   def read(sz: SerializerInstance) {
@@ -36,7 +39,7 @@ class SerializedAnnotator(path: String, root: String, hConf: hadoop.conf.Configu
 
       val inputType = dsStream.readObject[String]
       cleanHeader = dsStream.readObject[Array[String]]
-      val sigs = dsStream.readObject[Annotations]
+      signatures = rooted(dsStream.readObject[Annotations])
       variantIndexes = {
         val length = dsStream.readObject[Int]
         (0 until length).map(i => dsStream.readObject[(Variant, (Int, Int))])
@@ -53,7 +56,7 @@ class SerializedAnnotator(path: String, root: String, hConf: hadoop.conf.Configu
             (v, va, sz) => variantIndexes.get(v) match {
               case Some((i, j)) =>
                 val (length, bytes) = compressedBytes(i)
-                va ++ rooted(Annotations(cleanHeader.iterator.zip(sz.deserialize[Array[Array[Option[Any]]]](
+                va.update(rooted(Annotations(cleanHeader.iterator.zip(sz.deserialize[Array[Array[Option[Any]]]](
                   ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
                   .apply(j)
                   .iterator)
@@ -63,16 +66,16 @@ class SerializedAnnotator(path: String, root: String, hConf: hadoop.conf.Configu
                       case None => None
                     }
                   }
-                  .toMap))
-              case None => va
+                  .toMap)), signatures)
+              case None => va.update(Annotations.empty(), signatures)
             }
           case "vcf" =>
             (v, va, sz) => variantIndexes.get(v) match {
               case Some((i, j)) =>
                 val (length, bytes) = compressedBytes(i)
-                va ++ rooted(sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
-                  .apply(j))
-              case None => va
+                va.update(rooted(sz.deserialize[Array[Annotations]](ByteBuffer.wrap(LZ4Utils.decompress(length, bytes)))
+                  .apply(j)), signatures)
+              case None => va.update(Annotations.empty(), signatures)
             }
           case _ => throw new UnsupportedOperationException
         }

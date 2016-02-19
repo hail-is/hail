@@ -19,6 +19,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
   @transient var internalMap: Map[Variant, (Int, Int)] = null
   @transient var compressedBlocks: Array[(Int, Array[Byte])] = null
   @transient var headerIndex: Array[String] = null
+  @transient var signatures: Annotations = null
 
   val rooted = Annotator.rootFunction(root)
 
@@ -39,14 +40,16 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
               }
           }
           .toMap
-        va ++ rooted(Annotations(map))
-      case None => va
+        va.update(rooted(Annotations(map)), signatures)
+      case None => va.update(Annotations.empty(), signatures)
     }
   }
 
   def check(sz: SerializerInstance) {
     if (internalMap == null)
       read(sz)
+    if (signatures == null)
+      signatures = metadata()
   }
 
   def metadata(): Annotations = {
@@ -68,14 +71,13 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
   }
 
   def read(serializer: SerializerInstance) {
-    readFile(path, conf.value) {
-      reader =>
-        val lines = Source.fromInputStream(reader)
-          .getLines()
-          .filter(line => !line.isEmpty)
+    readLines(path, conf.value) { lines =>
+      lines
+          .filter(line => !line.value.isEmpty)
 
 
         val header = lines.next()
+            .value
           .split("\t")
 
         headerIndex = header.flatMap { col =>
@@ -90,13 +92,13 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
         val bbb = new ByteBlockBuilder[Array[Option[Any]]](serializer)
         val ab = new mutable.ArrayBuilder.ofRef[Option[Any]]
 
-        val parseLine: String => (Variant, Array[Option[Any]]) = {
+        val parseLine: Line => (Variant, Array[Option[Any]]) = {
           // format CHR:POS:REF:ALT
           if (vColumns.length == 1) {
             val variantIndex = header.indexOf(vColumns.head)
             fatalIf(variantIndex < 0, s"Could not find designated CHR:POS:REF:ALT column identifier '${vColumns.head}'")
             line => {
-              val split = line.split("\t")
+              val split = line.value.split("\t")
               val Array(chr, pos, ref, alt) = split(variantIndex).split(":")
               split.iterator.zipWithIndex.foreach {
                 case (field, index) =>
@@ -120,7 +122,7 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
               fatal(s"Could not find designated identifier column(s): [${notFound.mkString(", ")}]")
             }
             line => {
-              val split = line.split("\t")
+              val split = line.value.split("\t")
               split.iterator.zipWithIndex.foreach {
                 case (field, index) =>
                   if (index != chrIndex && index != posIndex && index != refIndex && index != altIndex)

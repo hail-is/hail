@@ -2,6 +2,8 @@ package org.broadinstitute.hail.annotations
 
 import org.broadinstitute.hail.expr
 
+import scala.collection.{immutable, mutable}
+
 case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def contains(elem: String): Boolean = attrs.contains(elem)
@@ -24,6 +26,29 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
           case _ => (key, value)
         }
     })
+  }
+
+  def update(other: Annotations, signatures: Annotations): Annotations = {
+    val builder = immutable.Map.newBuilder[String, Any]
+    (attrs.keys ++ signatures.attrs.keys)
+      .foreach { key =>
+        (attrs.get(key), signatures.attrs.get(key)) match {
+          case (Some(anno1: Annotations), Some(sigs: Annotations)) =>
+            other.getOption[Annotations](key) match {
+              case Some(anno2) =>
+                builder += ((key, update(anno2, sigs)))
+              case None =>
+                builder += ((key, update(Annotations.empty(), sigs)))
+            }
+          case (Some(x), None) => builder += ((key, x))
+          case _ =>
+            other.attrs.get(key) match {
+            case Some(x) => builder += ((key, x))
+            case None => ()
+          }
+        }
+      }
+    Annotations(builder.result())
   }
 
   def -(key: String): Annotations = Annotations(attrs - key)

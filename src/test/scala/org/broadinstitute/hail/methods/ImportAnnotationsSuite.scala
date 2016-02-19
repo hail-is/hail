@@ -1,9 +1,10 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.spark.serializer.SerializerInstance
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.io.annotators.Annotator
+import org.broadinstitute.hail.io.annotators.{VariantAnnotator, Annotator}
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
@@ -111,7 +112,6 @@ class ImportAnnotationsSuite extends SparkSuite {
     val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
 
     val anno1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
-    ShowAnnotations.run(anno1, noArgs)
 
     val initialMap = vds.variantsAndAnnotations
       .collect()
@@ -176,6 +176,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     val int2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation2.interval_list",
       "-i", "BedTest", "-r", "va.bed"))
 
+    val bedMap = bed1.vds.variantsAndAnnotations.collect().toMap
+
     assert(int1.vds.same(bed1.vds))
     assert(int1r.vds.same(bed1r.vds))
     assert(int2.vds.same(bed2.vds))
@@ -227,4 +229,35 @@ class ImportAnnotationsSuite extends SparkSuite {
       Map("b" -> Annotations(Map("c" -> Annotations(Map("d" -> Annotations(
         Map("e" -> Annotations(Map("test" -> true)))))))))))))
   }
+
+  @Test def testOverwriteBehavior() {
+
+
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
+
+    val annotator = new DummyAnnotator
+    vds.annotateVariants(annotator)
+      .variantsAndAnnotations
+      .collect()
+      .foreach { case (v, va) =>
+        if (v.start % 2 == 0)
+          assert(va.get[Annotations]("info").getOption[Int]("AC").isEmpty)
+        else
+          assert(va.get[Annotations]("info").getOption[Int]("AC") == Some(0))
+      }
+  }
+}
+
+class DummyAnnotator extends VariantAnnotator {
+  def annotate(v: Variant, va: Annotations, sz: SerializerInstance): Annotations = {
+    if (v.start % 2 == 0)
+      va.update(Annotations.empty(),
+        Annotations(Map("info" -> Annotations(Map("AC" -> SimpleSignature("Int"))))))
+    else
+      va.update(Annotations(Map("info" -> Annotations(Map("AC" -> 0)))),
+        Annotations(Map("info" -> Annotations(Map("AC" -> SimpleSignature("Int"))))))
+  }
+
+  def metadata(): Annotations = Annotations(Map("info" -> Annotations(Map("AC" -> SimpleSignature("Int")))))
 }

@@ -385,9 +385,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(rdd = rdd.mapPartitions(
       iter => {
         lazy val sz = SparkEnv.get.serializer.newInstance()
+        val annotator = annotatorBc.value
+        val toRemove = annotator.metadata()
         iter.map {
           case (v, va, gs) =>
-            (v, annotatorBc.value.annotate(v, va, sz), gs)
+            (v, annotator.annotate(v, va, sz), gs)
         }
       })
     )
