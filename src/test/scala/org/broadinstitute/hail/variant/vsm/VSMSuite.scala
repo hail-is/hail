@@ -8,6 +8,8 @@ import scala.util.Random
 import scala.language.postfixOps
 import org.broadinstitute.hail.methods.LoadVCF
 import org.testng.annotations.Test
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.annotations._
 
 class VSMSuite extends SparkSuite {
@@ -20,11 +22,11 @@ class VSMSuite extends SparkSuite {
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
     val mdata3 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyOfArrayString(2).map(_.addVal("1", "5")), Annotations.emptyOfSignature(),
-      Annotations.emptyOfSignature())
+      Annotations.emptyIndexedSeq(2).map(_ + ("1", "5")), Annotations.empty(),
+      Annotations.empty())
     val mdata4 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyOfArrayString(2), Annotations.emptyOfSignature(), Annotations.emptyOfSignature()
-        .addMap("dummy", Map.empty[String, AnnotationSignature]))
+      Annotations.emptyIndexedSeq(2), Annotations.empty(), Annotations.empty()
+        + ("dummy", Map.empty[String, AnnotationSignature]))
 
     assert(mdata1 != mdata2)
 
@@ -32,61 +34,61 @@ class VSMSuite extends SparkSuite {
     val v2 = Variant("1", 2, "T", "G")
     val v3 = Variant("1", 2, "T", "A")
 
-    val va1 = Annotations(Map("info" -> Map("v1thing" -> "yes")), Map("v1otherThing" -> "yes"))
-    val va2 = Annotations(Map("info" -> Map("v2thing" -> "yes")), Map("v2otherThing" -> "yes"))
-    val va3 = Annotations(Map("info" -> Map("v1thing" -> "no")), Map("v1otherThing" -> "no"))
+    val va1 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v1otherThing" -> "yes"))
+    val va2 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v2otherThing" -> "yes"))
+    val va3 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v1otherThing" -> "no"))
 
     val rdd1 = sc.parallelize(Seq((v1, va1,
-      Iterable(Genotype(-1, (0, 2), 2, null),
-        Genotype(0, (11, 1), 12, (0, 10, 100)),
-        Genotype(2, (0, 13), 13, (100, 10, 0)))),
+      Iterable(Genotype(),
+        Genotype(0),
+        Genotype(2))),
       (v2, va2,
-        Iterable(Genotype(0, (10, 0), 10, (0, 10, 100)),
-          Genotype(0, (11, 0), 11, (0, 10, 100)),
-          Genotype(1, (6, 6), 12, (50, 0, 50))))))
+        Iterable(Genotype(0),
+          Genotype(0),
+          Genotype(1)))))
 
     // differ in variant
     val rdd2 = sc.parallelize(Seq((v1, va1,
-      Iterable(Genotype(-1, (0, 2), 2, null),
-        Genotype(0, (11, 1), 12, (0, 10, 100)),
-        Genotype(2, (0, 13), 13, (100, 10, 0)))),
+      Iterable(Genotype(),
+        Genotype(0),
+        Genotype(2))),
       (v3, va2,
-        Iterable(Genotype(0, (10, 0), 10, (0, 10, 100)),
-          Genotype(0, (11, 0), 11, (0, 10, 100)),
-          Genotype(1, (6, 6), 12, (50, 0, 50))))))
+        Iterable(Genotype(0),
+          Genotype(0),
+          Genotype(1)))))
 
     // differ in genotype
     val rdd3 = sc.parallelize(Seq((v1, va1,
-      Iterable(Genotype(-1, (0, 2), 2, null),
-        Genotype(1, (7, 8), 15, (100, 0, 100)),
-        Genotype(2, (0, 13), 13, (100, 10, 0)))),
+      Iterable(Genotype(),
+        Genotype(1),
+        Genotype(2))),
       (v2, va2,
-        Iterable(Genotype(0, (10, 0), 10, (0, 10, 100)),
-          Genotype(0, (11, 0), 11, (0, 10, 100)),
-          Genotype(1, (6, 6), 12, (50, 0, 50))))))
+        Iterable(Genotype(0),
+          Genotype(0),
+          Genotype(1)))))
 
     // for mdata2
     val rdd4 = sc.parallelize(Seq((v1, va1,
-      Iterable(Genotype(-1, (0, 2), 2, null),
-        Genotype(0, (11, 1), 12, (0, 10, 100)))),
+      Iterable(Genotype(),
+        Genotype(0))),
       (v2, va2, Iterable(
-        Genotype(0, (10, 0), 10, (0, 10, 100)),
-        Genotype(0, (11, 0), 11, (0, 10, 100))))))
+        Genotype(0),
+        Genotype(0)))))
 
     // differ in number of variants
     val rdd5 = sc.parallelize(Seq((v1, va1,
-      Iterable(Genotype(-1, (0, 2), 2, null),
-        Genotype(0, (11, 1), 12, (0, 10, 100))))))
+      Iterable(Genotype(),
+        Genotype(0)))))
 
     // differ in annotations
     val rdd6 = sc.parallelize(Seq((v1, va1,
-      Iterable(Genotype(-1, (0, 2), 2, null),
-        Genotype(0, (11, 1), 12, (0, 10, 100)),
-        Genotype(2, (0, 13), 13, (100, 10, 0)))),
+      Iterable(Genotype(),
+        Genotype(0),
+        Genotype(2))),
       (v2, va3,
-        Iterable(Genotype(0, (10, 0), 10, (0, 10, 100)),
-          Genotype(0, (11, 0), 11, (0, 10, 100)),
-          Genotype(1, (6, 6), 12, (50, 0, 50))))))
+        Iterable(Genotype(0),
+          Genotype(0),
+          Genotype(1)))))
 
     val vdss = Array(new VariantDataset(mdata1, rdd1),
       new VariantDataset(mdata1, rdd2),
@@ -109,6 +111,17 @@ class VSMSuite extends SparkSuite {
       else
         assert(vdss(i) != vdss(j))
     }
+  }
+
+  @Test def testReadWrite() {
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
+      hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
+      vsm.write(sqlContext, "/tmp/foo.vds")
+      val vsm2 = VariantSampleMatrix.read(sqlContext, "/tmp/foo.vds")
+      vsm2.same(vsm)
+    }
+
+    p.check
   }
 
   @Test def testFilterSamples() {

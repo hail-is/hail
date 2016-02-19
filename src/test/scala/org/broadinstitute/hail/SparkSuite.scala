@@ -20,7 +20,8 @@ class SparkSuite extends TestNGSuite {
     if (master != null)
       conf.setMaster(master)
     else if (!conf.contains("spark.master"))
-      conf.setMaster("local[*]")
+      // conf.setMaster("local[*]")
+      conf.setMaster("local")
 
     conf.set("spark.sql.parquet.compression.codec", "uncompressed")
 

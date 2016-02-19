@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -17,6 +18,13 @@ object ExportGenotypes extends Command {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
+
+    @Args4jOption(name = "--print-ref", usage = "print reference genotypes")
+    var printRef: Boolean = false
+
+    @Args4jOption(name = "--print-missing", usage = "print reference genotypes")
+    var printMissing: Boolean = _
+
   }
 
   def newOptions = new Options
@@ -27,33 +35,58 @@ object ExportGenotypes extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+    val sc = vds.sparkContext
     val cond = options.condition
     val output = options.output
-    val vas: AnnotationSignatures = vds.metadata.variantAnnotationSignatures
-    val sas: AnnotationSignatures = vds.metadata.sampleAnnotationSignatures
+    val vas = vds.metadata.variantAnnotationSignatures
+    val sas = vds.metadata.sampleAnnotationSignatures
 
-    val (header, fields) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(cond, state.hadoopConf)
+    val symTab = Map(
+      "v" ->(0, expr.TVariant),
+      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType),
+      "s" ->(2, expr.TSample),
+      "sa" ->(3, vds.metadata.sampleAnnotationSignatures.toExprType),
+      "g" ->(4, expr.TGenotype))
+    val a = new Array[Any](5)
+
+    val (header, fs) = if (cond.endsWith(".columns"))
+      ExportTSV.parseColumnsFile(symTab, a, cond, sc.hadoopConfiguration)
     else
-      ExportTSV.parseExpression(cond)
-
-    val makeString: ((Variant, AnnotationData) =>
-      ((Int, Genotype) => String)) = {
-      val cf = new ExportGenotypeEvaluator(fields, vds.metadata)
-      cf.typeCheck()
-      cf.apply
-    }
-
-    val stringVDS = vds.mapValuesWithPartialApplication(
-      (v: Variant, va: AnnotationData) =>
-        (s: Int, g: Genotype) =>
-          makeString(v, va)(s, g))
+      expr.Parser.parseExportArgs(symTab, a, cond)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
-    stringVDS.rdd
-      .flatMap { case (v, va, strings) => strings }
-      .writeTable(output, header)
+    val sampleIdsBc = sc.broadcast(vds.sampleIds)
+    val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
+
+    val localPrintRef = options.printRef
+    val localPrintMissing = options.printMissing
+
+    val filterF: Genotype => Boolean =
+      g => (!g.isHomRef || localPrintRef) && (!g.isNotCalled || localPrintMissing)
+
+    val lines = vds.mapPartitionsWithAll { it =>
+      val sb = new StringBuilder()
+      it
+        .filter { case (v, va, s, g) => filterF(g) }
+        .map { case (v, va, s, g) =>
+          a(0) = v
+          a(1) = va.attrs
+          a(2) = sampleIdsBc.value(s)
+          a(3) = sampleAnnotationsBc.value(s).attrs
+          a(4) = g
+          sb.clear()
+          var first = true
+          fs.foreach { f =>
+            if (first)
+              first = false
+            else
+              sb += '\t'
+            sb.tsvAppend(f())
+          }
+          sb.result()
+        }
+    }.writeTable(output, header)
 
     state
   }
