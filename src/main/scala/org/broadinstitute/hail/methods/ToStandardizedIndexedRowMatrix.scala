@@ -13,38 +13,52 @@ object ToStandardizedIndexedRowMatrix {
     val nSamples = vds.nSamples
     val variantIdxBroadcast = vds.sparkContext.broadcast(variants.index)
 
-    val unnormalized = vds
+    val standardized = vds
       .rdd
-    .map { case (v, va, gs) =>
+      .map { case (v, va, gs) =>
+        val (count, sum) = gs.foldLeft((0, 0)) { case ((c, s), g) =>
+          g.nNonRefAlleles match {
+            case Some(n) => (c + 1, s + n)
+            case None => (c, s)
+          }
+        }
+        val p = sum.toDouble / (2 * count)
+        // Will the denominator be computed every time the function is applied?
+        def standardize(n: Int): Double = (n - 2 * p) / math.sqrt(2 * p * (1 - p))
+        (variantIdxBroadcast.value(v), gs.map(_.nNonRefAlleles.map(standardize).getOrElse(0.0)).toVector)
+      }
 
-    }
 
-//      vds
-//      .mapWithKeys((v, s, g) => (s, (variantIdxBroadcast.value(v), g.nNonRef)))
-//      .groupByKey()
-//      .map { case (s, indexGT) =>
-//      val a = Array.fill[Double](nVariants)(0.0)
-//      indexGT.foreach { case (j, gt) => a(j) = gt.toDouble }
-//      IndexedRow(s.toLong, Vectors.dense(a))
-//    }.cache()  // FIXME
-
-    // Per variant normalization by standard deviation, estimated as a function of
-    // the mean assuming a Binomial(n = 2, p) model, i.e. Hardy-Weinberg equilibrium;
-    // see equation (3) in Patterson, Price, Reich (2006).
-    // Ignore variants with MAF below a cutoff
-
-    val cutoff = 0.0
-    def sdNorm(m: Double): Double = {
-      val p = m / 2
-      if (math.min(p, 1 - p) <= cutoff)
-        0.0
-      else
-        1.0 / math.sqrt(2 * p * (1 - p))
-    }
-
-    val mean = Statistics.colStats(unnormalized.map(_.vector)).mean
-    val normalized = unnormalized.map(ir => (ir - mean) :* mean.map(sdNorm))
-    
-    (variants, new IndexedRowMatrix(normalized.cache(), nSamples, nVariants))
   }
+
+  //      vds
+  //      .mapWithKeys((v, s, g) => (s, (variantIdxBroadcast.value(v), g.nNonRef)))
+  //      .groupByKey()
+  //      .map { case (s, indexGT) =>
+  //      val a = Array.fill[Double](nVariants)(0.0)
+  //      indexGT.foreach { case (j, gt) => a(j) = gt.toDouble }
+  //      IndexedRow(s.toLong, Vectors.dense(a))
+  //    }.cache()  // FIXME
+
+  // Per variant normalization by standard deviation, estimated as a function of
+  // the mean assuming a Binomial(n = 2, p) model, i.e. Hardy-Weinberg equilibrium;
+  // see equation (3) in Patterson, Price, Reich (2006).
+  // Ignore variants with MAF below a cutoff
+  //
+  //val cutoff = 0.0
+  //
+  //def sdNorm (m: Double): Double = {
+  //val p = m / 2
+  //if (math.min (p, 1 - p) <= cutoff)
+  //0.0
+  //else
+  //1.0 / math.sqrt (2 * p * (1 - p) )
+  //}
+  //
+  //val mean = Statistics.colStats (unnormalized.map (_.vector) ).mean
+  //val normalized = unnormalized.map (ir => (ir - mean) :* mean.map (sdNorm) )
+  //
+  //(variants, new IndexedRowMatrix (normalized.cache (), nSamples, nVariants) )
+  //}
+
 }
