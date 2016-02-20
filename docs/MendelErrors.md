@@ -22,17 +22,17 @@ SNP denotes the variant identifier `chr:pos:ref:alt`.
 N counts all errors, while NSNP only counts SNP errors (NSNP is not in Plink).
 CHLD is the number of children in a nuclear family.
 
-Each Mendel error is given a CODE as defined in table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
+The CODE of each Mendel error is determined by the table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
 Those individuals implicated by each code are in bold.
-Ploidy is based on the pseudo-autosomal region (PAR):
+The copy state of a locus with respect to a trio is defined as follows, where PAR is the pseudo-autosomal region (PAR).
 
-- HemiX -- non-PAR X in male child
-- HemiY -- non-PAR Y in male child
-- Auto -- otherwise (autosome or PAR or female child)
+- HemiX -- in non-PAR of X, male child
+- HemiY -- in non-PAR of Y, male child
+- Auto -- otherwise (in autosome or PAR, or female child)
 
 Any refers to {HomRef, Het, HomVar, NoCall} and ! denotes complement in this set.
 
-Code | Dad | Mom | Kid | Ploidy
+Code | Dad | Mom | Kid | Copy state
 ---|---|---|---|---
 1 | **HomVar** | **HomVar** | **Het** | Auto
 2 | **HomRef** | **HomRef** |  **Het** | Auto

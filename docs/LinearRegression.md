@@ -12,14 +12,14 @@ The command
 ```
 linreg -f myStudy.fam -c myStudy.cov -o myStudy.linreg
 ```
-outputs a TSV file `myStudy.linreg` with header
-
-`CHR POS REF ALT MISS BETA SE T P`
-
-and a row for each variant with
+outputs a TSV file `myStudy.linreg` with a row for each variant and the following columns.
 
 Column | Value
 ---|---
+CHR | chromosome
+POS | position
+REF | reference allele
+ALT | alternate allele
 MISS | count of missing genotypes
 BETA | genotype coefficient
 SE | standard error
