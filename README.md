@@ -12,6 +12,8 @@
 8. [Exporting to Plink](docs/ExportPlink.md)
 7. [Exporting to VCF](docs/ExportVCF.md)
 9. [Mendel errors](docs/MendelErrors.md)
+10. [Linear regression](docs/MendelErrors.md)
+
 
 ## Tools
 

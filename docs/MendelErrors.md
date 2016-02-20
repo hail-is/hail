@@ -1,21 +1,21 @@
-# Mendel errors in Hail
+# Mendel Errors
 
-The `mendelerrors` module finds all violations of Mendelian inheritance in each (dad, mom, kid) trio of samples.
+The `mendelerrors` command finds all violations of Mendelian inheritance in each (dad, mom, kid) trio of samples.
 
-Command line arguments:
+Command line options:
  - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
- - `-o | --output <fileroot>` -- a root name for output files
+ - `-o | --output <base>` -- a base name for output files
 
 The command
 ```
 mendelerrors -f trios.fam -o genomes
 ```
-outputs four tsv files according to the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
+outputs four TSV files according to the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
 
-- `genomes.mendel` -- all mendel errors: FID KID CHR SNP CODE ERROR (hadoop)
+- `genomes.mendel` -- all mendel errors: FID KID CHR SNP CODE ERROR
 - `genomes.fmendel` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
 - `genomes.imendel` -- error count per individual: FID IID N NSNP
-- `genomes.lmendel` -- error count per variant: CHR SNP N (hadoop)
+- `genomes.lmendel` -- error count per variant: CHR SNP N
 
 FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and individual ID, respectively, with missing values set to `0`.
 SNP denotes the variant identifier `chr:pos:ref:alt`.
