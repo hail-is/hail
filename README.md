@@ -7,12 +7,12 @@
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
 4. [QC](docs/QC.md)
 5. [Filtering](docs/Filtering.md)
-6. [Renaming Samples](docs/RenameSamples.md)
-6. [Exporting to TSV](docs/ExportTSV.md)
-8. [Exporting to Plink](docs/ExportPlink.md)
-7. [Exporting to VCF](docs/ExportVCF.md)
-9. [Mendel errors](docs/MendelErrors.md)
-10. [Linear regression](docs/LinearRegression.md)
+6. [Linear regression](docs/LinearRegression.md)
+7. [Mendel errors](docs/MendelErrors.md)
+8. [Renaming Samples](docs/RenameSamples.md)
+9. [Exporting to TSV](docs/ExportTSV.md)
+10. [Exporting to Plink](docs/ExportPlink.md)
+11. [Exporting to VCF](docs/ExportVCF.md)
 
 
 ## Tools
