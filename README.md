@@ -6,7 +6,7 @@
 2. [Importing](docs/Importing.md)
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
 4. [Renaming Samples](docs/RenameSamples.md)
-5. [QC](docs/QC.md)
+5. [Quality Control](docs/QC.md)
 6. [Filtering](docs/Filtering.md)
 7. [Linear regression](docs/LinearRegression.md)
 8. [Mendel errors](docs/MendelErrors.md)
