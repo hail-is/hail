@@ -16,8 +16,9 @@ outputs a TSV file `myStudy.linreg` with header
 
 `CHR POS REF ALT MISS BETA SE T P`
 
-and a row for each variant (chromosome, position, reference allele, alterate allele) and
+and a row for each variant with
 
+Column | Value
 ---|---
 MISS | count of missing genotypes
 BETA | genotype coefficient
