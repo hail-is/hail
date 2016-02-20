@@ -2,7 +2,7 @@
 
 Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure ([Patterson, Price and Reich, 2006](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190)).
 
-PCA expects a `.vds` file as input, with bialellic autosomal variants. The analysis is with respect to a standardized genotype matrix; see details below. The default output is a `.tsv` file recording the first 10 principal component scores of each sample. Format: one line per sample plus a header, with columns `SAMPLE PC1 PC2` etc.
+As input PCA expects a `.vds` file with bialellic autosomal variants. The analysis is with respect to a standardized genotype matrix; see below for details. The default output is a `.tsv` file recording the first 10 principal component scores of each sample. Format: one line per sample plus a header, with columns `SAMPLE PC1 PC2` etc.
 
 Example usage:
 ```
@@ -10,9 +10,9 @@ $ hail read -i /path/to/input.vds pca -o /path/to/output.tsv
 ```
 
 Command line options:
- - `-k <k>`, `--components <k>` -- Report the first $k$ principal component scores; by default $k = 10$.
+ - `-k <k>`, `--components <k>` -- Report the first $k$ principal components; by default $k = 10$.
  - `-l`, `--loadings` -- Write the first $k$ variant loadings to `output.loadings.tsv`. Format: one line per variant plus a header, with columns `CHROM POS REF ALT PC1 PC2` etc.
- - `-e`, `--eigenvalues` -- Write the first $k$ sample covariance or genetic relatedness matrix eigenvalues to `output.eigen.tsv`. Format: single column, no header.
+ - `-e`, `--eigenvalues` -- Write the first $k$ eigenvalues of the sample covariance or genetic relationship matrix to `output.eigen.tsv`. Format: single column, no header.
 
 
 ## Details
@@ -31,7 +31,9 @@ where columns of $U$ are the left singular vectors (orthonormal in sample space)
 
 From the perspective of the samples or rows of $M$ as data, the columns of $V_k$ are the variant loadings for the first $k$ principal components, and the rows of $MV_k = U_k S_k$ are the first $k$ principal component scores of the samples. In the output the latter are scaled by a factor of $1/\sqrt{m}$; a sample row has total variance roughly $m$ and the singular values are likewise on this order, so this scaling normalizes them to order one (independent of the number of variants).
 
-A related object is the sample covariance or genetic relationship matrix (GRM) $MM'/m$, whose eigenvectors are the columns of $U$ and whose eigenvalues $s_1^2/m, s_2^2/m, \ldots$ are the variances carried by the respective principal components. The eigenvalues are also key statistics for the tests of population structure described in the cited paper. (N.B. Plink/GCTA outputs the columns of $U$ without rescaling but here we scale the scores to reflect the relative variances as is usual in PCA.)
+A related object is the sample covariance or genetic relationship matrix (GRM) $MM'/m$, whose eigenvectors are the columns of $U$ and whose eigenvalues $s_1^2/m, s_2^2/m, \ldots$ are the variances carried by the respective principal components. The eigenvalues are also key statistics for the tests of population structure described in the cited paper.
+
+**Note:** Plink/GCTA take the GRM as a starting point and compute it slightly differently with regard to missing data (modifying the denominator $m$ for each entry to the number of non-missing pairs of genotypes used). They also output the its eigenvectors without rescaling (i.e. $U_k$ instead of $U_k S_k$), which has the drawback that the components no longer have the right relative variances and do not represent a projection of the original data.
 
 ## Issues
  - PLINK has an option to use X-chromosome variants. Does anyone do this? Should we support it?
