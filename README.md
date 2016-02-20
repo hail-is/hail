@@ -5,14 +5,14 @@
 1. [Representation](docs/Representation.md)
 2. [Importing](docs/Importing.md)
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
-4. [QC](docs/QC.md)
-5. [Filtering](docs/Filtering.md)
-6. [Linear regression](docs/LinearRegression.md)
-7. [Mendel errors](docs/MendelErrors.md)
-8. [Renaming Samples](docs/RenameSamples.md)
+4. [Renaming Samples](docs/RenameSamples.md)
+5. [QC](docs/QC.md)
+6. [Filtering](docs/Filtering.md)
+7. [Linear regression](docs/LinearRegression.md)
+8. [Mendel errors](docs/MendelErrors.md)
 9. [Exporting to TSV](docs/ExportTSV.md)
-10. [Exporting to Plink](docs/ExportPlink.md)
-11. [Exporting to VCF](docs/ExportVCF.md)
+10. [Exporting to VCF](docs/ExportVCF.md)
+11. [Exporting to Plink](docs/ExportPlink.md)
 
 
 ## Tools
