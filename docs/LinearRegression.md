@@ -26,9 +26,6 @@ SE | standard error
 T | t-statistic
 P | p-value
 
-
-The last five columns record number of missing genotypes, genotype coefficient, standard error, t-statistic, and p-value, respectively.
-
 A `.cov` file is a TSV file of sample covariate data. The first column records the sample ID. Here is an example with two samples:
 
 ```
