@@ -5,7 +5,7 @@ case-control status, outputing the p-value of the t-test for the genotype coeffi
 
 Command line arguments:
  - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
- - `-c | --cov <filename>` -- a .cov file, see template below
+ - `-c | --cov <filename>` -- a .cov file, see below
  - `-o | --output <fileroot>` -- a root name for output files
 
 The command
@@ -21,9 +21,9 @@ The last five columns record number of missing genotypes, genotype coefficient, 
 A `.cov` file is a tsv file of sample covariate data. The first column records the sample ID. Here is an example with two samples:
 
 ```
-IID AGE SEX PC1 PC2
-Ann 10 2 1.2 6.7
-Bob 12 1 -0.2 2.8
+IID   AGE   SEX   PC1   PC2
+Ann   10    2     1.2   6.7
+Bob   12    1     -0.2  2.8
 ```
 
 
