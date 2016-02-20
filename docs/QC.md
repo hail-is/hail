@@ -7,9 +7,9 @@ Hail includes two QC modules:
 These modules compute a variety of statistics from the genotype data, collapsing either variants or samples.  The output from these modes can be written to TSV files, or stored within sample and variant annotations for later use in [filtering](Filtering.md) and [export](Exporting.md).  
   
 Command line option:
- - `-o` -- output TSV file for QC statistics
+ - `-o | --output <filename>` -- an output TSV file
  
-All computed statistics will be stored within hail in `annotations` objects, to be used with downstream [filter](Filtering.md) and [export](Exporting.md) modules.  These can be accessed with `va.qc.<identifier>` and `sa.qc.<identifier>` for variant and sample qc, respectively.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
+All computed statistics will be stored within Hail in `annotations` objects, to be used with downstream [filter](Filtering.md) and [export](Exporting.md) modules.  These can be accessed with `va.qc.<identifier>` and `sa.qc.<identifier>` for variant and sample qc, respectively.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
 
 **Note:** All standard deviations are calculated with zero degrees of freedom.
 
