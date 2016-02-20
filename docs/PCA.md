@@ -38,4 +38,5 @@ A related object is the sample covariance or genetic relationship matrix (GRM) $
 ## Issues
  - PLINK has an option to use X-chromosome variants. Does anyone do this? Should we support it?
  - Should LD-pruning be performed first automatically or optionally once it is implemented?
- - Issue: What about PCA of things other than genotypes, such as missingness?
+ - What about PCA of things other than genotypes, such as missingness? Analysts have mentioned the latter specifically.
+ - What about feeding the results into sample and variant annotations?
