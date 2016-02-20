@@ -2,7 +2,7 @@
 
 Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure ([Patterson, Price and Reich, 2006](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190)).
 
-PCA expects a biallelic `.vds` file as input. The default output is a `.tsv` file recording the leading 10 principal components (PCs) of each sample. Format is one line per sample plus a header, with columns `sample PC1 PC2` etc.
+PCA expects a `.vds` file as input, with bialellic autosomal variants. The analysis is with respect to a standardized genotype matrix; see details below. The default output is a `.tsv` file recording the first 10 principal component scores of each sample. Format: one line per sample plus a header, with columns `SAMPLE PC1 PC2` etc.
 
 Example usage:
 ```
@@ -10,26 +10,30 @@ $ hail read -i /path/to/input.vds pca -o /path/to/output.tsv
 ```
 
 Command line options:
- - `-k <k>`, `--components <k>` -- Report the first $k$ PCs; by default $k = 10$. `<k>` can be a positive integer or `all`.
- - `-e`, `--eigenvalues` -- Write the leading $k$ sample covariance eigenvalues to `output.eigen.tsv`. Format is a single column, no header.
- - `-l`, `--loadings` -- Write the variant loadings on the leading $k$ PCs to `output.loadings.tsv`. Format is one line per variant plus a header, with columns are `chrom pos ref alt PC1 PC2` etc.
+ - `-k <k>`, `--components <k>` -- Report the first $k$ principal component scores; by default $k = 10$.
+ - `-l`, `--loadings` -- Write the first $k$ variant loadings to `output.loadings.tsv`. Format: one line per variant plus a header, with columns `CHROM POS REF ALT PC1 PC2` etc.
+ - `-e`, `--eigenvalues` -- Write the first $k$ sample covariance or genetic relatedness matrix eigenvalues to `output.eigen.tsv`. Format: single column, no header.
+
 
 ## Details
 
-PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix $M$, computed as follows. A matrix $C$ records raw biallelic genotypes, with $n$ rows indexed by samples and $m$ columns indexed by variants; $C_{ij}$ is the number of alternate alleles of variant $j$ carried by sample $i$; its values can be 0, 1, 2, or missing. For each variant $j$ the empirical minor allele frequency $p_j$ is computed as half the mean of the non-missing entries of column $j$. The corresponding column of $M$ is then mean-centered and variance-normalized as
+PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix $M$, computed as follows. A matrix $C$ records raw genotypes, with $n$ rows indexed by samples and $m$ columns indexed by bialellic autosomal variants; $C_{ij}$ is the number of alternate alleles of variant $j$ carried by sample $i$, which can be 0, 1, 2, or missing. For each variant $j$, the sample alternate allele frequency $p_j$ is computed as half the mean of the non-missing entries of column $j$. The corresponding column of $M$ is then mean-centered and variance-normalized as
 $$
 M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)}},
 $$
-with $M_{ij} = 0$ where $C_{ij}$ is missing (i.e. mean imputation). The denominator is the standard deviation under Hardy-Weinberg equilibrium (i.e. a $\mathrm{Binomial}(2,p_j)$ model) and is further motivated in the paper cited above.
+with $M_{ij} = 0$ for $C_{ij}$ missing (i.e. mean genotype imputation). The normalization is under Hardy-Weinberg equilibrium (i.e. a $\mathrm{Binomial}(2, p_j)$ model) and is further motivated in the paper cited above.
 
 PCA then computes the SVD
 $$
 M = USV'
 $$
-where columns of $U$ are the left singular vectors (orthonormal in sample space), columns of $V$ are the right singular vectors (orthonormal in variant space), and $S=\mathrm{diag}(s_1, s_2, \ldots)$ with ordered singular values $s_1 \ge s_2 \ge \cdots \ge 0$. In fact only the leading $k$ singular vectors and values are computed, yielding the best rank $k$ approximation $U_k S_k V_k'$. With option `-k all` one has $k = m$ even though there are at most $\mathrm{rank M} \le \min(m,n)$ nonzero singular values.
+where columns of $U$ are the left singular vectors (orthonormal in sample space), columns of $V$ are the right singular vectors (orthonormal in variant space), and $S=\mathrm{diag}(s_1, s_2, \ldots)$ with ordered singular values $s_1 \ge s_2 \ge \cdots \ge 0$. Typically one computes only the first $k$ singular vectors and values, yielding the best rank $k$ approximation $U_k S_k V_k'$ of $M$; the truncations $U_k$, $S_k$ and $V_k$ are $n\times k$, $k\times k$ and $m\times k$ respectively.
 
-The default output is $MV_k = U_k S_k$, whose rows are the first $k$ principal components of each sample, i.e. the components of the projection of that sample onto the leading $k$ PCs in variant space. (N.B. This is different from PLINK, which reports $U_k$ without rescaling.)
+From the perspective of the samples or rows of $M$ as data, the columns of $V_k$ are the variant loadings for the first $k$ principal components, and the rows of $MV_k = U_k S_k$ are the first $k$ principal component scores of the samples. In the output the latter are scaled by a factor of $1/\sqrt{m}$; a sample row has total variance roughly $m$ and the singular values are likewise on this order, so this scaling normalizes them to order one (independent of the number of variants).
 
-Optionally one can also output the eigenvalues $s_1^2/m, \ldots, s_k^2/m$ of the sample covariance or genetic relatedness matrix (GRM) $MM'/m$ and the variant loadings $V_k$.
+A related object is the sample covariance or genetic relationship matrix (GRM) $MM'/m$, whose eigenvectors are the columns of $U$ and whose eigenvalues $s_1^2/m, s_2^2/m, \ldots$ are the variances carried by the respective principal components. The eigenvalues are also key statistics for the tests of population structure described in the cited paper. (N.B. Plink/GCTA outputs the columns of $U$ without rescaling but here we scale the scores to reflect the relative variances as is usual in PCA.)
 
-**Issue: should LD-pruning be performed first automatically or optionally once it is implemented?**
+## Issues
+ - PLINK has an option to use X-chromosome variants. Does anyone do this? Should we support it?
+ - Should LD-pruning be performed first automatically or optionally once it is implemented?
+ - Issue: What about PCA of things other than genotypes, such as missingness?
