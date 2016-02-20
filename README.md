@@ -8,11 +8,11 @@
 4. [QC](docs/QC.md)
 5. [Filtering](docs/Filtering.md)
 6. [Renaming Samples](docs/RenameSamples.md)
-6. [Exporting to TSVs](docs/ExportTSV.md)
+6. [Exporting to TSV](docs/ExportTSV.md)
 8. [Exporting to Plink](docs/ExportPlink.md)
 7. [Exporting to VCF](docs/ExportVCF.md)
 9. [Mendel errors](docs/MendelErrors.md)
-10. [Linear regression](docs/MendelErrors.md)
+10. [Linear regression](docs/LinearRegression.md)
 
 
 ## Tools

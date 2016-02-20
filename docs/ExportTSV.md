@@ -1,4 +1,4 @@
-# Exporting to TSV Files
+# Exporting to TSV
 
 Hail has three export modules which write to TSVs:
  - `exportsamples`
