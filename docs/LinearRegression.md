@@ -6,7 +6,7 @@ case-control status, outputing the p-value of the t-test for the genotype coeffi
 Command line options:
  - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
  - `-c | --cov <filename>` -- a .cov file, see below
- - `-o | --output <filename>` -- output TSV file
+ - `-o | --output <filename>` -- an output TSV file
 
 The command
 ```
