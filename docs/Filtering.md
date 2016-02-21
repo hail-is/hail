@@ -1,4 +1,4 @@
-# Filtering in Hail
+# Filtering
 
 Hail includes three filtering modules:
  - `filtervariants`

@@ -5,13 +5,15 @@
 1. [Representation](docs/Representation.md)
 2. [Importing](docs/Importing.md)
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
-4. [QC](docs/QC.md)
-5. [Filtering](docs/Filtering.md)
-6. [Renaming Samples](docs/RenameSamples.md)
-6. [Exporting to TSVs](docs/ExportTSV.md)
-8. [Exporting to Plink](docs/ExportPlink.md)
-7. [Exporting to VCF](docs/ExportVCF.md)
-9. [Mendel errors](docs/MendelErrors.md)
+4. [Renaming Samples](docs/RenameSamples.md)
+5. [Quality Control](docs/QC.md)
+6. [Filtering](docs/Filtering.md)
+7. [Linear regression](docs/LinearRegression.md)
+8. [Mendel errors](docs/MendelErrors.md)
+9. [Exporting to TSV](docs/ExportTSV.md)
+10. [Exporting to VCF](docs/ExportVCF.md)
+11. [Exporting to Plink](docs/ExportPlink.md)
+
 
 ## Tools
 
@@ -68,7 +70,7 @@ To generate a code coverage report and view it, do:
 To convert a .vcf.gz to a .vds, do:
 
 ```
-~/hail $ ./build/install/hail/bin/hail import -i src/test/resources/sample.vcf.gz write -o ~/sample.vds
+~/hail $ ./build/install/hail/bin/hail importvcf src/test/resources/sample.vcf.gz write -o ~/sample.vds
 ```
 
 `sample.vcf.gz` is a 182KB test `.vcf.gz` with a hundred or so samples
