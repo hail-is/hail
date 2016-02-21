@@ -33,7 +33,7 @@ From the perspective of the samples or rows of $M$ as data, $V_k$ contains the v
 
 A related object is the sample covariance or genetic relationship matrix (GRM) $MM'/m$, whose eigenvectors are the columns of $U$ and whose eigenvalues $s_1^2/m, s_2^2/m, \ldots$ are the variances carried by the respective principal components. The eigenvalues are also key statistics for the tests of population structure described in the cited paper.
 
-**Note:** PLINK/GCTA take the GRM as starting point and compute it slightly differently with regard to missing data (modifying the denominator $m$ for each entry to the number of pairs of non-missing genotypes used). They also output its eigenvectors without rescaling (i.e. $U_k$ instead of $U_k S_k$), which has the drawback that the components no longer have the right relative variances and do not represent a projection of the original data.
+**Note:** PLINK/GCTA take the GRM as starting point and compute it slightly differently with regard to missing data (modifying the denominator $m$ for each entry to the number of pairs of non-missing genotypes used). They also output its eigenvectors without rescaling (i.e. $U_k$ instead of $U_k S_k$), which has the drawback that the components no longer have the right relative variances and do not represent a projection of the original data (though the scale is immaterial for some applications such as covariates in regression).
 
 ## Issues
  - PLINK has an option to use X-chromosome variants. What is it doing exactly? There are several decisions around encoding hemizygous sites for males. More importantly, does anyone use it? Should we support it?
