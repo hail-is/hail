@@ -39,8 +39,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       vc.getStart,
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => {
-        if (a.getBaseString.isEmpty)
-          println(line.take(200))
+        //if (a.getBaseString.isEmpty) // FIXME: remove before PR
+        //  println(line.take(200))
         AltAllele(ref, a.getBaseString)}
       ).toArray)
 
@@ -101,10 +101,10 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         else
           Genotype.gtIndex(j, i)
 
-        if (g.hasPL && pl(gt) != 0) {
-          reportAcc += VCFReport.GTPLMismatch
-          filter = true
-        }
+        //if (g.hasPL && pl(gt) != 0) {  // FIXME: restore before PR
+        //  reportAcc += VCFReport.GTPLMismatch
+        //  filter = true
+        //}
 
         if (gt != -1)
           gb.setGT(gt)

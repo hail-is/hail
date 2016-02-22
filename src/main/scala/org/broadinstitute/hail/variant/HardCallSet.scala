@@ -65,6 +65,7 @@ case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], localSamples: Array
 
 object DenseCallStream {
 
+  // FIXME: combine two defs in PR?
   def apply(gs: Iterable[Genotype], n: Int) =
     DenseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
 
@@ -91,7 +92,7 @@ object DenseCallStream {
           nMissing += 1
       }
 
-    val meanX = sumX.toDouble / (n - nMissing)
+    val meanX = sumX.toDouble / (n - nMissing) // FIXME: deal with case of all missing
 
     // println(s"${x.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=$sumXX")
 
@@ -201,6 +202,7 @@ object SparseCallStream {
   def apply(gs: Iterable[Genotype], n: Int) =
     SparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
 
+  // FIXME: switch to ArrayBuilder?
   def SparseCallStreamFromGtStream(gts: Iterable[Int], n: Int): SparseCallStream = {
     var rowX = ArrayBuffer[Int]()
     var valX = ArrayBuffer[Int]()
@@ -230,7 +232,7 @@ object SparseCallStream {
 
     val meanX = sumX.toDouble / (n - nMissing)
 
-    // println(s"${x.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=$sumXX")
+    println(s"${rowX.toArray.mkString("[",",","]")}, ${valX.toArray.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=${sumXX + meanX * meanX * nMissing}")
 
     new SparseCallStream(
       sparseByteArray(rowX.toArray, valX.toArray),
@@ -239,26 +241,85 @@ object SparseCallStream {
       nMissing)
   }
 
+  // is it faster to do direct bit comparisons?
+  def nBytesMinus1(i: Int): Int =
+    if (i < 0x100)
+      0
+    else if (i < 0x10000)
+      1
+    else if (i < 0x1000000)
+      2
+    else
+      3
+
   def sparseByteArray(rows: Array[Int], gts: Array[Int]): Array[Byte] = {
 
-    val a = Array.ofDim[Byte]((gts.length + 3) / 4)
+    val a = ArrayBuffer[Byte]()
 
-    var i = 0
-    var j = 0
+    var i = 0 // row index
+    var j = 1 // counter for lenByte index
+    var l = 1 // current val lenByte index
+
     while (i < gts.length - 3) {
-      a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4 | gts(i + 3) << 6).toByte
+      a += (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4 | gts(i + 3) << 6).toByte // gtByte
+      a += 0 // lenByte
+
+      for (k <- 0 until 4) {
+        val r = rows(i + k)
+        val n = nBytesMinus1(r)
+        n match {
+          case 0 => a += r.toByte
+          case 1 => a += (r >> 8).toByte
+                    a += r.toByte
+          case 2 => a += (r >> 16).toByte
+                    a += (r >> 8).toByte
+                    a += r.toByte
+          case _ => a += (r >> 24).toByte
+                    a += (r >> 16).toByte
+                    a += (r >> 8).toByte
+                    a += r.toByte
+        }
+        a(l) = (a(l) | (n << (2 * k))).toByte  // faster to use (k << 1) ?
+        j += n
+        l = j
+      }
+
       i += 4
-      j += 1
+      j += 6 // 1[lenByte] + 4 * 1[nBytesMinus1] + 1[gtByte]
+      l = j
     }
 
-    gts.length - i match {
-      case 1 => a(j) = gts(i).toByte
-      case 2 => a(j) = (gts(i) | gts(i + 1) << 2).toByte
-      case 3 => a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4).toByte
+    val nGtLeft = gts.length - i
+
+    nGtLeft match {
+      case 1 => a += gts(i).toByte
+                a += 0
+      case 2 => a += (gts(i) | gts(i + 1) << 2).toByte
+                a += 0
+      case 3 => a += (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4).toByte
+                a += 0
       case _ =>
     }
 
-    a
+    for (k <- 0 until nGtLeft) {
+      val r = rows(i + k)
+      val n = nBytesMinus1(r)
+      n match {
+        case 0 => a += r.toByte
+        case 1 => a += (r >> 8).toByte
+                  a += r.toByte
+        case 2 => a += (r >> 16).toByte
+                  a += (r >> 8).toByte
+                  a += r.toByte
+        case _ => a += (r >> 24).toByte
+                  a += (r >> 16).toByte
+                  a += (r >> 8).toByte
+                  a += r.toByte
+      }
+      a(l) = (a(l) | (n << (2 * k))).toByte  // faster to use (k << 1) ?
+    }
+
+    a.toArray
   }
 }
 
@@ -277,49 +338,81 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
     val mask00110000 = 3 << 4
     val mask11000000 = 3 << 6
 
-    def merge(i: Int, gt: Int) {
+    def merge(r: Int, gt: Int) {
       gt match {
         case 0 =>
         // x(i) = 0.0
         case 1 =>
-          rowX += i
+          rowX += r
           valX += 1.0
-          sumXY += y(i)
+          sumXY += y(r)
         case 2 =>
-          rowX += i
+          rowX += r
           valX += 2.0
-          sumXY += 2 * y(i)
+          sumXY += 2 * y(r)
         case 3 =>
-          rowX += i
+          rowX += r
           valX += this.meanX
-          sumXY += this.meanX * y(i)
+          sumXY += this.meanX * y(r)
       }
     }
 
+    def rowInt(k: Int, l: Int) =
+      l match {
+        case 0 => a(k).toInt
+        case 1 => a(k) << 8  | a(k + 1)
+        case 2 => a(k) << 16 | a(k + 1) << 8  | a(k + 2)
+        case _ => a(k) << 24 | a(k + 1) << 16 | a(k + 2) << 8 | a(k + 3)
+    }
 
-    //FIXME: rewrite all the rest for sparse
     var i = 0
     var j = 0
 
-    while (i < n - 3) {
-      val b = a(j)
-      merge(i,      b & mask00000011)
-      merge(i + 1, (b & mask00001100) >> 2)
-      merge(i + 2, (b & mask00110000) >> 4)
-      merge(i + 3, (b & mask11000000) >> 6)
+    while (j < a.length) {
+      val gtByte = a(j)
 
-      i += 4
-      j += 1
-    }
+      val gt1 =  gtByte & mask00000011
+      val gt2 = (gtByte & mask00001100) >> 2
+      val gt3 = (gtByte & mask00110000) >> 4
+      val gt4 = (gtByte & mask11000000) >> 6
 
-    n - i match {
-      case 1 =>  merge(i,      a(j) & mask00000011)
-      case 2 =>  merge(i,      a(j) & mask00000011)
-                 merge(i + 1, (a(j) & mask00001100) >> 2)
-      case 3 =>  merge(i,      a(j) & mask00000011)
-                 merge(i + 1, (a(j) & mask00001100) >> 2)
-                 merge(i + 2, (a(j) & mask00110000) >> 4)
-      case _ =>
+      val lenByte = a(j + 1)
+      val l1 =  lenByte & mask00000011
+      val l2 = (lenByte & mask00001100) >> 2
+      val l3 = (lenByte & mask00110000) >> 4
+      val l4 = (lenByte & mask11000000) >> 6
+
+      j += 2
+
+      if (gt4 != 0) {
+        merge(rowInt(j, l1), gt1)
+        j += l1 + 1
+        merge(rowInt(j, l2), gt2)
+        j += l2 + 1
+        merge(rowInt(j, l3), gt3)
+        j += l3 + 1
+        merge(rowInt(j, l4), gt4)
+        j += l4 + 1
+        i += 4
+      }
+      else if (gt3 != 0) {
+        merge(rowInt(j, l1), gt1)
+        j += l1 + 1
+        merge(rowInt(j, l2), gt2)
+        j += l2 + 1
+        merge(rowInt(j, l3), gt3)
+        j += l3 + 1
+      }
+      else if (gt2 != 0) {
+        merge(rowInt(j, l1), gt1)
+        j += l1 + 1
+        merge(rowInt(j, l2), gt2)
+        j += l2 + 1
+      }
+      else {
+        merge(rowInt(j, l1), gt1)
+        j += l1 + 1
+      }
     }
 
     GtVectorAndStats(new SparseVector(n, rowX.toArray, valX.toArray), sumXX, sumXY, nMissing)
@@ -335,7 +428,7 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
 
   def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
 
-  override def toString = s"${a.map(b => toIntsString(b)).mkString("[", ", ", "]")}, $meanX, $sumXX, $nMissing"
+  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $meanX, $sumXX, $nMissing"
 }
 
 /*
