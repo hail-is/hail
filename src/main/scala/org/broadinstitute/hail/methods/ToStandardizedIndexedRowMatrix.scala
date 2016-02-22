@@ -9,7 +9,7 @@ import org.broadinstitute.hail.Utils._
 object ToStandardizedIndexedRowMatrix {
   def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {
     val variants = vds.variants.collect()
-    val nVariants = variants.size
+    val nVariants = variants.length
     val nSamples = vds.nSamples
     val variantIdxBroadcast = vds.sparkContext.broadcast(variants.index)
 
@@ -22,13 +22,19 @@ object ToStandardizedIndexedRowMatrix {
             case None => (c, s)
           }
         }
-        val p = sum.toDouble / (2 * count)
         // Will the denominator be computed every time the function is applied?
-        def standardize(n: Int): Double = (n - 2 * p) / math.sqrt(2 * p * (1 - p))
-        (variantIdxBroadcast.value(v), gs.map(_.nNonRefAlleles.map(standardize).getOrElse(0.0)).toVector)
+        def standardize(n: Int): Double =
+          if (sum == 0 || sum == 2 * count)
+            0.0
+          else {
+            val p = sum.toDouble / (2 * count)
+            (n - 2 * p) / math.sqrt(2 * p * (1 - p) * nVariants)
+          }
+        IndexedRow(variantIdxBroadcast.value(v),
+          Vectors.dense(gs.map(_.nNonRefAlleles.map(standardize).getOrElse(0.0)).toArray))
       }
 
-
+    (variants, new IndexedRowMatrix(standardized.cache(), nVariants, nSamples))
   }
 
   //      vds

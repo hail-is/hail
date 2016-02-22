@@ -14,13 +14,20 @@ object PCA extends Command {
 
     @Args4jOption(required = false, name = "-k", aliases = Array("--components"), usage = "Number of principal components")
     var k: Int = 10
+
+    @Args4jOption(required = false, name = "-l", aliases = Array("--loadings"), usage = "Compute loadings")
+    var l: Boolean = _
+
+    @Args4jOption(required = false, name = "-e", aliases = Array("--eigenvalues"), usage = "Compute eigenvalues")
+    var e: Boolean = _
+
   }
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val samplePCs = (new SamplePCA(options.k))(vds)
+    val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.l, options.e))(vds)
 
     writeTextFile(options.output, state.hadoopConf) { s =>
       s.write("sample")
@@ -31,7 +38,7 @@ object PCA extends Command {
       for (i <- 0 until vds.nSamples) {
         s.write(vds.sampleIds(i))
         for (j <- 0 until options.k)
-          s.write("\t" + samplePCs(i)(j))
+          s.write("\t" + scores(i)(j))
         s.write("\n")
       }
     }
