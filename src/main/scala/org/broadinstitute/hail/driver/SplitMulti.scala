@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
+import org.broadinstitute.hail.annotations.{AnnotationData, SimpleSignature, Annotations}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
@@ -53,7 +53,7 @@ object SplitMulti extends Command {
   }
 
   def split(v: Variant,
-    va: Annotations,
+    va: AnnotationData,
     it: Iterable[Genotype],
     propagateGQ: Boolean): Iterator[(Variant, Annotations, Iterable[Genotype])] = {
     if (v.isBiallelic)
@@ -124,6 +124,8 @@ object SplitMulti extends Command {
 
   def run(state: State, options: Options): State = {
     val localPropagateGQ = options.propagateGQ
+    val a = AnnotationData.mergeSignatures(
+    )
     val newVDS = state.vds.copy[Genotype](
       metadata = state.vds.metadata
         .copy(wasSplit = true)

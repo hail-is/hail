@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.annotations
 
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver._
@@ -36,8 +37,8 @@ class AnnotationsSuite extends SparkSuite {
     assert(vas.get[Annotations]("info").attrs.get("DP").contains(VCFSignature("Int", "Integer", "1",
       "Approximate read depth; some reads may have been filtered")))
     assert(variantAnnotationMap(firstVariant)
-        .get[Annotations]("info").attrs.get("DP")
-        .get.asInstanceOf[Int] == 77560)
+      .get[Annotations]("info").attrs.get("DP")
+      .get.asInstanceOf[Int] == 77560)
     assert(variantAnnotationMap(anotherVariant)
       .get[Annotations]("info").attrs.get("DP").get.asInstanceOf[Int] == 20271)
 
@@ -48,7 +49,7 @@ class AnnotationsSuite extends SparkSuite {
       D_==(variantAnnotationMap(firstVariant)
         .get[Annotations]("info").attrs.get("HWP").get.asInstanceOf[Double], 0.0001))
     assert(D_==(variantAnnotationMap(anotherVariant)
-        .get[Annotations]("info").attrs.get("HWP").get.asInstanceOf[Double], 0.8286))
+      .get[Annotations]("info").attrs.get("HWP").get.asInstanceOf[Double], 0.8286))
 
     // type String - INFO.culprit
     assert(vas.get[Annotations]("info").attrs.get("culprit").contains(VCFSignature("String", "String", "1",
@@ -120,5 +121,92 @@ class AnnotationsSuite extends SparkSuite {
     // make sure that overwriting one high annotation does the right thing
     assert(anno2 ++ anno1 == Annotations(map1))
     assert(anno2 ++ anno3 == Annotations(Map("a" -> Annotations(Map("a" -> 1, "b" -> 5)), "b" -> 2, "c" -> 3)))
+  }
+
+  @Test def testRewrite() {
+
+
+    val inner = Row.fromSeq(Array(4, 5, 6))
+    val middle = Row.fromSeq(Array(2, 3, inner))
+    val outer = Row.fromSeq(Array(1, middle))
+
+    val inner2 = Row.fromSeq(Array(100))
+    val middle2 = Row.fromSeq(Array(inner2))
+    val outer2 = Row.fromSeq(Array(middle2, 55))
+
+    val outer3 = Row.fromSeq(Array(1000))
+
+    val ad1 = AnnotationData(outer)
+    val ad2 = AnnotationData(outer2)
+    val ad3 = AnnotationData(outer3)
+
+    println("ad1:")
+    AnnotationData.printData(ad1)
+    println("ad2:")
+    AnnotationData.printData(ad2)
+    println("ad3:")
+    AnnotationData.printData(ad3)
+
+
+    val innerSigs: AnnotationSignatures = AnnotationSignatures(Map(
+      "d" -> SimpleSignature("Int", IndexPath(Array(1, 2), 0)),
+      "e" -> SimpleSignature("Int", IndexPath(Array(1, 2), 1)),
+      "f" -> SimpleSignature("Int", IndexPath(Array(1, 2), 2))
+    ), IndexPath(Array(1), 2))
+
+    val middleSigs = AnnotationSignatures(Map(
+      "b" -> SimpleSignature("Int", IndexPath(Array(1), 0)),
+      "c" -> SimpleSignature("Int", IndexPath(Array(1), 1)),
+      "inner" -> innerSigs
+    ), IndexPath(Array[Int](), 2))
+
+    val outerSigs = AnnotationSignatures(Map(
+      "a" -> SimpleSignature("Int", IndexPath(Array[Int](), 0)),
+      "middle" -> middleSigs
+    ))
+
+    println("here")
+    val signatures = outerSigs
+    val sigsToAdd = AnnotationSignatures(Map(
+      "middle" -> AnnotationSignatures(Map(
+        "inner" -> AnnotationSignatures(Map(
+          "g" -> SimpleSignature("Int", IndexPath(Array(0, 0), 0))
+        ), IndexPath(Array(0), 0))
+      ), IndexPath(Array[Int](), 0)),
+      "anotherthing" -> SimpleSignature("Int", IndexPath(Array[Int](), 1)))
+    )
+
+    val sigsToAdd2 = AnnotationSignatures(Map(
+      "middle" -> SimpleSignature("Int", IndexPath(Array[Int](), 0))
+    ))
+
+
+    println("sigs1")
+    val sb1 = new StringBuilder
+    ShowAnnotations.printSignatures(sb1, signatures, 0, "va")
+    println(sb1.result())
+
+    println("sigs2")
+    val sb2 = new StringBuilder
+    ShowAnnotations.printSignatures(sb2, sigsToAdd, 0, "va")
+    println(sb2.result())
+
+
+    println("new sigs")
+    val (newS, f1) = AnnotationData.mergeSignatures(signatures, sigsToAdd)
+    val sb = new StringBuilder
+    ShowAnnotations.printSignatures(sb, newS, 0, "va")
+    println(sb.result())
+    val newRow = f1(ad1, ad2)
+    AnnotationData.printRow(newRow.row)
+
+    println("new sigs2")'
+    val (newS2, f2) = AnnotationData.mergeSignatures(signatures, sigsToAdd2)
+    val sbNew = new StringBuilder
+    ShowAnnotations.printSignatures(sbNew, newS2, 0, "va")
+    println(sbNew.result())
+    println()
+//    AnnotationData.printData(f(ad1, ad2))
+//    AnnotationData.printData(f2(ad1, ad3))
   }
 }

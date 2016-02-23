@@ -85,18 +85,22 @@ object LoadVCF {
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-    val infoSignatures = Annotations(header
+
+
+    val infoRowSignatures = header
       .getInfoHeaderLines
       .toList
-      .map(line => (line.getID, VCFSignature.parse(line)))
-      .toMap)
+      .zipWithIndex
+      .map{ case (line, index) => (line.getID, VCFSignature.parse(line, index = IndexPath(Array[Int](5), index)))}
+      .toArray
 
-    val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
-      "filters" -> new SimpleSignature("Set[String]"),
-      "pass" -> new SimpleSignature("Boolean"),
-      "qual" -> new SimpleSignature("Double"),
-      "multiallelic" -> new SimpleSignature("Boolean"),
-      "rsid" -> new SimpleSignature("String")))
+    val variantAnnotationSignatures: AnnotationSignatures = AnnotationSignatures(Map(
+      "multiallelic" -> SimpleSignature("Boolean", IndexPath(Array[Int](), 0)),
+      "filters" -> SimpleSignature("Set[String]", IndexPath(Array[Int](), 1)),
+      "pass" -> SimpleSignature("Boolean", IndexPath(Array[Int](), 2)),
+      "qual" -> SimpleSignature("Double", IndexPath(Array[Int](), 3)),
+      "rsid" -> SimpleSignature("String", IndexPath(Array[Int](), 4)),
+      "info" -> AnnotationSignatures(infoRowSignatures.toMap, IndexPath(Array[Int](), 5))))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -105,7 +109,7 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
-    val sigMap = sc.broadcast(infoSignatures.attrs)
+    val infoRowSigsBc = sc.broadcast(infoRowSignatures)
 
     val headerLinesBc = sc.broadcast(headerLines)
 
@@ -124,7 +128,7 @@ object LoadVCF {
           lines.filter(line => !line.isEmpty && line(0) != '#')
             .map { line =>
               try {
-                reader.readRecord(reportAcc, line, sigMap.value, storeGQ)
+                reader.readRecord(reportAcc, line, infoRowSigsBc.value, storeGQ)
               } catch {
                 case e: TribbleException =>
                   log.error(s"${e.getMessage}\n  line: $line", e)
@@ -135,7 +139,7 @@ object LoadVCF {
     })
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
+      AnnotationData.emptyIndexedSeq(sampleIds.length), AnnotationSignatures.empty(),
       variantAnnotationSignatures), genotypes)
   }
 

@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.vcf
 
 import org.apache.spark.Accumulable
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -22,7 +23,7 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     line: String,
-    typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
+    typeMap: Array[(String, VCFSignature)], storeGQ: Boolean): (Variant, AnnotationData, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
@@ -40,19 +41,32 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
 
-    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
+    val infoAttrs = vc.getAttributes
       .asScala
       .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
       .toMap
-      .flatMap { case (k, v) =>
-        typeMap.get(k).map { t =>
-          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
-        }
-      }),
-      "qual" -> vc.getPhredScaledQual,
-      "filters" -> filts,
-      "pass" -> pass,
-      "rsid" -> rsid))
+
+    val infoRow = Row.fromSeq(typeMap.map { case (key, sig) =>
+      infoAttrs.get(key)
+      .map(elem => HtsjdkRecordReader.mapType(elem, sig))})
+    val va = AnnotationData(Array(vc.getPhredScaledQual,
+      filts,
+      pass,
+      rsid,
+      infoRow))
+//    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
+//      .asScala
+//      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
+//      .toMap
+//      .flatMap { case (k, v) =>
+//        typeMap.get(k).map { t =>
+//          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
+//        }
+//      }),
+//      "qual" -> vc.getPhredScaledQual,
+//      "filters" -> filts,
+//      "pass" -> pass,
+//      "rsid" -> rsid))
 
     val gb = new GenotypeBuilder(v)
 

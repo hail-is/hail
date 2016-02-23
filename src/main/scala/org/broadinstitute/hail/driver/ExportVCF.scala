@@ -4,7 +4,7 @@ import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
-import org.broadinstitute.hail.annotations.{VCFSignature, Annotations}
+import org.broadinstitute.hail.annotations.{AnnotationData, VCFSignature, Annotations}
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
 import scala.io.Source
@@ -87,7 +87,7 @@ object ExportVCF extends Command {
       }
     }
 
-    def appendRow(sb: StringBuilder, v: Variant, a: Annotations, gs: Iterable[Genotype]) {
+    def appendRow(sb: StringBuilder, v: Variant, a: AnnotationData, gs: Iterable[Genotype]) {
       sb.append(v.contig)
       sb += '\t'
       sb.append(v.start)
@@ -152,8 +152,8 @@ object ExportVCF extends Command {
     }
     kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
     kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotations, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-      .mapPartitions { it: Iterator[(Variant, (Annotations, Iterable[Genotype]))] =>
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+      .mapPartitions { it: Iterator[(Variant, (AnnotationData, Iterable[Genotype]))] =>
         val sb = new StringBuilder
         it.map { case (v, (va, gs)) =>
           sb.clear()

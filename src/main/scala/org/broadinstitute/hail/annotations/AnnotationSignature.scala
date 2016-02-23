@@ -7,6 +7,10 @@ import org.broadinstitute.hail.expr
 abstract class AnnotationSignature {
   def typeOf: String
 
+  def index: Int
+
+  def remapIndex(newIndex: Int): AnnotationSignature
+
   def toExprType: expr.Type = typeOf match {
     case "Unit" => expr.TUnit
     case "Boolean" => expr.TBoolean
@@ -23,4 +27,6 @@ abstract class AnnotationSignature {
   }
 }
 
-case class SimpleSignature(typeOf: String) extends AnnotationSignature
+case class SimpleSignature(typeOf: String, index: Int = -1) extends AnnotationSignature {
+  def remapIndex(newIndex: Int): AnnotationSignature = this.copy(index = newIndex)
+}

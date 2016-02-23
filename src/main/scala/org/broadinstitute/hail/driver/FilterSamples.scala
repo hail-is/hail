@@ -45,7 +45,7 @@ object FilterSamples extends Command {
           .filter(line => !line.isEmpty)
           .map(indexOfSample)
           .toSet
-        (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
+        (s: Int, sa: AnnotationData) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val symTab = Map(
           "s" -> (0, expr.TSample),
@@ -53,9 +53,9 @@ object FilterSamples extends Command {
         val a = new Array[Any](2)
         val f: () => Any = expr.Parser.parse(symTab, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-        (s: Int, sa: Annotations) => {
+        (s: Int, sa: AnnotationData) => {
           a(0) = sampleIdsBc.value(s)
-          a(1) = sa.attrs
+          a(1) = sa.row
           Filter.keepThisAny(f(), keep)
         }
     }

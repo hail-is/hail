@@ -342,7 +342,7 @@ object SampleQC extends Command {
     val localSamplesBc = vds.sparkContext.broadcast(vds.localSamples)
     vds
       .rdd
-      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Annotations, Iterable[Genotype])]) =>
+      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, AnnotationData, Iterable[Genotype])]) =>
       val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
       localSamplesBc.value.iterator
         .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
@@ -378,12 +378,12 @@ object SampleQC extends Command {
       .collectAsMap()
     val qcAnnotations = (0 until vds.nSamples)
       .map((s) => Annotations(Map("qc" -> rMap.get(s).getOrElse(s, Map.empty))))
-
-    state.copy(
-      vds = vds.copy(
-        metadata = vds.metadata.addSampleAnnotations(
-          Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
-          qcAnnotations)
-      ))
+???
+//    state.copy(
+//      vds = vds.copy(
+//        metadata = vds.metadata.addSampleAnnotations(
+//          Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
+//          qcAnnotations)
+//      ))
   }
 }

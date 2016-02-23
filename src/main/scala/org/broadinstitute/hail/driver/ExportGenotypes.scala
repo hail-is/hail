@@ -71,9 +71,9 @@ object ExportGenotypes extends Command {
         .filter { case (v, va, s, g) => filterF(g) }
         .map { case (v, va, s, g) =>
           a(0) = v
-          a(1) = va.attrs
+          a(1) = va.row
           a(2) = sampleIdsBc.value(s)
-          a(3) = sampleAnnotationsBc.value(s).attrs
+          a(3) = sampleAnnotationsBc.value(s).row
           a(4) = g
           sb.clear()
           var first = true

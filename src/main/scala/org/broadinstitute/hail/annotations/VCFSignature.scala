@@ -2,12 +2,16 @@ package org.broadinstitute.hail.annotations
 
 import htsjdk.variant.vcf.{VCFInfoHeaderLine, VCFHeaderLineCount, VCFHeaderLineType}
 
-case class VCFSignature(typeOf: String, vcfType: String, number: String, description: String)
-  extends AnnotationSignature
+case class VCFSignature(typeOf: String, vcfType: String, number: String, description: String,
+  index: IndexPath = IndexPath(Iterable.empty[Int], -1))
+  extends AnnotationSignature {
+
+  def remapIndex(newIndex: IndexPath): AnnotationSignature = this.copy(index = newIndex)
+}
 
 object VCFSignature {
   val integerRegex = """(\d+)""".r
-  def parse(line: VCFInfoHeaderLine): AnnotationSignature = {
+  def parse(line: VCFInfoHeaderLine, index: IndexPath): VCFSignature = {
     val vcfType = line.getType.toString
     val parsedType = line.getType match {
       case VCFHeaderLineType.Integer => "Int"
@@ -31,6 +35,6 @@ object VCFSignature {
     }
     val desc = line.getDescription
 
-    new VCFSignature(scalaType, vcfType, parsedCount, desc)
+    new VCFSignature(scalaType, vcfType, parsedCount, desc, index)
   }
 }
