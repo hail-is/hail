@@ -35,13 +35,20 @@ object PCA extends Command {
         s.write("\t" + "PC" + (i + 1))
       s.write("\n")
 
-      for (i <- 0 until vds.nSamples) {
-        s.write(vds.sampleIds(i))
+
+      for (i <- 0 until vds.nLocalSamples) {
+        s.write(vds.sampleIds(vds.localSamples(i)))
         for (j <- 0 until options.k)
-          s.write("\t" + scores(i)(j))
+          s.write("\t" + scores(i,j))
         s.write("\n")
       }
     }
+
+//    if (options.l)
+//      writeTextFile(options.output, state.hadoopConf) { s =>
+//        s.write("chrom" + "\t" + "pos" + "\t" + "ref" + "\t")
+//        for (i <- 0 until options.k)
+//      }
 
     state
   }

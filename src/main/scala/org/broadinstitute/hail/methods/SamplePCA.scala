@@ -1,14 +1,15 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.spark.mllib.linalg.DenseMatrix
-import org.apache.spark.mllib.linalg.{Vector => SVector}
+import org.apache.spark.mllib.linalg.{Vector => SVector, Matrix}
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.variant.Variant
 import org.broadinstitute.hail.variant.VariantDataset
 
 class SamplePCA(k: Int, l: Boolean, e: Boolean) {
   def name = "SamplePCA"
 
-  def apply(vds: VariantDataset): (DenseMatrix, Option[Map[Int, (Variant, SVector)]], Option[Array[Double]])  = {
+  def apply(vds: VariantDataset): (Matrix, RDD[(Variant, SVector)], Array[Double])  = {
 
     val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
 
@@ -19,15 +20,16 @@ class SamplePCA(k: Int, l: Boolean, e: Boolean) {
 
     val loadings =
       if (l)
-        Some(svd.U.rows.map(ir => (ir.index.toInt, (variants(ir.index.toInt), ir.vector))).collectAsMap().toMap)
+        svd.U.rows.map(ir =>
+          (variants(ir.index.toInt), ir.vector))
       else
-        None
+        null
 
     val eigenvalues =
       if (e)
-        Some(svd.s.toArray.map(x => x * x))
+        svd.s.toArray.map(x => x * x)
       else
-        None
+        null
 
     (scores, loadings, eigenvalues)
   }
