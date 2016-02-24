@@ -66,11 +66,11 @@ case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], localSamples: Array
 */
 
 object HardCallSet {
-  def apply(vds: VariantDataset): HardCallSet = {
+  def apply(vds: VariantDataset, sparseCutoff: Double = .05): HardCallSet = {
     val n = vds.nLocalSamples
 
     new HardCallSet(
-      vds.rdd.map { case (v, va, gs) => (v, SparseCallStream(gs, n)) },
+      vds.rdd.map { case (v, va, gs) => (v, CallStream(gs, n, sparseCutoff)) },
       vds.localSamples,
       vds.metadata.sampleIds)
   }
@@ -88,13 +88,13 @@ object HardCallSet {
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
     new HardCallSet(
-      df.rdd.map(r => (r.getVariant(0), r.getSparseCallStream(1))),
+      df.rdd.map(r => (r.getVariant(0), r.getCallStream(1))),
       localSamples,
       sampleIds)
   }
 }
 
-case class HardCallSet(rdd: RDD[(Variant, SparseCallStream)], localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
+case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
   def write(sqlContext: SQLContext, dirname: String) {
     if (!dirname.endsWith(".hcs"))
       fatal("Hard call set directory must end with .hcs")
@@ -112,12 +112,45 @@ case class HardCallSet(rdd: RDD[(Variant, SparseCallStream)], localSamples: Arra
 
   def sparkContext: SparkContext = rdd.sparkContext
 
-  def copy(rdd: RDD[(Variant, SparseCallStream)],
+  def copy(rdd: RDD[(Variant, CallStream)],
            localSamples: Array[Int] = localSamples,
            sampleIds: IndexedSeq[String] = sampleIds): HardCallSet =
     new HardCallSet(rdd, localSamples, sampleIds)
 
   def cache(): HardCallSet = copy(rdd = rdd.cache())
+}
+
+
+case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, xy: Double, nMissing: Int)
+
+object CallStream {
+  def apply(gs: Iterable[Genotype], n: Int, sparseCutoff: Double): CallStream = {
+    val sparsity = 1 - gs.count(_.isHomRef).toDouble / n
+    if (sparsity < sparseCutoff)
+      SparseCallStream(gs, n)
+    else
+      DenseCallStream(gs, n)
+  }
+
+  def toBinaryString(b: Byte): String = {for (i <- 7 to 0 by -1) yield (b & (1 << i)) >> i}.mkString("")
+
+  def toIntsString(b: Byte): String = {for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i}.mkString(":")
+}
+
+abstract case class CallStream() {
+  val a: Array[Byte]
+  val meanX: Double
+  val sumXX: Double
+  val nMissing: Int
+  val isSparse: Boolean
+
+  def hardStats(y: DenseVector[Double] , n: Int): GtVectorAndStats
+
+  import CallStream._
+
+  def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
+
+  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $meanX, $sumXX, $nMissing"
 }
 
 object DenseCallStream {
@@ -157,7 +190,8 @@ object DenseCallStream {
       denseByteArray(x),
       meanX,
       sumXX + meanX * meanX * nMissing,
-      nMissing)
+      nMissing,
+      false)
   }
 
   def denseByteArray(gts: Array[Int]): Array[Byte] = {
@@ -184,7 +218,7 @@ object DenseCallStream {
 }
 
 
-case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int) { //extends CallStream {
+case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int, isSparse: Boolean = false) extends CallStream {
 
   def hardStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
 
@@ -238,21 +272,7 @@ case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissin
 
     GtVectorAndStats(DenseVector(x), sumXX, sumXY, nMissing)
   }
-
-  def toBinaryString(b: Byte): String = {
-    for (i <- 7 to 0 by -1) yield (b & (1 << i)) >> i
-  }.mkString("")
-
-  def toIntsString(b: Byte): String = {
-    for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i
-  }.mkString(":")
-
-  def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
-
-  override def toString = s"${a.map(b => toIntsString(b)).mkString("[", ", ", "]")}, $meanX, $sumXX, $nMissing"
 }
-
-case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, xy: Double, nMissing: Int)
 
 object SparseCallStream {
 
@@ -381,7 +401,7 @@ object SparseCallStream {
 }
 
 
-case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int) { //extends CallStream {
+case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int, isSparse: Boolean = true) extends CallStream {
 
   def hardStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
 
@@ -475,16 +495,4 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
 
     GtVectorAndStats(new SparseVector(n, rowX.toArray, valX.toArray), sumXX, sumXY, nMissing)
   }
-
-  def toBinaryString(b: Byte): String = {
-    for (i <- 7 to 0 by -1) yield (b & (1 << i)) >> i
-  }.mkString("")
-
-  def toIntsString(b: Byte): String = {
-    for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i
-  }.mkString(":")
-
-  def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
-
-  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $meanX, $sumXX, $nMissing"
 }

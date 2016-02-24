@@ -922,6 +922,8 @@ object Utils extends Logging {
   }
 }
 
+// FIXME: Remove before PR
+/*
 object BytePlay {
   def g(i: Int): Int = {
     if (i < 0x100)
@@ -948,3 +950,4 @@ object BytePlay {
 
   def bar(a: Array[Byte]) = (a(0) << 24) | (a(1) & 0xFF) << 16 | (a(2) & 0xFF) << 8 | (a(3) & 0xFF)
 }
+*/

@@ -41,15 +41,13 @@ class RichRow(r: Row) {
       ir.getAs[Array[Byte]](2))
   }
 
-  // FIXME: unify to CallStream
-  def getDenseCallStream(i: Int): DenseCallStream = {
+  def getCallStream(i: Int): CallStream = {
     val ir = r.getAs[Row](i)
-    DenseCallStream(ir.getByteArray(0), ir.getDouble(1), ir.getDouble(2), ir.getInt(3))
-  }
-
-  def getSparseCallStream(i: Int): SparseCallStream = {
-    val ir = r.getAs[Row](i)
-    SparseCallStream(ir.getByteArray(0), ir.getDouble(1), ir.getDouble(2), ir.getInt(3))
+    val isSparse = ir.getBoolean(4)
+    if (isSparse)
+      SparseCallStream(ir.getByteArray(0), ir.getDouble(1), ir.getDouble(2), ir.getInt(3))
+    else
+      DenseCallStream(ir.getByteArray(0), ir.getDouble(1), ir.getDouble(2), ir.getInt(3))
   }
 
 
