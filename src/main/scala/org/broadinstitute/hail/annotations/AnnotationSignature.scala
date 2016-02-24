@@ -1,7 +1,5 @@
 package org.broadinstitute.hail.annotations
 
-import java.io.{DataInputStream, DataOutputStream}
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr
 
 abstract class AnnotationSignature {

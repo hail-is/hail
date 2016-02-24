@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.methods._
@@ -37,38 +38,39 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rDeletionInsertion"
 
-  val signatures = Map("callRate" -> new SimpleSignature("Double"),
-    "nCalled" -> new SimpleSignature("Int"),
-    "nNotCalled" -> new SimpleSignature("Int"),
-    "nHomRef" -> new SimpleSignature("Int"),
-    "nHet" -> new SimpleSignature("Int"),
-    "nHomVar" -> new SimpleSignature("Int"),
-    "nSNP" -> new SimpleSignature("Int"),
-    "nInsertion" -> new SimpleSignature("Int"),
-    "nDeletion" -> new SimpleSignature("Int"),
-    "nSingleton" -> new SimpleSignature("Int"),
-    "nTransition" -> new SimpleSignature("Int"),
-    "nTransversion" -> new SimpleSignature("Int"),
-    "dpMean" -> new SimpleSignature("Double"),
-    "dpStDev" -> new SimpleSignature("Double"),
-    "dpMeanHomRef" -> new SimpleSignature("Double"),
-    "dpStDevHomRef" -> new SimpleSignature("Double"),
-    "dpMeanHet" -> new SimpleSignature("Double"),
-    "dpStDevHet" -> new SimpleSignature("Double"),
-    "dpMeanHomVar" -> new SimpleSignature("Double"),
-    "dpStDevHomVar" -> new SimpleSignature("Double"),
-    "gqMean" -> new SimpleSignature("Double"),
-    "gqStDev" -> new SimpleSignature("Double"),
-    "gqMeanHomRef" -> new SimpleSignature("Double"),
-    "gqStDevHomRef" -> new SimpleSignature("Double"),
-    "gqMeanHet" -> new SimpleSignature("Double"),
-    "gqStDevHet" -> new SimpleSignature("Double"),
-    "gqMeanHomVar" -> new SimpleSignature("Double"),
-    "gqStDevHomVar" -> new SimpleSignature("Double"),
-    "nNonRef" -> new SimpleSignature("Int"),
-    "rTiTv" -> new SimpleSignature("Double"),
-    "rHetHomVar" -> new SimpleSignature("Double"),
-    "rDeletionInsertion" -> new SimpleSignature("Double"))
+  val signatures: AnnotationSignatures = AnnotationSignatures(Map(
+    "callRate" -> new SimpleSignature("Double", 0),
+    "nCalled" -> new SimpleSignature("Int", 1),
+    "nNotCalled" -> new SimpleSignature("Int", 2),
+    "nHomRef" -> new SimpleSignature("Int", 3),
+    "nHet" -> new SimpleSignature("Int", 4),
+    "nHomVar" -> new SimpleSignature("Int", 5),
+    "nSNP" -> new SimpleSignature("Int", 6),
+    "nInsertion" -> new SimpleSignature("Int", 7),
+    "nDeletion" -> new SimpleSignature("Int", 8),
+    "nSingleton" -> new SimpleSignature("Int", 9),
+    "nTransition" -> new SimpleSignature("Int", 10),
+    "nTransversion" -> new SimpleSignature("Int", 11),
+    "dpMean" -> new SimpleSignature("Double", 12),
+    "dpStDev" -> new SimpleSignature("Double", 13),
+    "dpMeanHomRef" -> new SimpleSignature("Double", 14),
+    "dpStDevHomRef" -> new SimpleSignature("Double", 15),
+    "dpMeanHet" -> new SimpleSignature("Double", 16),
+    "dpStDevHet" -> new SimpleSignature("Double", 17),
+    "dpMeanHomVar" -> new SimpleSignature("Double", 18),
+    "dpStDevHomVar" -> new SimpleSignature("Double", 19),
+    "gqMean" -> new SimpleSignature("Double", 20),
+    "gqStDev" -> new SimpleSignature("Double", 21),
+    "gqMeanHomRef" -> new SimpleSignature("Double", 22),
+    "gqStDevHomRef" -> new SimpleSignature("Double", 23),
+    "gqMeanHet" -> new SimpleSignature("Double", 24),
+    "gqStDevHet" -> new SimpleSignature("Double", 25),
+    "gqMeanHomVar" -> new SimpleSignature("Double", 26),
+    "gqStDevHomVar" -> new SimpleSignature("Double", 27),
+    "nNonRef" -> new SimpleSignature("Int", 28),
+    "rTiTv" -> new SimpleSignature("Double", 29),
+    "rHetHomVar" -> new SimpleSignature("Double", 30),
+    "rDeletionInsertion" -> new SimpleSignature("Double", 31)))
 }
 
 class SampleQCCombiner extends Serializable {
@@ -269,46 +271,40 @@ class SampleQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nDel, nIns))
   }
 
-  def asMap: Map[String, Any] = {
-
-    Map[String, Any]("callRate" -> divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
-      "nCalled" -> (nHomRef + nHet + nHomVar),
-      "nNotCalled" -> nNotCalled,
-      "nHomRef" -> nHomRef,
-      "nHet" -> nHet,
-      "nHomVar" -> nHomVar,
-      "nSNP" -> nSNP,
-      "nInsertion" -> nIns,
-      "nDeletion" -> nDel,
-      "nSingleton" -> nSingleton,
-      "nTransition" -> nTi,
-      "nTransversion" -> nTv,
-      "dpMean" -> someIf(dpSC.count > 0, dpSC.mean),
-      "dpStDev" -> someIf(dpSC.count > 0, dpSC.stdev),
-      "dpMeanHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.mean),
-      "dpStDevHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.stdev),
-      "dpMeanHet" -> someIf(dpHetSC.count > 0, dpHetSC.mean),
-      "dpStDevHet" -> someIf(dpHetSC.count > 0, dpHetSC.stdev),
-      "dpMeanHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.mean),
-      "dpStDevHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.stdev),
-      "gqMean" -> someIf(gqSC.count > 0, gqSC.mean),
-      "gqStDev" -> someIf(gqSC.count > 0, gqSC.stdev),
-      "gqMeanHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.mean),
-      "gqStDevHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.stdev),
-      "gqMeanHet" -> someIf(gqHetSC.count > 0, gqHetSC.mean),
-      "gqStDevHet" -> someIf(gqHetSC.count > 0, gqHetSC.stdev),
-      "gqMeanHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.mean),
-      "gqStDevHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.stdev),
-      "nNonRef" -> (nHet + nHomVar),
-      "rTiTv" -> divOption(nTi, nTv),
-      "rHetHomVar" -> divOption(nHet, nHomVar),
-      "rDeletionInsertion" -> divOption(nDel, nIns))
-      .flatMap { case (k, v) => v match {
-        case Some(value) => Some(k, value)
-        case None => None
-        case _ => Some(k, v)
-      }
-      }
+  def asRow: Row = {
+    Row.fromSeq(Array(
+      divNull(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
+      nHomRef + nHet + nHomVar,
+      nNotCalled,
+      nHomRef,
+      nHet,
+      nHomVar,
+      nSNP,
+      nIns,
+      nDel,
+      nSingleton,
+      nTi,
+      nTv,
+      nullIfNot(dpSC.count > 0, dpSC.mean),
+      nullIfNot(dpSC.count > 0, dpSC.stdev),
+      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.mean),
+      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.stdev),
+      nullIfNot(dpHetSC.count > 0, dpHetSC.mean),
+      nullIfNot(dpHetSC.count > 0, dpHetSC.stdev),
+      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.mean),
+      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.stdev),
+      nullIfNot(gqSC.count > 0, gqSC.mean),
+      nullIfNot(gqSC.count > 0, gqSC.stdev),
+      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.mean),
+      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.stdev),
+      nullIfNot(gqHetSC.count > 0, gqHetSC.mean),
+      nullIfNot(gqHetSC.count > 0, gqHetSC.stdev),
+      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.mean),
+      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.stdev),
+      nHet + nHomVar,
+      divNull(nTi, nTv),
+      divNull(nHet, nHomVar),
+      divNull(nDel, nIns)))
   }
 
 }
@@ -374,16 +370,24 @@ object SampleQC extends Command {
       }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
     }
     val rMap = r
-      .mapValues(_.asMap)
+      .mapValues(_.asRow)
       .collectAsMap()
-    val qcAnnotations = (0 until vds.nSamples)
-      .map((s) => Annotations(Map("qc" -> rMap.get(s).getOrElse(s, Map.empty))))
-???
-//    state.copy(
-//      vds = vds.copy(
-//        metadata = vds.metadata.addSampleAnnotations(
-//          Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
-//          qcAnnotations)
-//      ))
+
+    val (newSignatures, fInsert) = AnnotationData.insertSignature(vds.metadata.sampleAnnotationSignatures,
+      SampleQCCombiner.signatures, Array("qc"))
+    val newSampleAnnotations = vds.metadata.sampleAnnotations
+      .zipWithIndex
+      .map { case (sa, s) =>
+        rMap.get(s) match {
+          case Some(sa2) => fInsert(sa, sa2)
+          case None => sa
+        }
+      }
+
+        state.copy(
+          vds = vds.copy(
+            metadata = vds.metadata.copy(sampleAnnotations = newSampleAnnotations,
+              sampleAnnotationSignatures = newSignatures)
+          ))
   }
 }

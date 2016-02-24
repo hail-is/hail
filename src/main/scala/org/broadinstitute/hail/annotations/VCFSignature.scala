@@ -3,15 +3,15 @@ package org.broadinstitute.hail.annotations
 import htsjdk.variant.vcf.{VCFInfoHeaderLine, VCFHeaderLineCount, VCFHeaderLineType}
 
 case class VCFSignature(typeOf: String, vcfType: String, number: String, description: String,
-  index: IndexPath = IndexPath(Iterable.empty[Int], -1))
+  index: Int = -1)
   extends AnnotationSignature {
 
-  def remapIndex(newIndex: IndexPath): AnnotationSignature = this.copy(index = newIndex)
+  def remapIndex(newIndex: Int): AnnotationSignature = this.copy(index = newIndex)
 }
 
 object VCFSignature {
   val integerRegex = """(\d+)""".r
-  def parse(line: VCFInfoHeaderLine, index: IndexPath): VCFSignature = {
+  def parse(line: VCFInfoHeaderLine, index: Int): VCFSignature = {
     val vcfType = line.getType.toString
     val parsedType = line.getType match {
       case VCFHeaderLineType.Integer => "Int"

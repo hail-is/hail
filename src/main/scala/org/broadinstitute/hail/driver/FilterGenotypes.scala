@@ -51,11 +51,11 @@ object FilterGenotypes extends Command {
 
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
-      (v: Variant, va: Annotations, s: Int, g: Genotype) => {
+      (v: Variant, va: AnnotationData, s: Int, g: Genotype) => {
         a(0) = v
-        a(1) = va.attrs
+        a(1) = va.row
         a(2) = sampleIdsBc.value(s)
-        a(3) = sampleAnnotationsBc.value(s).attrs
+        a(3) = sampleAnnotationsBc.value(s).row
         a(4) = g
         if (Filter.keepThisAny(f(), keep))
           g

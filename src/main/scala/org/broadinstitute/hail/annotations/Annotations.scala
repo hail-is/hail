@@ -2,7 +2,10 @@ package org.broadinstitute.hail.annotations
 
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
+
+class CollisionException(s: String) extends Exception(s)
 
 case class MutableSignatures(sigs: mutable.Map[String, AnnotationSignature], index: Int) extends AnnotationSignature {
   def typeOf = "Mutable Signatures"
@@ -18,14 +21,38 @@ case class MutableSignatures(sigs: mutable.Map[String, AnnotationSignature], ind
     indexPath
   }
 
+  def removeSig(path: Iterable[String]): Array[Int] = {
+    val (map, indexPath) = try {
+      MutableSignatures.descendNestedMaps(sigs, path.take(path.size - 1))
+    } catch {
+      case e: CollisionException => fatal(e.getMessage)
+    }
+
+    val lastIndex = map.get(path.last) match {
+      case Some(sig) =>
+        val ind = sig.index
+        map.remove(path.last)
+        ind
+      case None => fatal("tried to remove signature that did not exist")
+    }
+    map.foreach { case (key, sig) =>
+      if (sig.index > lastIndex) {
+        map(key) = sig.remapIndex(sig.index - 1)
+      }
+      else
+        sig
+    }
+
+    indexPath ++ Array(lastIndex)
+  }
+
   def result(): AnnotationSignatures = {
     AnnotationSignatures(
       sigs.mapValues {
         case ms: MutableSignatures => ms.result()
         case x => x
       }
-        .toMap
-    )
+        .toMap, index)
   }
 }
 
@@ -59,7 +86,8 @@ object MutableSignatures {
         case ms: MutableSignatures =>
           indexPath += ms.index
           ms.sigs
-        case error => throw new UnsupportedOperationException(s"expected signatures or map, got ${error.getClass.getName}")
+        case error =>
+          throw new CollisionException(s"expected signatures or map in '$key', got ${error.getClass.getName}")
       }
     }
     (map, indexPath.result())
@@ -92,15 +120,26 @@ case class MutableRow(arr: mutable.ArrayBuffer[Any]) {
     }
   }
 
-  def add(path: Iterable[Int], toAdd: Any) {
-    val array = MutableRow.descendNestedRows(arr, path)
-    array += toAdd
+  def remove(path: Iterable[Int]) {
+    val array = MutableRow.descendNestedRows(arr, path.take(path.size - 1))
+    array.remove(path.last)
   }
 
-  def remap(path: Iterable[Int], toAdd: Any) {
+  def insert(path: Iterable[Int], toAdd: Any) {
     val array = MutableRow.descendNestedRows(arr, path.take(path.size - 1))
-    array(path.last) = toAdd
+    arr(path.last) = toAdd
   }
+
+  //
+  //  def add(path: Iterable[Int], toAdd: Any) {
+  //    val array = MutableRow.descendNestedRows(arr, path)
+  //    array += toAdd
+  //  }
+  //
+  //  def remap(path: Iterable[Int], toAdd: Any) {
+  //    val array = MutableRow.descendNestedRows(arr, path.take(path.size - 1))
+  //    array(path.last) = toAdd
+  //  }
 
   def result(): Row = {
     println("doing result")
@@ -161,6 +200,8 @@ case class AnnotationData(row: Row) extends Serializable {
       case false => Some(parent.getAs[T](i.last))
     }
   }
+
+  def same(other: AnnotationData): Boolean = AnnotationData.rowSame(row, other.row)
 }
 
 object AnnotationData {
@@ -168,6 +209,15 @@ object AnnotationData {
 
   def apply(data: Seq[Any], depth: Int): AnnotationData =
     AnnotationData(makeRow(data, depth))
+
+  def rowSame(row1: Row, row2: Row): Boolean = {
+    row1.size == row2.size &&
+      row1.toSeq.iterator.zip(row2.toSeq.iterator).forall {
+        case (r1: Row, r2: Row) => rowSame(r1, r2)
+        case (a1: Array[_], a2: Array[_]) => a1.sameElements(a2)
+        case (elem1, elem2) => elem1 == elem2
+      }
+  }
 
   def empty(): AnnotationData = new AnnotationData(Row.empty)
 
@@ -211,134 +261,37 @@ object AnnotationData {
   def makeRow(values: Seq[Any], depth: Int): Row =
     (0 until depth).foldLeft(Row.fromSeq(values)) { (row, i) => Row.fromSeq(Array(row)) }
 
-  //  def generateOperations(ops: mutable.Buffer[Op], s1: AnnotationSignatures, s2: AnnotationSignatures) {
-  //    s2.attrs.foreach {
-  //      case (key, value) =>
-  //        println(s"key: $key,  ${value.getClass.getName} ${s1.attrs.get(key).map(_.getClass.getName)}")
-  //        (s1.attrs.get(key), value) match {
-  //          case (Some(value1: AnnotationSignatures), value2: AnnotationSignatures) =>
-  //            println(s"found signature: $key")
-  //            generateOperations(ops, value1, value2)
-  //          case (Some(value1: AnnotationSignature), value2) =>
-  //            ops += RemapOp(value1.index, value2.index)
-  //          case (None, value2) =>
-  //            ops += AddOp(s1.index, value2.index)
-  //          case _ =>
-  //            throw new UnsupportedOperationException
-  //        }
-  //    }
-  //  }
+  def removeSignature(base: AnnotationSignatures,
+    path: Array[String]): (AnnotationSignatures, (AnnotationData => AnnotationData)) = {
+    val ms = MutableSignatures(base)
+    val indexPath = ms.removeSig(path)
 
-  def insertSignature[T](base: AnnotationSignatures, toAdd: AnnotationSignature,
+    val f: AnnotationData => AnnotationData =
+      (ad) => {
+        val mr = MutableRow(ad.row)
+        mr.remove(indexPath)
+        AnnotationData(mr.result())
+      }
+
+    (ms.result(), f)
+  }
+
+  def insertSignature(base: AnnotationSignatures, toAdd: AnnotationSignature,
     path: Array[String]): (AnnotationSignatures, (AnnotationData, Any) => AnnotationData) = {
 
     val ms = MutableSignatures(base)
     val insertPath = ms.insertSig(toAdd, path)
     val newSigs = ms.result()
 
-
-
-    val pathBuilder = mutable.ArrayBuilder.make[Int]
-
-    // while the two paths agree
-    var done = false
-    var i = 0
-    var a: AnnotationSignatures = base
-    while (!done && i < path.length - 1) {
-      val nextPath = path(i)
-      a.attrs.get(nextPath) match {
-        case Some(sig: AnnotationSignatures) =>
-          pathBuilder += sig.index
-          a = sig
-        case _ =>
-          done = true
-      }
-      //    var (a, b) = (base, path)
-      //    while (!done && i < path.size) {
-      //      val next = pathArr(i)
-      //      (a, b) = a.getOption[AnnotationSignature](next) match {
-      //        case Some(signatures: AnnotationSignatures) => (signatures, pathArr.takeRight(pathArr.length - 1 - i))
-      //        case _ =>
-      //          done = true
-      //          (a, b)
-      //      }
-      //    }
-      //
-      //    val index = a.index
-      //    val f: (AnnotationData, Any) => AnnotationData = a.attrs.get(b.head) match {
-      //      case Some(remap) =>
-      //        (ad, toRemap) =>
-      //          val mr = MutableRow(ad.row)
-      //          mr.remap(index, AnnotationData.makeRow(Array(toRemap), b.size))
-      //          AnnotationData(mr.result())
-      //      case None =>
-      //        (ad, toAdd) =>
-      //          val mr = MutableRow(ad.row)
-      //          mr.add(index, AnnotationData.makeRow(Array(toAdd), b.size))
-      //          AnnotationData(mr.result())
+    val f: (AnnotationData, Any) => AnnotationData = {
+      (ad, t) =>
+        val mr = MutableRow(ad.row)
+        mr.insert(insertPath, t)
+        AnnotationData(mr.result())
     }
 
+    (newSigs, f)
   }
-
-  def mergeSignatures(s1: AnnotationSignatures, s2: AnnotationSignatures,
-    ops: mutable.Buffer[Op] = mutable.Buffer.empty[Op]): (AnnotationSignatures,
-    (AnnotationData, AnnotationData) => AnnotationData) = {
-
-    println(s"s1 index is ${s1.index}")
-    val keys = (s1.attrs.keys ++ s2.attrs.keys).toSet
-    val newSigs = Map.newBuilder[String, AnnotationSignature]
-    val originalSize = s1.attrs.size
-    var added = 0
-    keys.foreach { key =>
-      println(s"key: $key -> ${s1.getOption[AnnotationSignature](key)}, ${s2.getOption[AnnotationSignature](key)}")
-      (s1.getOption[AnnotationSignature](key), s2.getOption[AnnotationSignature](key)) match {
-        case (Some(left: AnnotationSignatures), Some(right: AnnotationSignatures)) =>
-          newSigs += ((key, mergeSignatures(left, right, ops)._1))
-        case (Some(left), Some(right)) =>
-          ops += RemapOp(left.index, right.index)
-          newSigs += ((key, right.remapIndex(left.index)))
-        case (Some(left), None) =>
-          newSigs += ((key, left))
-        case (None, Some(right)) =>
-          ops += AddOp(s1.index, right.index)
-          val newInd = originalSize + added
-          added += 1
-          val newIndex = s1.index.extend(newInd)
-          newSigs += ((key, right.remapIndex(newIndex)))
-      }
-    }
-    val f: (AnnotationData, AnnotationData) => AnnotationData = (ad1, ad2) => {
-      val mRow = MutableRow(ad1.row)
-      val row2 = ad2.row
-      ops.foreach { op =>
-        mRow.applyOp(row2, op)
-      }
-      AnnotationData(mRow.result())
-    }
-
-    (AnnotationSignatures(newSigs.result(), s1.index), f)
-  }
-
-  //  def computeTransformation[T](signatures: AnnotationSignatures,
-  //    addedSignatures: AnnotationSignatures): (AnnotationData, AnnotationData) => AnnotationData = {
-  //
-  //    val ops = mutable.Buffer.empty[Op]
-  //
-  //    generateOperations(ops, signatures, addedSignatures)
-  //
-  //    ops.foreach {
-  //      println
-  //    }
-  //
-  //    (ad1, ad2) => {
-  //      val mRow = MutableRow(ad1.row)
-  //      val row2 = ad2.row
-  //      ops.foreach { op =>
-  //        mRow.applyOp(row2, op)
-  //      }
-  //      AnnotationData(mRow.result())
-  //    }
-  //  }
 }
 
 case class AnnotationSignatures(attrs: Map[String, AnnotationSignature],
@@ -358,7 +311,27 @@ case class AnnotationSignatures(attrs: Map[String, AnnotationSignature],
     path.result()
   }
 
+  def query(query: String): Array[Int] = {
+    Array(attrs(query).index)
+  }
+
   def contains(elem: String): Boolean = attrs.contains(elem)
+
+  def contains(path: Iterable[String]): Boolean = {
+    path
+      .take(path.size - 1)
+      .foldLeft((attrs, true)) { case ((map, continue), key) =>
+        if (!continue)
+          (map, continue)
+        else
+          map.get(key) match {
+            case Some(sigs: AnnotationSignatures) => (sigs.attrs, true)
+            case _ => (attrs, false)
+          }
+      }
+      ._1
+      .contains(path.last)
+  }
 
   def get[T](key: String): T = attrs(key).asInstanceOf[T]
 
@@ -373,6 +346,7 @@ object AnnotationSignatures {
   def empty(): AnnotationSignatures = AnnotationSignatures(Map.empty[String, AnnotationSignature])
 }
 
+/*
 case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def contains(elem: String): Boolean = attrs.contains(elem)
@@ -459,3 +433,4 @@ object AnnotationClassBuilder {
   def instantiateIndexedSeq(exposedName: String, className: String, rawArrayName: String): String =
     s"""lazy val $exposedName: IndexedSeq[$className] = $rawArrayName.map(new $className(_))""".stripMargin
 }
+*/

@@ -91,16 +91,15 @@ object LoadVCF {
       .getInfoHeaderLines
       .toList
       .zipWithIndex
-      .map{ case (line, index) => (line.getID, VCFSignature.parse(line, index = IndexPath(Array[Int](5), index)))}
+      .map{ case (line, index) => (line.getID, VCFSignature.parse(line, index))}
       .toArray
 
     val variantAnnotationSignatures: AnnotationSignatures = AnnotationSignatures(Map(
-      "multiallelic" -> SimpleSignature("Boolean", IndexPath(Array[Int](), 0)),
-      "filters" -> SimpleSignature("Set[String]", IndexPath(Array[Int](), 1)),
-      "pass" -> SimpleSignature("Boolean", IndexPath(Array[Int](), 2)),
-      "qual" -> SimpleSignature("Double", IndexPath(Array[Int](), 3)),
-      "rsid" -> SimpleSignature("String", IndexPath(Array[Int](), 4)),
-      "info" -> AnnotationSignatures(infoRowSignatures.toMap, IndexPath(Array[Int](), 5))))
+      "qual" -> SimpleSignature("Double", 0),
+      "filters" -> SimpleSignature("Set[String]", 1),
+      "pass" -> SimpleSignature("Boolean", 2),
+      "rsid" -> SimpleSignature("String", 3),
+      "info" -> AnnotationSignatures(infoRowSignatures.toMap, 4)))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')

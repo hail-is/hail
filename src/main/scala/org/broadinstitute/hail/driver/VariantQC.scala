@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations._
@@ -32,36 +33,36 @@ object VariantQCCombiner {
     "rHetHomVar\t" +
     "rExpectedHetFrequency\tpHWE"
 
-  val signatures: Annotations = Annotations(Map(
-    "callRate" -> new SimpleSignature("Double"),
-    "MAC" -> new SimpleSignature("Int"),
-    "MAF" -> new SimpleSignature("Double"),
-    "nCalled" -> new SimpleSignature("Int"),
-    "nNotCalled" -> new SimpleSignature("Int"),
-    "nHomRef" -> new SimpleSignature("Int"),
-    "nHet" -> new SimpleSignature("Int"),
-    "nHomVar" -> new SimpleSignature("Int"),
-    "dpMean" -> new SimpleSignature("Double"),
-    "dpStDev" -> new SimpleSignature("Double"),
-    "dpMeanHomRef" -> new SimpleSignature("Double"),
-    "dpStDevHomRef" -> new SimpleSignature("Double"),
-    "dpMeanHet" -> new SimpleSignature("Double"),
-    "dpStDevHet" -> new SimpleSignature("Double"),
-    "dpMeanHomVar" -> new SimpleSignature("Double"),
-    "dpStDevHomVar" -> new SimpleSignature("Double"),
-    "gqMean" -> new SimpleSignature("Double"),
-    "gqStDev" -> new SimpleSignature("Double"),
-    "gqMeanHomRef" -> new SimpleSignature("Double"),
-    "gqStDevHomRef" -> new SimpleSignature("Double"),
-    "gqMeanHet" -> new SimpleSignature("Double"),
-    "gqStDevHet" -> new SimpleSignature("Double"),
-    "gqMeanHomVar" -> new SimpleSignature("Double"),
-    "gqStDevHomVar" -> new SimpleSignature("Double"),
-    "nNonRef" -> new SimpleSignature("Int"),
-    "rHeterozygosity" -> new SimpleSignature("Double"),
-    "rHetHomVar" -> new SimpleSignature("Double"),
-    "rExpectedHetFrequency" -> new SimpleSignature("Double"),
-    "pHWE" -> new SimpleSignature("Double")))
+  val signatures: AnnotationSignatures = AnnotationSignatures(Map(
+    "callRate" -> new SimpleSignature("Double", 0),
+    "MAC" -> new SimpleSignature("Int", 1),
+    "MAF" -> new SimpleSignature("Double", 2),
+    "nCalled" -> new SimpleSignature("Int", 3),
+    "nNotCalled" -> new SimpleSignature("Int", 4),
+    "nHomRef" -> new SimpleSignature("Int", 5),
+    "nHet" -> new SimpleSignature("Int", 6),
+    "nHomVar" -> new SimpleSignature("Int", 7),
+    "dpMean" -> new SimpleSignature("Double", 8),
+    "dpStDev" -> new SimpleSignature("Double", 9),
+    "dpMeanHomRef" -> new SimpleSignature("Double", 10),
+    "dpStDevHomRef" -> new SimpleSignature("Double", 11),
+    "dpMeanHet" -> new SimpleSignature("Double", 12),
+    "dpStDevHet" -> new SimpleSignature("Double", 13),
+    "dpMeanHomVar" -> new SimpleSignature("Double", 14),
+    "dpStDevHomVar" -> new SimpleSignature("Double", 15),
+    "gqMean" -> new SimpleSignature("Double", 16),
+    "gqStDev" -> new SimpleSignature("Double", 17),
+    "gqMeanHomRef" -> new SimpleSignature("Double", 18),
+    "gqStDevHomRef" -> new SimpleSignature("Double", 19),
+    "gqMeanHet" -> new SimpleSignature("Double", 20),
+    "gqStDevHet" -> new SimpleSignature("Double", 21),
+    "gqMeanHomVar" -> new SimpleSignature("Double", 22),
+    "gqStDevHomVar" -> new SimpleSignature("Double", 23),
+    "nNonRef" -> new SimpleSignature("Int", 24),
+    "rHeterozygosity" -> new SimpleSignature("Double", 25),
+    "rHetHomVar" -> new SimpleSignature("Double", 26),
+    "rExpectedHetFrequency" -> new SimpleSignature("Double", 27),
+    "pHWE" -> new SimpleSignature("Double", 28)))
 }
 
 class VariantQCCombiner extends Serializable {
@@ -223,7 +224,7 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(hwe._2)
   }
 
-  def asAnnotations: Annotations = {
+  def asRow: Row = {
     val maf = {
       val refAlleles = nHomRef * 2 + nHet
       val altAlleles = nHomVar * 2 + nHet
@@ -235,44 +236,37 @@ class VariantQCCombiner extends Serializable {
     val callrate = divOption(nCalled, nCalled + nNotCalled)
     val mac = nHet + 2 * nHomVar
 
-    Annotations(Map[String, Any](
-      "callRate" -> divOption(nCalled, nCalled + nNotCalled),
-      "MAC" -> mac,
-      "MAF" -> maf,
-      "nCalled" -> nCalled,
-      "nNotCalled" -> nNotCalled,
-      "nHomRef" -> nHomRef,
-      "nHet" -> nHet,
-      "nHomVar" -> nHomVar,
-      "dpMean" -> someIf(dpSC.count > 0, dpSC.mean),
-      "dpStDev" -> someIf(dpSC.count > 0, dpSC.stdev),
-      "dpMeanHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.mean),
-      "dpStDevHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.stdev),
-      "dpMeanHet" -> someIf(dpHetSC.count > 0, dpHetSC.mean),
-      "dpStDevHet" -> someIf(dpHetSC.count > 0, dpHetSC.stdev),
-      "dpMeanHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.mean),
-      "dpStDevHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.stdev),
-      "gqMean" -> someIf(gqSC.count > 0, gqSC.mean),
-      "gqStDev" -> someIf(gqSC.count > 0, gqSC.stdev),
-      "gqMeanHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.mean),
-      "gqStDevHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.stdev),
-      "gqMeanHet" -> someIf(gqHetSC.count > 0, gqHetSC.mean),
-      "gqStDevHet" -> someIf(gqHetSC.count > 0, gqHetSC.stdev),
-      "gqMeanHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.mean),
-      "gqStDevHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.stdev),
-      "nNonRef" -> (nHet + nHomVar),
-      "rHeterozygosity" -> divOption(nHet, nHomRef + nHet + nHomVar),
-      "rHetHomVar" -> divOption(nHet, nHomVar),
-      "rExpectedHetFrequency" -> hwe._1,
-      "pHWE" -> hwe._2)
-      .flatMap { case (k, v) =>
-        v match {
-          case Some(value) => Some(k, value)
-          case None => None
-          case _ => Some(k, v)
-        }
-      }
-    )
+    Row.fromSeq(Array(
+      divNull(nCalled, nCalled + nNotCalled),
+      mac,
+      maf,
+      nCalled,
+      nNotCalled,
+      nHomRef,
+      nHet,
+      nullIfNot(dpSC.count > 0, dpSC.mean),
+      nHomVar,
+      nullIfNot(dpSC.count > 0, dpSC.mean),
+      nullIfNot(dpSC.count > 0, dpSC.stdev),
+      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.mean),
+      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.stdev),
+      nullIfNot(dpHetSC.count > 0, dpHetSC.mean),
+      nullIfNot(dpHetSC.count > 0, dpHetSC.stdev),
+      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.mean),
+      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.stdev),
+      nullIfNot(gqSC.count > 0, gqSC.mean),
+      nullIfNot(gqSC.count > 0, gqSC.stdev),
+      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.mean),
+      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.stdev),
+      nullIfNot(gqHetSC.count > 0, gqHetSC.mean),
+      nullIfNot(gqHetSC.count > 0, gqHetSC.stdev),
+      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.mean),
+      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.stdev),
+      nHet + nHomVar,
+      divNull(nHet, nHomRef + nHet + nHomVar),
+      divNull(nHet, nHomVar),
+      hwe._1,
+      hwe._2))
   }
 }
 
@@ -321,15 +315,18 @@ object VariantQC extends Command {
       }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
     }
 
+    val (newSignatures, fInsert) = AnnotationData.insertSignature(vds.metadata.variantAnnotationSignatures,
+      VariantQCCombiner.signatures, Array("qc"))
+
     state.copy(
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
           it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
             assert(v == v2)
-            (v, va +("qc", comb.asAnnotations), gs)
+            (v, fInsert(va, comb.asRow), gs)
           }
         },
-        metadata = vds.metadata.addVariantAnnotationSignatures("qc", VariantQCCombiner.signatures)
+        metadata = vds.metadata.copy(variantAnnotationSignatures = newSignatures)
       )
     )
   }

@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.{AnnotationSignatures, AnnotationSignature, Annotations}
+import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
@@ -19,40 +19,6 @@ object ShowAnnotations extends Command {
   def description = "Shows the signatures for all annotations currently stored in the dataset"
 
   override def supportsMultiallelic = true
-
-  def printSignatures(sb: StringBuilder, a: Annotations, spaces: Int, path: String) {
-    val spacing = (0 until spaces).map(i => " ").fold("")(_ + _)
-    val values = new mutable.ArrayBuilder.ofRef[(String, AnnotationSignature)]()
-    val subAnnotations = new mutable.ArrayBuilder.ofRef[(String, Annotations)]()
-
-    a.attrs.foreach {
-      case (k, v) =>
-        v match {
-          case sig: AnnotationSignature => values += ((k, sig))
-          case anno: Annotations => subAnnotations += ((k, anno))
-          case _ => fatal("corrupt annotation signatures")
-        }
-    }
-
-    values.result().sortBy {
-      case (key, sig) => key
-    }
-      .foreach {
-        case (key, sig) =>
-          sb.append(s"""$spacing$key: ${sig.typeOf}""")
-          sb.append("\n")
-      }
-
-    subAnnotations.result().sortBy {
-      case (key, anno) => key
-    }
-      .foreach {
-        case (key, anno) =>
-          sb.append(s"""$spacing$key: $path.$key.<identifier>""")
-          sb.append("\n")
-          printSignatures(sb, anno, spaces + 2, path + "." + key)
-      }
-  }
 
   def printSignatures(sb: StringBuilder, a: AnnotationSignatures, spaces: Int, path: String) {
     val spacing = (0 until spaces).map(i => " ").fold("")(_ + _)
@@ -73,7 +39,7 @@ object ShowAnnotations extends Command {
     }
       .foreach {
         case (key, sig) =>
-          sb.append(s"""$spacing$key: ${sig.typeOf} [${sig.index.path.mkString(",")}, ${sig.index.last}]""")
+          sb.append(s"""$spacing$key: ${sig.typeOf} [${sig.index}]""")
           sb.append("\n")
       }
 
@@ -82,7 +48,7 @@ object ShowAnnotations extends Command {
     }
       .foreach {
         case (key, anno) =>
-          sb.append(s"""$spacing$key: $path.$key.<identifier> [${anno.index.path.mkString(",")}, ${anno.index.last}]""")
+          sb.append(s"""$spacing$key: $path.$key.<identifier> [${anno.index}]""")
           sb.append("\n")
           printSignatures(sb, anno, spaces + 2, path + "." + key)
       }

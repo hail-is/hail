@@ -81,14 +81,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
   }
 
   def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
-    var first = true
-    i.foreach { elem =>
-      if (first)
-        first = false
-      else
-        g()
-      f(elem)
-    }
+    richIterator(i.iterator).foreachBetween(f)(g)
   }
 
   def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
@@ -454,6 +447,17 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       }
     n == 1
   }
+
+  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
+    var first = true
+    it.foreach { elem =>
+      if (first)
+        first = false
+      else
+        g()
+      f(elem)
+    }
+  }
 }
 
 class RichBoolean(val b: Boolean) extends AnyVal {
@@ -484,8 +488,10 @@ object Utils extends Logging {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-  
+
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
+
+  implicit def toRichIterator[T](i: Iterator[T]): RichIterator[T] = new RichIterator(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
     new RichArrayBuilderOfByte(t)
@@ -855,8 +861,18 @@ object Utils extends Logging {
     else
       None
 
+  def nullIfNot(p: Boolean, x: Any): Any = {
+    if (p)
+      x
+    else
+      null
+  }
+
   def divOption[T](num: T, denom: T)(implicit ev: T => Double): Option[Double] =
     someIf(denom != 0, ev(num) / denom)
+
+  def divNull[T](num: T, denom: T)(implicit ev: T => Double): Any =
+    nullIfNot(denom != 0, ev(num) / denom)
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder =
     new RichStringBuilder(sb)

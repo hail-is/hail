@@ -55,7 +55,7 @@ object ExportVariants extends Command {
           var first = true
           fs.foreach { f =>
             a(0) = v
-            a(1) = va.attrs
+            a(1) = va.row
             if (first)
               first = false
             else

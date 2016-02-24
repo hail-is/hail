@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.variant.vsm
 
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
@@ -21,22 +22,45 @@ class VSMSuite extends SparkSuite {
 
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
-    val mdata3 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyIndexedSeq(2).map(_ + ("1", "5")), Annotations.empty(),
-      Annotations.empty())
-    val mdata4 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyIndexedSeq(2), Annotations.empty(), Annotations.empty()
-        + ("dummy", Map.empty[String, AnnotationSignature]))
+    val mdata3 = new VariantMetadata(
+      IndexedSeq.empty[(String, String)],
+      Array("S1", "S2"),
+      AnnotationData.emptyIndexedSeq(2),
+      AnnotationSignatures(Map(
+        "inner" -> AnnotationSignatures(Map(
+          "thing1" -> SimpleSignature("String", 0))),
+        "thing2" -> SimpleSignature("String", 1)), 0),
+      AnnotationSignatures.empty())
+    val mdata4 = new VariantMetadata(
+      IndexedSeq.empty[(String, String)],
+      Array("S1", "S2"),
+      AnnotationData.emptyIndexedSeq(2),
+      AnnotationSignatures(Map(
+        "inner" -> AnnotationSignatures(Map(
+          "thing1" -> SimpleSignature("String", 0))),
+        "thing2" -> SimpleSignature("String", 1),
+      "dummy" -> SimpleSignature("String", 2)), 0),
+      AnnotationSignatures.empty())
 
     assert(mdata1 != mdata2)
+    assert(mdata1 != mdata3)
+    assert(mdata2 != mdata3)
+    assert(mdata1 != mdata4)
+    assert(mdata2 != mdata4)
+    assert(mdata3 != mdata4)
 
     val v1 = Variant("1", 1, "A", "T")
     val v2 = Variant("1", 2, "T", "G")
     val v3 = Variant("1", 2, "T", "A")
 
-    val va1 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v1otherThing" -> "yes"))
-    val va2 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v2otherThing" -> "yes"))
-    val va3 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v1otherThing" -> "no"))
+    val r1 = Row.fromSeq(Array(Row.fromSeq(Array("yes")), "yes"))
+    val r2 = Row.fromSeq(Array(Row.fromSeq(Array("yes")), "no"))
+    val r3 = Row.fromSeq(Array(Row.fromSeq(Array("yes")), "yes"))
+
+
+    val va1 = AnnotationData(r1)
+    val va2 = AnnotationData(r2)
+    val va3 = AnnotationData(r3)
 
     val rdd1 = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),

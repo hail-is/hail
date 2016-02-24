@@ -1,10 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.RangePartitioner
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
-import org.broadinstitute.hail.annotations.{AnnotationData, VCFSignature, Annotations}
+import org.broadinstitute.hail.annotations.{AnnotationSignature, AnnotationSignatures, AnnotationData, VCFSignature}
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
 import scala.io.Source
@@ -44,13 +45,13 @@ object ExportVCF extends Command {
           |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
           |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
           |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
-          |""".stripMargin)
+          | """.stripMargin)
 
       vds.metadata.filters.map { case (key, desc) =>
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
       }
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[Annotations]("info").map(_.attrs)
+      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[AnnotationSignatures]("info").map(_.attrs)
       infoHeader.foreach { i =>
         i.foreach { case (key, value) =>
           val sig = value.asInstanceOf[VCFSignature]
@@ -87,13 +88,58 @@ object ExportVCF extends Command {
       }
     }
 
-    def appendRow(sb: StringBuilder, v: Variant, a: AnnotationData, gs: Iterable[Genotype]) {
+    val infoF: (StringBuilder, AnnotationData) => Unit = {
+      vds.metadata.variantAnnotationSignatures.getOption[AnnotationSignature]("info") match {
+        case Some(signatures: AnnotationSignatures) =>
+          val keys = signatures.attrs.map { case (k, v) => (k, v.index) }
+            .toArray
+            .sortBy { case (key, index) => index }
+            .map { case (key, index) => key }
+
+          val appendF: (StringBuilder) => (Any, String) => Unit = {
+            sb =>
+              (elem, key) =>
+                if (elem != null) {
+                  sb.append(key)
+                  sb.append("=")
+                  sb.tsvAppend(elem)
+                }
+          }
+
+          (sb, ad) => {
+            val infoRow = ad.get[Row](Array(signatures.index))
+            var first = true
+            keys.iterator.zipWithIndex.foreach {
+              case (key, index) =>
+                val elem = infoRow.get(index)
+                elem match {
+                  case null => ()
+                  case nonNull =>
+                    sb.append(key)
+                    sb.append("=")
+                    sb.tsvAppend(elem)
+                    if (!first)
+                      sb.append(";")
+                    else
+                      first = true
+                }
+            }
+          }
+        case _ =>
+          (sb, ad) => sb.append(".")
+      }
+    }
+
+    def appendRow(sb: StringBuilder, v: Variant, a: AnnotationData, gs: Iterable[Genotype],
+      infoF: (StringBuilder, AnnotationData) => Unit) {
+
       sb.append(v.contig)
       sb += '\t'
       sb.append(v.start)
       sb += '\t'
 
-      val id = a.getOption[String]("rsid")
+      //FIXME hardcoded path
+      val id = a.getOption[String](Array(4))
         .getOrElse(".")
       sb.append(id)
 
@@ -104,13 +150,14 @@ object ExportVCF extends Command {
         sb.append(aa.alt))(_ => sb += ',')
       sb += '\t'
 
-      a.getOption[Double]("qual") match {
+      //FIXME hardcoded path
+      a.getOption[Double](Array(3)) match {
         case Some(d) => sb.append(d.formatted("%.2f"))
         case None => sb += '.'
       }
       sb += '\t'
 
-      a.getOption[Set[String]]("filters") match {
+      a.getOption[Set[String]](Array(1)) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween(s => sb.append(s))(_ => sb += ',')
@@ -121,22 +168,23 @@ object ExportVCF extends Command {
 
       sb += '\t'
 
-      if (a.getOption[Annotations]("info").isDefined) {
-        a.get[Annotations]("info").attrs
-          .foreachBetween({ case (k, v) =>
-            if (varAnnSig.get[Annotations]("info").get[VCFSignature](k).vcfType == "Flag")
-              sb.append(k)
-            else {
-              sb.append(k)
-              sb += '='
-              v match {
-                case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(_ => sb.append(","))
-                case _ => sb.append(v)
-              }
-            }
-          })(_ => sb += ';')
-      } else
-        sb += '.'
+      // FIXME info
+      //      if (a.getOption[Row]("info").isDefined) {
+      //        a.get[Annotations]("info").attrs
+      //          .foreachBetween({ case (k, v) =>
+      //            if (varAnnSig.get[Annotations]("info").get[VCFSignature](k).vcfType == "Flag")
+      //              sb.append(k)
+      //            else {
+      //              sb.append(k)
+      //              sb += '='
+      //              v match {
+      //                case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(_ => sb.append(","))
+      //                case _ => sb.append(v)
+      //              }
+      //            }
+      //          })(_ => sb += ';')
+      //      } else
+      sb += '.'
 
       sb += '\t'
       sb.append("GT:AD:DP:GQ:PL")
@@ -157,7 +205,7 @@ object ExportVCF extends Command {
         val sb = new StringBuilder
         it.map { case (v, (va, gs)) =>
           sb.clear()
-          appendRow(sb, v, va, gs)
+          appendRow(sb, v, va, gs, infoF)
           sb.result()
         }
       }.writeTable(options.output, Some(header), deleteTmpFiles = true)

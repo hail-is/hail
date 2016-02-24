@@ -48,8 +48,10 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
     val infoRow = Row.fromSeq(typeMap.map { case (key, sig) =>
       infoAttrs.get(key)
-      .map(elem => HtsjdkRecordReader.mapType(elem, sig))})
-    val va = AnnotationData(Array(vc.getPhredScaledQual,
+      .map(elem => HtsjdkRecordReader.mapType(elem, sig))
+      .orNull})
+    val va = AnnotationData(Array(
+      vc.getPhredScaledQual,
       filts,
       pass,
       rsid,
@@ -207,11 +209,11 @@ object HtsjdkRecordReader {
         sig.typeOf match {
           case "Int" => str.toInt
           case "Double" => str.toDouble
-          case "Array[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
-          case "Array[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
+          case "Array[Int]" => str.split(",").map(_.toInt): Array[Int]
+          case "Array[Double]" => str.split(",").map(_.toDouble): Array[Double]
           case _ => value
         }
-      case i: IndexedSeq[_] =>
+      case i: Array[_] =>
         sig.number match {
           case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
           case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)

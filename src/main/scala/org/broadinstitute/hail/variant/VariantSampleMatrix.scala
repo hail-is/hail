@@ -68,10 +68,10 @@ object VariantSampleMatrix {
     variants: Array[Variant],
     g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val nSamples = sampleIds.length
-    for (rows <- Gen.sequence[Seq[(Variant, AnnotationData, Iterable[T])], (Variant, Annotations, Iterable[T])](
+    for (rows <- Gen.sequence[Seq[(Variant, AnnotationData, Iterable[T])], (Variant, AnnotationData, Iterable[T])](
       variants.map(v => Gen.zip(
         Gen.const(v),
-        Gen.const(Annotations.empty()),
+        Gen.const(AnnotationData.empty()),
         genValues(nSamples, g(v))))))
       yield VariantSampleMatrix[T](VariantMetadata(sampleIds), sc.parallelize(rows))
   }
@@ -344,14 +344,28 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.map { case (v, va, gs) => (v, gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g))) }
 
+//  def same(that: VariantSampleMatrix[T]): Boolean = {
+//    metadata == that.metadata &&
+//      localSamples.sameElements(that.localSamples) &&
+//      rdd.map { case (v, va, gs) => (v, (va, gs)) }
+//        .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
+//        .map { case (v, t) => t match {
+//          case (Some((va1, it1)), Some((va2, it2))) =>
+//            it1.sameElements(it2) && va1 == va2
+//          case _ => false
+//        }
+//        }.fold(true)(_ && _)
+//  }
+
   def same(that: VariantSampleMatrix[T]): Boolean = {
+    println(metadata == that.metadata)
     metadata == that.metadata &&
       localSamples.sameElements(that.localSamples) &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
         .map { case (v, t) => t match {
           case (Some((va1, it1)), Some((va2, it2))) =>
-            it1.sameElements(it2) && va1 == va2
+            it1.sameElements(it2) && va1.same(va2)
           case _ => false
         }
         }.fold(true)(_ && _)
@@ -420,14 +434,13 @@ class RichVDS(vds: VariantDataset) {
     // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
 
-  //FIXME -- TP remove wasSplit
-//  def eraseSplit: VariantDataset = {
-//    vds.copy(metadata = vds.metadata
-//      .copy(wasSplit = false)
-//      .removeVariantAnnotationSignatures("wasSplit"),
-//      rdd = vds.rdd.map { case (v, va, gs) =>
-//        (v, va.copy(attrs = va.attrs - "wasSplit"),
-//          gs.lazyMap(g => g.copy(fakeRef = false)))
-//      })
-//  }
+//  FIXME -- TP remove wasSplit
+  def eraseSplit: VariantDataset = {
+  val (newSignatures, f) = AnnotationData.removeSignature(vds.metadata.variantAnnotationSignatures, Array("wasSplit"))
+    vds.copy(metadata = vds.metadata
+      .copy(wasSplit = false, variantAnnotationSignatures = newSignatures),
+      rdd = vds.rdd.map { case (v, va, gs) =>
+        (v, f(va), gs.lazyMap(g => g.copy(fakeRef = false)))
+      })
+  }
 }

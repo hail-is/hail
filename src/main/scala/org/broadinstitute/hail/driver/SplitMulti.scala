@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.{AnnotationData, SimpleSignature, Annotations}
+import org.broadinstitute.hail.annotations.{AnnotationData, SimpleSignature}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
@@ -55,9 +55,10 @@ object SplitMulti extends Command {
   def split(v: Variant,
     va: AnnotationData,
     it: Iterable[Genotype],
-    propagateGQ: Boolean): Iterator[(Variant, Annotations, Iterable[Genotype])] = {
+    propagateGQ: Boolean,
+    insertF: (AnnotationData, Any) => AnnotationData): Iterator[(Variant, AnnotationData, Iterable[Genotype])] = {
     if (v.isBiallelic)
-      return Iterator((v, va +("wasSplit", false), it))
+      return Iterator((v, insertF(va, false), it))
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(_._1.alt != "*")
@@ -118,20 +119,19 @@ object SplitMulti extends Command {
     splitVariants.iterator.map(_._1)
       .zip(splitGenotypeStreamBuilders.iterator)
       .map { case (v, gsb) =>
-        (v, va +("wasSplit", true), gsb.result())
+        (v, insertF(va, true), gsb.result())
       }
   }
 
   def run(state: State, options: Options): State = {
     val localPropagateGQ = options.propagateGQ
-    val a = AnnotationData.mergeSignatures(
-    )
+    val (newSigs, f) = AnnotationData.insertSignature(state.vds.metadata.variantAnnotationSignatures,
+      SimpleSignature("Boolean"), Array("wasSplit"))
     val newVDS = state.vds.copy[Genotype](
       metadata = state.vds.metadata
-        .copy(wasSplit = true)
-        .addVariantAnnotationSignatures("wasSplit", new SimpleSignature("Boolean")),
-      rdd = state.vds.rdd.flatMap[(Variant, Annotations, Iterable[Genotype])] { case (v, va, it) =>
-        split(v, va, it, localPropagateGQ)
+        .copy(wasSplit = true, variantAnnotationSignatures = newSigs),
+      rdd = state.vds.rdd.flatMap[(Variant, AnnotationData, Iterable[Genotype])] { case (v, va, it) =>
+        split(v, va, it, localPropagateGQ, f)
       })
     state.copy(vds = newVDS)
   }

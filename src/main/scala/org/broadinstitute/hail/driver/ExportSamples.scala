@@ -49,7 +49,7 @@ object ExportSamples extends Command {
     val lines = for (s <- vds.localSamples) yield {
       sb.clear()
       a(0) = vds.sampleIds(s)
-      a(1) = vds.metadata.sampleAnnotations(s).attrs
+      a(1) = vds.metadata.sampleAnnotations(s).row
       var first = true
       fs.foreach { f =>
         if (first)
