@@ -9,62 +9,6 @@ import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable.ArrayBuffer
 
-/*
-object HardCallSet {
-  def apply(vds: VariantDataset): HardCallSet = {
-    val n = vds.nLocalSamples
-
-    new HardCallSet(
-      vds.rdd.map { case (v, va, gs) => (v, DenseCallStream(gs, n)) },
-      vds.localSamples,
-      vds.metadata.sampleIds)
-  }
-
-  def read(sqlContext: SQLContext, dirname: String): HardCallSet = {
-    require(dirname.endsWith(".hcs"))
-    import RichRow._
-
-    val (localSamples, sampleIds) = readDataFile(dirname + "/sampleInfo.ser",
-      sqlContext.sparkContext.hadoopConfiguration) {
-      ds =>
-        ds.readObject[(Array[Int],IndexedSeq[String])]
-    }
-
-    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-
-    new HardCallSet(
-      df.rdd.map(r => (r.getVariant(0), r.getDenseCallStream(1))),
-      localSamples,
-      sampleIds)
-  }
-}
-
-case class HardCallSet(rdd: RDD[(Variant, DenseCallStream)], localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
-  def write(sqlContext: SQLContext, dirname: String) {
-    require(dirname.endsWith(".hcs"))
-    import sqlContext.implicits._
-
-    val hConf = rdd.sparkContext.hadoopConfiguration
-    hadoopMkdir(dirname, hConf)
-    writeDataFile(dirname + "/sampleInfo.ser", hConf) {
-      ss =>
-        ss.writeObject((localSamples, sampleIds))
-    }
-
-    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
-  }
-
-  def sparkContext: SparkContext = rdd.sparkContext
-
-  def copy(rdd: RDD[(Variant, DenseCallStream)],
-           localSamples: Array[Int] = localSamples,
-           sampleIds: IndexedSeq[String] = sampleIds): HardCallSet =
-    new HardCallSet(rdd, localSamples, sampleIds)
-
-  def cache(): HardCallSet = copy(rdd = rdd.cache())
-}
-*/
-
 object HardCallSet {
   def apply(vds: VariantDataset, sparseCutoff: Double = .05): HardCallSet = {
     val n = vds.nLocalSamples
@@ -120,9 +64,6 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
   def cache(): HardCallSet = copy(rdd = rdd.cache())
 }
 
-
-case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, xy: Double, nMissing: Int)
-
 object CallStream {
   def apply(gs: Iterable[Genotype], n: Int, sparseCutoff: Double): CallStream = {
     val sparsity = 1 - gs.count(_.isHomRef).toDouble / n
@@ -137,7 +78,7 @@ object CallStream {
   def toIntsString(b: Byte): String = {for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i}.mkString(":")
 }
 
-abstract case class CallStream() {
+abstract class CallStream() {
   val a: Array[Byte]
   val meanX: Double
   val sumXX: Double
@@ -400,7 +341,6 @@ object SparseCallStream {
   }
 }
 
-
 case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int, isSparse: Boolean = true) extends CallStream {
 
   def hardStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
@@ -496,3 +436,5 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
     GtVectorAndStats(new SparseVector(n, rowX.toArray, valX.toArray), sumXX, sumXY, nMissing)
   }
 }
+
+case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, xy: Double, nMissing: Int)

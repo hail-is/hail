@@ -925,16 +925,6 @@ object Utils extends Logging {
 // FIXME: Remove before PR
 /*
 object BytePlay {
-  def g(i: Int): Int = {
-    if (i < 0x100)
-      0
-    else if (i < 0x10000)
-      1
-    else if (i < 0x1000000)
-      2
-    else
-      3
-  }
 
   def f1(r: Int): Array[Byte] = {
     val a = ArrayBuffer[Byte]()
