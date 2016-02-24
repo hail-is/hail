@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.mllib.linalg.DenseMatrix
-import org.apache.spark.mllib.linalg.{Vector => SVector, Matrix}
+import org.apache.spark.mllib.linalg.{Matrix, DenseMatrix}
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.variant.Variant
 import org.broadinstitute.hail.variant.VariantDataset
@@ -9,7 +8,7 @@ import org.broadinstitute.hail.variant.VariantDataset
 class SamplePCA(k: Int, l: Boolean, e: Boolean) {
   def name = "SamplePCA"
 
-  def apply(vds: VariantDataset): (Matrix, RDD[(Variant, SVector)], Array[Double])  = {
+  def apply(vds: VariantDataset): (Matrix, RDD[(Variant, Array[Double])], Array[Double])  = {
 
     val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
 
@@ -21,7 +20,7 @@ class SamplePCA(k: Int, l: Boolean, e: Boolean) {
     val loadings =
       if (l)
         svd.U.rows.map(ir =>
-          (variants(ir.index.toInt), ir.vector))
+          (variants(ir.index.toInt), ir.vector.toArray))
       else
         null
 
