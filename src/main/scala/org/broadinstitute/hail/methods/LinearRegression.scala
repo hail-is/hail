@@ -169,8 +169,8 @@ object LinearRegressionFromHardCallSet {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
 
     new LinearRegression(hcs.rdd
-      .mapValues{ dcs =>
-        val GtVectorAndStats(x, xx, xy, nMissing) = dcs.denseStats(yBc.value, n)
+      .mapValues{ cs =>
+        val GtVectorAndStats(x, xx, xy, nMissing) = cs.hardStats(yBc.value, n)
 
         // FIXME: store in boolean instead?
         if (xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n)

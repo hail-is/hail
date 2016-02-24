@@ -17,6 +17,7 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.variant.Variant
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
@@ -919,4 +920,31 @@ object Utils extends Logging {
     def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
       mutable.Map.empty[K, Int]
   }
+}
+
+object BytePlay {
+  def g(i: Int): Int = {
+    if (i < 0x100)
+      0
+    else if (i < 0x10000)
+      1
+    else if (i < 0x1000000)
+      2
+    else
+      3
+  }
+
+  def f1(r: Int): Array[Byte] = {
+    val a = ArrayBuffer[Byte]()
+    g(r) match {
+      case 0 => Array(r.toByte)
+      case 1 => Array((r >> 8).toByte, r.toByte)
+      case 2 => Array((r >> 16).toByte, (r >> 8).toByte, r.toByte)
+      case _ => Array((r >> 24).toByte, (r >> 16).toByte, (r >> 8).toByte, r.toByte)
+    }
+  }
+
+  def foo(r: Int) = Array((r >> 24).toByte, (r >> 16).toByte, (r >> 8).toByte, r.toByte)
+
+  def bar(a: Array[Byte]) = (a(0) << 24) | (a(1) & 0xFF) << 16 | (a(2) & 0xFF) << 8 | (a(3) & 0xFF)
 }

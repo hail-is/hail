@@ -19,7 +19,10 @@ class HardCallSetSuite extends SparkSuite {
       Iterable(0,1,2,3,0),
       Iterable(0,1,2,3,1),
       Iterable(0,1,2,3,1,2),
-      Iterable(0,1,2,3,0,0,0,0,0,0,0,0,0,0,1,2,3))
+      Iterable(0,1,2,3,0,0,0,0,0,0,0,0,0,0,1,2,3),
+      Iterable.fill[Int](1001)(1)
+    )
+
 
 
     for (gts <- gtsList) {
@@ -34,9 +37,9 @@ class HardCallSetSuite extends SparkSuite {
       val scs = SparseCallStream.SparseCallStreamFromGtStream(gts, n)
       println(scs)
 
-      val ds = dcs.denseStats(y,n)
+      val ds = dcs.hardStats(y,n)
 
-      val ss = scs.sparseStats(y,n)
+      val ss = scs.hardStats(y,n)
 
       println(ds)
 
