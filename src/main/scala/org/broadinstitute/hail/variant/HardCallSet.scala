@@ -64,6 +64,8 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
   def cache(): HardCallSet = copy(rdd = rdd.cache())
 }
 
+case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, xy: Double, nMissing: Int)
+
 object CallStream {
   def apply(gs: Iterable[Genotype], n: Int, sparseCutoff: Double): CallStream = {
     val sparsity = 1 - gs.count(_.isHomRef).toDouble / n
@@ -78,7 +80,7 @@ object CallStream {
   def toIntsString(b: Byte): String = {for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i}.mkString(":")
 }
 
-abstract class CallStream() {
+abstract class CallStream {
   val a: Array[Byte]
   val meanX: Double
   val sumXX: Double
@@ -411,6 +413,7 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
         j += l3 + 1
         merge(rowInt(j, l4), gt4)
         j += l4 + 1
+
         i += 4
       }
       else if (gt3 != 0) {
@@ -436,5 +439,3 @@ case class SparseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissi
     GtVectorAndStats(new SparseVector(n, rowX.toArray, valX.toArray), sumXX, sumXY, nMissing)
   }
 }
-
-case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, xy: Double, nMissing: Int)
