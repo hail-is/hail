@@ -1,7 +1,6 @@
 package org.broadinstitute.hail
 
 import java.io._
-import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.{spark, hadoop}
 import org.apache.hadoop.fs.FileStatus
@@ -12,12 +11,10 @@ import org.apache.spark.{SparkEnv, AccumulableParam}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
-import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.variant.Variant
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
