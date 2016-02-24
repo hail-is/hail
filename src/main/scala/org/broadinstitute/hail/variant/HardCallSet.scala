@@ -96,7 +96,8 @@ object HardCallSet {
 
 case class HardCallSet(rdd: RDD[(Variant, SparseCallStream)], localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
   def write(sqlContext: SQLContext, dirname: String) {
-    require(dirname.endsWith(".hcs"))
+    if (!dirname.endsWith(".hcs"))
+      fatal("Hard call set directory must end with .hcs")
     import sqlContext.implicits._
 
     val hConf = rdd.sparkContext.hadoopConfiguration
