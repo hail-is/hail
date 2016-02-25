@@ -249,7 +249,7 @@ object AnnotationData {
   def makeRow(values: Seq[Any]): Row = Row.fromSeq(values.toSeq)
 
   def makeRow(values: Seq[Any], depth: Int): Row =
-    (0 until depth).foldLeft(Row.fromSeq(values)) { (row, i) => Row.fromSeq(Array(row)) }
+    (0 until depth).foldLeft(Row.fromSeq(values)) { (row, i) => Row.fromSeq(Seq(row)) }
 
   def removeSignature(base: AnnotationSignatures,
     path: Array[String]): (AnnotationSignatures, (AnnotationData => AnnotationData)) = {
@@ -326,16 +326,12 @@ object AnnotationData {
           }
         (ad: AnnotationData, index: Int) =>
           val adArr = ad.row.toSeq.toArray
+          val infoR = adArr(infoSigs.index).asInstanceOf[Row]
           adArr(infoSigs.index) = Row.fromSeq(
-            adArr(infoSigs.index).asInstanceOf[Row]
-              .toSeq
-              .iterator
-              .zip(functions.iterator)
-              .map {
-                case (elem, f) => f(elem, index)
-              }
-              .toArray
-          )
+            functions.zipWithIndex
+              .map { case (f, i) =>
+                f(infoR.get(i), i)
+              })
           AnnotationData(Row.fromSeq(adArr))
       case _ => (ad, index) => ad
     }

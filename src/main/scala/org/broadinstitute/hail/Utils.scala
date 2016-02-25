@@ -491,8 +491,6 @@ object Utils extends Logging {
 
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
-  implicit def toRichIterator[T](i: Iterator[T]): RichIterator[T] = new RichIterator(i)
-
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
     new RichArrayBuilderOfByte(t)
 
