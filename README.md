@@ -1,6 +1,19 @@
-[![Build Status](https://magnum.travis-ci.com/broadinstitute/hail.svg?token=BppUSW8Cb2YatFa34Fpx&branch=master)](https://magnum.travis-ci.com/broadinstitute/hail)
-
 # Hail
+
+## Table of Contents
+
+1. [Representation](docs/Representation.md)
+2. [Importing](docs/Importing.md)
+3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
+4. [Renaming Samples](docs/RenameSamples.md)
+5. [Quality Control](docs/QC.md)
+6. [Filtering](docs/Filtering.md)
+7. [Linear regression](docs/LinearRegression.md)
+8. [Mendel errors](docs/MendelErrors.md)
+9. [Exporting to TSV](docs/ExportTSV.md)
+10. [Exporting to VCF](docs/ExportVCF.md)
+11. [Exporting to Plink](docs/ExportPlink.md)
+
 
 ## Tools
 
@@ -8,10 +21,11 @@ We use the following development tools:
  - git
  - Scala
  - Gradle for build management
- - TestNG and [ScalaCheck](https://www.scalacheck.org/) for testing
+ - TestNG for testing
  - Travis-CI for automated testing
  - Jacoco for code coverage
  - args4j for command line parsing
+ - htsjdk for VCF parsing
  - Spark
  - Apache Commons libraries
  - IntelliJ (but you can use whatever editor you want)
@@ -25,7 +39,7 @@ handles the other dependencies.  On OSX, you can install gradle with
  - .vds: A .vds directory stores a `VariantDataset`, hail's internal
 representation of the information in a .vcf file.  It is stored
 (mostly) as parquet files.  You can use the hail `write` command to
-create a .vds file from a a .vcf\[.gz\] file.
+create a .vds file from a a .vcf\[.bgz\] file.
 
 ## Building
 
@@ -56,7 +70,7 @@ To generate a code coverage report and view it, do:
 To convert a .vcf.gz to a .vds, do:
 
 ```
-~/hail $ ./build/install/hail/bin/hail import -i src/test/resources/sample.vcf.gz write -o ~/sample.vds
+~/hail $ ./build/install/hail/bin/hail importvcf src/test/resources/sample.vcf.gz write -o ~/sample.vds
 ```
 
 `sample.vcf.gz` is a 182KB test `.vcf.gz` with a hundred or so samples

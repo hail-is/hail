@@ -2,8 +2,8 @@ package org.broadinstitute.hail.utils
 
 import scala.util.Random
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.annotations._
 import org.apache.spark.SparkContext
-import scala.math
 
 object TestRDDBuilder {
 
@@ -53,37 +53,37 @@ object TestRDDBuilder {
     }
   }
 
-  def plFromGQ(gq: Int, gt: Int): (Int, Int, Int) = {
+  def plFromGQ(gq: Int, gt: Option[Int]): Option[Array[Int]] = {
     // supplies example PL values from a GQ and genotype
     gt match {
-      case 0 => (0, gq, plMax)
-      case 1 => (gq, 0, plDefault)
-      case 2 => (plMax, gq, 0)
-      case -1 => (0, 0, plDefault)
+      case Some(0) => Some(Array(0, gq, plMax))
+      case Some(1) => Some(Array(gq, 0, plDefault))
+      case Some(2) => Some(Array(plMax, gq, 0))
+      case _ => None
     }
   }
 
-  def adFromDP(dp: Int, gt: Int): (Int, Int) = {
+  def adFromDP(dp: Int, gt: Option[Int]): Option[Array[Int]] = {
     // if a homozygous genotype is supplied, assigns all reads to that allele.  If het, 50/50.  If uncalled, (0, 0)
     gt match {
-      case 0 => (dp, 0)
-      case 2 => (0, dp)
-      case 1 =>
+      case Some(0) => Some(Array(dp, 0))
+      case Some(2) => Some(Array(0, dp))
+      case Some(1) =>
         val refReads = dp / 2
         val altReads = dp - refReads
-        (refReads, altReads)
-      case -1 => (0, 0)
+        Some(Array(refReads, altReads))
+      case _ => None
     }
   }
 
   def buildRDD(nSamples: Int, nVariants: Int, sc: SparkContext,
                       gqArray: Option[Array[Array[Int]]] = None,
-                      dpArray: Option[Array[Array[Int]]] = None): VariantDataset = {
+                      dpArray: Option[Array[Array[Int]]] = None,
+                      gtArray: Option[Array[Array[Int]]] = None): VariantDataset = {
     /* Takes the arguments:
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF
     sc(SparkContext) -- spark context in which to operate
-    vsmtype(String) -- sparky, tuple, or managed
     gqArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
     dpArray(Array[Array[Int]]] -- Int array of dimension (nVariants x nSamples)
     Returns a test VDS of the given parameters */
@@ -94,17 +94,21 @@ object TestRDDBuilder {
 
     // create array of (Variant, gq[Int], dp[Int])
     val variantArray = (0 until nVariants).map(i =>
-      (Variant("1", i, defaultRef, defaultAlt),
-        (gqArray.map(_(i)),
+      (Variant("1", i + 1, defaultRef, defaultAlt),
+        (gtArray.map(_(i)),
+          gqArray.map(_(i)),
           dpArray.map(_(i)))))
       .toArray
 
     val variantRDD = sc.parallelize(variantArray)
     val streamRDD = variantRDD.map {
-      case (variant, (gqArr, dpArr)) =>
+      case (variant, (gtArr, gqArr, dpArr)) =>
         val b = new GenotypeStreamBuilder(variant)
         for (sample <- 0 until nSamples) {
-          val gt = pullGT()
+          val gt = gtArr match {
+            case Some(arr) => Some(arr(sample))
+            case None => Some(pullGT())
+          }
           val gq = gqArr match {
             case Some(arr) => arr(sample)
             case None => normInt(gqMean, gqStDev, floor=gqMin, ceil=gqMax)
@@ -116,10 +120,11 @@ object TestRDDBuilder {
           val ad = adFromDP(dp, gt)
           val pl = plFromGQ(gq, gt)
 
-          b += Genotype(gt, ad, dp, pl)
+          // FIXME gq
+          b += Genotype(gt, ad, Some(dp), Some(gq), pl)
         }
-        (variant, b.result(): Iterable[Genotype])
+        (variant, Annotations.empty(), b.result(): Iterable[Genotype])
     }
-    VariantSampleMatrix(VariantMetadata(Map("1" -> 1000000), sampleList), streamRDD)
+    VariantSampleMatrix(VariantMetadata(sampleList), streamRDD)
   }
 }

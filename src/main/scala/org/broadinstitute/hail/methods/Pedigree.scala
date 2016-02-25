@@ -39,22 +39,45 @@ case class CompleteTrio(kid: Int, fam: Option[String], dad: Int, mom: Int, sex: 
 object Pedigree {
 
   def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): Pedigree = {
-    require(filename.endsWith(".fam"))
+    if (!filename.endsWith(".fam"))
+      fatal("-f | --fam filename must end in .fam")
 
     val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
-    def maybeId(id: String): Option[Int] = if (id != "0") sampleIndex.get(id) else None
-    def maybeFam(fam: String): Option[String] = if (fam != "0") Some(fam) else None
 
+    var nSamplesDiscarded = 0
+
+    // .fam samples not in sampleIds are discarded
     readFile(filename, hConf) { s =>
-      Pedigree(Source.fromInputStream(s)
+      val sampleSet = collection.mutable.Set[Int]()
+
+      val trios = Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty)
-        .map { line => // FIXME: proper input error handling (and possible conflicting trio handing)
+        .flatMap{ line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
           val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
+          sampleIndex.get(kid) match {
+            case Some(s) =>
+              if (sampleSet(s))
+                fatal(s".fam sample name is not unique: $kid")
+              else
+                sampleSet += s
+              Some(Trio(
+                s,
+                if (fam != "0") Some(fam) else None,
+                if (dad != "0") sampleIndex.get(dad) else None,
+                if (mom != "0") sampleIndex.get(mom) else None,
+                Sex.withNameOption(sex),
+                Phenotype.withNameOption(pheno)))
+            case None =>
+              nSamplesDiscarded += 1
+              None
+          }
+        }.toArray
 
-          Trio(sampleIndex(kid), maybeFam(fam), maybeId(dad), maybeId(mom),
-            Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
-        }.toArray)
+      if (nSamplesDiscarded > 0)
+        warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
+
+      Pedigree(trios)
     }
   }
 
@@ -64,10 +87,12 @@ object Pedigree {
 }
 
 case class Pedigree(trios: Array[Trio]) {
-
+  
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
   def samplePheno: Map[Int, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
+
+  def phenotypedSamples: Set[Int] = trios.filter(_.pheno.isDefined).map(_.kid).toSet
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_ (t)))
 
@@ -97,7 +122,7 @@ case class Pedigree(trios: Array[Trio]) {
     def sampleIdOrElse(s: Option[Int]) = if (s.isDefined) sampleIds(s.get) else "0"
     def toLine(t: Trio): String =
       t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + sampleIdOrElse(t.dad) + "\t" +
-        sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0") + "\n"
+        sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0")
     val lines = trios.map(toLine)
     writeTable(filename, hConf, lines)
   }

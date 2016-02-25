@@ -1,9 +1,9 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
@@ -12,7 +12,8 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object SampleQCCombiner {
-  val header = "nCalled\t" +
+  val header = "callRate\t" +
+    "nCalled\t" +
     "nNotCalled\t" +
     "nHomRef\t" +
     "nHet\t" +
@@ -35,6 +36,39 @@ object SampleQCCombiner {
     "rTiTv\t" +
     "rHetHomVar\t" +
     "rDeletionInsertion"
+
+  val signatures = Map("callRate" -> new SimpleSignature("Double"),
+    "nCalled" -> new SimpleSignature("Int"),
+    "nNotCalled" -> new SimpleSignature("Int"),
+    "nHomRef" -> new SimpleSignature("Int"),
+    "nHet" -> new SimpleSignature("Int"),
+    "nHomVar" -> new SimpleSignature("Int"),
+    "nSNP" -> new SimpleSignature("Int"),
+    "nInsertion" -> new SimpleSignature("Int"),
+    "nDeletion" -> new SimpleSignature("Int"),
+    "nSingleton" -> new SimpleSignature("Int"),
+    "nTransition" -> new SimpleSignature("Int"),
+    "nTransversion" -> new SimpleSignature("Int"),
+    "dpMean" -> new SimpleSignature("Double"),
+    "dpStDev" -> new SimpleSignature("Double"),
+    "dpMeanHomRef" -> new SimpleSignature("Double"),
+    "dpStDevHomRef" -> new SimpleSignature("Double"),
+    "dpMeanHet" -> new SimpleSignature("Double"),
+    "dpStDevHet" -> new SimpleSignature("Double"),
+    "dpMeanHomVar" -> new SimpleSignature("Double"),
+    "dpStDevHomVar" -> new SimpleSignature("Double"),
+    "gqMean" -> new SimpleSignature("Double"),
+    "gqStDev" -> new SimpleSignature("Double"),
+    "gqMeanHomRef" -> new SimpleSignature("Double"),
+    "gqStDevHomRef" -> new SimpleSignature("Double"),
+    "gqMeanHet" -> new SimpleSignature("Double"),
+    "gqStDevHet" -> new SimpleSignature("Double"),
+    "gqMeanHomVar" -> new SimpleSignature("Double"),
+    "gqStDevHomVar" -> new SimpleSignature("Double"),
+    "nNonRef" -> new SimpleSignature("Int"),
+    "rTiTv" -> new SimpleSignature("Double"),
+    "rHetHomVar" -> new SimpleSignature("Double"),
+    "rDeletionInsertion" -> new SimpleSignature("Double"))
 }
 
 class SampleQCCombiner extends Serializable {
@@ -42,10 +76,7 @@ class SampleQCCombiner extends Serializable {
   var nHomRef: Int = 0
   var nHet: Int = 0
   var nHomVar: Int = 0
-  var refDepth: Int = 0
-  var altDepth: Int = 0
 
-  val dpSC = new StatCounter()
   val dpHomRefSC = new StatCounter()
   val dpHetSC = new StatCounter()
   val dpHomVarSC = new StatCounter()
@@ -57,67 +88,84 @@ class SampleQCCombiner extends Serializable {
   var nTi: Int = 0
   var nTv: Int = 0
 
-  val gqSC: StatCounter = new StatCounter()
   val gqHomRefSC: StatCounter = new StatCounter()
   val gqHetSC: StatCounter = new StatCounter()
   val gqHomVarSC: StatCounter = new StatCounter()
 
+  def dpSC: StatCounter = {
+    val r = dpHomRefSC.copy()
+    r.merge(dpHetSC)
+    r.merge(dpHomVarSC)
+    r
+  }
+
+  def gqSC: StatCounter = {
+    val r = gqHomRefSC.copy()
+    r.merge(gqHetSC)
+    r.merge(gqHomVarSC)
+    r
+  }
+
   // FIXME per-genotype
 
   def merge(v: Variant, vIsSingleton: Boolean, g: Genotype): SampleQCCombiner = {
-    g.call.map(_.gt) match {
+    g.gt match {
       case Some(0) =>
         nHomRef += 1
-        dpSC.merge(g.dp)
-        dpHomRefSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomRefSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHomRefSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHomRefSC.merge(v)
+        }
       case Some(1) =>
         nHet += 1
-        refDepth += g.ad._1
-        altDepth += g.ad._2
-        if (v.isSNP) {
+        if (v.altAllele.isSNP) {
           nSNP += 1
-          if (v.isTransition)
+          if (v.altAllele.isTransition)
             nTi += 1
           else {
-            assert(v.isTransversion)
+            assert(v.altAllele.isTransversion)
             nTv += 1
           }
-        } else if (v.isInsertion)
+        } else if (v.altAllele.isInsertion)
           nIns += 1
-        else if (v.isDeletion)
+        else if (v.altAllele.isDeletion)
           nDel += 1
         if (vIsSingleton)
           nSingleton += 1
-        dpSC.merge(g.dp)
-        dpHetSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHetSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHetSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHetSC.merge(v)
+        }
       case Some(2) =>
         nHomVar += 1
-        if (v.isSNP) {
+        if (v.altAllele.isSNP) {
           nSNP += 1
-          if (v.isTransition)
+          if (v.altAllele.isTransition)
             nTi += 1
           else {
-            assert(v.isTransversion)
+            assert(v.altAllele.isTransversion)
             nTv += 1
           }
-        } else if (v.isInsertion)
+        } else if (v.altAllele.isInsertion)
           nIns += 1
-        else if (v.isDeletion)
+        else if (v.altAllele.isDeletion)
           nDel += 1
         if (vIsSingleton)
           nSingleton += 1
-        dpSC.merge(g.dp)
-        dpHomVarSC.merge(g.dp)
-        gqSC.merge(g.gq)
-        gqHomVarSC.merge(g.gq)
+        g.dp.foreach { v =>
+          dpHomVarSC.merge(v)
+        }
+        g.gq.foreach { v =>
+          gqHomVarSC.merge(v)
+        }
       case None =>
         nNotCalled += 1
       case _ =>
-        throw new IllegalArgumentException("Genotype value " + g.call.map(_.gt).get + " must be 0, 1, or 2.")
+        throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
 
     this
@@ -128,8 +176,6 @@ class SampleQCCombiner extends Serializable {
     nHomRef += that.nHomRef
     nHet += that.nHet
     nHomVar += that.nHomVar
-    refDepth += that.refDepth
-    altDepth += that.altDepth
 
     nSNP += that.nSNP
     nIns += that.nIns
@@ -138,12 +184,10 @@ class SampleQCCombiner extends Serializable {
     nTi += that.nTi
     nTv += that.nTv
 
-    dpSC.merge(that.dpSC)
     dpHomRefSC.merge(that.dpHomRefSC)
     dpHetSC.merge(that.dpHetSC)
     dpHomVarSC.merge(that.dpHomVarSC)
 
-    gqSC.merge(that.gqSC)
     gqHomRefSC.merge(that.gqHomRefSC)
     gqHetSC.merge(that.gqHetSC)
     gqHomVarSC.merge(that.gqHomVarSC)
@@ -158,8 +202,12 @@ class SampleQCCombiner extends Serializable {
   }
 
   def emit(sb: mutable.StringBuilder) {
-    val nCalled = nHomRef + nHet + nHomVar
 
+    val nCalled = nHomRef + nHet + nHomVar
+    val callRate = divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled)
+
+    sb.tsvAppend(callRate)
+    sb += '\t'
     sb.append(nCalled)
     sb += '\t'
     sb.append(nNotCalled)
@@ -220,12 +268,57 @@ class SampleQCCombiner extends Serializable {
     // rDeletionInsertion
     sb.tsvAppend(divOption(nDel, nIns))
   }
+
+  def asMap: Map[String, Any] = {
+
+    Map[String, Any]("callRate" -> divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
+      "nCalled" -> (nHomRef + nHet + nHomVar),
+      "nNotCalled" -> nNotCalled,
+      "nHomRef" -> nHomRef,
+      "nHet" -> nHet,
+      "nHomVar" -> nHomVar,
+      "nSNP" -> nSNP,
+      "nInsertion" -> nIns,
+      "nDeletion" -> nDel,
+      "nSingleton" -> nSingleton,
+      "nTransition" -> nTi,
+      "nTransversion" -> nTv,
+      "dpMean" -> someIf(dpSC.count > 0, dpSC.mean),
+      "dpStDev" -> someIf(dpSC.count > 0, dpSC.stdev),
+      "dpMeanHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.mean),
+      "dpStDevHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.stdev),
+      "dpMeanHet" -> someIf(dpHetSC.count > 0, dpHetSC.mean),
+      "dpStDevHet" -> someIf(dpHetSC.count > 0, dpHetSC.stdev),
+      "dpMeanHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.mean),
+      "dpStDevHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.stdev),
+      "gqMean" -> someIf(gqSC.count > 0, gqSC.mean),
+      "gqStDev" -> someIf(gqSC.count > 0, gqSC.stdev),
+      "gqMeanHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.mean),
+      "gqStDevHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.stdev),
+      "gqMeanHet" -> someIf(gqHetSC.count > 0, gqHetSC.mean),
+      "gqStDevHet" -> someIf(gqHetSC.count > 0, gqHetSC.stdev),
+      "gqMeanHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.mean),
+      "gqStDevHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.stdev),
+      "nNonRef" -> (nHet + nHomVar),
+      "rTiTv" -> divOption(nTi, nTv),
+      "rHetHomVar" -> divOption(nHet, nHomVar),
+      "rDeletionInsertion" -> divOption(nDel, nIns))
+      .flatMap { case (k, v) => v match {
+        case Some(value) => Some(k, value)
+        case None => None
+        case _ => Some(k, v)
+      }
+      }
+  }
+
 }
 
 object SampleQC extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
+
+    @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
+      usage = "Output file")
     var output: String = _
   }
 
@@ -249,16 +342,16 @@ object SampleQC extends Command {
     val localSamplesBc = vds.sparkContext.broadcast(vds.localSamples)
     vds
       .rdd
-      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Iterable[Genotype])]) =>
-        val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
-        localSamplesBc.value.iterator
-          .zip(it.foldLeft(zeroValue) { case (acc, (v, gs)) =>
-            val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
-            for ((g, i) <- gs.zipWithIndex)
-              acc(i) = acc(i).merge(v, vIsSingleton, g)
-            acc
-          }.iterator)
-      }.foldByKey(new SampleQCCombiner)((comb1, comb2) => comb1.merge(comb2))
+      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Annotations, Iterable[Genotype])]) =>
+      val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
+      localSamplesBc.value.iterator
+        .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
+          val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
+          for ((g, i) <- gs.iterator.zipWithIndex)
+            acc(i) = acc(i).merge(v, vIsSingleton, g)
+          acc
+        }.iterator)
+    }.foldByKey(new SampleQCCombiner)((comb1, comb2) => comb1.merge(comb2))
   }
 
   def run(state: State, options: Options): State = {
@@ -266,24 +359,31 @@ object SampleQC extends Command {
 
     val output = options.output
 
-    writeTextFile(output + ".header", state.hadoopConf) { s =>
-      s.write("sampleID\t")
-      s.write(SampleQCCombiner.header)
-      s.write("\n")
-    }
-
     val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
 
-    hadoopDelete(output, state.hadoopConf, true)
     val r = results(vds)
-      .map { case (s, comb) =>
+
+    if (output != null) {
+      hadoopDelete(output, state.hadoopConf, recursive = true)
+      r.map { case (s, comb) =>
         val sb = new StringBuilder()
         sb.append(sampleIdsBc.value(s))
         sb += '\t'
         comb.emit(sb)
         sb.result()
-      }.saveAsTextFile(output)
+      }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
+    }
+    val rMap = r
+      .mapValues(_.asMap)
+      .collectAsMap()
+    val qcAnnotations = (0 until vds.nSamples)
+      .map((s) => Annotations(Map("qc" -> rMap.get(s).getOrElse(s, Map.empty))))
 
-    state
+    state.copy(
+      vds = vds.copy(
+        metadata = vds.metadata.addSampleAnnotations(
+          Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
+          qcAnnotations)
+      ))
   }
 }

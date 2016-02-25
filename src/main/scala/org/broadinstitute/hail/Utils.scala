@@ -4,133 +4,185 @@ import java.io._
 import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
+import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.io.IOUtils._
+import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
+import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import org.scalacheck.Gen
-import org.scalacheck.Arbitrary._
-import scala.collection.mutable
+import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
+import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.io.compress.BGzipCodec
+import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.variant.Variant
+import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
-import org.broadinstitute.hail.Utils._
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
+import org.slf4j.{Logger, LoggerFactory}
 
-// FIXME AnyVal in Scala 2.11
-class RichVector[T](v: Vector[T]) {
-  def zipExact[T2](v2: Iterable[T2]): Vector[(T, T2)] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    new Iterator[(T, T2)] {
-      def hasNext: Boolean = {
-        assert(i.hasNext == i2.hasNext)
-        i.hasNext
+import Utils._
+
+final class ByteIterator(val a: Array[Byte]) {
+  var i: Int = 0
+
+  def hasNext: Boolean = i < a.length
+
+  def next(): Byte = {
+    val r = a(i)
+    i += 1
+    r
+  }
+
+  def readULEB128(): Int = {
+    var b: Byte = next()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+
+    x
+  }
+
+  def readSLEB128(): Int = {
+    var b: Byte = next()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+
+    // sign extend
+    if (shift < 32
+      && (b & 0x40) != 0)
+      x = (x << (32 - shift)) >> (32 - shift)
+
+    x
+  }
+}
+
+class RichIterable[T](val i: Iterable[T]) extends Serializable {
+  def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
+    def iterator: Iterator[S] = new Iterator[S] {
+      val it: Iterator[T] = i.iterator
+
+      def hasNext: Boolean = it.hasNext
+
+      def next(): S = f(it.next())
+    }
+  }
+
+  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
+    var first = true
+    i.foreach { elem =>
+      if (first)
+        first = false
+      else
+        g()
+      f(elem)
+    }
+  }
+
+  def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
+
+        def hasNext: Boolean = it.hasNext && it2.hasNext
+
+        def next(): S = f(it.next(), it2.next())
       }
+    }
 
-      def next() = (i.next(), i2.next())
-    }.toVector
-  }
+  def lazyFilterWith[T2](i2: Iterable[T2], p: (T, T2) => Boolean): Iterable[T] =
+    new Iterable[T] with Serializable {
+      def iterator: Iterator[T] = new Iterator[T] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
 
-  def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V): Vector[V] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    new Iterator[V]() {
-      def hasNext = i.hasNext && i2.hasNext
+        var pending: Boolean = false
+        var pendingNext: T = _
 
-      def next() = f(i.next(), i2.next())
-    }.toVector
-  }
+        def hasNext: Boolean = {
+          while (!pending && it.hasNext && it2.hasNext) {
+            val n = it.next()
+            val n2 = it2.next()
+            if (p(n, n2)) {
+              pending = true
+              pendingNext = n
+            }
+          }
+          pending
+        }
 
-  def zipWithExact[T2, V](v2: Iterable[T2], f: (T, T2) => V): Vector[V] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    new Iterator[V] {
-      def hasNext: Boolean = {
-        assert(i.hasNext == i2.hasNext)
-        i.hasNext
+        def next(): T = {
+          assert(pending)
+          pending = false
+          pendingNext
+        }
       }
+    }
 
-      def next() = f(i.next(), i2.next())
-    }.toVector
-  }
+  def lazyFlatMap[S](f: (T) => TraversableOnce[S]): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        var current: Iterator[S] = Iterator.empty
 
-  def zipWithAndIndex[T2, V](v2: Iterable[T2], f: (T, T2, Int) => V): Vector[V] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    val i3 = Iterator.from(0)
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext
+        def hasNext: Boolean =
+          if (current.hasNext)
+            true
+          else {
+            if (it.hasNext) {
+              current = f(it.next()).toIterator
+              hasNext
+            } else
+              false
+          }
 
-      def next() = f(i.next(), i2.next(), i3.next())
-    }.toVector
-  }
+        def next(): S = current.next()
+      }
+    }
 
-  def zipWith[T2, T3, V](v2: Iterable[T2], v3: Iterable[T3], f: (T, T2, T3) => V): Vector[V] = {
-    val i = v.iterator
-    val i2 = v2.iterator
-    val i3 = v3.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext && i3.hasNext
+  def lazyFlatMapWith[S, T2](i2: Iterable[T2], f: (T, T2) => TraversableOnce[S]): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
+        var current: Iterator[S] = Iterator.empty
 
-      def next() = f(i.next(), i2.next(), i3.next())
-    }.toVector
-  }
-}
+        def hasNext: Boolean =
+          if (current.hasNext)
+            true
+          else {
+            if (it.hasNext && it2.hasNext) {
+              current = f(it.next(), it2.next()).toIterator
+              hasNext
+            } else
+              false
+          }
 
-class RichHomogenousTuple1[T](val t: Tuple1[T]) extends AnyVal {
-  def at(i: Int) = i match {
-    case 1 => t._1
-  }
+        def next(): S = current.next()
+      }
+    }
 
-  def insert(i: Int, x: T): (T, T) = i match {
-    case 0 => (x, t._1)
-    case 1 => (t._1, x)
-  }
-
-  def remove(i: Int) {
-    require(i == 0)
-  }
-}
-
-class RichHomogenousTuple2[T](val t: (T, T)) extends AnyVal {
-  def at(i: Int): T = i match {
-    case 1 => t._1
-    case 2 => t._2
-  }
-
-
-  def insert(i: Int, x: T): (T, T, T) = i match {
-    case 0 => (x, t._1, t._2)
-    case 1 => (t._1, x, t._2)
-    case 2 => (t._1, t._2, x)
-  }
-
-  def remove(i: Int): Tuple1[T] = i match {
-    case 1 => Tuple1(t._2)
-    case 2 => Tuple1(t._1)
-  }
-}
-
-class RichHomogenousTuple3[T](val t: (T, T, T)) extends AnyVal {
-  def at(i: Int): T = i match {
-    case 1 => t._1
-    case 2 => t._2
-    case 3 => t._3
-  }
-
-  def insert(i: Int, x: T): (T, T, T, T) = i match {
-    case 0 => (x, t._1, t._2, t._3)
-    case 1 => (t._1, x, t._2, t._3)
-    case 2 => (t._1, t._2, x, t._3)
-    case 3 => (t._1, t._2, t._3, x)
-  }
-
-  def remove(i: Int): (T, T) = i match {
-    case 1 => (t._2, t._3)
-    case 2 => (t._1, t._3)
-    case 3 => (t._1, t._2)
+  def areDistinct(): Boolean = {
+    val seen = mutable.HashSet[T]()
+    for (x <- i)
+      if (seen(x))
+        return false
+      else
+        seen += x
+    true
   }
 }
 
@@ -153,9 +205,29 @@ class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
       b += c.toByte
     }
   }
+
+  def writeSLEB128(x0: Int) {
+    var more = true
+    var x = x0
+    while (more) {
+      var c = x & 0x7f
+      x >>= 7
+
+      if ((x == 0
+        && (c & 0x40) == 0)
+        || (x == -1
+        && (c & 0x40) == 0x40))
+        more = false
+      else
+        c |= 0x80
+
+      b += c.toByte
+    }
+  }
 }
 
 class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
+  /*
   def readULEB128(): Int = {
     var x: Int = 0
     var shift: Int = 0
@@ -168,50 +240,116 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 
     x
   }
+
+  def readSLEB128(): Int = {
+    var shift: Int = 0
+    var x: Int = 0
+    var b: Byte = 0
+    do {
+      b = i.next()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    } while ((b & 0x80) != 0)
+
+    // sign extend
+    if (shift < 32
+      && (b & 0x40) != 0)
+      x = (x << (32 - shift)) >> (32 - shift)
+
+    x
+  }
+  */
 }
 
 // FIXME AnyVal in Scala 2.11
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
-  def foreach2[T2](v2: Iterable[T2], f: (T, T2) => Unit) {
-    val i = a.iterator
-    val i2 = v2.iterator
-    while (i.hasNext && i2.hasNext)
-      f(i.next(), i2.next())
-  }
-
-  // FIXME unify with Vector zipWith above
-  def zipWith[T2, V](v2: Iterable[T2], f: (T, T2) => V)(implicit vct: ClassTag[V]): Array[V] = {
-    val i = a.iterator
-    val i2 = v2.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext
-
-      def next() = f(i.next(), i2.next())
-    }.toArray
-  }
-
-  def zipWith[T2, T3, V](v2: Iterable[T2], v3: Iterable[T3], f: (T, T2, T3) => V)(implicit vct: ClassTag[V]): Array[V] = {
-    val i = a.iterator
-    val i2 = v2.iterator
-    val i3 = v3.iterator
-    new Iterator[V] {
-      def hasNext = i.hasNext && i2.hasNext && i3.hasNext
-
-      def next() = f(i.next(), i2.next(), i3.next())
-    }.toArray
-  }
+  def areDistinct() = a.toIterable.areDistinct()
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
-  def writeTable(filename: String, header: String = null) {
-    if (header != null)
-      writeTextFile(filename + ".header", r.sparkContext.hadoopConfiguration) {_.write(header)}
-    hadoopDelete(filename, r.sparkContext.hadoopConfiguration, true)
-    r.saveAsTextFile(filename)
+  def writeTable(filename: String, header: Option[String] = None, deleteTmpFiles: Boolean = true) {
+    val hConf = r.sparkContext.hadoopConfiguration
+    val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
+    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
+
+    header.foreach { str =>
+      writeTextFile(tmpFileName + ".header" + headerExt, r.sparkContext.hadoopConfiguration) { s =>
+        s.write(str)
+        s.write("\n")
+      }
+    }
+
+    codec match {
+      case Some(x) => r.saveAsTextFile(tmpFileName, x.getClass)
+      case None => r.saveAsTextFile(tmpFileName)
+    }
+
+    val filesToMerge = header match {
+      case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName + "/part-*")
+      case None => Array(tmpFileName + "/part-*")
+    }
+
+    hadoopDelete(filename, hConf, recursive = true) // overwriting by default
+
+    val (_, dt) = time {
+      hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+    }
+    info(s"while writing:\n    $filename\n  merge time: ${formatTime(dt)}")
+
+    if (deleteTmpFiles) {
+      hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = false)
+      hadoopDelete(tmpFileName, hConf, recursive = true)
+    }
+  }
+}
+
+class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
+  def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
+    val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
+    val bytesClassTag = implicitly[ClassTag[BytesOnlyWritable]]
+    val hConf = r.sparkContext.hadoopConfiguration
+
+    val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
+
+    header.foreach { str =>
+      writeDataFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
+        s.write(str)
+      }
+    }
+
+    val filesToMerge = header match {
+      case Some(_) => Array(tmpFileName + ".header", tmpFileName + "/part-*")
+      case None => Array(tmpFileName + "/part-*")
+    }
+
+    val rMapped = r.mapPartitions { iter =>
+      val bw = new BytesOnlyWritable()
+      iter.map { bb =>
+        bw.set(new BytesWritable(bb))
+        (NullWritable.get(), bw)
+      }
+    }
+
+    RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
+      .saveAsHadoopFile[ByteArrayOutputFormat](tmpFileName)
+
+    hadoopDelete(filename, hConf, recursive = true) // overwriting by default
+
+    val (_, dt) = time {
+      hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
+    }
+    println("merge time: " + formatTime(dt))
+
+    if (deleteTmpFiles) {
+      hadoopDelete(tmpFileName + ".header", hConf, recursive = false)
+      hadoopDelete(tmpFileName, hConf, recursive = true)
+    }
   }
 }
 
@@ -220,11 +358,19 @@ class RichIndexedRow(val r: IndexedRow) extends AnyVal {
   def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
+
+  def :/(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :/ that)
 }
 
 class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {
   def withNameOption(name: String): Option[T#Value] =
     e.values.find(_.toString == name)
+}
+
+class RichMutableMap[K, V](val m: mutable.Map[K, V]) extends AnyVal {
+  def updateValue(k: K, default: V, f: (V) => V) {
+    m += ((k, f(m.getOrElse(k, default))))
+  }
 }
 
 class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
@@ -238,11 +384,62 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
-  def tsvAppend[T](v: Option[T]) {
-    v match {
-      case Some(x) => sb.append(x)
-      case None => sb.append("NA")
+  def tsvAppend(a: Any) {
+    a match {
+      case null | None => sb.append("NA")
+      case Some(x) => tsvAppend(x)
+      case d: Double => sb.append(d.formatted("%.4e"))
+      case v: Variant =>
+        sb.append(v.contig)
+        sb += ':'
+        sb.append(v.start)
+        sb += ':'
+        sb.append(v.ref)
+        sb += ':'
+        sb.append(v.alt)
+      case i: Iterable[_] =>
+        var first = true
+        i.foreach { x =>
+          if (first)
+            first = false
+          else
+            sb += ','
+          tsvAppend(x)
+        }
+      case arr: Array[_] =>
+        var first = true
+        arr.foreach { x =>
+          if (first)
+            first = false
+          else
+            sb += ','
+          tsvAppend(x)
+        }
+      case _ => sb.append(a)
     }
+  }
+}
+
+class RichIntPairTraversableOnce[V](val t: TraversableOnce[(Int, V)]) extends AnyVal {
+  def reduceByKeyToArray(n: Int, zero: => V)(f: (V, V) => V)(implicit vct: ClassTag[V]): Array[V] = {
+    val a = Array.fill[V](n)(zero)
+    t.foreach { case (k, v) =>
+      a(k) = f(a(k), v)
+    }
+    a
+  }
+}
+
+class RichPairTraversableOnce[K, V](val t: TraversableOnce[(K, V)]) extends AnyVal {
+  def reduceByKey(f: (V, V) => V): scala.collection.Map[K, V] = {
+    val m = mutable.Map.empty[K, V]
+    t.foreach { case (k, v) =>
+      m.get(k) match {
+        case Some(v2) => m += k -> f(v, v2)
+        case None => m += k -> v
+      }
+    }
+    m
   }
 }
 
@@ -259,17 +456,36 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   }
 }
 
-object Utils {
+class RichBoolean(val b: Boolean) extends AnyVal {
+  def ==>(that: => Boolean): Boolean = !b || that
 
+  def iff(that: Boolean): Boolean = b == that
+}
+
+trait Logging {
+  @transient var log_ : Logger = null
+
+  def log: Logger = {
+    if (log_ == null)
+      log_ = LoggerFactory.getLogger("Hail")
+    log_
+  }
+}
+
+class FatalException(msg: String) extends RuntimeException(msg)
+
+class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
+
+object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
+
+  implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
-  implicit def toRichVector[T](v: Vector[T]): RichVector[T] = new RichVector(v)
-
-  implicit def toRichTuple2[T](t: (T, T)): RichHomogenousTuple2[T] = new RichHomogenousTuple2(t)
-
-  implicit def toRichTuple3[T](t: (T, T, T)): RichHomogenousTuple3[T] = new RichHomogenousTuple3(t)
+  implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
+  
+  implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
     new RichArrayBuilderOfByte(t)
@@ -332,24 +548,60 @@ object Utils {
   implicit def toRichOption[T](o: Option[T]): RichOption[T] =
     new RichOption[T](o)
 
-  def warning(msg: String) {
+
+  implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]): RichPairTraversableOnce[K, V] =
+    new RichPairTraversableOnce[K, V](t)
+
+  implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
+    new RichIntPairTraversableOnce[V](t)
+
+  def plural(n: Int, sing: String, plur: String = null): String =
+    if (n == 1)
+      sing
+    else if (plur == null)
+      sing + "s"
+    else
+      plur
+
+  def info(msg: String) {
+    log.info(msg)
+    System.err.println("hail: info: " + msg)
+  }
+
+  def warn(msg: String) {
+    log.warn(msg)
     System.err.println("hail: warning: " + msg)
   }
 
+  def error(msg: String) {
+    log.error(msg)
+    System.err.println("hail: error: " + msg)
+  }
+
   def fatal(msg: String): Nothing = {
-    System.err.println("hail: fatal: " + msg)
+    throw new FatalException(msg)
+  }
+
+  def fail(): Nothing = {
+    assert(false)
     sys.exit(1)
   }
 
-  def fail() {
-    assert(false)
-  }
-
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
-    hadoop.fs.FileSystem.get(new URI(filename), hConf)
+    new hadoop.fs.Path(filename).getFileSystem(hConf)
 
-  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FSDataOutputStream =
-    hadoopFS(filename, hConf).create(new hadoop.fs.Path(filename))
+  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    val os = fs.create(hPath)
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = codecFactory.getCodec(hPath)
+
+    if (codec != null)
+      codec.createOutputStream(os)
+    else
+      os
+  }
 
   def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
     val fs = hadoopFS(filename, hConf)
@@ -369,6 +621,82 @@ object Utils {
 
   def hadoopDelete(filename: String, hConf: hadoop.conf.Configuration, recursive: Boolean) {
     hadoopFS(filename, hConf).delete(new hadoop.fs.Path(filename), recursive)
+  }
+
+  def hadoopGetTemporaryFile(tmpdir: String, hConf: hadoop.conf.Configuration, nChar: Int = 10,
+    prefix: Option[String] = None, suffix: Option[String] = None): String = {
+
+    val destFS = hadoopFS(tmpdir, hConf)
+    val prefixString = if (prefix.isDefined) prefix + "-" else ""
+    val suffixString = if (suffix.isDefined) "." + suffix else ""
+
+    def getRandomName: String = {
+      val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
+      val fileExists = destFS.exists(new hadoop.fs.Path(randomName))
+
+      if (!fileExists)
+        randomName
+      else
+        getRandomName
+    }
+    getRandomName
+  }
+
+  def hadoopGlobAndSort(filename: String, hConf: hadoop.conf.Configuration): Array[FileStatus] = {
+    val fs = hadoopFS(filename, hConf)
+    val path = new hadoop.fs.Path(filename)
+
+    val files = fs.globStatus(path)
+    if (files == null)
+      return Array.empty[FileStatus]
+
+    files.sortWith(_.compareTo(_) < 0)
+  }
+
+  def hadoopCopyMerge(srcFilenames: Array[String], destFilename: String, hConf: hadoop.conf.Configuration, deleteSource: Boolean = true) {
+
+    val destPath = new hadoop.fs.Path(destFilename)
+    val destFS = hadoopFS(destFilename, hConf)
+
+    val codecFactory = new CompressionCodecFactory(hConf)
+    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
+    val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
+
+    val srcFileStatuses = srcFilenames.flatMap(f => hadoopGlobAndSort(f, hConf))
+    require(srcFileStatuses.forall {
+      fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
+    })
+
+    val outputStream = destFS.create(destPath)
+
+    try {
+      var i = 0
+      while (i < srcFileStatuses.length) {
+        val fileStatus = srcFileStatuses(i)
+        val lenAdjust: Long = if (isBGzip && i < srcFileStatuses.length - 1)
+          -28
+        else
+          0
+        val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
+        val inputStream = srcFS.open(fileStatus.getPath)
+        try {
+          copyBytes(inputStream, outputStream,
+            fileStatus.getLen + lenAdjust,
+            false)
+        } finally {
+          inputStream.close()
+        }
+        i += 1
+      }
+    } finally {
+      outputStream.close()
+    }
+
+    if (deleteSource) {
+      srcFileStatuses.foreach {
+        case fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, true)
+      }
+    }
   }
 
   def writeObjectFile[T](filename: String,
@@ -391,6 +719,16 @@ object Utils {
     }
   }
 
+  def readDataFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(f: (DataInputStream) => T): T = {
+    val dis = new DataInputStream(hadoopOpen(filename, hConf))
+    try {
+      f(dis)
+    } finally {
+      dis.close()
+    }
+  }
+
   def writeTextFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
@@ -399,6 +737,17 @@ object Utils {
       writer(fw)
     } finally {
       fw.close()
+    }
+  }
+
+  def writeDataFile[T](filename: String,
+    hConf: hadoop.conf.Configuration)(writer: (DataOutputStream) => T): T = {
+    val oos = hadoopCreate(filename, hConf)
+    val dos = new DataOutputStream(oos)
+    try {
+      writer(dos)
+    } finally {
+      dos.close()
     }
   }
 
@@ -413,11 +762,17 @@ object Utils {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-    lines: Traversable[String], header: String = null) {
+    lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        if (header != null) fw.write(header)
-        lines.foreach(fw.write)
+        header.map { h =>
+          fw.write(h)
+          fw.write('\n')
+        }
+        lines.foreach { line =>
+          fw.write(line)
+          fw.write('\n')
+        }
     }
   }
 
@@ -427,7 +782,6 @@ object Utils {
     if (!p) throw new AssertionError
   }
 
-  // FIXME Would be nice to have a version that averages three runs, perhaps even discarding an initial run. In this case the code block had better be functional!
   def printTime[T](block: => T) = {
     val timed = time(block)
     println("time: " + formatTime(timed._2))
@@ -464,9 +818,35 @@ object Utils {
     }
   }
 
-  def toTSVString(a: Any): String = a match {
-    case o: Option[Any] => o.map(toTSVString).getOrElse("NA")
-    case _ => a.toString
+  def space[A](f: => A): (A, Long) = {
+    val rt = Runtime.getRuntime
+    System.gc()
+    System.gc()
+    val before = rt.totalMemory() - rt.freeMemory()
+    val r = f
+    System.gc()
+    val after = rt.totalMemory() - rt.freeMemory()
+    (r, after - before)
+  }
+
+  def printSpace[A](f: => A): A = {
+    val (r, ds) = space(f)
+    println("space: " + formatSpace(ds))
+    r
+  }
+
+  def formatSpace(ds: Long) = {
+    val absds = ds.abs
+    if (absds < 1e3)
+      s"${ds}B"
+    else if (absds < 1e6)
+      s"${ds.toDouble / 1e3}KB"
+    else if (absds < 1e9)
+      s"${ds.toDouble / 1e6}MB"
+    else if (absds < 1e12)
+      s"${ds.toDouble / 1e9}GB"
+    else
+      s"${ds.toDouble / 1e12}TB"
   }
 
   def someIf[T](p: Boolean, x: => T): Option[T] =
@@ -505,24 +885,27 @@ object Utils {
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 
-
-  def eval[T](t: String): T = {
-    val toolbox = currentMirror.mkToolBox()
-    val ast = toolbox.parse(t)
-    toolbox.typeCheck(ast)
-    toolbox.eval(ast).asInstanceOf[T]
-  }
-
-  def genOption[T](g: Gen[T], someFrequency: Int = 4): Gen[Option[T]] =
-    Gen.frequency((1, Gen.const(None)),
-      (someFrequency, g.map(Some(_))))
-
-  def genNonnegInt: Gen[Int] = arbitrary[Int].map(_ & Int.MaxValue)
-
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
-  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase).filter(s => !s.isEmpty)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
+  implicit def richBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
+
+  implicit def accumulableMapInt[K]: AccumulableParam[mutable.Map[K, Int], K] = new AccumulableParam[mutable.Map[K, Int], K] {
+    def addAccumulator(r: mutable.Map[K, Int], t: K): mutable.Map[K, Int] = {
+      r.updateValue(t, 0, _ + 1)
+      r
+    }
+
+    def addInPlace(r1: mutable.Map[K, Int], r2: mutable.Map[K, Int]): mutable.Map[K, Int] = {
+      for ((k, v) <- r2)
+        r1.updateValue(k, 0, _ + v)
+      r1
+    }
+
+    def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
+      mutable.Map.empty[K, Int]
+  }
 }

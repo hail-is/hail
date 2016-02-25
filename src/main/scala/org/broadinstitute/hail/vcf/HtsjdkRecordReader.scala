@@ -1,10 +1,11 @@
 package org.broadinstitute.hail.vcf
 
-import htsjdk.variant.variantcontext.Allele
+import org.apache.spark.Accumulable
+import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
-
+import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConverters._
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -13,109 +14,162 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 
   override def next(): String = bit.next()
 
-  override def remove() { throw new UnsupportedOperationException }
+  override def remove() {
+    throw new UnsupportedOperationException
+  }
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
-  def readRecord(line: String): Iterator[(Variant, Iterator[Genotype])] = {
-
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+    line: String,
+    typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
     val vc = codec.decode(line)
-    if (vc.isBiallelic) {
-      val variant = Variant(vc.getContig, vc.getStart, vc.getReference.getBaseString,
-        vc.getAlternateAllele(0).getBaseString)
-      Iterator.single((variant,
-        for (g <- vc.getGenotypes.iterator.asScala) yield {
 
-          val gt = if (g.isNoCall)
-            -1
-          else if (g.isHomRef)
-            0
-          else if (g.isHet)
-            1
-          else {
-            assert(g.isHomVar)
-            2
+    val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
+    val filts = {
+      if (vc.filtersWereApplied && vc.isNotFiltered)
+        Set("PASS")
+      else
+        vc.getFilters.asScala.toSet
+    }
+    val rsid = vc.getID
+
+    val ref = vc.getReference.getBaseString
+    val v = Variant(vc.getContig,
+      vc.getStart,
+      ref,
+      vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
+
+    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
+      .asScala
+      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
+      .toMap
+      .flatMap { case (k, v) =>
+        typeMap.get(k).map { t =>
+          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
+        }
+      }),
+      "qual" -> vc.getPhredScaledQual,
+      "filters" -> filts,
+      "pass" -> pass,
+      "rsid" -> rsid))
+
+    val gb = new GenotypeBuilder(v)
+
+    // FIXME compress
+    val noCall = Genotype()
+    val gsb = new GenotypeStreamBuilder(v, true)
+    vc.getGenotypes.iterator.asScala.foreach { g =>
+
+      val alleles = g.getAlleles.asScala
+      assert(alleles.length == 2)
+      val a0 = alleles(0)
+      val a1 = alleles(1)
+
+      assert(a0.isCalled || a0.isNoCall)
+      assert(a1.isCalled || a1.isNoCall)
+      assert(a0.isCalled == a1.isCalled)
+
+      var filter = false
+      gb.clear()
+
+      var pl = g.getPL
+      if (g.hasPL) {
+        val minPL = pl.min
+        if (minPL != 0) {
+          pl = pl.clone()
+          var i = 0
+          while (i < pl.length) {
+            pl(i) -= minPL
+            i += 1
           }
-
-          val ad = if (g.hasAD) {
-            val gad = g.getAD
-            (gad(0), gad(1))
-          } else
-            (0, 0)
-
-          val dp = if (g.hasDP)
-            g.getDP
-          else
-            0
-
-          val pl = if (g.isCalled) {
-            if (g.hasPL) {
-              val gpl = g.getPL
-              (gpl(0), gpl(1), gpl(2))
-            } else
-              (0, 0, 0)
-          } else
-            null
-
-          Genotype(gt, ad, dp, pl)
-        }))
-    } else {
-
-//      build one biallelic variant and set of genotypes for each alternate allele (except spanning deletions)
-      val ref = vc.getReference
-      val alts = vc.getAlternateAlleles.asScala.filter(_ != Allele.SPAN_DEL)
-//      index in the VCF, used to access AD and PL fields:
-      val altIndices = alts.map(vc.getAlleleIndex)
-//      FIXME: need to normalize strings
-      val biVs = alts.map{ alt => Variant(vc.getContig, vc.getStart, ref.getBaseString, alt.getBaseString, wasSplit = true) }
-      val n = vc.getNAlleles
-      val biGBs = Array.fill(n - 1){ new ArrayBuffer[Genotype] }
-
-      for (g <- vc.getGenotypes.iterator.asScala) {
-
-        val gadSum = if (g.hasAD) g.getAD.sum else 0
-        val dp = if (g.hasDP) g.getDP else 0
-
-        for (((alt, j), i) <- alts.zip(altIndices).zipWithIndex) {
-
-          val gt = if (g.isCalled)
-//            downcode other alts to ref, preserving the count of this alt:
-            g.getAlleles.asScala.count(_ == alt)
-          else
-            -1
-
-          val ad = if (g.hasAD) {
-            val gad = g.getAD
-//            consistent with downcoding other alts to the ref:
-            (gadSum - gad(j), gad(j))
-//            what bcftools does:
-//            (gad(0), gad(j))
-          } else
-            (0, 0)
-
-          val pl = if (g.isCalled) {
-            if (g.hasPL) {
-//              for each downcoded genotype, minimum PL among original genotypes that downcode to it:
-              def pl(gt: Int) = (for (k <- 0 until n; l <- k until n; if List(k, l).count(_ == j) == gt)
-                yield l * (l + 1) / 2 + k).map(g.getPL.apply).min
-              (pl(0), pl(1), pl(2))
-//            what bcftools does; ignores all het-non-ref PLs
-//            val gpl = g.getPL
-//            (gpl(0), gpl(j * (j + 1) / 2), gpl(j * (j + 1) / 2 + j))
-            } else
-              (0,0,0)
-          } else
-            null
-
-
-          val fakeRef: Boolean =
-            g.isCalled && g.getAlleles.asScala.count(_ == ref) != 2 - gt
-
-          biGBs(i) += Genotype(gt, ad, dp, pl, fakeRef)
         }
       }
-      biVs.iterator.zip(biGBs.iterator.map(_.iterator))
+
+      var gt = -1 // notCalled
+
+      if (a0.isCalled) {
+        val i = vc.getAlleleIndex(a0)
+        val j = vc.getAlleleIndex(a1)
+
+        gt = if (i <= j)
+          Genotype.gtIndex(i, j)
+        else
+          Genotype.gtIndex(j, i)
+
+        if (g.hasPL && pl(gt) != 0) {
+          reportAcc += VCFReport.GTPLMismatch
+          filter = true
+        }
+
+        if (gt != -1)
+          gb.setGT(gt)
+      }
+
+      val ad = g.getAD
+      if (g.hasAD)
+        gb.setAD(ad)
+
+      if (g.hasDP) {
+        var dp = g.getDP
+        if (g.hasAD) {
+          val adsum = ad.sum
+          if (!filter && dp < adsum) {
+            reportAcc += VCFReport.ADDPMismatch
+            filter = true
+          }
+        }
+
+        gb.setDP(dp)
+      }
+
+      if (pl != null)
+        gb.setPL(pl)
+
+      if (g.hasGQ) {
+        val gq = g.getGQ
+        gb.setGQ(gq)
+
+        if (!storeGQ) {
+          if (pl != null) {
+            val gqFromPL = Genotype.gqFromPL(pl)
+
+            if (!filter && gq != gqFromPL) {
+              reportAcc += VCFReport.GQPLMismatch
+              filter = true
+            }
+          } else if (!filter) {
+            reportAcc += VCFReport.GQMissingPL
+            filter = true
+          }
+        }
+      }
+
+      val odObj = g.getExtendedAttribute("OD")
+      if (odObj != null) {
+        val od = odObj.asInstanceOf[String].toInt
+
+        if (g.hasAD) {
+          val adsum = ad.sum
+          if (!g.hasDP)
+            gb.setDP(adsum + od)
+          else if (!filter && adsum + od != g.getDP) {
+            reportAcc += VCFReport.ADODDPPMismatch
+            filter = true
+          }
+        } else if (!filter) {
+          reportAcc += VCFReport.ODMissingAD
+          filter = true
+        }
+      }
+
+      if (filter)
+        gsb += noCall
+      else
+        gsb.write(gb)
     }
+
+    (v, va, gsb.result())
   }
 }
 
@@ -124,5 +178,32 @@ object HtsjdkRecordReader {
     val codec = new htsjdk.variant.vcf.VCFCodec()
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)
+  }
+
+  def purgeJavaArrayLists(ar: AnyRef): Any = {
+    ar match {
+      case arr: java.util.ArrayList[_] => arr.asScala
+      case _ => ar
+    }
+  }
+
+  def mapType(value: Any, sig: VCFSignature): Any = {
+    value match {
+      case str: String =>
+        sig.typeOf match {
+          case "Int" => str.toInt
+          case "Double" => str.toDouble
+          case "Array[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
+          case "Array[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
+          case _ => value
+        }
+      case i: IndexedSeq[_] =>
+        sig.number match {
+          case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
+          case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)
+
+        }
+      case _ => value
+    }
   }
 }

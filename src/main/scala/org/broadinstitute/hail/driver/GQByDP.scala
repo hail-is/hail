@@ -48,7 +48,7 @@ object GQByDP extends Command {
     }
 
     if (options.plot) {
-      "Rscript " + state.installDir + "/scripts/Plot_gq20bydp.R " + options.output !
+      "Rscript " + HailConfiguration.installDir + "/scripts/Plot_gq20bydp.R " + options.output !
     }
 
     state

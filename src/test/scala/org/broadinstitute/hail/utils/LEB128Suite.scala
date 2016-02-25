@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.utils
 
-import org.scalacheck.Properties
-import org.scalacheck.Prop._
+import org.broadinstitute.hail.ByteIterator
+import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -12,23 +13,41 @@ import org.broadinstitute.hail.Utils._
 object LEB128Suite {
   val b = new mutable.ArrayBuilder.ofByte
 
-  def readWriteEqual(i: Int): Boolean = {
+  def ulebReadWriteEqual(i: Int): Boolean = {
     b.clear()
     b.writeULEB128(i)
-    i == b.result().iterator.readULEB128()
+    i == new ByteIterator(b.result()).readULEB128()
+  }
+
+  def slebReadWriteEqual(i: Int): Boolean = {
+    b.clear()
+    b.writeSLEB128(i)
+    i == new ByteIterator(b.result()).readSLEB128()
   }
 
   object Spec extends Properties("LEB128") {
     property("readWrite") = forAll { n: Int =>
-      (n >= 0) ==> readWriteEqual(n) }
+      (n >= 0) ==> ulebReadWriteEqual(n)
+    }
+
+    property("readWrite") = forAll { n: Int =>
+      slebReadWriteEqual(n)
+    }
   }
+
 }
 
 class LEB128Suite extends TestNGSuite {
+
   import LEB128Suite._
 
   def testReadWrite(i: Int) {
-    assert(readWriteEqual(i))
+    assert(ulebReadWriteEqual(i))
+    assert(slebReadWriteEqual(i))
+  }
+
+  def testSLEBReadWrite(i: Int) {
+    assert(slebReadWriteEqual(i))
   }
 
   @Test def test() {
@@ -38,6 +57,11 @@ class LEB128Suite extends TestNGSuite {
     testReadWrite(0xe5)
     (0 until 31).foreach(i =>
       testReadWrite(0x7eadbeef >>> i))
+
+    testSLEBReadWrite(-1)
+    testSLEBReadWrite(-129)
+    (0 until 31).foreach(i =>
+      testSLEBReadWrite(0xdeadbeef >>> i))
 
     Spec.check
   }

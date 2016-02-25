@@ -33,9 +33,9 @@ object GQByDPBins {
   def apply(vds: VariantDataset): Map[(Int, Int), Double] = {
     vds
     .flatMapWithKeys((v, s, g) => {
-      val bin = dpBin(g.dp)
+      val bin = g.dp.flatMap(dpBin)
       if (bin.isDefined && g.isCalled)
-        Some(((s, bin.get), (if (g.gq >= gqThreshold) 1 else 0, 1)))
+        Some(((s, bin.get), (if (g.gq.exists(_ >= gqThreshold)) 1 else 0, 1)))
       else
         None
     })

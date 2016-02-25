@@ -20,7 +20,7 @@ object PCA extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val samplePCs = new SamplePCA(options.k)(vds)
+    val samplePCs = (new SamplePCA(options.k))(vds)
 
     writeTextFile(options.output, state.hadoopConf) { s =>
       s.write("sample")

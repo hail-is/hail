@@ -1,8 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.io.Source
@@ -33,8 +35,9 @@ object FilterSamples extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val indexOfSample: Map[String, Int] = state.vds.sampleIds.zipWithIndex.toMap
+    val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
 
+    val keep = options.keep
     val p = options.condition match {
       case f if f.endsWith(".sample_list") =>
         val samples = Source.fromInputStream(hadoopOpen(f, state.hadoopConf))
@@ -42,29 +45,21 @@ object FilterSamples extends Command {
           .filter(line => !line.isEmpty)
           .map(indexOfSample)
           .toSet
-        samples.contains(_)
+        (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
-        try {
-          val cf = new FilterSampleCondition(c)
-          cf.typeCheck()
-
-          val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-          (s: Int) => cf(Sample(sampleIdsBc.value(s)))
-        } catch {
-          case e: scala.tools.reflect.ToolBoxError =>
-            /* e.message looks like:
-               reflective compilation has failed:
-
-               ';' expected but '.' found. */
-            fatal("parse error in condition: " + e.message.split("\n").last)
+        val symTab = Map(
+          "s" -> (0, expr.TSample),
+          "sa" -> (1, vds.metadata.sampleAnnotationSignatures.toExprType))
+        val a = new Array[Any](2)
+        val f: () => Any = expr.Parser.parse(symTab, a, c)
+        val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
+        (s: Int, sa: Annotations) => {
+          a(0) = sampleIdsBc.value(s)
+          a(1) = sa.attrs
+          Filter.keepThisAny(f(), keep)
         }
     }
 
-    val newVDS = vds.filterSamples(if (options.keep)
-      p
-    else
-      (s: Int) => !p(s))
-
-    state.copy(vds = newVDS)
+    state.copy(vds = vds.filterSamples(p))
   }
 }

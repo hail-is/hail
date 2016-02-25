@@ -1,17 +1,18 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkException, SparkContext}
 import org.apache.spark.sql.SQLContext
+import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
+import org.broadinstitute.hail.Utils._
 
-case class State(installDir: String,
-  sc: SparkContext,
+case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
-  vds: VariantDataset) {
-  def hadoopConf = vds.sparkContext.hadoopConfiguration
+  vds: VariantDataset = null) {
+  def hadoopConf = sc.hadoopConfiguration
 }
 
 // FIXME: HasArgs vs Command
@@ -31,6 +32,10 @@ abstract class Command {
 
   def description: String
 
+  def hidden: Boolean = false
+
+  def supportsMultiallelic = false
+
   def parseArgs(args: Array[String]): Options = {
     val options = newOptions
     val parser = new CmdLineParser(options)
@@ -48,17 +53,23 @@ abstract class Command {
       }
     } catch {
       case e: CmdLineException =>
-        println(e.getMessage)
-        sys.exit(1)
+        fatal(s"$name: parse error: ${e.getMessage}")
     }
 
     options
   }
 
-  def run(state: State, args: Array[String]): State = {
-    val options = parseArgs(args)
+  def runCommand(state: State, options: Options): State = {
+    if (!supportsMultiallelic
+      && state.vds != null
+      && !state.vds.metadata.wasSplit)
+      fatal(s"`$name' does not support multiallelics.\n  Run `splitmulti' first.")
+
     run(state, options)
   }
 
-  def run(state: State, options: Options): State
+  def run(state: State, args: Array[String]): State =
+    runCommand(state, parseArgs(args))
+
+  protected def run(state: State, options: Options): State
 }

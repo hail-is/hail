@@ -1,15 +1,16 @@
 package org.broadinstitute.hail.variant
 
 import net.jpountz.lz4.LZ4Factory
+import org.broadinstitute.hail.ByteIterator
 
 import scala.collection.mutable
 
 // FIXME use zipWithIndex
-class GenotypeStreamIterator(b: Iterator[Byte]) extends Iterator[Genotype] {
+class GenotypeStreamIterator(v: Variant, b: ByteIterator) extends Iterator[Genotype] {
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = {
-    Genotype.read(b)
+    Genotype.read(v, b)
   }
 }
 
@@ -43,9 +44,9 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
   override def iterator: GenotypeStreamIterator = {
     decompLenOption match {
       case Some(decompLen) =>
-        new GenotypeStreamIterator(LZ4Utils.decompress(decompLen, a).iterator)
+        new GenotypeStreamIterator(variant, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
-        new GenotypeStreamIterator(a.iterator)
+        new GenotypeStreamIterator(variant, new ByteIterator(a))
     }
   }
 
@@ -75,12 +76,19 @@ class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
   val b = new mutable.ArrayBuilder.ofByte
 
   override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
-    g.write(b)
+    val gb = new GenotypeBuilder(variant)
+    gb.set(g)
+    gb.write(b)
     this
   }
 
+
+  def write(gb: GenotypeBuilder) {
+    gb.write(b)
+  }
+
   def ++=(i: Iterator[Genotype]): GenotypeStreamBuilder.this.type = {
-    i.foreach(_.write(b))
+    i.foreach(this += _)
     this
   }
 

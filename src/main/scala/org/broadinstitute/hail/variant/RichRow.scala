@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.variant
 
+import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
@@ -12,35 +13,38 @@ class RichRow(r: Row) {
 
   import RichRow._
 
+  def getIntOption(i: Int): Option[Int] =
+    if (r.isNullAt(i))
+      None
+    else
+      Some(r.getInt(i))
+
+  def toAltAllele: AltAllele = {
+    AltAllele(r.getString(0),
+      r.getString(1))
+  }
+
   def getVariant(i: Int): Variant = {
     val ir = r.getAs[Row](i)
-    Variant(ir.getAs[String](0),
-      ir.getAs[Int](1),
-      ir.getAs[String](2),
-      ir.getAs[String](3))
+    Variant(ir.getString(0),
+      ir.getInt(1),
+      ir.getString(2),
+      ir.getAs[ArrayBuffer[Row]](3).map(_.toAltAllele))
   }
 
-  def getGenotype(i: Int): Genotype = {
-    val ir = r.getAs[Row](i)
-    val i1r = ir.getAs[Row](1)
-    val i3r = ir.getAs[Row](3)
-
-    Genotype(ir.getInt(0),
-      (i1r.getInt(0),
-        i1r.getInt(1)),
-      ir.getInt(2),
-      if (i3r != null)
-        (i3r.getInt(0),
-          i3r.getInt(1),
-          i3r.getInt(2))
-      else
-        null)
-  }
+  def getGenotype(i: Int): Genotype = throw new UnsupportedOperationException
 
   def getGenotypeStream(i: Int): GenotypeStream = {
     val ir = r.getAs[Row](i)
     GenotypeStream(ir.getVariant(0),
       if (ir.isNullAt(1)) None else Some(ir.getInt(1)),
       ir.getAs[Array[Byte]](2))
+  }
+
+  def getTuple2String(i: Int): (String, String) = (r.getString(0), r.getString(1))
+  def getTuple3String(i: Int): (String, String, String) = (r.getString(0), r.getString(1), r.getString(2))
+
+  def getByteArray(i: Int): Array[Byte] = {
+    r.getAs[Array[Byte]](i)
   }
 }

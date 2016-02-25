@@ -6,16 +6,16 @@ import org.testng.annotations.Test
 
 class PedigreeSuite extends SparkSuite {
   @Test def test() {
-    val vds = LoadVCF(sc, "src/test/resources/sample_mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
-    ped.write("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)  // FIXME: this is not right
-    val pedwr = Pedigree.read("/tmp/sample_mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
-    assert(ped.trios.sameElements(pedwr.trios))
+    val vds = LoadVCF(sc, "src/test/resources/pedigree.vcf")
+    val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
+    ped.write("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds) // FIXME: this is not right
+    val pedwr = Pedigree.read("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
+    assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in pedigree.vcf
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap
     assert(nuclearFams((sampleIndex("Dad1"), sampleIndex("Mom1"))).toSet ==
-      Set(sampleIndex("Son1"), sampleIndex("Daughter1")))
+      Set(sampleIndex("Son1"), sampleIndex("Dtr1")))
     assert(nuclearFams((sampleIndex("Dad2"), sampleIndex("Mom2"))).toSet ==
       Set(sampleIndex("Son2")))
     assert(nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 11)
@@ -31,9 +31,12 @@ class PedigreeSuite extends SparkSuite {
       ped.nSatisfying(_.isComplete, _.isCase, _.isFemale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isMale) == 1 &&
       ped.nSatisfying(_.isComplete, _.isControl, _.isFemale) == 0)
+
+    val ped2 = Pedigree.read("src/test/resources/pedigreeWithExtraSample.fam", sc.hadoopConfiguration, vds.sampleIds)
+
+    assert(ped.trios.toSet == ped2.trios.toSet)
+
+    //FIXME: How to test
+    //ped.writeSummary("/tmp/pedigree.sumfam", sc.hadoopConfiguration)
   }
-
-  //FIXME: How to test
-  //ped.writeSummary("/tmp/sample_mendel.sumfam", sc.hadoopConfiguration)
-
 }
