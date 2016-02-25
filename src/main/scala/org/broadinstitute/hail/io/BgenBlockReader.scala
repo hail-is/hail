@@ -81,10 +81,10 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
           else
             BgenLoader.phredScalePPs(pBB, pAB, pAA)
         }
-        assert(PLs._1 == 0 || PLs._2 == 0 || PLs._3 == 0)
+        assert(PLs(0) == 0 || PLs(1) == 0 || PLs(2) == 0)
         val gtCall = BgenLoader.parseGenotype(PLs)
         PLs = if (gtCall == -1) null else PLs
-        val gt = Genotype(Some(gtCall), None, None, None, PLs) // FIXME missing data for stuff
+        val gt = Genotype(Some(gtCall), None, None, None, Some(PLs)) // FIXME missing data for stuff
         b += gt
       }
       value.setKey(variant)

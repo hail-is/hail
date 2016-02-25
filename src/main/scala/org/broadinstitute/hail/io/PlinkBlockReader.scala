@@ -7,10 +7,10 @@ import org.broadinstitute.hail.variant.{GenotypeStreamBuilder, Genotype, Variant
 
 object PlinkBlockReader {
   val plinkOrderedSparseGt = Array(
-    Genotype(0, (0, 0), 0, (0, 0, 0)),
-    Genotype(-1, (0, 0), 0, (0, 0, 0)),
-    Genotype(1, (0, 0), 0, (0, 0, 0)),
-    Genotype(2, (0, 0), 0, (0, 0, 0)))
+    Genotype(0),
+    Genotype(-1),
+    Genotype(1),
+    Genotype(2))
 
 }
 
@@ -22,7 +22,7 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   val compressGS = job.getBoolean("compressGS", false)
   val blockLength = ((nSamples / 4.00) + .75).toInt
   println(s"blockLength=$blockLength")
-  println(s"expected blocks = ${(end - partitionStart)/blockLength}")
+  println(s"expected blocks = ${(end - partitionStart) / blockLength}")
 
   def seekToFirstBlock(start: Long) {
     variantIndex = ((start - 3) / blockLength).toInt
@@ -44,7 +44,7 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
       value.setKey(variantIndex)
       variantIndex += 1
       pos += blockLength
-//      println(s"read variant $variantIndex")
+      //      println(s"read variant $variantIndex")
       true
     }
   }

@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.io
 
-import org.broadinstitute.hail.{ScalaCheckSuite, SparkSuite}
+import org.broadinstitute.hail.SparkSuite
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils.{hadoopOpen, hadoopCreate}
 import org.scalacheck._
@@ -9,7 +9,7 @@ import org.scalacheck.Prop.{throws, forAll, BooleanOperators, classify}
 import org.scalacheck.Arbitrary._
 import scala.language.implicitConversions
 
-class IndexBTreeSuite extends SparkSuite with ScalaCheckSuite {
+class IndexBTreeSuite extends SparkSuite {
   val FILENAME = "/tmp/IndexBTreeTest.idx"
   val positiveLong = Gen.choose(1L, Long.MaxValue)
   val testGen = for (
@@ -64,6 +64,7 @@ class IndexBTreeSuite extends SparkSuite with ScalaCheckSuite {
           println(s"size is ${arr.length}")
           println("first 10 elements: " + arr.take(10).map(_.toDouble.formatted("%.5e")).mkString(","))
           println(s"query: ${start.toDouble.formatted("%.5e")} - ${end.toDouble.formatted("%.5e")}")
+        case None => ()
       }
     }
     printSample(testGen.sample)

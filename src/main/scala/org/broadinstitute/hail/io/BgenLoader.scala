@@ -2,6 +2,7 @@ package org.broadinstitute.hail.io
 
 import java.util.zip.Inflater
 import org.apache.hadoop.mapred.InvalidInputException
+import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.hadoop.io.LongWritable
@@ -111,10 +112,10 @@ class BgenLoader(file: String, sc: SparkContext) {
           else
             BgenLoader.phredScalePPs(pBB, pAB, pAA)
         }
-        assert(PLs._1 == 0 || PLs._2 == 0 || PLs._3 == 0)
+        assert(PLs(0) == 0 || PLs(1) == 0 || PLs(2) == 0)
         val gtCall = BgenLoader.parseGenotype(PLs)
         PLs = if (gtCall == -1) null else PLs
-        val gt = Genotype(gtCall, PLs) // FIXME missing data for stuff
+        val gt = Genotype(Some(gtCall), None, None, None, Some(PLs)) // FIXME missing data for stuff
         b += gt
       }
       (variant, b.result(): Iterable[Genotype])
@@ -211,26 +212,26 @@ object BgenLoader {
       (ref, alt, true)
   }
 
-  def parseGenotype(pls: (Int, Int, Int)): Int = {
-    if (pls._1 == 0 && pls._2 == 0
-      || pls._1 == 0 && pls._3 == 0
-      || pls._2 == 0 && pls._3 == 0)
+  def parseGenotype(pls: Array[Int]): Int = {
+    if (pls(0) == 0 && pls(1) == 0
+      || pls(0) == 0 && pls(2) == 0
+      || pls(0) == 0 && pls(2) == 0)
       -1
     else {
-      if (pls._1 == 0)
+      if (pls(0) == 0)
         0
-      else if (pls._2 == 0)
+      else if (pls(1) == 0)
         1
-      else if (pls._3 == 0)
+      else if (pls(2) == 0)
         2
       else
         -1
     }
   }
 
-  def phredScalePPs(probAA: Int, probAB: Int, probBB: Int): (Int, Int, Int) = {
+  def phredScalePPs(probAA: Int, probAB: Int, probBB: Int): Array[Int] = {
     if (probAA == 32768 || probBB == 32768 || probAB == 32768) {
-      (if (probAA == 32768) 0 else 48, if (probAB == 32768) 0 else 48, if (probBB == 32768) 0 else 48)
+      Array(if (probAA == 32768) 0 else 48, if (probAB == 32768) 0 else 48, if (probBB == 32768) 0 else 48)
     }
     else {
       val phredDoubles: (Double, Double, Double) = (
@@ -239,7 +240,7 @@ object BgenLoader {
         if (probBB == 0) 48 else  -10 * math.log10(probBB))
 
       val minValue = math.min(math.min(phredDoubles._1, phredDoubles._2), phredDoubles._3)
-      ((phredDoubles._1 - minValue + .5).toInt,
+      Array((phredDoubles._1 - minValue + .5).toInt,
         (phredDoubles._2 - minValue + .5).toInt,
         (phredDoubles._3 - minValue + .5).toInt)
     }
@@ -269,9 +270,9 @@ object BgenLoader {
     val parseFunction = bl.getParseFunction
     val rdd = sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
       sc.defaultMinPartitions)
-      .map { case (lw, pl) => (pl.getKey, pl.getGS) }
+      .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }
     rdd.count()
     println("parsing took %.3f seconds".format((System.currentTimeMillis() - time).toDouble / 1000.0))
-    VariantSampleMatrix(VariantMetadata(null, ids), rdd)
+    VariantSampleMatrix(VariantMetadata(ids), rdd)
   }
 }

@@ -5,7 +5,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant.{Genotype, IntervalList, Variant}
 import org.testng.annotations.Test
-import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.io._
 import scala.language.implicitConversions
 
 /**

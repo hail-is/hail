@@ -4,13 +4,13 @@ import java.io._
 
 import org.apache.hadoop.io.LongWritable
 import org.broadinstitute.hail.Utils
+import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.io.Source
-import scala.reflect.ClassTag
 
 case class SampleInfo(sampleIds: Array[String], pedigree: Pedigree)
 
@@ -98,9 +98,9 @@ object PlinkLoader {
     println(s"last 5: ${indices.takeRight(5).mkString(",")}")
 
     val variantRDD = rdd.map {
-      case (lw, pl) => (variants(pl.getKey), pl.getGS)
+      case (lw, pl) => (variants(pl.getKey), Annotations.empty(), pl.getGS)
     }
-    VariantSampleMatrix(VariantMetadata(null, sampleIds), variantRDD)
+    VariantSampleMatrix(VariantMetadata(sampleIds), variantRDD)
   }
 
 
