@@ -179,6 +179,7 @@ object Main {
       RenameSamples,
       Repartition,
       SampleQC,
+      SexCheck,
       ShowAnnotations,
       VariantQC,
       Write

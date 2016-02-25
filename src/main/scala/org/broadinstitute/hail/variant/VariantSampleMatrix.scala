@@ -271,6 +271,39 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }.foldByKey(zeroValue)(combOp)
   }
 
+  /*def aggregateBySampleWithVariantInfo[U](zeroValue: U)(
+    seqOp: (U, Variant, Annotations, Int, T, Any) => U,
+    combOp: (U, U) => U, variantInfo: RDD[(Variant, Any)])
+                                         (implicit uct: ClassTag[U]): RDD[(Int, U)] = {
+
+    val localSamplesBc = sparkContext.broadcast(localSamples)
+
+    val serializer = SparkEnv.get.serializer.newInstance()
+    val zeroBuffer = serializer.serialize(zeroValue)
+    val zeroArray = new Array[Byte](zeroBuffer.limit)
+    zeroBuffer.get(zeroArray)
+
+    rdd
+      .zipPartitions(variantInfo) { case (it, jt) =>
+        it.zip(jt).map { case ((v, va, gs), (v2, vinfo)) =>
+          assert(v == v2)
+          (v, va, gs, vinfo)
+        }
+      }
+      .mapPartitions { (it: Iterator[(Variant, Annotations, Iterable[T], Any)]) =>
+        val serializer = SparkEnv.get.serializer.newInstance()
+        def copyZeroValue() = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+        val arrayZeroValue = Array.fill[U](localSamplesBc.value.length)(copyZeroValue())
+
+        localSamplesBc.value.iterator
+          .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs, vinfo)) =>
+            for ((g, i) <- gs.iterator.zipWithIndex)
+              acc(i) = seqOp(acc(i), v, va, localSamplesBc.value(i), g, vinfo)
+            acc
+          }.iterator)
+      }.foldByKey(zeroValue)(combOp)
+  }*/
+
   def aggregateByVariant[U](zeroValue: U)(
     seqOp: (U, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Variant, U)] =
