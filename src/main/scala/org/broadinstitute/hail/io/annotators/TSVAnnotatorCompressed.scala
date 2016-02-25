@@ -73,84 +73,89 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
   def read(serializer: SerializerInstance) {
     readLines(path, conf.value) { lines =>
       lines
-          .filter(line => !line.value.isEmpty)
+        .filter(line => !line.value.isEmpty)
 
 
-        val header = lines.next()
-            .value
-          .split("\t")
+      val header = lines.next()
+        .value
+        .split("\t")
 
-        headerIndex = header.flatMap { col =>
-          if (!vColumns.contains(col))
-            Some(col)
-          else
-            None
-        }
+      headerIndex = header.flatMap { col =>
+        if (!vColumns.contains(col))
+          Some(col)
+        else
+          None
+      }
 
-        val excluded = vColumns.toSet
-        val functions = header.map(col => Annotator.parseField(typeMap.getOrElse(col, "String"), col, missing))
-        val bbb = new ByteBlockBuilder[Array[Option[Any]]](serializer)
-        val ab = new mutable.ArrayBuilder.ofRef[Option[Any]]
+      val vColsSet = vColumns.toSet
 
-        val parseLine: Line => (Variant, Array[Option[Any]]) = {
-          // format CHR:POS:REF:ALT
-          if (vColumns.length == 1) {
-            val variantIndex = header.indexOf(vColumns.head)
-            fatalIf(variantIndex < 0, s"Could not find designated CHR:POS:REF:ALT column identifier '${vColumns.head}'")
-            line => {
-              val split = line.value.split("\t")
-              val Array(chr, pos, ref, alt) = split(variantIndex).split(":")
-              split.iterator.zipWithIndex.foreach {
-                case (field, index) =>
-                  if (index != variantIndex)
-                    ab += functions(index)(field)
-              }
-              val result = ab.result()
-              ab.clear()
-              (Variant(chr, pos.toInt, ref, alt), result)
+      val keyedSignatures = header.flatMap { id =>
+        if (!vColsSet(id))
+          Some(id, SimpleSignature(typeMap.getOrElse(id, "String")))
+        else
+          None
+      }
+
+      val functions = keyedSignatures.map { case (key, sig) => sig.parser(key, missing) }
+
+      val signatures = Annotations(keyedSignatures.toMap)
+
+      val bbb = new ByteBlockBuilder[Array[Option[Any]]](serializer)
+      val ab = new mutable.ArrayBuilder.ofRef[Option[Any]]
+
+      val parseLine: Line => (Variant, Array[Option[Any]]) = {
+        // format CHR:POS:REF:ALT
+        if (vColumns.length == 1) {
+          val variantIndex = header.indexOf(vColumns.head)
+          fatalIf(variantIndex < 0, s"Could not find designated CHR:POS:REF:ALT column identifier '${vColumns.head}'")
+          line => {
+            val split = line.value.split("\t")
+            val Array(chr, pos, ref, alt) = split(variantIndex).split(":")
+            split.iterator.zipWithIndex.foreach {
+              case (field, index) =>
+                if (index != variantIndex)
+                  ab += functions(index)(field)
             }
-          }
-          // format CHR  POS  REF  ALT
-          else {
-            val (chrIndex, posIndex, refIndex, altIndex) =
-              (header.indexOf(vColumns(0)),
-                header.indexOf(vColumns(1)),
-                header.indexOf(vColumns(2)),
-                header.indexOf(vColumns(3)))
-            if (chrIndex < 0 || posIndex < 0 || refIndex < 0 || altIndex < 0) {
-              val notFound = vColumns.flatMap(i => if (header.indexOf(i) < 0) Some(i) else None)
-              fatal(s"Could not find designated identifier column(s): [${notFound.mkString(", ")}]")
-            }
-            line => {
-              val split = line.value.split("\t")
-              split.iterator.zipWithIndex.foreach {
-                case (field, index) =>
-                  if (index != chrIndex && index != posIndex && index != refIndex && index != altIndex)
-                    ab += functions(index)(field)
-              }
-              val result = ab.result()
-              ab.clear()
-              (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), result)
-            }
+            val result = ab.result()
+            ab.clear()
+            (Variant(chr, pos.toInt, ref, alt), result)
           }
         }
-
-        val signatures = Annotations(header.flatMap(s =>
-          if (!vColumns.toSet(s))
-            Some(s, SimpleSignature(typeMap.getOrElse(s, "String")))
-          else
-            None)
-          .toMap)
-
-        val variantMap = lines.map {
-          line =>
-            val (variant, fields) = parseLine(line)
-            (variant, bbb.add(fields))
+        // format CHR  POS  REF  ALT
+        else {
+          val (chrIndex, posIndex, refIndex, altIndex) =
+            (header.indexOf(vColumns(0)),
+              header.indexOf(vColumns(1)),
+              header.indexOf(vColumns(2)),
+              header.indexOf(vColumns(3)))
+          if (chrIndex < 0 || posIndex < 0 || refIndex < 0 || altIndex < 0) {
+            val notFound = vColumns.flatMap(i => if (header.indexOf(i) < 0) Some(i) else None)
+            fatal(s"Could not find designated identifier column(s): [${notFound.mkString(", ")}]")
+          }
+          line => {
+            val split = line.value.split("\t")
+            split.iterator.zipWithIndex.foreach {
+              case (field, index) =>
+                if (index != chrIndex && index != posIndex && index != refIndex && index != altIndex)
+                  ab += functions(index)(field)
+            }
+            val result = ab.result()
+            ab.clear()
+            (Variant(split(chrIndex), split(posIndex).toInt, split(refIndex), split(altIndex)), result)
+          }
         }
-          .toMap
+      }
 
-        internalMap = variantMap
-        compressedBlocks = bbb.result()
+
+      val variantMap = lines.map {
+        line =>
+          val (variant, fields) = parseLine(line)
+          (variant, bbb.add(fields))
+      }
+        .toMap
+
+      internalMap = variantMap
+      compressedBlocks = bbb.result()
     }
   }
 

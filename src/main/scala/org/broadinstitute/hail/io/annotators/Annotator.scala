@@ -41,54 +41,10 @@ object Annotator {
       case null =>
         va => va
       case r =>
-        va => r
-          .split("""\.""")
-          .filter(!_.isEmpty)
-          .foldRight(va)((id, annotations) => Annotations(Map(id -> annotations)))
-    }
-  }
-
-  def parseField(typeString: String, k: String,
-    missing: Set[String]): (String) => Option[Any] = {
-
-    typeString match {
-      case "Double" =>
-        (v: String) =>
-          try {
-            someIf(!missing(v), v.toDouble)
-          } catch {
-            case e: java.lang.NumberFormatException =>
-              fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$k" """)
-          }
-      case "Int" =>
-        (v: String) =>
-          try {
-            someIf(!missing(v), v.toInt)
-          } catch {
-            case e: java.lang.NumberFormatException =>
-              fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Int in column "$k" """)
-          }
-      case "Boolean" =>
-        (v: String) =>
-          try {
-            someIf(!missing(v), v.toBoolean)
-          } catch {
-            case e: java.lang.IllegalArgumentException =>
-              fatal( s"""java.lang.IllegalArgumentException: tried to convert "$v" to Boolean in column "$k" """)
-          }
-      case "String" =>
-        (v: String) =>
-          someIf(!missing(v), v)
-      case _ =>
-        fatal(
-          s"""Unrecognized type "$typeString" in column "$k".  Hail supports the following types in annotations:
-              |  - Double (floating point number)
-              |  - Int  (integer)
-              |  - Boolean
-              |  - String
-              |
-               |  Note that the above types are case sensitive.
-             """.stripMargin)
+        val split = r.split("""\.""")
+        fatalIf(!split.forall(_.length > 0), s"Invalid input: found an empty identifier in '$root'")
+        va =>
+          split.foldRight(va)((id, annotations) => Annotations(Map(id -> annotations)))
     }
   }
 }

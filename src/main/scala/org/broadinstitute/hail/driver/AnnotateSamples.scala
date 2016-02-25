@@ -56,7 +56,7 @@ object AnnotateSamples extends Command {
         new SampleTSVAnnotator(cond, options.sampleCol,
           AnnotateVariants.parseTypeMap(options.types),
           AnnotateVariants.parseMissing(options.missingIdentifiers),
-          root)
+          root, vds.sparkContext.hadoopConfiguration)
       case _ => fatal(s"unknown file type '$cond'.  Specify a .tsv file")
     }
     state.copy(vds = vds.annotateSamples(annotator))

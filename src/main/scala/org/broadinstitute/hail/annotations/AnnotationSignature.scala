@@ -22,6 +22,48 @@ abstract class AnnotationSignature {
     case "Set[String]" => expr.TSet(expr.TString)
     case "String" => expr.TString
   }
+
+  def parser(name: String, missing: Set[String]): (String) => Option[Any] = {
+    typeOf match {
+      case "Double" =>
+        (v: String) =>
+          try {
+            someIf(!missing(v), v.toDouble)
+          } catch {
+            case e: java.lang.NumberFormatException =>
+              fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$name" """)
+          }
+      case "Int" =>
+        (v: String) =>
+          try {
+            someIf(!missing(v), v.toInt)
+          } catch {
+            case e: java.lang.NumberFormatException =>
+              fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Int in column "$name" """)
+          }
+      case "Boolean" =>
+        (v: String) =>
+          try {
+            someIf(!missing(v), v.toBoolean)
+          } catch {
+            case e: java.lang.IllegalArgumentException =>
+              fatal( s"""java.lang.IllegalArgumentException: tried to convert "$v" to Boolean in column "$name" """)
+          }
+      case "String" =>
+        (v: String) =>
+          someIf(!missing(v), v)
+      case _ =>
+        fatal(
+          s"""Unrecognized type "$typeOf" in signature "$name".  Hail supports parsing the following types in annotations:
+              |  - Double (floating point number)
+              |  - Int  (integer)
+              |  - Boolean
+              |  - String
+              |
+               |  Note that the above types are case sensitive.
+             """.stripMargin)
+    }
+  }
 }
 
 case class SimpleSignature(typeOf: String) extends AnnotationSignature

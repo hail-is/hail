@@ -8,10 +8,10 @@ import scala.io.Source
 import scala.collection.mutable
 
 class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, String],
-  missing: Set[String], root: String) extends SampleAnnotator {
+  missing: Set[String], root: String, conf: hadoop.conf.Configuration) extends SampleAnnotator {
 
   val rooted = Annotator.rootFunction(root)
-  val (parsedHeader, signatures, sampleMap) = read(new hadoop.conf.Configuration())
+  val (parsedHeader, signatures, sampleMap) = read(conf)
 
 
   def annotate(s: String, sa: Annotations): Annotations = {
@@ -50,14 +50,13 @@ class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, S
             Some(column)
       }
 
-      val parseFieldFunctions = header.map(col => Annotator.parseField(
-        typeMap.getOrElse(col, "String"), col, missing))
+      val keyedSignatures = cleanHeader.map(column => (column, SimpleSignature(typeMap.getOrElse(column, "String"))))
+
+      val parseFieldFunctions = keyedSignatures.map { case (key, sig) => sig.parser(key, missing)}
+
+      val signatures = rooted(Annotations(keyedSignatures.toMap))
 
       val sampleColIndex = header.indexOf(sampleCol)
-
-      val signatures = rooted(Annotations(
-        cleanHeader.map(column => (column, SimpleSignature(typeMap.getOrElse(column, "String"))))
-          .toMap))
 
       val ab = new mutable.ArrayBuilder.ofRef[Option[Any]]
 
