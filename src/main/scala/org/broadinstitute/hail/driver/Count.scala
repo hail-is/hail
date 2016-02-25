@@ -31,7 +31,7 @@ object Count extends Command {
     info(
       s"""count:
           |  nSamples = ${vds.nSamples}
-          |  nLocalSampels = $nLocalSamples
+          |  nLocalSamples = $nLocalSamples
           |  nVariants = $nVariants
           |  nCalled = $nCalled
           |  callRate = ${callRate.map(r => (r * 100).formatted("%.3f%%")).getOrElse("NA")}""".stripMargin)
