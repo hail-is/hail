@@ -50,11 +50,17 @@ class SampleTSVAnnotator(path: String, sampleCol: String, typeMap: Map[String, S
             Some(column)
       }
 
-      val keyedSignatures = cleanHeader.map(column => (column, SimpleSignature(typeMap.getOrElse(column, "String"))))
+      val keyedSignatures = header.map(column =>
+        if (column == sampleCol)
+          null
+        else
+        (column, SimpleSignature(typeMap.getOrElse(column, "String"))))
 
-      val parseFieldFunctions = keyedSignatures.map { case (key, sig) => sig.parser(key, missing)}
+      val parseFieldFunctions = keyedSignatures.map {
+        case null => null
+        case (key, sig) => sig.parser(key, missing)}
 
-      val signatures = rooted(Annotations(keyedSignatures.toMap))
+      val signatures = rooted(Annotations(keyedSignatures.filter(_ != null).toMap))
 
       val sampleColIndex = header.indexOf(sampleCol)
 

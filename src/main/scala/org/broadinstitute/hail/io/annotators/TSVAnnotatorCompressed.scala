@@ -89,16 +89,19 @@ class TSVAnnotatorCompressed(path: String, vColumns: IndexedSeq[String],
 
       val vColsSet = vColumns.toSet
 
-      val keyedSignatures = header.flatMap { id =>
+      val keyedSignatures = header.map { id =>
         if (!vColsSet(id))
-          Some(id, SimpleSignature(typeMap.getOrElse(id, "String")))
+          (id, SimpleSignature(typeMap.getOrElse(id, "String")))
         else
-          None
+          null
       }
 
-      val functions = keyedSignatures.map { case (key, sig) => sig.parser(key, missing) }
+      val functions = keyedSignatures.map {
+        case null => null
+        case (key, sig) => sig.parser(key, missing)
+      }
 
-      val signatures = Annotations(keyedSignatures.toMap)
+      val signatures = Annotations(keyedSignatures.filter(_ != null).toMap)
 
       val bbb = new ByteBlockBuilder[Array[Option[Any]]](serializer)
       val ab = new mutable.ArrayBuilder.ofRef[Option[Any]]
