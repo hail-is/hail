@@ -100,9 +100,9 @@ object DenseCallStream {
 
   // FIXME: combine two defs in PR?
   def apply(gs: Iterable[Genotype], n: Int) =
-    DenseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
+    denseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
 
-  def DenseCallStreamFromGtStream(gts: Iterable[Int], n: Int): DenseCallStream = {
+  def denseCallStreamFromGtStream(gts: Iterable[Int], n: Int): DenseCallStream = {
     var x = Array.ofDim[Int](n)
     var sumX = 0
     var sumXX = 0
@@ -220,10 +220,10 @@ case class DenseCallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissin
 object SparseCallStream {
 
   def apply(gs: Iterable[Genotype], n: Int) =
-    SparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
+    sparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
 
   // FIXME: switch to ArrayBuilder?
-  def SparseCallStreamFromGtStream(gts: Iterable[Int], n: Int): SparseCallStream = {
+  def sparseCallStreamFromGtStream(gts: Iterable[Int], n: Int): SparseCallStream = {
     var rowX = ArrayBuffer[Int]()
     var valX = ArrayBuffer[Int]()
     var sumX = 0
