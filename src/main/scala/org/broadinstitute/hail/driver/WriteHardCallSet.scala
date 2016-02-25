@@ -15,6 +15,9 @@ object WriteHardCallSet extends Command {
 
     @Args4jOption(required = false, name = "-c", aliases = Array("--cov"), usage = ".cov file")
     var covFilename: String = null
+
+    @Args4jOption(required = false, name = "-s", aliases = Array("--sparse"), usage = "Sparse cut off, < s is sparse: 0.0 all dense, 1.1 all sparse")
+    var sparseCutOff: Double = .05
   }
 
   def newOptions = new Options
@@ -37,9 +40,9 @@ object WriteHardCallSet extends Command {
           CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds).covRowSample.toSet
       }
 
-    val hcs = HardCallSet(vds.filterSamples{ case (s, sa) => sampleFilter(s) })
+    val hcs = HardCallSet(vds.filterSamples{ case (s, sa) => sampleFilter(s) }, options.sparseCutOff)
 
-    hadoopDelete(options.output, state.hadoopConf, true)
+    hadoopDelete(options.output, state.hadoopConf, recursive = true)
     hcs.write(state.sqlContext, options.output)
 
     state

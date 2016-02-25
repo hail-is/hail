@@ -23,18 +23,18 @@ class HardCallSetSuite extends SparkSuite {
       Iterable.fill[Int](1001)(1)
     )
 
-
+    import CallStream._
 
     for (gts <- gtsList) {
       val n = gts.size
       val y = DenseVector.fill[Double](n)(Random.nextInt(2))
 
-      val dcs = DenseCallStream.DenseCallStreamFromGtStream(gts, n)
+      val dcs = denseCallStreamFromGtStream(gts, n)
 
       println(dcs)
       // dcs.showBinary()
 
-      val scs = SparseCallStream.SparseCallStreamFromGtStream(gts, n)
+      val scs = sparseCallStreamFromGtStream(gts, n)
       println(scs)
 
       val ds = dcs.hardStats(y,n)
