@@ -84,7 +84,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         assert(PLs._1 == 0 || PLs._2 == 0 || PLs._3 == 0)
         val gtCall = BgenLoader.parseGenotype(PLs)
         PLs = if (gtCall == -1) null else PLs
-        val gt = Genotype(gtCall, (0, 0), 0, PLs) // FIXME missing data for stuff
+        val gt = Genotype(Some(gtCall), None, None, None, PLs) // FIXME missing data for stuff
         b += gt
       }
       value.setKey(variant)

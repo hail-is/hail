@@ -55,9 +55,7 @@ object VCFReport {
     }
   }
 }
->>>>>>> origin/master:src/main/scala/org/broadinstitute/hail/methods/LoadVCF.scala
 
-import scala.io.Source
 
 object LoadVCF {
   def apply(sc: SparkContext,

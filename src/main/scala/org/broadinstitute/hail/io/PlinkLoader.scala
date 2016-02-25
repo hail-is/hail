@@ -73,8 +73,7 @@ object PlinkLoader {
   private def parseBed(bedPath: String,
     sampleIds: Array[String],
     bimPath: String,
-    sc: SparkContext,
-    vsmType: String): VariantDataset = {
+    sc: SparkContext): VariantDataset = {
 
     val nSamples = sampleIds.length
 
@@ -101,16 +100,16 @@ object PlinkLoader {
     val variantRDD = rdd.map {
       case (lw, pl) => (variants(pl.getKey), pl.getGS)
     }
-    VariantSampleMatrix(VariantMetadata(null, sampleIds), variantRDD )
+    VariantSampleMatrix(VariantMetadata(null, sampleIds), variantRDD)
   }
 
 
-  def apply(fileBase: String, sc: SparkContext, vsmType: String = "sparky"): VariantDataset = {
+  def apply(fileBase: String, sc: SparkContext): VariantDataset = {
     val samples = parseFam(fileBase + ".fam")
     println("nSamples is " + samples.sampleIds.length)
 
     val startTime = System.nanoTime()
-    val vds = parseBed(fileBase + ".bed", samples.sampleIds, fileBase + ".bim", sc, vsmType)
+    val vds = parseBed(fileBase + ".bed", samples.sampleIds, fileBase + ".bim", sc)
     val endTime = System.nanoTime()
     val diff = (endTime - startTime) / 1e9
     vds

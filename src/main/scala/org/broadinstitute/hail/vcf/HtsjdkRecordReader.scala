@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.vcf
 
 import org.apache.spark.Accumulable
-import org.broadinstitute.hail.methods.VCFReport
+import org.broadinstitute.hail.io.VCFReport
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConverters._
