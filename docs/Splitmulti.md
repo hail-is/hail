@@ -10,7 +10,7 @@ Command line options:
 
 Example `splitmulti` command:
 ```
-$ hail import -i /path/to/file.vcf splitmulti write -o /path/to/file.vds
+$ hail importvcf /path/to/file.vcf splitmulti write -o /path/to/file.vds
 ```
 
 Methods that don't support multiallelics will generate a error message
