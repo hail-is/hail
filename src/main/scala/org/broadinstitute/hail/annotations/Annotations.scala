@@ -98,25 +98,13 @@ case class MutableRow(arr: mutable.ArrayBuffer[Any]) {
   def applyOp(other: Row, op: Op) {
     val toAdd = op.path2.foldLeft(other) { (r, index) => r.getAs[Row](index) }
       .get(op.path2.last)
-    println("toAdd is " + toAdd)
     op match {
       case a: AddOp =>
-        println("applying addop " + a)
-        //        println("add op")
-        //        println("before:")
-        //        AnnotationData.printNestedIterable(arr)
         val array = MutableRow.descendNestedRows(arr, op.path1)
         array += toAdd
-      //        println("after:")
-      //        AnnotationData.printNestedIterable(arr)
       case r: RemapOp =>
-        //        println("add op")
-        //        println("before:")
-        //        AnnotationData.printNestedIterable(arr)
         val array = MutableRow.descendNestedRows(arr, op.path1)
         array(r.path2.last) = toAdd
-      //        println("after:")
-      //        AnnotationData.printNestedIterable(arr)
     }
   }
 
@@ -129,17 +117,6 @@ case class MutableRow(arr: mutable.ArrayBuffer[Any]) {
     val array = MutableRow.descendNestedRows(arr, path.take(path.size - 1))
     arr(path.last) = toAdd
   }
-
-  //
-  //  def add(path: Iterable[Int], toAdd: Any) {
-  //    val array = MutableRow.descendNestedRows(arr, path)
-  //    array += toAdd
-  //  }
-  //
-  //  def remap(path: Iterable[Int], toAdd: Any) {
-  //    val array = MutableRow.descendNestedRows(arr, path.take(path.size - 1))
-  //    array(path.last) = toAdd
-  //  }
 
   def result(): Row = {
     println("doing result")
@@ -194,11 +171,24 @@ case class AnnotationData(row: Row) extends Serializable {
   }
 
   def getOption[T](i: Iterable[Int]): Option[T] = {
-    val parent = i.take(i.size - 1).foldLeft(row)((row, index) => row.getAs[Row](index))
-    parent.isNullAt(i.last) match {
-      case true => None
-      case false => Some(parent.getAs[T](i.last))
+    val parent = i.take(i.size - 1).foldLeft(row) { (row, index) =>
+      if (row != null) {
+        row.get(index) match {
+          case r: Row => r
+          case _ => return None
+        }
+      }
+      else
+        row
+      row.getAs[Row](index)
     }
+    if (parent == null)
+      None
+    else
+      parent.isNullAt(i.last) match {
+        case true => None
+        case false => Some(parent.getAs[T](i.last))
+      }
   }
 
   def same(other: AnnotationData): Boolean = AnnotationData.rowSame(row, other.row)
@@ -292,6 +282,64 @@ object AnnotationData {
 
     (newSigs, f)
   }
+
+  def splitMulti(base: AnnotationSignatures): (AnnotationData, Int) => AnnotationData = {
+    base.getOption[AnnotationSignature]("info") match {
+      case Some(infoSigs: AnnotationSignatures) =>
+        val functions: Array[((Any, Int) => Any)] = infoSigs.attrs
+          .toArray
+          .sortBy { case (key, value) => value.index }
+          .map { case (key, value) => value match {
+            case vcfSig: VCFSignature if vcfSig.number == "A" =>
+              vcfSig.typeOf match {
+                case "Array[Int]" => (a: Any, ind: Int) =>
+                  Array(a.asInstanceOf[Array[Int]]
+                    .apply(ind))
+                case _ => (a: Any, ind: Int) =>
+                  Array(a.asInstanceOf[Array[Double]]
+                    .apply(ind))
+              }
+            case vcfSig: VCFSignature if vcfSig.number == "R" =>
+              vcfSig.typeOf match {
+                case "Array[Int]" => (a: Any, ind: Int) =>
+                  val arr = a.asInstanceOf[Array[Int]]
+                  Array(arr(0), arr(ind))
+                case _ => (a: Any, ind: Int) =>
+                  val arr = a.asInstanceOf[Array[Double]]
+                  Array(arr(0), arr(ind))
+              }
+            case vcfSig: VCFSignature if vcfSig.number == "G" =>
+              vcfSig.typeOf match {
+                case "Array[Int]" => (a: Any, ind: Int) =>
+                  val arr = a.asInstanceOf[Array[Int]]
+                  Array(arr(0),
+                    triangle(ind + 1) + 1,
+                    triangle(ind + 2) - 1)
+                case _ => (a: Any, ind: Int) =>
+                  val arr = a.asInstanceOf[Array[Double]]
+                  Array(arr(0),
+                    triangle(ind + 1) + 1,
+                    triangle(ind + 2) - 1)
+              }
+            case _ => (a: Any, ind: Int) => a
+          }
+          }
+        (ad: AnnotationData, index: Int) =>
+          val adArr = ad.row.toSeq.toArray
+          adArr(infoSigs.index) = Row.fromSeq(
+            adArr(infoSigs.index).asInstanceOf[Row]
+              .toSeq
+              .iterator
+              .zip(functions.iterator)
+              .map {
+                case (elem, f) => f(elem, index)
+              }
+              .toArray
+          )
+          AnnotationData(Row.fromSeq(adArr))
+      case _ => (ad, index) => ad
+    }
+  }
 }
 
 case class AnnotationSignatures(attrs: Map[String, AnnotationSignature],
@@ -345,92 +393,3 @@ case class AnnotationSignatures(attrs: Map[String, AnnotationSignature],
 object AnnotationSignatures {
   def empty(): AnnotationSignatures = AnnotationSignatures(Map.empty[String, AnnotationSignature])
 }
-
-/*
-case class Annotations(attrs: Map[String, Any]) extends Serializable {
-
-  def contains(elem: String): Boolean = attrs.contains(elem)
-
-  def get[T](key: String): T = attrs(key).asInstanceOf[T]
-
-  def getOption[T](key: String): Option[T] = attrs.get(key).map(_.asInstanceOf[T])
-
-  def +(key: String, value: Any): Annotations = Annotations(attrs + (key -> value))
-
-  def ++(other: Annotations): Annotations = {
-    Annotations(attrs ++ other.attrs.map {
-      case (key, value) =>
-        attrs.get(key) match {
-          case Some(a1: Annotations) =>
-            value match {
-              case a2: Annotations => (key, a1 ++ a2)
-              case _ => (key, value)
-            }
-          case _ => (key, value)
-        }
-    })
-  }
-
-  def -(key: String): Annotations = Annotations(attrs - key)
-
-  // FIXME for annotation signatures only
-  def toExprType: expr.Type = expr.TStruct(attrs.map {
-    case (k, a: Annotations) => (k, a.toExprType)
-    case (k, as: AnnotationSignature) => (k, as.toExprType)
-  })
-}
-
-object Annotations {
-  def empty(): Annotations = Annotations(Map.empty[String, Any])
-
-  def emptyIndexedSeq(n: Int): IndexedSeq[Annotations] = Array.fill(n)(Annotations.empty())
-
-  def validSignatures(a: Any): Boolean = {
-    a match {
-      case anno1: Annotations => anno1.attrs.forall { case (k, v) => validSignatures(v) }
-      case sig: AnnotationSignature => true
-      case _ => false
-    }
-  }
-}
-
-object AnnotationClassBuilder {
-
-  def makeDeclarationsRecursive(sigs: Annotations, depth: Int = 1, nSpace: Int = 0): String = {
-    val spaces = (0 until (depth * 2 + nSpace)).map(i => " ").foldLeft("")(_ + _)
-    val param = s"__a$depth"
-    sigs.attrs.map { case (key, attr) =>
-      attr match {
-        case a2: Annotations =>
-          s"""${spaces}case class `__$key`(__a${depth + 1}: org.broadinstitute.hail.annotations.Annotations) {
-             |${makeDeclarationsRecursive(a2, depth = depth + 1, nSpace = nSpace)}$spaces}
-             |${spaces}lazy val `$key`: `__$key` = new `__$key`(${
-            s"""$param.get[org.broadinstitute.hail.annotations.Annotations]("$key")"""
-          })
-             |""".stripMargin
-        case sig: AnnotationSignature =>
-          s"${spaces}lazy val `$key`: FilterOption[${sig.typeOf}] = new FilterOption(${
-            s"""$param.getOption[${sig.typeOf}]("$key"))
-               |""".stripMargin
-          }"
-        case _ => s"$key -> $attr \n"
-      }
-    }
-      .foldLeft("")(_ + _)
-  }
-
-  def makeDeclarations(sigs: Annotations, className: String, nSpace: Int = 0): String = {
-    val spaces = (0 until nSpace).map(i => " ").foldRight("")(_ + _)
-    s"""case class $className(__a1: org.broadinstitute.hail.annotations.Annotations) {
-        |${makeDeclarationsRecursive(sigs, nSpace = nSpace)}$spaces}
-        |""".stripMargin
-  }
-
-  def instantiate(exposedName: String, className: String, rawName: String): String = {
-    s"lazy val $exposedName = new $className($rawName)"
-  }
-
-  def instantiateIndexedSeq(exposedName: String, className: String, rawArrayName: String): String =
-    s"""lazy val $exposedName: IndexedSeq[$className] = $rawArrayName.map(new $className(_))""".stripMargin
-}
-*/

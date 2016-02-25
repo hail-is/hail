@@ -56,6 +56,7 @@ object SplitMulti extends Command {
     va: AnnotationData,
     it: Iterable[Genotype],
     propagateGQ: Boolean,
+    splitF: (AnnotationData, Int) => AnnotationData,
     insertF: (AnnotationData, Any) => AnnotationData): Iterator[(Variant, AnnotationData, Iterable[Genotype])] = {
     if (v.isBiallelic)
       return Iterator((v, insertF(va, false), it))
@@ -116,22 +117,23 @@ object SplitMulti extends Command {
       }
     }
 
-    splitVariants.iterator.map(_._1)
+    splitVariants.iterator
       .zip(splitGenotypeStreamBuilders.iterator)
-      .map { case (v, gsb) =>
-        (v, insertF(va, true), gsb.result())
+      .map { case ((v, ind), gsb) =>
+        (v, insertF(splitF(va, ind), true), gsb.result())
       }
   }
 
   def run(state: State, options: Options): State = {
     val localPropagateGQ = options.propagateGQ
+    val splitF = AnnotationData.splitMulti(state.vds.metadata.variantAnnotationSignatures)
     val (newSigs, f) = AnnotationData.insertSignature(state.vds.metadata.variantAnnotationSignatures,
       SimpleSignature("Boolean"), Array("wasSplit"))
     val newVDS = state.vds.copy[Genotype](
       metadata = state.vds.metadata
         .copy(wasSplit = true, variantAnnotationSignatures = newSigs),
       rdd = state.vds.rdd.flatMap[(Variant, AnnotationData, Iterable[Genotype])] { case (v, va, it) =>
-        split(v, va, it, localPropagateGQ, f)
+        split(v, va, it, localPropagateGQ, splitF, f)
       })
     state.copy(vds = newVDS)
   }

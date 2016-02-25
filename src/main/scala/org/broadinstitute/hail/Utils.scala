@@ -784,6 +784,8 @@ object Utils extends Logging {
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
+  def triangle(n: Int): Int = ((n * (n + 1)) / 2).toInt
+
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
   }
