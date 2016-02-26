@@ -29,7 +29,8 @@ class VariantParser(bimPath: String, hConf: Configuration)
           val Array(contig, rsId, morganPos, bpPos, allele1, allele2) = line.split("\\s+")
           Variant(contig, bpPos.toInt, allele2, allele1)
         }
-    }.toArray
+        .toArray
+    }
   }
 
 
@@ -55,7 +56,8 @@ object PlinkLoader {
         .getLines()
         .filter(line => !line.isEmpty)
         .map { line => line.split("\\s+") }
-    }.toArray
+        .toArray
+    }
 
     val sampleIds = sampleArray.map { arr => arr(1) }
 
