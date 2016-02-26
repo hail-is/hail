@@ -5,30 +5,32 @@ import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.variant.Variant
 import org.broadinstitute.hail.variant.VariantDataset
 
-class SamplePCA(k: Int, l: Boolean, e: Boolean) {
+class SamplePCA(k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean) {
   def name = "SamplePCA"
 
-  def apply(vds: VariantDataset): (Matrix, RDD[(Variant, Array[Double])], Array[Double])  = {
+  def apply(vds: VariantDataset): (Matrix, Option[RDD[(Variant, Array[Double])]], Option[Array[Double]])  = {
 
     val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
+    val sc = vds.sparkContext
+    val variantsB = sc.broadcast(variants)
 
-    val svd = mat.computeSVD(k, computeU = l)
+    val svd = mat.computeSVD(k, computeU = computeLoadings)
 
     val scores =
       svd.V.multiply(DenseMatrix.diag(svd.s))
 
     val loadings =
-      if (l)
-        svd.U.rows.map(ir =>
-          (variants(ir.index.toInt), ir.vector.toArray))
+      if (computeLoadings)
+        Some(svd.U.rows.map(ir =>
+          (variantsB.value(ir.index.toInt), ir.vector.toArray)))
       else
-        null
+        None
 
     val eigenvalues =
-      if (e)
-        svd.s.toArray.map(x => x * x)
+      if (computeEigenvalues)
+        Some(svd.s.toArray.map(x => x * x))
       else
-        null
+        None
 
     (scores, loadings, eigenvalues)
   }

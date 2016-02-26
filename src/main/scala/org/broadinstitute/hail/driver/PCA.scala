@@ -21,10 +21,10 @@ object PCA extends Command {
     var k: Int = 10
 
     @Args4jOption(required = false, name = "-l", aliases = Array("--loadings"), usage = "Compute loadings")
-    var l: Boolean = _
+    var lOutput: String = _
 
     @Args4jOption(required = false, name = "-e", aliases = Array("--eigenvalues"), usage = "Compute eigenvalues")
-    var e: Boolean = _
+    var eOutput: String = _
 
   }
 
@@ -35,11 +35,11 @@ object PCA extends Command {
     val vds = state.vds
 
     //FIXME: Add gzip options with .gz (use Tim's utility function HadoopStripCodec)
-    val filename = options.output.stripSuffix(".tsv")
+    //val filename = options.output.stripSuffix(".tsv")
 
-    val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.l, options.e))(vds)
+    val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.lOutput != null, options.eOutput != null))(vds)
 
-    writeTextFile(filename + ".tsv", state.hadoopConf) { s =>
+    writeTextFile(options.output, state.hadoopConf) { s =>
       s.write("sample\t" + (1 to options.k).map("PC" + _).mkString("\t") + "\n")
       for ((ls, i) <- vds.localSamples.zipWithIndex) {
         s.write(vds.sampleIds(ls))
@@ -49,22 +49,24 @@ object PCA extends Command {
       }
     }
 
-    if (options.l) {
-      loadings.persist(StorageLevel.MEMORY_AND_DISK)
-      val vls = loadings.repartitionAndSortWithinPartitions(new RangePartitioner[Variant, Array[Double]](loadings.partitions.length, loadings))
-      vls.persist(StorageLevel.MEMORY_AND_DISK)
-      vls
-        .map{ case (v, l) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + l.mkString("\t")}
-        .writeTable(filename + ".loadings.tsv", Some("chrom\tpos\tref\talt" + "\t" + (1 to options.k).map("PC" + _).mkString("\t")))
-      loadings.unpersist()
-      vls.unpersist()
+    loadings.foreach{ l =>
+      l.persist(StorageLevel.MEMORY_AND_DISK)
+      val lSorted = l.repartitionAndSortWithinPartitions(new RangePartitioner[Variant, Array[Double]](l.partitions.length, l))
+      lSorted.persist(StorageLevel.MEMORY_AND_DISK)
+      lSorted
+        .map{ case (v, vl) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + vl.mkString("\t")}
+        .writeTable(options.eOutput, Some("chrom\tpos\tref\talt" + "\t" + (1 to options.k).map("PC" + _).mkString("\t")))
+      lSorted.unpersist()
+      l.unpersist()
     }
 
-    if (options.e)
-      writeTextFile(filename + ".eigen.tsv", state.hadoopConf) { s =>
-        for (i <- 0 until options.k)
-          s.write(eigenvalues(i) + "\n")
+    eigenvalues.foreach { es =>
+      writeTextFile(options.eOutput, state.hadoopConf) { s =>
+        for (e <- es)
+          s.write(e.toString)
+          s.write("\n")
       }
+    }
 
     state
   }

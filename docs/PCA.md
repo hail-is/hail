@@ -2,42 +2,43 @@
 
 Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure ([Patterson, Price and Reich, 2006](http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190)).
 
-As input PCA expects a `.vds` file with bialellic autosomal variants. The analysis is with respect to a standardized genotype matrix; see below for details. The default output is a `.tsv` file recording the first 10 principal component scores of each sample. Format: one line per sample plus a header, with columns `SAMPLE PC1 PC2` etc.
+As input PCA expects a `.vds` file with bialellic autosomal variants. The analysis is with respect to a standardized genotype matrix; see below for details. The default output is a `.tsv` file recording the first 10 principal component (PC) scores of each sample. Format: one line per sample plus a header, with columns `SAMPLE`, `PC1`, `PC2`, etc.
 
 Example usage:
 ```
-$ hail read -i /path/to/input.vds pca -o /path/to/output.tsv
+$ hail read -i /path/to/file.vds pca -o /path/to/file.tsv
 ```
 
 Command line options:
- - `-k <k>`, `--components <k>` -- Report the first $k$ principal components; by default $k = 10$.
- - `-l`, `--loadings` -- Write the variant loadings for the first $k$ principal components to `output.loadings.tsv`. Format: one line per variant plus a header, with columns `CHROM POS REF ALT PC1 PC2` etc.
- - `-e`, `--eigenvalues` -- Write the first $k$ eigenvalues of the sample covariance or genetic relationship matrix to `output.eigen.tsv`. Format: single column, no header.
+ - `-k <k>`, `--components <k>` -- Report the first $k$ PCs; by default $k = 10$.
+ - `-l </path/to/file.tsv>`, `--loadings` -- Write out the variant loadings for the first $k$ PCs. Format: one line per variant plus a header, with columns `CHROM POS REF ALT PC1 PC2` etc.
+ - `-e </path/to/file.tsv>`, `--eigenvalues` -- Write out the first $k$ eigenvalues of the sample correlation or genetic relationship matrix. Format: single column, no header.
 
 
 ## Details
 
-PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix $M$, computed as follows. A matrix $C$ records raw genotypes, with $n$ rows indexed by samples and $m$ columns indexed by bialellic autosomal variants; $C_{ij}$ is the number of alternate alleles of variant $j$ carried by sample $i$, which can be 0, 1, 2, or missing. For each variant $j$, the sample alternate allele frequency $p_j$ is computed as half the mean of the non-missing entries of column $j$. Entries of $M$ are then mean-centered and variance-normalized as
+PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix $M$, computed as follows.
+
+An $n\times m$ matrix $C$ records raw genotypes, with rows indexed by $n$ samples and columns indexed by $m$ bialellic autosomal variants; $C_{ij}$ is the number of alternate alleles of variant $j$ carried by sample $i$, which can be 0, 1, 2, or missing. For each variant $j$, the sample alternate allele frequency $p_j$ is computed as half the mean of the non-missing entries of column $j$. Entries of $M$ are then mean-centered and variance-normalized as
 $$
-M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)}},
+M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
 $$
-with $M_{ij} = 0$ for $C_{ij}$ missing (i.e. mean genotype imputation). The normalization is under Hardy-Weinberg equilibrium (i.e. a $\mathrm{Binomial}(2, p_j)$ model) and is further motivated in the paper cited above. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)
+with $M_{ij} = 0$ for $C_{ij}$ missing (i.e. mean genotype imputation). This scaling normalizes genotype variances to a common value $1/m$ for variants in Hardy-Weinberg equilibrium and is further motivated in the paper cited above. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)  The factor $1/m$ gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the sample correlation or genetic relationship matrix (GRM) as simply $MM^T$.
 
 PCA then computes the SVD
 $$
-M = USV'
+M = USV^T
 $$
-where columns of $U$ are left singular vectors (orthonormal in $\mathbb{R}^n$), columns of $V$ are right singular vectors (orthonormal in $\mathbb{R}^m$), and $S=\mathrm{diag}(s_1, s_2, \ldots)$ with ordered singular values $s_1 \ge s_2 \ge \cdots \ge 0$. Typically one computes only the first $k$ singular vectors and values, yielding the best rank $k$ approximation $U_k S_k V_k'$ of $M$; the truncations $U_k$, $S_k$ and $V_k$ are $n\times k$, $k\times k$ and $m\times k$ respectively.
+where columns of $U$ are left singular vectors (orthonormal in $\mathbb{R}^n$), columns of $V$ are right singular vectors (orthonormal in $\mathbb{R}^m$), and $S=\mathrm{diag}(s_1, s_2, \ldots)$ with ordered singular values $s_1 \ge s_2 \ge \cdots \ge 0$. Typically one computes only the first $k$ singular vectors and values, yielding the best rank $k$ approximation $U_k S_k V_k^T$ of $M$; the truncations $U_k$, $S_k$ and $V_k$ are $n\times k$, $k\times k$ and $m\times k$ respectively.
 
-From the perspective of the samples or rows of $M$ as data, $V_k$ contains the variant loadings for the first $k$ principal components while $MV_k = U_k S_k$ contains the first $k$ principal component scores of the samples. The loadings represent a new basis of features while the scores represent the projected data on those features. In the output the latter are scaled by a factor of $1/\sqrt{m}$; a sample row has total variance roughly $m$ and the singular values are likewise on this order (provided $n\not\gg m$), so this scaling normalizes them to order one, independent of the number of variants.
+From the perspective of the samples or rows of $M$ as data, $V_k$ contains the variant loadings for the first $k$ PCs while $MV_k = U_k S_k$ contains the first $k$ PC scores of each sample. The loadings represent a new basis of features while the scores represent the projected data on those features. The eigenvalues of the GRM $MM^T$ are the squares of the singular values $s_1^2, s_2^2, \ldots$, which represent the variances carried by the respective PCs.
 
-A related object is the sample covariance or genetic relationship matrix (GRM) $MM'/m$, whose eigenvectors are the columns of $U$ and whose eigenvalues $s_1^2/m, s_2^2/m, \ldots$ are the variances carried by the respective principal components. The eigenvalues are also key statistics for the tests of population structure described in the cited paper.
+**Note:** In PLINK/GCTA the GRM is taken as the starting point and it is computed slightly differently with regard to missing data. Here the $ij$ entry of $MM^T$ is simply the dot product of rows $i$ and $j$ of $M$; in terms of $C$ it is
+$$
+\frac{1}{m}\sum{l\in\mathcal{C}_i\cap\mathcal{C}_j}\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)}
+$$
+where $\mathcal{C}_i = \{l\mid C_{il}\text{ is non-missing}\}$. In PLINK/GCTA the denominator $m$ is replaced with the number of terms in the sum $\lvert\mathcal{C}_i\cap\mathcal{C}_j\rvert$, i.e. the number of variants where both samples have non-missing genotypes. While this is arguably a better estimator of the true GRM (trading shrinkage for noise), it has the drawback that one loses the clean interpretation of the loadings and scores as features and projections.
 
-**Note:** PLINK/GCTA take the GRM as starting point and compute it slightly differently with regard to missing data (modifying the denominator $m$ for each entry to the number of pairs of non-missing genotypes used). They also output its eigenvectors without rescaling (i.e. $U_k$ instead of $U_k S_k$), which has the drawback that the components no longer have the right relative variances and do not represent a projection of the original data (though the scale is immaterial for some applications such as covariates in regression).
+Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even ignoring the above discrepancy that means the left singular vectors $U_k$ instead of the component scores $U_k S_k$. While this is just a matter of the scale on each PC, the scores have the advantage of representing true projections of the data onto features with the variance of a score reflecting the variance explained by the corresponding feature. (In PC bi-plots this amounts to a change in aspect ratio; for use of PCs as covariates in regression it is immaterial.)
 
-## Issues
- - PLINK has an option to use X-chromosome variants. What is it doing exactly? There are several decisions around encoding hemizygous sites for males. More importantly, does anyone use it? Should we support it?
- - Once LD-pruning is implemented, should it be performed first automatically? My feeling is no, but the doc should mention the issue.
- - What about PCA of things other than genotypes, such as missingness? Analysts have mentioned applications to QC and flagged the latter specifically, which is implemented in GCTA.
- - What about feeding the results back into sample and variant annotations rather than writing them to files?
- - Extension to multiallelics? Few variants have more than two common alleles. Probably a one-hot encoding but variance normalization needs some care. For microsatellites/STRs a quantitative rather than categorical encoding may make sense.
+

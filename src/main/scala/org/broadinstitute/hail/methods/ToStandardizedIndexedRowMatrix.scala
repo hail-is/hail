@@ -22,17 +22,21 @@ object ToStandardizedIndexedRowMatrix {
           }
         }
         // Will the denominator be computed every time the function is applied?
-        def standardize(n: Int): Double =
-          if (sum == 0 || sum == 2 * count)
-            0.0
-          else {
-            val p = sum.toDouble / (2 * count)
-            (n - 2 * p) / math.sqrt(2 * p * (1 - p) * nVariants)
-          }
+        val p =
+          if (count == 0) 0.0
+          else sum.toDouble / (2 * count)
+        val mean = 2 * p
+        val sdRecip =
+          if (sum == 0 || sum == 2 * count) 0.0
+          else 1.0 / math.sqrt(2 * p * (1 - p) * nVariants)
+        def standardize(c: Int): Double =
+          (c - mean) * sdRecip
+
         IndexedRow(variantIdxBroadcast.value(v),
-          Vectors.dense(gs.map(_.nNonRefAlleles.map(standardize).getOrElse(0.0)).toArray))
+          Vectors.dense(gs.iterator.map(_.nNonRefAlleles.map(standardize).getOrElse(0.0)).toArray))
       }
 
     (variants, new IndexedRowMatrix(standardized.cache(), nVariants, nSamples))
   }
+
 }
