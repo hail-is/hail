@@ -87,7 +87,7 @@ object PlinkLoader {
       sc.defaultMinPartitions)
     //rdd.cache()
 
-    val variants = new VariantParser(bimPath).eval()
+    val variants = new VariantParser(bimPath, sc.hadoopConfiguration).eval()
 
     println(s"rdd.count: ${rdd.count}")
     println(s"variant count: ${variants.size}")
@@ -103,7 +103,7 @@ object PlinkLoader {
   }
 
   def apply(bedFile: String, bimFile: String, famFile: String, sc: SparkContext): VariantDataset = {
-    val samples = parseFam(famFile)
+    val samples = parseFam(famFile, sc.hadoopConfiguration)
     println("nSamples is " + samples.sampleIds.length)
 
     val startTime = System.nanoTime()

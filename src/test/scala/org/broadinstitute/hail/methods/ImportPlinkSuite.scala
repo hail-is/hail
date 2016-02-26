@@ -6,6 +6,7 @@ import org.broadinstitute.hail.driver.{ImportPlinkBfile, ExportPlink, State, Spl
 import org.broadinstitute.hail.io.LoadVCF
 import org.testng.annotations.Test
 import sys.process._
+import scala.language.postfixOps
 
 import scala.io.Source
 
