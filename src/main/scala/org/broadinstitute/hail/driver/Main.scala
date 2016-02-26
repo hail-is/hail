@@ -306,4 +306,12 @@ object Main {
     sc.stop()
   }
 
+  {
+    import breeze.linalg._
+    import breeze.linalg.operators.{OpMulMatrix, BinaryRegistry}
+
+    implicitly[BinaryRegistry[DenseMatrix[Double], Vector[Double], OpMulMatrix.type, DenseVector[Double]]].register(
+      DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
+  }
+
 }
