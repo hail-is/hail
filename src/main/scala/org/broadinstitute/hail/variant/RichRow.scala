@@ -43,7 +43,7 @@ class RichRow(r: Row) {
 
   def getCallStream(i: Int): CallStream = {
     val ir = r.getAs[Row](i)
-    CallStream(ir.getByteArray(0), ir.getDouble(1), ir.getDouble(2), ir.getInt(3), ir.getBoolean(4))
+    CallStream(ir.getByteArray(0), ir.getDouble(1), ir.getDouble(2), ir.getInt(3), ir.getInt(4), ir.getBoolean(5))
   }
 
 

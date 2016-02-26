@@ -87,10 +87,12 @@ object CallStream {
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
+    var nHomRef = 0
 
     for ((gt, i) <- gts.view.zipWithIndex)
       gt match {
         case 0 =>
+          nHomRef += 1
         case 1 =>
           x(i) = 1
           sumX += 1
@@ -99,7 +101,7 @@ object CallStream {
           x(i) = 2
           sumX += 2
           sumXX += 4
-        case _ =>
+        case 3 =>
           x(i) = 3
           nMissing += 1
       }
@@ -113,6 +115,7 @@ object CallStream {
       meanX,
       sumXX + meanX * meanX * nMissing,
       nMissing,
+      nHomRef,
       false)
   }
 
@@ -149,15 +152,18 @@ object CallStream {
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
+    var nHomRef = 0
 
     for ((gt, i) <- gts.view.zipWithIndex)
       gt match {
         case 0 =>
+          nHomRef += 1
         case 1 =>
           rowX += i
           valX += 1
           sumX += 1
           sumXX += 1
+
         case 2 =>
           rowX += i
           valX += 2
@@ -178,6 +184,7 @@ object CallStream {
       meanX,
       sumXX + meanX * meanX * nMissing,
       nMissing,
+      nHomRef,
       true)
   }
 
@@ -282,7 +289,7 @@ object CallStream {
 
 }
 
-case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int, isSparse: Boolean) {
+case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int, nHomRef: Int, isSparse: Boolean) {
 
   def hardStats(y: DenseVector[Double] , n: Int): GtVectorAndStats =
     if (isSparse)
@@ -349,8 +356,8 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
   def sparseStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
 
     //FIXME: these don't need to be buffers...can compute length from meanX, sumXX, etc
-    val rowX = ArrayBuffer[Int]()
-    val valX = ArrayBuffer[Double]()
+    val rowX = Array.ofDim[Int](n - nHomRef)
+    val valX = Array.ofDim[Double](n - nHomRef)
     var sumXY = 0.0
 
     val mask00000011 = 3
@@ -358,20 +365,20 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
     val mask00110000 = 3 << 4
     val mask11000000 = 3 << 6
 
-    def merge(r: Int, gt: Int) {
+    def merge(i: Int, r: Int, gt: Int) {
       gt match {
         case 0 =>
         case 1 =>
-          rowX += r
-          valX += 1.0
+          rowX(i) = r
+          valX(i) = 1.0
           sumXY += y(r)
         case 2 =>
-          rowX += r
-          valX += 2.0
+          rowX(i) = r
+          valX(i) = 2.0
           sumXY += 2 * y(r)
         case 3 =>
-          rowX += r
-          valX += meanX
+          rowX(i) = r
+          valX(i) = meanX
           sumXY += meanX * y(r)
       }
     }
@@ -413,48 +420,53 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
       if (gt4 != 0) {
         r += rowDiff(j, l1)
-        merge(r, gt1)
+        merge(i, r, gt1)
+        i += 1
         j += l1 + 1
 
         r += rowDiff(j, l2)
-        merge(r, gt2)
+        merge(i, r, gt2)
+        i += 1
         j += l2 + 1
 
         r += rowDiff(j, l3)
-        merge(r, gt3)
+        merge(i, r, gt3)
+        i += 1
         j += l3 + 1
 
         r += rowDiff(j, l4)
-        merge(r, gt4)
+        merge(i, r, gt4)
+        i += 1
         j += l4 + 1
-
-        i += 4
       }
       else if (gt3 != 0) {
         r += rowDiff(j, l1)
-        merge(r, gt1)
+        merge(i, r, gt1)
+        i += 1
         j += l1 + 1
 
         r += rowDiff(j, l2)
-        merge(r, gt2)
+        merge(i, r, gt2)
+        i += 1
         j += l2 + 1
 
         r += rowDiff(j, l3)
-        merge(r, gt3)
+        merge(i, r, gt3)
         j += l3 + 1
       }
       else if (gt2 != 0) {
         r += rowDiff(j, l1)
-        merge(r, gt1)
+        merge(i, r, gt1)
+        i += 1
         j += l1 + 1
 
         r += rowDiff(j, l2)
-        merge(r, gt2)
+        merge(i, r, gt2)
         j += l2 + 1
       }
       else {
         r += rowDiff(j, l1)
-        merge(r, gt1)
+        merge(i, r, gt1)
         j += l1 + 1
       }
     }
