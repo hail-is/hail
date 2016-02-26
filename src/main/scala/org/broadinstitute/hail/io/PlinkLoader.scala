@@ -87,10 +87,11 @@ object PlinkLoader {
 
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[ParsedLine[Int]],
       sc.defaultMinPartitions)
-    //rdd.cache()
 
     val variants = new VariantParser(bimPath, sc.hadoopConfiguration).eval()
 
+    //assert(rdd.count == variants.size)
+    println(s"rdd.distinct.count: ${rdd.map{case (lw, pl) => pl.getKey}.distinct.count}")
     println(s"rdd.count: ${rdd.count}")
     println(s"variant count: ${variants.size}")
 
