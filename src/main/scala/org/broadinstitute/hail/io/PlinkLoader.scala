@@ -26,7 +26,7 @@ class VariantParser(bimPath: String)
       .filter(line => !line.isEmpty)
       .map { line =>
         val Array(contig, rsId, morganPos, bpPos, allele1, allele2) = line.split("\\s+")
-        Variant(contig, bpPos.toInt, allele1, allele2)
+        Variant(contig, bpPos.toInt, allele2, allele1)
       }
       .toArray
   }
@@ -56,6 +56,7 @@ object PlinkLoader {
       .toArray
 
     val sampleIds = sampleArray.map { arr => arr(1) }
+
     val nSamples = sampleIds.length
     val indexOfSample: Map[String, Int] = sampleIds.zipWithIndex.toMap
     def maybeId(id: String): Option[Int] = if (id != "0") indexOfSample.get(id) else None
@@ -77,25 +78,17 @@ object PlinkLoader {
 
     val nSamples = sampleIds.length
 
-    def plinkToHail(call: Int): Int = {
-      if (call == 0)
-        call
-      else if (call == 1)
-        -1
-      else
-        call - 1
-    }
-
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
     // FIXME what about withScope and assertNotStopped()?
+
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[ParsedLine[Int]],
       sc.defaultMinPartitions)
+    //rdd.cache()
 
     val variants = new VariantParser(bimPath).eval()
-    val indices = rdd.map { case (lw, pl) => pl.getKey}
-      .collect()
-    println(s"first 5: ${indices.take(5).mkString(",")}")
-    println(s"last 5: ${indices.takeRight(5).mkString(",")}")
+
+    println(s"rdd.count: ${rdd.count}")
+    println(s"variant count: ${variants.size}")
 
     val variantRDD = rdd.map {
       case (lw, pl) => (variants(pl.getKey), Annotations.empty(), pl.getGS)
@@ -103,13 +96,16 @@ object PlinkLoader {
     VariantSampleMatrix(VariantMetadata(sampleIds), variantRDD)
   }
 
+  def apply(bfile: String, sc: SparkContext): VariantDataset = {
+    apply(bfile + ".bed", bfile + ".bim", bfile + ".fam", sc)
+  }
 
-  def apply(fileBase: String, sc: SparkContext): VariantDataset = {
-    val samples = parseFam(fileBase + ".fam")
+  def apply(bedFile: String, bimFile: String, famFile: String, sc: SparkContext): VariantDataset = {
+    val samples = parseFam(famFile)
     println("nSamples is " + samples.sampleIds.length)
 
     val startTime = System.nanoTime()
-    val vds = parseBed(fileBase + ".bed", samples.sampleIds, fileBase + ".bim", sc)
+    val vds = parseBed(bedFile, samples.sampleIds, bimFile, sc)
     val endTime = System.nanoTime()
     val diff = (endTime - startTime) / 1e9
     vds
