@@ -2,6 +2,7 @@ package org.broadinstitute.hail.io
 
 import java.io._
 
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.broadinstitute.hail.Utils
 import org.broadinstitute.hail.annotations.Annotations
@@ -15,21 +16,22 @@ import scala.io.Source
 case class SampleInfo(sampleIds: Array[String], pedigree: Pedigree)
 
 
-class VariantParser(bimPath: String)
+class VariantParser(bimPath: String, hConf: Configuration)
   extends Serializable {
   @transient var variants: Option[Array[Variant]] = None
 
   def parseBim(): Array[Variant] = {
-    val bimFile = new File(bimPath)
-    Source.fromFile(bimFile)
-      .getLines()
-      .filter(line => !line.isEmpty)
-      .map { line =>
-        val Array(contig, rsId, morganPos, bpPos, allele1, allele2) = line.split("\\s+")
-        Variant(contig, bpPos.toInt, allele2, allele1)
-      }
-      .toArray
+    readFile(bimPath, hConf) { s =>
+      Source.fromInputStream(s)
+        .getLines()
+        .filter(line => !line.isEmpty)
+        .map { line =>
+          val Array(contig, rsId, morganPos, bpPos, allele1, allele2) = line.split("\\s+")
+          Variant(contig, bpPos.toInt, allele2, allele1)
+        }
+    }.toArray
   }
+
 
   def check() {
     require(variants.isEmpty)
@@ -47,13 +49,13 @@ class VariantParser(bimPath: String)
 }
 
 object PlinkLoader {
-  private def parseFam(famPath: String): SampleInfo = {
-    val famFile = new File(famPath)
-    val sampleArray = Source.fromFile(famFile)
-      .getLines()
-      .filter(line => !line.isEmpty)
-      .map { line => line.split("\\s+") }
-      .toArray
+  private def parseFam(famPath: String, hConf: Configuration): SampleInfo = {
+    val sampleArray = readFile(famPath, hConf) { s =>
+      Source.fromInputStream(s)
+        .getLines()
+        .filter(line => !line.isEmpty)
+        .map { line => line.split("\\s+") }
+    }.toArray
 
     val sampleIds = sampleArray.map { arr => arr(1) }
 
