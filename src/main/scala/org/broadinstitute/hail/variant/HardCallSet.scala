@@ -1,8 +1,7 @@
 package org.broadinstitute.hail.variant
 
-import breeze.linalg.DenseVector
+import breeze.linalg._
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.SparseVector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
@@ -471,7 +470,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
       }
     }
 
-    GtVectorAndStats(new SparseVector(n, rowX.toArray, valX.toArray), sumXX, sumXY, nMissing)
+    GtVectorAndStats(new SparseVector[Double](rowX, valX, n), sumXX, sumXY, nMissing)
   }
 
   import CallStream._
