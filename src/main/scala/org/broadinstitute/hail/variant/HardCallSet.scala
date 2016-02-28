@@ -9,7 +9,7 @@ import org.broadinstitute.hail.Utils._
 import scala.collection.mutable.ArrayBuffer
 
 object HardCallSet {
-  def apply(vds: VariantDataset, sparseCutoff: Double = .05): HardCallSet = {
+  def apply(vds: VariantDataset, sparseCutoff: Double = .15): HardCallSet = {
     val n = vds.nLocalSamples
 
     new HardCallSet(
