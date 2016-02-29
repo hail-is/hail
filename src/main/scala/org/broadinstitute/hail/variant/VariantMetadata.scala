@@ -11,11 +11,11 @@ object VariantMetadata {
   def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(Array.empty[(String, String)],
     sampleIds,
     AnnotationData.emptyIndexedSeq(sampleIds.length),
-    AnnotationSignatures.empty(),
-    AnnotationSignatures.empty())
+    StructSignature.empty(),
+    StructSignature.empty())
 
   def apply(filters: IndexedSeq[(String, String)], sampleIds: Array[String],
-    sa: IndexedSeq[AnnotationData], sas: AnnotationSignatures, vas: AnnotationSignatures): VariantMetadata = {
+    sa: IndexedSeq[AnnotationData], sas: StructSignature, vas: StructSignature): VariantMetadata = {
     new VariantMetadata(filters, sampleIds, sa, sas, vas)
   }
 }
@@ -23,18 +23,18 @@ object VariantMetadata {
 case class VariantMetadata(filters: IndexedSeq[(String, String)],
   sampleIds: IndexedSeq[String],
   sampleAnnotations: IndexedSeq[AnnotationData],
-  sampleAnnotationSignatures: AnnotationSignatures,
-  variantAnnotationSignatures: AnnotationSignatures,
+  sampleAnnotationSignatures: StructSignature,
+  variantAnnotationSignatures: StructSignature,
   wasSplit: Boolean = false) {
 
   def nSamples: Int = sampleIds.length
 
-//  def addSampleAnnotations(sas: AnnotationSignatures, sa: IndexedSeq[AnnotationData]): VariantMetadata =
+//  def addSampleAnnotations(sas: StructSignature, sa: IndexedSeq[AnnotationData]): VariantMetadata =
 //    copy(
 //      sampleAnnotationSignatures = sampleAnnotationSignatures ++ sas,
 //      sampleAnnotations = sampleAnnotations.zip(sa).map { case (a1, a2) => a1 ++ a2 })
 
-//  def addVariantAnnotationSignatures(newSigs: AnnotationSignatures): VariantMetadata =
+//  def addVariantAnnotationSignatures(newSigs: StructSignature): VariantMetadata =
 //    copy(
 //      variantAnnotationSignatures = variantAnnotationSignatures ++ newSigs)
 //

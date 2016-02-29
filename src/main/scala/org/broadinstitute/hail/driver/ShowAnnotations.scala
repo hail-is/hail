@@ -20,16 +20,16 @@ object ShowAnnotations extends Command {
 
   override def supportsMultiallelic = true
 
-  def printSignatures(sb: StringBuilder, a: AnnotationSignatures, spaces: Int, path: String) {
+  def printSignatures(sb: StringBuilder, a: StructSignature, spaces: Int, path: String) {
     val spacing = (0 until spaces).map(i => " ").fold("")(_ + _)
-    val values = new mutable.ArrayBuilder.ofRef[(String, AnnotationSignature)]()
-    val subAnnotations = new mutable.ArrayBuilder.ofRef[(String, AnnotationSignatures)]()
+    val values = new mutable.ArrayBuilder.ofRef[(String, Signature)]()
+    val subAnnotations = new mutable.ArrayBuilder.ofRef[(String, StructSignature)]()
 
     a.attrs.foreach {
       case (k, v) =>
         v match {
-          case anno: AnnotationSignatures => subAnnotations += ((k, anno))
-          case sig: AnnotationSignature => values += ((k, sig))
+          case anno: StructSignature => subAnnotations += ((k, anno))
+          case sig: Signature => values += ((k, sig))
           case _ => fatal("corrupt annotation signatures")
         }
     }

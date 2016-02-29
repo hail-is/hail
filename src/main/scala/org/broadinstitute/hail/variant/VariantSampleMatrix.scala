@@ -1,14 +1,17 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
+import org.apache.spark.sql.catalyst.ScalaReflection.Schema
 import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
+import org.apache.spark.sql.types.{StructType, StructField, StringType}
+
 
 object VariantSampleMatrix {
   def apply[T](metadata: VariantMetadata,
@@ -18,7 +21,7 @@ object VariantSampleMatrix {
 
   def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
     require(dirname.endsWith(".vds"))
-    import RichRow._
+//    import RichRow._
 
     val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
       sqlContext.sparkContext.hadoopConfiguration) {
@@ -33,11 +36,8 @@ object VariantSampleMatrix {
 
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
-      df.rdd.mapPartitions(iter => {
-        val ser = SparkEnv.get.serializer.newInstance()
-        iter.map(r =>
-          (r.getVariant(0), ser.deserialize[AnnotationData](ByteBuffer.wrap(r.getByteArray(1))), r.getGenotypeStream(2))
-        )
+      df.rdd.map(row => {
+        (Variant.fromRow(row.getAs[Row](0)), AnnotationData(row.getAs[Row](1)), GenotypeStream.fromRow(row.getAs[Row](2)))
       }))
   }
 
@@ -49,12 +49,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](nSamples, g(v)))
+         values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](g(v)))
+         values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -79,7 +79,7 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
   }
@@ -344,32 +344,32 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.map { case (v, va, gs) => (v, gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g))) }
 
+    def same(that: VariantSampleMatrix[T]): Boolean = {
+      metadata == that.metadata &&
+        localSamples.sameElements(that.localSamples) &&
+        rdd.map { case (v, va, gs) => (v, (va, gs)) }
+          .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
+          .map { case (v, t) => t match {
+            case (Some((va1, it1)), Some((va2, it2))) =>
+              it1.sameElements(it2) && va1 == va2
+            case _ => false
+          }
+          }.fold(true)(_ && _)
+    }
+
 //  def same(that: VariantSampleMatrix[T]): Boolean = {
+//    println(metadata == that.metadata)
 //    metadata == that.metadata &&
 //      localSamples.sameElements(that.localSamples) &&
 //      rdd.map { case (v, va, gs) => (v, (va, gs)) }
 //        .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
 //        .map { case (v, t) => t match {
 //          case (Some((va1, it1)), Some((va2, it2))) =>
-//            it1.sameElements(it2) && va1 == va2
+//            it1.sameElements(it2) && va1.same(va2)
 //          case _ => false
 //        }
 //        }.fold(true)(_ && _)
 //  }
-
-  def same(that: VariantSampleMatrix[T]): Boolean = {
-    println(metadata == that.metadata)
-    metadata == that.metadata &&
-      localSamples.sameElements(that.localSamples) &&
-      rdd.map { case (v, va, gs) => (v, (va, gs)) }
-        .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
-        .map { case (v, t) => t match {
-          case (Some((va1, it1)), Some((va2, it2))) =>
-            it1.sameElements(it2) && va1.same(va2)
-          case _ => false
-        }
-        }.fold(true)(_ && _)
-  }
 
   def mapAnnotationsWithAggregate[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
@@ -393,23 +393,29 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-//  def addVariantAnnotationSignatures(name: String, sig: AnnotationSignature): VariantSampleMatrix[T] = {
-//    copy(metadata = metadata.copy(variantAnnotationSignatures =
-//      metadata.variantAnnotationSignatures +(name, sig)))
-//  }
-//
-//  def addSampleAnnotationSignatures(name: String, sig: AnnotationSignature): VariantSampleMatrix[T] = {
-//    copy(metadata = metadata.copy(sampleAnnotationSignatures =
-//      metadata.sampleAnnotationSignatures +(name, sig)))
-//  }
+  //  def addVariantAnnotationSignatures(name: String, sig: Signature): VariantSampleMatrix[T] = {
+  //    copy(metadata = metadata.copy(variantAnnotationSignatures =
+  //      metadata.variantAnnotationSignatures +(name, sig)))
+  //  }
+  //
+  //  def addSampleAnnotationSignatures(name: String, sig: Signature): VariantSampleMatrix[T] = {
+  //    copy(metadata = metadata.copy(sampleAnnotationSignatures =
+  //      metadata.sampleAnnotationSignatures +(name, sig)))
+  //  }
 }
 
 // FIXME AnyVal Scala 2.11
 class RichVDS(vds: VariantDataset) {
 
-  def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
-    import sqlContext.implicits._
+  def makeSchema(): StructType = {
+    StructType(Array(
+      StructField("variant", Variant.schema(), false),
+      StructField("annotations", vds.metadata.variantAnnotationSignatures.getSchema, false),
+      StructField("gs", GenotypeStream.schema(), false)
+    ))
+  }
 
+  def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
     require(dirname.endsWith(".vds"))
 
     val hConf = vds.sparkContext.hadoopConfiguration
@@ -421,26 +427,24 @@ class RichVDS(vds: VariantDataset) {
       }
     }
 
-    vds.rdd
-      .mapPartitions { iter =>
-        val serializer = SparkEnv.get.serializer.newInstance()
-        iter.map {
-          case (v, va, gs) =>
-            (v, serializer.serialize(va).array(), gs.toGenotypeStream(v, compress))
-        }
+    val rowRDD = vds.rdd
+      .map {
+        case (v, va, gs) =>
+          Row.fromSeq(Array(Variant.toRow(v), va.row, GenotypeStream.toRow(gs.toGenotypeStream(v, compress))))
       }
-      .toDF()
+    sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
 
-//  FIXME -- TP remove wasSplit
+  //  FIXME -- TP remove wasSplit
   def eraseSplit: VariantDataset = {
-  val (newSignatures, f) = AnnotationData.removeSignature(vds.metadata.variantAnnotationSignatures, Array("wasSplit"))
+    val (newSignatures, f) = AnnotationData.removeSignature(vds.metadata.variantAnnotationSignatures, Array("wasSplit"))
     vds.copy(metadata = vds.metadata
       .copy(wasSplit = false, variantAnnotationSignatures = newSignatures),
-      rdd = vds.rdd.map { case (v, va, gs) =>
-        (v, f(va), gs.lazyMap(g => g.copy(fakeRef = false)))
+      rdd = vds.rdd.map {
+        case (v, va, gs) =>
+          (v, f(va), gs.lazyMap(g => g.copy(fakeRef = false)))
       })
   }
 }

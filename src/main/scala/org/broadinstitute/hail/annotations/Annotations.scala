@@ -1,24 +1,33 @@
 package org.broadinstitute.hail.annotations
 
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
 
 class CollisionException(s: String) extends Exception(s)
 
-case class MutableSignatures(sigs: mutable.Map[String, AnnotationSignature], index: Int) extends AnnotationSignature {
-  def typeOf = "Mutable Signatures"
+case class Path(p: List[String])
+
+type Annotation = Row
+
+case class MutableSignatures(sigs: mutable.Map[String, Signature], index: Int) extends Signature {
+  def typeOf = null
 
   def remapIndex(newIndex: Int) = copy(index = newIndex)
 
-  def insertSig(toInsert: AnnotationSignature, path: Iterable[String]): Array[Int] = {
+  def insertSig(toInsert: Signature, path: Iterable[String]): Array[Int] = {
     val (map, indexPath) = MutableSignatures.descendNestedMaps(sigs, path.take(path.size - 1))
     map.get(path.last) match {
-      case Some(remap) => map += ((path.last, toInsert.remapIndex(remap.index)))
-      case None => map += ((path.last, toInsert.remapIndex(map.size)))
+      case Some(remap) =>
+        map += ((path.last, toInsert.remapIndex(remap.index)))
+        indexPath ++ Array(remap.index)
+      case None =>
+        val index = map.size
+        map += ((path.last, toInsert.remapIndex(index)))
+        indexPath ++ Array(index)
     }
-    indexPath
   }
 
   def removeSig(path: Iterable[String]): Array[Int] = {
@@ -46,8 +55,8 @@ case class MutableSignatures(sigs: mutable.Map[String, AnnotationSignature], ind
     indexPath ++ Array(lastIndex)
   }
 
-  def result(): AnnotationSignatures = {
-    AnnotationSignatures(
+  def result(): StructSignature = {
+    StructSignature(
       sigs.mapValues {
         case ms: MutableSignatures => ms.result()
         case x => x
@@ -57,8 +66,8 @@ case class MutableSignatures(sigs: mutable.Map[String, AnnotationSignature], ind
 }
 
 object MutableSignatures {
-  def apply(sigs: AnnotationSignatures): MutableSignatures = {
-    val m = mutable.Map.empty[String, AnnotationSignature]
+  def apply(sigs: StructSignature): MutableSignatures = {
+    val m = mutable.Map.empty[String, Signature]
     sigs.attrs.foreach {
       pair => m += pair
     }
@@ -67,18 +76,18 @@ object MutableSignatures {
   }
 
 
-  def descendNestedMaps(m: mutable.Map[String, AnnotationSignature],
-    path: Iterable[String]): (mutable.Map[String, AnnotationSignature], Array[Int]) = {
+  def descendNestedMaps(m: mutable.Map[String, Signature],
+    path: Iterable[String]): (mutable.Map[String, Signature], Array[Int]) = {
 
     val indexPath = mutable.ArrayBuilder.make[Int]
     val map = path.foldLeft(m) { (mMap, key) =>
       if (!mMap.contains(key)) {
         val index = mMap.size
-        mMap += ((key, MutableSignatures(mutable.Map.empty[String, AnnotationSignature], index)))
+        mMap += ((key, MutableSignatures(mutable.Map.empty[String, Signature], index)))
       }
 
       mMap(key) match {
-        case as: AnnotationSignatures =>
+        case as: StructSignature =>
           val convertedSigs = MutableSignatures(as)
           mMap += ((key, convertedSigs))
           indexPath += convertedSigs.index
@@ -114,15 +123,15 @@ case class MutableRow(arr: mutable.ArrayBuffer[Any]) {
   }
 
   def insert(path: Iterable[Int], toAdd: Any) {
+    println(path)
     val array = MutableRow.descendNestedRows(arr, path.take(path.size - 1))
-    arr(path.last) = toAdd
+    if (path.last >= arr.size)
+      arr += toAdd
+    else
+      arr(path.last) = toAdd
   }
 
   def result(): Row = {
-    println("doing result")
-    println(this)
-
-
     Row.fromSeq(arr.toSeq.map {
       case mr: MutableRow => mr.result()
       case x => x
@@ -149,6 +158,7 @@ object MutableRow {
           convertedRow.arr
         case mr: MutableRow => mr.arr
         case error => throw new UnsupportedOperationException(s"expected row or arr, got ${error.getClass.getName}")
+          // FIXME account for va.a.b is not a row, and inserting to va.a.b.c
       }
     }
   }
@@ -190,8 +200,6 @@ case class AnnotationData(row: Row) extends Serializable {
         case false => Some(parent.getAs[T](i.last))
       }
   }
-
-  def same(other: AnnotationData): Boolean = AnnotationData.rowSame(row, other.row)
 }
 
 object AnnotationData {
@@ -199,15 +207,6 @@ object AnnotationData {
 
   def apply(data: Seq[Any], depth: Int): AnnotationData =
     AnnotationData(makeRow(data, depth))
-
-  def rowSame(row1: Row, row2: Row): Boolean = {
-    row1.size == row2.size &&
-      row1.toSeq.iterator.zip(row2.toSeq.iterator).forall {
-        case (r1: Row, r2: Row) => rowSame(r1, r2)
-        case (a1: Array[_], a2: Array[_]) => a1.sameElements(a2)
-        case (elem1, elem2) => elem1 == elem2
-      }
-  }
 
   def empty(): AnnotationData = new AnnotationData(Row.empty)
 
@@ -251,8 +250,8 @@ object AnnotationData {
   def makeRow(values: Seq[Any], depth: Int): Row =
     (0 until depth).foldLeft(Row.fromSeq(values)) { (row, i) => Row.fromSeq(Seq(row)) }
 
-  def removeSignature(base: AnnotationSignatures,
-    path: Array[String]): (AnnotationSignatures, (AnnotationData => AnnotationData)) = {
+  def removeSignature(base: StructSignature,
+    path: Array[String]): (StructSignature, (AnnotationData => AnnotationData)) = {
     val ms = MutableSignatures(base)
     val indexPath = ms.removeSig(path)
 
@@ -266,12 +265,14 @@ object AnnotationData {
     (ms.result(), f)
   }
 
-  def insertSignature(base: AnnotationSignatures, toAdd: AnnotationSignature,
-    path: Array[String]): (AnnotationSignatures, (AnnotationData, Any) => AnnotationData) = {
+  def insertSignature(base: StructSignature, toAdd: Signature,
+    path: Array[String]): (StructSignature, (AnnotationData, Any) => AnnotationData) = {
 
     val ms = MutableSignatures(base)
     val insertPath = ms.insertSig(toAdd, path)
     val newSigs = ms.result()
+
+    println("insert path was " + insertPath.mkString(","))
 
     val f: (AnnotationData, Any) => AnnotationData = {
       (ad, t) =>
@@ -283,16 +284,16 @@ object AnnotationData {
     (newSigs, f)
   }
 
-  def splitMulti(base: AnnotationSignatures): (AnnotationData, Int) => AnnotationData = {
-    base.getOption[AnnotationSignature]("info") match {
-      case Some(infoSigs: AnnotationSignatures) =>
+  def splitMulti(base: StructSignature): (AnnotationData, Int) => AnnotationData = {
+    base.getOption[Signature]("info") match {
+      case Some(infoSigs: StructSignature) =>
         val functions: Array[((Any, Int) => Any)] = infoSigs.attrs
           .toArray
           .sortBy { case (key, value) => value.index }
           .map { case (key, value) => value match {
             case vcfSig: VCFSignature if vcfSig.number == "A" =>
-              vcfSig.typeOf match {
-                case "Array[Int]" => (a: Any, ind: Int) =>
+              vcfSig.dType match {
+                case SignatureType.ArrayInt => (a: Any, ind: Int) =>
                   Array(a.asInstanceOf[Array[Int]]
                     .apply(ind))
                 case _ => (a: Any, ind: Int) =>
@@ -300,8 +301,8 @@ object AnnotationData {
                     .apply(ind))
               }
             case vcfSig: VCFSignature if vcfSig.number == "R" =>
-              vcfSig.typeOf match {
-                case "Array[Int]" => (a: Any, ind: Int) =>
+              vcfSig.dType match {
+                case SignatureType.ArrayInt => (a: Any, ind: Int) =>
                   val arr = a.asInstanceOf[Array[Int]]
                   Array(arr(0), arr(ind))
                 case _ => (a: Any, ind: Int) =>
@@ -309,8 +310,8 @@ object AnnotationData {
                   Array(arr(0), arr(ind))
               }
             case vcfSig: VCFSignature if vcfSig.number == "G" =>
-              vcfSig.typeOf match {
-                case "Array[Int]" => (a: Any, ind: Int) =>
+              vcfSig.dType match {
+                case SignatureType.ArrayInt => (a: Any, ind: Int) =>
                   val arr = a.asInstanceOf[Array[Int]]
                   Array(arr(0),
                     triangle(ind + 1) + 1,
@@ -338,18 +339,18 @@ object AnnotationData {
   }
 }
 
-case class AnnotationSignatures(attrs: Map[String, AnnotationSignature],
-  index: Int = -1) extends AnnotationSignature {
-  def typeOf: String = "Signatures"
+case class AnnotationSignatures(attrs: Map[String, Signature],
+  index: Int = -1) extends Signature {
+  def typeOf: SignatureType.SignatureType = SignatureType.Signatures
 
   def query(query: Iterable[String]): Array[Int] = {
     val (path, sigs) = query.take(query.size - 1).foldLeft((mutable.ArrayBuilder.make[Int], this)) { case ((arr, sig), key) =>
-      val next = sig.get[AnnotationSignatures](key)
+      val next = sig.get[StructSignature](key)
       arr += next.index
       (arr, next)
     }
     path += sigs
-      .get[AnnotationSignature](query.last)
+      .get[Signature](query.last)
       .index
 
     path.result()
@@ -369,7 +370,7 @@ case class AnnotationSignatures(attrs: Map[String, AnnotationSignature],
           (map, continue)
         else
           map.get(key) match {
-            case Some(sigs: AnnotationSignatures) => (sigs.attrs, true)
+            case Some(sigs: StructSignature) => (sigs.attrs, true)
             case _ => (attrs, false)
           }
       }
@@ -381,11 +382,57 @@ case class AnnotationSignatures(attrs: Map[String, AnnotationSignature],
 
   def getOption[T](key: String): Option[T] = attrs.get(key).map(_.asInstanceOf[T])
 
-  def remapIndex(newIndex: Int): AnnotationSignature = this.copy(index = newIndex)
+  def remapIndex(newIndex: Int): Signature = this.copy(index = newIndex)
 
   def nextIndex(): Int = attrs.size
+
+  def getSchema: StructType = {
+//    println(attrs)
+//    attrs.foreach(println)
+    StructType(attrs
+      .toArray
+      .sortBy { case (key, sig) => sig.index }
+      .map { case (key, sig) => sig match {
+        case sigs: StructSignature => StructField(key, sigs.getSchema, true)
+        case sig => StructSignature.toSchemaType(key, sig)
+      }}
+    )
+  }
 }
 
 object AnnotationSignatures {
-  def empty(): AnnotationSignatures = AnnotationSignatures(Map.empty[String, AnnotationSignature])
+  def empty(): StructSignature = StructSignature(Map.empty[String, Signature])
+
+  def toSchemaType(key: String, signature: Signature): StructField = {
+    signature match {
+      case sigs: StructSignature => StructField(key, sigs.getSchema, true)
+      case _ => signature.typeOf match {
+        case SignatureType.ArrayInt => StructField(key, ArrayType(IntegerType), true)
+        case SignatureType.ArrayDouble => StructField(key, ArrayType(DoubleType), true)
+        case SignatureType.ArrayString => StructField(key, ArrayType(StringType), true)
+        case SignatureType.String => StructField(key, StringType, true)
+        case SignatureType.Int => StructField(key, IntegerType, true)
+        case SignatureType.Long => StructField(key, LongType, true)
+        case SignatureType.Double => StructField(key, DoubleType, true)
+        case SignatureType.Float => StructField(key, FloatType, true)
+        case SignatureType.SetInt => StructField(key, ArrayType(IntegerType), true)
+        case SignatureType.SetString => StructField(key, ArrayType(StringType), true)
+        case SignatureType.Boolean => StructField(key, BooleanType, true)
+        case SignatureType.Character => StructField(key, StringType, true)
+      }
+    }
+  }
 }
+
+/*    case "Unit" => expr.TUnit
+    case "Boolean" => expr.TBoolean
+    case "Character" => expr.TChar
+    case "Int" => expr.TInt
+    case "Long" => expr.TLong
+    case "Float" => expr.TFloat
+    case "Double" => expr.TDouble
+    case "Array[Int]" => expr.TArray(expr.TInt)
+    case "Array[Double]" => expr.TArray(expr.TInt)
+    case "Set[Int]" => expr.TSet(expr.TInt)
+    case "Set[String]" => expr.TSet(expr.TString)
+    case "String" => expr.TString*/

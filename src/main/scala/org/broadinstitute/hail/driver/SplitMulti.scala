@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.{AnnotationData, SimpleSignature}
+import org.broadinstitute.hail.annotations.{SignatureType, AnnotationData, SimpleSignature}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
@@ -128,7 +128,7 @@ object SplitMulti extends Command {
     val localPropagateGQ = options.propagateGQ
     val splitF = AnnotationData.splitMulti(state.vds.metadata.variantAnnotationSignatures)
     val (newSigs, f) = AnnotationData.insertSignature(state.vds.metadata.variantAnnotationSignatures,
-      SimpleSignature("Boolean"), Array("wasSplit"))
+      SimpleSignature(SignatureType.Boolean), Array("wasSplit"))
     val newVDS = state.vds.copy[Genotype](
       metadata = state.vds.metadata
         .copy(wasSplit = true, variantAnnotationSignatures = newSigs),

@@ -27,11 +27,14 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
-    val filts = {
+    val filts: mutable.WrappedArray[String] = {
+//    val filts = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
-        Set("PASS")
-      else
-        vc.getFilters.asScala.toSet
+        Array("PASS")
+      else {
+        val arr = vc.getFilters.asScala.toArray
+        arr
+      }
     }
     val rsid = vc.getID
 
@@ -206,18 +209,18 @@ object HtsjdkRecordReader {
   def mapType(value: Any, sig: VCFSignature): Any = {
     value match {
       case str: String =>
-        sig.typeOf match {
-          case "Int" => str.toInt
-          case "Double" => str.toDouble
-          case "Array[Int]" => str.split(",").map(_.toInt): Array[Int]
-          case "Array[Double]" => str.split(",").map(_.toDouble): Array[Double]
+        sig.dType match {
+          case SignatureType.Int => str.toInt
+          case SignatureType.Double => str.toDouble
+          case SignatureType.ArrayInt => str.split(",").map(_.toInt): mutable.WrappedArray[Int]
+          case SignatureType.ArrayDouble => str.split(",").map(_.toDouble): mutable.WrappedArray[Double]
           case _ => value
         }
       case i: Array[_] =>
-        sig.number match {
-          case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
-          case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)
-
+        sig.dType match {
+          case SignatureType.ArrayInt => i.map(_.asInstanceOf[String].toInt): mutable.WrappedArray[Int]
+          case SignatureType.ArrayDouble => i.map(_.asInstanceOf[String].toDouble): mutable.WrappedArray[Double]
+          case SignatureType.ArrayString => i.map(_.asInstanceOf[String]): mutable.WrappedArray[String]
         }
       case _ => value
     }

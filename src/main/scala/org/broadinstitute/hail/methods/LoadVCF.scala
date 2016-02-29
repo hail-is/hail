@@ -94,12 +94,12 @@ object LoadVCF {
       .map{ case (line, index) => (line.getID, VCFSignature.parse(line, index))}
       .toArray
 
-    val variantAnnotationSignatures: AnnotationSignatures = AnnotationSignatures(Map(
-      "qual" -> SimpleSignature("Double", 0),
-      "filters" -> SimpleSignature("Set[String]", 1),
-      "pass" -> SimpleSignature("Boolean", 2),
-      "rsid" -> SimpleSignature("String", 3),
-      "info" -> AnnotationSignatures(infoRowSignatures.toMap, 4)))
+    val variantAnnotationSignatures: StructSignature = StructSignature(Map(
+      "qual" -> SimpleSignature(SignatureType.Double, 0),
+      "filters" -> SimpleSignature(SignatureType.ArrayString, 1),
+      "pass" -> SimpleSignature(SignatureType.Boolean, 2),
+      "rsid" -> SimpleSignature(SignatureType.String, 3),
+      "info" -> StructSignature(infoRowSignatures.toMap, 4)))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -136,9 +136,9 @@ object LoadVCF {
             }
         }
     })
-
+    println(variantAnnotationSignatures)
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      AnnotationData.emptyIndexedSeq(sampleIds.length), AnnotationSignatures.empty(),
+      AnnotationData.emptyIndexedSeq(sampleIds.length), StructSignature.empty(),
       variantAnnotationSignatures), genotypes)
   }
 

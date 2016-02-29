@@ -2,7 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.SparkException
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.AnnotationSignatures
+import org.broadinstitute.hail.annotations.StructSignature$
 import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 
@@ -51,8 +51,8 @@ class ImportVCFSuite extends SparkSuite {
     assert(!s.vds.metadata.variantAnnotationSignatures.contains(Array("info", "undeclaredFlag")))
 
     assert(s.vds.metadata.variantAnnotationSignatures.contains("info"))
-    assert(!s.vds.metadata.variantAnnotationSignatures.get[AnnotationSignatures]("info").contains("undeclared"))
-    assert(!s.vds.metadata.variantAnnotationSignatures.get[AnnotationSignatures]("info").contains("undeclaredFlag"))
+    assert(!s.vds.metadata.variantAnnotationSignatures.get[StructSignature]("info").contains("undeclared"))
+    assert(!s.vds.metadata.variantAnnotationSignatures.get[StructSignature]("info").contains("undeclaredFlag"))
   }
 
   @Test def testMalformed() {

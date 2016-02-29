@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.variant
 
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.Utils._
 
@@ -22,14 +24,14 @@ object AltAllele {
 
   def gen: Gen[AltAllele] =
     for (ref <- genDNAString;
-      alt <- genDNAString)
+         alt <- genDNAString)
       yield AltAllele(ref, alt)
 }
 
 case class AltAllele(ref: String,
   alt: String) {
   require(ref != alt)
-  require (!ref.isEmpty && !alt.isEmpty)
+  require(!ref.isEmpty && !alt.isEmpty)
 
   import AltAlleleType._
 
@@ -99,17 +101,46 @@ object Variant {
 
   def gen: Gen[Variant] =
     for (contig <- Gen.identifier;
-      start <- Gen.posInt;
-      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
-      alleles <- Gen.distinctBuildableOfN[Array[String], String](
-        nAlleles,
-        Gen.frequency((10, genDNAString),
-          (1, Gen.const("*")))) if alleles(0) != "*") yield {
+         start <- Gen.posInt;
+         nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
+         alleles <- Gen.distinctBuildableOfN[Array[String], String](
+           nAlleles,
+           Gen.frequency((10, genDNAString),
+             (1, Gen.const("*")))) if alleles(0) != "*") yield {
       val ref = alleles(0)
       Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
     }
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
+
+  def schema(): StructType = {
+    StructType(Array(
+      StructField("contig", StringType, false),
+      StructField("start", IntegerType, false),
+      StructField("ref", StringType, false),
+      StructField("alts", ArrayType(ArrayType(StringType)), false)))
+
+  }
+
+  def toRow(v: Variant) = {
+    Row.fromSeq(Array(
+      v.contig,
+      v.start,
+      v.ref,
+      v.altAlleles.map { a => Array(a.ref, a.alt) }
+        .toArray))
+  }
+
+  def fromRow(r: Row) = {
+//    println("HERE")
+//    println(r.get(3).getClass.getName)
+//    println(r.get(3).asInstanceOf[scala.collection.mutable.WrappedArray[scala.collection.mutable.WrappedArray[String]]])
+    Variant(r.getAs[String](0),
+      r.getAs[Int](1),
+      r.getAs[String](2),
+      r.getAs[scala.collection.mutable.WrappedArray[scala.collection.mutable.WrappedArray[String]]](3)
+        .map(a => AltAllele(a(0), a(1))))
+  }
 }
 
 case class Variant(contig: String,

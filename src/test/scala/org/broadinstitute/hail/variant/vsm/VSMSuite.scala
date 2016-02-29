@@ -26,21 +26,21 @@ class VSMSuite extends SparkSuite {
       IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
       AnnotationData.emptyIndexedSeq(2),
-      AnnotationSignatures(Map(
-        "inner" -> AnnotationSignatures(Map(
-          "thing1" -> SimpleSignature("String", 0))),
-        "thing2" -> SimpleSignature("String", 1)), 0),
-      AnnotationSignatures.empty())
+      StructSignature(Map(
+        "inner" -> StructSignature(Map(
+          "thing1" -> SimpleSignature(SignatureType.String, 0))),
+        "thing2" -> SimpleSignature(SignatureType.String, 1)), 0),
+      StructSignature.empty())
     val mdata4 = new VariantMetadata(
       IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
       AnnotationData.emptyIndexedSeq(2),
-      AnnotationSignatures(Map(
-        "inner" -> AnnotationSignatures(Map(
-          "thing1" -> SimpleSignature("String", 0))),
-        "thing2" -> SimpleSignature("String", 1),
-      "dummy" -> SimpleSignature("String", 2)), 0),
-      AnnotationSignatures.empty())
+      StructSignature(Map(
+        "inner" -> StructSignature(Map(
+          "thing1" -> SimpleSignature(SignatureType.String, 0))),
+        "thing2" -> SimpleSignature(SignatureType.String, 1),
+      "dummy" -> SimpleSignature(SignatureType.String, 2)), 0),
+      StructSignature.empty())
 
     assert(mdata1 != mdata2)
     assert(mdata1 != mdata3)

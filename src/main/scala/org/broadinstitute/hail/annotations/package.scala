@@ -1,0 +1,18 @@
+package org.broadinstitute.hail
+
+import org.apache.spark.sql.Row
+
+package object annotations {
+
+  class AnnotationPathException(msg: String = "")
+
+  class NoSuchAnnotationException(msg: String = "") extends Exception(msg)
+
+  type Annotation = Row
+
+  type Deleter = (Annotation) => Annotation
+
+  type Querier = (Annotation) => Option[Any]
+
+  type Inserter = (Annotation, Option[Any]) => Annotation
+}

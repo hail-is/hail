@@ -5,7 +5,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
-import org.broadinstitute.hail.annotations.{AnnotationSignature, AnnotationSignatures, AnnotationData, VCFSignature}
+import org.broadinstitute.hail.annotations.{Signature, StructSignature$, AnnotationData, VCFSignature}
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
 import scala.io.Source
@@ -45,13 +45,13 @@ object ExportVCF extends Command {
           |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
           |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
           |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
-          | """.stripMargin)
+          |""".stripMargin)
 
       vds.metadata.filters.map { case (key, desc) =>
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
       }
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[AnnotationSignatures]("info").map(_.attrs)
+      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[StructSignature]("info").map(_.attrs)
       infoHeader.foreach { i =>
         i.foreach { case (key, value) =>
           val sig = value.asInstanceOf[VCFSignature]
@@ -89,8 +89,8 @@ object ExportVCF extends Command {
     }
 
     val infoF: (StringBuilder, AnnotationData) => Unit = {
-      vds.metadata.variantAnnotationSignatures.getOption[AnnotationSignature]("info") match {
-        case Some(signatures: AnnotationSignatures) =>
+      vds.metadata.variantAnnotationSignatures.getOption[Signature]("info") match {
+        case Some(signatures: StructSignature) =>
           val keys = signatures.attrs.map { case (k, v) => (k, v.index) }
             .toArray
             .sortBy { case (key, index) => index }
@@ -139,7 +139,7 @@ object ExportVCF extends Command {
       sb += '\t'
 
       //FIXME hardcoded path
-      val id = a.getOption[String](Array(4))
+      val id = a.getOption[String](Array(3))
         .getOrElse(".")
       sb.append(id)
 
@@ -151,7 +151,7 @@ object ExportVCF extends Command {
       sb += '\t'
 
       //FIXME hardcoded path
-      a.getOption[Double](Array(3)) match {
+      a.getOption[Double](Array(0)) match {
         case Some(d) => sb.append(d.formatted("%.2f"))
         case None => sb += '.'
       }
@@ -168,23 +168,7 @@ object ExportVCF extends Command {
 
       sb += '\t'
 
-      // FIXME info
-      //      if (a.getOption[Row]("info").isDefined) {
-      //        a.get[Annotations]("info").attrs
-      //          .foreachBetween({ case (k, v) =>
-      //            if (varAnnSig.get[Annotations]("info").get[VCFSignature](k).vcfType == "Flag")
-      //              sb.append(k)
-      //            else {
-      //              sb.append(k)
-      //              sb += '='
-      //              v match {
-      //                case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(_ => sb.append(","))
-      //                case _ => sb.append(v)
-      //              }
-      //            }
-      //          })(_ => sb += ';')
-      //      } else
-      sb += '.'
+      infoF(sb, a)
 
       sb += '\t'
       sb.append("GT:AD:DP:GQ:PL")

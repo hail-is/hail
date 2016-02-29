@@ -34,7 +34,7 @@ class AnnotationsSuite extends SparkSuite {
         assert(variantAnnotationMap.contains(anotherVariant))
 
         // type Int - INFO.DP
-        assert(vas.get[Annotations]("info").attrs.get("DP").contains(VCFSignature("Int", "Integer", "1",
+        assert(vas.get[StructSignature]("info").attrs.get("DP").contains(VCFSignature(SignatureType.Int, "Integer", "1",
           "Approximate read depth; some reads may have been filtered")))
         assert(variantAnnotationMap(firstVariant)
           .get[Annotations]("info").attrs.get("DP")
@@ -121,13 +121,28 @@ class AnnotationsSuite extends SparkSuite {
         // make sure that overwriting one high annotation does the right thing
         assert(anno2 ++ anno1 == Annotations(map1))
         assert(anno2 ++ anno3 == Annotations(Map("a" -> Annotations(Map("a" -> 1, "b" -> 5)), "b" -> 2, "c" -> 3)))
-    */
+  */
   }
 
-  def printSigs(signatures: AnnotationSignatures) {
+  def printSigs(signatures: StructSignature) {
     val sb = new StringBuilder
     ShowAnnotations.printSignatures(sb, signatures, 0, "va")
     println(sb.result())
+  }
+
+  @Test def testReadWrite() {
+    val vds1 = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val s = State(sc, sqlContext, vds1)
+    val vds2 = LoadVCF(sc, "src/test/resources/sample.vcf")
+    assert(vds1.same(vds2))
+    Write.run(s, Array("-o", "/tmp/sample.vds"))
+    val vds3 = Read.run(s, Array("-i", "/tmp/sample.vds")).vds
+    val v11  = vds1.variantsAndAnnotations.take(1).head
+    val v13  = vds3.variantsAndAnnotations.take(1).head
+    println(v11)
+    println(v13)
+    println(vds1.metadata == vds3.metadata)
+    assert(vds3.same(vds1))
   }
 
   @Test def testRewrite() {
@@ -155,37 +170,37 @@ class AnnotationsSuite extends SparkSuite {
     AnnotationData.printData(ad3)
 
 
-    val innerSigs: AnnotationSignatures = AnnotationSignatures(Map(
-      "d" -> SimpleSignature("Int", 0),
-      "e" -> SimpleSignature("Int", 1),
-      "f" -> SimpleSignature("Int", 2)
+    val innerSigs: StructSignature = StructSignature(Map(
+      "d" -> SimpleSignature(SignatureType.Int, 0),
+      "e" -> SimpleSignature(SignatureType.Int, 1),
+      "f" -> SimpleSignature(SignatureType.Int, 2)
     ), 2)
 
-    val middleSigs = AnnotationSignatures(Map(
-      "b" -> SimpleSignature("Int", 0),
-      "c" -> SimpleSignature("Int", 1),
+    val middleSigs = StructSignature(Map(
+      "b" -> SimpleSignature(SignatureType.Int, 0),
+      "c" -> SimpleSignature(SignatureType.Int, 1),
       "inner" -> innerSigs
     ), 1)
 
-    val outerSigs = AnnotationSignatures(Map(
-      "a" -> SimpleSignature("Int", 0),
+    val outerSigs = StructSignature(Map(
+      "a" -> SimpleSignature(SignatureType.Int, 0),
       "middle" -> middleSigs
     ))
 
     println("here")
     val signatures = outerSigs
-    //    val sigsToAdd = AnnotationSignatures(Map(
-    //      "middle" -> AnnotationSignatures(Map(
-    //        "inner" -> AnnotationSignatures(Map(
-    //          "g" -> SimpleSignature("Int", 0)
+    //    val sigsToAdd = StructSignature(Map(
+    //      "middle" -> StructSignature(Map(
+    //        "inner" -> StructSignature(Map(
+    //          "g" -> SimpleSignature(SignatureType.Int, 0)
     //        ), 0)
     //      ), 0),
-    //      "anotherthing" -> SimpleSignature("Int", 1))
+    //      "anotherthing" -> SimpleSignature(SignatureType.Int, 1))
     //    )
-    val sigToAdd = SimpleSignature("Int")
+    val sigToAdd = SimpleSignature(SignatureType.Int)
 
-    val sigsToAdd2 = AnnotationSignatures(Map(
-      "middle" -> SimpleSignature("Int", 0)
+    val sigsToAdd2 = StructSignature(Map(
+      "middle" -> SimpleSignature(SignatureType.Int, 0)
     ))
 
     println("sigs before:")
