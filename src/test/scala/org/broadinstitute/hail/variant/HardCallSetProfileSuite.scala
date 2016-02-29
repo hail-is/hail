@@ -10,7 +10,7 @@ import org.testng.annotations.Test
 class HardCallSetProfileSuite extends SparkSuite {
   @Test def test() {
 
-    /*
+    /* FIXME: this version doesn't work, gives java.io.StreamCorruptedException: invalid stream header
     val hcs = HardCallSet.read(sqlContext, "/Users/jbloom/t2d/GoT2D.chr22.15.hcs")
     val ped = Pedigree.read("/Users/jbloom/t2d/GoT2D.fam", sc.hadoopConfiguration, hcs.sampleIds)
     val cov = CovariateData.read("/Users/jbloom/t2d/GoT2D.cov", sc.hadoopConfiguration, hcs.sampleIds)
@@ -27,8 +27,7 @@ class HardCallSetProfileSuite extends SparkSuite {
     println("Run 2 done.")
     */
 
-
-
+    // FIXME: this version avoids error above, but profiler hangs
     // val vds = LoadVCF(sc, "/Users/jbloom/t2d/GoT2D.chr22.final_integrated_snps_indels_sv_beagle_thunder_2874_20121121.vcf.bgz")
     // var state = State(sc, sqlContext, vds)
     // state = SplitMulti.run(state, Array[String]())
