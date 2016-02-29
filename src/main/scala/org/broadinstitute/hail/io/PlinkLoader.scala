@@ -4,12 +4,11 @@ import java.io._
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
-import org.broadinstitute.hail.Utils
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{SparkContext}
 
 import scala.io.Source
 
@@ -72,12 +71,13 @@ object PlinkLoader {
         Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
     })
 
+    println("number of samples is " + nSamples)
     SampleInfo(sampleIds, ped)
   }
 
   private def parseBed(bedPath: String,
     sampleIds: Array[String],
-    bimPath: String,
+    variants: Array[Variant],
     sc: SparkContext): VariantDataset = {
 
     val nSamples = sampleIds.length
@@ -87,13 +87,6 @@ object PlinkLoader {
 
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[ParsedLine[Int]],
       sc.defaultMinPartitions)
-
-    val variants = new VariantParser(bimPath, sc.hadoopConfiguration).eval()
-
-    //assert(rdd.count == variants.size)
-    println(s"rdd.distinct.count: ${rdd.map{case (lw, pl) => pl.getKey}.distinct.count}")
-    println(s"rdd.count: ${rdd.count}")
-    println(s"variant count: ${variants.size}")
 
     val variantRDD = rdd.map {
       case (lw, pl) => (variants(pl.getKey), Annotations.empty(), pl.getGS)
@@ -105,12 +98,33 @@ object PlinkLoader {
     apply(bfile + ".bed", bfile + ".bim", bfile + ".fam", sc)
   }
 
-  def apply(bedFile: String, bimFile: String, famFile: String, sc: SparkContext): VariantDataset = {
-    val samples = parseFam(famFile, sc.hadoopConfiguration)
-    println("nSamples is " + samples.sampleIds.length)
+  def apply(bedPath: String, bimPath: String, famPath: String, sc: SparkContext): VariantDataset = {
+    val samples = parseFam(famPath, sc.hadoopConfiguration)
+    val nSamples = samples.sampleIds.length
+
+    val variants = new VariantParser(bimPath, sc.hadoopConfiguration).eval()
+    val nVariants = variants.length
+
+    //check magic numbers in bed file
+    readFile(bedPath, sc.hadoopConfiguration) {dis =>
+      val b1 = dis.read()
+      val b2 = dis.read()
+      val b3 = dis.read()
+
+      if (b1 != 108 || b2 != 27)
+        fatal("First two bytes of bed file do not match PLINK magic numbers 108 & 27")
+
+      if (b3 == 0)
+        fatal("Bed file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
+    }
+
+    // check num bytes matches fam and bim lengths
+    val bedSize = hadoopGetFileSize(bedPath, sc.hadoopConfiguration)
+    if (bedSize != (3 + nVariants * ((nSamples / 4.00) + .75).toInt))
+      fatal("bed file size does not match expected number of bytes based on bed and fam files")
 
     val startTime = System.nanoTime()
-    val vds = parseBed(bedFile, samples.sampleIds, bimFile, sc)
+    val vds = parseBed(bedPath, samples.sampleIds, variants, sc)
     val endTime = System.nanoTime()
     val diff = (endTime - startTime) / 1e9
     vds

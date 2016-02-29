@@ -14,29 +14,39 @@ object PlinkBlockReader {
 }
 
 class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Int](job, split) {
-
+//  println(s"split starts at ${split.getStart}, ends at ${split.getLength + split.getStart}")
   var variantIndex = 0
   val nSamples = job.getInt("nSamples", 0)
-  println(s"nSamples in blockReader = $nSamples")
+//  println(s"nSamples in blockReader = $nSamples")
   val compressGS = job.getBoolean("compressGS", false)
   val blockLength = ((nSamples / 4.00) + .75).toInt
-  println(s"blockLength=$blockLength")
-  println(s"expected blocks = ${(end - partitionStart) / blockLength}")
+//  println(s"blockLength=$blockLength")
+//  println(s"expected blocks = ${(end - partitionStart) / blockLength}")
   seekToFirstBlock(split.getStart)
 
   def seekToFirstBlock(start: Long) {
+  //  println(s"seekToFirstBlock::start = $start")
     variantIndex = ((start - 3) / blockLength).toInt
-    println(variantIndex)
-    bfis.seek(variantIndex * blockLength + 3)
     pos = variantIndex * blockLength + 3
+    if (pos < start){
+      variantIndex += 1
+      pos = variantIndex * blockLength + 3
+    }
+  //  println(s"seekToFirstBlock::variantIndex = $variantIndex")
+    bfis.seek(variantIndex * blockLength + 3)
+
+
+   // println(s"seekToFirstBlock::pos = $pos")
+    //println(s"started first variant at $pos")
   }
 
   def next(key: LongWritable, value: ParsedLine[Int]): Boolean = {
-    val nullVariant = Variant("0",0,"A","T")
-    val b = new GenotypeStreamBuilder(nullVariant, compress = false)
+    //val nullVariant = Variant("0",0,"A","T")
+    //val b = new GenotypeStreamBuilder(nullVariant, compress = false)
     if (pos >= end)
       false
     else {
+      val nullVariant = Variant("0",0,"A","T")
       val b = new GenotypeStreamBuilder(nullVariant, compress = compressGS)
       //println(s"index $variantIndex, pos = $pos, starts at ${bfis.getPosition}")
       bfis.readBytes(blockLength)

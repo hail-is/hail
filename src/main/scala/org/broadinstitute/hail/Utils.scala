@@ -615,6 +615,12 @@ object Utils extends Logging {
       is
   }
 
+  def hadoopGetFileSize(filename: String, hConf: hadoop.conf.Configuration): Long = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    fs.getFileStatus(hPath).getLen
+  }
+
   def hadoopMkdir(dirname: String, hConf: hadoop.conf.Configuration) {
     hadoopFS(dirname, hConf).mkdirs(new hadoop.fs.Path(dirname))
   }
