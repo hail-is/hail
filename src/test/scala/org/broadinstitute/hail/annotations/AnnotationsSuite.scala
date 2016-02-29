@@ -3,6 +3,7 @@ package org.broadinstitute.hail.annotations
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant.{Genotype, IntervalList, Variant}
 import org.testng.annotations.Test
@@ -34,7 +35,7 @@ class AnnotationsSuite extends SparkSuite {
         assert(variantAnnotationMap.contains(anotherVariant))
 
         // type Int - INFO.DP
-        assert(vas.get[StructSignature]("info").attrs.get("DP").contains(VCFSignature(SignatureType.Int, "Integer", "1",
+        assert(vas.get[StructSignature]("info").attrs.get("DP").contains(VCFSignature(expr.TInt, "Integer", "1",
           "Approximate read depth; some reads may have been filtered")))
         assert(variantAnnotationMap(firstVariant)
           .get[Annotations]("info").attrs.get("DP")
@@ -171,19 +172,19 @@ class AnnotationsSuite extends SparkSuite {
 
 
     val innerSigs: StructSignature = StructSignature(Map(
-      "d" -> SimpleSignature(SignatureType.Int, 0),
-      "e" -> SimpleSignature(SignatureType.Int, 1),
-      "f" -> SimpleSignature(SignatureType.Int, 2)
+      "d" -> SimpleSignature(expr.TInt, 0),
+      "e" -> SimpleSignature(expr.TInt, 1),
+      "f" -> SimpleSignature(expr.TInt, 2)
     ), 2)
 
     val middleSigs = StructSignature(Map(
-      "b" -> SimpleSignature(SignatureType.Int, 0),
-      "c" -> SimpleSignature(SignatureType.Int, 1),
+      "b" -> SimpleSignature(expr.TInt, 0),
+      "c" -> SimpleSignature(expr.TInt, 1),
       "inner" -> innerSigs
     ), 1)
 
     val outerSigs = StructSignature(Map(
-      "a" -> SimpleSignature(SignatureType.Int, 0),
+      "a" -> SimpleSignature(expr.TInt, 0),
       "middle" -> middleSigs
     ))
 
@@ -192,15 +193,15 @@ class AnnotationsSuite extends SparkSuite {
     //    val sigsToAdd = StructSignature(Map(
     //      "middle" -> StructSignature(Map(
     //        "inner" -> StructSignature(Map(
-    //          "g" -> SimpleSignature(SignatureType.Int, 0)
+    //          "g" -> SimpleSignature(expr.TInt, 0)
     //        ), 0)
     //      ), 0),
-    //      "anotherthing" -> SimpleSignature(SignatureType.Int, 1))
+    //      "anotherthing" -> SimpleSignature(expr.TInt, 1))
     //    )
-    val sigToAdd = SimpleSignature(SignatureType.Int)
+    val sigToAdd = SimpleSignature(expr.TInt)
 
     val sigsToAdd2 = StructSignature(Map(
-      "middle" -> SimpleSignature(SignatureType.Int, 0)
+      "middle" -> SimpleSignature(expr.TInt, 0)
     ))
 
     println("sigs before:")
