@@ -29,11 +29,16 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   def seekToFirstBlock(start: Long) {
 //    println(s"seekToFirstBlock::start = $start")
     variantIndex = ((start - 3) / blockLength).toInt
+    if (variantIndex == 12927 || variantIndex == 12926)
+      println(s"start:${start}, pos:${pos}, variantindex:${variantIndex}")
     pos = variantIndex * blockLength + 3
     if (pos < start){
+      println(s"shifted variant index by 1; start=${start} pos=${pos}")
       variantIndex += 1
       pos = variantIndex * blockLength + 3
     }
+    if (variantIndex == 12927 || variantIndex == 12926)
+      println(s"start:${start}, pos:${pos}, variantindex:${variantIndex}")
  //   if (pos == 0)
  //     println(s"expected blocks = ${(end - pos + 1 - 3) / blockLength}")
  //   else
@@ -54,7 +59,8 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
     else {
       val nullVariant = Variant("0",0,"A","T")
       val b = new GenotypeStreamBuilder(nullVariant, compress = compressGS)
- //     println(s"index $variantIndex, starts at ${bfis.getPosition}, ends at ${bfis.getPosition + blockLength - 1}")
+      if (variantIndex == 12927 || variantIndex == 12926)
+        println(s"index $variantIndex, starts at ${bfis.getPosition}, ends at ${bfis.getPosition + blockLength - 1}")
       bfis.readBytes(blockLength)
         .iterator
         .flatMap { i => Iterator(i & 3, (i >> 2) & 3, (i >> 4) & 3, (i >> 6) & 3) }

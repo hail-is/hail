@@ -72,7 +72,7 @@ abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
   val LOG: Log = LogFactory.getLog(classOf[IndexedBinaryBlockReader[K]].getName)
   val partitionStart: Long = split.getStart
   var pos: Long = partitionStart
-  val end: Long = partitionStart + split.getLength - 1
+  val end: Long = partitionStart + split.getLength
   val bfis = openFile
   //println(s"path=${split.getPath}, start=${split.getStart}, length=${split.getLength}")
 

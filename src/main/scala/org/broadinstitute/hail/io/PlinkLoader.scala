@@ -78,7 +78,7 @@ object PlinkLoader {
   private def parseBed(bedPath: String,
     sampleIds: Array[String],
     variants: Array[Variant],
-    sc: SparkContext): VariantDataset = {
+    sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
 
     val nSamples = sampleIds.length
 
@@ -86,7 +86,7 @@ object PlinkLoader {
     // FIXME what about withScope and assertNotStopped()?
 
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[ParsedLine[Int]],
-      sc.defaultMinPartitions)
+      nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val logging = rdd.map {
       case (lw, pl) => pl.getLog
@@ -96,15 +96,15 @@ object PlinkLoader {
     val variantRDD = rdd.map {
       case (lw, pl) => (variants(pl.getKey), Annotations.empty(), pl.getGS)
     }
-    //println(s"rdd size: ${variantRDD.count}")
+    println(s"rdd size: ${variantRDD.count}")
     VariantSampleMatrix(VariantMetadata(sampleIds), variantRDD)
   }
 
-  def apply(bfile: String, sc: SparkContext): VariantDataset = {
-    apply(bfile + ".bed", bfile + ".bim", bfile + ".fam", sc)
-  }
+/*  def apply(bfile: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
+    apply(bfile + ".bed", bfile + ".bim", bfile + ".fam", sc, nPartitions)
+  }*/
 
-  def apply(bedPath: String, bimPath: String, famPath: String, sc: SparkContext): VariantDataset = {
+  def apply(bedPath: String, bimPath: String, famPath: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
     val samples = parseFam(famPath, sc.hadoopConfiguration)
     val nSamples = samples.sampleIds.length
 
@@ -130,7 +130,7 @@ object PlinkLoader {
       fatal("bed file size does not match expected number of bytes based on bed and fam files")
 
     val startTime = System.nanoTime()
-    val vds = parseBed(bedPath, samples.sampleIds, variants, sc)
+    val vds = parseBed(bedPath, samples.sampleIds, variants, sc, nPartitions)
     val endTime = System.nanoTime()
     val diff = (endTime - startTime) / 1e9
     vds
