@@ -18,14 +18,11 @@ abstract class ParsedLine[K] extends Serializable {
   def getGS: Iterable[Genotype]
   def setKey(k: K)
   def getKey: K
-  def setLog(l: String)
-  def getLog: String
 }
 
 class BgenParsedLine extends ParsedLine[Variant] {
   var gs: Iterable[Genotype] = null
   var variant: Variant = null
-  var log: String = ""
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
@@ -36,18 +33,11 @@ class BgenParsedLine extends ParsedLine[Variant] {
     variant = k
   }
   def getKey: Variant = variant
-
-  def setLog(l: String) {
-    log = l
-  }
-
-  def getLog: String = log
 }
 
 class PlinkParsedLine extends ParsedLine[Int] {
   var gs: Iterable[Genotype] = null
   var pos: Int = -1
-  var log: String = ""
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
@@ -58,12 +48,6 @@ class PlinkParsedLine extends ParsedLine[Int] {
     pos = k
   }
   def getKey: Int = pos
-
-  def setLog(l: String) {
-    log = l
-  }
-
-  def getLog: String = log
 }
 
 abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
@@ -74,7 +58,6 @@ abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
   var pos: Long = partitionStart
   val end: Long = partitionStart + split.getLength
   val bfis = openFile
-  //println(s"path=${split.getPath}, start=${split.getStart}, length=${split.getLength}")
 
   def openFile: HadoopFSDataBinaryReader = {
     val file: Path = split.getPath
