@@ -56,7 +56,7 @@ abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
   val LOG: Log = LogFactory.getLog(classOf[IndexedBinaryBlockReader[K]].getName)
   val partitionStart: Long = split.getStart
   var pos: Long = partitionStart
-  val end: Long = partitionStart + split.getLength
+  val end: Long = partitionStart + split.getLength - 1
   val bfis = openFile
 
   def openFile: HadoopFSDataBinaryReader = {

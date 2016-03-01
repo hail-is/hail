@@ -43,4 +43,24 @@ class ImportPlinkSuite extends SparkSuite {
     assert(exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0)
 
   }
+
+  def testImportProfile() {
+    val vds = LoadVCF(sc, "/Users/jigold/profile.vcf.bgz")
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val exportState1 = ExportPlink.run(state, Array("-o", "/tmp/profile"))
+
+    val importState1 = ImportPlinkBfile.run(state, Array("--bfile","/tmp/profile"))
+    val splitState1 = SplitMulti.run(importState1, Array.empty[String])
+    val exportState2 = ExportPlink.run(splitState1, Array("-o", "/tmp/profile_hailOut"))
+    val importState2 = ImportPlinkBfile.run(state, Array("--bfile","/tmp/profile_hailOut"))
+
+    assert(importState1.vds.same(importState2.vds))
+
+    val exitCodeFam = "diff /tmp/profile.fam /tmp/profile_hailOut.fam" !
+    val exitCodeBim = "diff /tmp/profile.bim /tmp/profile_hailOut.bim" !
+    val exitCodeBed = "diff /tmp/profile.bed /tmp/profile_hailOut.bed" !
+
+    assert(exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0)
+
+  }
 }

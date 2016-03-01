@@ -91,6 +91,7 @@ object PlinkLoader {
     val variantRDD = rdd.map {
       case (lw, pl) => (variants(pl.getKey), Annotations.empty(), pl.getGS)
     }
+    //println(s"rdd size: ${variantRDD.count}")
     VariantSampleMatrix(VariantMetadata(sampleIds), variantRDD)
   }
 
