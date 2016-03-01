@@ -33,7 +33,7 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
       println(s"start:${start}, pos:${pos}, variantindex:${variantIndex}")
     pos = variantIndex * blockLength + 3
     if (pos < start){
-      println(s"shifted variant index by 1; start=${start} pos=${pos}")
+   //   println(s"shifted variant index by 1; start=${start} pos=${pos}")
       variantIndex += 1
       pos = variantIndex * blockLength + 3
     }

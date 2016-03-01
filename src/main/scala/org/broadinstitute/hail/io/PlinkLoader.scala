@@ -88,15 +88,15 @@ object PlinkLoader {
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[ParsedLine[Int]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val logging = rdd.map {
+ /*   val logging = rdd.map {
       case (lw, pl) => pl.getLog
     }.distinct.collect.mkString("\n")
-    println(logging)
+    println(logging)*/
 
     val variantRDD = rdd.map {
       case (lw, pl) => (variants(pl.getKey), Annotations.empty(), pl.getGS)
     }
-    println(s"rdd size: ${variantRDD.count}")
+
     VariantSampleMatrix(VariantMetadata(sampleIds), variantRDD)
   }
 
