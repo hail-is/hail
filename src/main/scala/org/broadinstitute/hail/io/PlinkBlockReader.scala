@@ -70,5 +70,10 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
     }
   }
 
-  def createValue(): PlinkParsedLine = new PlinkParsedLine
+  def createValue(): PlinkParsedLine = {
+    val ppl = new PlinkParsedLine
+    val log = s"path=${split.getPath}, start=${split.getStart}, length=${split.getLength}"
+    ppl.setLog(log)
+    ppl
+  }
 }
