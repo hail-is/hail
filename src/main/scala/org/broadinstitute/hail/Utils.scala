@@ -621,6 +621,12 @@ object Utils extends Logging {
     fs.getFileStatus(hPath).getLen
   }
 
+  def hadoopGetChecksum(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileChecksum = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    fs.getFileChecksum(hPath)
+  }
+
   def hadoopMkdir(dirname: String, hConf: hadoop.conf.Configuration) {
     hadoopFS(dirname, hConf).mkdirs(new hadoop.fs.Path(dirname))
   }

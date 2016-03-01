@@ -53,7 +53,6 @@ class PlinkParsedLine extends ParsedLine[Int] {
 abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
   extends RecordReader[LongWritable, ParsedLine[K]] {
 
-//  println(s"split received: ${split.getStart} - ${split.getLength + split.getStart}")
   val LOG: Log = LogFactory.getLog(classOf[IndexedBinaryBlockReader[K]].getName)
   val partitionStart: Long = split.getStart
   var pos: Long = partitionStart
