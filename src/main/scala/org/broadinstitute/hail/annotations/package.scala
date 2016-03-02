@@ -8,7 +8,7 @@ package object annotations {
 
   class NoSuchAnnotationException(msg: String = "") extends Exception(msg)
 
-  type Annotation = Row
+  type Annotation = Any
 
   type Deleter = (Annotation) => Annotation
 

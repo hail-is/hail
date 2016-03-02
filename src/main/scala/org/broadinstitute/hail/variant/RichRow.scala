@@ -14,7 +14,7 @@ class RichRow(r: Row) {
 
   import RichRow._
 
-  def copyWithRemap(i: Int, a: Any): Row = {
+  def update(i: Int, a: Any): Row = {
     val arr = r.toSeq.toArray
     arr(i) = a
     Row.fromSeq(arr)

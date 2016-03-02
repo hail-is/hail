@@ -48,7 +48,10 @@ abstract class Signature {
   }
 
   def insert(path: List[String], signature: Signature): (this.type, Inserter) = {
-    throw new AnnotationPathException()
+    if (path.nonEmpty)
+      throw new AnnotationPathException()
+    else
+      (this, (a, toIns) => toIns.getOrElse(null))
   }
 
   def insertBefore(path: List[String], signature: Signature): (this.type, Inserter) = {
@@ -56,7 +59,10 @@ abstract class Signature {
   }
 
   def query(path: List[String]): Querier = {
-    throw new AnnotationPathException()
+    if (path.nonEmpty)
+      throw new AnnotationPathException()
+    else
+      a => Option(a)
   }
 }
 
@@ -66,55 +72,54 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
   override def size: Int = m.size
 
   override def query(p: List[String]): Querier = {
-    if (p.length == 1) {
-      m.get(p.head) match {
-        case Some((i, sig)) =>
-          a => if (a.isNullAt(i))
+    //    if (p.length == 1) {
+    //      m.get(p.head) match {
+    //        case Some((i, sig)) =>
+    //          a => if (a.isNullAt(i)) //fixme get option as
+    //            None
+    //          else
+    //            Some(a.get(i))
+    //        case None => throw new AnnotationPathException()
+    //      }
+    //    }
+    //    else {
+    m.get(p.head) match {
+      case Some((i, sig)) =>
+        val q = sig.query(p.tail)
+        a =>
+          if (a == null)
             None
           else
-            Some(a.get(i))
-        case None => throw new AnnotationPathException()
-      }
-    }
-    else {
-      m.get(p.head) match {
-        case Some((i, sig)) =>
-          val q = sig.query(p.tail)
-          a => if (a.isNullAt(i))
-            None
-          else
-            q(a.getAs[Annotation](i))
-        case None => throw new AnnotationPathException()
-      }
+            q(a.asInstanceOf[Row].get(i))
+      case None => throw new AnnotationPathException()
     }
   }
 
   override def delete(p: List[String]): (StructSignature, Deleter) = {
     val key = p.head
-    if (p.length == 1) {
-      m.get(key) match {
-        case Some((i, s)) =>
-          val f: Deleter = a => a.delete(i)
-          val newStruct = StructSignature((m - key).mapValues {
-            case (index, sig) =>
-              if (index > i)
-                (index - 1, sig)
-              else
-                (index, sig)
-          })
-          (newStruct, f)
-        case None => throw new AnnotationPathException()
-      }
-    }
-    else {
-      m.get(key) match {
-        case Some((i, s)) =>
-          val (sig, d) = s.delete(p.tail)
-          val f: Deleter = a => a.copyWithRemap(i, d(a.getAs[Annotation](i)))
-          val newStruct = StructSignature(m + ((key, (i, sig))))
-          (newStruct, f)
-        case None => throw new AnnotationPathException()
-      }
+    //    if (p.length == 1) {
+    //      m.get(key) match {
+    //        case Some((i, s)) =>
+    //          val f: Deleter = a => a.asInstanceOf[Row].delete(i)
+    //          val newStruct = StructSignature((m - key).mapValues {
+    //            case (index, sig) =>
+    //              if (index > i)
+    //                (index - 1, sig)
+    //              else
+    //                (index, sig)
+    //          })
+    //          (newStruct, f)
+    //        case None => throw new AnnotationPathException()
+    //      }
+    //    }
+    //    else {
+    m.get(key) match {
+      case Some((i, s)) =>
+        val (sig, d) = s.delete(p.tail)
+        val f: Deleter = a => a.update(i, d(a.getAs[Annotation](i)))
+        val newStruct = StructSignature(m + ((key, (i, sig))))
+        (newStruct, f)
+      case None => throw new AnnotationPathException()
     }
   }
 
@@ -123,7 +128,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
     if (p.length == 1) {
       m.get(key) match {
         case Some((i, s)) =>
-          val f: Inserter = (a, toIns) => a.copyWithRemap(i, toIns.orNull)
+          val f: Inserter = (a, toIns) => a.update(i, toIns.orNull)
           val newStruct = StructSignature(m + ((key, (i, signature))))
           (newStruct, f)
         case None =>
@@ -137,7 +142,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
       m.get(key) match {
         case Some((i, s)) =>
           val (sig, ins) = s.insert(p.tail, signature)
-          val f: Inserter = (a, toIns) => a.copyWithRemap(i,
+          val f: Inserter = (a, toIns) => a.update(i,
             ins(a.getOrIfNull[Annotation](i, StructSignature.emptyRowOfNull(sig.size)), toIns))
           val newStruct = StructSignature(m + ((key, (i, sig))))
           (newStruct, f)
