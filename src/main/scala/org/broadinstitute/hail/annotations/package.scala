@@ -4,7 +4,7 @@ import org.apache.spark.sql.Row
 
 package object annotations {
 
-  class AnnotationPathException(msg: String = "")
+  class AnnotationPathException(msg: String = "") extends Exception(msg)
 
   class NoSuchAnnotationException(msg: String = "") extends Exception(msg)
 

@@ -17,6 +17,7 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.variant.Variant
+import scala.collection.mutable.ListBuffer
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
@@ -778,6 +779,13 @@ object Utils extends Logging {
           fw.write('\n')
         }
     }
+  }
+
+  def listAppend[T](l: List[T], t: T): List[T] = {
+    val buffer = new ListBuffer[T]()
+    l.foreach(buffer += _)
+    buffer += t
+    buffer.toList
   }
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
