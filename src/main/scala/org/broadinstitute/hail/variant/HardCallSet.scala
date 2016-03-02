@@ -64,15 +64,19 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
 }
 
 
+
 case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, xy: Double, nMissing: Int)
+
 
 
 object CallStream {
 
   def apply(gs: Iterable[Genotype], n: Int, sparseCutoff: Double): CallStream = {
-    val sparsity = 1 - gs.count(_.isHomRef).toDouble / n
+    require(n >= 0) // FIXME: allowing n = 0 requires check that n != 0 in hardstats below. Right choice?
 
-    if (sparsity < sparseCutoff)
+    val nonRefDensity = 1 - gs.count(_.isHomRef).toDouble / n
+
+    if (nonRefDensity < sparseCutoff)
       sparseCallStream(gs, n)
     else
       denseCallStream(gs, n)
@@ -107,8 +111,6 @@ object CallStream {
 
     val meanX = sumX.toDouble / (n - nMissing) // FIXME: deal with case of all missing
 
-    // println(s"${x.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=$sumXX")
-
     new CallStream(
       denseByteArray(x),
       meanX,
@@ -140,11 +142,9 @@ object CallStream {
     a
   }
 
-
   def sparseCallStream(gs: Iterable[Genotype], n: Int) =
     sparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
 
-  // FIXME: switch to ArrayBuilder?
   def sparseCallStreamFromGtStream(gts: Iterable[Int], n: Int): CallStream = {
     var rowX = ArrayBuffer[Int]()
     var valX = ArrayBuffer[Int]()
@@ -176,8 +176,6 @@ object CallStream {
 
     val meanX = sumX.toDouble / (n - nMissing)
 
-    //    println(s"${rowX.toArray.mkString("[",",","]")}, ${valX.toArray.mkString("[",",","]")}, sumX=$sumX, meanX=$meanX, sumXX=${sumXX + meanX * meanX * nMissing}")
-
     new CallStream(
       sparseByteArray(rowX.toArray, valX.toArray),
       meanX,
@@ -187,8 +185,6 @@ object CallStream {
       true)
   }
 
-  // is it faster to do direct bit comparisons
-  // FIXME: somewhere we should require that i is positive...
   def nBytesMinus1(i: Int): Int =
     if (i < 0x100)
       0
@@ -212,7 +208,7 @@ object CallStream {
 
     while (i < gts.length - 3) {
       a += (gts(i + 3) << 6 | gts(i + 2) << 4 | gts(i + 1) << 2 | gts(i)).toByte // gtByte
-      a += 0 // lenByte
+      a += 0 // lenByte placeholder
 
       for (k <- 0 until 4) {
         rd = rows(i + k) - r
@@ -284,17 +280,18 @@ object CallStream {
   def toBinaryString(b: Byte): String = {for (i <- 7 to 0 by -1) yield (b & (1 << i)) >> i}.mkString("")
 
   def toIntsString(b: Byte): String = {for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i}.mkString(":")
-
-
 }
 
 case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int, nHomRef: Int, isSparse: Boolean) {
 
-  def hardStats(y: DenseVector[Double] , n: Int): GtVectorAndStats =
+  def hardStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
+    if (n == 0)
+      fatal("Cannot compute statistics for 0 samples.")
     if (isSparse)
-      sparseStats(y: DenseVector[Double] , n: Int)
+      sparseStats(y: DenseVector[Double], n: Int)
     else
-      denseStats(y: DenseVector[Double] , n: Int)
+      denseStats(y: DenseVector[Double], n: Int)
+  }
 
   def denseStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
 
@@ -315,7 +312,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         case 2 =>
           x(i) = 2.0
           sumXY += 2 * y(i)
-        case missing => // FIXME: Is this equivalent to _?
+        case 3 =>
           x(i) = this.meanX
           sumXY += this.meanX * y(i)
       }
@@ -354,7 +351,6 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
   def sparseStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
 
-    //FIXME: these don't need to be buffers...can compute length from meanX, sumXX, etc
     val rowX = Array.ofDim[Int](n - nHomRef)
     val valX = Array.ofDim[Double](n - nHomRef)
     var sumXY = 0.0
@@ -382,7 +378,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
       }
     }
 
-    // FIXME: Store with & 0xFF already applied?
+    // FIXME: Can we somehow store with & 0xFF already applied on encode so that we don't need it on decode?
     def rowDiff(k: Int, l: Int) =
       l match {
         case 0 => a(k) & 0xFF

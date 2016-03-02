@@ -138,8 +138,9 @@ object LinearRegressionFromHardCallSet {
   def name = "LinearRegressionFromHardCallSet"
 
   def apply(hcs: HardCallSet, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    // LinearRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
-    require(cov.covRowSample.forall(ped.phenotypedSamples)) // FIXME: filtering for hcs
+
+    // LinearRegressionFromHardCallSetCommand uses cov.filterSamples(ped.phenotypedSamples) in call
+    require(cov.covRowSample.forall(ped.phenotypedSamples)) // FIXME: Code below assumes same samples in hcs and cov, true for GoT2D
 
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 

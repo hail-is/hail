@@ -32,11 +32,11 @@ class HardCallSetProfileSuite extends SparkSuite {
     // var state = State(sc, sqlContext, vds)
     // state = SplitMulti.run(state, Array[String]())
     // state = WriteHardCallSet.run(state,
-    //  Array("-o", "/Users/jbloom/t2d/GoT2D.chr22.15.idea.hcs", "-f", "/Users/jbloom/t2d/GoT2D.fam", "-c", "/Users/jbloom/t2d/GoT2D.cov"))
+    // Array("-o", "/Users/jbloom/t2d/GoT2D.chr22.15.idea.hcs", "-f", "/Users/jbloom/t2d/GoT2D.fam", "-c", "/Users/jbloom/t2d/GoT2D.cov"))
 
     var state = State(sc, sqlContext)
 
-    state = ReadHcs.run(state, Array("-i", "/Users/jbloom/t2d/GoT2D.chr22.15.idea.hcs"))
+    state = ReadHcs.run(state, Array("-i", "/Users/jbloom/t2d/GoT2D.chr22.15.test.hcs"))
 
     state = CacheHcs.run(state, Array[String]())
     state = LinearRegressionFromHardCallSetCommand.run(state,
@@ -46,5 +46,4 @@ class HardCallSetProfileSuite extends SparkSuite {
 
     println("All done!")
   }
-
 }
