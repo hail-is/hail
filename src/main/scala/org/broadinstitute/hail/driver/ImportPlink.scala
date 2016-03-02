@@ -4,7 +4,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.io.PlinkLoader
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object ImportPlinkBfile extends Command {
+object ImportPlink extends Command {
   def name = "importplink"
 
   def description = "Load PLINK binary file (.bed, .bim, .fam) as the current dataset"
@@ -29,7 +29,7 @@ object ImportPlinkBfile extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    val nPartitions = if (options.nPartitions != 0) Some(options.nPartitions) else None
+    val nPartitions = if (options.nPartitions > 0) Some(options.nPartitions) else None
 
     if (options.bfile == null && (options.bed == null || options.bim == null || options.fam == null))
       fatal("Invalid input...")

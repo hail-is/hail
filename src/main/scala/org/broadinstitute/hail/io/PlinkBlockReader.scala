@@ -2,7 +2,7 @@ package org.broadinstitute.hail.io
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
-import org.apache.hadoop.mapred.{RecordReader, FileSplit}
+import org.apache.hadoop.mapred.FileSplit
 import org.broadinstitute.hail.variant.{GenotypeStreamBuilder, Genotype, Variant}
 
 object PlinkBlockReader {
@@ -22,7 +22,7 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   seekToFirstBlock(split.getStart)
 
   def seekToFirstBlock(start: Long) {
-    if (start != 0)
+    if (start > 2)
       variantIndex = ((start - 3) / blockLength).toInt
 
     require(variantIndex >= 0)

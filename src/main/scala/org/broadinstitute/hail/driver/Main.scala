@@ -169,7 +169,7 @@ object Main {
       FilterSamples,
       GenDataset,
       GQByDP,
-      ImportPlinkBfile,
+      ImportPlink,
       ImportVCF,
       LinearRegressionCommand,
       MendelErrorsCommand,

@@ -4,15 +4,14 @@ import java.io._
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
-import org.broadinstitute.hail.annotations.Annotations
-import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.{SparkContext}
 
 import scala.io.Source
 
-case class SampleInfo(sampleIds: Array[String], pedigree: Pedigree)
+case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotations], signatures: Annotations)
 
 
 class VariantParser(bimPath: String, hConf: Configuration)
@@ -49,6 +48,8 @@ class VariantParser(bimPath: String, hConf: Configuration)
 }
 
 object PlinkLoader {
+  def expectedBedSize(nSamples:Int, nVariants:Long) : Long = 3 + nVariants*((nSamples / 4.0) + 0.75).toInt
+
   private def parseFam(famPath: String, hConf: Configuration): SampleInfo = {
     val sampleArray = readFile(famPath, hConf) { s =>
       Source.fromInputStream(s)
@@ -58,29 +59,34 @@ object PlinkLoader {
         .toArray
     }
 
-    val sampleIds = sampleArray.map { arr => arr(1) }
+    val signatures = Annotations(Map("fid" -> new SimpleSignature("String"),
+      "mid" -> new SimpleSignature("String"),
+      "pid" -> new SimpleSignature("String"),
+      "reportedSex" -> new SimpleSignature("String"),
+      "phenotype" -> new SimpleSignature("String")))
+
+    val sampleIds = sampleArray.map { arr => arr(1) } //using IID as primary ID
+
+    val sampleAnnotations = sampleArray.map{case Array(fid, iid, mat, pat, sex, pheno) =>
+      Annotations(Map[String,Any]("fid" -> fid, "mid" -> mat, "pid" -> pat, "reportedSex" -> sex, "phenotype" -> pheno))
+    }.toIndexedSeq
 
     val nSamples = sampleIds.length
-    val indexOfSample: Map[String, Int] = sampleIds.zipWithIndex.toMap
-    def maybeId(id: String): Option[Int] = if (id != "0") indexOfSample.get(id) else None
-    def stringOrZero(str: String): Option[String] = if (str != "0") Some(str) else None
 
-    val ped = Pedigree(sampleArray.map { arr =>
-      val Array(fam, kid, dad, mom, sex, pheno) = arr
-      Trio(indexOfSample(kid), stringOrZero(fam), maybeId(dad), maybeId(mom),
-        Sex.withNameOption(sex), Phenotype.withNameOption(pheno))
-    })
+    if (sampleIds.toSet.size != nSamples)
+      fatal("Duplicate ids present in .fam file")
 
     println("number of samples is " + nSamples)
-    SampleInfo(sampleIds, ped)
+
+    SampleInfo(sampleIds, sampleAnnotations, signatures)
   }
 
   private def parseBed(bedPath: String,
-    sampleIds: Array[String],
+    sampleInfo: SampleInfo,
     variants: Array[Variant],
     sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
 
-    val nSamples = sampleIds.length
+    val nSamples = sampleInfo.sampleIds.length
 
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
     // FIXME what about withScope and assertNotStopped()?
@@ -92,12 +98,16 @@ object PlinkLoader {
       case (lw, pl) => (variants(pl.getKey), Annotations.empty(), pl.getGS)
     }
 
-    VariantSampleMatrix(VariantMetadata(sampleIds), variantRDD)
+    VariantSampleMatrix(VariantMetadata(Array.empty[(String, String)],
+      sampleInfo.sampleIds,
+      sampleInfo.annotations,
+      sampleInfo.signatures,
+      Annotations.empty()), variantRDD)
   }
 
   def apply(bedPath: String, bimPath: String, famPath: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
-    val samples = parseFam(famPath, sc.hadoopConfiguration)
-    val nSamples = samples.sampleIds.length
+    val sampleInfo = parseFam(famPath, sc.hadoopConfiguration)
+    val nSamples = sampleInfo.sampleIds.length
     if (nSamples <= 0)
       fatal(".fam file does not contain any samples")
 
@@ -121,7 +131,7 @@ object PlinkLoader {
 
     // check num bytes matches fam and bim lengths
     val bedSize = hadoopGetFileSize(bedPath, sc.hadoopConfiguration)
-    if (bedSize != (3 + nVariants * ((nSamples / 4.00) + .75).toInt))
+    if (bedSize != expectedBedSize(nSamples, nVariants))
       fatal("bed file size does not match expected number of bytes based on bed and fam files")
 
     //check number of partitions requested is less than file size
@@ -129,7 +139,7 @@ object PlinkLoader {
       fatal(s"The number of partitions requested (${nPartitions.getOrElse(sc.defaultMinPartitions)}) is greater than the file size ($bedSize)")
 
     val startTime = System.nanoTime()
-    val vds = parseBed(bedPath, samples.sampleIds, variants, sc, nPartitions)
+    val vds = parseBed(bedPath, sampleInfo, variants, sc, nPartitions)
     val endTime = System.nanoTime()
     val diff = (endTime - startTime) / 1e9
     vds
