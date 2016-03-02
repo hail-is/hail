@@ -18,8 +18,12 @@ object VCFReport {
   val ADODDPPMismatch = 4
   val GQPLMismatch = 5
   val GQMissingPL = 6
+  val RefContainsM = 7
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
+
+  def isVariant(id: Int): Boolean = id == RefContainsM
+  def isGenotype(id: Int): Boolean = !isVariant(id)
 
   def warningMessage(id: Int, count: Int): String = {
     val desc = id match {
@@ -29,6 +33,7 @@ object VCFReport {
       case ADODDPPMismatch => "DP != sum(AD) + OD"
       case GQPLMismatch => "GQ != difference of two smallest PL entries"
       case GQMissingPL => "GQ present but PL missing"
+      case RefContainsM => "REF contains M"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -37,26 +42,63 @@ object VCFReport {
     val sb = new StringBuilder()
     for ((file, m) <- accumulators) {
       sb.clear()
-      val nFiltered = m.value.values.sum
-      if (nFiltered > 0) {
-        sb.append(s"filtered $nFiltered genotypes while importing:\n    $file\n  details:")
-        m.value.foreach { case (id, n) =>
+
+      sb.append(s"while importing:\n    $file")
+
+      val variantWarnings = m.value.filter { case (k, v) => isVariant(k) }
+      val nVariantsFiltered = variantWarnings.values.sum
+      if (nVariantsFiltered > 0) {
+        sb.append(s"\n  filtered $nVariantsFiltered variants:")
+        variantWarnings.foreach { case (id, n) =>
           if (n > 0) {
-            sb += '\n'
-            sb.append("    ")
+            sb.append("\n    ")
             sb.append(warningMessage(id, n))
           }
         }
         warn(sb.result())
-      } else {
-        sb.append(s"import clean while importing:\n  $file")
-        info(sb.result())
       }
+
+      val genotypeWarnings = m.value.filter { case (k, v) => isGenotype(k) }
+      val nGenotypesFiltered = genotypeWarnings.values.sum
+      if (nGenotypesFiltered > 0) {
+        sb.append(s"\n  filtered $nGenotypesFiltered genotypes:")
+        genotypeWarnings.foreach { case (id, n) =>
+          if (n > 0) {
+            sb.append("\n    ")
+            sb.append(warningMessage(id, n))
+          }
+        }
+      }
+
+      if (nVariantsFiltered == 0 && nGenotypesFiltered == 0) {
+        sb.append("  import clean")
+        info(sb.result())
+      } else
+        warn(sb.result())
     }
   }
 }
 
 object LoadVCF {
+  def lineRef(s: String): String = {
+    var i = 0
+    var t = 0
+    while (t < 3
+      && i < s.length) {
+      if (s(i) == '\t')
+        t += 1
+      i += 1
+    }
+    val start = i
+
+    while (i < s.length
+      && s(i) != '\t')
+      i += 1
+    val end = i
+
+    s.substring(start, end)
+  }
+
   def apply(sc: SparkContext,
     file1: String,
     files: Array[String] = null, // FIXME hack
@@ -121,7 +163,13 @@ object LoadVCF {
       sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
         .mapPartitions { lines =>
           val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
-          lines.filter(line => !line.isEmpty && line(0) != '#')
+          lines.filterNot(line =>
+            line.isEmpty() || line(0) == '#' || {
+              val containsM = lineRef(line).contains("M")
+              if (containsM)
+                reportAcc += VCFReport.RefContainsM
+              containsM
+            })
             .map { line =>
               try {
                 reader.readRecord(reportAcc, line, sigMap.value, storeGQ)
