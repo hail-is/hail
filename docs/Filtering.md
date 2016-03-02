@@ -18,8 +18,7 @@ Command line arguments:
  - _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
 
 2. `filtersamples` -- ".sample_list" file
- - Hail expects a .sample_list file to contain a newline-delimited list of sample ids.  The `--keep` and `--remove` command-line flags will determine whether the list of samples is excluded or kept.  
- - **As of 12/21/15, Hail does not allow users to specify mappings between the ID scheme used in import and other naming conventions.  This feature will be added in a future release.**  
+ - Hail expects a .sample_list file to contain a newline-delimited list of sample ids.  The `--keep` and `--remove` command-line flags will determine whether the list of samples is excluded or kept.  This file can contain sample IDs not present in the VDS.  
 
 3. `filtergenotypes` -- no inclusion/exclusion files supported
 
