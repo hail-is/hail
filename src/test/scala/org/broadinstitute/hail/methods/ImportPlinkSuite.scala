@@ -1,27 +1,46 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver.{ImportPlinkBfile, ExportPlink, State, SplitMulti}
 import org.broadinstitute.hail.io.LoadVCF
+import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
+import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Gen._
 import sys.process._
 import scala.language.postfixOps
 
-import scala.io.Source
-
 class ImportPlinkSuite extends SparkSuite {
-  def rewriteBimIDs(file: String) {
-    val parsed = readFile(file, sc.hadoopConfiguration) { is =>
-      Source.fromInputStream(is)
-        .getLines()
-        .toList
-        .map(line => line
-          .split("\t"))
-        .map(arr =>
-          s"${arr(0)}\t${s"${arr(0)}:${arr(3)}:${arr(5)}:${arr(4)}"}\t${arr(2)}\t${arr(3)}\t${arr(4)}\t${arr(5)}")
-    }
-    writeTable(file, sc.hadoopConfiguration, parsed)
+
+  object Spec extends Properties("ImportPlink") {
+    property("import generates same output as export") =
+      forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)
+        .filter(vds => vds.nVariants > 0 && vds.nSamples > 0), choose(1,50)) { (vds: VariantDataset, nPartitions: Int) =>
+
+        println(s"nPartitions:$nPartitions nSamples:${vds.nSamples} nVariants:${vds.nVariants}")
+        var s = State(sc, sqlContext, vds)
+
+        s = SplitMulti.run(s, Array[String]())
+        s = ExportPlink.run(s, Array("-o","/tmp/truth"))
+        s = ImportPlinkBfile.run(s, Array("--bfile","/tmp/truth", "-n", nPartitions.toString))
+        s = SplitMulti.run(s, Array[String]())
+        s = ExportPlink.run(s, Array("-o","/tmp/test"))
+
+        val exitCodeFam = "diff /tmp/truth.fam /tmp/test.fam" !
+        val exitCodeBim = "diff /tmp/truth.bim /tmp/test.bim" !
+        val exitCodeBed = "diff /tmp/truth.bed /tmp/test.bed" !
+
+        if (exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0)
+          true
+        else {
+          false
+        }
+      }
+  }
+
+  @Test def testPlinkImportRandom() {
+    Spec.check()
   }
 
   @Test def testImportIdenticalToExport() {
@@ -44,23 +63,5 @@ class ImportPlinkSuite extends SparkSuite {
 
   }
 
-  def testImportProfile() {
-    val vds = LoadVCF(sc, "/Users/jigold/profile.vcf.bgz")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
-    val exportState1 = ExportPlink.run(state, Array("-o", "/tmp/profile"))
 
-    val importState1 = ImportPlinkBfile.run(state, Array("--bfile","/tmp/profile"))
-    val splitState1 = SplitMulti.run(importState1, Array.empty[String])
-    val exportState2 = ExportPlink.run(splitState1, Array("-o", "/tmp/profile_hailOut"))
-    val importState2 = ImportPlinkBfile.run(state, Array("--bfile","/tmp/profile_hailOut"))
-
-    assert(importState1.vds.same(importState2.vds))
-
-    val exitCodeFam = "diff /tmp/profile.fam /tmp/profile_hailOut.fam" !
-    val exitCodeBim = "diff /tmp/profile.bim /tmp/profile_hailOut.bim" !
-    val exitCodeBed = "diff /tmp/profile.bed /tmp/profile_hailOut.bed" !
-
-    assert(exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0)
-
-  }
 }

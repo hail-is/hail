@@ -98,9 +98,13 @@ object PlinkLoader {
   def apply(bedPath: String, bimPath: String, famPath: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
     val samples = parseFam(famPath, sc.hadoopConfiguration)
     val nSamples = samples.sampleIds.length
+    if (nSamples <= 0)
+      fatal(".fam file does not contain any samples")
 
     val variants = new VariantParser(bimPath, sc.hadoopConfiguration).eval()
     val nVariants = variants.length
+    if (nVariants <= 0)
+      fatal(".bim file does not contain any variants")
 
     //check magic numbers in bed file
     readFile(bedPath, sc.hadoopConfiguration) {dis =>
@@ -119,6 +123,10 @@ object PlinkLoader {
     val bedSize = hadoopGetFileSize(bedPath, sc.hadoopConfiguration)
     if (bedSize != (3 + nVariants * ((nSamples / 4.00) + .75).toInt))
       fatal("bed file size does not match expected number of bytes based on bed and fam files")
+
+    //check number of partitions requested is less than file size
+    if (bedSize < nPartitions.getOrElse(sc.defaultMinPartitions))
+      fatal(s"The number of partitions requested (${nPartitions.getOrElse(sc.defaultMinPartitions)}) is greater than the file size ($bedSize)")
 
     val startTime = System.nanoTime()
     val vds = parseBed(bedPath, samples.sampleIds, variants, sc, nPartitions)

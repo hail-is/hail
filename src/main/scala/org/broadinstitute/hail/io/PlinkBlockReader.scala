@@ -22,7 +22,10 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   seekToFirstBlock(split.getStart)
 
   def seekToFirstBlock(start: Long) {
-    variantIndex = ((start - 3) / blockLength).toInt
+    if (start != 0)
+      variantIndex = ((start - 3) / blockLength).toInt
+
+    require(variantIndex >= 0)
 
     pos = variantIndex * blockLength + 3
     if (pos < start){
@@ -46,6 +49,7 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
         .take(nSamples)
         .foreach(i => b += PlinkBlockReader.plinkOrderedSparseGt(i))
 
+      require(variantIndex >= 0)
       value.setGS(b.result())
       value.setKey(variantIndex)
       variantIndex += 1
