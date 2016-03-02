@@ -5,10 +5,12 @@ Only SNP-major mode files can be read into Hail. To convert your file from Indiv
 
 Command line options:
  - `--bfile <file base>` -- path of input file base, will expect `<file base>.bed`, `<file base>.bim`, `<file base>.fam` all exist
-or
  - `--bed <bed file>` -- path of input .bed file
  - `--bim <bim file>` -- path of input .bim file
  - `--fam <fam file>` -- path of input .fam file
+
+ You must use --bfile only, or all three of --bed, --bim, and --fam.
+
 
 Example `importplink` command:
 ```
