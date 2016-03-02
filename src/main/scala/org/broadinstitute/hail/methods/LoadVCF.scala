@@ -18,11 +18,12 @@ object VCFReport {
   val ADODDPPMismatch = 4
   val GQPLMismatch = 5
   val GQMissingPL = 6
-  val RefContainsM = 7
+  val RefNonACGT = 7
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
-  def isVariant(id: Int): Boolean = id == RefContainsM
+  def isVariant(id: Int): Boolean = id == RefNonACGT
+
   def isGenotype(id: Int): Boolean = !isVariant(id)
 
   def warningMessage(id: Int, count: Int): String = {
@@ -33,7 +34,7 @@ object VCFReport {
       case ADODDPPMismatch => "DP != sum(AD) + OD"
       case GQPLMismatch => "GQ != difference of two smallest PL entries"
       case GQMissingPL => "GQ present but PL missing"
-      case RefContainsM => "REF contains M"
+      case RefNonACGT => "REF contains non-ACGT"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -165,10 +166,11 @@ object LoadVCF {
           val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
           lines.filterNot(line =>
             line.isEmpty() || line(0) == '#' || {
-              val containsM = lineRef(line).contains("M")
-              if (containsM)
-                reportAcc += VCFReport.RefContainsM
-              containsM
+              val containsNonACGT = !lineRef(line).forall(c =>
+                c == 'A' || c == 'C' || c == 'G' || c == 'T')
+              if (containsNonACGT)
+                reportAcc += VCFReport.RefNonACGT
+              containsNonACGT
             })
             .map { line =>
               try {
