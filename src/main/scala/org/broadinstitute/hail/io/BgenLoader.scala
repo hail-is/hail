@@ -42,8 +42,7 @@ class BgenLoader(file: String, sc: SparkContext) {
       reader.getPosition + 6 * nRow
     else if (version == 1 && compression) {
       // The following works for 1.1 compressed
-      val nextOffset = reader.readInt()
-      nextOffset + reader.getPosition
+      reader.getPosition + reader.readInt()
     }
     else
       throw new UnsupportedOperationException()
@@ -246,8 +245,7 @@ object BgenLoader {
     }
   }
 
-  def apply(file: String, sc: SparkContext, vsmType: String = "sparky"): VariantDataset = {
-    require(vsmType == "sparky" || vsmType == "tuple")
+  def apply(file: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
     val bl = new BgenLoader(file, sc)
 
     val sampleIDs = bl.parseHeaderAndIndex()
@@ -269,7 +267,7 @@ object BgenLoader {
     sc.hadoopConfiguration.setBoolean("compressGS", false)
     val parseFunction = bl.getParseFunction
     val rdd = sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
-      sc.defaultMinPartitions)
+      nPartitions.getOrElse(sc.defaultMinPartitions))
       .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }
     rdd.count()
     println("parsing took %.3f seconds".format((System.currentTimeMillis() - time).toDouble / 1000.0))
