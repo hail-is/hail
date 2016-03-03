@@ -5,17 +5,16 @@ import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
-import scala.collection.mutable.ArrayBuffer
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
 
 class LinRegBuilder extends Serializable {
-  private val rowsX = ArrayBuffer[Int]()
-  private val valsX = ArrayBuffer[Double]()
+  private val rowsX = new collection.mutable.ArrayBuilder.ofInt()
+  private val valsX = new collection.mutable.ArrayBuilder.ofDouble()
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0
-  private val missingRows = ArrayBuffer[Int]()
+  private val missingRows = new collection.mutable.ArrayBuilder.ofInt()
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.gt match {
@@ -51,7 +50,7 @@ class LinRegBuilder extends Serializable {
   }
 
   def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double, Int)] = {
-    val missingRowsArray = missingRows.toArray
+    val missingRowsArray = missingRows.result()
     val nMissing = missingRowsArray.size
     val nPresent = n - nMissing
 
@@ -64,7 +63,7 @@ class LinRegBuilder extends Serializable {
       (0 until nMissing).foreach(_ => valsX += meanX)
 
       //SparseVector constructor expects sorted indices, follows from sorting of covRowSample
-      val x = new SparseVector[Double](rowsX.toArray, valsX.toArray, n)
+      val x = new SparseVector[Double](rowsX.result(), valsX.result(), n)
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
 
@@ -127,7 +126,8 @@ object LinearRegression {
           val t = b / se
           val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-          LinRegStats(nMissing, b, se, t, p) }
+          LinRegStats(nMissing, b, se, t, p)
+        }
         }
       }
     )
@@ -170,7 +170,7 @@ object LinearRegressionFromHardCallSet {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
 
     new LinearRegression(hcs.rdd
-      .mapValues{ cs =>
+      .mapValues { cs =>
         val GtVectorAndStats(x, xx, xy, nMissing) = cs.hardStats(yBc.value, n)
 
         // FIXME: store in boolean instead?
@@ -197,11 +197,19 @@ object LinearRegressionFromHardCallSet {
 
 case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
   def write(filename: String) {
-    def toLine(v: Variant, olrs: Option[LinRegStats]) = olrs match {
-      case Some(lrs) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + lrs.nMissing + "\t" + lrs.beta + "\t" + lrs.se + "\t" + lrs.t + "\t" + lrs.p
-      case None => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\tNA\tNA\tNA\tNA\tNA"
+    def toLine(sb: StringBuilder, v: Variant, olrs: Option[LinRegStats]): String = {
+      sb.clear()
+      olrs match {
+        case Some(lrs) =>
+          sb.tsvAppendItems(v.contig, v.start, v.ref, v.alt, lrs.p, lrs.beta, lrs.se, lrs.t, lrs.nMissing)
+        case None =>
+          sb.tsvAppendItems(v.contig, v.start, v.ref, v.alt, "NA\tNA\tNA\tNA\tNA")
+      }
+      sb.result()
     }
-    lr.map((toLine _).tupled)
-      .writeTable(filename, Some("CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP"))
+    lr.mapPartitions { it =>
+      val sb = new StringBuilder
+      it.map { case (v, olrs) => toLine(sb, v, olrs) }
+    }.writeTable(filename, Some("CHR\tPOS\tREF\tALT\tPVAL\tBETA\tSE\tTSTAT\tMISS"))
   }
 }

@@ -416,6 +416,10 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
       case _ => sb.append(a)
     }
   }
+
+  def tsvAppendItems(args: Any*) {
+    args.foreachBetween(tsvAppend) { _ => sb += '\t' }
+  }
 }
 
 class RichIntPairTraversableOnce[V](val t: TraversableOnce[(Int, V)]) extends AnyVal {
@@ -482,7 +486,7 @@ object Utils extends Logging {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-  
+
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
@@ -622,7 +626,7 @@ object Utils extends Logging {
   }
 
   def hadoopGetTemporaryFile(tmpdir: String, hConf: hadoop.conf.Configuration, nChar: Int = 10,
-    prefix: Option[String] = None, suffix: Option[String] = None): String = {
+                             prefix: Option[String] = None, suffix: Option[String] = None): String = {
 
     val destFS = hadoopFS(tmpdir, hConf)
     val prefixString = if (prefix.isDefined) prefix + "-" else ""
@@ -698,7 +702,7 @@ object Utils extends Logging {
   }
 
   def writeObjectFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
+                         hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
     try {
       f(oos)
@@ -708,7 +712,7 @@ object Utils extends Logging {
   }
 
   def readObjectFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
+                        hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
     try {
       f(ois)
@@ -729,7 +733,7 @@ object Utils extends Logging {
   }
 
   def writeTextFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
+                       hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
     val fw = new OutputStreamWriter(oos)
     try {
@@ -740,7 +744,7 @@ object Utils extends Logging {
   }
 
   def writeDataFile[T](filename: String,
-                      hConf: hadoop.conf.Configuration)(f: (spark.serializer.SerializationStream) => T): T = {
+                       hConf: hadoop.conf.Configuration)(f: (spark.serializer.SerializationStream) => T): T = {
     val serializer = SparkEnv.get.serializer.newInstance()
     val ss = serializer.serializeStream(hadoopCreate(filename, hConf))
     try {
@@ -751,7 +755,7 @@ object Utils extends Logging {
   }
 
   def writeFile[T](filename: String,
-                       hConf: hadoop.conf.Configuration)(writer: (OutputStream) => T): T = {
+                   hConf: hadoop.conf.Configuration)(writer: (OutputStream) => T): T = {
     val os = hadoopCreate(filename, hConf)
     try {
       writer(os)
@@ -761,7 +765,7 @@ object Utils extends Logging {
   }
 
   def readFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
+                  hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
     val is = hadoopOpen(filename, hConf)
     try {
       reader(is)
@@ -771,7 +775,7 @@ object Utils extends Logging {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-    lines: Traversable[String], header: Option[String] = None) {
+                 lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
         header.map { h =>
