@@ -7,7 +7,7 @@ import org.testng.annotations.Test
 import scala.util.Random
 
 class HardCallSetSuite extends SparkSuite {
-  @Test def test() {
+  @Test def callStreamTest() {
 
     def randGtArray(n: Int, pNonRef: Double): Array[Int] = {
       val a = Array.ofDim[Int](n)
@@ -70,5 +70,9 @@ class HardCallSetSuite extends SparkSuite {
       println()
 
     }
+  }
+
+  @Test def hardCallSetTest() {
+
   }
 }

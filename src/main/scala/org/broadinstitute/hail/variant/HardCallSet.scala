@@ -74,28 +74,26 @@ object CallStream {
   def apply(gs: Iterable[Genotype], n: Int, sparseCutoff: Double): CallStream = {
     require(n >= 0) // FIXME: allowing n = 0 requires check that n != 0 in hardstats below. Right choice?
 
-    val nonRefDensity = 1 - gs.count(_.isHomRef).toDouble / n
+    val nHomRef = gs.count(_.isHomRef)
 
-    if (nonRefDensity < sparseCutoff)
-      sparseCallStream(gs, n)
+    if (n - nHomRef < n * sparseCutoff)
+      sparseCallStream(gs, n, nHomRef)
     else
-      denseCallStream(gs, n)
+      denseCallStream(gs, n, nHomRef)
   }
 
-  def denseCallStream(gs: Iterable[Genotype], n: Int) =
-    denseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
+  def denseCallStream(gs: Iterable[Genotype], n: Int, nHomRef: Int) =
+    denseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int, nHomRef: Int)
 
-  def denseCallStreamFromGtStream(gts: Iterable[Int], n: Int): CallStream = {
+  def denseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
     var x = Array.ofDim[Int](n)
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
-    var nHomRef = 0
 
     for ((gt, i) <- gts.view.zipWithIndex)
       gt match {
         case 0 =>
-          nHomRef += 1
         case 1 =>
           x(i) = 1
           sumX += 1
@@ -142,27 +140,24 @@ object CallStream {
     a
   }
 
-  def sparseCallStream(gs: Iterable[Genotype], n: Int) =
-    sparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int)
+  def sparseCallStream(gs: Iterable[Genotype], n: Int, nHomRef: Int) =
+    sparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int, nHomRef: Int)
 
-  def sparseCallStreamFromGtStream(gts: Iterable[Int], n: Int): CallStream = {
+  def sparseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
     var rowX = ArrayBuffer[Int]()
     var valX = ArrayBuffer[Int]()
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
-    var nHomRef = 0
 
     for ((gt, i) <- gts.view.zipWithIndex)
       gt match {
         case 0 =>
-          nHomRef += 1
         case 1 =>
           rowX += i
           valX += 1
           sumX += 1
           sumXX += 1
-
         case 2 =>
           rowX += i
           valX += 2

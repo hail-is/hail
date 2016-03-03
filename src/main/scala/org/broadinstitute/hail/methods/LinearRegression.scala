@@ -107,7 +107,7 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
 
     new LinearRegression(vds
-      .filterSamples { case (s, sa) => samplesWithCovDataBc.value.contains(s) }
+      .filterSamples { case (s, sa) => samplesWithCovDataBc.value(s) }
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
         (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
@@ -142,7 +142,7 @@ object LinearRegressionFromHardCallSet {
     // LinearRegressionFromHardCallSetCommand uses cov.filterSamples(ped.phenotypedSamples) in call
     require(cov.covRowSample.forall(ped.phenotypedSamples)) // FIXME: Code below assumes same samples in hcs and cov, true for GoT2D
 
-    val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
+    //val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
     val n = cov.data.rows
     val k = cov.data.cols
@@ -152,9 +152,9 @@ object LinearRegressionFromHardCallSet {
 
     info(s"Running linreg on $n samples and $k covariates...")
 
-    val sc = hcs.rdd.sparkContext
-    val sampleCovRowBc = sc.broadcast(sampleCovRow)
-    val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
+    val sc = hcs.sparkContext
+    //val sampleCovRowBc = sc.broadcast(sampleCovRow)
+    //val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
     val samplePheno = ped.samplePheno
@@ -173,7 +173,8 @@ object LinearRegressionFromHardCallSet {
       .mapValues { cs =>
         val GtVectorAndStats(x, xx, xy, nMissing) = cs.hardStats(yBc.value, n)
 
-        // FIXME: store in boolean instead?
+        // FIXME: make condition more robust to rounding errors?
+        // all HomRef | all Het | all HomVar
         if (xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n)
           None
         else {
