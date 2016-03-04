@@ -6,7 +6,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable
 
 object HardCallSet {
   def apply(vds: VariantDataset, sparseCutoff: Double = .15): HardCallSet = {
@@ -134,7 +134,7 @@ object CallStream {
       case 1 => a(j) = gts(i).toByte
       case 2 => a(j) = (gts(i) | gts(i + 1) << 2).toByte
       case 3 => a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4).toByte
-      case _ =>
+      case 0 =>
     }
 
     a
@@ -144,35 +144,39 @@ object CallStream {
     sparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int, nHomRef: Int)
 
   def sparseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
-    var rowX = ArrayBuffer[Int]()
-    var valX = ArrayBuffer[Int]()
+    var rowX = Array.ofDim[Int](n - nHomRef)
+    var valX = Array.ofDim[Int](n - nHomRef)
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
 
+    var j = 0
     for ((gt, i) <- gts.view.zipWithIndex)
       gt match {
         case 0 =>
         case 1 =>
-          rowX += i
-          valX += 1
+          rowX(j) = i
+          valX(j) = 1
           sumX += 1
           sumXX += 1
+          j += 1
         case 2 =>
-          rowX += i
-          valX += 2
+          rowX(j) = i
+          valX(j) = 2
           sumX += 2
           sumXX += 4
-        case _ =>
-          rowX += i
-          valX += 3
+          j += 1
+        case 3 =>
+          rowX(j) = i
+          valX(j) = 3
           nMissing += 1
-      }
+          j += 1
+    }
 
     val meanX = sumX.toDouble / (n - nMissing)
 
     new CallStream(
-      sparseByteArray(rowX.toArray, valX.toArray),
+      sparseByteArray(rowX, valX),
       meanX,
       sumXX + meanX * meanX * nMissing,
       nMissing,
@@ -192,7 +196,7 @@ object CallStream {
 
   def sparseByteArray(rows: Array[Int], gts: Array[Int]): Array[Byte] = {
 
-    val a = ArrayBuffer[Byte]()
+    val a = mutable.ArrayBuffer[Byte]()
 
     var i = 0  // row index
     var j = 1  // counter for of lenByte index
@@ -225,7 +229,7 @@ object CallStream {
             a += (rd >> 8).toByte
             a += rd.toByte
         }
-        a(l) = (a(l) | (m << (2 * k))).toByte  // faster to use (k << 1) ?
+        a(l) = (a(l) | (m << (2 * k))).toByte
         j += m
       }
       j += 6 // 1[lenByte] + 4 * 1[nBytesMinus1] + 1[gtByte]

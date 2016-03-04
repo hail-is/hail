@@ -5,16 +5,17 @@ import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
+import collection.mutable
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
 
 class LinRegBuilder extends Serializable {
-  private val rowsX = new collection.mutable.ArrayBuilder.ofInt()
-  private val valsX = new collection.mutable.ArrayBuilder.ofDouble()
+  private val rowsX = new mutable.ArrayBuilder.ofInt()
+  private val valsX = new mutable.ArrayBuilder.ofDouble()
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0
-  private val missingRows = new collection.mutable.ArrayBuilder.ofInt()
+  private val missingRows = new mutable.ArrayBuilder.ofInt()
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.gt match {
