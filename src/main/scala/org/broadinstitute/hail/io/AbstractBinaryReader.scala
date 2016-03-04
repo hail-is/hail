@@ -40,7 +40,7 @@ abstract class AbstractBinaryReader {
       ((read() & 0xff) << 32) | ((read() & 0xff) << 40) | ((read() & 0xff) << 48) | ((read() & 0xff) << 56)
 
   def readInt(): Int =
-    (read() & 0xff) |((read() & 0xff) << 8) | ((read() & 0xff) << 16) | ((read() & 0xff) << 24)
+    (read() & 0xff) | ((read() & 0xff) << 8) | ((read() & 0xff) << 16) | ((read() & 0xff) << 24)
 
   def readShort(): Int = (read() & 0xff) | ((read() & 0xff) << 8)
 

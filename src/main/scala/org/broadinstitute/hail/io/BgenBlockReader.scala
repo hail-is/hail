@@ -14,10 +14,14 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val nSamples = job.getInt("nSamples", -1)
   val version = job.getInt("version", -1)
   val indexArrayPath = job.get("idx")
+  seekToFirstBlock(split.getStart)
 
   override def seekToFirstBlock(start: Long) {
     val path = job.get("idx")
-    bfis.seek(IndexBTree.queryStart(start, hadoopOpen(path, job)))
+    val position = IndexBTree.queryStart(start, hadoopOpen(path, job))
+    pos = position
+    println(s"seekToFirstBlock start=$start position=$position")
+    bfis.seek(position)
   }
 
   def next(key: LongWritable, value: ParsedLine[Variant]): Boolean = {
@@ -31,12 +35,14 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       val position = bfis.readInt()
       val nAlleles = if (version == 1) 2 else bfis.readShort()
       val alleles = Array.ofDim[String](nAlleles)
+
       for (i <- 0 until nAlleles) {
         alleles(i) = bfis.readLengthAndString(4)
       }
+//      println(s"alleles:${alleles.mkString(",")}")
 //      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, alleles=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles.length))
-//      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
-//              alleles(1)))
+      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
+              alleles(1)))
       // FIXME no multiallelic support (version 1.2)
       if (alleles.length > 2)
         throw new UnsupportedOperationException()

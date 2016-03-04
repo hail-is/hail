@@ -169,6 +169,7 @@ object Main {
       FilterSamples,
       GenDataset,
       GQByDP,
+      ImportBGEN,
       ImportPlink,
       ImportVCF,
       LinearRegressionCommand,

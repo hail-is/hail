@@ -1,12 +1,15 @@
 package org.broadinstitute.hail.io
 
 import java.util.zip.Inflater
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.mapred.InvalidInputException
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.SparkContext
+
+import scala.io.Source
 
 class BgenLoader(file: String, sc: SparkContext) {
   private var compression: Boolean = false
@@ -29,11 +32,14 @@ class BgenLoader(file: String, sc: SparkContext) {
     var nRow = nSamples
     if (version == 1)
       nRow = reader.readInt()
-    reader.readLengthAndString(2) // Lid
-    reader.readLengthAndString(2) // rsid
-    reader.readLengthAndString(2) // chr
-    reader.readInt() // pos
+
+    val snpid = reader.readLengthAndString(2) // Lid
+    val rsid = reader.readLengthAndString(2) // rsid
+    val chr = reader.readLengthAndString(2) // chr
+    val pos = reader.readInt() // pos
+
     val nAlleles = if (version == 1) 2 else reader.readShort()
+
     for (i <- 0 until nAlleles)
       reader.readLengthAndString(4) // read an allele
 
@@ -42,7 +48,7 @@ class BgenLoader(file: String, sc: SparkContext) {
       reader.getPosition + 6 * nRow
     else if (version == 1 && compression) {
       // The following works for 1.1 compressed
-      reader.getPosition + reader.readInt()
+      reader.readInt() + reader.getPosition
     }
     else
       throw new UnsupportedOperationException()
@@ -65,8 +71,8 @@ class BgenLoader(file: String, sc: SparkContext) {
       for (i <- 0 until nAlleles) {
         alleles(i) = bbis.readLengthAndString(4)
       }
-//      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
-//        alleles(1)))
+      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
+        alleles(1)))
       // FIXME no multiallelic support (version 1.2)
       if (alleles.length > 2)
         throw new UnsupportedOperationException()
@@ -85,6 +91,7 @@ class BgenLoader(file: String, sc: SparkContext) {
           val expansion = Array.ofDim[Byte](nRow * 6)
           val inflater = new Inflater()
           val compressedBytes = bbis.readInt()
+          println(s"probabilityBytes(compressed):${compressedBytes}")
           inflater.setInput(bbis.readBytes(compressedBytes))
           var decompressed = 0
           while (!inflater.finished()) {
@@ -93,6 +100,7 @@ class BgenLoader(file: String, sc: SparkContext) {
           expansion
         }
         else
+          println(s"probabilityBytes(uncompressed):${nRow * 6}")
           bbis.readBytes(nRow * 6)
       }
 
@@ -122,19 +130,27 @@ class BgenLoader(file: String, sc: SparkContext) {
   }
 
 
-  def parseHeaderAndIndex(): (Option[Array[String]]) = {
+  def parseHeaderAndIndex(sampleFile: Option[String] = None): Array[String] = {
     // read the length of all header stuff
     reader.seek(0)
     val allInfoLength = reader.readInt()
-
+    println(s"parseHeaderAndIndex::allInfoLength=$allInfoLength")
     // read the header block
     val headerLength = reader.readInt()
+
+    require(headerLength <= allInfoLength)
+
+    println(s"parseHeaderAndIndex::headerLength=$headerLength")
 //    println("header len is " + headerLength)
     nVariants = reader.readInt()
-    println("nVariants is " + nVariants)
+
+    println(s"parseHeaderAndIndex::nVariants=$nVariants")
+    //println("nVariants is " + nVariants)
     nSamples = reader.readInt()
-    println("nSamples is " + nSamples)
-    val magicNumber = reader.readString(4)
+    //println("nSamples is " + nSamples)
+    println(s"parseHeaderAndIndex::nSamples=$nSamples")
+    val magicNumber = reader.readString(4) //readers ignore these bytes
+    println(s"parseHeaderAndIndex::magicNumber=$magicNumber")
 
     val headerInfo = {
       if (headerLength > 20)
@@ -142,23 +158,32 @@ class BgenLoader(file: String, sc: SparkContext) {
       else
         ""
     }
+    println(s"parseHeaderAndIndex::headerInfo=$headerInfo")
 
     // Parse flags
     val flags = reader.readInt()
+    println(s"parseHeaderAndIndex::flags=$flags")
     compression = (flags & 1) != 0 // either 0 or 1 based on the first bit
     version = flags >> 2 & 0xf
     hasSampleIdBlock = (flags >> 30 & 1) != 0
+    println(s"parseHeaderAndIndex compression=$compression version=$version hasSampleIdBlock=$hasSampleIdBlock")
     require(version == 0 || version == 1 || version == 2)
 
     // version 1.1 is currently supported
     if (version != 1)
       throw new NotImplementedError("Hail supports only bgen 1.1 formats")
 
-    println("flags stuff: compression=" + compression + ", version=" + version + ", hasSampleID=" + hasSampleIdBlock)
+    //println("flags stuff: compression=" + compression + ", version=" + version + ", hasSampleID=" + hasSampleIdBlock)
 
-    // Read sample ID block if it has one
-    val sampleIDs = hasSampleIdBlock match {
-      case true =>
+    if (!hasSampleIdBlock && sampleFile.isEmpty)
+      fatal("No sample ids detected in BGEN file. Use -s with Sample ID file")
+    else if (hasSampleIdBlock && sampleFile.isDefined)
+      warn("Sample ids detected in BGEN file but Sample ID file given. Using IDs from sample ID file")
+
+    val sampleIDs = {
+      if (sampleFile.isDefined)
+        BgenLoader.parseSampleFile(sampleFile.get, sc.hadoopConfiguration)
+      else {
         val sampleIdSize = reader.readInt()
         println("sampleIdSize is " + sampleIdSize)
         val nSamplesConfirmation = reader.readInt()
@@ -169,22 +194,31 @@ class BgenLoader(file: String, sc: SparkContext) {
         for (i <- 0 until nSamples) {
           sampleIdArr(i) = reader.readLengthAndString(2)
         }
-        Some(sampleIdArr)
-      case false => None
+        sampleIdArr
+      }
     }
+
+    require(sampleIDs.length == nSamples)
+
     // Read the beginnings of each variant data block
     val dataBlockStarts = new Array[Long](nVariants+1)
+
     // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
     var position: Long = (allInfoLength + 4).toLong
     dataBlockStarts(0) = position
     var time = System.currentTimeMillis()
 
+    nVariants = 10 //FIXME remove this when done subsetting
+
     for (i <- 1 until nVariants+1) {
       position = getNextBlockPosition(position)
       dataBlockStarts(i) = position
     }
+    println(dataBlockStarts.take(nVariants + 1).mkString("\n"))
+    sys.exit()
     println(s"first 3 = ${dataBlockStarts.take(3).mkString(",")}")
     println(s"last 3 = ${dataBlockStarts.takeRight(3).mkString(",")}")
+
     IndexBTree.write(dataBlockStarts, hadoopCreate(file + ".idx", sc.hadoopConfiguration))
 
     sampleIDs
@@ -245,17 +279,30 @@ object BgenLoader {
     }
   }
 
-  def apply(file: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
+  def expectedSize(nSamples: Int, nVariants: Long): Long = {
+      nVariants * (31 + 6*nSamples) + 24
+  }
+
+  def parseSampleFile(file: String, hConf: Configuration): Array[String] = {
+    readFile(file, hConf) { s =>
+      Source.fromInputStream(s)
+        .getLines()
+        .drop(2)
+        .filter(line => !line.isEmpty)
+        .map { line =>
+          val arr = line.split("\\s+")
+          arr(1)
+        }
+        .toArray
+    }
+  }
+
+  def apply(file: String, sampleFile: Option[String] = None, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
     val bl = new BgenLoader(file, sc)
 
-    val sampleIDs = bl.parseHeaderAndIndex()
+    val sampleIDs = bl.parseHeaderAndIndex(sampleFile)
     val nSamples = bl.getNSamples
     val nVariants = bl.getNVariants
-
-    val ids = sampleIDs match {
-      case Some(arr) => arr
-      case None => (0 until nSamples).map(_.toString).toArray
-    }
 
     var time = System.currentTimeMillis()
 
@@ -269,8 +316,9 @@ object BgenLoader {
     val rdd = sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
       .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }
-    rdd.count()
+    require(rdd.count() == nVariants)
+
     println("parsing took %.3f seconds".format((System.currentTimeMillis() - time).toDouble / 1000.0))
-    VariantSampleMatrix(VariantMetadata(ids), rdd)
+    VariantSampleMatrix(VariantMetadata(sampleIDs), rdd)
   }
 }
