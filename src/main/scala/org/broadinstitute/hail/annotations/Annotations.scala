@@ -4,8 +4,28 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.Utils._
-import scala.collection.mutable
 
+object Annotations {
+
+  def empty: Annotation = Row.empty
+  def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(Row.empty)
+
+  def printRow(r: Row, nSpace: Int = 0) {
+    val spaces = (0 until nSpace).map(i => " ").foldRight("")(_ + _)
+    r.toSeq.zipWithIndex.foreach { case (elem, index) =>
+      elem match {
+        case row: Row =>
+          println(s"""$spaces[$index] ROW:""")
+          printRow(row, nSpace + 2)
+        case _ =>
+          println(s"""$spaces[$index] $elem""")
+      }
+    }
+  }
+}
+
+
+/*
 class CollisionException(s: String) extends Exception(s)
 
 case class HailSchemaRow(val values: mutable.WrappedArray[Any], override val schema: StructType) extends Row(values) {
@@ -436,6 +456,7 @@ case class MutableStructSignature(m: mutable.Map[String, (Int, Signature)]) exte
     }
   }
 
+
   object AnnotationSignatures {
     def empty(): StructSignature = StructSignature(Map.empty[String, Signature])
 
@@ -472,3 +493,4 @@ case class MutableStructSignature(m: mutable.Map[String, (Int, Signature)]) exte
     case "Set[Int]" => expr.TSet(expr.TInt)
     case "Set[String]" => expr.TSet(expr.TString)
     case "String" => expr.TString*/
+*/

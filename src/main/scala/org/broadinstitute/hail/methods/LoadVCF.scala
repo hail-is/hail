@@ -6,7 +6,7 @@ import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
+import org.broadinstitute.hail.{expr, PropagatedTribbleException, vcf}
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -91,15 +91,17 @@ object LoadVCF {
       .getInfoHeaderLines
       .toList
       .zipWithIndex
-      .map{ case (line, index) => (line.getID, VCFSignature.parse(line, index))}
+      .map { case (line, index) => (line.getID, VCFSignature.parse(line)) }
       .toArray
 
     val variantAnnotationSignatures: StructSignature = StructSignature(Map(
-      "qual" -> SimpleSignature(SignatureType.Double, 0),
-      "filters" -> SimpleSignature(SignatureType.ArrayString, 1),
-      "pass" -> SimpleSignature(SignatureType.Boolean, 2),
-      "rsid" -> SimpleSignature(SignatureType.String, 3),
-      "info" -> StructSignature(infoRowSignatures.toMap, 4)))
+      "qual" ->(0, SimpleSignature(expr.TDouble)),
+      "filters" ->(1, SimpleSignature(expr.TArray(expr.TString))),
+      "pass" ->(2, SimpleSignature(expr.TBoolean)),
+      "rsid" ->(3, SimpleSignature(expr.TString)),
+      "info" ->(4, StructSignature(infoRowSignatures.zipWithIndex
+        .map { case ((key, sig), index) => (key, (index, sig)) }
+        .toMap))))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -138,7 +140,7 @@ object LoadVCF {
     })
     println(variantAnnotationSignatures)
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      AnnotationData.emptyIndexedSeq(sampleIds.length), StructSignature.empty(),
+      Annotations.emptyIndexedSeq(sampleIds.length), StructSignature.empty(),
       variantAnnotationSignatures), genotypes)
   }
 

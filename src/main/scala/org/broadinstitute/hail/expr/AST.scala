@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.expr
 
-import org.broadinstitute.hail.annotations.AnnotationData
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.variant.{AltAllele, Variant, Genotype}
 import scala.collection.mutable
 import scala.util.parsing.input.{Position, Positional}
@@ -423,8 +423,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       val localRHS = rhs
       AST.evalCompose[Map[String, Any]](c, lhs) { m =>
         m.getOrElse(localRHS, null) match {
-          case a: AnnotationData => a.row
           case wa: mutable.WrappedArray[_] => wa.array
+          case a: Annotation => a
           case x => x
         }
       }

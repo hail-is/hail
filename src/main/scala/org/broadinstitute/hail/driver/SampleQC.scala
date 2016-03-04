@@ -5,7 +5,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -39,38 +39,38 @@ object SampleQCCombiner {
     "rDeletionInsertion"
 
   val signatures: StructSignature = StructSignature(Map(
-    "callRate" -> new SimpleSignature(SignatureType.Double, 0),
-    "nCalled" -> new SimpleSignature(SignatureType.Int, 1),
-    "nNotCalled" -> new SimpleSignature(SignatureType.Int, 2),
-    "nHomRef" -> new SimpleSignature(SignatureType.Int, 3),
-    "nHet" -> new SimpleSignature(SignatureType.Int, 4),
-    "nHomVar" -> new SimpleSignature(SignatureType.Int, 5),
-    "nSNP" -> new SimpleSignature(SignatureType.Int, 6),
-    "nInsertion" -> new SimpleSignature(SignatureType.Int, 7),
-    "nDeletion" -> new SimpleSignature(SignatureType.Int, 8),
-    "nSingleton" -> new SimpleSignature(SignatureType.Int, 9),
-    "nTransition" -> new SimpleSignature(SignatureType.Int, 10),
-    "nTransversion" -> new SimpleSignature(SignatureType.Int, 11),
-    "dpMean" -> new SimpleSignature(SignatureType.Double, 12),
-    "dpStDev" -> new SimpleSignature(SignatureType.Double, 13),
-    "dpMeanHomRef" -> new SimpleSignature(SignatureType.Double, 14),
-    "dpStDevHomRef" -> new SimpleSignature(SignatureType.Double, 15),
-    "dpMeanHet" -> new SimpleSignature(SignatureType.Double, 16),
-    "dpStDevHet" -> new SimpleSignature(SignatureType.Double, 17),
-    "dpMeanHomVar" -> new SimpleSignature(SignatureType.Double, 18),
-    "dpStDevHomVar" -> new SimpleSignature(SignatureType.Double, 19),
-    "gqMean" -> new SimpleSignature(SignatureType.Double, 20),
-    "gqStDev" -> new SimpleSignature(SignatureType.Double, 21),
-    "gqMeanHomRef" -> new SimpleSignature(SignatureType.Double, 22),
-    "gqStDevHomRef" -> new SimpleSignature(SignatureType.Double, 23),
-    "gqMeanHet" -> new SimpleSignature(SignatureType.Double, 24),
-    "gqStDevHet" -> new SimpleSignature(SignatureType.Double, 25),
-    "gqMeanHomVar" -> new SimpleSignature(SignatureType.Double, 26),
-    "gqStDevHomVar" -> new SimpleSignature(SignatureType.Double, 27),
-    "nNonRef" -> new SimpleSignature(SignatureType.Int, 28),
-    "rTiTv" -> new SimpleSignature(SignatureType.Double, 29),
-    "rHetHomVar" -> new SimpleSignature(SignatureType.Double, 30),
-    "rDeletionInsertion" -> new SimpleSignature(SignatureType.Double, 31)))
+    "callRate" ->(0, new SimpleSignature(expr.TDouble)),
+    "nCalled" ->(1, new SimpleSignature(expr.TInt)),
+    "nNotCalled" ->(2, new SimpleSignature(expr.TInt)),
+    "nHomRef" ->(3, new SimpleSignature(expr.TInt)),
+    "nHet" ->(4, new SimpleSignature(expr.TInt)),
+    "nHomVar" ->(5, new SimpleSignature(expr.TInt)),
+    "nSNP" ->(6, new SimpleSignature(expr.TInt)),
+    "nInsertion" ->(7, new SimpleSignature(expr.TInt)),
+    "nDeletion" ->(8, new SimpleSignature(expr.TInt)),
+    "nSingleton" ->(9, new SimpleSignature(expr.TInt)),
+    "nTransition" ->(10, new SimpleSignature(expr.TInt)),
+    "nTransversion" ->(11, new SimpleSignature(expr.TInt)),
+    "dpMean" ->(12, new SimpleSignature(expr.TDouble)),
+    "dpStDev" ->(13, new SimpleSignature(expr.TDouble)),
+    "dpMeanHomRef" ->(14, new SimpleSignature(expr.TDouble)),
+    "dpStDevHomRef" ->(15, new SimpleSignature(expr.TDouble)),
+    "dpMeanHet" ->(16, new SimpleSignature(expr.TDouble)),
+    "dpStDevHet" ->(17, new SimpleSignature(expr.TDouble)),
+    "dpMeanHomVar" ->(18, new SimpleSignature(expr.TDouble)),
+    "dpStDevHomVar" ->(19, new SimpleSignature(expr.TDouble)),
+    "gqMean" ->(20, new SimpleSignature(expr.TDouble)),
+    "gqStDev" ->(21, new SimpleSignature(expr.TDouble)),
+    "gqMeanHomRef" ->(22, new SimpleSignature(expr.TDouble)),
+    "gqStDevHomRef" ->(23, new SimpleSignature(expr.TDouble)),
+    "gqMeanHet" ->(24, new SimpleSignature(expr.TDouble)),
+    "gqStDevHet" ->(25, new SimpleSignature(expr.TDouble)),
+    "gqMeanHomVar" ->(26, new SimpleSignature(expr.TDouble)),
+    "gqStDevHomVar" ->(27, new SimpleSignature(expr.TDouble)),
+    "nNonRef" ->(28, new SimpleSignature(expr.TInt)),
+    "rTiTv" ->(29, new SimpleSignature(expr.TDouble)),
+    "rHetHomVar" ->(30, new SimpleSignature(expr.TDouble)),
+    "rDeletionInsertion" ->(31, new SimpleSignature(expr.TDouble))))
 }
 
 class SampleQCCombiner extends Serializable {
@@ -338,7 +338,7 @@ object SampleQC extends Command {
     val localSamplesBc = vds.sparkContext.broadcast(vds.localSamples)
     vds
       .rdd
-      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, AnnotationData, Iterable[Genotype])]) =>
+      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Annotation, Iterable[Genotype])]) =>
       val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
       localSamplesBc.value.iterator
         .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
@@ -373,21 +373,18 @@ object SampleQC extends Command {
       .mapValues(_.asRow)
       .collectAsMap()
 
-    val (newSignatures, fInsert) = AnnotationData.insertSignature(vds.metadata.sampleAnnotationSignatures,
-      SampleQCCombiner.signatures, Array("qc"))
+    val (newSignatures, fInsert) = vds.metadata.sampleAnnotationSignatures.insert(List("qc"),
+      SampleQCCombiner.signatures)
     val newSampleAnnotations = vds.metadata.sampleAnnotations
       .zipWithIndex
       .map { case (sa, s) =>
-        rMap.get(s) match {
-          case Some(sa2) => fInsert(sa, sa2)
-          case None => sa
-        }
+        fInsert(sa, rMap.get(s))
       }
 
-        state.copy(
-          vds = vds.copy(
-            metadata = vds.metadata.copy(sampleAnnotations = newSampleAnnotations,
-              sampleAnnotationSignatures = newSignatures)
-          ))
+    state.copy(
+      vds = vds.copy(
+        metadata = vds.metadata.copy(sampleAnnotations = newSampleAnnotations,
+          sampleAnnotationSignatures = newSignatures)
+      ))
   }
 }

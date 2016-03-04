@@ -123,7 +123,7 @@ object TestRDDBuilder {
           // FIXME gq
           b += Genotype(gt, ad, Some(dp), Some(gq), pl)
         }
-        (variant, AnnotationData.empty(), b.result(): Iterable[Genotype])
+        (variant, Annotations.empty, b.result(): Iterable[Genotype])
     }
     VariantSampleMatrix(VariantMetadata(sampleList), streamRDD)
   }

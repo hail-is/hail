@@ -6,6 +6,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
@@ -34,35 +35,35 @@ object VariantQCCombiner {
     "rExpectedHetFrequency\tpHWE"
 
   val signatures: StructSignature = StructSignature(Map(
-    "callRate" -> new SimpleSignature(SignatureType.Double, 0),
-    "MAC" -> new SimpleSignature(SignatureType.Int, 1),
-    "MAF" -> new SimpleSignature(SignatureType.Double, 2),
-    "nCalled" -> new SimpleSignature(SignatureType.Int, 3),
-    "nNotCalled" -> new SimpleSignature(SignatureType.Int, 4),
-    "nHomRef" -> new SimpleSignature(SignatureType.Int, 5),
-    "nHet" -> new SimpleSignature(SignatureType.Int, 6),
-    "nHomVar" -> new SimpleSignature(SignatureType.Int, 7),
-    "dpMean" -> new SimpleSignature(SignatureType.Double, 8),
-    "dpStDev" -> new SimpleSignature(SignatureType.Double, 9),
-    "dpMeanHomRef" -> new SimpleSignature(SignatureType.Double, 10),
-    "dpStDevHomRef" -> new SimpleSignature(SignatureType.Double, 11),
-    "dpMeanHet" -> new SimpleSignature(SignatureType.Double, 12),
-    "dpStDevHet" -> new SimpleSignature(SignatureType.Double, 13),
-    "dpMeanHomVar" -> new SimpleSignature(SignatureType.Double, 14),
-    "dpStDevHomVar" -> new SimpleSignature(SignatureType.Double, 15),
-    "gqMean" -> new SimpleSignature(SignatureType.Double, 16),
-    "gqStDev" -> new SimpleSignature(SignatureType.Double, 17),
-    "gqMeanHomRef" -> new SimpleSignature(SignatureType.Double, 18),
-    "gqStDevHomRef" -> new SimpleSignature(SignatureType.Double, 19),
-    "gqMeanHet" -> new SimpleSignature(SignatureType.Double, 20),
-    "gqStDevHet" -> new SimpleSignature(SignatureType.Double, 21),
-    "gqMeanHomVar" -> new SimpleSignature(SignatureType.Double, 22),
-    "gqStDevHomVar" -> new SimpleSignature(SignatureType.Double, 23),
-    "nNonRef" -> new SimpleSignature(SignatureType.Int, 24),
-    "rHeterozygosity" -> new SimpleSignature(SignatureType.Double, 25),
-    "rHetHomVar" -> new SimpleSignature(SignatureType.Double, 26),
-    "rExpectedHetFrequency" -> new SimpleSignature(SignatureType.Double, 27),
-    "pHWE" -> new SimpleSignature(SignatureType.Double, 28)))
+    "callRate" -> (0, SimpleSignature(expr.TDouble)),
+    "MAC" -> (1, SimpleSignature(expr.TInt)),
+    "MAF" -> (2, SimpleSignature(expr.TDouble)),
+    "nCalled" -> (3, SimpleSignature(expr.TInt)),
+    "nNotCalled" -> (4, SimpleSignature(expr.TInt)),
+    "nHomRef" -> (5, SimpleSignature(expr.TInt)),
+    "nHet" -> (6, SimpleSignature(expr.TInt)),
+    "nHomVar" -> (7, SimpleSignature(expr.TInt)),
+    "dpMean" -> (8, SimpleSignature(expr.TDouble)),
+    "dpStDev" -> (9, SimpleSignature(expr.TDouble)),
+    "dpMeanHomRef" -> (10, SimpleSignature(expr.TDouble)),
+    "dpStDevHomRef" -> (11, SimpleSignature(expr.TDouble)),
+    "dpMeanHet" -> (12, SimpleSignature(expr.TDouble)),
+    "dpStDevHet" -> (13, SimpleSignature(expr.TDouble)),
+    "dpMeanHomVar" -> (14, SimpleSignature(expr.TDouble)),
+    "dpStDevHomVar" -> (15, SimpleSignature(expr.TDouble)),
+    "gqMean" -> (16, SimpleSignature(expr.TDouble)),
+    "gqStDev" -> (17, SimpleSignature(expr.TDouble)),
+    "gqMeanHomRef" -> (18, SimpleSignature(expr.TDouble)),
+    "gqStDevHomRef" -> (19, SimpleSignature(expr.TDouble)),
+    "gqMeanHet" -> (20, SimpleSignature(expr.TDouble)),
+    "gqStDevHet" -> (21, SimpleSignature(expr.TDouble)),
+    "gqMeanHomVar" -> (22, SimpleSignature(expr.TDouble)),
+    "gqStDevHomVar" -> (23, SimpleSignature(expr.TDouble)),
+    "nNonRef" -> (24, SimpleSignature(expr.TInt)),
+    "rHeterozygosity" -> (25, SimpleSignature(expr.TDouble)),
+    "rHetHomVar" -> (26, SimpleSignature(expr.TDouble)),
+    "rExpectedHetFrequency" -> (27, SimpleSignature(expr.TDouble)),
+    "pHWE" -> (28, SimpleSignature(expr.TDouble))))
 }
 
 class VariantQCCombiner extends Serializable {
@@ -315,15 +316,15 @@ object VariantQC extends Command {
       }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
     }
 
-    val (newSignatures, fInsert) = AnnotationData.insertSignature(vds.metadata.variantAnnotationSignatures,
-      VariantQCCombiner.signatures, Array("qc"))
+    val (newSignatures, fInsert) = vds.metadata.variantAnnotationSignatures.insert(List("qc"),
+      VariantQCCombiner.signatures)
 
     state.copy(
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
           it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
             assert(v == v2)
-            (v, fInsert(va, comb.asRow), gs)
+            (v, fInsert(va, Some(comb.asRow)), gs)
           }
         },
         metadata = vds.metadata.copy(variantAnnotationSignatures = newSignatures)

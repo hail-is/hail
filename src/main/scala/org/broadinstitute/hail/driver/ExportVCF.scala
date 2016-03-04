@@ -4,10 +4,12 @@ import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.variant.RichRow._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
-import org.broadinstitute.hail.annotations.{Signature, StructSignature$, AnnotationData, VCFSignature}
+import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
+import scala.collection.mutable
 import scala.io.Source
 
 object ExportVCF extends Command {
@@ -45,13 +47,13 @@ object ExportVCF extends Command {
           |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
           |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
           |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
-          |""".stripMargin)
+          | """.stripMargin)
 
       vds.metadata.filters.map { case (key, desc) =>
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
       }
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[StructSignature]("info").map(_.attrs)
+      val infoHeader = vds.metadata.variantAnnotationSignatures.getStruct("info").map(_.m)
       infoHeader.foreach { i =>
         i.foreach { case (key, value) =>
           val sig = value.asInstanceOf[VCFSignature]
@@ -88,13 +90,14 @@ object ExportVCF extends Command {
       }
     }
 
-    val infoF: (StringBuilder, AnnotationData) => Unit = {
-      vds.metadata.variantAnnotationSignatures.getOption[Signature]("info") match {
+    val infoF: (StringBuilder, Annotation) => Unit = {
+      vds.metadata.variantAnnotationSignatures.getStruct("info") match {
         case Some(signatures: StructSignature) =>
-          val keys = signatures.attrs.map { case (k, v) => (k, v.index) }
+          val keys = signatures.m.map { case (k, (i, v)) => (k, i) }
             .toArray
             .sortBy { case (key, index) => index }
             .map { case (key, index) => key }
+          val querier = signatures.query(List("info"))
 
           val appendF: (StringBuilder) => (Any, String) => Unit = {
             sb =>
@@ -107,22 +110,30 @@ object ExportVCF extends Command {
           }
 
           (sb, ad) => {
-            val infoRow = ad.get[Row](Array(signatures.index))
+            val infoRow = querier(ad).map(_.asInstanceOf[Row])
             var first = true
-            keys.iterator.zipWithIndex.foreach {
-              case (key, index) =>
-                val elem = infoRow.get(index)
-                elem match {
-                  case null => ()
-                  case nonNull =>
-                    sb.append(key)
-                    sb.append("=")
-                    sb.tsvAppend(elem)
-                    if (!first)
-                      sb.append(";")
-                    else
-                      first = true
+            infoRow match {
+              case Some(r) =>
+                var appended = 0
+                keys.iterator.zipWithIndex.map { case (s, i) =>
+                  (s, r.getOption(i))
                 }
+                  .flatMap { case (s, opt) =>
+                    opt match {
+                      case Some(o) => Some(s, o)
+                      case None => None
+                    }
+                  }
+                  .foreachBetween({ case (s, a) => {
+                    sb.append(s)
+                    sb += '='
+                    sb.tsvAppend(a)
+                    appended += 1
+                  }}){unit => sb += ';'}
+                if (appended == 0)
+                  sb += '.'
+
+              case None => sb.append(".")
             }
           }
         case _ =>
@@ -130,8 +141,8 @@ object ExportVCF extends Command {
       }
     }
 
-    def appendRow(sb: StringBuilder, v: Variant, a: AnnotationData, gs: Iterable[Genotype],
-      infoF: (StringBuilder, AnnotationData) => Unit) {
+    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype],
+      infoF: (StringBuilder, Annotation) => Unit) {
 
       sb.append(v.contig)
       sb += '\t'
@@ -139,7 +150,7 @@ object ExportVCF extends Command {
       sb += '\t'
 
       //FIXME hardcoded path
-      val id = a.getOption[String](Array(3))
+      val id = a.asInstanceOf[Row].getOptionAs[String](3)
         .getOrElse(".")
       sb.append(id)
 
@@ -151,13 +162,13 @@ object ExportVCF extends Command {
       sb += '\t'
 
       //FIXME hardcoded path
-      a.getOption[Double](Array(0)) match {
+      a.asInstanceOf[Row].getOptionAs[Double](0) match {
         case Some(d) => sb.append(d.formatted("%.2f"))
         case None => sb += '.'
       }
       sb += '\t'
 
-      a.getOption[Set[String]](Array(1)) match {
+      a.asInstanceOf[Row].getOptionAs[mutable.WrappedArray[String]](1) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween(s => sb.append(s))(_ => sb += ',')
@@ -184,8 +195,8 @@ object ExportVCF extends Command {
     }
     kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
     kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (AnnotationData, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-      .mapPartitions { it: Iterator[(Variant, (AnnotationData, Iterable[Genotype]))] =>
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotation, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+      .mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
         val sb = new StringBuilder
         it.map { case (v, (va, gs)) =>
           sb.clear()

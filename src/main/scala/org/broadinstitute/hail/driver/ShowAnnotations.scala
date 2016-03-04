@@ -25,32 +25,19 @@ object ShowAnnotations extends Command {
     val values = new mutable.ArrayBuilder.ofRef[(String, Signature)]()
     val subAnnotations = new mutable.ArrayBuilder.ofRef[(String, StructSignature)]()
 
-    a.attrs.foreach {
-      case (k, v) =>
-        v match {
-          case anno: StructSignature => subAnnotations += ((k, anno))
-          case sig: Signature => values += ((k, sig))
-          case _ => fatal("corrupt annotation signatures")
-        }
-    }
-
-    values.result().sortBy {
-      case (key, sig) => key
-    }
-      .foreach {
-        case (key, sig) =>
-          sb.append(s"""$spacing$key: ${sig.typeOf} [${sig.index}]""")
-          sb.append("\n")
-      }
-
-    subAnnotations.result().sortBy {
-      case (key, anno) => key
-    }
-      .foreach {
-        case (key, anno) =>
-          sb.append(s"""$spacing$key: $path.$key.<identifier> [${anno.index}]""")
-          sb.append("\n")
-          printSignatures(sb, anno, spaces + 2, path + "." + key)
+    a.m.toArray
+      .sortBy { case (k, (i, v)) => i }
+      .map {
+        case (k, (i, v)) =>
+          v match {
+            case anno: StructSignature =>
+              sb.append(s"""$spacing$k: $path.$k.<identifier> [$i]""")
+              sb.append("\n")
+              printSignatures(sb, anno, spaces + 2, path + "." + k)
+            case sig =>
+              sb.append(s"""$spacing$k: ${sig.dType} [$i]""")
+              sb.append("\n")
+          }
       }
   }
 

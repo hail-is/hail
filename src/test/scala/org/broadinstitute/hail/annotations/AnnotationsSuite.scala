@@ -138,10 +138,6 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds1.same(vds2))
     Write.run(s, Array("-o", "/tmp/sample.vds"))
     val vds3 = Read.run(s, Array("-i", "/tmp/sample.vds")).vds
-    val v11  = vds1.variantsAndAnnotations.take(1).head
-    val v13  = vds3.variantsAndAnnotations.take(1).head
-    println(v11)
-    println(v13)
     println(vds1.metadata == vds3.metadata)
     assert(vds3.same(vds1))
   }
@@ -159,34 +155,31 @@ class AnnotationsSuite extends SparkSuite {
 
     val outer3 = Row.fromSeq(Array(1000))
 
-    val ad1 = AnnotationData(outer)
-    val ad2 = AnnotationData(outer2)
-    val ad3 = AnnotationData(outer3)
+    val ad1 = outer
+    val ad2 = outer2
+    val ad3 = outer3
 
     println("ad1:")
-    AnnotationData.printData(ad1)
+    Annotations.printRow(ad1)
     println("ad2:")
-    AnnotationData.printData(ad2)
+    Annotations.printRow(ad2)
     println("ad3:")
-    AnnotationData.printData(ad3)
+    Annotations.printRow(ad3)
 
 
     val innerSigs: StructSignature = StructSignature(Map(
-      "d" -> SimpleSignature(expr.TInt, 0),
-      "e" -> SimpleSignature(expr.TInt, 1),
-      "f" -> SimpleSignature(expr.TInt, 2)
-    ), 2)
+      "d" -> (0, SimpleSignature(expr.TInt)),
+      "e" -> (1, SimpleSignature(expr.TInt)),
+      "f" -> (2, SimpleSignature(expr.TInt))))
 
     val middleSigs = StructSignature(Map(
-      "b" -> SimpleSignature(expr.TInt, 0),
-      "c" -> SimpleSignature(expr.TInt, 1),
-      "inner" -> innerSigs
-    ), 1)
+      "b" -> (0, SimpleSignature(expr.TInt)),
+      "c" -> (1, SimpleSignature(expr.TInt)),
+      "inner" -> (2, innerSigs)))
 
     val outerSigs = StructSignature(Map(
-      "a" -> SimpleSignature(expr.TInt, 0),
-      "middle" -> middleSigs
-    ))
+      "a" -> (0, SimpleSignature(expr.TInt)),
+      "middle" -> (1, middleSigs)))
 
     println("here")
     val signatures = outerSigs
@@ -201,13 +194,12 @@ class AnnotationsSuite extends SparkSuite {
     val sigToAdd = SimpleSignature(expr.TInt)
 
     val sigsToAdd2 = StructSignature(Map(
-      "middle" -> SimpleSignature(expr.TInt, 0)
-    ))
+      "middle" -> (0, SimpleSignature(expr.TInt))))
 
     println("sigs before:")
     printSigs(signatures)
 
-    val (newSigs, f) = AnnotationData.insertSignature(signatures, sigToAdd, Array("middle", "inner", "g"))
+    val (newSigs, f) = signatures.insert(List("middle", "inner", "g"), sigToAdd)
     println("sigs after:")
     printSigs(newSigs)
 
@@ -217,21 +209,21 @@ class AnnotationsSuite extends SparkSuite {
 //    println(sb1.result())
 //    sb1.clear()
 
-    val (newSigs2, f2) = AnnotationData.removeSignature(newSigs, Array("middle", "inner", "g"))
+    val (newSigs2, f2) = newSigs.delete(List("middle", "inner", "g"))
     println("removed g:")
     printSigs(newSigs2)
 
-    val (newSigs3, f3) = AnnotationData.removeSignature(newSigs2, Array("middle", "inner"))
+    val (newSigs3, f3) = newSigs2.delete(List("middle", "inner"))
     println("removed inner:")
     printSigs(newSigs3)
 
-    val (newSigs4, f4) = AnnotationData.removeSignature(newSigs2, Array("a"))
+    val (newSigs4, f4) = newSigs2.delete(List("a"))
     println("removed a:")
     printSigs(newSigs4)
 
     val vds = LoadVCF(sc, file1 = "src/test/resources/sample.vcf")
     val first = vds.variantsAndAnnotations.take(1).head
-    AnnotationData.printRow(first._2.row)
+    Annotations.printRow(first._2.asInstanceOf[Row])
 
     //    println("sigs1")
     //    val sb1 = new StringBuilder

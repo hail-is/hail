@@ -43,9 +43,9 @@ object ExportGenotypes extends Command {
 
     val symTab = Map(
       "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType),
+      "va" ->(1, vds.metadata.variantAnnotationSignatures.dType),
       "s" ->(2, expr.TSample),
-      "sa" ->(3, vds.metadata.sampleAnnotationSignatures.toExprType),
+      "sa" ->(3, vds.metadata.sampleAnnotationSignatures.dType),
       "g" ->(4, expr.TGenotype))
     val a = new Array[Any](5)
 
@@ -71,9 +71,9 @@ object ExportGenotypes extends Command {
         .filter { case (v, va, s, g) => filterF(g) }
         .map { case (v, va, s, g) =>
           a(0) = v
-          a(1) = va.row
+          a(1) = va
           a(2) = sampleIdsBc.value(s)
-          a(3) = sampleAnnotationsBc.value(s).row
+          a(3) = sampleAnnotationsBc.value(s)
           a(4) = g
           sb.clear()
           var first = true

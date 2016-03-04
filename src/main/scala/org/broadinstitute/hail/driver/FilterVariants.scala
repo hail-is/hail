@@ -37,19 +37,20 @@ object FilterVariants extends Command {
     val cond = options.condition
     val vas = vds.metadata.variantAnnotationSignatures
     val keep = options.keep
-    val p: (Variant, AnnotationData) => Boolean = cond match {
+    val p: (Variant, Annotation) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
-        (v: Variant, va: AnnotationData) => Filter.keepThis(ilist.contains(v.contig, v.start), keep)
+        (v: Variant, va: Annotation) => Filter.keepThis(ilist.contains(v.contig, v.start), keep)
       case c: String =>
         val symTab = Map(
           "v" -> (0, TVariant),
-          "va" -> (1, vds.metadata.variantAnnotationSignatures.toExprType))
+          "va" -> (1, vds.metadata.variantAnnotationSignatures.dType
+            ))
         val a = new Array[Any](2)
         val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
-        (v: Variant, va: AnnotationData) => {
+        (v: Variant, va: Annotation) => {
           a(0) = v
-          a(1) = va.row
+          a(1) = va
           Filter.keepThisAny(f(), keep)
         }
     }

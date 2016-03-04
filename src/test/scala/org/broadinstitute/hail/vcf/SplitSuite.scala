@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.vcf
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.AnnotationData
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver.{SplitMulti, State}
 import org.broadinstitute.hail.methods.LoadVCF
 import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix, VariantDataset, Variant}
@@ -17,9 +17,9 @@ class SplitSuite extends SparkSuite {
       forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vds: VariantDataset) =>
         var s = State(sc, sqlContext, vds)
         s = SplitMulti.run(s, Array[String]())
-        val wasSplitPath = s.vds.metadata.variantAnnotationSignatures.query("wasSplit")
-        s.vds.mapWithAll((v: Variant, va: AnnotationData, _: Int, g: Genotype) =>
-          !g.fakeRef || va.get[Boolean](wasSplitPath))
+        val wasSplitQuerier = s.vds.metadata.variantAnnotationSignatures.query(List("wasSplit"))
+        s.vds.mapWithAll((v: Variant, va: Annotation, _: Int, g: Genotype) =>
+          !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get)
           .collect()
           .forall(identity)
       }
@@ -49,10 +49,10 @@ class SplitSuite extends SparkSuite {
       .join(vds2.mapWithKeys((v, s, g) => ((v, s), g)))
       .foreach { case (k, (g1, g2)) => simpleAssert(g1 == g2) }
 
-    val wasSplitPath = vds1.metadata.variantAnnotationSignatures.query("wasSplit")
+    val wasSplitQuerier = vds1.metadata.variantAnnotationSignatures.query(List("wasSplit"))
 
     // test for wasSplit
-    vds1.mapWithAll((v, va, s, g) => (v.start, va.get[Boolean](wasSplitPath)))
+    vds1.mapWithAll((v, va, s, g) => (v.start, wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get))
       .foreach { case (i, b) =>
         simpleAssert(b == (i != 1180))
       }

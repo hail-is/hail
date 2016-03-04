@@ -10,19 +10,19 @@ object VariantMetadata {
 
   def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(Array.empty[(String, String)],
     sampleIds,
-    AnnotationData.emptyIndexedSeq(sampleIds.length),
+    Annotations.emptyIndexedSeq(sampleIds.length),
     StructSignature.empty(),
     StructSignature.empty())
 
   def apply(filters: IndexedSeq[(String, String)], sampleIds: Array[String],
-    sa: IndexedSeq[AnnotationData], sas: StructSignature, vas: StructSignature): VariantMetadata = {
+    sa: IndexedSeq[Annotation], sas: StructSignature, vas: StructSignature): VariantMetadata = {
     new VariantMetadata(filters, sampleIds, sa, sas, vas)
   }
 }
 
 case class VariantMetadata(filters: IndexedSeq[(String, String)],
   sampleIds: IndexedSeq[String],
-  sampleAnnotations: IndexedSeq[AnnotationData],
+  sampleAnnotations: IndexedSeq[Annotation],
   sampleAnnotationSignatures: StructSignature,
   variantAnnotationSignatures: StructSignature,
   wasSplit: Boolean = false) {

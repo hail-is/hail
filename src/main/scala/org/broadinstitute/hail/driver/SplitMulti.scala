@@ -1,9 +1,12 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.{SignatureType, AnnotationData, SimpleSignature}
+import org.apache.spark.sql.Row
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
+import scala.collection.mutable
 
 object SplitMulti extends Command {
   def name = "splitmulti"
@@ -53,13 +56,13 @@ object SplitMulti extends Command {
   }
 
   def split(v: Variant,
-    va: AnnotationData,
+    va: Annotation,
     it: Iterable[Genotype],
     propagateGQ: Boolean,
-    splitF: (AnnotationData, Int) => AnnotationData,
-    insertF: (AnnotationData, Any) => AnnotationData): Iterator[(Variant, AnnotationData, Iterable[Genotype])] = {
+    splitF: (Annotation, Int) => Annotation,
+    insertF: Inserter): Iterator[(Variant, Annotation, Iterable[Genotype])] = {
     if (v.isBiallelic)
-      return Iterator((v, insertF(va, false), it))
+      return Iterator((v, insertF(va, Some(false)), it))
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(_._1.alt != "*")
@@ -120,19 +123,67 @@ object SplitMulti extends Command {
     splitVariants.iterator
       .zip(splitGenotypeStreamBuilders.iterator)
       .map { case ((v, ind), gsb) =>
-        (v, insertF(splitF(va, ind), true), gsb.result())
+        (v, insertF(splitF(va, ind), Some(true)), gsb.result())
       }
+  }
+
+
+  def splitAnnotations(base: StructSignature): (Any, Int) => Any = {
+    base.m.get("info") match {
+      case Some((index: Int, infoSigs: StructSignature)) =>
+        val functions: Array[((Any, Int) => Any)] = infoSigs.m
+          .toArray
+          .sortBy { case (key, (i, sig)) => i }
+          .map { case (key, (i, sig)) => sig match {
+            case vcfSig: VCFSignature if vcfSig.number == "A" =>
+              (a: Any, ind: Int) => if (a == null)
+                null
+              else
+                Array(a.asInstanceOf[mutable.WrappedArray[_]]
+                  .apply(i))
+            case vcfSig: VCFSignature if vcfSig.number == "R" =>
+              (a: Any, ind: Int) =>
+                if (a == null)
+                  null
+                else {
+                  val arr = a.asInstanceOf[mutable.WrappedArray[_]]
+                  Array(arr(0), arr(ind))
+                }
+            case vcfSig: VCFSignature if vcfSig.number == "G" =>
+              (a: Any, ind: Int) =>
+                if (a == null)
+                  null
+                else {
+                  val arr = a.asInstanceOf[mutable.WrappedArray[_]]
+                  Array(arr(0), arr(triangle(ind + 1) + 1), arr(triangle(ind + 2) - 1))
+                }
+            case _ => (a: Any, ind: Int) => a
+          }
+          }
+        (ad: Any, alleleIndex: Int) =>
+          println(index)
+          Annotations.printRow(ad.asInstanceOf[Row])
+          val adArr = ad.asInstanceOf[Row].toSeq.toArray
+          val infoR = adArr(index).asInstanceOf[Row]
+          adArr(index) = Row.fromSeq(
+            functions.zipWithIndex
+              .map { case (f, i) =>
+                f(infoR.get(i), alleleIndex)
+              })
+          Row.fromSeq(adArr)
+      case _ => (ad, index) => ad
+    }
   }
 
   def run(state: State, options: Options): State = {
     val localPropagateGQ = options.propagateGQ
-    val splitF = AnnotationData.splitMulti(state.vds.metadata.variantAnnotationSignatures)
-    val (newSigs, f) = AnnotationData.insertSignature(state.vds.metadata.variantAnnotationSignatures,
-      SimpleSignature(SignatureType.Boolean), Array("wasSplit"))
+    val splitF = splitAnnotations(state.vds.metadata.variantAnnotationSignatures)
+    val (newSigs, f) = state.vds.metadata.variantAnnotationSignatures.insert(List("wasSplit"),
+      SimpleSignature(expr.TBoolean))
     val newVDS = state.vds.copy[Genotype](
       metadata = state.vds.metadata
         .copy(wasSplit = true, variantAnnotationSignatures = newSigs),
-      rdd = state.vds.rdd.flatMap[(Variant, AnnotationData, Iterable[Genotype])] { case (v, va, it) =>
+      rdd = state.vds.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
         split(v, va, it, localPropagateGQ, splitF, f)
       })
     state.copy(vds = newVDS)

@@ -37,7 +37,7 @@ object ExportVariants extends Command {
 
     val symTab = Map(
       "v" ->(0, TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType))
+      "va" ->(1, vds.metadata.variantAnnotationSignatures.dType))
     val a = new Array[Any](2)
 
     val (header, fs) = if (cond.endsWith(".columns"))
@@ -55,7 +55,7 @@ object ExportVariants extends Command {
           var first = true
           fs.foreach { f =>
             a(0) = v
-            a(1) = va.row
+            a(1) = va
             if (first)
               first = false
             else

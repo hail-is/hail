@@ -2,6 +2,7 @@ package org.broadinstitute.hail.vcf
 
 import org.apache.spark.Accumulable
 import org.apache.spark.sql.Row
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -23,12 +24,12 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     line: String,
-    typeMap: Array[(String, VCFSignature)], storeGQ: Boolean): (Variant, AnnotationData, Iterable[Genotype]) = {
+    typeMap: Array[(String, VCFSignature)], storeGQ: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filts: mutable.WrappedArray[String] = {
-//    val filts = {
+      //    val filts = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
         Array("PASS")
       else {
@@ -48,30 +49,32 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       .asScala
       .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
       .toMap
+    println(infoAttrs)
 
     val infoRow = Row.fromSeq(typeMap.map { case (key, sig) =>
       infoAttrs.get(key)
-      .map(elem => HtsjdkRecordReader.mapType(elem, sig))
-      .orNull})
-    val va = AnnotationData(Array(
+        .map(elem => HtsjdkRecordReader.mapType(elem, sig))
+        .orNull
+    })
+    val va = Row.fromSeq(Array(
       vc.getPhredScaledQual,
       filts,
       pass,
       rsid,
       infoRow))
-//    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
-//      .asScala
-//      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
-//      .toMap
-//      .flatMap { case (k, v) =>
-//        typeMap.get(k).map { t =>
-//          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
-//        }
-//      }),
-//      "qual" -> vc.getPhredScaledQual,
-//      "filters" -> filts,
-//      "pass" -> pass,
-//      "rsid" -> rsid))
+    //    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
+    //      .asScala
+    //      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
+    //      .toMap
+    //      .flatMap { case (k, v) =>
+    //        typeMap.get(k).map { t =>
+    //          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
+    //        }
+    //      }),
+    //      "qual" -> vc.getPhredScaledQual,
+    //      "filters" -> filts,
+    //      "pass" -> pass,
+    //      "rsid" -> rsid))
 
     val gb = new GenotypeBuilder(v)
 
@@ -210,17 +213,18 @@ object HtsjdkRecordReader {
     value match {
       case str: String =>
         sig.dType match {
-          case SignatureType.Int => str.toInt
-          case SignatureType.Double => str.toDouble
-          case SignatureType.ArrayInt => str.split(",").map(_.toInt): mutable.WrappedArray[Int]
-          case SignatureType.ArrayDouble => str.split(",").map(_.toDouble): mutable.WrappedArray[Double]
+          case expr.TInt => str.toInt
+          case expr.TDouble => str.toDouble
+          case expr.TArray(expr.TInt) => str.split(",").map(_.toInt): mutable.WrappedArray[Int]
+          case expr.TArray(expr.TDouble) => str.split(",").map(_.toDouble): mutable.WrappedArray[Double]
+          case expr.TArray(expr.TString) => str.split(","): mutable.WrappedArray[String]
           case _ => value
         }
       case i: Array[_] =>
         sig.dType match {
-          case SignatureType.ArrayInt => i.map(_.asInstanceOf[String].toInt): mutable.WrappedArray[Int]
-          case SignatureType.ArrayDouble => i.map(_.asInstanceOf[String].toDouble): mutable.WrappedArray[Double]
-          case SignatureType.ArrayString => i.map(_.asInstanceOf[String]): mutable.WrappedArray[String]
+          case expr.TArray(expr.TInt) => i.map(_.asInstanceOf[String].toInt): mutable.WrappedArray[Int]
+          case expr.TArray(expr.TDouble) => i.map(_.asInstanceOf[String].toDouble): mutable.WrappedArray[Double]
+          case expr.TArray(expr.TString) => i.map(_.asInstanceOf[String]): mutable.WrappedArray[String]
         }
       case _ => value
     }

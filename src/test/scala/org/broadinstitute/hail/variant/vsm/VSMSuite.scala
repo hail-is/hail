@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.variant.vsm
 
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{expr, SparkSuite}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
@@ -25,21 +26,21 @@ class VSMSuite extends SparkSuite {
     val mdata3 = new VariantMetadata(
       IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
-      AnnotationData.emptyIndexedSeq(2),
+      Annotations.emptyIndexedSeq(2),
       StructSignature(Map(
-        "inner" -> StructSignature(Map(
-          "thing1" -> SimpleSignature(SignatureType.String, 0))),
-        "thing2" -> SimpleSignature(SignatureType.String, 1)), 0),
+        "inner" -> (0, StructSignature(Map(
+          "thing1" -> (0, SimpleSignature(expr.TString))))),
+        "thing2" -> (1, SimpleSignature(expr.TString)))),
       StructSignature.empty())
     val mdata4 = new VariantMetadata(
       IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
-      AnnotationData.emptyIndexedSeq(2),
+      Annotations.emptyIndexedSeq(2),
       StructSignature(Map(
-        "inner" -> StructSignature(Map(
-          "thing1" -> SimpleSignature(SignatureType.String, 0))),
-        "thing2" -> SimpleSignature(SignatureType.String, 1),
-      "dummy" -> SimpleSignature(SignatureType.String, 2)), 0),
+        "inner" -> (0, StructSignature(Map(
+          "thing1" -> (0, SimpleSignature(expr.TString))))),
+        "thing2" -> (1, SimpleSignature(expr.TString)),
+      "dummy" -> (2, SimpleSignature(expr.TString)))),
       StructSignature.empty())
 
     assert(mdata1 != mdata2)
@@ -58,11 +59,11 @@ class VSMSuite extends SparkSuite {
     val r3 = Row.fromSeq(Array(Row.fromSeq(Array("yes")), "yes"))
 
 
-    val va1 = AnnotationData(r1)
-    val va2 = AnnotationData(r2)
-    val va3 = AnnotationData(r3)
+    val va1 = r1
+    val va2 = r2
+    val va3 = r3
 
-    val rdd1 = sc.parallelize(Seq((v1, va1,
+    val rdd1: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2))),
@@ -72,7 +73,7 @@ class VSMSuite extends SparkSuite {
           Genotype(1)))))
 
     // differ in variant
-    val rdd2 = sc.parallelize(Seq((v1, va1,
+    val rdd2: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2))),
@@ -82,7 +83,7 @@ class VSMSuite extends SparkSuite {
           Genotype(1)))))
 
     // differ in genotype
-    val rdd3 = sc.parallelize(Seq((v1, va1,
+    val rdd3: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(1),
         Genotype(2))),
@@ -92,7 +93,7 @@ class VSMSuite extends SparkSuite {
           Genotype(1)))))
 
     // for mdata2
-    val rdd4 = sc.parallelize(Seq((v1, va1,
+    val rdd4: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0))),
       (v2, va2, Iterable(
@@ -100,12 +101,12 @@ class VSMSuite extends SparkSuite {
         Genotype(0)))))
 
     // differ in number of variants
-    val rdd5 = sc.parallelize(Seq((v1, va1,
+    val rdd5: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0)))))
 
     // differ in annotations
-    val rdd6 = sc.parallelize(Seq((v1, va1,
+    val rdd6: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2))),

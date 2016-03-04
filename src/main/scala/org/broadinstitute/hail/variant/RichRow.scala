@@ -27,6 +27,10 @@ class RichRow(r: Row) {
       r.getAs[T](i)
   }
 
+  def getOption(i: Int): Option[Any] = {
+    Option(r.get(i))
+  }
+
   def getOptionAs[T](i: Int): Option[T] = {
     if (r.isNullAt(i))
       None
