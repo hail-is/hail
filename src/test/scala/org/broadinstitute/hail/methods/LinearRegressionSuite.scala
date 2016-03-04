@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.{SplitMulti, State, WriteHardCallSet}
+import org.broadinstitute.hail.driver.{SplitMulti, State, WriteHcs}
 import org.broadinstitute.hail.variant.{HardCallSet, Variant}
 import org.testng.annotations.Test
 
@@ -25,7 +25,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.lr.collect().toMap
 
-    println(statsOfVariant)
+    //println(statsOfVariant)
 
     val eps = .001 //FIXME: use D_== when it is ready
 
@@ -62,10 +62,10 @@ class LinearRegressionSuite extends SparkSuite {
     assert(statsOfVariant(v10).isEmpty)
 
     //val result = "rm -rf /tmp/linearRegression" !;
-    linReg.write("/tmp/linearRegression") //FIXME: How to test?
+    linReg.write("/tmp/linearRegression.linreg") //FIXME: How to test?
   }
 
-  @Test def testFromHardCalls() {
+  @Test def testOnHcs() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
     val ped = Pedigree.read("src/test/resources/linearRegression.fam", sc.hadoopConfiguration, vds.sampleIds)
     val cov = CovariateData.read("src/test/resources/linearRegression.cov", sc.hadoopConfiguration, vds.sampleIds)
@@ -73,10 +73,10 @@ class LinearRegressionSuite extends SparkSuite {
 
     val hcs = HardCallSet(vds.filterSamples{ case (s,sa) => cov.covRowSample.toSet(s)})
 
-    val linReg = LinearRegressionFromHardCallSet(hcs, ped, cov)
+    val linReg = LinearRegressionOnHcs(hcs, ped, cov)
     val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.lr.collect().toMap
 
-    //println(statsOfVariant)
+    // println(statsOfVariant)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (2, ., 2, ., 0, 0)
@@ -122,27 +122,22 @@ class LinearRegressionSuite extends SparkSuite {
     assert(statsOfVariant(v10).isEmpty)
 
     //val result = "rm -rf /tmp/linearRegression" !;
-    linReg.write("/tmp/linearRegressionFromHardCalls") //FIXME: How to test?
+    linReg.write("/tmp/linearRegressionOnHcs.linreg") //FIXME: How to test?
   }
 
-  @Test def testFromHardCallsFile() {
+  @Test def testOnHcsFile() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
     val ped = Pedigree.read("src/test/resources/linearRegression.fam", sc.hadoopConfiguration, vds.sampleIds)
     val cov = CovariateData.read("src/test/resources/linearRegression.cov", sc.hadoopConfiguration, vds.sampleIds)
-      .filterSamples(ped.phenotypedSamples)
-
-    //val hcs = HardCallSet(vds.filterSamples{ case (s,sa) => cov.covRowSample.toSet(s)})
-
-    //var state = State(sc, sqlContext, vds.filterSamples{ case (s,sa) => cov.covRowSample.toSet(s) })
 
     var state = State(sc, sqlContext, vds)
     state = SplitMulti.run(state, Array.empty[String])
 
-    WriteHardCallSet.run(state, Array("-o", "/tmp/linearRegression.hcs", "-f", "src/test/resources/linearRegression.fam", "-c", "src/test/resources/linearRegression.cov"))
+    WriteHcs.run(state, Array("-o", "/tmp/linearRegression.hcs", "-f", "src/test/resources/linearRegression.fam", "-c", "src/test/resources/linearRegression.cov"))
 
     val hcs = HardCallSet.read(sqlContext, "/tmp/linearRegression.hcs")
 
-    val linReg = LinearRegressionFromHardCallSet(hcs, ped, cov)
+    val linReg = LinearRegressionOnHcs(hcs, ped, cov)
     val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.lr.collect().toMap
 
     //println(statsOfVariant)
@@ -191,6 +186,6 @@ class LinearRegressionSuite extends SparkSuite {
     assert(statsOfVariant(v10).isEmpty)
 
     //val result = "rm -rf /tmp/linearRegression" !;
-    linReg.write("/tmp/linearRegressionFromHardCalls") //FIXME: How to test?
+    linReg.write("/tmp/linearRegressionOnHcs.linreg") //FIXME: How to test?
   }
 }

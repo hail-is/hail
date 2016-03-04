@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.methods.{LinearRegressionFromHardCallSet, CovariateData, Pedigree}
+import org.broadinstitute.hail.methods.{LinearRegressionOnHcs, CovariateData, Pedigree}
 import org.broadinstitute.hail.variant.HardCallSet
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object WriteHardCallSet extends Command {
+object WriteHcs extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _

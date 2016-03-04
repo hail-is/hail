@@ -775,7 +775,7 @@ object Utils extends Logging {
   }
 
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
-                 lines: Traversable[String], header: Option[String] = None) {
+    lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
         header.map { h =>

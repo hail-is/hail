@@ -86,31 +86,27 @@ object CallStream {
     denseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int, nHomRef: Int)
 
   def denseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
-    var x = Array.ofDim[Int](n)
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
 
-    for ((gt, i) <- gts.view.zipWithIndex)
+    for (gt <- gts)
       gt match {
         case 0 =>
         case 1 =>
-          x(i) = 1
           sumX += 1
           sumXX += 1
         case 2 =>
-          x(i) = 2
           sumX += 2
           sumXX += 4
         case 3 =>
-          x(i) = 3
           nMissing += 1
       }
 
     val meanX = sumX.toDouble / (n - nMissing) // FIXME: deal with case of all missing
 
     new CallStream(
-      denseByteArray(x),
+      denseByteArray(gts.toArray),
       meanX,
       sumXX + meanX * meanX * nMissing,
       nMissing,
@@ -124,18 +120,18 @@ object CallStream {
 
     var i = 0
     var j = 0
-    while (i < gts.length - 3) {
+    while (i + 3 < gts.length) {
       a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4 | gts(i + 3) << 6).toByte
       i += 4
       j += 1
     }
 
-    gts.length - i match {
+    (gts.length - i: @unchecked) match {
+      case 0 =>
       case 1 => a(j) = gts(i).toByte
       case 2 => a(j) = (gts(i) | gts(i + 1) << 2).toByte
       case 3 => a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4).toByte
-      case 0 =>
-    }
+  }
 
     a
   }
@@ -144,8 +140,8 @@ object CallStream {
     sparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int, nHomRef: Int)
 
   def sparseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
-    var rowX = Array.ofDim[Int](n - nHomRef)
-    var valX = Array.ofDim[Int](n - nHomRef)
+    val rowX = Array.ofDim[Int](n - nHomRef)
+    val valX = Array.ofDim[Int](n - nHomRef)
     var sumX = 0
     var sumXX = 0
     var nMissing = 0
@@ -199,20 +195,18 @@ object CallStream {
     val a = mutable.ArrayBuffer[Byte]()
 
     var i = 0  // row index
-    var j = 1  // counter for of lenByte index
+    var j = 1  // counter for lenByte index
     var l = 1  // current val of lenByte index
-    var r = 0  // row
-    var rd = 0 // row diff
-    var m = 0  // byte length of row diff - 1
+    var r = 0  // current row
 
     while (i < gts.length - 3) {
       a += (gts(i + 3) << 6 | gts(i + 2) << 4 | gts(i + 1) << 2 | gts(i)).toByte // gtByte
       a += 0 // lenByte placeholder
 
       for (k <- 0 until 4) {
-        rd = rows(i + k) - r
+        val rd = rows(i + k) - r
         r = rows(i + k)
-        m = nBytesMinus1(rd)
+        val m = nBytesMinus1(rd)
         m match {
           case 0 =>
             a += rd.toByte
@@ -251,9 +245,9 @@ object CallStream {
     }
 
     for (k <- 0 until nGtLeft) {
-      rd = rows(i + k) - r
+      val rd = rows(i + k) - r
       r = rows(i + k)
-      m = nBytesMinus1(rd)
+      val m = nBytesMinus1(rd)
       m match {
         case 0 =>
           a += rd.toByte
@@ -319,10 +313,9 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
     var i = 0
     var j = 0
-    var b: Byte = 0
 
     while (i < n - 3) {
-      b = a(j)
+      val b = a(j)
       merge(i,      b & mask00000011)
       merge(i + 1, (b & mask00001100) >> 2)
       merge(i + 2, (b & mask00110000) >> 4)
@@ -390,25 +383,19 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
     var j = 0 // byte index
     var r = 0 // row
 
-    var gtByte: Byte = 0
-    var gt1, gt2, gt3, gt4 = 0
-    var lenByte: Byte = 0
-    var l1, l2, l3, l4 = 0
-
-
     while (j < a.length) {
 
-      gtByte = a(j)
-      gt1 =  gtByte & mask00000011
-      gt2 = (gtByte & mask00001100) >> 2
-      gt3 = (gtByte & mask00110000) >> 4
-      gt4 = (gtByte & mask11000000) >> 6
+      val gtByte = a(j)
+      val gt1 =  gtByte & mask00000011
+      val gt2 = (gtByte & mask00001100) >> 2
+      val gt3 = (gtByte & mask00110000) >> 4
+      val gt4 = (gtByte & mask11000000) >> 6
 
-      lenByte = a(j + 1)
-      l1 =  lenByte & mask00000011
-      l2 = (lenByte & mask00001100) >> 2
-      l3 = (lenByte & mask00110000) >> 4
-      l4 = (lenByte & mask11000000) >> 6
+      val lenByte = a(j + 1)
+      val l1 =  lenByte & mask00000011
+      val l2 = (lenByte & mask00001100) >> 2
+      val l3 = (lenByte & mask00110000) >> 4
+      val l4 = (lenByte & mask11000000) >> 6
 
       j += 2
 

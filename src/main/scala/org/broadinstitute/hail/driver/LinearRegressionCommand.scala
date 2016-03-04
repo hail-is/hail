@@ -25,7 +25,7 @@ object LinearRegressionCommand extends Command {
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds)
     val cov = CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds)
 
-    val linreg = LinearRegression(vds, ped, cov.filterSamples(ped.phenotypedSamples))
+    val linreg = LinearRegression(vds, ped, cov)
 
     linreg.write(options.output)
 

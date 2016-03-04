@@ -173,7 +173,7 @@ object Main {
       GQByDP,
       ImportVCF,
       LinearRegressionCommand,
-      LinearRegressionFromHardCallSetCommand,
+      LinearRegressionOnHcsCommand,
       MendelErrorsCommand,
       SplitMulti,
       PCA,
@@ -185,7 +185,7 @@ object Main {
       ShowAnnotations,
       VariantQC,
       Write,
-      WriteHardCallSet
+      WriteHcs
     )
 
     val nameCommand = commands

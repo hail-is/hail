@@ -74,11 +74,11 @@ class LinRegBuilder extends Serializable {
 }
 
 object LinearRegression {
-  def name = "LinearRegression"
 
-  def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    // LinearRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
-    require(cov.covRowSample.forall(ped.phenotypedSamples))
+  def apply(vds: VariantDataset, ped: Pedigree, cov1: CovariateData): LinearRegression = {
+    val cov = cov1.filterSamples(ped.phenotypedSamples)
+
+    assert(cov.covRowSample.forall(ped.phenotypedSamples))
 
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
@@ -135,10 +135,12 @@ object LinearRegression {
   }
 }
 
-object LinearRegressionFromHardCallSet {
-  def name = "LinearRegressionFromHardCallSet"
+object LinearRegressionOnHcs {
 
-  def apply(hcs: HardCallSet, ped: Pedigree, cov: CovariateData): LinearRegression = {
+  def apply(hcs: HardCallSet, ped: Pedigree, cov1: CovariateData): LinearRegression = {
+    // FIXME: can remove filter and check for GoT2D
+    val cov = cov1.filterSamples(ped.phenotypedSamples)
+
     if (!(hcs.localSamples sameElements cov.covRowSample))
       fatal("Samples misaligned, recreate .hcs using .ped and .cov")
 

@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.methods.{LinearRegressionFromHardCallSet, CovariateData, Pedigree}
+import org.broadinstitute.hail.methods.{LinearRegressionOnHcs, CovariateData, Pedigree}
 import org.broadinstitute.hail.variant.HardCallSet
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
 
-object LinearRegressionFromHardCallSetCommand extends Command {
+object LinearRegressionOnHcsCommand extends Command {
 
   def name = "linreghcs"
   def description = "Compute beta, std error, t-stat, and p-val for each SNP with additional sample covariates from hard call set"
@@ -26,9 +26,8 @@ object LinearRegressionFromHardCallSetCommand extends Command {
     val hcs = state.hcs
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, hcs.sampleIds)
     val cov = CovariateData.read(options.covFilename, state.hadoopConf, hcs.sampleIds)
-      .filterSamples(ped.phenotypedSamples) // FIXME: can remove for GoT2D
 
-    val linreg = LinearRegressionFromHardCallSet(hcs, ped, cov)
+    val linreg = LinearRegressionOnHcs(hcs, ped, cov)
 
     linreg.write(options.output)
 
