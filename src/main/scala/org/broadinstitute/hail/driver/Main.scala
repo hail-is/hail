@@ -4,8 +4,7 @@ import java.io.File
 import java.util.Properties
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.sql.SQLContext
-
-import org.apache.spark.{SparkException, SparkContext, SparkConf}
+import org.apache.spark._
 import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.VCFReport
@@ -265,10 +264,13 @@ object Main {
     else if (!conf.contains("spark.master"))
       conf.setMaster("local[*]")
 
+    conf.set("spark.ui.showConsoleProgress", "false")
+
     conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     val sc = new SparkContext(conf)
+    val progressBar = ProgressBarBuilder.build(sc)
 
     val hadoopConf = sc.hadoopConfiguration
 
@@ -304,6 +306,7 @@ object Main {
     runCommands(sc, sqlContext, invocations)
 
     sc.stop()
+    progressBar.stop()
   }
 
   {

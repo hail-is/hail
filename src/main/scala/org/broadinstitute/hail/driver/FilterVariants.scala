@@ -40,7 +40,8 @@ object FilterVariants extends Command {
     val p: (Variant, Annotations) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
-        (v: Variant, va: Annotations) => Filter.keepThis(ilist.contains(v.contig, v.start), keep)
+        val ilistBc = state.sc.broadcast(ilist)
+        (v: Variant, va: Annotations) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
       case c: String =>
         val symTab = Map(
           "v" -> (0, TVariant),
