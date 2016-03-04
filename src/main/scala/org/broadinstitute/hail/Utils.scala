@@ -922,23 +922,3 @@ object Utils extends Logging {
       mutable.Map.empty[K, Int]
   }
 }
-
-// FIXME: Remove before PR
-/*
-object BytePlay {
-
-  def f1(r: Int): Array[Byte] = {
-    val a = ArrayBuffer[Byte]()
-    g(r) match {
-      case 0 => Array(r.toByte)
-      case 1 => Array((r >> 8).toByte, r.toByte)
-      case 2 => Array((r >> 16).toByte, (r >> 8).toByte, r.toByte)
-      case _ => Array((r >> 24).toByte, (r >> 16).toByte, (r >> 8).toByte, r.toByte)
-    }
-  }
-
-  def foo(r: Int) = Array((r >> 24).toByte, (r >> 16).toByte, (r >> 8).toByte, r.toByte)
-
-  def bar(a: Array[Byte]) = (a(0) << 24) | (a(1) & 0xFF) << 16 | (a(2) & 0xFF) << 8 | (a(3) & 0xFF)
-}
-*/
