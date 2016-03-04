@@ -155,6 +155,7 @@ object Main {
     */
 
     val commands = Array(
+      AddHcs,
       Cache,
       CacheHcs,
       Count,
@@ -180,6 +181,7 @@ object Main {
       ReadHcs,
       RenameSamples,
       Repartition,
+      RepartitionHcs,
       SampleQC,
       ShowAnnotations,
       VariantQC,

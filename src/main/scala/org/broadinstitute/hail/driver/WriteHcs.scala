@@ -9,41 +9,19 @@ object WriteHcs extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
-
-    @Args4jOption(required = false, name = "-f", aliases = Array("--fam"), usage = ".fam file")
-    var famFilename: String = null
-
-    @Args4jOption(required = false, name = "-c", aliases = Array("--cov"), usage = ".cov file")
-    var covFilename: String = null
-
-    @Args4jOption(required = false, name = "-s", aliases = Array("--sparse"), usage = "Sparse cut off, < s is sparse: 0.0 all dense, 1.1 all sparse")
-    var sparseCutOff: Double = .05
   }
 
   def newOptions = new Options
 
   def name = "writehcs"
-  def description = "Write current dataset as .hcs file, filtering samples to those phenotyped and/or with covariates"
+  def description = "Write current hard call set as .hcs file"
 
   def run(state: State, options: Options): State = {
-    val vds = state.vds
-
-    val sampleFilter: Int => Boolean =
-      (options.famFilename, options.covFilename) match {
-        case (null, null) => s => true
-        case (   _, null) =>
-          Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds).phenotypedSamples
-        case (null,    _) =>
-          CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds).covRowSample.toSet
-        case _            =>
-          Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds).phenotypedSamples intersect
-          CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds).covRowSample.toSet
-      }
-
-    val hcs = HardCallSet(vds.filterSamples{ case (s, sa) => sampleFilter(s) }, options.sparseCutOff)
+    if (state.hcs == null)
+      fatal("Run addhcs before writehcs to add hard call set to state")
 
     hadoopDelete(options.output, state.hadoopConf, recursive = true)
-    hcs.write(state.sqlContext, options.output)
+    state.hcs.write(state.sqlContext, options.output)
 
     state
   }

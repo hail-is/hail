@@ -12,9 +12,6 @@ object ReadHcs extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"), usage = "Input file")
     var input: String = _
-
-    @Args4jOption(required = false, name = "-n", aliases = Array("--npartition"), usage = "Number of partitions")
-    var nPartitions: Int = 0
   }
 
   def newOptions = new Options

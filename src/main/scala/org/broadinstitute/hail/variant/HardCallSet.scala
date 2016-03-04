@@ -61,6 +61,8 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
     new HardCallSet(rdd, localSamples, sampleIds)
 
   def cache(): HardCallSet = copy(rdd = rdd.cache())
+
+  def repartition(nPartitions: Int) = copy(rdd = rdd.repartition(nPartitions)(null))
 }
 
 
@@ -121,7 +123,7 @@ object CallStream {
     var i = 0
     var j = 0
     while (i + 3 < gts.length) {
-      a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4 | gts(i + 3) << 6).toByte
+      a(j) = (gts(i) | (gts(i + 1) << 2) | (gts(i + 2) << 4) | (gts(i + 3) << 6)).toByte
       i += 4
       j += 1
     }
@@ -129,8 +131,8 @@ object CallStream {
     (gts.length - i: @unchecked) match {
       case 0 =>
       case 1 => a(j) = gts(i).toByte
-      case 2 => a(j) = (gts(i) | gts(i + 1) << 2).toByte
-      case 3 => a(j) = (gts(i) | gts(i + 1) << 2 | gts(i + 2) << 4).toByte
+      case 2 => a(j) = (gts(i) | (gts(i + 1) << 2)).toByte
+      case 3 => a(j) = (gts(i) | (gts(i + 1) << 2) | (gts(i + 2) << 4)).toByte
   }
 
     a
@@ -200,7 +202,7 @@ object CallStream {
     var r = 0  // current row
 
     while (i < gts.length - 3) {
-      a += (gts(i + 3) << 6 | gts(i + 2) << 4 | gts(i + 1) << 2 | gts(i)).toByte // gtByte
+      a += ((gts(i + 3) << 6) | (gts(i + 2) << 4) | (gts(i + 1) << 2) | gts(i)).toByte // gtByte
       a += 0 // lenByte placeholder
 
       for (k <- 0 until 4) {
@@ -237,9 +239,9 @@ object CallStream {
     nGtLeft match {
       case 1 => a += gts(i).toByte
         a += 0
-      case 2 => a += (gts(i + 1) << 2 | gts(i)).toByte
+      case 2 => a += ((gts(i + 1) << 2) | gts(i)).toByte
         a += 0
-      case 3 => a += (gts(i + 2) << 4 | gts(i + 1) << 2 | gts(i)).toByte
+      case 3 => a += ((gts(i + 2) << 4) | (gts(i + 1) << 2) | gts(i)).toByte
         a += 0
       case _ =>
     }
@@ -374,9 +376,9 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
     def rowDiff(k: Int, l: Int) =
       l match {
         case 0 => a(k) & 0xFF
-        case 1 => (a(k) & 0xFF) << 8 | (a(k + 1) & 0xFF)
-        case 2 => (a(k) & 0xFF) << 16 | (a(k + 1) & 0xFF) << 8 | (a(k + 2) & 0xFF)
-        case _ => a(k) << 24 | (a(k + 1) & 0xFF) << 16 | (a(k + 2) & 0xFF) << 8 | (a(k + 3) & 0xFF)
+        case 1 => ((a(k) & 0xFF) << 8) | (a(k + 1) & 0xFF)
+        case 2 => ((a(k) & 0xFF) << 16) | ((a(k + 1) & 0xFF) << 8) | (a(k + 2) & 0xFF)
+        case _ => (a(k) << 24) | ((a(k + 1) & 0xFF) << 16) | ((a(k + 2) & 0xFF) << 8) | (a(k + 3) & 0xFF)
       }
 
     var i = 0 // row index
