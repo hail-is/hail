@@ -26,11 +26,7 @@ object LinearRegressionFromHardCallSetCommand extends Command {
     val hcs = state.hcs
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, hcs.sampleIds)
     val cov = CovariateData.read(options.covFilename, state.hadoopConf, hcs.sampleIds)
-      .filterSamples(ped.phenotypedSamples)
-
-    // FIXME: won't want to check this in production, should ensure it elsewhere
-    if (!(hcs.localSamples sameElements cov.covRowSample))
-      fatal("Samples misaligned, recreate .hcs using .ped and .cov")
+      .filterSamples(ped.phenotypedSamples) // FIXME: can remove for GoT2D
 
     val linreg = LinearRegressionFromHardCallSet(hcs, ped, cov)
 

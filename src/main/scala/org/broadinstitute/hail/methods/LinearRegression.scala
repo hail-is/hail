@@ -138,11 +138,8 @@ object LinearRegressionFromHardCallSet {
   def name = "LinearRegressionFromHardCallSet"
 
   def apply(hcs: HardCallSet, ped: Pedigree, cov: CovariateData): LinearRegression = {
-
-    // LinearRegressionFromHardCallSetCommand uses cov.filterSamples(ped.phenotypedSamples) in call
-    require(cov.covRowSample.forall(ped.phenotypedSamples)) // FIXME: Code below assumes same samples in hcs and cov, true for GoT2D
-
-    //val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
+    if (!(hcs.localSamples sameElements cov.covRowSample))
+      fatal("Samples misaligned, recreate .hcs using .ped and .cov")
 
     val n = cov.data.rows
     val k = cov.data.cols
@@ -153,8 +150,6 @@ object LinearRegressionFromHardCallSet {
     info(s"Running linreg on $n samples and $k covariates...")
 
     val sc = hcs.sparkContext
-    //val sampleCovRowBc = sc.broadcast(sampleCovRow)
-    //val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
     val samplePheno = ped.samplePheno
