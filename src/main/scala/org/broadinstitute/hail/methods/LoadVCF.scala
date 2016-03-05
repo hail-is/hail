@@ -19,6 +19,7 @@ object VCFReport {
   val GQPLMismatch = 5
   val GQMissingPL = 6
   val RefNonACGT = 7
+  val SymbolicOrSV = 8
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
@@ -35,6 +36,7 @@ object VCFReport {
       case GQPLMismatch => "GQ != difference of two smallest PL entries"
       case GQMissingPL => "GQ present but PL missing"
       case RefNonACGT => "REF contains non-ACGT"
+      case SymbolicOrSV => "Variant is symbolic or structural indel"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -171,8 +173,14 @@ object LoadVCF {
               if (containsNonACGT)
                 reportAcc += VCFReport.RefNonACGT
               containsNonACGT
-            })
-            .map { line =>
+            }
+            // || {
+            //  val isSymbolicOrSV = ???
+            //  if (isSymbolicOrSV)
+            //    reportAcc += VCFReport.SymbolicOrSV
+            //  isSymbolicOrSV
+            //}
+            ).map { line =>
               try {
                 reader.readRecord(reportAcc, line, sigMap.value, storeGQ)
               } catch {
