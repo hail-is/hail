@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.{SplitMulti, State, WriteHcs}
+import org.broadinstitute.hail.driver.{AddHcs, SplitMulti, State, WriteHcs}
 import org.broadinstitute.hail.variant.{HardCallSet, Variant}
 import org.testng.annotations.Test
 
@@ -133,7 +133,9 @@ class LinearRegressionSuite extends SparkSuite {
     var state = State(sc, sqlContext, vds)
     state = SplitMulti.run(state, Array.empty[String])
 
-    WriteHcs.run(state, Array("-o", "/tmp/linearRegression.hcs", "-f", "src/test/resources/linearRegression.fam", "-c", "src/test/resources/linearRegression.cov"))
+    state = AddHcs.run(state, Array("-f", "src/test/resources/linearRegression.fam", "-c", "src/test/resources/linearRegression.cov"))
+
+    state = WriteHcs.run(state, Array("-o", "/tmp/linearRegression.hcs"))
 
     val hcs = HardCallSet.read(sqlContext, "/tmp/linearRegression.hcs")
 

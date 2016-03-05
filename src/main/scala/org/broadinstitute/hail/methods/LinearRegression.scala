@@ -14,27 +14,23 @@ class LinRegBuilder extends Serializable {
   private val valsX = new mutable.ArrayBuilder.ofDouble()
   private var sumX = 0
   private var sumXX = 0
-  private var sumXY = 0.0
   private val missingRows = new mutable.ArrayBuilder.ofInt()
 
-  def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
-    g.gt match {
+  def merge(row: Int, g: Genotype): LinRegBuilder = {
+    (g.gt: @unchecked) match {
       case Some(0) =>
       case Some(1) =>
         rowsX += row
         valsX += 1.0
         sumX += 1
         sumXX += 1
-        sumXY += y(row)
       case Some(2) =>
         rowsX += row
         valsX += 2.0
         sumX += 2
         sumXX += 4
-        sumXY += 2 * y(row)
       case None =>
         missingRows += row
-      case _ => throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
     this
   }
@@ -44,13 +40,12 @@ class LinRegBuilder extends Serializable {
     valsX ++= that.valsX.result()
     sumX += that.sumX
     sumXX += that.sumXX
-    sumXY += that.sumXY
     missingRows ++= that.missingRows.result()
 
     this
   }
 
-  def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double, Int)] = {
+  def stats(n: Int): Option[(SparseVector[Double], Double, Int)] = {
     val missingRowsArray = missingRows.result()
     val nMissing = missingRowsArray.size
     val nPresent = n - nMissing
@@ -66,9 +61,8 @@ class LinRegBuilder extends Serializable {
       //SparseVector constructor expects sorted indices, follows from sorting of covRowSample
       val x = new SparseVector[Double](rowsX.result(), valsX.result(), n)
       val xx = sumXX + meanX * meanX * nMissing
-      val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
 
-      Some((x, xx, xy, nMissing))
+      Some((x, xx, nMissing))
     }
   }
 }
@@ -110,16 +104,16 @@ object LinearRegression {
     new LinearRegression(vds
       .filterSamples { case (s, sa) => samplesWithCovDataBc.value(s) }
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
-        (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
+        (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues { lrb =>
-        lrb.stats(yBc.value, n).map { stats => {
-          val (x, xx, xy, nMissing) = stats
+        lrb.stats(n).map { stats => {
+          val (x, xx, nMissing) = stats
 
           val qtx = qtBc.value * x
           val qty = qtyBc.value
           val xxp: Double = xx - (qtx dot qtx)
-          val xyp: Double = xy - (qtx dot qty)
+          val xyp: Double = (x dot yBc.value) - (qtx dot qty)
           val yyp: Double = yypBc.value
 
           val b: Double = xyp / xxp
@@ -169,7 +163,7 @@ object LinearRegressionOnHcs {
 
     new LinearRegression(hcs.rdd
       .mapValues { cs =>
-        val GtVectorAndStats(x, xx, xy, nMissing) = cs.hardStats(yBc.value, n)
+        val GtVectorAndStats(x, xx, nMissing) = cs.hardStats(n)
 
         // FIXME: make condition more robust to rounding errors?
         // all HomRef | all Het | all HomVar
@@ -179,7 +173,7 @@ object LinearRegressionOnHcs {
           val qtx = qtBc.value * x
           val qty = qtyBc.value
           val xxp: Double = xx - (qtx dot qtx)
-          val xyp: Double = xy - (qtx dot qty)
+          val xyp: Double = (x dot yBc.value) - (qtx dot qty)
           val yyp: Double = yypBc.value
 
           val b: Double = xyp / xxp

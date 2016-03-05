@@ -67,7 +67,7 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
 
 
 
-case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, xy: Double, nMissing: Int)
+case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, nMissing: Int)
 
 
 
@@ -279,19 +279,18 @@ object CallStream {
 
 case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int, nHomRef: Int, isSparse: Boolean) {
 
-  def hardStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
+  def hardStats(n: Int): GtVectorAndStats = {
     if (n == 0)
       fatal("Cannot compute statistics for 0 samples.")
     if (isSparse)
-      sparseStats(y: DenseVector[Double], n: Int)
+      sparseStats(n)
     else
-      denseStats(y: DenseVector[Double], n: Int)
+      denseStats(n)
   }
 
-  def denseStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
+  def denseStats(n: Int): GtVectorAndStats = {
 
     val x = Array.ofDim[Double](n)
-    var sumXY = 0.0
 
     val mask00000011 = 3
     val mask00001100 = 3 << 2
@@ -303,13 +302,10 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         case 0 =>
         case 1 =>
           x(i) = 1.0
-          sumXY += y(i)
         case 2 =>
           x(i) = 2.0
-          sumXY += 2 * y(i)
         case 3 =>
           x(i) = this.meanX
-          sumXY += this.meanX * y(i)
       }
     }
 
@@ -340,14 +336,13 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
       case _ =>
     }
 
-    GtVectorAndStats(DenseVector(x), sumXX, sumXY, nMissing)
+    GtVectorAndStats(DenseVector(x), sumXX, nMissing)
   }
 
-  def sparseStats(y: DenseVector[Double] , n: Int): GtVectorAndStats = {
+  def sparseStats(n: Int): GtVectorAndStats = {
 
     val rowX = Array.ofDim[Int](n - nHomRef)
     val valX = Array.ofDim[Double](n - nHomRef)
-    var sumXY = 0.0
 
     val mask00000011 = 3
     val mask00001100 = 3 << 2
@@ -360,15 +355,12 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         case 1 =>
           rowX(i) = r
           valX(i) = 1.0
-          sumXY += y(r)
         case 2 =>
           rowX(i) = r
           valX(i) = 2.0
-          sumXY += 2 * y(r)
         case 3 =>
           rowX(i) = r
           valX(i) = meanX
-          sumXY += meanX * y(r)
       }
     }
 
@@ -454,7 +446,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
       }
     }
 
-    GtVectorAndStats(new SparseVector[Double](rowX, valX, n), sumXX, sumXY, nMissing)
+    GtVectorAndStats(new SparseVector[Double](rowX, valX, n), sumXX, nMissing)
   }
 
   import CallStream._
