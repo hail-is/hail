@@ -188,7 +188,7 @@ object LinearRegressionOnHcs {
   }
 }
 
-case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
+case class LinearRegression(rdd: RDD[(Variant, Option[LinRegStats])]) {
   def write(filename: String) {
     def toLine(sb: StringBuilder, v: Variant, olrs: Option[LinRegStats]): String = {
       sb.clear()
@@ -200,7 +200,7 @@ case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
       }
       sb.result()
     }
-    lr.mapPartitions { it =>
+    rdd.mapPartitions { it =>
       val sb = new StringBuilder
       it.map { case (v, olrs) => toLine(sb, v, olrs) }
     }.writeTable(filename, Some("CHR\tPOS\tREF\tALT\tPVAL\tBETA\tSE\tTSTAT\tMISS"))

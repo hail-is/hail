@@ -23,7 +23,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val linReg = LinearRegression(vds, ped, cov.filterSamples(ped.phenotypedSamples))
 
-    val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.lr.collect().toMap
+    val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.rdd.collect().toMap
 
     //println(statsOfVariant)
 
@@ -74,7 +74,7 @@ class LinearRegressionSuite extends SparkSuite {
     val hcs = HardCallSet(vds.filterSamples{ case (s,sa) => cov.covRowSample.toSet(s)})
 
     val linReg = LinearRegressionOnHcs(hcs, ped, cov)
-    val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.lr.collect().toMap
+    val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.rdd.collect().toMap
 
     // println(statsOfVariant)
 
@@ -140,7 +140,7 @@ class LinearRegressionSuite extends SparkSuite {
     val hcs = HardCallSet.read(sqlContext, "/tmp/linearRegression.hcs")
 
     val linReg = LinearRegressionOnHcs(hcs, ped, cov)
-    val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.lr.collect().toMap
+    val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.rdd.collect().toMap
 
     //println(statsOfVariant)
 
