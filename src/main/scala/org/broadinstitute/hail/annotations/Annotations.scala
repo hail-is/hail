@@ -7,8 +7,10 @@ import org.broadinstitute.hail.Utils._
 
 object Annotations {
 
-  def empty: Annotation = Row.empty
-  def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(Row.empty)
+  def empty: Annotation = null: Any
+  def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(null: Any)
+
+  def emptySignature: Signature = SimpleSignature(expr.TString)
 
   def printRow(r: Row, nSpace: Int = 0) {
     val spaces = (0 until nSpace).map(i => " ").foldRight("")(_ + _)

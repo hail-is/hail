@@ -53,7 +53,18 @@ object ExportVCF extends Command {
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
       }
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.getStruct("info").map(_.m)
+      val infoHeader: Option[Array[(String, VCFSignature)]] = vds.metadata.variantAnnotationSignatures
+        .getOption(List("info")) match {
+        case Some(sigs: StructSignature) =>
+          Some(sigs.m.toArray
+            .sortBy { case (key, (i, s)) => i }
+            .flatMap { case (key, (i, s)) => s match {
+              case vcfSig: VCFSignature => Some(key, vcfSig)
+              case _ => None
+            }
+            })
+        case _ => None
+      }
       infoHeader.foreach { i =>
         i.foreach { case (key, value) =>
           val sig = value.asInstanceOf[VCFSignature]
@@ -91,7 +102,7 @@ object ExportVCF extends Command {
     }
 
     val infoF: (StringBuilder, Annotation) => Unit = {
-      vds.metadata.variantAnnotationSignatures.getStruct("info") match {
+      vds.metadata.variantAnnotationSignatures.getOption(List("info")) match {
         case Some(signatures: StructSignature) =>
           val keys = signatures.m.map { case (k, (i, v)) => (k, i) }
             .toArray
@@ -129,7 +140,8 @@ object ExportVCF extends Command {
                     sb += '='
                     sb.tsvAppend(a)
                     appended += 1
-                  }}){unit => sb += ';'}
+                  }
+                  }) { unit => sb += ';' }
                 if (appended == 0)
                   sb += '.'
 
@@ -207,4 +219,5 @@ object ExportVCF extends Command {
     kvRDD.unpersist()
     state
   }
+
 }

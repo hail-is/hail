@@ -49,7 +49,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       .asScala
       .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
       .toMap
-    println(infoAttrs)
+//    println(infoAttrs)
 
     val infoRow = Row.fromSeq(typeMap.map { case (key, sig) =>
       infoAttrs.get(key)

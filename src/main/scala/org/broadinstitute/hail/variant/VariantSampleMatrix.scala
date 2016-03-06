@@ -10,7 +10,7 @@ import org.broadinstitute.hail.check.Gen
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
-import org.apache.spark.sql.types.{StructType, StructField, StringType}
+import org.apache.spark.sql.types.{NullType, StructType, StructField, StringType}
 
 
 object VariantSampleMatrix {
@@ -21,7 +21,7 @@ object VariantSampleMatrix {
 
   def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
     require(dirname.endsWith(".vds"))
-//    import RichRow._
+    //    import RichRow._
 
     val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
       sqlContext.sparkContext.hadoopConfiguration) {
@@ -344,32 +344,32 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.map { case (v, va, gs) => (v, gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g))) }
 
-    def same(that: VariantSampleMatrix[T]): Boolean = {
-      metadata == that.metadata &&
-        localSamples.sameElements(that.localSamples) &&
-        rdd.map { case (v, va, gs) => (v, (va, gs)) }
-          .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
-          .map { case (v, t) => t match {
-            case (Some((va1, it1)), Some((va2, it2))) =>
-              it1.sameElements(it2) && va1 == va2
-            case _ => false
-          }
-          }.fold(true)(_ && _)
-    }
+  def same(that: VariantSampleMatrix[T]): Boolean = {
+    metadata == that.metadata &&
+      localSamples.sameElements(that.localSamples) &&
+      rdd.map { case (v, va, gs) => (v, (va, gs)) }
+        .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
+        .map { case (v, t) => t match {
+          case (Some((va1, it1)), Some((va2, it2))) =>
+            it1.sameElements(it2) && va1 == va2
+          case _ => false
+        }
+        }.fold(true)(_ && _)
+  }
 
-//  def same(that: VariantSampleMatrix[T]): Boolean = {
-//    println(metadata == that.metadata)
-//    metadata == that.metadata &&
-//      localSamples.sameElements(that.localSamples) &&
-//      rdd.map { case (v, va, gs) => (v, (va, gs)) }
-//        .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
-//        .map { case (v, t) => t match {
-//          case (Some((va1, it1)), Some((va2, it2))) =>
-//            it1.sameElements(it2) && va1.same(va2)
-//          case _ => false
-//        }
-//        }.fold(true)(_ && _)
-//  }
+  //  def same(that: VariantSampleMatrix[T]): Boolean = {
+  //    println(metadata == that.metadata)
+  //    metadata == that.metadata &&
+  //      localSamples.sameElements(that.localSamples) &&
+  //      rdd.map { case (v, va, gs) => (v, (va, gs)) }
+  //        .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
+  //        .map { case (v, t) => t match {
+  //          case (Some((va1, it1)), Some((va2, it2))) =>
+  //            it1.sameElements(it2) && va1.same(va2)
+  //          case _ => false
+  //        }
+  //        }.fold(true)(_ && _)
+  //  }
 
   def mapAnnotationsWithAggregate[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
@@ -408,11 +408,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 class RichVDS(vds: VariantDataset) {
 
   def makeSchema(): StructType = {
-    StructType(Array(
+    val vaStruct = vds.metadata.variantAnnotationSignatures.getSchema
+
+    val s = StructType(Array(
       StructField("variant", Variant.schema(), false),
       StructField("annotations", vds.metadata.variantAnnotationSignatures.getSchema, false),
       StructField("gs", GenotypeStream.schema(), false)
     ))
+    s
   }
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {

@@ -125,12 +125,6 @@ class AnnotationsSuite extends SparkSuite {
   */
   }
 
-  def printSigs(signatures: StructSignature) {
-    val sb = new StringBuilder
-    ShowAnnotations.printSignatures(sb, signatures, 0, "va")
-    println(sb.result())
-  }
-
   @Test def testReadWrite() {
     val vds1 = LoadVCF(sc, "src/test/resources/sample.vcf")
     val s = State(sc, sqlContext, vds1)
@@ -197,11 +191,11 @@ class AnnotationsSuite extends SparkSuite {
       "middle" -> (0, SimpleSignature(expr.TInt))))
 
     println("sigs before:")
-    printSigs(signatures)
+    println(signatures.printSchema("va"))
 
     val (newSigs, f) = signatures.insert(List("middle", "inner", "g"), sigToAdd)
     println("sigs after:")
-    printSigs(newSigs)
+    println(newSigs.printSchema("va"))
 
 //    val (newSigs2, f2) = AnnotationData.insertSignature(signatures, sigToAdd, Array("middle", "inner"))
 //    println("sigs after:")
@@ -211,15 +205,15 @@ class AnnotationsSuite extends SparkSuite {
 
     val (newSigs2, f2) = newSigs.delete(List("middle", "inner", "g"))
     println("removed g:")
-    printSigs(newSigs2)
+    println(newSigs2.printSchema("va"))
 
     val (newSigs3, f3) = newSigs2.delete(List("middle", "inner"))
     println("removed inner:")
-    printSigs(newSigs3)
+    println(newSigs3.printSchema("va"))
 
     val (newSigs4, f4) = newSigs2.delete(List("a"))
     println("removed a:")
-    printSigs(newSigs4)
+    println(newSigs4.printSchema("va"))
 
     val vds = LoadVCF(sc, file1 = "src/test/resources/sample.vcf")
     val first = vds.variantsAndAnnotations.take(1).head
