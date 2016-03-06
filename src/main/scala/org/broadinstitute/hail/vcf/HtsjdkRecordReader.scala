@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.vcf
 
+import htsjdk.variant.variantcontext.VariantContext
 import org.apache.spark.Accumulable
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
@@ -21,9 +22,8 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    line: String,
+    vc: VariantContext,
     typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
-    val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filts = {
@@ -39,8 +39,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       vc.getStart,
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => {
-        //if (a.getBaseString.isEmpty) // FIXME: remove before PR
-        //  println(line.take(200))
         AltAllele(ref, a.getBaseString)}
       ).toArray)
 
@@ -101,7 +99,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         else
           Genotype.gtIndex(j, i)
 
-        //if (g.hasPL && pl(gt) != 0) {  // FIXME: restore before PR
+        //if (g.hasPL && pl(gt) != 0) {  // FIXME: necessary for GoT2D
         //  reportAcc += VCFReport.GTPLMismatch
         //  filter = true
         //}
@@ -178,8 +176,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 }
 
 object HtsjdkRecordReader {
-  def apply(headerLines: Array[String]): HtsjdkRecordReader = {
-    val codec = new htsjdk.variant.vcf.VCFCodec()
+  def apply(headerLines: Array[String], codec: htsjdk.variant.vcf.VCFCodec): HtsjdkRecordReader = {
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)
   }

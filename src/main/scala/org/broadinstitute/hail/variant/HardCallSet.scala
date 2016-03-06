@@ -93,7 +93,7 @@ object CallStream {
     var nMissing = 0
 
     for (gt <- gts)
-      gt match {
+      (gt: @unchecked) match {
         case 0 =>
         case 1 =>
           sumX += 1
@@ -150,7 +150,7 @@ object CallStream {
 
     var j = 0
     for ((gt, i) <- gts.view.zipWithIndex)
-      gt match {
+      (gt: @unchecked) match {
         case 0 =>
         case 1 =>
           rowX(j) = i
@@ -194,63 +194,10 @@ object CallStream {
 
   def sparseByteArray(rows: Array[Int], gts: Array[Int]): Array[Byte] = {
 
-    val a = mutable.ArrayBuffer[Byte]()
+    val a = new mutable.ArrayBuilder.ofByte
 
-    var i = 0  // row index
-    var j = 1  // counter for lenByte index
-    var l = 1  // current val of lenByte index
-    var r = 0  // current row
-
-    while (i < gts.length - 3) {
-      a += ((gts(i + 3) << 6) | (gts(i + 2) << 4) | (gts(i + 1) << 2) | gts(i)).toByte // gtByte
-      a += 0 // lenByte placeholder
-
-      for (k <- 0 until 4) {
-        val rd = rows(i + k) - r
-        r = rows(i + k)
-        val m = nBytesMinus1(rd)
-        m match {
-          case 0 =>
-            a += rd.toByte
-          case 1 =>
-            a += (rd >> 8).toByte
-            a += rd.toByte
-          case 2 =>
-            a += (rd >> 16).toByte
-            a += (rd >> 8).toByte
-            a += rd.toByte
-          case _ =>
-            a += (rd >> 24).toByte
-            a += (rd >> 16).toByte
-            a += (rd >> 8).toByte
-            a += rd.toByte
-        }
-        a(l) = (a(l) | (m << (2 * k))).toByte
-        j += m
-      }
-      j += 6 // 1[lenByte] + 4 * 1[nBytesMinus1] + 1[gtByte]
-      l = j
-
-      i += 4
-    }
-
-    val nGtLeft = gts.length - i
-
-    nGtLeft match {
-      case 1 => a += gts(i).toByte
-        a += 0
-      case 2 => a += ((gts(i + 1) << 2) | gts(i)).toByte
-        a += 0
-      case 3 => a += ((gts(i + 2) << 4) | (gts(i + 1) << 2) | gts(i)).toByte
-        a += 0
-      case _ =>
-    }
-
-    for (k <- 0 until nGtLeft) {
-      val rd = rows(i + k) - r
-      r = rows(i + k)
-      val m = nBytesMinus1(rd)
-      m match {
+    def merge(rd: Int, l: Int) =
+      (l: @unchecked) match {
         case 0 =>
           a += rd.toByte
         case 1 =>
@@ -260,16 +207,102 @@ object CallStream {
           a += (rd >> 16).toByte
           a += (rd >> 8).toByte
           a += rd.toByte
-        case _ =>
+        case 3 =>
           a += (rd >> 24).toByte
           a += (rd >> 16).toByte
           a += (rd >> 8).toByte
           a += rd.toByte
       }
-      a(l) = (a(l) | (m << (2 * k))).toByte  // faster to use (k << 1) ?
+
+    var i = 0
+    var r = 0
+
+    while (i + 3 < gts.length) {
+      val gt1 = gts(i)
+      val rd1 = rows(i) - r
+      val l1 = nBytesMinus1(rd1)
+      r = rows(i)
+      i += 1
+
+      val gt2 = gts(i)
+      val rd2 = rows(i) - r
+      val l2 = nBytesMinus1(rd2)
+      r = rows(i)
+      i += 1
+
+      val gt3 = gts(i)
+      val rd3 = rows(i) - r
+      val l3 = nBytesMinus1(rd3)
+      r = rows(i)
+      i += 1
+
+      val gt4 = gts(i)
+      val rd4 = rows(i) - r
+      val l4 = nBytesMinus1(rd4)
+      r = rows(i)
+      i += 1
+
+      a += ((gt4 << 6) | (gt3 << 4) | (gt2 << 2) | gt1).toByte // gtByte
+      a += ((l4 << 6) | (l3 << 4) | (l2 << 2) | l1).toByte // gtByte
+      merge(rd1, l1)
+      merge(rd2, l2)
+      merge(rd3, l3)
+      merge(rd4, l4)
     }
 
-    a.toArray
+    (gts.length - i: @unchecked) match {
+      case 0 =>
+
+      case 1 =>
+        val gt1 = gts(i)
+        val rd1 = rows(i) - r
+        val l1 = nBytesMinus1(rd1)
+
+        a += gt1.toByte
+        a += l1.toByte
+        merge(rd1, l1)
+
+      case 2 =>
+        val gt1 = gts(i)
+        val rd1 = rows(i) - r
+        val l1 = nBytesMinus1(rd1)
+        r = rows(i)
+        i += 1
+
+        val gt2 = gts(i)
+        val rd2 = rows(i) - r
+        val l2 = nBytesMinus1(rd2)
+
+        a += ((gt2 << 2) | gt1).toByte
+        a += ((l2 << 2) | l1).toByte
+        merge(rd1, l1)
+        merge(rd2, l2)
+
+      case 3 =>
+        val gt1 = gts(i)
+        val rd1 = rows(i) - r
+        val l1 = nBytesMinus1(rd1)
+        r = rows(i)
+        i += 1
+
+        val gt2 = gts(i)
+        val rd2 = rows(i) - r
+        val l2 = nBytesMinus1(rd2)
+        r = rows(i)
+        i += 1
+
+        val gt3 = gts(i)
+        val rd3 = rows(i) - r
+        val l3 = nBytesMinus1(rd3)
+
+        a += ((gt3 << 4) | (gt2 << 2) | gt1).toByte
+        a += ((l3 << 4) | (l2 << 2) | l1).toByte
+        merge(rd1, l1)
+        merge(rd2, l2)
+        merge(rd3, l3)
+    }
+
+    a.result()
   }
 
   def toBinaryString(b: Byte): String = {for (i <- 7 to 0 by -1) yield (b & (1 << i)) >> i}.mkString("")
@@ -298,7 +331,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
     val mask11000000 = 3 << 6
 
     def merge(i: Int, gt: Int) {
-      gt match {
+      (gt: @unchecked) match {
         case 0 =>
         case 1 =>
           x(i) = 1.0
@@ -323,7 +356,8 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
       j += 1
     }
 
-    n - i match {
+    (n - i: @unchecked) match {
+      case 0 =>
       case 1 =>
         merge(i,      a(j) & mask00000011)
       case 2 =>
@@ -333,7 +367,6 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         merge(i,      a(j) & mask00000011)
         merge(i + 1, (a(j) & mask00001100) >> 2)
         merge(i + 2, (a(j) & mask00110000) >> 4)
-      case _ =>
     }
 
     GtVectorAndStats(DenseVector(x), sumXX, nMissing)
@@ -350,7 +383,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
     val mask11000000 = 3 << 6
 
     def merge(i: Int, r: Int, gt: Int) {
-      gt match {
+      (gt: @unchecked) match {
         case 0 =>
         case 1 =>
           rowX(i) = r
@@ -366,19 +399,18 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
     // FIXME: Can we somehow store with & 0xFF already applied on encode so that we don't need it on decode?
     def rowDiff(k: Int, l: Int) =
-      l match {
+      (l: @unchecked) match {
         case 0 => a(k) & 0xFF
         case 1 => ((a(k) & 0xFF) << 8) | (a(k + 1) & 0xFF)
         case 2 => ((a(k) & 0xFF) << 16) | ((a(k + 1) & 0xFF) << 8) | (a(k + 2) & 0xFF)
-        case _ => (a(k) << 24) | ((a(k + 1) & 0xFF) << 16) | ((a(k + 2) & 0xFF) << 8) | (a(k + 3) & 0xFF)
+        case 3 => (a(k) << 24) | ((a(k + 1) & 0xFF) << 16) | ((a(k + 2) & 0xFF) << 8) | (a(k + 3) & 0xFF)
       }
 
     var i = 0 // row index
     var j = 0 // byte index
     var r = 0 // row
 
-    while (j < a.length) {
-
+    while (i + 3 < n - nHomRef) {
       val gtByte = a(j)
       val gt1 =  gtByte & mask00000011
       val gt2 = (gtByte & mask00001100) >> 2
@@ -393,7 +425,74 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
       j += 2
 
-      if (gt4 != 0) {
+      r += rowDiff(j, l1)
+      merge(i, r, gt1)
+      i += 1
+      j += l1 + 1
+
+      r += rowDiff(j, l2)
+      merge(i, r, gt2)
+      i += 1
+      j += l2 + 1
+
+      r += rowDiff(j, l3)
+      merge(i, r, gt3)
+      i += 1
+      j += l3 + 1
+
+      r += rowDiff(j, l4)
+      merge(i, r, gt4)
+      i += 1
+      j += l4 + 1
+    }
+
+    (n - nHomRef - i: @unchecked) match {
+      case 0 =>
+
+      case 1 =>
+        val gtByte = a(j)
+        val gt1 = gtByte & mask00000011
+
+        val lenByte = a(j+1)
+        val l1 = lenByte & mask00000011
+
+        j += 2
+
+        r += rowDiff(j, l1)
+        merge(i, r, gt1)
+
+      case 2 =>
+        val gtByte = a(j)
+        val gt1 =  gtByte & mask00000011
+        val gt2 = (gtByte & mask00001100) >> 2
+
+        val lenByte = a(j+1)
+        val l1 =  lenByte & mask00000011
+        val l2 = (lenByte & mask00001100) >> 2
+
+        j += 2
+
+        r += rowDiff(j, l1)
+        merge(i, r, gt1)
+        i += 1
+        j += l1 + 1
+
+        r += rowDiff(j, l2)
+        merge(i, r, gt2)
+
+      case 3 =>
+        val gtByte = a(j)
+        val gt1 =  gtByte & mask00000011
+        val gt2 = (gtByte & mask00001100) >> 2
+        val gt3 = (gtByte & mask00110000) >> 4
+
+        val lenByte = a(j+1)
+        val l1 =  a(j+1) & mask00000011
+        val l2 = (a(j+1) & mask00001100) >> 2
+        val l3 = (a(j+1) & mask00110000) >> 4
+
+        j += 2
+
         r += rowDiff(j, l1)
         merge(i, r, gt1)
         i += 1
@@ -406,44 +505,6 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
         r += rowDiff(j, l3)
         merge(i, r, gt3)
-        i += 1
-        j += l3 + 1
-
-        r += rowDiff(j, l4)
-        merge(i, r, gt4)
-        i += 1
-        j += l4 + 1
-      }
-      else if (gt3 != 0) {
-        r += rowDiff(j, l1)
-        merge(i, r, gt1)
-        i += 1
-        j += l1 + 1
-
-        r += rowDiff(j, l2)
-        merge(i, r, gt2)
-        i += 1
-        j += l2 + 1
-
-        r += rowDiff(j, l3)
-        merge(i, r, gt3)
-        j += l3 + 1
-      }
-      else if (gt2 != 0) {
-        r += rowDiff(j, l1)
-        merge(i, r, gt1)
-        i += 1
-        j += l1 + 1
-
-        r += rowDiff(j, l2)
-        merge(i, r, gt2)
-        j += l2 + 1
-      }
-      else {
-        r += rowDiff(j, l1)
-        merge(i, r, gt1)
-        j += l1 + 1
-      }
     }
 
     GtVectorAndStats(new SparseVector[Double](rowX, valX, n), sumXX, nMissing)
