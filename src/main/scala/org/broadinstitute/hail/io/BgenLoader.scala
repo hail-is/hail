@@ -2,7 +2,6 @@ package org.broadinstitute.hail.io
 
 import java.util.zip.Inflater
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.mapred.InvalidInputException
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
@@ -55,6 +54,7 @@ class BgenLoader(file: String, sc: SparkContext) {
   }
 
   private def getParseFunction = {
+              println("getParseFunctionBlock")
     val localCompression = compression
     val localNSamples = nSamples
     val localVersion = version
@@ -167,11 +167,10 @@ class BgenLoader(file: String, sc: SparkContext) {
     version = flags >> 2 & 0xf
     hasSampleIdBlock = (flags >> 30 & 1) != 0
     println(s"parseHeaderAndIndex compression=$compression version=$version hasSampleIdBlock=$hasSampleIdBlock")
-    require(version == 0 || version == 1 || version == 2)
 
     // version 1.1 is currently supported
     if (version != 1)
-      throw new NotImplementedError("Hail supports only bgen 1.1 formats")
+      fatal("Hail supports only BGEN v1.1 formats")
 
     //println("flags stuff: compression=" + compression + ", version=" + version + ", hasSampleID=" + hasSampleIdBlock)
 
@@ -208,14 +207,12 @@ class BgenLoader(file: String, sc: SparkContext) {
     dataBlockStarts(0) = position
     var time = System.currentTimeMillis()
 
-    nVariants = 10 //FIXME remove this when done subsetting
 
     for (i <- 1 until nVariants+1) {
       position = getNextBlockPosition(position)
       dataBlockStarts(i) = position
     }
-    println(dataBlockStarts.take(nVariants + 1).mkString("\n"))
-    sys.exit()
+
     println(s"first 3 = ${dataBlockStarts.take(3).mkString(",")}")
     println(s"last 3 = ${dataBlockStarts.takeRight(3).mkString(",")}")
 
