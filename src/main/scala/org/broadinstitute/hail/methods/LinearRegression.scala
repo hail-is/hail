@@ -187,7 +187,12 @@ object LinearRegressionOnHcs {
       )
   }
 
-  def apply(hcs: HardCallSet, y: DenseVector[Double], allCov: CovariateData, covsToKeep: Set[String]): LinearRegression = {
+  def apply(hcs: HardCallSet,
+    //variantFilter: (Variant) => Boolean,
+    y: DenseVector[Double],
+    allCov: CovariateData,
+    covsToKeep: Set[String]): LinearRegression = {
+
     val cov = allCov.filterCovariates(covsToKeep)
 
     if (!(hcs.localSamples sameElements cov.covRowSample))
@@ -213,7 +218,8 @@ object LinearRegressionOnHcs {
     val qtyBc = sc.broadcast(qty)
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
 
-    new LinearRegression(hcs.rdd
+    new LinearRegression(hcs
+      .rdd
       .mapValues { cs =>
         val GtVectorAndStats(x, xx, nMissing) = cs.hardStats(n)
 
