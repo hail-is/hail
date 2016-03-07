@@ -45,13 +45,18 @@ class ImportVCFSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/undeclaredinfo.vcf"))
 
-    assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info")).isEmpty)
+    assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info")).isDefined)
     assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info", "undeclared")).isEmpty)
     assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info", "undeclaredFlag")).isEmpty)
+    val infoQuerier = s.vds.metadata.variantAnnotationSignatures.query(List("info"))
 
-    assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info")).isEmpty)
-    assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info", "undeclared")).isEmpty)
-    assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info", "undeclaredFlag")).isEmpty)
+    val anno = s.vds
+      .rdd
+      .map { case (v, va, gs) => va }
+      .collect()
+      .head
+
+    assert(infoQuerier(anno) != null)
   }
 
   @Test def testMalformed() {

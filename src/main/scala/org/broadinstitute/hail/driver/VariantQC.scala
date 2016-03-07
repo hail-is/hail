@@ -240,12 +240,11 @@ class VariantQCCombiner extends Serializable {
     Row.fromSeq(Array(
       divNull(nCalled, nCalled + nNotCalled),
       mac,
-      maf,
+      maf.getOrElse(null),
       nCalled,
       nNotCalled,
       nHomRef,
       nHet,
-      nullIfNot(dpSC.count > 0, dpSC.mean),
       nHomVar,
       nullIfNot(dpSC.count > 0, dpSC.mean),
       nullIfNot(dpSC.count > 0, dpSC.stdev),
@@ -266,7 +265,7 @@ class VariantQCCombiner extends Serializable {
       nHet + nHomVar,
       divNull(nHet, nHomRef + nHet + nHomVar),
       divNull(nHet, nHomVar),
-      hwe._1,
+      hwe._1.getOrElse(null),
       hwe._2))
   }
 }

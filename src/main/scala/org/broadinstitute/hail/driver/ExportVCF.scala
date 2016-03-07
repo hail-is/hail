@@ -4,6 +4,7 @@ import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant.RichRow._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations._
@@ -46,8 +47,8 @@ object ExportVCF extends Command {
           |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
           |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
           |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-          |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
-          | """.stripMargin)
+          |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
+      sb += '\n'
 
       vds.metadata.filters.map { case (key, desc) =>
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
@@ -104,21 +105,11 @@ object ExportVCF extends Command {
     val infoF: (StringBuilder, Annotation) => Unit = {
       vds.metadata.variantAnnotationSignatures.getOption(List("info")) match {
         case Some(signatures: StructSignature) =>
-          val keys = signatures.m.map { case (k, (i, v)) => (k, i) }
+          val keys = signatures.m.map { case (k, (i, v)) => (k, i, v.dType == expr.TBoolean) }
             .toArray
-            .sortBy { case (key, index) => index }
-            .map { case (key, index) => key }
-          val querier = signatures.query(List("info"))
-
-          val appendF: (StringBuilder) => (Any, String) => Unit = {
-            sb =>
-              (elem, key) =>
-                if (elem != null) {
-                  sb.append(key)
-                  sb.append("=")
-                  sb.tsvAppend(elem)
-                }
-          }
+            .sortBy { case (key, index, isBoolean) => index }
+            .map { case (key, index, isBoolean) => (key, isBoolean) }
+          val querier = vds.metadata.variantAnnotationSignatures.query(List("info"))
 
           (sb, ad) => {
             val infoRow = querier(ad).map(_.asInstanceOf[Row])
@@ -126,21 +117,23 @@ object ExportVCF extends Command {
             infoRow match {
               case Some(r) =>
                 var appended = 0
-                keys.iterator.zipWithIndex.map { case (s, i) =>
-                  (s, r.getOption(i))
+                keys.iterator.zipWithIndex.map { case ((s, isBoolean), i) =>
+                  (s, isBoolean, r.getOption(i))
                 }
-                  .flatMap { case (s, opt) =>
+                  .flatMap { case (s, isBoolean, opt) =>
                     opt match {
-                      case Some(o) => Some(s, o)
+                      case Some(o) => Some(s, isBoolean, o)
                       case None => None
                     }
                   }
-                  .foreachBetween({ case (s, a) => {
+                  .filter { case (s, isBoolean, v) => !(isBoolean && (v == false)) }
+                  .foreachBetween({ case (s, isBoolean, a) =>
                     sb.append(s)
-                    sb += '='
-                    sb.tsvAppend(a)
+                    if (!isBoolean) {
+                      sb += '='
+                      sb.append(printInfo(a))
+                    }
                     appended += 1
-                  }
                   }) { unit => sb += ';' }
                 if (appended == 0)
                   sb += '.'

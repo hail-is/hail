@@ -29,7 +29,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filts: mutable.WrappedArray[String] = {
-      //    val filts = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
         Array("PASS")
       else {
@@ -47,9 +46,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
     val infoAttrs = vc.getAttributes
       .asScala
-      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
       .toMap
-//    println(infoAttrs)
 
     val infoRow = Row.fromSeq(typeMap.map { case (key, sig) =>
       infoAttrs.get(key)
@@ -62,19 +59,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       pass,
       rsid,
       infoRow))
-    //    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
-    //      .asScala
-    //      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
-    //      .toMap
-    //      .flatMap { case (k, v) =>
-    //        typeMap.get(k).map { t =>
-    //          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
-    //        }
-    //      }),
-    //      "qual" -> vc.getPhredScaledQual,
-    //      "filters" -> filts,
-    //      "pass" -> pass,
-    //      "rsid" -> rsid))
 
     val gb = new GenotypeBuilder(v)
 
@@ -202,13 +186,6 @@ object HtsjdkRecordReader {
     new HtsjdkRecordReader(codec)
   }
 
-  def purgeJavaArrayLists(ar: AnyRef): Any = {
-    ar match {
-      case arr: java.util.ArrayList[_] => arr.asScala
-      case _ => ar
-    }
-  }
-
   def mapType(value: Any, sig: VCFSignature): Any = {
     value match {
       case str: String =>
@@ -225,6 +202,15 @@ object HtsjdkRecordReader {
           case expr.TArray(expr.TInt) => i.map(_.asInstanceOf[String].toInt): mutable.WrappedArray[Int]
           case expr.TArray(expr.TDouble) => i.map(_.asInstanceOf[String].toDouble): mutable.WrappedArray[Double]
           case expr.TArray(expr.TString) => i.map(_.asInstanceOf[String]): mutable.WrappedArray[String]
+        }
+      case stupid: java.util.ArrayList[_] =>
+        (sig.dType: @unchecked) match {
+          case expr.TArray(expr.TInt) =>
+            stupid.asScala.map(_.asInstanceOf[String].toInt).toArray: mutable.WrappedArray[Int]
+          case expr.TArray(expr.TDouble) =>
+            stupid.asScala.map(_.asInstanceOf[String].toDouble).toArray: mutable.WrappedArray[Double]
+          case expr.TArray(expr.TString) =>
+            stupid.asScala.map(_.asInstanceOf[String]).toArray[String]: mutable.WrappedArray[String]
         }
       case _ => value
     }

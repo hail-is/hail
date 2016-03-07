@@ -3,29 +3,7 @@ package org.broadinstitute.hail.annotations
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.RichRow._
-
-import scala.collection.mutable
-
-//import scala.collection.mutable
-
-//
-//case class Path(p: List[String]) {
-//  def empty: Boolean = p.isEmpty
-//  def tail: Path = Path(p.tail)
-//  def head: String = p.head
-//  def length: Int = p.length
-//  def prepend(i: String): Path = Path(p.::(i)
-//}
-//
-//case class IndexPath(p: List[Int]) {
-//  def empty: Boolean = p.isEmpty
-//  def tail: IndexPath = IndexPath(p.tail)
-//  def head: Int = p.head
-//  def length: Int = p.length
-//  def prepend(i: Int): IndexPath = IndexPath(p.::(i))
-//}
 
 abstract class Signature {
   def dType: expr.Type
@@ -37,6 +15,10 @@ abstract class Signature {
       throw new AnnotationPathException()
   }
 
+  def typeCheck(a: Annotation): Boolean = {
+    dType.typeCheck(a)
+  }
+
   def getOption(path: List[String]): Option[Signature] = {
     if (path.isEmpty)
       Some(this)
@@ -46,7 +28,7 @@ abstract class Signature {
 
   def delete(path: List[String]): (Signature, Deleter) = {
     if (path.nonEmpty) {
-      throw new AnnotationPathException()
+      (this, a => a)
     }
     else
       (null, null)
@@ -54,12 +36,10 @@ abstract class Signature {
 
   def insert(path: List[String], signature: Signature): (Signature, Inserter) = {
     if (path.nonEmpty) {
-      StructSignature(Map.empty[String, (Int, Signature)]).insert(path.tail, signature)
+      StructSignature(Map.empty[String, (Int, Signature)]).insert(path, signature)
     }
     else
-      (this, (a, toIns) => {
-        toIns.getOrElse(null)
-      })
+      (this, (a, toIns) => toIns.getOrElse(null))
   }
 
   def insertBefore(path: List[String], signature: Signature): (Signature, Inserter) = {
@@ -97,7 +77,7 @@ abstract class Signature {
 }
 
 case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
-  override def dType: expr.Type = null
+  override def dType: expr.Type = expr.TSchema(m.map { case (k, (i, v)) => (k, (i, v.dType)) })
 
   def size: Int = m.size
 
@@ -110,15 +90,19 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
   }
 
   override def query(p: List[String]): Querier = {
-    m.get(p.head) match {
-      case Some((i, sig)) =>
-        val q = sig.query(p.tail)
-        a =>
-          if (a == null)
-            None
-          else
-            q(a.asInstanceOf[Row].get(i))
-      case None => throw new AnnotationPathException()
+    if (p.isEmpty)
+      a => Some(a)
+    else {
+      m.get(p.head) match {
+        case Some((i, sig)) =>
+          val q = sig.query(p.tail)
+          a =>
+            if (a == null)
+              None
+            else
+              q(a.asInstanceOf[Row].get(i))
+        case None => throw new AnnotationPathException()
+      }
     }
   }
 
@@ -131,7 +115,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         case Some((i, s)) =>
           s.delete(p.tail) match {
             case (null, null) =>
-              // remove this path
+              // remove this path, bubble up deletions
               val newStruct = StructSignature((m - key).mapValues { case (index, sig) =>
                 if (index > i)
                   (index - 1, sig)
@@ -159,7 +143,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
                 }
               (newStruct, f)
           }
-        case None => throw new AnnotationPathException()
+        case None => (this, a => a)
       }
     }
   }
@@ -169,12 +153,22 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
     if (p.length == 1) {
       m.get(key) match {
         case Some((i, s)) =>
-          val f: Inserter = (a, toIns) => a.asInstanceOf[Row].update(i, toIns.orNull)
+          val f: Inserter = (a, toIns) =>
+            if (a == null)
+              Row.fromSeq(Array.fill[Any](m.size)(null))
+                .update(i, toIns.getOrElse(null))
+            else
+              a.asInstanceOf[Row].update(i, toIns.orNull)
           val newStruct = StructSignature(m + ((key, (i, signature))))
           (newStruct, f)
         case None =>
           // append, not overwrite
-          val f: Inserter = (a, toIns) => a.asInstanceOf[Row].append(toIns.orNull)
+          val f: Inserter = (a, toIns) =>
+            if (a == null)
+              Row.fromSeq(Array.fill[Any](m.size)(null))
+                .append(toIns.getOrElse(null))
+            else
+              a.asInstanceOf[Row].append(toIns.getOrElse(null))
           val newStruct = StructSignature(m + ((key, (m.size, signature))))
           (newStruct, f)
       }
@@ -207,8 +201,6 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
     }
   }
 
-  def getStruct(id: String): Option[StructSignature] = m.get(id).map(_.asInstanceOf[StructSignature])
-
   override def getSchema: DataType = {
     if (m.isEmpty)
     //FIXME placeholder?
@@ -229,20 +221,26 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
       s
     }
   }
+
   override def printSchema(path: String): String = {
     s"""$path: group of ${m.size} annotations\n""" +
-    m.toArray
-      .sortBy { case (k, (i, v)) => i}
-      .map { case (k, (i, v)) => v.printSchema(path + s".$k")}
+      m.toArray
+        .sortBy { case (k, (i, v)) => i }
+        .map { case (k, (i, v)) => v.printSchema(path + s".$k") }
         .mkString("\n")
   }
 }
 
-object StructSignature {
+case class EmptySignature(dType: expr.Type = expr.TBoolean) extends Signature {
+  override def getSchema: DataType = BooleanType
 
-  def empty(): StructSignature = StructSignature(Map.empty[String, (Int, Signature)])
+  override def printSchema(path: String): String = s"""$path: EMPTY"""
 
-  def emptyRowOfNull(i: Int): Row = Row.fromSeq(Array.fill[Any](i)(null))
+  override def query(path: List[String]): Querier = throw new AnnotationPathException()
+
+  override def getOption(path: List[String]): Option[Signature] = None
+
+  override def delete(path: List[String]): (Signature, Deleter) = (this, a => a)
 }
 
 case class SimpleSignature(dType: expr.Type) extends Signature

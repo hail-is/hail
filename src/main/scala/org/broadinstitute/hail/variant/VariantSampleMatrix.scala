@@ -37,7 +37,7 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
       df.rdd.map(row => {
-        (Variant.fromRow(row.getAs[Row](0)), row.getAs[Row](1), GenotypeStream.fromRow(row.getAs[Row](2)))
+        (Variant.fromRow(row.getAs[Row](0)), row.get(1), GenotypeStream.fromRow(row.getAs[Row](2)))
       }))
   }
 
@@ -357,20 +357,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         }.fold(true)(_ && _)
   }
 
-  //  def same(that: VariantSampleMatrix[T]): Boolean = {
-  //    println(metadata == that.metadata)
-  //    metadata == that.metadata &&
-  //      localSamples.sameElements(that.localSamples) &&
-  //      rdd.map { case (v, va, gs) => (v, (va, gs)) }
-  //        .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
-  //        .map { case (v, t) => t match {
-  //          case (Some((va1, it1)), Some((va2, it2))) =>
-  //            it1.sameElements(it2) && va1.same(va2)
-  //          case _ => false
-  //        }
-  //        }.fold(true)(_ && _)
-  //  }
-
   def mapAnnotationsWithAggregate[U](zeroValue: U)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U,
@@ -393,15 +379,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  //  def addVariantAnnotationSignatures(name: String, sig: Signature): VariantSampleMatrix[T] = {
-  //    copy(metadata = metadata.copy(variantAnnotationSignatures =
-  //      metadata.variantAnnotationSignatures +(name, sig)))
-  //  }
-  //
-  //  def addSampleAnnotationSignatures(name: String, sig: Signature): VariantSampleMatrix[T] = {
-  //    copy(metadata = metadata.copy(sampleAnnotationSignatures =
-  //      metadata.sampleAnnotationSignatures +(name, sig)))
-  //  }
+  def setSampleSignatures(newSignature: Signature): VariantSampleMatrix[T] = this.copy(
+    metadata = metadata.copy(
+      sampleAnnotationSignatures = newSignature))
+
+  def setVariantSignatures(newSignature: Signature): VariantSampleMatrix[T] = this.copy(
+    metadata = metadata.copy(
+      variantAnnotationSignatures = newSignature))
 }
 
 // FIXME AnyVal Scala 2.11
@@ -441,12 +425,13 @@ class RichVDS(vds: VariantDataset) {
   }
 
   def eraseSplit: VariantDataset = {
-    val (newSignatures, f) = vds.metadata.variantAnnotationSignatures.delete(List("wasSplit"))
+    val (newSignatures1, f1) = vds.metadata.variantAnnotationSignatures.delete(List("wasSplit"))
+    val (newSignatures2, f2) = newSignatures1.delete(List("aIndex"))
     vds.copy(metadata = vds.metadata
-      .copy(wasSplit = false, variantAnnotationSignatures = newSignatures),
+      .copy(wasSplit = false, variantAnnotationSignatures = newSignatures2),
       rdd = vds.rdd.map {
         case (v, va, gs) =>
-          (v, f(va), gs.lazyMap(g => g.copy(fakeRef = false)))
+          (v, f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
       })
   }
 }

@@ -11,6 +11,7 @@ import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.check.Gen
@@ -770,7 +771,7 @@ object Utils extends Logging {
     lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        header.map { h =>
+        header.foreach { h =>
           fw.write(h)
           fw.write('\n')
         }
@@ -781,6 +782,20 @@ object Utils extends Logging {
     }
   }
 
+  def rowSame(a: Any, b: Any): Boolean = {
+    println(a, b)
+    (a, b) match {
+      case (ar: Row, br: Row) =>
+        ((a == null) && (b == null)) ||
+          ((a != null) && (b != null)) &&
+        (ar.size == br.size) &&
+          ar.toSeq.zip(br.toSeq).forall { case (aElem, bElem) => rowSame(aElem, bElem) }
+      case _ =>
+        a == b
+    }
+  }
+
+
   def listAppend[T](l: List[T], t: T): List[T] = {
     val buffer = new ListBuffer[T]()
     l.foreach(buffer += _)
@@ -790,7 +805,7 @@ object Utils extends Logging {
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
-  def triangle(n: Int): Int = ((n * (n + 1)) / 2).toInt
+  def triangle(n: Int): Int = ((n * (n + 1)) / 2)
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError

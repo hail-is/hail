@@ -96,7 +96,7 @@ object LoadVCF {
 
     val variantAnnotationSignatures: StructSignature = StructSignature(Map(
       "qual" ->(0, SimpleSignature(expr.TDouble)),
-      "filters" ->(1, SimpleSignature(expr.TArray(expr.TString))),
+      "filters" ->(1, SimpleSignature(expr.TSet(expr.TString))),
       "pass" ->(2, SimpleSignature(expr.TBoolean)),
       "rsid" ->(3, SimpleSignature(expr.TString)),
       "info" ->(4, StructSignature(infoRowSignatures.zipWithIndex
@@ -138,9 +138,8 @@ object LoadVCF {
             }
         }
     })
-    println(variantAnnotationSignatures)
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyIndexedSeq(sampleIds.length), StructSignature.empty(),
+      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.emptySignature,
       variantAnnotationSignatures), genotypes)
   }
 
