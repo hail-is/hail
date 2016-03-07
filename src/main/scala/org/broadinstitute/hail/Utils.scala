@@ -1,7 +1,6 @@
 package org.broadinstitute.hail
 
 import java.io._
-import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
@@ -12,7 +11,6 @@ import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
-import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -486,7 +484,7 @@ object Utils extends Logging {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-  
+
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =

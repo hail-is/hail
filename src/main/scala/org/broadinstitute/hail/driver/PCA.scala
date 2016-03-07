@@ -34,8 +34,7 @@ object PCA extends Command {
 
     val vds = state.vds
 
-    //FIXME: Add gzip options with .gz (use Tim's utility function HadoopStripCodec)
-    //val filename = options.output.stripSuffix(".tsv")
+    //FIXME: Add gzip options with .gz (use Tim's utility function HadoopStripCodec)?
 
     val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.lOutput != null, options.eOutput != null))(vds)
 
@@ -60,7 +59,7 @@ object PCA extends Command {
       l.unpersist()
     }
 
-    eigenvalues.foreach { es =>
+    eigenvalues.foreach{ es =>
       writeTextFile(options.eOutput, state.hadoopConf) { s =>
         for (e <- es)
           s.write(e.toString)

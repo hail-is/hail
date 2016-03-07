@@ -21,7 +21,7 @@ object ToStandardizedIndexedRowMatrix {
             case None => (c, s)
           }
         }
-        // Will the denominator be computed every time the function is applied?
+
         val p =
           if (count == 0) 0.0
           else sum.toDouble / (2 * count)
