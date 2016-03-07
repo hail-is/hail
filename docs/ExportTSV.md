@@ -1,4 +1,4 @@
-# Exporting to TSVs in Hail
+# Exporting to TSV
 
 Hail has three export modules which write to TSVs:
  - `exportsamples`
@@ -84,16 +84,19 @@ exportgenotypes -c 'v,s.id,g.gq'
 
 **Genotype:** `g`
  - `g                  String` -- String representation of a genotype: looks like `GT:AD:DP:PL`
- - `g.ad:          (Int, Int)` -- allelic depth for each allele
+ - `g.ad:          Array[Int]` -- allelic depth for each allele
+ - `g.od:                 Int` -- the difference between DP and the sum of AD
  - `g.dp:                 Int` -- the total number of informative reads
+ - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
+ - `g.pl:          Array[Int]` -- the PL field
  - `g.isHomRef:       Boolean` -- true if this call is `0/0`
  - `g.isHet:          Boolean` -- true if this call is heterozygous
+ - `g.isHetNonRef     Boolean` -- true if this call is heterozygous with two non-reference alleles (multiallelic site)
  - `g.isHomVar:       Boolean` -- true if this call is `1/1`
  - `g.isCalledNonRef: Boolean` -- true if either `g.isHet` or `g.isHomVar` is true
  - `g.isCalled:       Boolean` -- true if the genotype is `./.`
  - `g.isNotCalled:    Boolean` -- true if genotype is not `./.`
- - `g.gq:                 Int` -- the value of the lowest non-zero PL, or 0 if `./.`
- - `g.nNonRef:            Int` -- the number of called alternate alleles
+ - `g.nNonRefAlleles:            Int` -- the number of called alternate alleles
  - `g.pAB:             Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5
  - `g.pAB(theta):      Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean `theta`
 

@@ -1,38 +1,38 @@
-# Mendel errors in Hail
+# Mendel Errors
 
-The `mendelerrors` module finds all violations of Mendelian inheritance in each (dad, mom, kid) trio of samples.
+The `mendelerrors` command finds all violations of Mendelian inheritance in each (dad, mom, kid) trio of samples.
 
-Command line arguments:
+Command line options:
  - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
- - `-o | --output <fileroot>` -- a root name for output files
+ - `-o | --output <base>` -- a base name for output files
 
 The command
 ```
 mendelerrors -f trios.fam -o genomes
 ```
-outputs four tsv files according to the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
+outputs four TSV files according to the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
 
-- `genomes.mendel` -- all mendel errors: FID KID CHR SNP CODE ERROR (hadoop)
+- `genomes.mendel` -- all mendel errors: FID KID CHR SNP CODE ERROR
 - `genomes.fmendel` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
 - `genomes.imendel` -- error count per individual: FID IID N NSNP
-- `genomes.lmendel` -- error count per variant: CHR SNP N (hadoop)
+- `genomes.lmendel` -- error count per variant: CHR SNP N
 
 FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and individual ID, respectively, with missing values set to `0`.
 SNP denotes the variant identifier `chr:pos:ref:alt`.
 N counts all errors, while NSNP only counts SNP errors (NSNP is not in Plink).
 CHLD is the number of children in a nuclear family.
 
-Each Mendel error is given a CODE as defined in table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
+The CODE of each Mendel error is determined by the table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
 Those individuals implicated by each code are in bold.
-Ploidy is based on the pseudo-autosomal region (PAR):
+The copy state of a locus with respect to a trio is defined as follows, where PAR is the pseudo-autosomal region (PAR).
 
-- HemiX -- non-PAR X in male child
-- HemiY -- non-PAR Y in male child
-- Auto -- otherwise (autosome or PAR or female child)
+- HemiX -- in non-PAR of X, male child
+- HemiY -- in non-PAR of Y, male child
+- Auto -- otherwise (in autosome or PAR, or female child)
 
 Any refers to {HomRef, Het, HomVar, NoCall} and ! denotes complement in this set.
 
-Code | Dad | Mom | Kid | Ploidy
+Code | Dad | Mom | Kid | Copy state
 ---|---|---|---|---
 1 | **HomVar** | **HomVar** | **Het** | Auto
 2 | **HomRef** | **HomRef** |  **Het** | Auto

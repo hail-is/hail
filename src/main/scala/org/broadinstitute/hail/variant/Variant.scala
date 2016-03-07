@@ -96,6 +96,20 @@ object Variant {
     nAlleles * (nAlleles + 1) / 2
   }
 
+  def compareContig(lhs: String, rhs: String): Int = {
+    if (lhs.forall(_.isDigit)) {
+      if (rhs.forall(_.isDigit)) {
+        lhs.toInt.compare(rhs.toInt)
+      } else
+        -1
+    } else {
+      if (rhs.forall(_.isDigit))
+        1
+      else
+        lhs.compare(rhs)
+    }
+  }
+
   def genVariants(nVariants: Int): Gen[Array[Variant]] =
     Gen.buildableOfN[Array[Variant], Variant](nVariants, gen)
 
@@ -193,7 +207,7 @@ case class Variant(contig: String,
       Auto
 
   def compare(that: Variant): Int = {
-    var c = contig.compare(that.contig)
+    var c = Variant.compareContig(contig, that.contig)
     if (c != 0)
       return c
 

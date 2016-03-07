@@ -6,6 +6,25 @@ import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
+  @Test def lineRef() {
+
+    val line1 = "20\t10280082\t.\tA\tG\t844.69\tPASS\tAC=1;..."
+    assert(LoadVCF.lineRef(line1) == "A")
+
+    val line2 = "20\t13561632\t.\tTAA\tT\t89057.4\tPASS\tAC=2;..."
+    assert(LoadVCF.lineRef(line2) == "TAA")
+
+    assert(LoadVCF.lineRef("") == "")
+
+    assert(LoadVCF.lineRef("this\tis\ta") == "")
+
+    assert(LoadVCF.lineRef("20\t0\t.\t") == "")
+
+    assert(LoadVCF.lineRef("20\t0\t.\t\t") == "")
+
+    assert(LoadVCF.lineRef("\t\t\tabcd") == "abcd")
+  }
+
   @Test def testStoreGQ() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("--store-gq", "src/test/resources/store_gq.vcf"))

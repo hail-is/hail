@@ -1,4 +1,4 @@
-# Exporting to Plink files in Hail
+# Exporting to Plink
 
 Hail contains an `exportplink` module which will write out the internal VDS to a {.bed, .bim, .fam} fileset in the [Plink2 spec](https://www.cog-genomics.org/plink2/formats).
 

@@ -43,7 +43,7 @@ object FilterSamples extends Command {
         val samples = Source.fromInputStream(hadoopOpen(f, state.hadoopConf))
           .getLines()
           .filter(line => !line.isEmpty)
-          .map(indexOfSample)
+          .flatMap(indexOfSample.get)
           .toSet
         (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
