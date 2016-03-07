@@ -54,9 +54,9 @@ dependencies {
     compile 'org.apache.commons:commons-math3:3.5'
     compile 'org.apache.commons:commons-lang3:3.4'
     compile 'org.scalacheck:scalacheck_' + scalaMajorVersion + ':1.12.4'
-    // compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
-    compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.12'
-    compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':0.12'
+    compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
+    // compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.12'
+    compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':0.11.2'
     compile 'args4j:args4j:2.32'
     compile 'com.github.samtools:htsjdk:1.143'
 
@@ -94,7 +94,6 @@ shadowJar {
     dependencies {
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.apache.commons:commons-math3:.*'))
-        include(dependency('org.scalanlp:breeze_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
@@ -110,7 +109,6 @@ task shadowTestJar(type: ShadowJar) {
     dependencies {
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.apache.commons:commons-math3:.*'))
-        include(dependency('org.scalanlp:breeze_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
