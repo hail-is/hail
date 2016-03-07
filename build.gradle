@@ -111,6 +111,7 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.apache.commons:commons-math3:.*'))
         include(dependency('org.scalanlp:breeze_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
         include(dependency('org.scalacheck:scalacheck_' + scalaMajorVersion + ':.*'))
