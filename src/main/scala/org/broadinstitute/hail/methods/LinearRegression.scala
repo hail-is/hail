@@ -132,8 +132,63 @@ object LinearRegression {
 object LinearRegressionOnHcs {
 
   def apply(hcs: HardCallSet, ped: Pedigree, cov1: CovariateData): LinearRegression = {
-    // FIXME: can remove filter and check for GoT2D
-    val cov = cov1.filterSamples(ped.phenotypedSamples)
+      // FIXME: can remove filter and check for GoT2D
+      val cov = cov1.filterSamples(ped.phenotypedSamples)
+
+      if (!(hcs.localSamples sameElements cov.covRowSample))
+        fatal("Samples misaligned, recreate .hcs using .ped and .cov")
+
+      val n = cov.data.rows
+      val k = cov.data.cols
+      val d = n - k - 2
+      if (d < 1)
+        throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
+
+      info(s"Running linreg on $n samples and $k covariates...")
+
+      val sc = hcs.sparkContext
+      val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
+
+      val samplePheno = ped.samplePheno
+      val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
+      val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
+      val y = DenseVector[Double](yArray)
+      val qt = qr.reduced.justQ(covAndOnesVector).t
+      val qty = qt * y
+
+      val yBc = sc.broadcast(y)
+      val qtBc = sc.broadcast(qt)
+      val qtyBc = sc.broadcast(qty)
+      val yypBc = sc.broadcast((y dot y) - (qty dot qty))
+
+      new LinearRegression(hcs.rdd
+        .mapValues { cs =>
+          val GtVectorAndStats(x, xx, nMissing) = cs.hardStats(n)
+
+          // FIXME: make condition more robust to rounding errors?
+          // all HomRef | all Het | all HomVar
+          if (xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n)
+            None
+          else {
+            val qtx = qtBc.value * x
+            val qty = qtyBc.value
+            val xxp: Double = xx - (qtx dot qtx)
+            val xyp: Double = (x dot yBc.value) - (qtx dot qty)
+            val yyp: Double = yypBc.value
+
+            val b: Double = xyp / xxp
+            val se = math.sqrt((yyp / xxp - b * b) / d)
+            val t = b / se
+            val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+
+            Some(LinRegStats(nMissing, b, se, t, p))
+          }
+        }
+      )
+  }
+
+  def apply(hcs: HardCallSet, y: DenseVector[Double], allCov: CovariateData, covsToKeep: Set[String]): LinearRegression = {
+    val cov = allCov.filterCovariates(covsToKeep)
 
     if (!(hcs.localSamples sameElements cov.covRowSample))
       fatal("Samples misaligned, recreate .hcs using .ped and .cov")
@@ -149,10 +204,7 @@ object LinearRegressionOnHcs {
     val sc = hcs.sparkContext
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    val samplePheno = ped.samplePheno
-    val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
     val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
-    val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
     val qty = qt * y
 

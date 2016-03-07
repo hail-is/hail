@@ -63,6 +63,11 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
   def cache(): HardCallSet = copy(rdd = rdd.cache())
 
   def repartition(nPartitions: Int) = copy(rdd = rdd.repartition(nPartitions)(null))
+
+  def filterVariants(p: (Variant) => Boolean): HardCallSet =
+    copy(rdd = rdd.filter { case (v, cs) => p(v) })
+
+  def nSamples = localSamples.size
 }
 
 
