@@ -209,7 +209,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val y = DenseVector[Double](1.0, 1.0, 2.0, 2.0, 2.0, 2.0)
 
-    val linReg = LinearRegressionOnHcs(hcs, y, cov, cov.covName.toSet)
+    val linReg = LinearRegressionOnHcs(hcs, y, cov)
 
     val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.rdd.collect().toMap
 
