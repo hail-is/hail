@@ -9,7 +9,7 @@ class PCASuite extends SparkSuite {
   @Test def test() {
 
     val vds = LoadVCF(sc, "src/test/resources/tiny_m.vcf")
-    val (scores, loadings, eigenvalues) = (new SamplePCA(3, true, true))(vds)
+    val (scores, loadings, eigenvalues) = (new SamplePCA(3, true, true)) (vds)
 
     // comparing against numbers computed via Python script test/resources/PCA.py
 
@@ -27,7 +27,7 @@ class PCASuite extends SparkSuite {
       -0.27956988837183494, -0.89909450929475165, -0.33685269907155235,
       0.91824439621061382, -0.14788880184962339, -0.3673637585762754)
 
-      l.zip(l0).foreach { case (x, y) => assert(D_==(x, y, 1.0E-12)) }
+    l.zip(l0).foreach { case (x, y) => assert(D_==(x, y, 1.0E-12)) }
 
     val e = eigenvalues.get
     val e0 = Array(3.0541488634265739, 1.0471401535365061, 0.5082347925607319)

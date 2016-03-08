@@ -34,9 +34,7 @@ object PCA extends Command {
 
     val vds = state.vds
 
-    //FIXME: Add gzip options with .gz (use Tim's utility function HadoopStripCodec)?
-
-    val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.lOutput != null, options.eOutput != null))(vds)
+    val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.lOutput != null, options.eOutput != null)) (vds)
 
     writeTextFile(options.output, state.hadoopConf) { s =>
       s.write("sample\t" + (1 to options.k).map("PC" + _).mkString("\t") + "\n")
@@ -48,22 +46,22 @@ object PCA extends Command {
       }
     }
 
-    loadings.foreach{ l =>
+    loadings.foreach { l =>
       l.persist(StorageLevel.MEMORY_AND_DISK)
-      val lSorted = l.repartitionAndSortWithinPartitions(new RangePartitioner[Variant, Array[Double]](l.partitions.length, l))
+      val lSorted = l.repartitionAndSortWithinPartitions(new RangePartitioner(l.partitions.length, l))
       lSorted.persist(StorageLevel.MEMORY_AND_DISK)
       lSorted
-        .map{ case (v, vl) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + vl.mkString("\t")}
-        .writeTable(options.eOutput, Some("chrom\tpos\tref\talt" + "\t" + (1 to options.k).map("PC" + _).mkString("\t")))
+        .map { case (v, vl) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + vl.mkString("\t") }
+        .writeTable(options.eOutput, Some("chrom\tpos\tref\talt\t" + (1 to options.k).map("PC" + _).mkString("\t")))
       lSorted.unpersist()
       l.unpersist()
     }
 
-    eigenvalues.foreach{ es =>
+    eigenvalues.foreach { es =>
       writeTextFile(options.eOutput, state.hadoopConf) { s =>
         for (e <- es)
           s.write(e.toString)
-          s.write("\n")
+        s.write("\n")
       }
     }
 

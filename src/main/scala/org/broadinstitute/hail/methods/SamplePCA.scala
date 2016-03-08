@@ -12,7 +12,7 @@ class SamplePCA(k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean) {
 
     val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
     val sc = vds.sparkContext
-    val variantsB = sc.broadcast(variants)
+    val variantsBc = sc.broadcast(variants)
 
     val svd = mat.computeSVD(k, computeU = computeLoadings)
 
@@ -22,7 +22,7 @@ class SamplePCA(k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean) {
     val loadings =
       if (computeLoadings)
         Some(svd.U.rows.map(ir =>
-          (variantsB.value(ir.index.toInt), ir.vector.toArray)))
+          (variantsBc.value(ir.index.toInt), ir.vector.toArray)))
       else
         None
 
