@@ -7,7 +7,6 @@ import scala.collection.mutable
 object IndexBTree {
 
   def write(arr: Array[Long], out: OutputStream) {
-    println(s"Length of array: ${arr.length}")
     val fs = new FSDataOutputStream(out)
     require(arr.length > 0)
     // first calculate the necessary number of layers in the tree -- log1024(arr.length) rounded up
@@ -159,8 +158,8 @@ object IndexBTree {
       }
       .toArray
 //    println(s"number of blocks found: ${indices.length}")
-    println(s"first five indices: ${indices.map(_.toString).take(5).mkString("\n")}")
-    println(s"last five indices: ${indices.map(_.toString).takeRight(5).mkString("\n")}")
+//    println(s"first five indices: ${indices.map(_.toString).take(5).mkString("\n")}")
+ //   println(s"last five indices: ${indices.map(_.toString).takeRight(5).mkString("\n")}")
 //    indices.foreach(println)
     indices
   }
@@ -184,14 +183,14 @@ object IndexBTree {
       if (currentDepth < depth) {
         //        println(s"read $read")
         if (read >= start || index > getOffset(currentDepth)) {
-          if (start == 637534208) {
+/*          if (start == 637534208) {
             println(s"index=$index, max = ${math.max(index-1, 0)}, mod = ${1024 * math.max(index-1, 0)}")
-          }
+          }*/
           index = 1024 * math.max(index-1, 0)
-          if (index == -1925316608) {
+/*          if (index == -1925316608) {
             println(s"depth=$currentDepth, depthOfTree=$depth, read=$read")
-          }
-          println(s"Incrementing depth(d=$currentDepth -> $depth), index=$index, read=$read -- going to ${getOffset(currentDepth) + 8 * index}")
+          }*/
+//          println(s"Incrementing depth(d=$currentDepth -> $depth), index=$index, read=$read -- going to ${getOffset(currentDepth) + 8 * index}")
           fs.seek(getOffset(currentDepth) + 8 * index)
           currentDepth += 1
         } else

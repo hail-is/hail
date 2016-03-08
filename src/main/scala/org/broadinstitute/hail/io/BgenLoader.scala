@@ -14,20 +14,17 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
   private var version: Int = 0
   private var hasSampleIdBlock: Boolean = false
   private val reader = new HadoopFSDataBinaryReader(hadoopOpen(file, sc.hadoopConfiguration))
-  var nSamples: Int = 0
-  var nVariants: Int = 0
+  private var nSamples: Int = 0
+  private var nVariants: Int = 0
   private var sampleIDs: Array[String] = parseHeaderAndIndex(sampleFile)
 
   def getNSamples: Int = nSamples
   def getNVariants: Int = nVariants
   def getSampleIDs: Array[String] = sampleIDs
 
-
   private def getNextBlockPosition(position: Long): Long = {
-    // First seek to the proper location
     reader.seek(position)
 
-    // Read through the variant ID block
     var nRow = nSamples
     if (version == 1)
       nRow = reader.readInt()
@@ -45,35 +42,22 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
     // Read the size of the genotype probability block
     if (version == 1 && !compression)
       reader.getPosition + 6 * nRow
-    else if (version == 1 && compression) {
-      // The following works for 1.1 compressed
+    else if (version == 1 && compression)
       reader.readInt() + reader.getPosition
-    }
     else
       throw new UnsupportedOperationException()
   }
 
   def parseHeaderAndIndex(sampleFile: Option[String] = None): Array[String] = {
-    // read the length of all header stuff
     reader.seek(0)
     val allInfoLength = reader.readInt()
-    println(s"parseHeaderAndIndex::allInfoLength=$allInfoLength")
-    // read the header block
     val headerLength = reader.readInt()
 
     require(headerLength <= allInfoLength)
 
-    println(s"parseHeaderAndIndex::headerLength=$headerLength")
-//    println("header len is " + headerLength)
     nVariants = reader.readInt()
-
-    println(s"parseHeaderAndIndex::nVariants=$nVariants")
-    //println("nVariants is " + nVariants)
     nSamples = reader.readInt()
-    //println("nSamples is " + nSamples)
-    println(s"parseHeaderAndIndex::nSamples=$nSamples")
     val magicNumber = reader.readString(4) //readers ignore these bytes
-    println(s"parseHeaderAndIndex::magicNumber=$magicNumber")
 
     val headerInfo = {
       if (headerLength > 20)
@@ -81,21 +65,14 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
       else
         ""
     }
-    println(s"parseHeaderAndIndex::headerInfo=$headerInfo")
 
-    // Parse flags
     val flags = reader.readInt()
-    println(s"parseHeaderAndIndex::flags=$flags")
     compression = (flags & 1) != 0 // either 0 or 1 based on the first bit
     version = flags >> 2 & 0xf
     hasSampleIdBlock = (flags >> 30 & 1) != 0
-    println(s"parseHeaderAndIndex compression=$compression version=$version hasSampleIdBlock=$hasSampleIdBlock")
 
-    // version 1.1 is currently supported
     if (version != 1)
       fatal("Hail supports only BGEN v1.1 formats")
-
-    //println("flags stuff: compression=" + compression + ", version=" + version + ", hasSampleID=" + hasSampleIdBlock)
 
     if (!hasSampleIdBlock && sampleFile.isEmpty)
       fatal("No sample ids detected in BGEN file. Use -s with Sample ID file")
@@ -107,10 +84,9 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
         BgenLoader.parseSampleFile(sampleFile.get, sc.hadoopConfiguration)
       else {
         val sampleIdSize = reader.readInt()
-        println("sampleIdSize is " + sampleIdSize)
         val nSamplesConfirmation = reader.readInt()
-        println("nSamplesConfirm=" + nSamplesConfirmation)
-        assert(nSamplesConfirmation == nSamples)
+        if (nSamplesConfirmation != nSamples)
+          fatal("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
 
         val sampleIdArr = new Array[String](nSamples)
         for (i <- 0 until nSamples) {
@@ -123,22 +99,16 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
     if (sampleIDs.length != nSamples)
       fatal(s"Length of sample IDs in file [$sampleFile] does not equal number of samples in BGEN file $file")
 
-    // Read the beginnings of each variant data block
     val dataBlockStarts = new Array[Long](nVariants+1)
 
     // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
     var position: Long = (allInfoLength + 4).toLong
     dataBlockStarts(0) = position
-    var time = System.currentTimeMillis()
-
 
     for (i <- 1 until nVariants+1) {
       position = getNextBlockPosition(position)
       dataBlockStarts(i) = position
     }
-
-    println(s"first 3 = ${dataBlockStarts.take(3).mkString(",")}")
-    println(s"last 3 = ${dataBlockStarts.takeRight(3).mkString(",")}")
 
     IndexBTree.write(dataBlockStarts, hadoopCreate(file + ".idx", sc.hadoopConfiguration))
 
@@ -219,22 +189,9 @@ object BgenLoader {
     info(s"Number of BGEN files parsed: ${bgenLoaders.length}")
     info(s"Number of variants in all BGEN files: $nVariants")
     info(s"Number of samples in BGEN files: $nSamples")
-    var time = System.currentTimeMillis()
 
-    // FIXME what about withScope and assertNotStopped()?
+    sc.hadoopConfiguration.setBoolean("compressGS", compress)
 
-/*    val rdd = sc.union(bgenFiles.map{ file =>
-      sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
-        nPartitions.getOrElse(sc.defaultMinPartitions))
-        .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }
-    })*/
-    /*val rdd = sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
-      nPartitions.getOrElse(sc.defaultMinPartitions))
-      .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }*/
-
-    //require(rdd.count() == nVariants)
-
-    //println("parsing took %.3f seconds".format((System.currentTimeMillis() - time).toDouble / 1000.0))
     VariantSampleMatrix(metadata = VariantMetadata(sampleIDs), rdd = sc.union(bgenFiles.map{ file =>
       sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
         nPartitions.getOrElse(sc.defaultMinPartitions))

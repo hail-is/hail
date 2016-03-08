@@ -33,12 +33,10 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
     val flags = bfis.readInt()
     bgenCompressed = (flags & 1) != 0 // either 0 or 1 based on the first bit
     version = flags >> 2 & 0xf
-    println(s"readFileParameters nVariants=$nVariants nSamples=$nSamples compressed=$bgenCompressed version=$version")
   }
 
   override def seekToFirstBlock(start: Long) {
     pos = IndexBTree.queryStart(start, hadoopOpen(indexArrayPath, job))
-    println(s"seekToFirstBlock start=$start position=$pos")
     bfis.seek(pos)
   }
 
@@ -58,8 +56,8 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         alleles(i) = bfis.readLengthAndString(4)
       }
 
-      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
-              alleles(1)))
+/*      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
+              alleles(1)))*/
 
       // FIXME no multiallelic support (version 1.2)
       if (alleles.length > 2)
