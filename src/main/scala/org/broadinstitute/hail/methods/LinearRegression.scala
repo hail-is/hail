@@ -192,8 +192,8 @@ object LinearRegressionOnHcs {
     covsToKeep: Set[String]): LinearRegression =
     LinearRegressionOnHcs(hcs.filterVariants(variantFilter), y, cov.filterCovariates(covsToKeep))
 
-  def apply(hcs: HardCallSet, ped: Pedigree, cov1: CovariateData): LinearRegression = {
-    val cov = cov1.filterSamples(ped.phenotypedSamples)
+  def apply(hcs: HardCallSet, ped: Pedigree, cov0: CovariateData): LinearRegression = {
+    val cov = cov0.filterSamples(ped.phenotypedSamples)
 
     val n = cov.data.rows
     val samplePheno = ped.samplePheno
