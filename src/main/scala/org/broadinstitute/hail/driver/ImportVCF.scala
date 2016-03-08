@@ -11,7 +11,7 @@ object ImportVCF extends Command {
   def description = "Load file (.vcf or .vcf.bgz) as the current dataset"
 
   class Options extends BaseOptions {
-    @Args4jOption(name = "-i", aliases = Array("--input"), usage = "Input file")
+    @Args4jOption(name = "-i", aliases = Array("--input"), usage = "Input file (deprecated)")
     var input: Boolean = false
 
     @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
@@ -29,7 +29,7 @@ object ImportVCF extends Command {
     @Args4jOption(name = "--store-gq", usage = "Store GQ instead of computing from PL")
     var storeGQ: Boolean = false
 
-    @Argument
+    @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
 
