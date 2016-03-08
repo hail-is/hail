@@ -6,22 +6,40 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.{InvalidFileTypeException, FileSplit}
 import org.broadinstitute.hail.variant.{Genotype, GenotypeStreamBuilder, Variant}
-import org.broadinstitute.hail.Utils.hadoopOpen
+import org.broadinstitute.hail.Utils._
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Variant](job, split) {
-  val bgenCompressed = job.getBoolean("bgenCompressed", false)
+  val file = split.getPath
+  val indexArrayPath = file + ".idx"
   val compressGS = job.getBoolean("compressGS", false)
-  val nSamples = job.getInt("nSamples", -1)
-  val version = job.getInt("version", -1)
-  val indexArrayPath = job.get("idx")
+
+  var nSamples = 0
+  var nVariants = 0
+  var bgenCompressed = false
+  var version = -1
+
+  readFileParameters()
   seekToFirstBlock(split.getStart)
 
+  def readFileParameters() {
+    bfis.seek(0)
+    val offset = bfis.readInt()
+
+    bfis.seek(8)
+    nVariants = bfis.readInt()
+    nSamples = bfis.readInt()
+
+    bfis.seek(offset)
+    val flags = bfis.readInt()
+    bgenCompressed = (flags & 1) != 0 // either 0 or 1 based on the first bit
+    version = flags >> 2 & 0xf
+    println(s"readFileParameters nVariants=$nVariants nSamples=$nSamples compressed=$bgenCompressed version=$version")
+  }
+
   override def seekToFirstBlock(start: Long) {
-    val path = job.get("idx")
-    val position = IndexBTree.queryStart(start, hadoopOpen(path, job))
-    pos = position
-    println(s"seekToFirstBlock start=$start position=$position")
-    bfis.seek(position)
+    pos = IndexBTree.queryStart(start, hadoopOpen(indexArrayPath, job))
+    println(s"seekToFirstBlock start=$start position=$pos")
+    bfis.seek(pos)
   }
 
   def next(key: LongWritable, value: ParsedLine[Variant]): Boolean = {
@@ -39,23 +57,17 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       for (i <- 0 until nAlleles) {
         alleles(i) = bfis.readLengthAndString(4)
       }
-//      println(s"alleles:${alleles.mkString(",")}")
-//      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, alleles=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles.length))
+
       println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
               alleles(1)))
+
       // FIXME no multiallelic support (version 1.2)
       if (alleles.length > 2)
         throw new UnsupportedOperationException()
 
       // FIXME: using first allele as ref and second as alt
-      val (variant, flip) = {
-        if (alleles(0) == "R" | alleles(0) == "D" | alleles(0) == "I") {
-          val munged = BgenLoader.mungeIndel(lid, alleles(0), alleles(1))
-          (Variant(chr, position, munged._1, munged._2), munged._3)
-        }
-        // don't flip by default
-        (Variant(chr, position, alleles(0), alleles(1)), false)
-      }
+      val variant = Variant(chr, position, alleles(0), alleles(1))
+
       val bytes = {
         if (bgenCompressed) {
           val expansion = Array.ofDim[Byte](nRow * 6)
@@ -82,20 +94,16 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         val pAB = bar.readShort()
         val pBB = bar.readShort()
 
-        var PLs = {
-          if (!flip)
-            BgenLoader.phredScalePPs(pAA, pAB, pBB)
-          else
-            BgenLoader.phredScalePPs(pBB, pAB, pAA)
-        }
+        var PLs = BgenLoader.phredScalePPs(pAA, pAB, pBB)
 
         assert(PLs(0) == 0 || PLs(1) == 0 || PLs(2) == 0)
         val gtCall = BgenLoader.parseGenotype(PLs)
         PLs = if (gtCall == -1) null else PLs
 
-        val gt = Genotype(Some(gtCall), None, None, None, Option(PLs)) // FIXME missing data for stuff
+        val gt = Genotype(Option(gtCall), None, None, None, Option(PLs))
         b += gt
       }
+
       value.setKey(variant)
       value.setGS(b.result())
       pos = bfis.getPosition

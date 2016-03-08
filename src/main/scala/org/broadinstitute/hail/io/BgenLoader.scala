@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.io
 
-import java.util.zip.Inflater
 import org.apache.hadoop.conf.Configuration
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.variant._
@@ -10,18 +9,19 @@ import org.apache.spark.SparkContext
 
 import scala.io.Source
 
-class BgenLoader(file: String, sc: SparkContext) {
+class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
   private var compression: Boolean = false
   private var version: Int = 0
   private var hasSampleIdBlock: Boolean = false
-  private var sampleIDs: Option[Array[String]] = None
   private val reader = new HadoopFSDataBinaryReader(hadoopOpen(file, sc.hadoopConfiguration))
   var nSamples: Int = 0
   var nVariants: Int = 0
+  private var sampleIDs: Array[String] = parseHeaderAndIndex(sampleFile)
 
   def getNSamples: Int = nSamples
-
   def getNVariants: Int = nVariants
+  def getSampleIDs: Array[String] = sampleIDs
+
 
   private def getNextBlockPosition(position: Long): Long = {
     // First seek to the proper location
@@ -52,83 +52,6 @@ class BgenLoader(file: String, sc: SparkContext) {
     else
       throw new UnsupportedOperationException()
   }
-
-  private def getParseFunction = {
-              println("getParseFunctionBlock")
-    val localCompression = compression
-    val localNSamples = nSamples
-    val localVersion = version
-
-    (bb: ByteBlock) => {
-      val bbis = new ByteArrayReader(bb)
-      val nRow = bbis.readInt()
-      val lid = bbis.readLengthAndString(2)
-      val rsid = bbis.readLengthAndString(2)
-      val chr = bbis.readLengthAndString(2)
-      val pos = bbis.readInt()
-      val nAlleles = if (localVersion == 1) 2 else bbis.readShort()
-      val alleles = Array.ofDim[String](nAlleles)
-      for (i <- 0 until nAlleles) {
-        alleles(i) = bbis.readLengthAndString(4)
-      }
-      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
-        alleles(1)))
-      // FIXME no multiallelic support (version 1.2)
-      if (alleles.length > 2)
-        throw new UnsupportedOperationException()
-
-      // FIXME: using first allele as ref and second as alt
-      val (variant, flip) = {
-        if (alleles(0) == "R" | alleles(0) == "D" | alleles(0) == "I") {
-          val munged = BgenLoader.mungeIndel(lid, alleles(0), alleles(1))
-          (Variant(chr, pos, munged._1, munged._2), munged._3)
-        }
-        // don't flip by default
-        (Variant(chr, pos, alleles(0), alleles(1)), false)
-      }
-      val bytes = {
-        if (localCompression) {
-          val expansion = Array.ofDim[Byte](nRow * 6)
-          val inflater = new Inflater()
-          val compressedBytes = bbis.readInt()
-          println(s"probabilityBytes(compressed):${compressedBytes}")
-          inflater.setInput(bbis.readBytes(compressedBytes))
-          var decompressed = 0
-          while (!inflater.finished()) {
-            inflater.inflate(expansion)
-          }
-          expansion
-        }
-        else
-          println(s"probabilityBytes(uncompressed):${nRow * 6}")
-          bbis.readBytes(nRow * 6)
-      }
-
-      assert(bytes.length == nRow * 6)
-
-      val bar = new ByteArrayReader(bytes)
-      val b = new GenotypeStreamBuilder(variant, compress = false)
-
-      for (i <- 0 until localNSamples) {
-        val pAA = bar.readShort()
-        val pAB = bar.readShort()
-        val pBB = bar.readShort()
-        var PLs = {
-          if (!flip)
-            BgenLoader.phredScalePPs(pAA, pAB, pBB)
-          else
-            BgenLoader.phredScalePPs(pBB, pAB, pAA)
-        }
-        assert(PLs(0) == 0 || PLs(1) == 0 || PLs(2) == 0)
-        val gtCall = BgenLoader.parseGenotype(PLs)
-        PLs = if (gtCall == -1) null else PLs
-        val gt = Genotype(Some(gtCall), None, None, None, Some(PLs)) // FIXME missing data for stuff
-        b += gt
-      }
-      (variant, b.result(): Iterable[Genotype])
-    }
-  }
-
 
   def parseHeaderAndIndex(sampleFile: Option[String] = None): Array[String] = {
     // read the length of all header stuff
@@ -197,7 +120,8 @@ class BgenLoader(file: String, sc: SparkContext) {
       }
     }
 
-    require(sampleIDs.length == nSamples)
+    if (sampleIDs.length != nSamples)
+      fatal(s"Length of sample IDs in file [$sampleFile] does not equal number of samples in BGEN file $file")
 
     // Read the beginnings of each variant data block
     val dataBlockStarts = new Array[Long](nVariants+1)
@@ -223,24 +147,6 @@ class BgenLoader(file: String, sc: SparkContext) {
 }
 
 object BgenLoader {
-
-  def mungeIndel(id: String, a1: String, a2: String): (String, String, Boolean) = {
-    val alleles = id.split(":").last.split("_")
-    val alt: String = {
-      if (alleles.length == 1)
-        alleles(0)
-      else if (alleles(0).length > alleles(1).length)
-        alleles(0)
-      else
-        alleles(1)
-    }
-    val ref: String = alt(0).toString
-
-    if (a1 == "R")
-      (ref, alt, false)
-    else
-      (ref, alt, true)
-  }
 
   def parseGenotype(pls: Array[Int]): Int = {
     if (pls(0) == 0 && pls(1) == 0
@@ -277,6 +183,7 @@ object BgenLoader {
   }
 
   def expectedSize(nSamples: Int, nVariants: Long): Long = {
+      //this is only used for random generator testing to not have partition size be smaller than file size
       nVariants * (31 + 6*nSamples) + 24
   }
 
@@ -294,28 +201,44 @@ object BgenLoader {
     }
   }
 
-  def apply(file: String, sampleFile: Option[String] = None, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
-    val bl = new BgenLoader(file, sc)
+  def apply(bgenFiles: Array[String], sampleFile: Option[String] = None, sc: SparkContext,
+            nPartitions: Option[Int] = None, compress: Boolean = true, gtProbThreshold: Double = 0.8): VariantDataset = {
+    val bgenLoaders = bgenFiles.map{file => new BgenLoader(file, sampleFile, sc)}
+    val nSamplesEqual = bgenLoaders.map{_.getNSamples}.forall(_.equals(bgenLoaders(0).getNSamples))
+    if (!nSamplesEqual)
+      fatal("Different number of samples in BGEN files")
 
-    val sampleIDs = bl.parseHeaderAndIndex(sampleFile)
-    val nSamples = bl.getNSamples
-    val nVariants = bl.getNVariants
+    val sampleIDsEqual = bgenLoaders.map{_.getSampleIDs}.forall(_.sameElements(bgenLoaders(0).getSampleIDs))
+    if (!sampleIDsEqual)
+      fatal("Sample IDs are not equal across BGEN files")
 
+    val nSamples = bgenLoaders(0).getNSamples
+    val nVariants = bgenLoaders.map{_.getNVariants}.sum
+    val sampleIDs = bgenLoaders(0).getSampleIDs
+
+    info(s"Number of BGEN files parsed: ${bgenLoaders.length}")
+    info(s"Number of variants in all BGEN files: $nVariants")
+    info(s"Number of samples in BGEN files: $nSamples")
     var time = System.currentTimeMillis()
 
     // FIXME what about withScope and assertNotStopped()?
-    sc.hadoopConfiguration.set("idx", file + ".idx")
-    sc.hadoopConfiguration.setInt("nSamples", bl.nSamples)
-    sc.hadoopConfiguration.setInt("version", bl.version)
-    sc.hadoopConfiguration.setBoolean("bgenCompressed", bl.compression)
-    sc.hadoopConfiguration.setBoolean("compressGS", false)
-    val parseFunction = bl.getParseFunction
-    val rdd = sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
-      nPartitions.getOrElse(sc.defaultMinPartitions))
-      .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }
-    require(rdd.count() == nVariants)
 
-    println("parsing took %.3f seconds".format((System.currentTimeMillis() - time).toDouble / 1000.0))
-    VariantSampleMatrix(VariantMetadata(sampleIDs), rdd)
+/*    val rdd = sc.union(bgenFiles.map{ file =>
+      sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
+        nPartitions.getOrElse(sc.defaultMinPartitions))
+        .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }
+    })*/
+    /*val rdd = sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
+      nPartitions.getOrElse(sc.defaultMinPartitions))
+      .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }*/
+
+    //require(rdd.count() == nVariants)
+
+    //println("parsing took %.3f seconds".format((System.currentTimeMillis() - time).toDouble / 1000.0))
+    VariantSampleMatrix(metadata = VariantMetadata(sampleIDs), rdd = sc.union(bgenFiles.map{ file =>
+      sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
+        nPartitions.getOrElse(sc.defaultMinPartitions))
+        .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }
+    }))
   }
 }

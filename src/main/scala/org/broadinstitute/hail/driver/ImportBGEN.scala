@@ -17,6 +17,12 @@ object ImportBGEN extends Command {
     @Args4jOption(name = "-s", aliases = Array("--samplefile"), usage = "Sample file for BGEN files")
     var sampleFile: String = null
 
+    @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
+    var noCompress: Boolean = false
+
+    @Args4jOption(name = "-t", aliases = Array("--prob-threshold"), usage = "Minimum genotype probability for making a genotype call")
+    var gtProbThreshold: Double = 0.8
+
     @Argument
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
@@ -48,6 +54,6 @@ object ImportBGEN extends Command {
     val sampleFile = Option(options.sampleFile)
 
     //FIXME to be an array
-    state.copy(vds = BgenLoader(inputs(0), sampleFile, state.sc, nPartitions))
+    state.copy(vds = BgenLoader(inputs, sampleFile, state.sc, nPartitions, !options.noCompress, options.gtProbThreshold))
   }
 }
