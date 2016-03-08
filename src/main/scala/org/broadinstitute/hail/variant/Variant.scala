@@ -29,7 +29,7 @@ object AltAllele {
 case class AltAllele(ref: String,
   alt: String) {
   require(ref != alt)
-  require (!ref.isEmpty && !alt.isEmpty)
+  require(!ref.isEmpty && !alt.isEmpty)
 
   import AltAlleleType._
 
@@ -88,6 +88,12 @@ object Variant {
     start: Int,
     ref: String,
     alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
+
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: Array[String]): Variant =
+    Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
 
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0)

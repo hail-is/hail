@@ -35,7 +35,7 @@ object ExportSamples extends Command {
 
     val symTab = Map(
       "s" ->(0, expr.TSample),
-      "sa" ->(1, vds.metadata.sampleAnnotationSignatures.toExprType))
+      "sa" ->(1, vds.metadata.sampleAnnotationSignatures))
     val a = new Array[Any](2)
 
     val (header, fs) = if (cond.endsWith(".columns"))
@@ -49,7 +49,7 @@ object ExportSamples extends Command {
     val lines = for (s <- vds.localSamples) yield {
       sb.clear()
       a(0) = vds.sampleIds(s)
-      a(1) = vds.metadata.sampleAnnotations(s).attrs
+      a(1) = vds.metadata.sampleAnnotations(s)
       var first = true
       fs.foreach { f =>
         if (first)

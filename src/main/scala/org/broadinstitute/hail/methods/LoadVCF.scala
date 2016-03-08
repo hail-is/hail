@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.methods
 
 import htsjdk.tribble.TribbleException
+import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.vcf.BufferedLineIterator
 import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
@@ -100,6 +102,33 @@ object LoadVCF {
     s.substring(start, end)
   }
 
+  def infoNumberToString(line: VCFInfoHeaderLine): String = line.getCountType match {
+    case VCFHeaderLineCount.A => "A"
+    case VCFHeaderLineCount.G => "G"
+    case VCFHeaderLineCount.R => "R"
+    case VCFHeaderLineCount.INTEGER => line.getCount.toString
+    case VCFHeaderLineCount.UNBOUNDED => "."
+  }
+
+  def infoField(line: VCFInfoHeaderLine): Field = {
+    val baseType = line.getType match {
+      case VCFHeaderLineType.Integer => TInt
+      case VCFHeaderLineType.Float => TDouble
+      case VCFHeaderLineType.String => TString
+      case VCFHeaderLineType.Character => TChar
+      case VCFHeaderLineType.Flag => TBoolean
+    }
+
+    val attrs = Map("Description" -> line.getDescription,
+      "Number" -> infoNumberToString(line))
+    if (line.isFixedCount &&
+      (line.getCount == 1 ||
+        (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
+      Field(line.getID, baseType, attrs)
+    else
+      Field(line.getID, TArray(baseType), attrs)
+  }
+
   def apply(sc: SparkContext,
     file1: String,
     files: Array[String] = null, // FIXME hack
@@ -125,21 +154,22 @@ object LoadVCF {
     val filters: IndexedSeq[(String, String)] = header
       .getFilterLines
       .toList
+      // (filter, description)
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-    val infoSignatures = Annotations(header
+    val infoSignatures = TStruct(header
       .getInfoHeaderLines
-      .toList
-      .map(line => (line.getID, VCFSignature.parse(line)))
+      .map(line => (line.getID, infoField(line)))
       .toMap)
 
-    val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
-      "filters" -> new SimpleSignature("Set[String]"),
-      "pass" -> new SimpleSignature("Boolean"),
-      "qual" -> new SimpleSignature("Double"),
-      "multiallelic" -> new SimpleSignature("Boolean"),
-      "rsid" -> new SimpleSignature("String")))
+    val variantAnnotationSignatures = TStruct(Map("info" -> infoSignatures,
+      "filters" -> TSet(TString),
+      "pass" -> TBoolean,
+      "qual" -> TDouble,
+      "multiallelic" -> TBoolean,
+      "rsid" -> TString)
+      .map { case (k, v) => (k, Field(k, v)) })
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -148,7 +178,7 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
-    val sigMap = sc.broadcast(infoSignatures.attrs)
+    val infoSignaturesBc = sc.broadcast(infoSignatures)
 
     val headerLinesBc = sc.broadcast(headerLines)
 
@@ -165,7 +195,7 @@ object LoadVCF {
         .mapPartitions { lines =>
           val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
           lines.filterNot(line =>
-            line.isEmpty() || line(0) == '#' || {
+            line.isEmpty || line(0) == '#' || {
               val containsNonACGT = !lineRef(line).forall(c =>
                 c == 'A' || c == 'C' || c == 'G' || c == 'T')
               if (containsNonACGT)
@@ -174,7 +204,7 @@ object LoadVCF {
             })
             .map { line =>
               try {
-                reader.readRecord(reportAcc, line, sigMap.value, storeGQ)
+                reader.readRecord(reportAcc, line, infoSignaturesBc.value, storeGQ)
               } catch {
                 case e: TribbleException =>
                   log.error(s"${e.getMessage}\n  line: $line", e)
@@ -185,7 +215,8 @@ object LoadVCF {
     })
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
+      Annotations.emptyIndexedSeq(sampleIds.length),
+      TStruct.empty,
       variantAnnotationSignatures), genotypes)
   }
 

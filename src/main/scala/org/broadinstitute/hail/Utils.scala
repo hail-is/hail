@@ -80,7 +80,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     }
   }
 
-  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
+  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
     var first = true
     i.foreach { elem =>
       if (first)
@@ -396,7 +396,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
         sb += ':'
         sb.append(v.ref)
         sb += ':'
-        sb.append(v.alt)
+        sb.append(v.altAlleles.map(_.alt).mkString(","))
       case i: Iterable[_] =>
         var first = true
         i.foreach { x =>
@@ -476,6 +476,14 @@ class FatalException(msg: String) extends RuntimeException(msg)
 
 class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
 
+class RichAny(val a: Any) extends AnyVal {
+  def castOption[T](implicit ct: ClassTag[T]): Option[T] =
+    if (ct.runtimeClass.isInstance(a))
+      Some(a.asInstanceOf[T])
+    else
+      None
+}
+
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -484,7 +492,7 @@ object Utils extends Logging {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-  
+
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
@@ -908,4 +916,6 @@ object Utils extends Logging {
     def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
       mutable.Map.empty[K, Int]
   }
+
+  implicit def toRichAny(a: Any) = new RichAny(a)
 }

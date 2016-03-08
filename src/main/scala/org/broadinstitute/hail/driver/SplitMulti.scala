@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
+import org.broadinstitute.hail.expr.TBoolean
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
@@ -127,7 +128,7 @@ object SplitMulti extends Command {
     val newVDS = state.vds.copy[Genotype](
       metadata = state.vds.metadata
         .copy(wasSplit = true)
-        .addVariantAnnotationSignatures("wasSplit", new SimpleSignature("Boolean")),
+        .addVariantAnnotationSignatures("wasSplit", TBoolean),
       rdd = state.vds.rdd.flatMap[(Variant, Annotations, Iterable[Genotype])] { case (v, va, it) =>
         split(v, va, it, localPropagateGQ)
       })

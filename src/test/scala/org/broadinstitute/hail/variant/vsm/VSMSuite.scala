@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.variant.vsm
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.expr.TStruct
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
@@ -22,11 +23,11 @@ class VSMSuite extends SparkSuite {
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
     val mdata3 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyIndexedSeq(2).map(_ + ("1", "5")), Annotations.empty(),
-      Annotations.empty())
+      Annotations.emptyIndexedSeq(2).map(_ + ("1", "5")), TStruct.empty,
+      TStruct.empty)
     val mdata4 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyIndexedSeq(2), Annotations.empty(), Annotations.empty()
-        + ("dummy", Map.empty[String, AnnotationSignature]))
+      Annotations.emptyIndexedSeq(2), TStruct.empty, TStruct.empty
+        + ("dummy", TStruct.empty))
 
     assert(mdata1 != mdata2)
 

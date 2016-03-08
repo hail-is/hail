@@ -4,6 +4,7 @@ import org.apache.spark.SparkException
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr.TStruct
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
@@ -65,9 +66,21 @@ class ImportVCFSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/undeclaredinfo.vcf"))
 
-    assert(s.vds.metadata.variantAnnotationSignatures.contains("info"))
-    assert(!s.vds.metadata.variantAnnotationSignatures.get[Annotations]("info").contains("undeclared"))
-    assert(!s.vds.metadata.variantAnnotationSignatures.get[Annotations]("info").contains("undeclaredFlag"))
+    assert(s.vds.metadata.variantAnnotationSignatures
+        .asInstanceOf[TStruct]
+        .fields
+        .contains("info"))
+
+    assert(!s.vds.metadata.variantAnnotationSignatures
+        .asInstanceOf[TStruct]
+        .get("info").get
+        .asInstanceOf[TStruct]
+        .fields.contains("undeclared"))
+    assert(!s.vds.metadata.variantAnnotationSignatures
+      .asInstanceOf[TStruct]
+      .get("info").get
+      .asInstanceOf[TStruct]
+      .fields.contains("undeclaredFlag"))
 
     val info = s.vds.rdd.map { case (v, va, gs) => va }.collect().head
     assert(info.contains("info"))

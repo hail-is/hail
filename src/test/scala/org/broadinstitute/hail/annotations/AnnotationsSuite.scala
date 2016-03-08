@@ -3,6 +3,7 @@ package org.broadinstitute.hail.annotations
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.{Genotype, IntervalList, Variant}
 import org.testng.annotations.Test
 import org.broadinstitute.hail.methods._
@@ -32,28 +33,34 @@ class AnnotationsSuite extends SparkSuite {
     assert(variantAnnotationMap.contains(firstVariant))
     assert(variantAnnotationMap.contains(anotherVariant))
 
+    def vasFieldSig(field: String): Option[Type] =
+      vas.castOption[TStruct]
+        .flatMap(_.get(field))
+
+    def infoFieldSig(field: String): Option[Type] =
+      vasFieldSig("info")
+        .flatMap(_.castOption[TStruct])
+        .flatMap(_.get(field))
+
     // type Int - INFO.DP
-    assert(vas.get[Annotations]("info").attrs.get("DP").contains(VCFSignature("Int", "Integer", "1",
-      "Approximate read depth; some reads may have been filtered")))
+    println(vas("info.DP").o)
+    assert(vas("info.DP").contains(TInt))
     assert(variantAnnotationMap(firstVariant)
-        .get[Annotations]("info").attrs.get("DP")
-        .get.asInstanceOf[Int] == 77560)
+      .get[Annotations]("info").attrs.get("DP")
+      .get.asInstanceOf[Int] == 77560)
     assert(variantAnnotationMap(anotherVariant)
       .get[Annotations]("info").attrs.get("DP").get.asInstanceOf[Int] == 20271)
 
     // type Double - INFO.HWP
-    assert(vas.get[Annotations]("info").attrs.get("HWP").contains(new VCFSignature("Double", "Float", "1",
-      "P value from test of Hardy Weinberg Equilibrium")))
+    assert(infoFieldSig("HWP").contains(TDouble))
     assert(
       D_==(variantAnnotationMap(firstVariant)
         .get[Annotations]("info").attrs.get("HWP").get.asInstanceOf[Double], 0.0001))
     assert(D_==(variantAnnotationMap(anotherVariant)
-        .get[Annotations]("info").attrs.get("HWP").get.asInstanceOf[Double], 0.8286))
+      .get[Annotations]("info").attrs.get("HWP").get.asInstanceOf[Double], 0.8286))
 
     // type String - INFO.culprit
-    assert(vas.get[Annotations]("info").attrs.get("culprit").contains(VCFSignature("String", "String", "1",
-      "The annotation which was the worst performing in the Gaussian mixture model, " +
-        "likely the reason why the variant was filtered out")))
+    assert(infoFieldSig("culprit").contains(TString))
     assert(variantAnnotationMap(firstVariant)
       .get[Annotations]("info").attrs.get("culprit")
       .contains("FS"))
@@ -62,20 +69,18 @@ class AnnotationsSuite extends SparkSuite {
       .contains("FS"))
 
     // type Array - INFO.AC (allele count)
-    assert(vas.get[Annotations]("info").attrs.get("AC").contains(VCFSignature("Array[Int]", "Integer", "A",
-      "Allele count in genotypes, for each ALT allele, in the same order as listed")))
+    assert(infoFieldSig("AC").contains(TArray(TInt)))
     assert(variantAnnotationMap(firstVariant)
       .get[Annotations]("info").attrs.get("AC")
       .map(_.asInstanceOf[IndexedSeq[Int]])
-      .forall(_.equals(IndexedSeq(89))))
+      .forall(_.sameElements(IndexedSeq(89))))
     assert(variantAnnotationMap(anotherVariant)
       .get[Annotations]("info").attrs.get("AC")
       .map(_.asInstanceOf[IndexedSeq[Int]])
       .forall(_.equals(IndexedSeq(13))))
 
     // type Boolean/flag - INFO.DB (dbSNP membership)
-    assert(vas.get[Annotations]("info").attrs.get("DB").contains(new VCFSignature("Boolean", "Flag", "0",
-      "dbSNP Membership")))
+    assert(infoFieldSig("DB").contains(TBoolean))
     assert(variantAnnotationMap(firstVariant)
       .get[Annotations]("info").attrs.get("DB")
       .contains(true))
@@ -83,14 +88,14 @@ class AnnotationsSuite extends SparkSuite {
       .get[Annotations]("info").attrs.contains("DB"))
 
     //type Set[String]
-    assert(vas.attrs.get("filters").contains(new SimpleSignature("Set[String]")))
+    assert(vasFieldSig("filters").contains(TSet(TString)))
     assert(variantAnnotationMap(firstVariant)
       .attrs.get("filters").contains(Set[String]("PASS")))
     assert(variantAnnotationMap(anotherVariant)
       .attrs.get("filters").contains(Set("VQSRTrancheSNP99.95to100.00")))
 
     // GATK PASS
-    assert(vas.attrs.get("pass").contains(new SimpleSignature("Boolean")))
+    assert(vasFieldSig("pass").contains(TBoolean))
     assert(variantAnnotationMap(firstVariant)
       .attrs.get("pass").contains(true))
     assert(variantAnnotationMap(anotherVariant)

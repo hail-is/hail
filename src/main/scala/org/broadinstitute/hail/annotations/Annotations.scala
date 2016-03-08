@@ -1,7 +1,5 @@
 package org.broadinstitute.hail.annotations
 
-import org.broadinstitute.hail.expr
-
 case class Annotations(attrs: Map[String, Any]) extends Serializable {
 
   def contains(elem: String): Boolean = attrs.contains(elem)
@@ -27,12 +25,6 @@ case class Annotations(attrs: Map[String, Any]) extends Serializable {
   }
 
   def -(key: String): Annotations = Annotations(attrs - key)
-
-  // FIXME for annotation signatures only
-  def toExprType: expr.Type = expr.TStruct(attrs.map {
-    case (k, a: Annotations) => (k, a.toExprType)
-    case (k, as: AnnotationSignature) => (k, as.toExprType)
-  })
 }
 
 object Annotations {

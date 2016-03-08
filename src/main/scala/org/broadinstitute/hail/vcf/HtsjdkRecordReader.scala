@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.vcf
 
 import org.apache.spark.Accumulable
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -20,9 +21,13 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
+
+  import HtsjdkRecordReader._
+
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     line: String,
-    typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
+    infoSignatures: TStruct,
+    storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
@@ -42,13 +47,12 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
     val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
       .asScala
-      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
-      .toMap
+      .iterator
       .flatMap { case (k, v) =>
-        typeMap.get(k).map { t =>
-          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
+        infoSignatures.fields.get(k).map { f =>
+          (k, cast(v, f.`type`))
         }
-      }),
+      }.toMap),
       "qual" -> vc.getPhredScaledQual,
       "filters" -> filts,
       "pass" -> pass,
@@ -180,30 +184,53 @@ object HtsjdkRecordReader {
     new HtsjdkRecordReader(codec)
   }
 
-  def purgeJavaArrayLists(ar: AnyRef): Any = {
-    ar match {
-      case arr: java.util.ArrayList[_] => arr.asScala
-      case _ => ar
-    }
-  }
+  // FIXME document types returned by htsjdk, support full set of types
+  def cast(value: Any, t: Type): Any = t match {
+    case TInt =>
+      value match {
+        case s: String => s.toInt
+        case _ => value
+      }
 
-  def mapType(value: Any, sig: VCFSignature): Any = {
-    value match {
-      case str: String =>
-        sig.typeOf match {
-          case "Int" => str.toInt
-          case "Double" => str.toDouble
-          case "Array[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
-          case "Array[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
-          case _ => value
-        }
-      case i: IndexedSeq[_] =>
-        sig.number match {
-          case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
-          case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)
+    case TDouble =>
+      value match {
+        case s: String => s.toDouble
+        case _ => value
+      }
 
-        }
-      case _ => value
-    }
+    case TArray(TInt) =>
+      value match {
+        case s: String =>
+          s.split(",").iterator.map(_.toInt).toArray: IndexedSeq[Int]
+        case  al: java.util.ArrayList[_] =>
+          al.asScala.iterator.map(v => cast(v, TInt).asInstanceOf[Int]).toArray: IndexedSeq[Int]
+        case it: Iterable[_] =>
+          it.iterator.map(v => cast(v, TInt).asInstanceOf[Int]).toArray: IndexedSeq[Int]
+        case _ => value
+      }
+
+    case TArray(TDouble) =>
+      value match {
+        case s: String =>
+          s.split(",").iterator.map(_.toDouble).toArray: IndexedSeq[Double]
+        case  al: java.util.ArrayList[_] =>
+          al.asScala.iterator.map(v => cast(v, TDouble).asInstanceOf[Double]).toArray: IndexedSeq[Double]
+        case it: Iterable[_] =>
+          it.iterator.map(v => cast(v, TDouble).asInstanceOf[Double]).toArray: IndexedSeq[Double]
+        case _ => value
+      }
+
+    case TArray(TString) =>
+      value match {
+        case s: String =>
+          s.split(",")
+        case  al: java.util.ArrayList[_] =>
+          al.asScala.iterator.map(v => cast(v, TString).asInstanceOf[String]).toArray
+        case it: Iterable[_] =>
+          it.iterator.map(v => cast(v, TString).asInstanceOf[String]).toArray
+        case _ => value
+      }
+
+    case _ => value
   }
 }

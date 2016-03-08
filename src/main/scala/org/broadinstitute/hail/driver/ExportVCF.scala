@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations.{VCFSignature, Annotations}
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -28,6 +29,24 @@ object ExportVCF extends Command {
 
   override def supportsMultiallelic = true
 
+  def infoNumber(t: Type): String = t match {
+    case TBoolean => "0"
+    case TArray(elementType) => "."
+    case _ => "1"
+  }
+
+  def infoType(t: Type): String = t match {
+    case TArray(elementType) => infoType(elementType)
+    case TInt => "Integer"
+    case TDouble => "Float"
+    case TChar => "Character"
+    case TString => "String"
+    case TBoolean => "Flag"
+
+    // FIXME
+    case _ => "String"
+  }
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val varAnnSig = vds.metadata.variantAnnotationSignatures
@@ -50,14 +69,28 @@ object ExportVCF extends Command {
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
       }
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[Annotations]("info").map(_.attrs)
-      infoHeader.foreach { i =>
-        i.foreach { case (key, value) =>
-          val sig = value.asInstanceOf[VCFSignature]
-          sb.append(
-            s"""##INFO=<ID=$key,Number=${sig.number},Type=${sig.vcfType},Description="${sig.description}">\n""")
-        }
-      }
+      vds.metadata.variantAnnotationSignatures
+        .asInstanceOf[TStruct]
+        .get("info")
+        // FIXME
+        .foreach(_.asInstanceOf[TStruct]
+        .fields
+        .foreach { case (_, f) =>
+          sb.append("##INFO=<ID=")
+          sb.append(f.name)
+          sb.append(",Number=")
+          sb.append(f.attr("Number").getOrElse(infoNumber(f.`type`)))
+          sb.append(",Type=")
+          sb.append(infoType(f.`type`))
+          f.attr("Description") match {
+            case Some(d) =>
+              sb.append(",Description=\"")
+              sb.append(d)
+              sb += '"'
+            case None =>
+          }
+          sb.append(">\n")
+        })
 
       if (options.append != null) {
         readFile(options.append, state.hadoopConf) { s =>
@@ -101,7 +134,7 @@ object ExportVCF extends Command {
       sb.append(v.ref)
       sb += '\t'
       v.altAlleles.foreachBetween(aa =>
-        sb.append(aa.alt))(_ => sb += ',')
+        sb.append(aa.alt))(() => sb += ',')
       sb += '\t'
 
       a.getOption[Double]("qual") match {
@@ -113,7 +146,7 @@ object ExportVCF extends Command {
       a.getOption[Set[String]]("filters") match {
         case Some(f) =>
           if (f.nonEmpty)
-            f.foreachBetween(s => sb.append(s))(_ => sb += ',')
+            f.foreachBetween(s => sb.append(s))(() => sb += ',')
           else
             sb += '.'
         case None => sb += '.'
@@ -124,17 +157,18 @@ object ExportVCF extends Command {
       if (a.getOption[Annotations]("info").isDefined) {
         a.get[Annotations]("info").attrs
           .foreachBetween({ case (k, v) =>
-            if (varAnnSig.get[Annotations]("info").get[VCFSignature](k).vcfType == "Flag")
+            // FIXME handle cast error gracefully
+            if (varAnnSig.asInstanceOf[TStruct].get("info").flatMap(_.asInstanceOf[TStruct].get(k)).get == TBoolean)
               sb.append(k)
             else {
               sb.append(k)
               sb += '='
               v match {
-                case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(_ => sb.append(","))
+                case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(() => sb.append(","))
                 case _ => sb.append(v)
               }
             }
-          })(_ => sb += ';')
+          })(() => sb += ';')
       } else
         sb += '.'
 

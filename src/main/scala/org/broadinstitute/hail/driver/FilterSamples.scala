@@ -3,7 +3,6 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -49,13 +48,13 @@ object FilterSamples extends Command {
       case c: String =>
         val symTab = Map(
           "s" -> (0, expr.TSample),
-          "sa" -> (1, vds.metadata.sampleAnnotationSignatures.toExprType))
+          "sa" -> (1, vds.metadata.sampleAnnotationSignatures))
         val a = new Array[Any](2)
         val f: () => Any = expr.Parser.parse(symTab, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
         (s: Int, sa: Annotations) => {
           a(0) = sampleIdsBc.value(s)
-          a(1) = sa.attrs
+          a(1) = sa
           Filter.keepThisAny(f(), keep)
         }
     }

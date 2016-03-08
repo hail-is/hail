@@ -1,11 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -37,38 +36,39 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rDeletionInsertion"
 
-  val signatures = Map("callRate" -> new SimpleSignature("Double"),
-    "nCalled" -> new SimpleSignature("Int"),
-    "nNotCalled" -> new SimpleSignature("Int"),
-    "nHomRef" -> new SimpleSignature("Int"),
-    "nHet" -> new SimpleSignature("Int"),
-    "nHomVar" -> new SimpleSignature("Int"),
-    "nSNP" -> new SimpleSignature("Int"),
-    "nInsertion" -> new SimpleSignature("Int"),
-    "nDeletion" -> new SimpleSignature("Int"),
-    "nSingleton" -> new SimpleSignature("Int"),
-    "nTransition" -> new SimpleSignature("Int"),
-    "nTransversion" -> new SimpleSignature("Int"),
-    "dpMean" -> new SimpleSignature("Double"),
-    "dpStDev" -> new SimpleSignature("Double"),
-    "dpMeanHomRef" -> new SimpleSignature("Double"),
-    "dpStDevHomRef" -> new SimpleSignature("Double"),
-    "dpMeanHet" -> new SimpleSignature("Double"),
-    "dpStDevHet" -> new SimpleSignature("Double"),
-    "dpMeanHomVar" -> new SimpleSignature("Double"),
-    "dpStDevHomVar" -> new SimpleSignature("Double"),
-    "gqMean" -> new SimpleSignature("Double"),
-    "gqStDev" -> new SimpleSignature("Double"),
-    "gqMeanHomRef" -> new SimpleSignature("Double"),
-    "gqStDevHomRef" -> new SimpleSignature("Double"),
-    "gqMeanHet" -> new SimpleSignature("Double"),
-    "gqStDevHet" -> new SimpleSignature("Double"),
-    "gqMeanHomVar" -> new SimpleSignature("Double"),
-    "gqStDevHomVar" -> new SimpleSignature("Double"),
-    "nNonRef" -> new SimpleSignature("Int"),
-    "rTiTv" -> new SimpleSignature("Double"),
-    "rHetHomVar" -> new SimpleSignature("Double"),
-    "rDeletionInsertion" -> new SimpleSignature("Double"))
+  val signatures = TStruct(Map("callRate" -> TDouble,
+    "nCalled" -> TInt,
+    "nNotCalled" -> TInt,
+    "nHomRef" -> TInt,
+    "nHet" -> TInt,
+    "nHomVar" -> TInt,
+    "nSNP" -> TInt,
+    "nInsertion" -> TInt,
+    "nDeletion" -> TInt,
+    "nSingleton" -> TInt,
+    "nTransition" -> TInt,
+    "nTransversion" -> TInt,
+    "dpMean" -> TDouble,
+    "dpStDev" -> TDouble,
+    "dpMeanHomRef" -> TDouble,
+    "dpStDevHomRef" -> TDouble,
+    "dpMeanHet" -> TDouble,
+    "dpStDevHet" -> TDouble,
+    "dpMeanHomVar" -> TDouble,
+    "dpStDevHomVar" -> TDouble,
+    "gqMean" -> TDouble,
+    "gqStDev" -> TDouble,
+    "gqMeanHomRef" -> TDouble,
+    "gqStDevHomRef" -> TDouble,
+    "gqMeanHet" -> TDouble,
+    "gqStDevHet" -> TDouble,
+    "gqMeanHomVar" -> TDouble,
+    "gqStDevHomVar" -> TDouble,
+    "nNonRef" -> TInt,
+    "rTiTv" -> TDouble,
+    "rHetHomVar" -> TDouble,
+    "rDeletionInsertion" -> TDouble)
+    .map { case (k, v) => (k, Field(k, v)) })
 }
 
 class SampleQCCombiner extends Serializable {
@@ -382,7 +382,7 @@ object SampleQC extends Command {
     state.copy(
       vds = vds.copy(
         metadata = vds.metadata.addSampleAnnotations(
-          Annotations(Map("qc" -> Annotations(SampleQCCombiner.signatures))),
+          TStruct(Map("qc" -> Field("qc", SampleQCCombiner.signatures))),
           qcAnnotations)
       ))
   }

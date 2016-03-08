@@ -6,6 +6,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr.TStruct
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
@@ -379,19 +381,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def addVariantAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {
-    require(sig.isInstanceOf[AnnotationSignature] ||
-      sig.isInstanceOf[Annotations] && Annotations.validSignatures(sig.asInstanceOf[Annotations]))
+  def addVariantAnnotationSignatures(name: String, sig: expr.Type): VariantSampleMatrix[T] =
     copy(metadata = metadata.copy(variantAnnotationSignatures =
-      metadata.variantAnnotationSignatures +(name, sig)))
-  }
+      metadata.variantAnnotationSignatures.asInstanceOf[TStruct] +(name, sig)))
 
-  def addSampleAnnotationSignatures(name: String, sig: Any): VariantSampleMatrix[T] = {
-    require(sig.isInstanceOf[AnnotationSignature] ||
-      sig.isInstanceOf[Annotations] && Annotations.validSignatures(sig.asInstanceOf[Annotations]))
+  def addSampleAnnotationSignatures(name: String, sig: expr.Type): VariantSampleMatrix[T] =
     copy(metadata = metadata.copy(sampleAnnotationSignatures =
-      metadata.sampleAnnotationSignatures +(name, sig)))
-  }
+      metadata.sampleAnnotationSignatures.asInstanceOf[TStruct] +(name, sig)))
 }
 
 // FIXME AnyVal Scala 2.11

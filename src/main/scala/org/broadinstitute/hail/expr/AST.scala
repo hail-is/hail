@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{AltAllele, Variant, Genotype}
 import scala.collection.mutable
 import scala.util.parsing.input.{Position, Positional}
@@ -8,6 +9,7 @@ import scala.util.parsing.input.{Position, Positional}
 object Type {
   val sampleFields = Map(
     "id" -> TString)
+    .map { case (name, t) => (name, Field(name, t)) }
 
   val genotypeFields = Map(
     "gt" -> TInt,
@@ -25,8 +27,8 @@ object Type {
     "isNotCalled" -> TBoolean,
     "isCalled" -> TBoolean,
     "nNonRefAlleles" -> TInt,
-    "pAB" -> TDouble
-  )
+    "pAB" -> TDouble)
+    .map { case (name, t) => (name, Field(name, t)) }
 
   val altAlleleFields = Map(
     "ref" -> TString,
@@ -38,8 +40,8 @@ object Type {
     "isIndel" -> TBoolean,
     "isComplex" -> TBoolean,
     "isTransition" -> TBoolean,
-    "isTransversion" -> TBoolean
-  )
+    "isTransversion" -> TBoolean)
+    .map { case (name, t) => (name, Field(name, t)) }
 
   val variantFields = Map(
     "contig" -> TString,
@@ -56,6 +58,7 @@ object Type {
     // assume biallelic
     "alt" -> TString,
     "altAllele" -> TAltAllele)
+    .map { case (name, t) => (name, Field(name, t)) }
 }
 
 trait NumericConversion[T] extends Serializable {
@@ -92,7 +95,24 @@ object DoubleNumericConversion extends NumericConversion[Double] {
   }
 }
 
-sealed abstract class Type
+sealed abstract class Type extends Serializable {
+  def pretty(sb: StringBuilder, indent: Int, path: Vector[String]) {
+    sb.append(" " * indent)
+    sb.append(path.last)
+    sb.append(": ")
+    sb.append(toString)
+    sb += '\n'
+  }
+
+  def apply(path: String): Option[Type] =
+    apply(path.split("\\.").toVector)
+
+  def apply(path: Vector[String]): Option[Type] =
+    if (path.isEmpty)
+      Some(this)
+    else
+      None
+}
 
 case object TBoolean extends Type {
   override def toString = "Boolean"
@@ -141,7 +161,35 @@ case class TFunction(parameterTypes: Array[Type], returnType: Type) extends Type
 }
 
 abstract class TAbstractStruct extends Type {
-  def fields: Map[String, Type]
+  def fields: Map[String, Field]
+
+  override def apply(path: Vector[String]): Option[Type] =
+    if (path.isEmpty)
+      Some(this)
+    else
+      fields.get(path.head).map(_.`type`).flatMap(t => t(path.tail))
+
+  override def pretty(sb: StringBuilder, indent: Int, path: Vector[String]) {
+    sb.append(" " * indent)
+    sb.append(path.last)
+    sb.append(": ")
+    for (f <- path) {
+      sb.append(f)
+      sb += '.'
+    }
+    sb.append("<identifier>\n")
+    for ((n, f) <- fields) {
+      f.`type`.pretty(sb, indent + 2, path :+ n)
+      if (f.attrs.nonEmpty) {
+        sb.append(" " * (indent + 2))
+        f.attrs.foreachBetween { case (k, v) =>
+          sb.append(k)
+          sb += '='
+          sb.append(v)
+        } { () => sb.append(", ") }
+      }
+    }
+  }
 }
 
 case object TSample extends TAbstractStruct {
@@ -168,8 +216,31 @@ case object TVariant extends TAbstractStruct {
   override def toString = "Variant"
 }
 
-case class TStruct(fields: Map[String, Type]) extends TAbstractStruct {
+object TStruct {
+  def empty: TStruct = TStruct(Map.empty[String, Field])
+
+  def apply(args: (String, Type)*): TStruct =
+    TStruct(args.map { case (n, t) => (n, Field(n, t)) }.toMap)
+}
+
+case class Field(name: String, `type`: Type, attrs: Map[String, String] = Map.empty) {
+  def attr(s: String): Option[String] = attrs.get(s)
+}
+
+case class TStruct(fields: Map[String, Field]) extends TAbstractStruct {
   override def toString = "Struct"
+
+  def +(k: String, v: Type): TStruct =
+    TStruct(fields + ((k, Field(k, v))))
+
+  def -(k: String): TStruct =
+    TStruct(fields - k)
+
+  def ++(that: TStruct): TStruct =
+    TStruct(fields ++ that.fields)
+
+  def get(k: String): Option[Type] =
+    fields.get(k).map(_.`type`)
 }
 
 object AST extends Positional {
@@ -186,7 +257,7 @@ object AST extends Positional {
       TInt
 
   def evalFlatCompose[T](c: EvalContext, subexpr: AST)
-                        (g: (T) => Option[Any]): () => Any = {
+    (g: (T) => Option[Any]): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -198,7 +269,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T](c: EvalContext, subexpr: AST)
-                    (g: (T) => Any): () => Any = {
+    (g: (T) => Any): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -210,7 +281,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
-                         (g: (T1, T2) => Any): () => Any = {
+    (g: (T1, T2) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     () => {
@@ -227,7 +298,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T1, T2, T3](c: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST)
-                             (g: (T1, T2, T3) => Any): () => Any = {
+    (g: (T1, T2, T3) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     val f3 = subexpr3.eval(c)
@@ -249,8 +320,8 @@ object AST extends Positional {
   }
 
   def evalComposeNumeric[T](c: EvalContext, subexpr: AST)
-                           (g: (T) => Any)
-                           (implicit convT: NumericConversion[T]): () => Any = {
+    (g: (T) => Any)
+    (implicit convT: NumericConversion[T]): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -263,8 +334,8 @@ object AST extends Positional {
 
 
   def evalComposeNumeric[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
-                                (g: (T1, T2) => Any)
-                                (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
+    (g: (T1, T2) => Any)
+    (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     () => {
@@ -318,7 +389,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     (lhs.`type`, rhs) match {
       case (t: TAbstractStruct, _) => {
         t.fields.get(rhs) match {
-          case Some(t) => t
+          case Some(f) => f.`type`
           case None => parseError(s"`$t' has no field `$rhs'")
         }
       }
@@ -421,9 +492,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
     case (TStruct(fields), _) =>
       val localRHS = rhs
-      AST.evalCompose[Map[String, Any]](c, lhs) { m =>
-        m.getOrElse(localRHS, null) match {
-          case a: Annotations => a.attrs
+      AST.evalCompose[Annotations](c, lhs) { m =>
+        m.attrs.getOrElse(localRHS, null) match {
           case wa: mutable.WrappedArray[_] => wa.array
           case x => x
         }

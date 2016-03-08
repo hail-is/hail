@@ -45,12 +45,12 @@ object FilterVariants extends Command {
       case c: String =>
         val symTab = Map(
           "v" -> (0, TVariant),
-          "va" -> (1, vds.metadata.variantAnnotationSignatures.toExprType))
+          "va" -> (1, vds.metadata.variantAnnotationSignatures))
         val a = new Array[Any](2)
         val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
         (v: Variant, va: Annotations) => {
           a(0) = v
-          a(1) = va.attrs
+          a(1) = va
           Filter.keepThisAny(f(), keep)
         }
     }

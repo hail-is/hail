@@ -5,6 +5,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
@@ -32,36 +33,37 @@ object VariantQCCombiner {
     "rHetHomVar\t" +
     "rExpectedHetFrequency\tpHWE"
 
-  val signatures: Annotations = Annotations(Map(
-    "callRate" -> new SimpleSignature("Double"),
-    "MAC" -> new SimpleSignature("Int"),
-    "MAF" -> new SimpleSignature("Double"),
-    "nCalled" -> new SimpleSignature("Int"),
-    "nNotCalled" -> new SimpleSignature("Int"),
-    "nHomRef" -> new SimpleSignature("Int"),
-    "nHet" -> new SimpleSignature("Int"),
-    "nHomVar" -> new SimpleSignature("Int"),
-    "dpMean" -> new SimpleSignature("Double"),
-    "dpStDev" -> new SimpleSignature("Double"),
-    "dpMeanHomRef" -> new SimpleSignature("Double"),
-    "dpStDevHomRef" -> new SimpleSignature("Double"),
-    "dpMeanHet" -> new SimpleSignature("Double"),
-    "dpStDevHet" -> new SimpleSignature("Double"),
-    "dpMeanHomVar" -> new SimpleSignature("Double"),
-    "dpStDevHomVar" -> new SimpleSignature("Double"),
-    "gqMean" -> new SimpleSignature("Double"),
-    "gqStDev" -> new SimpleSignature("Double"),
-    "gqMeanHomRef" -> new SimpleSignature("Double"),
-    "gqStDevHomRef" -> new SimpleSignature("Double"),
-    "gqMeanHet" -> new SimpleSignature("Double"),
-    "gqStDevHet" -> new SimpleSignature("Double"),
-    "gqMeanHomVar" -> new SimpleSignature("Double"),
-    "gqStDevHomVar" -> new SimpleSignature("Double"),
-    "nNonRef" -> new SimpleSignature("Int"),
-    "rHeterozygosity" -> new SimpleSignature("Double"),
-    "rHetHomVar" -> new SimpleSignature("Double"),
-    "rExpectedHetFrequency" -> new SimpleSignature("Double"),
-    "pHWE" -> new SimpleSignature("Double")))
+  val signatures = TStruct(Map(
+    "callRate" -> TDouble,
+    "MAC" -> TInt,
+    "MAF" -> TDouble,
+    "nCalled" -> TInt,
+    "nNotCalled" -> TInt,
+    "nHomRef" -> TInt,
+    "nHet" -> TInt,
+    "nHomVar" -> TInt,
+    "dpMean" -> TDouble,
+    "dpStDev" -> TDouble,
+    "dpMeanHomRef" -> TDouble,
+    "dpStDevHomRef" -> TDouble,
+    "dpMeanHet" -> TDouble,
+    "dpStDevHet" -> TDouble,
+    "dpMeanHomVar" -> TDouble,
+    "dpStDevHomVar" -> TDouble,
+    "gqMean" -> TDouble,
+    "gqStDev" -> TDouble,
+    "gqMeanHomRef" -> TDouble,
+    "gqStDevHomRef" -> TDouble,
+    "gqMeanHet" -> TDouble,
+    "gqStDevHet" -> TDouble,
+    "gqMeanHomVar" -> TDouble,
+    "gqStDevHomVar" -> TDouble,
+    "nNonRef" -> TInt,
+    "rHeterozygosity" -> TDouble,
+    "rHetHomVar" -> TDouble,
+    "rExpectedHetFrequency" -> TDouble,
+    "pHWE" -> TDouble)
+    .map { case (k, v) => (k, Field(k, v)) })
 }
 
 class VariantQCCombiner extends Serializable {

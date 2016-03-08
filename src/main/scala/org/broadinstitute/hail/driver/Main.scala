@@ -180,6 +180,7 @@ object Main {
       SampleQC,
       ShowAnnotations,
       VariantQC,
+      VEP,
       Write
     )
 
