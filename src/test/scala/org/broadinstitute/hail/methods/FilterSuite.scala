@@ -9,7 +9,7 @@ import org.broadinstitute.hail.Utils._
 class FilterSuite extends SparkSuite {
 
   @Test def exprTest() {
-    val symTab = Map ("i" ->(0, expr.TInt),
+    val symTab = Map("i" ->(0, expr.TInt),
       "j" ->(1, expr.TInt),
       "d" ->(2, expr.TDouble),
       "d2" ->(3, expr.TDouble),
@@ -155,4 +155,10 @@ class FilterSuite extends SparkSuite {
 
   }
 
+  @Test def filterRegexTest() {
+    val vds = LoadVCF(sc, "src/test/resources/multipleChromosomes.vcf")
+    val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterVariants.run(s, Array("--keep", "-c", """ "^\\d+$" ~ v.contig """))
+    assert(s.vds.nVariants == s2.vds.nVariants)
+  }
 }
