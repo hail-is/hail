@@ -234,7 +234,7 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds.rdd
       .collect()
       .forall { case (v, va, gs) => q7(va) == Some("dummy2") })
-
+`
     // overwrite something deep in the tree
     val toAdd6 = "dummy3"
     val toAdd6Sig = SimpleSignature(expr.TString)
