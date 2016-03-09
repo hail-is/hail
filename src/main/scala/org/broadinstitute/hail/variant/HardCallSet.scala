@@ -68,6 +68,10 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
     copy(rdd = rdd.filter { case (v, cs) => p(v) })
 
   def nSamples = localSamples.size
+
+  def nVariants: Long = rdd.count()
+  def nSparseVariants: Long = rdd.filter{ case (v, cs) => cs.isSparse }.count()
+  def nDenseVariants: Long = rdd.filter{ case (v, cs) => !cs.isSparse }.count()
 }
 
 

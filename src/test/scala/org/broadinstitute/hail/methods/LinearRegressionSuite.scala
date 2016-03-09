@@ -209,11 +209,12 @@ class LinearRegressionSuite extends SparkSuite {
 
     val y = DenseVector[Double](1.0, 1.0, 2.0, 2.0, 2.0, 2.0)
 
-    val linReg = LinearRegressionOnHcs(hcs, y, cov)
+//  val linReg = LinearRegressionOnHcs(hcs, y, cov)
+    val linReg = LinearRegressionOnHcs.computeLR(hcs, (Variant) => true, y, cov, cov.covName.toSet)
 
     val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.rdd.collect().toMap
 
-    println(statsOfVariant)
+    //println(statsOfVariant)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (2, ., 2, ., 0, 0)
@@ -222,7 +223,6 @@ class LinearRegressionSuite extends SparkSuite {
     val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2)
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
-
 
     val eps = .001 //FIXME: use D_== when it is ready
 
