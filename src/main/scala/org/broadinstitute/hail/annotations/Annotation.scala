@@ -10,16 +10,17 @@ object Annotation {
 
   def emptySignature: Signature = EmptySignature()
 
-  def printRow(r: Row, nSpace: Int = 0) {
+  def printAnnotation(a: Any, nSpace: Int = 0): String = {
     val spaces = " " * nSpace
-    r.toSeq.zipWithIndex.foreach { case (elem, index) =>
-      elem match {
-        case row: Row =>
-          println(s"""$spaces[$index] ROW:""")
-          printRow(row, nSpace + 2)
-        case _ =>
-          println(s"""$spaces[$index] $elem ${if (elem != null) elem.getClass.getName else ""}""")
-      }
+    a match {
+      case r: Row =>
+        "Row:\n" +
+          r.toSeq.zipWithIndex.map { case (elem, index) =>
+            s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}"""
+          }
+            .mkString("\n")
+
+      case a => a.toString
     }
   }
 

@@ -285,5 +285,6 @@ class AnnotationsSuite extends SparkSuite {
     vds.rdd
       .collect()
       .forall { case (v, va, gs) => va == Annotation("test")}
+
   }
 }
