@@ -166,11 +166,11 @@ case class TFunction(parameterTypes: Array[Type], returnType: Type) extends Type
   def typeCheck(a: Any): Boolean = throw new UnsupportedOperationException()
 }
 
-abstract class TAbstractStruct extends Type {
+abstract class TVdsType extends Type {
   def fields: Map[String, Type]
 }
 
-case object TSample extends TAbstractStruct {
+case object TSample extends TVdsType {
   def fields = Type.sampleFields
 
   override def toString = "Sample"
@@ -178,7 +178,7 @@ case object TSample extends TAbstractStruct {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Sample]
 }
 
-case object TGenotype extends TAbstractStruct {
+case object TGenotype extends TVdsType {
   def fields = Type.genotypeFields
 
   override def toString = "Genotype"
@@ -186,7 +186,7 @@ case object TGenotype extends TAbstractStruct {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 }
 
-case object TAltAllele extends TAbstractStruct {
+case object TAltAllele extends TVdsType {
   def fields = Type.altAlleleFields
 
   override def toString = "AltAllele"
@@ -194,7 +194,7 @@ case object TAltAllele extends TAbstractStruct {
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 }
 
-case object TVariant extends TAbstractStruct {
+case object TVariant extends TVdsType {
   def fields = Type.variantFields
 
   override def toString = "Variant"
@@ -202,7 +202,7 @@ case object TVariant extends TAbstractStruct {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 }
 
-case class TSchema(fields: Map[String, (Int, Type)]) extends Type {
+case class TStruct(fields: Map[String, (Int, Type)]) extends Type {
   override def toString = "Schema"
 
   override def typeCheck(a: Any): Boolean = a == null || {
@@ -359,13 +359,13 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
   override def typecheckThis(): Type = {
     (lhs.`type`, rhs) match {
-      case (t: TAbstractStruct, _) => {
+      case (t: TVdsType, _) => {
         t.fields.get(rhs) match {
           case Some(t) => t
           case None => parseError(s"`$t' has no field `$rhs'")
         }
       }
-      case (t: TSchema, _) => {
+      case (t: TStruct, _) => {
         t.fields.get(rhs) match {
           case Some((i, t)) => t
           case None => parseError(s"`$t' has no field `$rhs")
@@ -468,7 +468,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TAltAllele, "isTransition") => AST.evalCompose[AltAllele](c, lhs)(_.isTransition)
     case (TAltAllele, "isTransversion") => AST.evalCompose[AltAllele](c, lhs)(_.isTransversion)
 
-    case (TSchema(fields), _) =>
+    case (TStruct(fields), _) =>
       val Some((i, s)) = fields.get(rhs)
       AST.evalCompose[Row](c, lhs) { r =>
         r.get(i) match {
@@ -537,7 +537,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
     case (TSet(_), "size") => AST.evalCompose[Array[_]](c, lhs)(_.size)
     case (TSet(_), "isEmpty") => AST.evalCompose[Array[_]](c, lhs)(_.isEmpty)
-    case (TSet(_), "contains") => AST.evalCompose[Array[Any]](c, lhs)(s => (x: Any) => s.toSet.contains(x))
+    case (TSet(_), "contains") => AST.evalCompose[Array[Any]](c, lhs)(s => (x: Any) => s.contains(x))
   }
 
 }

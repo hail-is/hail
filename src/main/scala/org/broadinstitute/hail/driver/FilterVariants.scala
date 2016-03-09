@@ -35,7 +35,7 @@ object FilterVariants extends Command {
       fatal(name + ": one of `--keep' or `--remove' required")
 
     val cond = options.condition
-    val vas = vds.metadata.variantAnnotationSignatures
+    val vas = vds.metadata.vaSignatures
     val keep = options.keep
     val p: (Variant, Annotation) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
@@ -45,7 +45,7 @@ object FilterVariants extends Command {
       case c: String =>
         val symTab = Map(
           "v" -> (0, TVariant),
-          "va" -> (1, vds.metadata.variantAnnotationSignatures.dType
+          "va" -> (1, vds.metadata.vaSignatures.dType
             ))
         val a = new Array[Any](2)
         val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)

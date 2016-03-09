@@ -30,10 +30,10 @@ object ShowAnnotations extends Command {
     val sb = new StringBuilder()
     sb.append("Sample annotations:")
     sb.append("\n")
-    sb.append(vds.metadata.sampleAnnotationSignatures.printSchema("sa"))
+    sb.append(vds.saSignatures.printSchema("sa"))
     sb.append("\n")
     sb.append("Variant annotations:")
-    sb.append(vds.metadata.variantAnnotationSignatures.printSchema("va"))
+    sb.append(vds.vaSignatures.printSchema("va"))
     val result = sb.result()
 
     options.output match {

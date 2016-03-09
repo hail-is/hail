@@ -3,7 +3,7 @@ package org.broadinstitute.hail.annotations
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.variant.RichRow._
+import RichRow._
 
 abstract class Signature {
   def dType: expr.Type
@@ -42,9 +42,7 @@ abstract class Signature {
       (this, (a, toIns) => toIns.getOrElse(null))
   }
 
-  def insertBefore(path: List[String], signature: Signature): (Signature, Inserter) = {
-    throw new AnnotationPathException()
-  }
+  def query(fields: String*): Querier = query(fields.toList)
 
   def query(path: List[String]): Querier = {
     if (path.nonEmpty)
@@ -77,7 +75,7 @@ abstract class Signature {
 }
 
 case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
-  override def dType: expr.Type = expr.TSchema(m.map { case (k, (i, v)) => (k, (i, v.dType)) })
+  override def dType: expr.Type = expr.TStruct(m.map { case (k, (i, v)) => (k, (i, v.dType)) })
 
   def size: Int = m.size
 
@@ -180,7 +178,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
           val f: Inserter = (a, toIns) =>
             if (a == null)
               Row.fromSeq(Array.fill[Any](m.size)(null))
-                .update(i, ins(null: Any, toIns))
+                .update(i, ins(null, toIns))
             else {
               val r = a.asInstanceOf[Row]
               r.update(i, ins(r.get(i), toIns))
@@ -195,38 +193,44 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
             else
               signature.insert(p.tail, signature)
           }
-          val f: Inserter = (a, toIns) => ins(null: Any, toIns)
+          val f: Inserter = (a, toIns) => if (a == null) {
+            Row.fromSeq(Array.fill[Any](m.size)(null))
+              .append(ins(null, toIns))
+          }
+          else
+            a.asInstanceOf[Row].append(ins(null, toIns))
           (StructSignature(m + ((key, (m.size, sig)))), f)
       }
     }
   }
 
   override def getSchema: DataType = {
-    if (m.isEmpty)
-    //FIXME placeholder?
-      StringType
-    else {
-      val s =
-        StructType(m
-          .toArray
-          .sortBy {
-            case (key, (index, sig)) => index
-          }
-          .map {
-            case (key, (index, sig)) =>
-              StructField(key, sig.getSchema, true)
-          }
-        )
-      assert(s.length > 0)
-      s
-    }
+    val s =
+      StructType(m
+        .toArray
+        .sortBy {
+          case (key, (index, sig)) => index
+        }
+        .map {
+          case (key, (index, sig)) =>
+            StructField(key, sig.getSchema, true)
+        }
+      )
+    assert(s.length > 0)
+    s
   }
 
   override def printSchema(path: String): String = {
-    s"""$path: group of ${m.size} annotations\n""" +
+    s"""$path: group of ${
+      m.size
+    } annotations\n""" +
       m.toArray
-        .sortBy { case (k, (i, v)) => i }
-        .map { case (k, (i, v)) => v.printSchema(path + s".$k") }
+        .sortBy {
+          case (k, (i, v)) => i
+        }
+        .map {
+          case (k, (i, v)) => v.printSchema(path + s".$k")
+        }
         .mkString("\n")
   }
 }

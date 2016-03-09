@@ -35,35 +35,35 @@ object VariantQCCombiner {
     "rExpectedHetFrequency\tpHWE"
 
   val signatures: StructSignature = StructSignature(Map(
-    "callRate" -> (0, SimpleSignature(expr.TDouble)),
-    "MAC" -> (1, SimpleSignature(expr.TInt)),
-    "MAF" -> (2, SimpleSignature(expr.TDouble)),
-    "nCalled" -> (3, SimpleSignature(expr.TInt)),
-    "nNotCalled" -> (4, SimpleSignature(expr.TInt)),
-    "nHomRef" -> (5, SimpleSignature(expr.TInt)),
-    "nHet" -> (6, SimpleSignature(expr.TInt)),
-    "nHomVar" -> (7, SimpleSignature(expr.TInt)),
-    "dpMean" -> (8, SimpleSignature(expr.TDouble)),
-    "dpStDev" -> (9, SimpleSignature(expr.TDouble)),
-    "dpMeanHomRef" -> (10, SimpleSignature(expr.TDouble)),
-    "dpStDevHomRef" -> (11, SimpleSignature(expr.TDouble)),
-    "dpMeanHet" -> (12, SimpleSignature(expr.TDouble)),
-    "dpStDevHet" -> (13, SimpleSignature(expr.TDouble)),
-    "dpMeanHomVar" -> (14, SimpleSignature(expr.TDouble)),
-    "dpStDevHomVar" -> (15, SimpleSignature(expr.TDouble)),
-    "gqMean" -> (16, SimpleSignature(expr.TDouble)),
-    "gqStDev" -> (17, SimpleSignature(expr.TDouble)),
-    "gqMeanHomRef" -> (18, SimpleSignature(expr.TDouble)),
-    "gqStDevHomRef" -> (19, SimpleSignature(expr.TDouble)),
-    "gqMeanHet" -> (20, SimpleSignature(expr.TDouble)),
-    "gqStDevHet" -> (21, SimpleSignature(expr.TDouble)),
-    "gqMeanHomVar" -> (22, SimpleSignature(expr.TDouble)),
-    "gqStDevHomVar" -> (23, SimpleSignature(expr.TDouble)),
-    "nNonRef" -> (24, SimpleSignature(expr.TInt)),
-    "rHeterozygosity" -> (25, SimpleSignature(expr.TDouble)),
-    "rHetHomVar" -> (26, SimpleSignature(expr.TDouble)),
-    "rExpectedHetFrequency" -> (27, SimpleSignature(expr.TDouble)),
-    "pHWE" -> (28, SimpleSignature(expr.TDouble))))
+    "callRate" ->(0, SimpleSignature(expr.TDouble)),
+    "MAC" ->(1, SimpleSignature(expr.TInt)),
+    "MAF" ->(2, SimpleSignature(expr.TDouble)),
+    "nCalled" ->(3, SimpleSignature(expr.TInt)),
+    "nNotCalled" ->(4, SimpleSignature(expr.TInt)),
+    "nHomRef" ->(5, SimpleSignature(expr.TInt)),
+    "nHet" ->(6, SimpleSignature(expr.TInt)),
+    "nHomVar" ->(7, SimpleSignature(expr.TInt)),
+    "dpMean" ->(8, SimpleSignature(expr.TDouble)),
+    "dpStDev" ->(9, SimpleSignature(expr.TDouble)),
+    "dpMeanHomRef" ->(10, SimpleSignature(expr.TDouble)),
+    "dpStDevHomRef" ->(11, SimpleSignature(expr.TDouble)),
+    "dpMeanHet" ->(12, SimpleSignature(expr.TDouble)),
+    "dpStDevHet" ->(13, SimpleSignature(expr.TDouble)),
+    "dpMeanHomVar" ->(14, SimpleSignature(expr.TDouble)),
+    "dpStDevHomVar" ->(15, SimpleSignature(expr.TDouble)),
+    "gqMean" ->(16, SimpleSignature(expr.TDouble)),
+    "gqStDev" ->(17, SimpleSignature(expr.TDouble)),
+    "gqMeanHomRef" ->(18, SimpleSignature(expr.TDouble)),
+    "gqStDevHomRef" ->(19, SimpleSignature(expr.TDouble)),
+    "gqMeanHet" ->(20, SimpleSignature(expr.TDouble)),
+    "gqStDevHet" ->(21, SimpleSignature(expr.TDouble)),
+    "gqMeanHomVar" ->(22, SimpleSignature(expr.TDouble)),
+    "gqStDevHomVar" ->(23, SimpleSignature(expr.TDouble)),
+    "nNonRef" ->(24, SimpleSignature(expr.TInt)),
+    "rHeterozygosity" ->(25, SimpleSignature(expr.TDouble)),
+    "rHetHomVar" ->(26, SimpleSignature(expr.TDouble)),
+    "rExpectedHetFrequency" ->(27, SimpleSignature(expr.TDouble)),
+    "pHWE" ->(28, SimpleSignature(expr.TDouble))))
 }
 
 class VariantQCCombiner extends Serializable {
@@ -315,7 +315,7 @@ object VariantQC extends Command {
       }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
     }
 
-    val (newSignatures, fInsert) = vds.metadata.variantAnnotationSignatures.insert(List("qc"),
+    val (newSignatures, fInsert) = vds.metadata.vaSignatures.insert(List("qc"),
       VariantQCCombiner.signatures)
 
     state.copy(
@@ -326,8 +326,7 @@ object VariantQC extends Command {
             (v, fInsert(va, Some(comb.asRow)), gs)
           }
         },
-        metadata = vds.metadata.copy(variantAnnotationSignatures = newSignatures)
-      )
+        vaSignatures = newSignatures)
     )
   }
 }

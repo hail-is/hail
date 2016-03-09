@@ -127,65 +127,15 @@ object SplitMulti extends Command {
       }
   }
 
-
-//  def splitAnnotations(base: Signature): (Any, Int) => Any = {
-//    base match {
-//      case struct: StructSignature =>
-//        struct.m.get("info") match {
-//          case Some((index: Int, infoSigs: StructSignature)) =>
-//            val functions: Array[((Any, Int) => Any)] = infoSigs.m
-//              .toArray
-//              .sortBy { case (key, (i, sig)) => i }
-//              .map { case (key, (i, sig)) => sig match {
-//                case vcfSig: VCFSignature if vcfSig.number == "A" =>
-//                  (a: Any, ind: Int) => if (a == null)
-//                    null
-//                  else
-//                    Array(a.asInstanceOf[mutable.WrappedArray[_]]
-//                      .apply(i))
-//                case vcfSig: VCFSignature if vcfSig.number == "R" =>
-//                  (a: Any, ind: Int) =>
-//                    if (a == null)
-//                      null
-//                    else {
-//                      val arr = a.asInstanceOf[mutable.WrappedArray[_]]
-//                      Array(arr(0), arr(ind))
-//                    }
-//                case vcfSig: VCFSignature if vcfSig.number == "G" =>
-//                  (a: Any, ind: Int) =>
-//                    if (a == null)
-//                      null
-//                    else {
-//                      val arr = a.asInstanceOf[mutable.WrappedArray[_]]
-//                      Array(arr(0), arr(triangle(ind + 1) + 1), arr(triangle(ind + 2) - 1))
-//                    }
-//                case _ => (a: Any, ind: Int) => a
-//              }
-//              }
-//            (ad: Any, alleleIndex: Int) =>
-//              val adArr = ad.asInstanceOf[Row].toSeq.toArray
-//              val infoR = adArr(index).asInstanceOf[Row]
-//              adArr(index) = Row.fromSeq(
-//                functions.zipWithIndex
-//                  .map { case (f, i) =>
-//                    f(infoR.get(i), alleleIndex)
-//                  })
-//              Row.fromSeq(adArr)
-//          case _ => (ad, index) => ad
-//        }
-//      case sig => (a, i) => a
-//    }
-//  }
-
   def run(state: State, options: Options): State = {
     val localPropagateGQ = options.propagateGQ
-    val (newSigs1, insertIndex) = state.vds.metadata.variantAnnotationSignatures.insert(List("aIndex"),
+    val (newSigs1, insertIndex) = state.vds.metadata.vaSignatures.insert(List("aIndex"),
       SimpleSignature(expr.TInt))
     val (newSigs2, insertSplit) = newSigs1.insert(List("wasSplit"),
       SimpleSignature(expr.TBoolean))
     val newVDS = state.vds.copy[Genotype](
-      metadata = state.vds.metadata
-        .copy(wasSplit = true, variantAnnotationSignatures = newSigs2),
+      wasSplit = true,
+      vaSignatures = newSigs2,
       rdd = state.vds.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
         split(v, va, it, localPropagateGQ, insertIndex, insertSplit)
       })

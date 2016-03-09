@@ -146,9 +146,6 @@ object Variant {
   }
 
   def fromRow(r: Row) = {
-//    println("HERE")
-//    println(r.get(3).getClass.getName)
-//    println(r.get(3).asInstanceOf[scala.collection.mutable.WrappedArray[scala.collection.mutable.WrappedArray[String]]])
     Variant(r.getAs[String](0),
       r.getAs[Int](1),
       r.getAs[String](2),

@@ -86,9 +86,8 @@ object GenotypeStream {
 
   def toRow(gs: GenotypeStream): Row = {
     Row.fromSeq(Array(
-      //      Variant.toRow(gs.variant),
       Variant.toRow(gs.variant),
-      gs.decompLenOption.getOrElse(null), //FIXME TESTING
+      gs.decompLenOption.getOrElse(null),
       gs.a
     ))
   }

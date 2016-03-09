@@ -17,7 +17,7 @@ class SplitSuite extends SparkSuite {
       forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vds: VariantDataset) =>
         var s = State(sc, sqlContext, vds)
         s = SplitMulti.run(s, Array[String]())
-        val wasSplitQuerier = s.vds.metadata.variantAnnotationSignatures.query(List("wasSplit"))
+        val wasSplitQuerier = s.vds.metadata.vaSignatures.query(List("wasSplit"))
         s.vds.mapWithAll((v: Variant, va: Annotation, _: Int, g: Genotype) =>
           !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get)
           .collect()
@@ -49,7 +49,7 @@ class SplitSuite extends SparkSuite {
       .join(vds2.mapWithKeys((v, s, g) => ((v, s), g)))
       .foreach { case (k, (g1, g2)) => simpleAssert(g1 == g2) }
 
-    val wasSplitQuerier = vds1.metadata.variantAnnotationSignatures.query(List("wasSplit"))
+    val wasSplitQuerier = vds1.metadata.vaSignatures.query(List("wasSplit"))
 
     // test for wasSplit
     vds1.mapWithAll((v, va, s, g) => (v.start, wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get))

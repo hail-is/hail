@@ -32,7 +32,6 @@ class ImportVCFSuite extends SparkSuite {
     val gqs = s.vds.flatMapWithKeys { case (v, s, g) =>
       g.gq.map { gqx => ((v.start, s), gqx) }
     }.collectAsMap()
-    println(gqs)
     val expectedGQs = Map(
       (16050612, 0) -> 27,
       (16050612, 1) -> 15,
@@ -64,10 +63,10 @@ class ImportVCFSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/undeclaredinfo.vcf"))
 
-    assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info")).isDefined)
-    assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info", "undeclared")).isEmpty)
-    assert(s.vds.metadata.variantAnnotationSignatures.getOption(List("info", "undeclaredFlag")).isEmpty)
-    val infoQuerier = s.vds.metadata.variantAnnotationSignatures.query(List("info"))
+    assert(s.vds.metadata.vaSignatures.getOption(List("info")).isDefined)
+    assert(s.vds.metadata.vaSignatures.getOption(List("info", "undeclared")).isEmpty)
+    assert(s.vds.metadata.vaSignatures.getOption(List("info", "undeclaredFlag")).isEmpty)
+    val infoQuerier = s.vds.metadata.vaSignatures.query(List("info"))
 
     val anno = s.vds
       .rdd

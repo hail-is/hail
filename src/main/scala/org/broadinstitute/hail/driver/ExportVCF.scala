@@ -4,8 +4,9 @@ import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.variant.RichRow._
+import RichRow._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -34,7 +35,7 @@ object ExportVCF extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val varAnnSig = vds.metadata.variantAnnotationSignatures
+    val varAnnSig = vds.metadata.vaSignatures
 
     def header: String = {
       val sb = new StringBuilder()
@@ -54,7 +55,7 @@ object ExportVCF extends Command {
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
       }
 
-      val infoHeader: Option[Array[(String, VCFSignature)]] = vds.metadata.variantAnnotationSignatures
+      val infoHeader: Option[Array[(String, VCFSignature)]] = vds.metadata.vaSignatures
         .getOption(List("info")) match {
         case Some(sigs: StructSignature) =>
           Some(sigs.m.toArray
@@ -103,13 +104,13 @@ object ExportVCF extends Command {
     }
 
     val infoF: (StringBuilder, Annotation) => Unit = {
-      vds.metadata.variantAnnotationSignatures.getOption(List("info")) match {
+      vds.metadata.vaSignatures.getOption(List("info")) match {
         case Some(signatures: StructSignature) =>
           val keys = signatures.m.map { case (k, (i, v)) => (k, i, v.dType == expr.TBoolean) }
             .toArray
             .sortBy { case (key, index, isBoolean) => index }
             .map { case (key, index, isBoolean) => (key, isBoolean) }
-          val querier = vds.metadata.variantAnnotationSignatures.query(List("info"))
+          val querier = vds.metadata.vaSignatures.query(List("info"))
 
           (sb, ad) => {
             val infoRow = querier(ad).map(_.asInstanceOf[Row])

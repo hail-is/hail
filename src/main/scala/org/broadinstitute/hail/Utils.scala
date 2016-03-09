@@ -782,27 +782,6 @@ object Utils extends Logging {
     }
   }
 
-  def rowSame(a: Any, b: Any): Boolean = {
-    println(a, b)
-    (a, b) match {
-      case (ar: Row, br: Row) =>
-        ((a == null) && (b == null)) ||
-          ((a != null) && (b != null)) &&
-        (ar.size == br.size) &&
-          ar.toSeq.zip(br.toSeq).forall { case (aElem, bElem) => rowSame(aElem, bElem) }
-      case _ =>
-        a == b
-    }
-  }
-
-
-  def listAppend[T](l: List[T], t: T): List[T] = {
-    val buffer = new ListBuffer[T]()
-    l.foreach(buffer += _)
-    buffer += t
-    buffer.toList
-  }
-
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
   def triangle(n: Int): Int = ((n * (n + 1)) / 2)

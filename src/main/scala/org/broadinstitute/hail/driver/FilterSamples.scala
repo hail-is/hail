@@ -49,7 +49,7 @@ object FilterSamples extends Command {
       case c: String =>
         val symTab = Map(
           "s" -> (0, expr.TSample),
-          "sa" -> (1, vds.metadata.sampleAnnotationSignatures.dType))
+          "sa" -> (1, vds.saSignatures.dType))
         val a = new Array[Any](2)
         val f: () => Any = expr.Parser.parse(symTab, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)

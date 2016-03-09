@@ -1,14 +1,13 @@
 package org.broadinstitute.hail.annotations
 
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.variant.{Genotype, IntervalList, Variant}
+import org.broadinstitute.hail.variant.{GenotypeStream, Genotype, IntervalList, Variant}
 import org.testng.annotations.Test
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant.RichRow._
 import scala.collection.mutable
 import scala.language.implicitConversions
 
@@ -27,7 +26,7 @@ class AnnotationsSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
 
     val state = State(sc, sqlContext, vds)
-    val vas = vds.metadata.variantAnnotationSignatures
+    val vas = vds.vaSignatures
     val variantAnnotationMap = vds.variantsAndAnnotations.collect().toMap
 
     val firstVariant = Variant("20", 10019093, "A", "G")
@@ -36,7 +35,7 @@ class AnnotationsSuite extends SparkSuite {
     assert(variantAnnotationMap.contains(anotherVariant))
 
     // type Int - info.DP
-    val dpQuery = vas.query(List("info", "DP"))
+    val dpQuery = vas.query("info", "DP")
     assert(vas.getOption(List("info", "DP")).contains(VCFSignature(expr.TInt, "Integer", "1",
       "Approximate read depth; some reads may have been filtered")))
     assert(dpQuery(variantAnnotationMap(firstVariant))
@@ -45,7 +44,7 @@ class AnnotationsSuite extends SparkSuite {
       .get == 20271)
 
     // type Double - info.HWP
-    val hwpQuery = vas.query(List("info", "HWP"))
+    val hwpQuery = vas.query("info", "HWP")
     assert(vas.getOption(List("info", "HWP")).contains(new VCFSignature(expr.TDouble, "Float", "1",
       "P value from test of Hardy Weinberg Equilibrium")))
     assert(
@@ -55,7 +54,7 @@ class AnnotationsSuite extends SparkSuite {
       .get.asInstanceOf[Double], 0.8286))
 
     // type String - info.culprit
-    val culpritQuery = vas.query(List("info", "culprit"))
+    val culpritQuery = vas.query("info", "culprit")
     assert(vas.getOption(List("info", "culprit")).contains(VCFSignature(expr.TString, "String", "1",
       "The annotation which was the worst performing in the Gaussian mixture model, " +
         "likely the reason why the variant was filtered out")))
@@ -65,7 +64,7 @@ class AnnotationsSuite extends SparkSuite {
       .contains("FS"))
 
     // type Array - info.AC (allele count)
-    val acQuery = vas.query(List("info", "AC"))
+    val acQuery = vas.query("info", "AC")
     assert(vas.getOption(List("info", "AC")).contains(VCFSignature(expr.TArray(expr.TInt), "Integer", "A",
       "Allele count in genotypes, for each ALT allele, in the same order as listed")))
     assert(acQuery(variantAnnotationMap(firstVariant))
@@ -74,7 +73,7 @@ class AnnotationsSuite extends SparkSuite {
       .contains(Array(13): mutable.WrappedArray[Int]))
 
     // type Boolean/flag - info.DB (dbSNP membership)
-    val dbQuery = vas.query(List("info", "DB"))
+    val dbQuery = vas.query("info", "DB")
     assert(vas.getOption(List("info", "DB")).contains(new VCFSignature(expr.TBoolean, "Flag", "0",
       "dbSNP Membership")))
     assert(dbQuery(variantAnnotationMap(firstVariant))
@@ -83,15 +82,15 @@ class AnnotationsSuite extends SparkSuite {
       .isEmpty)
 
     //type Set[String]
-    val filtQuery = vas.query(List("filters"))
+    val filtQuery = vas.query("filters")
     assert(vas.getOption(List("filters")).contains(new SimpleSignature(expr.TSet(expr.TString))))
     assert(filtQuery(variantAnnotationMap(firstVariant))
-        .contains(Array("PASS"): mutable.WrappedArray[String]))
+      .contains(Array("PASS"): mutable.WrappedArray[String]))
     assert(filtQuery(variantAnnotationMap(anotherVariant))
-      contains(Array("VQSRTrancheSNP99.95to100.00"): mutable.WrappedArray[String]))
+      contains (Array("VQSRTrancheSNP99.95to100.00"): mutable.WrappedArray[String]))
 
     // GATK PASS
-    val passQuery = vas.query(List("pass"))
+    val passQuery = vas.query("pass")
     assert(vas.getOption(List("pass")).contains(new SimpleSignature(expr.TBoolean)))
     assert(passQuery(variantAnnotationMap(firstVariant))
       .contains(true))
@@ -99,7 +98,7 @@ class AnnotationsSuite extends SparkSuite {
       .contains(false))
 
     val vds2 = LoadVCF(sc, "src/test/resources/sample2.vcf")
-    val vas2 = vds2.metadata.variantAnnotationSignatures
+    val vas2 = vds2.vaSignatures
 
     // Check that VDS can be written to disk and retrieved while staying the same
     hadoopDelete("/tmp/sample.vds", sc.hadoopConfiguration, recursive = true)
@@ -116,85 +115,175 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds1.same(vds2))
     Write.run(s, Array("-o", "/tmp/sample.vds"))
     val vds3 = Read.run(s, Array("-i", "/tmp/sample.vds")).vds
-    println(vds1.metadata == vds3.metadata)
     assert(vds3.same(vds1))
   }
 
-  @Test def testRewrite() {
+  @Test def testAnnotationOperations() {
 
+    /*
+      This test method performs a number of annotation operations on a vds, and ensures that the signatures
+      and annotations in the RDD elements are what is expected after each step.  In particular, we want to
+      test overwriting behavior, deleting, appending, and querying.
+    */
 
-    val inner = Row.fromSeq(Array(4, 5, 6))
-    val middle = Row.fromSeq(Array(2, 3, inner))
-    val outer = Row.fromSeq(Array(1, middle))
+    var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
 
-    val inner2 = Row.fromSeq(Array(100))
-    val middle2 = Row.fromSeq(Array(inner2))
-    val outer2 = Row.fromSeq(Array(middle2, 55))
+    // clear everything
+    val (emptyS, d1) = vds.deleteVA()
+    vds = vds.mapAnnotations((v, va) => d1(va))
+      .copy(vaSignatures = emptyS)
+    assert(emptyS == Annotation.emptySignature)
 
-    val outer3 = Row.fromSeq(Array(1000))
+    // add to the first layer
+    val toAdd = 5
+    val toAddSig = SimpleSignature(expr.TInt)
+    val (s1, i1) = vds.vaSignatures.insert(List("I1"), toAddSig)
+    vds = vds.mapAnnotations((v, va) => i1(va, Some(toAdd)))
+      .copy(vaSignatures = s1)
+    assert(vds.vaSignatures.getSchema ==
+      StructType(Array(StructField("I1", IntegerType, true))))
 
-    val ad1 = outer
-    val ad2 = outer2
-    val ad3 = outer3
+    val q1 = vds.queryVA("I1")
+    assert(vds.rdd
+      .collect()
+      .forall { case (v, va, gs) => q1(va) == Some(5) })
 
-    println("ad1:")
-    Annotations.printRow(ad1)
-    println("ad2:")
-    Annotations.printRow(ad2)
-    println("ad3:")
-    Annotations.printRow(ad3)
+    // add another to the first layer
+    val toAdd2 = "test"
+    val toAdd2Sig = SimpleSignature(expr.TString)
+    val (s2, i2) = vds.vaSignatures.insert(List("S1"), toAdd2Sig)
+    vds = vds.mapAnnotations((v, va) => i2(va, Some(toAdd2)))
+      .copy(vaSignatures = s2)
+    assert(vds.vaSignatures.getSchema ==
+      StructType(Array(StructField("I1", IntegerType, true), StructField("S1", StringType, true))))
 
+    val q2 = vds.queryVA("S1")
+    assert(vds.rdd
+      .collect()
+      .forall { case (v, va, gs) => q2(va) == Some("test") })
 
-    val innerSigs: StructSignature = StructSignature(Map(
-      "d" ->(0, SimpleSignature(expr.TInt)),
-      "e" ->(1, SimpleSignature(expr.TInt)),
-      "f" ->(2, SimpleSignature(expr.TInt))))
+    // overwrite I1 with a row in the second layer
+    val toAdd3 = Annotation(1, 3)
+    val toAdd3Sig = StructSignature(Map(
+      "I2" ->(0, SimpleSignature(expr.TInt)),
+      "I3" ->(1, SimpleSignature(expr.TInt))))
+    val (s3, i3) = vds.vaSignatures.insert(List("I1"), toAdd3Sig)
+    vds = vds.mapAnnotations((v, va) => i3(va, Some(toAdd3)))
+      .copy(vaSignatures = s3)
+    assert(vds.vaSignatures.getSchema ==
+      StructType(Array(StructField("I1", toAdd3Sig.getSchema, true), StructField("S1", StringType, true))))
 
-    val middleSigs = StructSignature(Map(
-      "b" ->(0, SimpleSignature(expr.TInt)),
-      "c" ->(1, SimpleSignature(expr.TInt)),
-      "inner" ->(2, innerSigs)))
+    val q3 = vds.queryVA("I1")
+    val q4 = vds.queryVA("I1", "I2")
+    val q5 = vds.queryVA("I1", "I3")
+    assert(vds.rdd
+      .collect()
+      .forall { case (v, va, gs) =>
+        (q3(va) == Some(Annotation(1, 3))) &&
+          (q4(va) == Some(1)) &&
+          (q5(va) == Some(3))
+      })
 
-    val outerSigs = StructSignature(Map(
-      "a" ->(0, SimpleSignature(expr.TInt)),
-      "middle" ->(1, middleSigs)))
+    // add something deep in the tree with an unbuilt structure
+    val toAdd4 = "dummy"
+    val toAdd4Sig = SimpleSignature(expr.TString)
+    val (s4, i4) = vds.insertVA(toAdd4Sig, "a", "b", "c", "d", "e")
+    vds = vds.mapAnnotations((v, va) => i4(va, Some(toAdd4)))
+      .copy(vaSignatures = s4)
+    assert(vds.vaSignatures.getSchema ==
+      StructType(Array(
+        StructField("I1", toAdd3Sig.getSchema, true),
+        StructField("S1", StringType, true),
+        StructField("a", StructType(Array(
+          StructField("b", StructType(Array(
+            StructField("c", StructType(Array(
+              StructField("d", StructType(Array(
+                StructField("e", StringType, true))),
+                true))),
+              true))),
+            true))),
+          true))))
 
-    println("here")
-    val signatures = outerSigs
-    //    val sigsToAdd = StructSignature(Map(
-    //      "middle" -> StructSignature(Map(
-    //        "inner" -> StructSignature(Map(
-    //          "g" -> SimpleSignature(expr.TInt, 0)
-    //        ), 0)
-    //      ), 0),
-    //      "anotherthing" -> SimpleSignature(expr.TInt, 1))
-    //    )
-    val sigToAdd = SimpleSignature(expr.TInt)
+    val q6 = vds.queryVA("a", "b", "c", "d", "e")
+    assert(vds.rdd
+      .collect()
+      .forall { case (v, va, gs) => q6(va) == Some("dummy") })
 
-    val sigsToAdd2 = StructSignature(Map(
-      "middle" ->(0, SimpleSignature(expr.TInt))))
+    // add something as a sibling deep in the tree
+    val toAdd5 = "dummy2"
+    val toAdd5Sig = SimpleSignature(expr.TString)
+    val (s5, i5) = vds.insertVA(toAdd5Sig, "a", "b", "c", "f")
+    vds = vds.mapAnnotations((v, va) => i5(va, Some(toAdd5)))
+      .copy(vaSignatures = s5)
 
-    println("sigs before:")
-    println(signatures.printSchema("va"))
+    assert(vds.vaSignatures.getSchema ==
+      StructType(Array(
+        StructField("I1", toAdd3Sig.getSchema, true),
+        StructField("S1", StringType, true),
+        StructField("a", StructType(Array(
+          StructField("b", StructType(Array(
+            StructField("c", StructType(Array(
+              StructField("d", StructType(Array(
+                StructField("e", StringType, true))),
+                true),
+              StructField("f", StringType, true))),
+              true))),
+            true))),
+          true))))
+    val q7 = vds.queryVA("a", "b", "c", "f")
+    assert(vds.rdd
+      .collect()
+      .forall { case (v, va, gs) => q7(va) == Some("dummy2") })
 
-    val (newSigs, f) = signatures.insert(List("middle", "inner", "g"), sigToAdd)
-    println("sigs after:")
-    println(newSigs.printSchema("va"))
+    // overwrite something deep in the tree
+    val toAdd6 = "dummy3"
+    val toAdd6Sig = SimpleSignature(expr.TString)
+    val (s6, i6) = vds.insertVA(toAdd6Sig, "a", "b", "c", "d")
+    vds = vds.mapAnnotations((v, va) => i6(va, Some(toAdd6)))
+      .copy(vaSignatures = s6)
 
-    val (newSigs2, f2) = newSigs.delete(List("middle", "inner", "g"))
-    println("removed g:")
-    println(newSigs2.printSchema("va"))
+    assert(vds.vaSignatures.getSchema ==
+      StructType(Array(
+        StructField("I1", toAdd3Sig.getSchema, true),
+        StructField("S1", StringType, true),
+        StructField("a", StructType(Array(
+          StructField("b", StructType(Array(
+            StructField("c", StructType(Array(
+              StructField("d", StringType, true),
+              StructField("f", StringType, true))),
+              true))),
+            true))),
+          true))))
 
-    val (newSigs3, f3) = newSigs2.delete(List("middle", "inner"))
-    println("removed inner:")
-    println(newSigs3.printSchema("va"))
+    val q8 = vds.queryVA("a", "b", "c", "d")
+    assert(vds.rdd
+      .collect()
+      .forall { case (v, va, gs) => q8(va) == Some("dummy3") })
 
-    val (newSigs4, f4) = newSigs2.delete(List("a"))
-    println("removed a:")
-    println(newSigs4.printSchema("va"))
+    // delete that part of the tree
+    val (s7, d2) = vds.deleteVA("a")
+    vds = vds.mapAnnotations((v, va) => d2(va))
+      .copy(vaSignatures = s7)
 
-    val vds = LoadVCF(sc, file1 = "src/test/resources/sample.vcf")
-    val first = vds.variantsAndAnnotations.take(1).head
-    Annotations.printRow(first._2.asInstanceOf[Row])
+    assert(vds.vaSignatures.getSchema ==
+      StructType(Array(
+        StructField("I1", toAdd3Sig.getSchema, true),
+        StructField("S1", StringType, true))))
+
+    assert(vds.rdd
+      .collect()
+      .forall { case (v, va, gs) => va == Annotation(toAdd3, "test") })
+
+    // delete the first thing in the row and make sure things are shifted over correctly
+    val (s8, d3) = vds.deleteVA("I1")
+    vds = vds.mapAnnotations((v, va) => d3(va))
+      .copy(vaSignatures = s8)
+
+    assert(vds.vaSignatures.getSchema ==
+      StructType(Array(
+        StructField("S1", StringType, true))))
+    vds.rdd
+      .collect()
+      .forall { case (v, va, gs) => va == Annotation("test")}
   }
 }

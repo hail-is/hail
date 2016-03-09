@@ -189,7 +189,7 @@ object LoadVCF {
         }
     })
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.emptySignature,
+      Annotation.emptyIndexedSeq(sampleIds.length), Annotation.emptySignature,
       variantAnnotationSignatures), genotypes)
   }
 

@@ -38,14 +38,14 @@ object ExportGenotypes extends Command {
     val sc = vds.sparkContext
     val cond = options.condition
     val output = options.output
-    val vas = vds.metadata.variantAnnotationSignatures
-    val sas = vds.metadata.sampleAnnotationSignatures
+    val vas = vds.vaSignatures
+    val sas = vds.saSignatures
 
     val symTab = Map(
       "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures.dType),
+      "va" ->(1, vds.vaSignatures.dType),
       "s" ->(2, expr.TSample),
-      "sa" ->(3, vds.metadata.sampleAnnotationSignatures.dType),
+      "sa" ->(3, vds.saSignatures.dType),
       "g" ->(4, expr.TGenotype))
     val a = new Array[Any](5)
 
@@ -57,7 +57,7 @@ object ExportGenotypes extends Command {
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
+    val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
 
     val localPrintRef = options.printRef
     val localPrintMissing = options.printMissing

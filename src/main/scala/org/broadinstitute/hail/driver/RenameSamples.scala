@@ -43,6 +43,6 @@ object RenameSamples extends Command {
         newSamples += news
         news
       }
-    state.copy(vds = vds.copy(metadata = vds.metadata.copy(sampleIds = newSampleIds)))
+    state.copy(vds = vds.copy(sampleIds = newSampleIds))
   }
 }
