@@ -2,11 +2,29 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.SparkException
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
+  @Test def lineRef() {
+
+    val line1 = "20\t10280082\t.\tA\tG\t844.69\tPASS\tAC=1;..."
+    assert(LoadVCF.lineRef(line1) == "A")
+
+    val line2 = "20\t13561632\t.\tTAA\tT\t89057.4\tPASS\tAC=2;..."
+    assert(LoadVCF.lineRef(line2) == "TAA")
+
+    assert(LoadVCF.lineRef("") == "")
+
+    assert(LoadVCF.lineRef("this\tis\ta") == "")
+
+    assert(LoadVCF.lineRef("20\t0\t.\t") == "")
+
+    assert(LoadVCF.lineRef("20\t0\t.\t\t") == "")
+
+    assert(LoadVCF.lineRef("\t\t\tabcd") == "abcd")
+  }
+
   @Test def testStoreGQ() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("--store-gq", "src/test/resources/store_gq.vcf"))
@@ -14,7 +32,6 @@ class ImportVCFSuite extends SparkSuite {
     val gqs = s.vds.flatMapWithKeys { case (v, s, g) =>
       g.gq.map { gqx => ((v.start, s), gqx) }
     }.collectAsMap()
-    println(gqs)
     val expectedGQs = Map(
       (16050612, 0) -> 27,
       (16050612, 1) -> 15,
@@ -46,14 +63,18 @@ class ImportVCFSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/undeclaredinfo.vcf"))
 
-    assert(s.vds.metadata.variantAnnotationSignatures.contains("info"))
-    assert(!s.vds.metadata.variantAnnotationSignatures.get[Annotations]("info").contains("undeclared"))
-    assert(!s.vds.metadata.variantAnnotationSignatures.get[Annotations]("info").contains("undeclaredFlag"))
+    assert(s.vds.metadata.vaSignatures.getOption(List("info")).isDefined)
+    assert(s.vds.metadata.vaSignatures.getOption(List("info", "undeclared")).isEmpty)
+    assert(s.vds.metadata.vaSignatures.getOption(List("info", "undeclaredFlag")).isEmpty)
+    val infoQuerier = s.vds.metadata.vaSignatures.query(List("info"))
 
-    val info = s.vds.rdd.map { case (v, va, gs) => va }.collect().head
-    assert(info.contains("info"))
-    assert(!info.get[Annotations]("info").contains("undeclared"))
-    assert(!info.get[Annotations]("info").contains("undeclaredFlag"))
+    val anno = s.vds
+      .rdd
+      .map { case (v, va, gs) => va }
+      .collect()
+      .head
+
+    assert(infoQuerier(anno) != null)
   }
 
   @Test def testMalformed() {

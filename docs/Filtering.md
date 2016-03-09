@@ -18,8 +18,7 @@ Command line arguments:
  - _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
 
 2. `filtersamples` -- ".sample_list" file
- - Hail expects a .sample_list file to contain a newline-delimited list of sample ids.  The `--keep` and `--remove` command-line flags will determine whether the list of samples is excluded or kept.  
- - **As of 12/21/15, Hail does not allow users to specify mappings between the ID scheme used in import and other naming conventions.  This feature will be added in a future release.**  
+ - Hail expects a .sample_list file to contain a newline-delimited list of sample ids.  The `--keep` and `--remove` command-line flags will determine whether the list of samples is excluded or kept.  This file can contain sample IDs not present in the VDS.  
 
 3. `filtergenotypes` -- no inclusion/exclusion files supported
 
@@ -169,7 +168,9 @@ There are no mandatory methods for annotation classes.  Annotations are generate
  - `va.qual:           Double` -- the number in the qual field
  - `va.multiallelic:  Boolean` -- true if the variant is multiallelic or was split
  - `va.info.<field>:      Any` -- matches (with proper capitalization) any defined info field.  Data types match the definition in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array.
- 
+If `splitmulti` has been run:
+ - `va.wasSplit       Boolean` -- this variant was originally multiallelic 
+ - `va.aIndex             Int` -- The original index of this variant in imported line, 0 for imported biallelic sites
 If `variantqc --store` has been run:
  - `va.qc.<FIELD>:        Any` -- matches (with proper capitalization) variant qc fields.  [See list of available computed statistics here.](QC.md)
 

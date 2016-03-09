@@ -38,24 +38,24 @@ object FilterGenotypes extends Command {
 
     val symTab = Map(
       "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType),
+      "va" ->(1, vds.vaSignatures.dType),
       "s" ->(2, expr.TSample),
-      "sa" ->(3, vds.metadata.sampleAnnotationSignatures.toExprType),
+      "sa" ->(3, vds.saSignatures.dType),
       "g" ->(4, expr.TGenotype))
     val a = new Array[Any](5)
 
     val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
+    val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
 
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
-      (v: Variant, va: Annotations, s: Int, g: Genotype) => {
+      (v: Variant, va: Annotation, s: Int, g: Genotype) => {
         a(0) = v
-        a(1) = va.attrs
+        a(1) = va
         a(2) = sampleIdsBc.value(s)
-        a(3) = sampleAnnotationsBc.value(s).attrs
+        a(3) = sampleAnnotationsBc.value(s)
         a(4) = g
         if (Filter.keepThisAny(f(), keep))
           g

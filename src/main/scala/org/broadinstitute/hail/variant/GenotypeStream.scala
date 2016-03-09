@@ -1,7 +1,11 @@
 package org.broadinstitute.hail.variant
 
 import net.jpountz.lz4.LZ4Factory
+import org.apache.spark.sql.types.StructType
 import org.broadinstitute.hail.ByteIterator
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
+
 
 import scala.collection.mutable
 
@@ -68,6 +72,34 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
       case None =>
         GenotypeStream(variant, Some(a.length), LZ4Utils.compress(a))
     }
+  }
+}
+
+object GenotypeStream {
+  def schema(): StructType = {
+    StructType(Array(
+      StructField("variant", Variant.schema(), false),
+      StructField("decompLen", IntegerType, true),
+      StructField("bytes", ArrayType(ByteType), false)
+    ))
+  }
+
+  def toRow(gs: GenotypeStream): Row = {
+    Row.fromSeq(Array(
+      Variant.toRow(gs.variant),
+      gs.decompLenOption.getOrElse(null),
+      gs.a
+    ))
+  }
+
+  def fromRow(row: Row): GenotypeStream = {
+    GenotypeStream(Variant.fromRow(row.getAs[Row](0)),
+      row.get(1) match {
+        case null => None
+        case i => Some(i.asInstanceOf[Int])
+      },
+      row.getAs[scala.collection.mutable.WrappedArray[Byte]](2)
+        .toArray)
   }
 }
 

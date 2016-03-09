@@ -2,7 +2,6 @@ package org.broadinstitute.hail.methods
 
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.AnnotationClassBuilder._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant.{VariantMetadata, Sample, Variant, Genotype}

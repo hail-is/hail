@@ -29,13 +29,13 @@ object ExportSamples extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val hConf = vds.sparkContext.hadoopConfiguration
-    val sas = vds.metadata.sampleAnnotationSignatures
+    val sas = vds.saSignatures
     val cond = options.condition
     val output = options.output
 
     val symTab = Map(
       "s" ->(0, expr.TSample),
-      "sa" ->(1, vds.metadata.sampleAnnotationSignatures.toExprType))
+      "sa" ->(1, vds.saSignatures.dType))
     val a = new Array[Any](2)
 
     val (header, fs) = if (cond.endsWith(".columns"))
@@ -49,7 +49,7 @@ object ExportSamples extends Command {
     val lines = for (s <- vds.localSamples) yield {
       sb.clear()
       a(0) = vds.sampleIds(s)
-      a(1) = vds.metadata.sampleAnnotations(s).attrs
+      a(1) = vds.sampleAnnotations(s)
       var first = true
       fs.foreach { f =>
         if (first)

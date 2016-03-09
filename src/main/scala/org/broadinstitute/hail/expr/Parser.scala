@@ -19,12 +19,10 @@ object ParserUtils {
 
 object Parser extends JavaTokenParsers {
   def parse[T](symTab: Map[String, (Int, Type)], a: Array[Any], code: String): () => T = {
-    // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result.asInstanceOf[AST]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
-    // println(s"t = $t")
 
     t.typecheck(symTab)
     val f: () => Any = t.eval((symTab, a))

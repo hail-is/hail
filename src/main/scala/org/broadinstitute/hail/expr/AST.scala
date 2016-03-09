@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.expr
 
-import org.broadinstitute.hail.annotations.Annotations
-import org.broadinstitute.hail.variant.{AltAllele, Variant, Genotype}
+import org.apache.spark.sql.Row
+import org.broadinstitute.hail.variant.{Sample, AltAllele, Variant, Genotype}
 import scala.collection.mutable
 import scala.util.parsing.input.{Position, Positional}
 
@@ -92,84 +92,127 @@ object DoubleNumericConversion extends NumericConversion[Double] {
   }
 }
 
-sealed abstract class Type
+sealed abstract class Type {
+  def typeCheck(a: Any): Boolean
+}
 
 case object TBoolean extends Type {
   override def toString = "Boolean"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
 }
 
 case object TChar extends Type {
   override def toString = "Char"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Character]
 }
 
 abstract class TNumeric extends Type
 
 case object TInt extends TNumeric {
   override def toString = "Int"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 }
 
 case object TLong extends TNumeric {
   override def toString = "Long"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 }
 
 case object TFloat extends TNumeric {
   override def toString = "Float"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 }
 
 case object TDouble extends TNumeric {
   override def toString = "Double"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 }
 
 case object TUnit extends Type {
   override def toString = "Unit"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Unit]
 }
 
 case object TString extends Type {
   override def toString = "String"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 }
 
 case class TArray(elementType: Type) extends Type {
   override def toString = s"Array[$elementType]"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[mutable.WrappedArray[_]] &&
+    a.asInstanceOf[mutable.WrappedArray[_]].forall(elementType.typeCheck)
 }
 
 case class TSet(elementType: Type) extends Type {
   override def toString = s"Set[$elementType]"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[mutable.WrappedArray[_]] &&
+    a.asInstanceOf[mutable.WrappedArray[_]].forall(elementType.typeCheck)
 }
 
 case class TFunction(parameterTypes: Array[Type], returnType: Type) extends Type {
   override def toString = s"(${parameterTypes.mkString(",")}) => $returnType"
+
+  def typeCheck(a: Any): Boolean = throw new UnsupportedOperationException()
 }
 
-abstract class TAbstractStruct extends Type {
+abstract class TVdsType extends Type {
   def fields: Map[String, Type]
 }
 
-case object TSample extends TAbstractStruct {
+case object TSample extends TVdsType {
   def fields = Type.sampleFields
 
   override def toString = "Sample"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Sample]
 }
 
-case object TGenotype extends TAbstractStruct {
+case object TGenotype extends TVdsType {
   def fields = Type.genotypeFields
 
   override def toString = "Genotype"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 }
 
-case object TAltAllele extends TAbstractStruct {
+case object TAltAllele extends TVdsType {
   def fields = Type.altAlleleFields
 
   override def toString = "AltAllele"
+
+  def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 }
 
-case object TVariant extends TAbstractStruct {
+case object TVariant extends TVdsType {
   def fields = Type.variantFields
 
   override def toString = "Variant"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 }
 
-case class TStruct(fields: Map[String, Type]) extends TAbstractStruct {
-  override def toString = "Struct"
+case class TStruct(fields: Map[String, (Int, Type)]) extends Type {
+  override def toString = "Schema"
+
+  override def typeCheck(a: Any): Boolean = a == null || {
+    val types = fields.toArray
+      .sortBy { case (key, (i, t)) => i }
+      .map { case (key, (i, t)) => t }
+    a.isInstanceOf[Row] &&
+      ((a.asInstanceOf[Row].length == types.length) &&
+        a.asInstanceOf[Row].toSeq.zip(types).forall { case (v, t) => t.typeCheck(v) })
+  }
 }
 
 object AST extends Positional {
@@ -186,7 +229,7 @@ object AST extends Positional {
       TInt
 
   def evalFlatCompose[T](c: EvalContext, subexpr: AST)
-                        (g: (T) => Option[Any]): () => Any = {
+    (g: (T) => Option[Any]): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -198,7 +241,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T](c: EvalContext, subexpr: AST)
-                    (g: (T) => Any): () => Any = {
+    (g: (T) => Any): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -210,7 +253,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
-                         (g: (T1, T2) => Any): () => Any = {
+    (g: (T1, T2) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     () => {
@@ -227,7 +270,7 @@ object AST extends Positional {
   }
 
   def evalCompose[T1, T2, T3](c: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST)
-                             (g: (T1, T2, T3) => Any): () => Any = {
+    (g: (T1, T2, T3) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     val f3 = subexpr3.eval(c)
@@ -249,8 +292,8 @@ object AST extends Positional {
   }
 
   def evalComposeNumeric[T](c: EvalContext, subexpr: AST)
-                           (g: (T) => Any)
-                           (implicit convT: NumericConversion[T]): () => Any = {
+    (g: (T) => Any)
+    (implicit convT: NumericConversion[T]): () => Any = {
     val f = subexpr.eval(c)
     () => {
       val x = f()
@@ -263,8 +306,8 @@ object AST extends Positional {
 
 
   def evalComposeNumeric[T1, T2](c: EvalContext, subexpr1: AST, subexpr2: AST)
-                                (g: (T1, T2) => Any)
-                                (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
+    (g: (T1, T2) => Any)
+    (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
     val f1 = subexpr1.eval(c)
     val f2 = subexpr2.eval(c)
     () => {
@@ -316,10 +359,16 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
   override def typecheckThis(): Type = {
     (lhs.`type`, rhs) match {
-      case (t: TAbstractStruct, _) => {
+      case (t: TVdsType, _) => {
         t.fields.get(rhs) match {
           case Some(t) => t
           case None => parseError(s"`$t' has no field `$rhs'")
+        }
+      }
+      case (t: TStruct, _) => {
+        t.fields.get(rhs) match {
+          case Some((i, t)) => t
+          case None => parseError(s"`$t' has no field `$rhs")
         }
       }
       case (t: TNumeric, "toInt") => TInt
@@ -420,10 +469,9 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TAltAllele, "isTransversion") => AST.evalCompose[AltAllele](c, lhs)(_.isTransversion)
 
     case (TStruct(fields), _) =>
-      val localRHS = rhs
-      AST.evalCompose[Map[String, Any]](c, lhs) { m =>
-        m.getOrElse(localRHS, null) match {
-          case a: Annotations => a.attrs
+      val Some((i, s)) = fields.get(rhs)
+      AST.evalCompose[Row](c, lhs) { r =>
+        r.get(i) match {
           case wa: mutable.WrappedArray[_] => wa.array
           case x => x
         }
@@ -485,11 +533,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
     case (TArray(_), "length") => AST.evalCompose[Array[_]](c, lhs)(_.length)
     case (TArray(_), "isEmpty") => AST.evalCompose[Array[_]](c, lhs)(_.isEmpty)
+    case (TArray(_), "contains") => AST.evalCompose[Array[_]](c, lhs)(s => (x: Any) => s.contains(x))
 
-    case (TSet(_), "size") => AST.evalCompose[Set[_]](c, lhs)(_.size)
-    case (TSet(_), "isEmpty") => AST.evalCompose[Set[_]](c, lhs)(_.isEmpty)
-    case (TSet(_), "contains") => AST.evalCompose[Set[Any]](c, lhs)(s => (x: Any) => s.contains(x))
+    case (TSet(_), "size") => AST.evalCompose[Array[_]](c, lhs)(_.size)
+    case (TSet(_), "isEmpty") => AST.evalCompose[Array[_]](c, lhs)(_.isEmpty)
+    case (TSet(_), "contains") => AST.evalCompose[Array[Any]](c, lhs)(s => (x: Any) => s.contains(x))
   }
+
 }
 
 case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
