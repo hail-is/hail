@@ -102,6 +102,8 @@ class HardCallSetSuite extends SparkSuite {
     assert(hcs.localSamples sameElements filtVds.localSamples)
     assert(hcs.sampleIds == filtVds.sampleIds)
 
+    assert(HardCallSet(vds).filterVariants(variantFilter).nVariants == 7)
+
     /* FIXME: This passes but fails on "file already exists" error on second run
     hcs.write(sqlContext, "/tmp/hardCallSet.hcs")
     val hcs2 = HardCallSet.read(sqlContext, "/tmp/hardCallSet.hcs")
