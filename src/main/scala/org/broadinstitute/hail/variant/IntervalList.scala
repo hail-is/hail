@@ -2,22 +2,24 @@ package org.broadinstitute.hail.variant
 
 import java.io.File
 import java.util.TreeMap
+import org.broadinstitute.hail.annotations.Annotation
+
 import scala.collection.mutable
 import scala.io.Source
 import scala.collection.JavaConverters._
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 
-case class Interval(contig: String, start: Int, end: Int, identifier: Option[String] = None)
+case class Interval(contig: String, start: Int, end: Int, identifier: Option[Annotation] = None)
 
 object IntervalList {
 
   val intervalRegex = """([^:]*):(\d+)-(\d+)""".r
 
   def apply(intervals: Traversable[Interval]): IntervalList = {
-    val m = mutable.Map[String, TreeMap[Int, (Int, Option[String])]]()
+    val m = mutable.Map[String, TreeMap[Int, (Int, Option[Annotation])]]()
     intervals.foreach { case Interval(contig, start, end, identifier) =>
-      m.getOrElseUpdate(contig, new TreeMap[Int, (Int, Option[String])]()).put(start, (end, identifier))
+      m.getOrElseUpdate(contig, new TreeMap[Int, (Int, Option[Annotation])]()).put(start, (end, identifier))
     }
     new IntervalList(m)
   }
@@ -45,7 +47,7 @@ object IntervalList {
   }
 }
 
-class IntervalList(private val m: mutable.Map[String, TreeMap[Int, (Int, Option[String])]]) extends Serializable {
+class IntervalList(private val m: mutable.Map[String, TreeMap[Int, (Int, Option[Annotation])]]) extends Serializable {
   def contains(p: (String, Int)): Boolean = {
     val (contig, pos) = p
     m.get(contig) match {
@@ -59,7 +61,7 @@ class IntervalList(private val m: mutable.Map[String, TreeMap[Int, (Int, Option[
     }
   }
 
-  def query(p: (String, Int)): Option[String] = {
+  def query(p: (String, Int)): Option[Annotation] = {
     val (contig, pos) = p
     m.get(contig) match {
       case Some(t) =>

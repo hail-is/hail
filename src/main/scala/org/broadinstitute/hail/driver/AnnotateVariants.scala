@@ -1,12 +1,7 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.spark.SparkEnv
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.io.annotators._
-import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant.Variant
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AnnotateVariants extends Command {
@@ -20,8 +15,8 @@ object AnnotateVariants extends Command {
       usage = "Define types of fields in annotations files")
     var types: String = _
 
-    @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
-      usage = "Place annotations in the path 'va.<root>.<field>, or va.<field> if not specified'")
+    @Args4jOption(required = true, name = "-r", aliases = Array("--root"),
+      usage = "Place annotations in the path 'va.<root>.<field>'")
     var root: String = _
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
@@ -71,6 +66,8 @@ object AnnotateVariants extends Command {
     split
   }
 
+  def parseRoot(s: String): List[String] = s.split(".").toList
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -78,26 +75,32 @@ object AnnotateVariants extends Command {
 
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
     val root = options.root match {
-      case null => null
-      case r if r.startsWith("va.") => r.substring(3)
+      case r if r.startsWith("va.") => parseRoot(r.substring(3))
       case error => fatal(s"invalid root '$error': expect 'va.<path[.path2...]>'")
     }
 
     val conf = state.sc.hadoopConfiguration
 
-    val annotator: VariantAnnotator = stripped match {
+    val annotated = stripped match {
       case intervalList if intervalList.endsWith(".interval_list")  =>
-        fatalIf(options.identifier == null, "annotating from .interval_list files requires the argument 'identifier'")
-        new IntervalListAnnotator(cond, options.identifier, root, conf)
+        val (iList, signature) = IntervalListAnnotator(cond, conf)
+        vds.annotateInvervals(iList, signature, root)
+      case bed if bed.endsWith(".bed") =>
+        val (iList, signature, id) = BedAnnotator(cond, conf)
+        vds.annotateInvervals(iList, signature, List(id).:::(root))
       case tsv if tsv.endsWith(".tsv") =>
-        new TSVAnnotatorCompressed(cond, parseColumns(options.vCols), parseTypeMap(options.types),
-          parseMissing(options.missingIdentifiers), root, conf)
-      case bed if bed.endsWith(".bed") => new BedAnnotator(cond, root, conf)
-      case vcf if vcf.endsWith(".vcf") => new VCFAnnotatorCompressed(cond, root, conf)
-      case ser if ser.endsWith(".ser") => new SerializedAnnotator(cond, root, conf)
-      case _ => fatal(s"Unknown file type '$cond'.  Specify a .tsv, .bed, .vcf, .serialized, or .interval_list file")
+        val (rdd, signature) = TSVAnnotator(vds.sparkContext, cond, parseColumns(options.vCols),
+          parseTypeMap(options.types), parseMissing(options.missingIdentifiers))
+        vds.annotateVariants(rdd, signature, root)
+      case vcf if vcf.endsWith(".vcf") =>
+        val (rdd, signature) = VCFAnnotator(vds.sparkContext, cond)
+        vds.annotateVariants(rdd, signature, root)
+      case fastFormat if fastFormat.endsWith(".faf") =>
+        val (rdd, signature) = ParquetAnnotator(cond, state.sqlContext)
+        vds.annotateVariants(rdd, signature, root)
+      case _ => fatal(s"Unknown file type '$cond'.  Specify a .tsv, .bed, .vcf, .faf, or .interval_list file")
     }
 
-    state.copy(vds = vds.annotateVariants(annotator))
+    state.copy(vds = annotated)
   }
 }

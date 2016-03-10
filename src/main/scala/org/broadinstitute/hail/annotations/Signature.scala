@@ -3,6 +3,7 @@ package org.broadinstitute.hail.annotations
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.Utils._
 import RichRow._
 
 abstract class Signature {
@@ -17,6 +18,40 @@ abstract class Signature {
 
   def typeCheck(a: Annotation): Boolean = {
     dType.typeCheck(a)
+  }
+
+  def parser(missing: Set[String], colName: String): String => Annotation = {
+    s =>
+      dType match {
+        case expr.TDouble =>
+          (v: String) =>
+            try {
+              if (missing(v)) null else v.toDouble
+            } catch {
+              case e: java.lang.NumberFormatException =>
+                fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$colName" """)
+            }
+        case expr.TInt =>
+          (v: String) =>
+            try {
+              if (missing(v)) null else v.toString
+            } catch {
+              case e: java.lang.NumberFormatException =>
+                fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Int in column "$colName" """)
+            }
+        case expr.TBoolean =>
+          (v: String) =>
+            try {
+              if (missing(v)) null else v.toBoolean
+            } catch {
+              case e: java.lang.IllegalArgumentException =>
+                fatal( s"""java.lang.IllegalArgumentException: tried to convert "$v" to Boolean in column "$colName" """)
+            }
+        case expr.TString =>
+          (v: String) =>
+            if (missing(v)) null else v
+        case _ => throw new UnsupportedOperationException()
+      }
   }
 
   def getOption(path: List[String]): Option[Signature] = {
@@ -248,3 +283,22 @@ case class EmptySignature(dType: expr.Type = expr.TBoolean) extends Signature {
 }
 
 case class SimpleSignature(dType: expr.Type) extends Signature
+
+object SimpleSignature {
+  def apply(s: String): SimpleSignature = {
+    s match {
+      case "Double" => SimpleSignature(expr.TDouble)
+      case "Int" => SimpleSignature(expr.TInt)
+      case "Boolean" => SimpleSignature(expr.TBoolean)
+      case "String" => SimpleSignature(expr.TString)
+      case _ => fatal(
+        s"""Unrecognized type "$s".  Hail supports parsing the following types in annotations:
+            |  - Double (floating point number)
+            |  - Int  (integer)
+            |  - Boolean
+            |  - String
+            |
+            |  Note that the above types are case sensitive.""".stripMargin)
+    }
+  }
+}

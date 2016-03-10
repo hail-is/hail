@@ -391,24 +391,30 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def annotateVariants(annotator: VariantAnnotator): VariantSampleMatrix[T] = {
-    val annotatorBc = sparkContext.broadcast(annotator)
-    copy(rdd = rdd.mapPartitions(
-      iter => {
-        lazy val sz = SparkEnv.get.serializer.newInstance()
-        val annotator = annotatorBc.value
-        val toRemove = annotator.metadata()
-        iter.map {
-          case (v, va, gs) =>
-            (v, annotator.annotate(v, va, sz), gs)
-        }
-      })
-    )
-      .copy(vaSignatures = annotator.metadata())
+  def annotateInvervals(iList: IntervalList, signature: Signature, path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignatures, inserter) = insertVA(signature, path)
+    val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs)}
+    copy(rdd = newRDD, vaSignatures = newSignatures)
   }
 
-  def annotateSamples(annotator: SampleAnnotator): VariantSampleMatrix[T] = {
-    copy(metadata = metadata.annotateSamples(annotator))
+  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: Signature,
+    path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignatures, inserter) = insertVA(signature, path)
+    val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
+      .leftOuterJoin(otherRDD)
+      .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
+    copy(rdd = newRDD, vaSignatures = newSignatures)
+  }
+
+  def annotateSamples(annotations: Map[String, Annotation], signature: Signature,
+    path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignatures, inserter) = insertSA(signature, path)
+
+    copy(sampleAnnotations = localSamples.map { s =>
+      val id = sampleIds(s)
+      val sa = sampleAnnotations(s)
+      inserter(sa, annotations.get(id))
+    }, saSignatures = newSignatures)
   }
 
   def queryVA(args: String*): Querier = queryVA(args.toList)
