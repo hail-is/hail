@@ -42,7 +42,6 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
     val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
       .asScala
-      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
       .toMap
       .flatMap { case (k, v) =>
         typeMap.get(k).map { t =>
@@ -180,13 +179,6 @@ object HtsjdkRecordReader {
     new HtsjdkRecordReader(codec)
   }
 
-  def purgeJavaArrayLists(ar: AnyRef): Any = {
-    ar match {
-      case arr: java.util.ArrayList[_] => arr.asScala
-      case _ => ar
-    }
-  }
-
   def mapType(value: Any, sig: VCFSignature): Any = {
     value match {
       case str: String =>
@@ -202,6 +194,12 @@ object HtsjdkRecordReader {
           case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
           case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)
 
+        }
+      case stupid: java.util.ArrayList[_] =>
+        sig.typeOf match {
+          case "Array[Int]" => stupid.asScala.iterator.map(_.asInstanceOf[String].toInt).toIndexedSeq
+          case "Array[Double]" => stupid.asScala.iterator.map(_.asInstanceOf[String].toDouble).toIndexedSeq
+          case "Array[String]" => stupid.asScala.iterator.map(_.asInstanceOf[String]).toIndexedSeq
         }
       case _ => value
     }
