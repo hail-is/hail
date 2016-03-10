@@ -259,23 +259,28 @@ object VEP extends Command {
     if (conservationFile == null)
       fatal("property `hail.vep.conservation_file' required")
 
+    val cmd = Array(
+      perl,
+      s"${location}",
+      "--format", "vcf",
+      "--json",
+      "--everything",
+      "--allele_number",
+      "--no_stats",
+      "--cache", "--offline",
+      "--dir", s"${cacheDir}",
+      "--fasta", s"${cacheDir}/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
+      "--minimal",
+      "--assembly", "GRCh37",
+      "--plugin", s"LoF,human_ancestor_fa:${humanAncestor},filter_position:0.05,min_intron_size:15,conservation_file:${conservationFile}",
+      "-o", "STDOUT")
+
+    info(s"vep command: ${cmd.mkString(" ")}")
+    info(s"vep env: ${env.map { case (k, v) => s"$k=$v" }.mkString(";")}")
+
     val annotations = vds.rdd
       .map { case (v, va, gs) => v }
-      .pipe(Array(
-        perl,
-        s"${location}",
-        "--format", "vcf",
-        "--json",
-        "--everything",
-        "--allele_number",
-        "--no_stats",
-        "--cache", "--offline",
-        "--dir", s"${cacheDir}",
-        "--fasta", s"${cacheDir}/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
-        "--minimal",
-        "--assembly", "GRCh37",
-        "--plugin", s"LoF,human_ancestor_fa:${humanAncestor},filter_position:0.05,min_intron_size:15,conservation_file:${conservationFile}",
-        "-o", "STDOUT"),
+      .pipe(cmd,
         env,
         printContext,
         printElement)
