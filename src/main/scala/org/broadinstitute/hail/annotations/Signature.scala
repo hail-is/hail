@@ -148,7 +148,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
 
   override def insert(p: List[String], signature: Signature): (Signature, Inserter) = {
     if (p.isEmpty)
-      (this, (a, toIns) => toIns.getOrElse(null))
+      (signature, (a, toIns) => toIns.getOrElse(null))
     else if (p.length == 1) {
       val key = p.head
       m.get(key) match {
