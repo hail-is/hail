@@ -234,7 +234,7 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds.rdd
       .collect()
       .forall { case (v, va, gs) => q7(va) == Some("dummy2") })
-`
+
     // overwrite something deep in the tree
     val toAdd6 = "dummy3"
     val toAdd6Sig = SimpleSignature(expr.TString)
@@ -282,9 +282,19 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds.vaSignatures.getSchema ==
       StructType(Array(
         StructField("S1", StringType, true))))
-    vds.rdd
+    assert(vds.rdd
       .collect()
-      .forall { case (v, va, gs) => va == Annotation("test")}
+      .forall { case (v, va, gs) => va == Annotation("test") })
 
+    // remap the head
+    val toAdd7 = "dummy"
+    val toAdd7Sig = SimpleSignature(expr.TString)
+    val (s9, i7) = vds.insertVA(toAdd7Sig, List[String]())
+    vds = vds.mapAnnotations((v, va) => i7(va, Some(toAdd7)))
+      .copy(vaSignatures = s9)
+
+    assert(vds.vaSignatures.getSchema == toAdd7Sig.getSchema)
+    assert(vds.rdd.collect()
+      .forall { case (v, va, gs) => va == "dummy" })
   }
 }
