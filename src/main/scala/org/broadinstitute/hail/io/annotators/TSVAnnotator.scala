@@ -86,7 +86,8 @@ object TSVAnnotator {
         ab.clear()
         lineSplit.iterator.zip(functions.iterator)
           .foreach { case (field, fn) => fn(ab, field) }
-        (variant, Row.fromSeq(ab.result()))
+        val res = ab.result()
+        (variant, Row.fromSeq(res))
     }
 
     val rdd = sc.textFile(filename)

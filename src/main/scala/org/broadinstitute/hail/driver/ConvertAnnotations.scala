@@ -66,6 +66,7 @@ object ConvertAnnotations extends Command {
             |  .vcf (vcf, only the info field / filters / qual are parsed here)""".stripMargin)
     }
 
+    hadoopDelete(out, conf, true)
 
     hadoopMkdir(out, conf)
     writeDataFile(out + "/signature.ser", conf) {
@@ -80,13 +81,15 @@ object ConvertAnnotations extends Command {
       StructField("annotation", signature.getSchema, true)
     ))
 
-    state.sqlContext.createDataFrame(rdd.map { case (v, a) => Row.fromSeq(Array((Variant.toRow(v), a))) }, schema)
+//    println(signature.printSchema("va"))
+//    println(Annotation.printAnnotation(rdd.take(1).head._2))
+//    rdd.take(10).map(_._2)
+//      .foreach { i => println(signature.typeCheck(i)) }
+
+    state.sqlContext.createDataFrame(rdd.map { case (v, a) => Row.fromSeq(Array(Variant.toRow(v), a)) }, schema)
       .write.parquet(out + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
 
-  state
-}
-
-import org.apache.spark.rdd.HadoopRDD
-
+    state
+  }
 }

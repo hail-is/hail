@@ -35,8 +35,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     val anno1 = AnnotateSamples.run(state,
       Array("-c", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.phenotype", "-t", "qPhen:Int"))
 
-    val q1 = vds.querySA("phenotype", "Status")
-    val q2 = vds.querySA("phenotype", "qPhen")
+    val q1 = anno1.vds.querySA("phenotype", "Status")
+    val q2 = anno1.vds.querySA("phenotype", "qPhen")
 
     anno1.vds.metadata.sampleIds.zip(anno1.vds.metadata.sampleAnnotations)
       .forall {
@@ -73,7 +73,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .foreach {
         case (v, va, gs) =>
           val (rand1, rand2, gene) = fileMap(v)
-          assert(q1(va) == Some(Annotation(rand1, rand2, gene)))
+          assert(q1(va) == Some(Annotation(rand1.getOrElse(null), rand2.getOrElse(null), gene.getOrElse(null))))
       }
 
     val anno1alternate = AnnotateVariants.run(state,
@@ -89,7 +89,8 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val anno1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
 
-    val otherMap = LoadVCF(sc, "src/test/resources/sampleInfoOnly.vcf")
+    val otherMap = SplitMulti.run(State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sampleInfoOnly.vcf")), Array[String]())
+      .vds
       .variantsAndAnnotations
       .collect()
       .toMap
@@ -98,9 +99,9 @@ class ImportAnnotationsSuite extends SparkSuite {
       .collect()
       .toMap
 
-    val q = vds.queryVA("other")
+    val q = anno1.vds.queryVA("other")
 
-    anno1.vds.eraseSplit.rdd.collect()
+    anno1.vds.rdd.collect()
       .foreach {
         case (v, va, gs) =>
           assert(q(va) == otherMap.get(v))
@@ -111,13 +112,13 @@ class ImportAnnotationsSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = Cache.run(SplitMulti.run(State(sc, sqlContext, vds), noArgs), noArgs)
 
-    val bed1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example1.bed", "-r", "va.bed"))
-    val bed2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example2.bed", "-r", "va.bed"))
-    val bed3r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example3.bed", "-r", "va.bed"))
+    val bed1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example1.bed", "-r", "va.test"))
+    val bed2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example2.bed", "-r", "va.test"))
+    val bed3r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example3.bed", "-r", "va.test"))
 
-    val q1 = bed1r.vds.queryVA("bed", "BedTest")
-    val q2 = bed2r.vds.queryVA("bed", "BedTest")
-    val q3 = bed3r.vds.queryVA("bed", "BedTest")
+    val q1 = bed1r.vds.queryVA("test", "BedTest")
+    val q2 = bed2r.vds.queryVA("test", "BedTest")
+    val q3 = bed3r.vds.queryVA("test", "BedTest")
 
     bed1r.vds.variantsAndAnnotations
       .collect()
@@ -125,37 +126,27 @@ class ImportAnnotationsSuite extends SparkSuite {
         case (v, va) =>
           assert(v.start <= 14000000 ||
             v.start >= 17000000 ||
-            q1(va) == Some(true))
+            q1(va) == None)
       }
-//
-//    bed2r.vds.variantsAndAnnotations
-//      .collect()
-//      .foreach {
-//        case (v, va) =>
-//          v.start <= 14000000 ||
-//            v.start >= 17000000 ||
-//            (va.contains("BedTest") &&
-//              va.get[String]("BedTest") == map1r(v).get[Annotations]("bed").get[String]("BedTest"))
-//      }
-//
-//    assert(bed3.vds.same(bed2.vds))
-//    assert(bed3r.vds.same(bed2r.vds))
-//
-//    val int1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation1.interval_list",
-//      "-i", "BedTest"))
-//    val int1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation1.interval_list",
-//      "-i", "BedTest", "-r", "va.bed"))
-//    val int2 = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation2.interval_list",
-//      "-i", "BedTest"))
-//    val int2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation2.interval_list",
-//      "-i", "BedTest", "-r", "va.bed"))
-//
-//    val bedMap = bed1.vds.variantsAndAnnotations.collect().toMap
-//
-//    assert(int1.vds.same(bed1.vds))
-//    assert(int1r.vds.same(bed1r.vds))
-//    assert(int2.vds.same(bed2.vds))
-//    assert(int2r.vds.same(bed2r.vds))
+
+    bed2r.vds.variantsAndAnnotations
+      .collect()
+      .foreach {
+        case (v, va) =>
+          (v.start <= 14000000 && (q2(va) == Some("gene1"))) ||
+            (v.start >= 17000000 && (q2(va) == Some("gene2"))) ||
+            (q2(va) == None)
+      }
+
+    assert(bed3r.vds.same(bed2r.vds))
+
+    val int1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation1.interval_list",
+      "-i", "BedTest", "-r", "va.test"))
+    val int2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation2.interval_list",
+      "-i", "BedTest", "-r", "va.test"))
+
+    assert(int1r.vds.same(bed1r.vds))
+    assert(int2r.vds.same(bed2r.vds))
   }
 
   @Test def testSerializedAnnotator() {
@@ -169,35 +160,18 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     ConvertAnnotations.run(state,
       Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double",
-        "-o", "/tmp/variantAnnotationsTSV.ser"))
+        "-o", "/tmp/variantAnnotationsTSV.faf"))
     ConvertAnnotations.run(state,
-      Array("-c", "src/test/resources/sampleInfoOnly.vcf", "-o", "/tmp/variantAnnotationsVCF.ser"))
+      Array("-c", "src/test/resources/sampleInfoOnly.vcf", "-o", "/tmp/variantAnnotationsVCF.faf"))
 
     val tsvSer1r = AnnotateVariants.run(state,
-      Array("-c", "/tmp/variantAnnotationsTSV.ser", "-r", "va.stuff"))
+      Array("-c", "/tmp/variantAnnotationsTSV.faf", "-r", "va.stuff"))
 
     val vcfSer1 = AnnotateVariants.run(state,
-      Array("-c", "/tmp/variantAnnotationsVCF.ser", "-r", "va.other"))
+      Array("-c", "/tmp/variantAnnotationsVCF.faf", "-r", "va.other"))
 
     assert(tsv1r.vds.same(tsvSer1r.vds))
     assert(vcf1.vds.same(vcfSer1.vds))
-  }
-
-  @Test def testOverwriteBehavior() {
-
-
-    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
-    //
-    //    val annotator = new DummyAnnotator
-    //    vds.annotateVariants(annotator)
-    //      .variantsAndAnnotations
-    //      .collect()
-    //      .foreach { case (v, va) =>
-    //        if (v.start % 2 == 0)
-    //          assert(va.get[Annotations]("info").getOption[Int]("AC").isEmpty)
-    //        else
-    //          assert(va.get[Annotations]("info").getOption[Int]("AC") == Some(0))
   }
 }
 

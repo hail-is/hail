@@ -66,7 +66,7 @@ object AnnotateVariants extends Command {
     split
   }
 
-  def parseRoot(s: String): List[String] = s.split(".").toList
+  def parseRoot(s: String): List[String] = s.split("\\.").toList
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -75,22 +75,18 @@ object AnnotateVariants extends Command {
 
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
     val root = options.root match {
-      case r if r.startsWith("va.") =>
-        println(r)
-        println(r.substring(3))
-        parseRoot(r.substring(3))
+      case r if r.startsWith("va.") => parseRoot(r.substring(3))
+      case "va" => List[String]()
       case error => fatal(s"invalid root '$error': expect 'va.<path[.path2...]>'")
     }
-    println("root is " + root)
-    val ss = "1234567890"
-    println(ss.substring(3))
 
     val conf = state.sc.hadoopConfiguration
 
     val annotated = stripped match {
-      case intervalList if intervalList.endsWith(".interval_list")  =>
+      case intervalList if intervalList.endsWith(".interval_list") =>
+        fatalIf(options.identifier == null, "interval list files require an identifier")
         val (iList, signature) = IntervalListAnnotator(cond, conf)
-        vds.annotateInvervals(iList, signature, root)
+        vds.annotateInvervals(iList, signature, List(options.identifier).:::(root))
       case bed if bed.endsWith(".bed") =>
         val (iList, signature, id) = BedAnnotator(cond, conf)
         vds.annotateInvervals(iList, signature, List(id).:::(root))

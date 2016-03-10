@@ -44,8 +44,9 @@ object AnnotateSamples extends Command {
     val cond = options.condition
 
     val root = options.root match {
-      case r if r.startsWith("va.") => AnnotateVariants.parseRoot(r.substring(3))
-      case error => fatal(s"invalid root '$error': expect 'va.<path[.path2...]>'")
+      case r if r.startsWith("sa.") => AnnotateVariants.parseRoot(r.substring(3))
+      case "sa" => List[String]()
+      case error => fatal(s"invalid root '$error': expect 'sa.<path[.path2...]>'")
     }
 
 

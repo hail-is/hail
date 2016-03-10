@@ -21,7 +21,6 @@ abstract class Signature {
   }
 
   def parser(missing: Set[String], colName: String): String => Annotation = {
-    s =>
       dType match {
         case expr.TDouble =>
           (v: String) =>
@@ -34,7 +33,7 @@ abstract class Signature {
         case expr.TInt =>
           (v: String) =>
             try {
-              if (missing(v)) null else v.toString
+              if (missing(v)) null else v.toInt
             } catch {
               case e: java.lang.NumberFormatException =>
                 fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Int in column "$colName" """)
@@ -267,7 +266,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
           case (k, (i, v)) => i
         }
         .map {
-          case (k, (i, v)) => v.printSchema(path + s".$k")
+          case (k, (i, v)) => s"[$i] " + v.printSchema(path + s".$k")
         }
         .mkString("\n")
   }
