@@ -6,6 +6,7 @@ import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.collection.mutable.ArrayBuffer
 
 object ExportGenotypes extends Command {
 
@@ -47,7 +48,9 @@ object ExportGenotypes extends Command {
       "s" ->(2, expr.TSample),
       "sa" ->(3, vds.metadata.sampleAnnotationSignatures),
       "g" ->(4, expr.TGenotype))
-    val a = new Array[Any](5)
+    val a = new ArrayBuffer[Any]()
+    for (_ <- symTab)
+      a += null
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, sc.hadoopConfiguration)

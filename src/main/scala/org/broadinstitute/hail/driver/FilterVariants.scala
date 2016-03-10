@@ -1,12 +1,13 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr.TVariant
+import org.broadinstitute.hail.expr.{TBoolean, TVariant}
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.expr
+import scala.collection.mutable.ArrayBuffer
 
 object FilterVariants extends Command {
 
@@ -28,6 +29,8 @@ object FilterVariants extends Command {
 
   def description = "Filter variants in current dataset"
 
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -44,10 +47,12 @@ object FilterVariants extends Command {
         (v: Variant, va: Annotations) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
       case c: String =>
         val symTab = Map(
-          "v" -> (0, TVariant),
-          "va" -> (1, vds.metadata.variantAnnotationSignatures))
-        val a = new Array[Any](2)
-        val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
+          "v" ->(0, TVariant),
+          "va" ->(1, vds.metadata.variantAnnotationSignatures))
+        val a = new ArrayBuffer[Any]()
+        for (_ <- symTab)
+          a += null
+        val f: () => Any = expr.Parser.parse[Any](symTab, TBoolean, a, options.condition)
         (v: Variant, va: Annotations) => {
           a(0) = v
           a(1) = va

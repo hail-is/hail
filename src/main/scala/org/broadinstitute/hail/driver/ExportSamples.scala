@@ -6,6 +6,7 @@ import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.collection.mutable.ArrayBuffer
 
 object ExportSamples extends Command {
 
@@ -36,7 +37,9 @@ object ExportSamples extends Command {
     val symTab = Map(
       "s" ->(0, expr.TSample),
       "sa" ->(1, vds.metadata.sampleAnnotationSignatures))
-    val a = new Array[Any](2)
+    val a = new ArrayBuffer[Any]()
+    for (_ <- symTab)
+      a += null
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)

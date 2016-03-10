@@ -273,8 +273,7 @@ class VariantQCCombiner extends Serializable {
           case None => None
           case _ => Some(k, v)
         }
-      }
-    )
+      })
   }
 }
 

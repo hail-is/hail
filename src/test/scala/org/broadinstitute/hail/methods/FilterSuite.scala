@@ -5,21 +5,29 @@ import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
+import scala.collection.mutable.ArrayBuffer
 
 class FilterSuite extends SparkSuite {
 
   @Test def exprTest() {
-    val symTab = Map ("i" ->(0, expr.TInt),
+    val symTab = Map("i" ->(0, expr.TInt),
       "j" ->(1, expr.TInt),
       "d" ->(2, expr.TDouble),
       "d2" ->(3, expr.TDouble),
       "s" ->(4, expr.TString),
-      "s2" ->(5, expr.TString))
-    val a = Array[Any](5, -7, 3.14, 5.79e7, "12,34,56,78",
-      "this is a String, there are many like it, but this one is mine")
+      "s2" ->(5, expr.TString),
+      "a" ->(6, expr.TArray(expr.TInt)))
+    val a = new ArrayBuffer[Any]()
+    a += 5
+    a += -7
+    a += 3.14
+    a += 5.79e7
+    a += "12,34,56,78"
+    a += "this is a String, there are many like it, but this one is mine"
+    a += Array(1, 2, 6, 3, 3, -1, 8)
 
     def eval[T](s: String): T = {
-      val f = expr.Parser.parse[T](symTab, a, s)
+      val f = expr.Parser.parse[T](symTab, null, a, s)
       f()
     }
 
@@ -30,6 +38,8 @@ class FilterSuite extends SparkSuite {
     assert(D_==(eval[Double]("d"), 3.14))
     assert(eval[Array[String]]("""s.split(",")""") sameElements Array("12", "34", "56", "78"))
     assert(eval[Int]("s2.length") == 62)
+
+    assert(eval[Int]("""a.find(x => x < 0)""") == -1)
 
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
@@ -112,9 +122,9 @@ class FilterSuite extends SparkSuite {
     var state2 = State(sc, sqlContext, vds2.cache())
     state2 = SplitMulti.run(state2, Array.empty[String])
 
-    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad(0) < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad[0] < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
 
-    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad(1).toDouble / g.dp > 0.05")).vds.expand().collect().count(_._3.isCalled) == 3)
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad[1].toDouble / g.dp > 0.05")).vds.expand().collect().count(_._3.isCalled) == 3)
 
     val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
 

@@ -4,7 +4,11 @@ import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{AltAllele, Variant, Genotype}
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.{Position, Positional}
+
+case class EvalContext(symTab: SymbolTable,
+  a: ArrayBuffer[Any])
 
 object Type {
   val sampleFields = Map(
@@ -96,11 +100,13 @@ object DoubleNumericConversion extends NumericConversion[Double] {
 }
 
 sealed abstract class Type extends Serializable {
-  def pretty(sb: StringBuilder, indent: Int, path: Vector[String]) {
+  def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
     sb.append(" " * indent)
     sb.append(path.last)
     sb.append(": ")
+    sb.append("Array[" * arrayDepth)
     sb.append(toString)
+    sb.append("]" * arrayDepth)
     sb += '\n'
   }
 
@@ -150,14 +156,14 @@ case object TString extends Type {
 
 case class TArray(elementType: Type) extends Type {
   override def toString = s"Array[$elementType]"
+
+  override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
+    elementType.pretty(sb, indent, path, arrayDepth + 1)
+  }
 }
 
 case class TSet(elementType: Type) extends Type {
   override def toString = s"Set[$elementType]"
-}
-
-case class TFunction(parameterTypes: Array[Type], returnType: Type) extends Type {
-  override def toString = s"(${parameterTypes.mkString(",")}) => $returnType"
 }
 
 abstract class TAbstractStruct extends Type {
@@ -169,17 +175,17 @@ abstract class TAbstractStruct extends Type {
     else
       fields.get(path.head).map(_.`type`).flatMap(t => t(path.tail))
 
-  override def pretty(sb: StringBuilder, indent: Int, path: Vector[String]) {
+  override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
     sb.append(" " * indent)
     sb.append(path.last)
     sb.append(": ")
-    for (f <- path) {
-      sb.append(f)
-      sb += '.'
-    }
-    sb.append("<identifier>\n")
+    path.foreachBetween { f => sb.append(f) } { () => sb += '.' }
+    for (i <- 0 until arrayDepth)
+      sb.append("[<index>]")
+    sb.append(".<identifier>\n")
     for ((n, f) <- fields) {
-      f.`type`.pretty(sb, indent + 2, path :+ n)
+      f.`type`.pretty(sb, indent + 2, path :+ n, 0)
+      /*
       if (f.attrs.nonEmpty) {
         sb.append(" " * (indent + 2))
         f.attrs.foreachBetween { case (k, v) =>
@@ -188,8 +194,10 @@ abstract class TAbstractStruct extends Type {
           sb.append(v)
         } { () => sb.append(", ") }
       }
+    */
     }
   }
+
 }
 
 case object TSample extends TAbstractStruct {
@@ -387,6 +395,8 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
   override def typecheckThis(): Type = {
     (lhs.`type`, rhs) match {
+      case (_, "isDefined") => TBoolean
+
       case (t: TAbstractStruct, _) => {
         t.fields.get(rhs) match {
           case Some(f) => f.`type`
@@ -399,17 +409,12 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TNumeric, "toDouble") => TDouble
       case (t: TNumeric, "abs") => t
       case (t: TNumeric, "signum") => TInt
-      case (t: TNumeric, "min") => TFunction(Array(t), t)
-      case (t: TNumeric, "max") => TFunction(Array(t), t)
       case (TString, "length") => TInt
-      case (TString, "split") => TFunction(Array(TString), TArray(TString))
-      case (TArray(TString), "mkString") => TFunction(Array(TString), TString)
       case (TArray(_), "length") => TInt
       case (TArray(_), "isEmpty") => TBoolean
-      case (TArray(elementType), "contains") => TFunction(Array(elementType), TBoolean)
       case (TSet(_), "size") => TInt
       case (TSet(_), "isEmpty") => TBoolean
-      case (TSet(elementType), "contains") => TFunction(Array(elementType), TBoolean)
+
       case (_, "isMissing") => TBoolean
       case (_, "isNotMissing") => TBoolean
 
@@ -562,6 +567,109 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
   }
 }
 
+case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
+  def typecheck(): Type = parseError("non-function context")
+
+  def eval(c: EvalContext): () => Any = throw new UnsupportedOperationException
+}
+
+case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
+  override def typecheck(symTab: SymbolTable) {
+    (method, args) match {
+      case ("find", Array(Lambda(_, param, body))) =>
+        lhs.typecheck(symTab)
+
+        val elementType = lhs.`type` match {
+          case TArray(elementType) => elementType
+          case _ =>
+            fatal("no `$method' on non-array")
+        }
+
+        `type` = elementType
+
+        // index unused in typecheck
+        body.typecheck(symTab + (param ->(-1, elementType)))
+        if (body.`type` != TBoolean)
+          fatal(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
+
+      case _ =>
+        super.typecheck(symTab)
+    }
+  }
+
+  override def typecheckThis(): Type = {
+    (lhs.`type`, method, args.map(_.`type`)) match {
+      case (TArray(elementType), "contains", Array(TString)) => TBoolean
+      case (TArray(TString), "mkString", Array(TString)) => TString
+      case (TSet(elementType), "contains", Array(TString)) => TBoolean
+      case (TString, "split", Array(TString)) => TArray(TString)
+
+      case (t: TNumeric, "min", Array(t2: TNumeric)) =>
+        AST.promoteNumeric(t, t2)
+      case (t: TNumeric, "max", Array(t2: TNumeric)) =>
+        AST.promoteNumeric(t, t2)
+
+      case (t, "orElse", Array(t2)) if t == t2 =>
+        t
+
+      case (t, _, _) =>
+        parseError(s"`no matching signature for `$method' on `$t'")
+    }
+  }
+
+  def eval(c: EvalContext): () => Any = ((lhs.`type`, method, args): @unchecked) match {
+    case (returnType, "find", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[Array[_]](c, lhs) { case is =>
+        def f(i: Int): Any =
+          if (i < is.length) {
+            val elt = is(i)
+            localA(localIdx) = elt
+            val r = bodyFn()
+            if (r != null
+              && r.asInstanceOf[Boolean])
+              elt
+            else
+              f(i + 1)
+          } else
+            null
+        f(0)
+      }
+
+    case (_, "orElse", Array(a)) =>
+      AST.evalCompose[Any, Any](c, lhs, a) { case (v, alt) =>
+        if (v != null)
+          v
+        else
+          a
+      }
+
+    case (TArray(elementType), "contains", Array(a)) =>
+      AST.evalCompose[Array[_], Any](c, lhs, a) { case (a, x) => a.contains(x) }
+    case (TArray(TString), "mkString", Array(a)) =>
+      AST.evalCompose[Array[String], String](c, lhs, a) { case (s, t) => s.mkString(t) }
+    case (TSet(elementType), "contains", Array(a)) =>
+      AST.evalCompose[Set[Any], Any](c, lhs, a) { case (a, x) => a.contains(x) }
+
+    case (TString, "split", Array(a)) =>
+      AST.evalCompose[String, String](c, lhs, a) { case (s, p) => s.split(p) }
+
+    case (TInt, "min", Array(a)) => AST.evalComposeNumeric[Int, Int](c, lhs, a)(_ min _)
+    case (TLong, "min", Array(a)) => AST.evalComposeNumeric[Long, Long](c, lhs, a)(_ min _)
+    case (TFloat, "min", Array(a)) => AST.evalComposeNumeric[Float, Float](c, lhs, a)(_ min _)
+    case (TDouble, "min", Array(a)) => AST.evalComposeNumeric[Double, Double](c, lhs, a)(_ min _)
+
+    case (TInt, "max", Array(a)) => AST.evalComposeNumeric[Int, Int](c, lhs, a)(_ max _)
+    case (TLong, "max", Array(a)) => AST.evalComposeNumeric[Long, Long](c, lhs, a)(_ max _)
+    case (TFloat, "max", Array(a)) => AST.evalComposeNumeric[Float, Float](c, lhs, a)(_ max _)
+    case (TDouble, "max", Array(a)) => AST.evalComposeNumeric[Double, Double](c, lhs, a)(_ max _)
+  }
+}
+
 case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
   def eval(c: EvalContext): () => Any = ((operation, `type`): @unchecked) match {
     case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
@@ -580,8 +688,14 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
             true
           else
             f2()
-        } else
-          null
+        } else {
+          val x2 = f2()
+          if (x != null
+            && x.asInstanceOf[Boolean])
+            true
+          else
+            null
+        }
       }
     }
 
@@ -595,8 +709,14 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
             f2()
           else
             false
-        } else
-          null
+        } else {
+          val x2 = f2()
+          if (x2 != null
+            && !x2.asInstanceOf[Boolean])
+            false
+          else
+            null
+        }
       }
     }
 
@@ -691,52 +811,30 @@ case class UnaryOp(posn: Position, operation: String, operand: AST) extends AST(
   }
 }
 
-case class Apply(posn: Position, f: AST, args: Array[AST]) extends AST(posn, f +: args) {
-  override def typecheckThis(): Type = (f.`type`, args.map(_.`type`)) match {
-    case (TArray(elementType), Array(TInt)) => elementType
-
-    case (TFunction(parameterTypes, returnType), argumentTypes) => {
-      if (parameterTypes.length != argumentTypes.length)
-        parseError("wrong number of arguments in application")
-
-      for (i <- parameterTypes.indices) {
-        val p = parameterTypes(i)
-        val a = argumentTypes(i)
-
-        if (p != a)
-          args(i).parseError(s"argument ${i + 1} invalid type: expected `$p', got `$a'")
-      }
-
-      returnType
-    }
+case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, idx)) {
+  override def typecheckThis(): Type = (f.`type`, idx.`type`) match {
+    case (TArray(elementType), TInt) => elementType
+    case (TString, TInt) => TChar
 
     case _ =>
-      parseError("invalid arguments to application")
+      parseError("invalid array index expression")
   }
 
-  def eval(c: EvalContext): () => Any = ((f.`type`, args.map(_.`type`)): @unchecked) match {
-    case (TArray(elementType), Array(TInt)) =>
-      AST.evalCompose[Array[_], Int](c, f, args(0))((a, i) => a(i))
+  def eval(c: EvalContext): () => Any = ((f.`type`, idx.`type`): @unchecked) match {
+    case (TArray(elementType), TInt) =>
+      AST.evalCompose[Array[_], Int](c, f, idx)((a, i) => a(i))
 
-    case (TString, Array(TInt)) =>
-      AST.evalCompose[String, Int](c, f, args(0))((s, i) => s(i))
-
-    case (TFunction(Array(), returnType), Array()) =>
-      AST.evalCompose[() => Any](c, f)(f => f())
-    case (TFunction(Array(paramType), returnType), Array(argType)) =>
-      AST.evalCompose[(Any) => Any, Any](c, f, args(0))((f, a) => f(a))
-    case (TFunction(Array(param1Type, param2Type), returnType), Array(arg1Type, arg2Type)) =>
-      AST.evalCompose[(Any, Any) => Any, Any, Any](c, f, args(0), args(1))((f, a1, a2) => f(a1, a2))
-
+    case (TString, TInt) =>
+      AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i))
   }
 
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def eval(c: EvalContext): () => Any = {
-    val i = c._1(symbol)._1
-    val a = c._2
-    () => a(i)
+    val i = c.symTab(symbol)._1
+    val localA = c.a
+    () => localA(i)
   }
 
   override def typecheckThis(typeSymTab: SymbolTable): Type = typeSymTab.get(symbol) match {

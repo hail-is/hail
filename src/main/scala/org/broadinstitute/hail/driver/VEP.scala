@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.driver
 
+import java.io.{IOException, FileInputStream, InputStream}
+import java.util.Properties
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.expr._
@@ -8,10 +10,14 @@ import org.broadinstitute.hail.variant.Variant
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import scala.collection.mutable
+import org.kohsuke.args4j.{Option => Args4jOption}
 
 object VEP extends Command {
 
-  class Options extends BaseOptions
+  class Options extends BaseOptions {
+    @Args4jOption(required = true, name = "--config", usage = "VEP configuration file")
+    var config: String = _
+  }
 
   def newOptions = new Options
 
@@ -70,6 +76,18 @@ object VEP extends Command {
     "strand" -> TInt,
     "variant_class" -> TString,
     "most_severe_consequence" -> TString,
+    "motif_feature_consequences" -> TArray(TStruct(
+      "motif_name" -> TString,
+      "minimised" -> TInt,
+      "high_inf_pos" -> TString,
+      "strand" -> TInt,
+      "motif_feature_id" -> TString,
+      "consequence_terms" -> TArray(TString),
+      "variant_allele" -> TString,
+      "impact" -> TString,
+      "motif_pos" -> TInt,
+      "motif_score_change" -> TDouble,
+      "allele_num" -> TInt)),
     "transcript_consequences" -> TArray(TStruct(
       "allele_num" -> TInt,
       "amino_acids" -> TString,
@@ -203,35 +221,56 @@ object VEP extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    // FIXME cache RDD?
-    val vepStrings = vds.rdd
+    val properties = try {
+      val p = new Properties()
+      val is = new FileInputStream(options.config)
+      p.load(is)
+      is.close()
+      p
+    } catch {
+      case e: IOException =>
+        fatal(s"could not open file: ${e.getMessage}")
+    }
+
+    val location = properties.getProperty("hail.vep.location")
+    if (location == null)
+      fatal("property `hail.vep.location' required")
+
+    val cacheDir = properties.getProperty("hail.vep.cache_dir")
+    if (location == null)
+      fatal("property `hail.vep.cache_dir' required")
+
+    val humanAncestor = properties.getProperty("hail.vep.human_ancestor")
+    if (location == null)
+      fatal("property `hail.vep.human_ancestor' required")
+
+    val conservationFile = properties.getProperty("hail.vep.conservation_file")
+    if (conservationFile == null)
+      fatal("property `hail.vep.conservation_file' required")
+
+    val annotations = vds.rdd
       .map { case (v, va, gs) => v }
       .pipe(Array(
-        "/Users/cseed/ensembl-tools-release-81/scripts/variant_effect_predictor/variant_effect_predictor.pl",
+        s"${location}",
         "--json",
         "--everything",
         "--allele_number",
         "--no_stats",
         "--cache", "--offline",
-        "--fasta", "/Users/cseed/.vep/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
+        "--dir", s"${cacheDir}",
+        "--fasta", s"${cacheDir}/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
         "--minimal",
         "--assembly", "GRCh37",
-        "--plugin", "LoF,human_ancestor_fa:/Users/cseed/Downloads/human_ancestor.fa.rz,filter_position:0.05,min_intron_size:15,conservation_file:/Users/cseed/phylocsf.sql",
+        "--plugin", s"LoF,human_ancestor_fa:${humanAncestor},filter_position:0.05,min_intron_size:15,conservation_file:${conservationFile}",
         "-o", "STDOUT"),
         Map.empty,
         printContext,
         printElement)
-      .persist(StorageLevel.MEMORY_AND_DISK)
-
-    vepStrings.saveAsTextFile("vep.json")
-
-    val annotations =
-      vepStrings
-        .map { jv =>
-          val a = jsonToAnnotation(parse(jv), vepSignature, "<root>").asInstanceOf[Annotations]
-          val v = variantFromInput(a.get("input"))
-          (v, a)
-        }.persist(StorageLevel.MEMORY_AND_DISK)
+      .map { jv =>
+        val a = jsonToAnnotation(parse(jv), vepSignature, "<root>").asInstanceOf[Annotations]
+        val v = variantFromInput(a.get("input"))
+        (v, a)
+      }.persist(StorageLevel.MEMORY_AND_DISK)
 
     val newRDD = vds.rdd
       .zipPartitions(annotations) { case (it, ita) =>

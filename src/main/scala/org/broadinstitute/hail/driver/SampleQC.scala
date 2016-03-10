@@ -373,17 +373,19 @@ object SampleQC extends Command {
         sb.result()
       }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
     }
-    val rMap = r
-      .mapValues(_.asMap)
-      .collectAsMap()
-    val qcAnnotations = (0 until vds.nSamples)
-      .map((s) => Annotations(Map("qc" -> rMap.get(s).getOrElse(s, Map.empty))))
+
+    val sa = Array.fill[Annotations](vds.nSamples)(Annotations.empty())
+    r.mapValues(comb => Annotations(comb.asMap))
+      .collect()
+      .foreach { case (s, a) =>
+        sa(s) = Annotations(Map("qc" -> a))
+      }
 
     state.copy(
       vds = vds.copy(
         metadata = vds.metadata.addSampleAnnotations(
           TStruct(Map("qc" -> Field("qc", SampleQCCombiner.signatures))),
-          qcAnnotations)
+          sa)
       ))
   }
 }

@@ -19,7 +19,6 @@ object HailConfiguration {
   var installDir: String = _
 
   var tmpDir: String = _
-
 }
 
 object Main {
@@ -31,7 +30,7 @@ object Main {
     @Args4jOption(required = false, name = "-h", aliases = Array("--help"), usage = "Print usage")
     var printUsage: Boolean = false
 
-    @Args4jOption(required = false, name = "-l", aliases = Array("--log-file"), usage = "Log file (default: hail.log")
+    @Args4jOption(required = false, name = "-l", aliases = Array("--log-file"), usage = "Log file")
     var logFile: String = "hail.log"
 
     @Args4jOption(required = false, name = "--master", usage = "Set Spark master (default: system default or local[*])")
@@ -46,9 +45,8 @@ object Main {
     @Args4jOption(required = false, name = "--stacktrace", usage = "Print stacktrace on exception")
     var stacktrace: Boolean = false
 
-    @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary directory (default: /tmp)")
+    @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary directory")
     var tmpDir: String = "/tmp"
-
   }
 
   def logAndPropagateException(cmd: Command, e: Exception): Nothing = {
@@ -216,7 +214,6 @@ object Main {
         println(e.getMessage)
         sys.exit(1)
     }
-
 
     val logProps = new Properties()
     if (options.logQuiet) {

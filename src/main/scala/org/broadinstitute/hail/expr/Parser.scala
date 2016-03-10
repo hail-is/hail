@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
+import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -18,7 +19,7 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse[T](symTab: Map[String, (Int, Type)], a: Array[Any], code: String): () => T = {
+  def parse[T](symTab: Map[String, (Int, Type)], expected: Type, a: ArrayBuffer[Any], code: String): () => T = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result.asInstanceOf[AST]
@@ -27,7 +28,11 @@ object Parser extends JavaTokenParsers {
     // println(s"t = $t")
 
     t.typecheck(symTab)
-    val f: () => Any = t.eval((symTab, a))
+    if (expected != null
+      && t.`type` != expected)
+      fatal(s"expression has wrong type: expected `$expected', got ${t.`type`}")
+
+    val f: () => Any = t.eval(EvalContext(symTab, a))
     () => f().asInstanceOf[T]
   }
 
@@ -35,7 +40,7 @@ object Parser extends JavaTokenParsers {
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
   def parseExportArgs(symTab: Map[String, (Int, Type)],
-    a: Array[Any],
+    a: ArrayBuffer[Any],
     code: String): (Option[String], Array[() => Any]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[String], Array[AST])]
@@ -44,12 +49,16 @@ object Parser extends JavaTokenParsers {
 
     ts.foreach(_.typecheck(symTab))
     val fs = ts.map { t =>
-      t.eval((symTab, a))
+      t.eval(EvalContext(symTab, a))
     }
     (header, fs)
   }
 
-  def expr: Parser[AST] = if_expr | or_expr
+  def expr: Parser[AST] = ident ~ withPos("=>") ~ expr ^^ { case param ~ arrow ~ body =>
+    Lambda(arrow.pos, param, body)
+  } |
+    if_expr |
+    or_expr
 
   def if_expr: Parser[AST] =
     withPos("if") ~ ("(" ~> expr <~ ")") ~ expr ~ ("else" ~> expr) ^^ { case ifx ~ cond ~ thenTree ~ elseTree =>
@@ -107,13 +116,16 @@ object Parser extends JavaTokenParsers {
     ident ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
 
   def args: Parser[Array[AST]] =
-    repsep(expr, ",") ^^ { _.toArray }
+    repsep(expr, ",") ^^ {_.toArray}
 
   def dot_expr: Parser[AST] =
-    unary_expr ~ rep((withPos(".") ~ ident) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>
+    unary_expr ~ rep((withPos(".") ~ ident ~ "(" ~ args ~ ")")
+      | (withPos(".") ~ ident)
+      | withPos("[") ~ expr ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
-        case (lparen: Positioned[_]) ~ (args: Array[AST]) ~ ")" => Apply(lparen.pos, acc, args)
+        case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" => ApplyMethod(dot.pos, acc, sym, args)
+        case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexArray(lbracket.pos, acc, idx)
       }
       }
     }

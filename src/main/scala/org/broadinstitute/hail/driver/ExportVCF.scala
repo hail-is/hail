@@ -104,7 +104,9 @@ object ExportVCF extends Command {
         }
       }
 
-      sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
+      sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
+      if (vds.nLocalSamples > 0)
+        sb.append("\tFORMAT")
       val sampleIds: Array[String] = vds.localSamples.map(vds.sampleIds)
       sampleIds.foreach { id =>
         sb += '\t'
@@ -120,6 +122,7 @@ object ExportVCF extends Command {
       }
     }
 
+    val hasGenotypes = vds.nLocalSamples > 0
     def appendRow(sb: StringBuilder, v: Variant, a: Annotations, gs: Iterable[Genotype]) {
       sb.append(v.contig)
       sb += '\t'
@@ -172,12 +175,13 @@ object ExportVCF extends Command {
       } else
         sb += '.'
 
-      sb += '\t'
-      sb.append("GT:AD:DP:GQ:PL")
-
-      gs.foreach { g =>
+      if (hasGenotypes) {
         sb += '\t'
-        sb.append(g)
+        sb.append("GT:AD:DP:GQ:PL")
+        gs.foreach { g =>
+          sb += '\t'
+          sb.append(g)
+        }
       }
     }
 
