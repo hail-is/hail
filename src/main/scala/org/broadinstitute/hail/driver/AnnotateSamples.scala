@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant.Sample

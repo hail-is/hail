@@ -75,9 +75,15 @@ object AnnotateVariants extends Command {
 
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
     val root = options.root match {
-      case r if r.startsWith("va.") => parseRoot(r.substring(3))
+      case r if r.startsWith("va.") =>
+        println(r)
+        println(r.substring(3))
+        parseRoot(r.substring(3))
       case error => fatal(s"invalid root '$error': expect 'va.<path[.path2...]>'")
     }
+    println("root is " + root)
+    val ss = "1234567890"
+    println(ss.substring(3))
 
     val conf = state.sc.hadoopConfiguration
 

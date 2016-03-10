@@ -22,7 +22,7 @@ object TSVAnnotator {
 
     val (shortForm, vColIndices) = if (vColumns.length == 1) {
       // format CHR:POS:REF:ALT
-      val variantIndex = vColumns.map(split.indexOf)
+      val variantIndex = vColumns.map(s => split.indexOf(s))
       variantIndex.foreach { i =>
         fatalIf(i < 0, s"Could not find designated CHR:POS:REF:ALT column identifier '${vColumns.head}'")
       }
@@ -31,7 +31,7 @@ object TSVAnnotator {
     else {
       // format CHR  POS  REF  ALT
       // lengths not equal to 1 or 4 are checked in AnnotateVariants.parseColumns
-      val variantIndex = vColumns.map(split.indexOf)
+      val variantIndex = vColumns.map(s => split.indexOf(s))
       if (variantIndex(0) < 0 || variantIndex(1) < 0 || variantIndex(2) < 0 || variantIndex(2) < 0) {
         val notFound = vColumns.flatMap(i => if (split.indexOf(i) < 0) Some(i) else None)
         fatal(s"Could not find designated identifier column(s): [${notFound.mkString(", ")}]")

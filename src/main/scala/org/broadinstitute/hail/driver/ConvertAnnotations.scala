@@ -2,8 +2,12 @@ package org.broadinstitute.hail.driver
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkEnv
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.{StructField, StructType}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.io.annotators._
+import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ConvertAnnotations extends Command {
@@ -40,32 +44,49 @@ object ConvertAnnotations extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    if (!options.output.endsWith(".ser") && !options.output.endsWith(".ser.gz"))
-      fatal("Output path must end in '.ser' or '.ser.gz'")
+    val out = options.output
+    if (!out.endsWith(".faf"))
+      fatal("Output path must end in 'faf'")
 
     val cond = options.condition
 
     val conf = state.sc.hadoopConfiguration
     val serializer = SparkEnv.get.serializer.newInstance()
-    if (cond.endsWith(".tsv") || cond.endsWith(".tsv.gz")) {
-      // this group works for interval lists and chr pos ref alt
-      new TSVAnnotatorCompressed(cond, AnnotateVariants.parseColumns(options.vCols),
-        AnnotateVariants.parseTypeMap(options.types),
-        AnnotateVariants.parseMissing(options.missingIdentifiers),
-        null, conf)
-        .serialize(options.output, serializer)
-    }
-    else if (cond.endsWith(".vcf") || cond.endsWith(".vcf.gz") || cond.endsWith(".vcf.bgz")) {
-      new VCFAnnotatorCompressed(cond, null, conf)
-        .serialize(options.output, serializer)
-    }
-    else
-      fatal(
-        """This module requires an input file ending in one of the following:
-          |  .tsv (tab separated values with chr, pos, ref, alt)
-          |  .vcf (vcf, only the info field / filters / qual are parsed here)""".stripMargin)
 
-    state
-  }
-  import org.apache.spark.rdd.HadoopRDD
+    val (rdd, signature) = hadoopStripCodec(options.condition, conf) match {
+      case tsv if tsv.endsWith(".tsv") =>
+        TSVAnnotator(state.sc, cond, AnnotateVariants.parseColumns(options.vCols),
+          AnnotateVariants.parseTypeMap(options.types), AnnotateVariants.parseMissing(options.missingIdentifiers))
+      case vcf if vcf.endsWith(".vcf") =>
+        VCFAnnotator(state.sc, cond)
+      case _ =>
+        fatal(
+          """This module requires an input file ending in one of the following:
+            |  .tsv (tab separated values with chr, pos, ref, alt)
+            |  .vcf (vcf, only the info field / filters / qual are parsed here)""".stripMargin)
+    }
+
+
+    hadoopMkdir(out, conf)
+    writeDataFile(out + "/signature.ser", conf) {
+      dos => {
+        val serializer = SparkEnv.get.serializer.newInstance()
+        serializer.serializeStream(dos).writeObject(signature)
+      }
+    }
+
+    val schema = StructType(Array(
+      StructField("variant", Variant.schema(), false),
+      StructField("annotation", signature.getSchema, true)
+    ))
+
+    state.sqlContext.createDataFrame(rdd.map { case (v, a) => Row.fromSeq(Array((Variant.toRow(v), a))) }, schema)
+      .write.parquet(out + "/rdd.parquet")
+    // .saveAsParquetFile(dirname + "/rdd.parquet")
+
+  state
+}
+
+import org.apache.spark.rdd.HadoopRDD
+
 }

@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.io.annotators.SampleAnnotator
 
 object VariantMetadata {
 
