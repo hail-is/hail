@@ -59,9 +59,10 @@ object PCA extends Command {
 
     eigenvalues.foreach { es =>
       writeTextFile(options.eOutput, state.hadoopConf) { s =>
-        for (e <- es)
+        for (e <- es) {
           s.write(e.toString)
-        s.write("\n")
+          s.write("\n")
+        }
       }
     }
 
