@@ -234,6 +234,15 @@ object VEP extends Command {
 
     val perl = properties.getProperty("hail.vep.perl", "perl")
 
+    val env = mutable.Map.empty[String, String]
+    val perl5lib = properties.getProperty("hail.vep.perl5lib")
+    if (perl5lib != null)
+      env += ("PERL5LIB" -> perl5lib)
+
+    val path = properties.getProperty("hail.vep.path")
+    if (path != null)
+      env += ("PATH" -> path)
+
     val location = properties.getProperty("hail.vep.location")
     if (location == null)
       fatal("property `hail.vep.location' required")
@@ -255,6 +264,7 @@ object VEP extends Command {
       .pipe(Array(
         perl,
         s"${location}",
+        "--format", "vcf",
         "--json",
         "--everything",
         "--allele_number",
@@ -266,7 +276,7 @@ object VEP extends Command {
         "--assembly", "GRCh37",
         "--plugin", s"LoF,human_ancestor_fa:${humanAncestor},filter_position:0.05,min_intron_size:15,conservation_file:${conservationFile}",
         "-o", "STDOUT"),
-        Map.empty,
+        env,
         printContext,
         printElement)
       .map { jv =>
