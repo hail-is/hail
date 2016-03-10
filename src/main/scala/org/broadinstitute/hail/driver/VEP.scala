@@ -232,6 +232,8 @@ object VEP extends Command {
         fatal(s"could not open file: ${e.getMessage}")
     }
 
+    val perl = properties.getProperty("hail.vep.perl", "perl")
+
     val location = properties.getProperty("hail.vep.location")
     if (location == null)
       fatal("property `hail.vep.location' required")
@@ -240,17 +242,18 @@ object VEP extends Command {
     if (location == null)
       fatal("property `hail.vep.cache_dir' required")
 
-    val humanAncestor = properties.getProperty("hail.vep.human_ancestor")
+    val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
     if (location == null)
       fatal("property `hail.vep.human_ancestor' required")
 
-    val conservationFile = properties.getProperty("hail.vep.conservation_file")
+    val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
     if (conservationFile == null)
       fatal("property `hail.vep.conservation_file' required")
 
     val annotations = vds.rdd
       .map { case (v, va, gs) => v }
       .pipe(Array(
+        perl,
         s"${location}",
         "--json",
         "--everything",
