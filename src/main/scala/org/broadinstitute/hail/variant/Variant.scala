@@ -29,7 +29,7 @@ object AltAllele {
 case class AltAllele(ref: String,
   alt: String) {
   require(ref != alt)
-  require(!ref.isEmpty && !alt.isEmpty)
+  require(!ref.isEmpty) //FIXME: && !alt.isEmpty)
 
   import AltAlleleType._
 
