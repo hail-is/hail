@@ -23,7 +23,7 @@ object VCFReport {
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
-  def isVariant(id: Int): Boolean = (id == RefNonACGTN || id == SymbolicOrSV)
+  def isVariant(id: Int): Boolean = id == RefNonACGTN || id == SymbolicOrSV
 
   def isGenotype(id: Int): Boolean = !isVariant(id)
 

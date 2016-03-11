@@ -5,7 +5,6 @@ import org.broadinstitute.hail.variant._
 import breeze.linalg.DenseVector
 
 import org.http4s.headers.`Content-Type`
-import org.apache.spark.sql.{Row, DataFrame}
 import org.http4s._
 import org.http4s.MediaType._
 import org.http4s.dsl._
@@ -21,29 +20,6 @@ case class VariantFilter(operand: String,
   value: String,
   operand_type: String) {
 
-  def filter(df: DataFrame): DataFrame = {
-    operand match {
-      case "chrom" =>
-        assert(operand_type == "string"
-          && operator == "eq")
-        df.filter(df("chrom") === value)
-      case "pos" =>
-        assert(operand_type == "integer")
-        val pos = value.toInt
-        operator match {
-          case "eq" =>
-            df.filter(df("pos") === pos)
-          case "gte" =>
-            df.filter(df("pos") >= pos)
-          case "gt" =>
-            df.filter(df("pos") > pos)
-          case "lte" =>
-            df.filter(df("pos") <= pos)
-          case "lt" =>
-            df.filter(df("pos") < pos)
-        }
-    }
-  }
 
   def filter(hcs: HardCallSet): HardCallSet = {
     operand match {
@@ -100,78 +76,8 @@ class RESTFailure(message: String) extends Exception(message)
 
 object T2DService {
   var task: Server = _
-
-  def getStats(req: GetStatsRequest): GetStatsResult = {
-    req.md_version.foreach { md_version =>
-      if (md_version != "mdv1")
-        throw new RESTFailure(s"Unknown md_version `$md_version'.  Available md_versions: mdv1.")
-    }
-
-    if (req.api_version != 1)
-      throw new RESTFailure(s"Unsupported API version `${req.api_version}'.  Supported API versions: 1.")
-
-    var df = GoT2D.results
-    req.variant_filters.foreach(_.foreach { filter =>
-      df = filter.filter(df)
-    })
-
-    val hardLimit = 10000
-    val limit = req.limit.map(_.min(hardLimit)).getOrElse(hardLimit)
-
-    val stats = df.map { r =>
-      val pValIdx = r.fieldIndex("p$minusvalue")
-      Stat(r.getString(r.fieldIndex("chrom")),
-        r.getInt(r.fieldIndex("pos")),
-        r.getString(r.fieldIndex("ref")),
-        r.getString(r.fieldIndex("alt")),
-        if (r.isNullAt(pValIdx))
-          None
-        else
-          Some(r.getDouble(pValIdx)))
-    }.take(limit)
-
-    if (req.count.getOrElse(false))
-      GetStatsResult(is_error = false, None, req.passback, None, Some(stats.length))
-    else
-      GetStatsResult(is_error = false, None, req.passback, Some(stats), None)
-  }
-
-  def service(implicit executionContext: ExecutionContext = ExecutionContext.global): HttpService = Router(
-    "" -> rootService)
-
-  def rootService(implicit executionContext: ExecutionContext) = HttpService {
-    case _ -> Root =>
-      // The default route result is NotFound. Sometimes MethodNotAllowed is more appropriate.
-      MethodNotAllowed()
-
-    case req@POST -> Root / "getStats" =>
-      println("in getStats")
-
-      // FIXME error handling
-      req.decode[String] { text =>
-        println(text)
-
-        implicit val formats = Serialization.formats(NoTypeHints)
-
-        // implicit val formats = DefaultFormats // Brings in default date formats etc.
-        // val getStatsReq = parse(text).extract[GetStatsRequest]
-        var passback: Option[String] = None
-        try {
-          val getStatsReq = read[GetStatsRequest](text)
-          passback = getStatsReq.passback
-          val result = getStats(getStatsReq)
-          Ok(write(result))
-            .putHeaders(`Content-Type`(`application/json`))
-        } catch {
-          case e: Exception =>
-            val result = GetStatsResult(is_error = true, Some(e.getMessage), passback, None, None)
-            BadRequest(write(result))
-              .putHeaders(`Content-Type`(`application/json`))
-        }
-      }
-  }
-
-  def computeStats(req: GetStatsRequest, hcs1: HardCallSet, cov1: CovariateData): GetStatsResult = {
+  
+  def getStats(req: GetStatsRequest, hcs1: HardCallSet, cov1: CovariateData): GetStatsResult = {
     req.md_version.foreach { md_version =>
       if (md_version != "mdv1")
         throw new RESTFailure(s"Unknown md_version `$md_version'.  Available md_versions: mdv1.")
@@ -192,14 +98,18 @@ object T2DService {
 
     def getCovName(c: Covariate): String =
       c.`type` match {
-      case "phenotype" => c.name
-      case "variant" => throw new RESTFailure("variant is not a supported covariate type (yet)")
-      case other => throw new RESTFailure(s"$other is not a supported covariate type")
+        case "phenotype" =>
+          if (cov1.covName.contains(c.name))
+            c.name
+          else
+            throw new RESTFailure(s"${c.name} is not a valid covariate name")
+        case "variant" => throw new RESTFailure("\'variant\' is not a supported covariate type (yet)")
+        case other => throw new RESTFailure(s"$other is not a supported covariate type")
       }
 
     val cov: CovariateData = req.covariates match {
       case Some(covsToKeep) => cov1.filterCovariates(covsToKeep.map(getCovName).toSet)
-      case None => throw new RESTFailure(s"Missing covariates")
+      case None => cov1.filterCovariates(Set())
     }
 
     val hardLimit = 10000
@@ -216,10 +126,10 @@ object T2DService {
       GetStatsResult(is_error = false, None, req.passback, Some(stats), None)
   }
 
-  def serviceHcs(hcs: HardCallSet, cov: CovariateData)(implicit executionContext: ExecutionContext = ExecutionContext.global): HttpService = Router(
-    "" -> rootServiceHcs(hcs, cov))
+  def service(hcs: HardCallSet, cov: CovariateData)(implicit executionContext: ExecutionContext = ExecutionContext.global): HttpService = Router(
+    "" -> rootService(hcs, cov))
 
-  def rootServiceHcs(hcs: HardCallSet, cov: CovariateData)(implicit executionContext: ExecutionContext) = HttpService {
+  def rootService(hcs: HardCallSet, cov: CovariateData)(implicit executionContext: ExecutionContext) = HttpService {
     case _ -> Root =>
       // The default route result is NotFound. Sometimes MethodNotAllowed is more appropriate.
       MethodNotAllowed()
@@ -239,7 +149,7 @@ object T2DService {
         try {
           val getStatsReq = read[GetStatsRequest](text)
           passback = getStatsReq.passback
-          val result = computeStats(getStatsReq, hcs, cov)
+          val result = getStats(getStatsReq, hcs, cov)
           Ok(write(result))
             .putHeaders(`Content-Type`(`application/json`))
         } catch {
