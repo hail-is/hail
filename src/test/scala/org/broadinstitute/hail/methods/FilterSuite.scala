@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.{expr, SparkSuite}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
@@ -160,5 +161,32 @@ class FilterSuite extends SparkSuite {
     val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     val s2 = FilterVariants.run(s, Array("--keep", "-c", """ "^\\d+$" ~ v.contig """))
     assert(s.vds.nVariants == s2.vds.nVariants)
+  }
+
+  @Test def MissingTest() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val keepOneSample = FilterSamples.run(s, Array("--keep", "-c", "s.id == \"C1046::HG02024\""))
+    val qc = VariantQC.run(keepOneSample, Array.empty[String])
+
+    Count.run(keepOneSample, Array.empty[String])
+    val missingVariants = qc.vds.variantsAndAnnotations
+      .collect()
+      .filter { case (v, va) =>
+        va.get[Annotations]("qc").getOption[Double]("rHetHomVar")
+          .isEmpty
+      }
+        .map(_._1)
+
+    // ensure that we're not checking empty vs empty
+    assert(missingVariants.size > 0)
+
+    val missingVariantsFilter = FilterVariants.run(qc, Array("--keep", "-c", "va.qc.rHetHomVar.isMissing"))
+      .vds
+      .variantsAndAnnotations
+      .collect()
+      .map(_._1)
+
+    assert(missingVariantsFilter.toSet == missingVariants.toSet)
   }
 }
