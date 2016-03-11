@@ -33,6 +33,30 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
       CovariateData(filtCovRowSample, covName, filtData)
     }
   }
+
+  def filterCovariates(covsToKeep: Set[String]): CovariateData = {
+    val covColKeep: Array[Boolean] = covName.map(covsToKeep)
+    val nKeep = covColKeep.count(identity)
+    val nCol = covName.size
+    val nCovsDiscarded = nCol - nKeep
+
+    if (nCovsDiscarded == 0)
+      this
+    else {
+      val filtCovName = Array.ofDim[String](nKeep)
+      val filtData = DenseMatrix.zeros[Double](covRowSample.size, nKeep)
+      var filtCol = 0
+
+      for (col <- 0 until nCol)
+        if (covColKeep(col)) {
+          filtCovName(filtCol) = covName(col)
+          filtData(::, filtCol to filtCol) := data(::, col)
+          filtCol += 1
+        }
+
+      CovariateData(covRowSample, filtCovName, filtData)
+    }
+  }
 }
 
 object CovariateData {

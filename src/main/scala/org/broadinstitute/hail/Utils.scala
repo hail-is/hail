@@ -2,12 +2,12 @@ package org.broadinstitute.hail
 
 import java.io._
 import breeze.linalg.operators.{OpSub, OpAdd}
-import org.apache.hadoop
+import org.apache.{spark, hadoop}
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.AccumulableParam
+import org.apache.spark.{SparkEnv, AccumulableParam}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
@@ -316,7 +316,7 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
 
     header.foreach { str =>
-      writeDataFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
+      writeFile(tmpFileName + ".header", r.sparkContext.hadoopConfiguration) { s =>
         s.write(str)
       }
     }
@@ -417,6 +417,10 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
         }
       case _ => sb.append(a)
     }
+  }
+
+  def tsvAppendItems(args: Any*) {
+    args.foreachBetween(tsvAppend) { _ => sb += '\t' }
   }
 }
 
@@ -624,7 +628,7 @@ object Utils extends Logging {
   }
 
   def hadoopGetTemporaryFile(tmpdir: String, hConf: hadoop.conf.Configuration, nChar: Int = 10,
-    prefix: Option[String] = None, suffix: Option[String] = None): String = {
+                             prefix: Option[String] = None, suffix: Option[String] = None): String = {
 
     val destFS = hadoopFS(tmpdir, hConf)
     val prefixString = if (prefix.isDefined) prefix + "-" else ""
@@ -700,7 +704,7 @@ object Utils extends Logging {
   }
 
   def writeObjectFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
+                         hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
     try {
       f(oos)
@@ -710,7 +714,7 @@ object Utils extends Logging {
   }
 
   def readObjectFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
+                        hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
     try {
       f(ois)
@@ -720,17 +724,18 @@ object Utils extends Logging {
   }
 
   def readDataFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(f: (DataInputStream) => T): T = {
-    val dis = new DataInputStream(hadoopOpen(filename, hConf))
+                      hConf: hadoop.conf.Configuration)(f: (spark.serializer.DeserializationStream) => T): T = {
+    val serializer = SparkEnv.get.serializer.newInstance()
+    val ds = serializer.deserializeStream(hadoopOpen(filename, hConf))
     try {
-      f(dis)
+      f(ds)
     } finally {
-      dis.close()
+      ds.close()
     }
   }
 
   def writeTextFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
+                       hConf: hadoop.conf.Configuration)(writer: (OutputStreamWriter) => T): T = {
     val oos = hadoopCreate(filename, hConf)
     val fw = new OutputStreamWriter(oos)
     try {
@@ -741,18 +746,28 @@ object Utils extends Logging {
   }
 
   def writeDataFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(writer: (DataOutputStream) => T): T = {
-    val oos = hadoopCreate(filename, hConf)
-    val dos = new DataOutputStream(oos)
+                       hConf: hadoop.conf.Configuration)(f: (spark.serializer.SerializationStream) => T): T = {
+    val serializer = SparkEnv.get.serializer.newInstance()
+    val ss = serializer.serializeStream(hadoopCreate(filename, hConf))
     try {
-      writer(dos)
+      f(ss)
     } finally {
-      dos.close()
+      ss.close()
+    }
+  }
+
+  def writeFile[T](filename: String,
+                   hConf: hadoop.conf.Configuration)(writer: (OutputStream) => T): T = {
+    val os = hadoopCreate(filename, hConf)
+    try {
+      writer(os)
+    } finally {
+      os.close()
     }
   }
 
   def readFile[T](filename: String,
-    hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
+                  hConf: hadoop.conf.Configuration)(reader: (InputStream) => T): T = {
     val is = hadoopOpen(filename, hConf)
     try {
       reader(is)

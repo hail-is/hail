@@ -22,10 +22,8 @@ object VariantSampleMatrix {
 
     val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
       sqlContext.sparkContext.hadoopConfiguration) {
-      dis => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.deserializeStream(dis).readObject[(Array[Int], VariantMetadata)]
-      }
+      ds =>
+        ds.readObject[(Array[Int], VariantMetadata)]
     }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
@@ -405,10 +403,8 @@ class RichVDS(vds: VariantDataset) {
     val hConf = vds.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
     writeDataFile(dirname + "/metadata.ser", hConf) {
-      dos => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.serializeStream(dos).writeObject((vds.localSamples, vds.metadata))
-      }
+      ss =>
+        ss.writeObject((vds.localSamples, vds.metadata))
     }
 
     vds.rdd

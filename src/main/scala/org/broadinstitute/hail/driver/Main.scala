@@ -155,7 +155,9 @@ object Main {
     */
 
     val commands = Array(
+      AddHcs,
       Cache,
+      CacheHcs,
       Count,
       DownsampleVariants,
       ExportPlink,
@@ -172,16 +174,20 @@ object Main {
       GQByDP,
       ImportVCF,
       LinearRegressionCommand,
+      LinearRegressionOnHcsCommand,
       MendelErrorsCommand,
       SplitMulti,
       PCA,
       Read,
+      ReadHcs,
       RenameSamples,
       Repartition,
+      RepartitionHcs,
       SampleQC,
       ShowAnnotations,
       VariantQC,
-      Write
+      Write,
+      WriteHcs
     )
 
     val nameCommand = commands
@@ -304,6 +310,14 @@ object Main {
 
     sc.stop()
     progressBar.stop()
+  }
+
+  {
+    import breeze.linalg._
+    import breeze.linalg.operators.{OpMulMatrix, BinaryRegistry}
+
+    implicitly[BinaryRegistry[DenseMatrix[Double], Vector[Double], OpMulMatrix.type, DenseVector[Double]]].register(
+      DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
   }
 
 }

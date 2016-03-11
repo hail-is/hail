@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.vcf
 
+import htsjdk.variant.variantcontext.VariantContext
 import org.apache.spark.Accumulable
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
@@ -21,9 +22,8 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    line: String,
+    vc: VariantContext,
     typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
-    val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filts = {
@@ -38,7 +38,9 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     val v = Variant(vc.getContig,
       vc.getStart,
       ref,
-      vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
+      vc.getAlternateAlleles.iterator.asScala.map(a => {
+        AltAllele(ref, a.getBaseString)}
+      ).toArray)
 
     val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
       .asScala
@@ -97,10 +99,10 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         else
           Genotype.gtIndex(j, i)
 
-        if (g.hasPL && pl(gt) != 0) {
-          reportAcc += VCFReport.GTPLMismatch
-          filter = true
-        }
+        //if (g.hasPL && pl(gt) != 0) {  // FIXME: necessary for GoT2D
+        //  reportAcc += VCFReport.GTPLMismatch
+        //  filter = true
+        //}
 
         if (gt != -1)
           gb.setGT(gt)
@@ -174,8 +176,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 }
 
 object HtsjdkRecordReader {
-  def apply(headerLines: Array[String]): HtsjdkRecordReader = {
-    val codec = new htsjdk.variant.vcf.VCFCodec()
+  def apply(headerLines: Array[String], codec: htsjdk.variant.vcf.VCFCodec): HtsjdkRecordReader = {
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)
   }

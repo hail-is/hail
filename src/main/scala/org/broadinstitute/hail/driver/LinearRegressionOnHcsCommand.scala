@@ -1,12 +1,14 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.methods.{CovariateData, LinearRegression, Pedigree}
+import org.broadinstitute.hail.methods.{LinearRegressionOnHcs, CovariateData, Pedigree}
+import org.broadinstitute.hail.variant.HardCallSet
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.Utils._
 
-object LinearRegressionCommand extends Command {
+object LinearRegressionOnHcsCommand extends Command {
 
-  def name = "linreg"
-  def description = "Compute beta, std error, t-stat, and p-val for each SNP with additional sample covariates"
+  def name = "linreghcs"
+  def description = "Compute beta, std error, t-stat, and p-val for each SNP with additional sample covariates from hard call set"
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output root filename")
@@ -21,11 +23,11 @@ object LinearRegressionCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    val vds = state.vds
-    val ped = Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds)
-    val cov = CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds)
+    val hcs = state.hcs
+    val ped = Pedigree.read(options.famFilename, state.hadoopConf, hcs.sampleIds)
+    val cov = CovariateData.read(options.covFilename, state.hadoopConf, hcs.sampleIds)
 
-    val linreg = LinearRegression(vds, ped, cov)
+    val linreg = LinearRegressionOnHcs(hcs, ped, cov)
 
     linreg.write(options.output)
 

@@ -12,15 +12,14 @@ mendelerrors -f trios.fam -o genomes
 ```
 outputs four TSV files according to the [Plink mendel formats](https://www.cog-genomics.org/plink2/formats#mendel):
 
-- `genomes.mendel` -- all mendel errors: FID KID CHR SNP CODE ERROR
-- `genomes.fmendel` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
+- `genomes.mendel` -- all mendel errors: FID KID CHR POS REF ALT CODE DADGT MOMGT KIDGT
+- `genomes.fmendel` -- error count per nuclear family: FID DAD MOM NCHLD N NSNP
 - `genomes.imendel` -- error count per individual: FID IID N NSNP
-- `genomes.lmendel` -- error count per variant: CHR SNP N
+- `genomes.lmendel` -- error count per variant: CHR POS REF ALT N
 
-FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and individual ID, respectively, with missing values set to `0`.
-SNP denotes the variant identifier `chr:pos:ref:alt`.
-N counts all errors, while NSNP only counts SNP errors (NSNP is not in Plink).
-CHLD is the number of children in a nuclear family.
+FID, KID, DAD, MOM, and IID refer to family, kid, dad, mom, and individual ID, respectively, with missing values set to `0`.
+N counts all errors, while NSNP only counts SNP errors.
+NCHLD is the number of children in a nuclear family.
 
 The CODE of each Mendel error is determined by the table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
 Those individuals implicated by each code are in bold.

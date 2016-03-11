@@ -19,12 +19,12 @@ Column | Value
 CHR | chromosome
 POS | position
 REF | reference allele
-ALT | alternate allele
 MISS | count of missing genotypes
+PVAL | p-value
 BETA | genotype coefficient
 SE | standard error
-T | t-statistic
-P | p-value
+TSTAT | t-statistic
+ALT | alternate allele
 
 A `.cov` file is a TSV file of sample covariate data. The first column records the sample ID. Here is an example with two samples:
 
@@ -33,7 +33,6 @@ IID   AGE   SEX   PC1   PC2
 Ann   10    2     1.2   6.7
 Bob   12    1     -0.2  2.8
 ```
-
 
 Samples are included in the regression if and only if they are in the variant data set, the .cov file, and the .fam file with a defined phenotype. For each variant, missing genotypes are imputed as the mean of called genotypes.
 

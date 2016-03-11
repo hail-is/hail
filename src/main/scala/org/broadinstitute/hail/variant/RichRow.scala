@@ -41,10 +41,20 @@ class RichRow(r: Row) {
       ir.getAs[Array[Byte]](2))
   }
 
+  def getCallStream(i: Int): CallStream = {
+    val ir = r.getAs[Row](i)
+    CallStream(ir.getByteArray(0), ir.getDouble(1), ir.getDouble(2), ir.getInt(3), ir.getInt(4), ir.getBoolean(5))
+  }
+
+
   def getTuple2String(i: Int): (String, String) = (r.getString(0), r.getString(1))
   def getTuple3String(i: Int): (String, String, String) = (r.getString(0), r.getString(1), r.getString(2))
 
   def getByteArray(i: Int): Array[Byte] = {
     r.getAs[Array[Byte]](i)
+  }
+
+  def getIntArray(i: Int): Array[Int] = {
+    r.getAs[Array[Int]](i)
   }
 }
