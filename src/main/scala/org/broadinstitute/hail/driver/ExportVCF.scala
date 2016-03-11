@@ -147,6 +147,22 @@ object ExportVCF extends Command {
       }
     }
 
+    val idQuery: Querier = if (vds.vaSignatures.getOption("rsid").forall(sig => sig.dType == expr.TString))
+      vds.queryVA("rsid")
+    else
+      a => None
+
+    val qualQuery: Querier = if (vds.vaSignatures.getOption("qual").forall(sig => sig.dType == expr.TDouble))
+      vds.queryVA("rsid")
+    else
+      a => None
+
+    val filterQuery: Querier = if (vds.vaSignatures.getOption("filters").forall(sig =>
+      sig.dType == expr.TSet(expr.TString)))
+      vds.queryVA("rsid")
+    else
+      a => None
+
     def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype],
       infoF: (StringBuilder, Annotation) => Unit) {
 
@@ -155,9 +171,7 @@ object ExportVCF extends Command {
       sb.append(v.start)
       sb += '\t'
 
-      //FIXME hardcoded path
-      val id = a.asInstanceOf[Row].getOptionAs[String](3)
-        .getOrElse(".")
+      val id = idQuery(a).getOrElse(".")
       sb.append(id)
 
       sb += '\t'
@@ -167,14 +181,12 @@ object ExportVCF extends Command {
         sb.append(aa.alt))(_ => sb += ',')
       sb += '\t'
 
-      //FIXME hardcoded path
-      a.asInstanceOf[Row].getOptionAs[Double](0) match {
-        case Some(d) => sb.append(d.formatted("%.2f"))
-        case None => sb += '.'
-      }
+      val qual = qualQuery(a).map(_.asInstanceOf[Double].formatted("%.2f"))
+        .getOrElse(".")
+      sb.append(qual)
       sb += '\t'
 
-      a.asInstanceOf[Row].getOptionAs[mutable.WrappedArray[String]](1) match {
+      val filters = filterQuery(a).map(_.asInstanceOf[mutable.WrappedArray[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween(s => sb.append(s))(_ => sb += ',')

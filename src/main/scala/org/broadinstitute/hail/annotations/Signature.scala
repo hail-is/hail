@@ -19,6 +19,8 @@ abstract class Signature {
     dType.typeCheck(a)
   }
 
+  def getOption(fields: String*): Option[Signature] = getOption(fields.toList)
+
   def getOption(path: List[String]): Option[Signature] = {
     if (path.isEmpty)
       Some(this)
