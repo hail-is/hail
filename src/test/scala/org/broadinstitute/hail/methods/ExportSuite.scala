@@ -67,15 +67,35 @@ class ExportSuite extends SparkSuite {
     assert(vQcOutput == vExportOutput)
   }
 
-  def testExportSamples() {
+  @Test def testExportSamples() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    s = SplitMulti.run(s, Array.empty[String])
     s = FilterSamples.run(s, Array("--keep", "-c", """s.id == "C469::HG02026""""))
-    assert(s.vds.nSamples == 1)
+    assert(s.vds.nLocalSamples == 1)
 
     // verify exports localSamples
     s = ExportSamples.run(s, Array("-o", "/tmp/samples.tsv", "-c", "s.id"))
     assert(sc.textFile("/tmp/samples.tsv").count() == 1)
+  }
+
+  @Test def testAllowedNames() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    s = SplitMulti.run(s, Array.empty[String])
+    s = ExportSamples.run(s, Array("-o", "/tmp/samples.tsv", "-c", "S.A.M.P.L.E.ID = s.id"))
+    s = ExportSamples.run(s, Array("-o", "/tmp/samples2.tsv", "-c",
+      "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS**** = s.id, ANOTHERTHING=s.id"))
+    readFile("/tmp/samples.tsv", sc.hadoopConfiguration){reader =>
+      val lines = Source.fromInputStream(reader)
+        .getLines()
+      assert(lines.next == "S.A.M.P.L.E.ID")
+    }
+    readFile("/tmp/samples2.tsv", sc.hadoopConfiguration){reader =>
+      val lines = Source.fromInputStream(reader)
+        .getLines()
+      assert(lines.next == "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS****\tANOTHERTHING")
+    }
   }
 
 }

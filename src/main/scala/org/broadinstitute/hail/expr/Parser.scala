@@ -105,7 +105,9 @@ object Parser extends JavaTokenParsers {
     }
 
   def named_arg: Parser[(String, AST)] =
-    ident ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
+    tsvIdentifier ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
+
+  def tsvIdentifier: Parser[String] = """[^\s\p{Cntrl},=]+""".r
 
   def args: Parser[Array[AST]] =
     repsep(expr, ",") ^^ {_.toArray}
