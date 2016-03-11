@@ -131,9 +131,7 @@ object LinearRegression {
 
 object LinearRegressionOnHcs {
 
-  def apply(hcs: HardCallSet,
-    y: DenseVector[Double],
-    cov: CovariateData): LinearRegression = {
+  def apply(hcs: HardCallSet, y: DenseVector[Double], cov: CovariateData): LinearRegression = {
 
     if (!(hcs.localSamples sameElements cov.covRowSample))
       fatal("Samples misaligned, recreate .hcs using .ped and .cov")
@@ -184,13 +182,6 @@ object LinearRegressionOnHcs {
       }
     )
   }
-
-  def computeLR(hcs: HardCallSet,
-    variantFilter: (Variant) => Boolean,
-    y: DenseVector[Double],
-    cov: CovariateData,
-    covsToKeep: Set[String]): LinearRegression =
-    LinearRegressionOnHcs(hcs.filterVariants(variantFilter), y, cov.filterCovariates(covsToKeep))
 
   def apply(hcs: HardCallSet, ped: Pedigree, cov0: CovariateData): LinearRegression = {
     val cov = cov0.filterSamples(ped.phenotypedSamples)
