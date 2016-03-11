@@ -203,7 +203,7 @@ case object TVariant extends TVdsType {
 }
 
 case class TStruct(fields: Map[String, (Int, Type)]) extends Type {
-  override def toString = "Schema"
+  override def toString = "Struct"
 
   override def typeCheck(a: Any): Boolean = a == null || {
     val types = fields.toArray
