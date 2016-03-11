@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
+import scala.util.matching.Regex.Match
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -105,7 +106,7 @@ object Parser extends JavaTokenParsers {
     ident ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
 
   def args: Parser[Array[AST]] =
-    repsep(expr, ",") ^^ { _.toArray }
+    repsep(expr, ",") ^^ {_.toArray}
 
   def dot_expr: Parser[AST] =
     unary_expr ~ rep((withPos(".") ~ ident) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>
@@ -123,15 +124,21 @@ object Parser extends JavaTokenParsers {
       }
     }
 
+  // """"([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r
+  def evalStringLiteral(lit: String): String = {
+    assert(lit.head == '"' && lit.last == '"')
+    val r = """\\[\\'"bfnrt]""".r
+    // replacement does backslash expansion
+    r.replaceAllIn(lit.tail.init, _.matched)
+  }
+
   def primary_expr: Parser[AST] =
     withPos("""-?\d+\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       // FIXME L suffix
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
-      withPos(stringLiteral) ^^ { r =>
-        val x = r.x
-        assert(x.head == '"' && x.last == '"')
-        Const(r.pos, x.tail.init, TString)
+      withPos(""""([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r) ^^ { r =>
+        Const(r.pos, evalStringLiteral(r.x), TString)
       } |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
