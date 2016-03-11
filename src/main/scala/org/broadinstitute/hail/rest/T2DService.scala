@@ -95,7 +95,8 @@ object T2DService {
       case Some(pheno) =>
         cov1.covName.indexOf(pheno) match {
           case -1 => throw new RESTFailure(s"$pheno is not a valid phenotype name")
-          case i => cov1.data(::, cov1.covName(i))
+          case i => cov1.data.get(::, i)
+        }
       case None => throw new RESTFailure(s"Missing phenotype")
     }
 
