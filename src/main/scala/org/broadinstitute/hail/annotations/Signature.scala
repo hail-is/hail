@@ -49,9 +49,11 @@ abstract class Signature {
         case expr.TString =>
           (v: String) =>
             if (missing(v)) null else v
-        case _ => throw new UnsupportedOperationException()
+        case _ => throw new UnsupportedOperationException(s"Cannot generage a parser for $dType")
       }
   }
+
+  def getOption(fields: String*): Option[Signature] = getOption(fields.toList)
 
   def getOption(path: List[String]): Option[Signature] = {
     if (path.isEmpty)
