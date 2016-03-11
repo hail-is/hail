@@ -127,6 +127,7 @@ class AnnotationsSuite extends SparkSuite {
     */
 
     var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+      .cache()
 
     // clear everything
     val (emptyS, d1) = vds.deleteVA()
@@ -203,6 +204,8 @@ class AnnotationsSuite extends SparkSuite {
               true))),
             true))),
           true))))
+
+    println(vds.vaSchema)
 
     val q6 = vds.queryVA("a", "b", "c", "d", "e")
     assert(vds.rdd

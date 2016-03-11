@@ -443,14 +443,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def vaSchema: String = {
     metadata.vaSignatures match {
       case null => "va: empty schema"
-      case s => s.printSchema("va")
+      case s => s.printSchema("va", 2, "va")
     }
   }
 
   def saSchema: String = {
     metadata.saSignatures match {
       case null => "sa: empty schema"
-      case s => s.printSchema("sa")
+      case s => s.printSchema("sa", 2, "sa")
     }
   }
 }

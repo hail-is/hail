@@ -69,8 +69,8 @@ abstract class Signature {
     }
   }
 
-  def printSchema(path: String): String = {
-    s"""$path: $dType"""
+  def printSchema(key: String, nSpace: Int, path: String): String = {
+    s"""${" " * nSpace}$key: $dType"""
   }
 }
 
@@ -223,16 +223,17 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
     s
   }
 
-  override def printSchema(path: String): String = {
-    s"""$path: group of ${
-      m.size
-    } annotations\n""" +
+  override def printSchema(key: String, nSpace: Int, path: String): String = {
+    val spaces = " " * nSpace
+    s"""$spaces$key: $path.<identifier>\n""" +
       m.toArray
         .sortBy {
           case (k, (i, v)) => i
         }
         .map {
-          case (k, (i, v)) => v.printSchema(path + s".$k")
+          case (k, (i, v)) => v.printSchema(s"""$k""", nSpace + 2, path + "." + k)
+//          keep for future debugging:
+//          case (k, (i, v)) => v.printSchema(s"""[$i] $k""", nSpace + 2, path + "." + k)
         }
         .mkString("\n")
   }
@@ -241,7 +242,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
 case class EmptySignature(dType: expr.Type = expr.TBoolean) extends Signature {
   override def getSchema: DataType = BooleanType
 
-  override def printSchema(path: String): String = s"""$path: EMPTY"""
+  override def printSchema(key: String, nSpace: Int, path: String): String = s"""${" " * nSpace}$key: EMPTY"""
 
   override def query(path: List[String]): Querier = throw new AnnotationPathException()
 
