@@ -92,7 +92,10 @@ object T2DService {
     })
 
     val y: DenseVector[Double] = req.phenotype match {
-      case Some(pheno) => cov1.data(::, cov1.covName.indexOf(pheno))
+      case Some(pheno) =>
+        cov1.covName.indexOf(pheno) match {
+          case -1 => throw new RESTFailure(s"$pheno is not a valid phenotype name")
+          case i => cov1.data(::, cov1.covName(i))
       case None => throw new RESTFailure(s"Missing phenotype")
     }
 
@@ -103,8 +106,10 @@ object T2DService {
             c.name
           else
             throw new RESTFailure(s"${c.name} is not a valid covariate name")
-        case "variant" => throw new RESTFailure("\'variant\' is not a supported covariate type (yet)")
-        case other => throw new RESTFailure(s"$other is not a supported covariate type")
+        case "variant" =>
+          throw new RESTFailure("\'variant\' is not a supported covariate type (yet)")
+        case other =>
+          throw new RESTFailure(s"$other is not a supported covariate type")
       }
 
     val cov: CovariateData = req.covariates match {
