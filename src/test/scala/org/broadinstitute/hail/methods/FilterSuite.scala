@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.{expr, SparkSuite}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
@@ -169,12 +168,11 @@ class FilterSuite extends SparkSuite {
     val keepOneSample = FilterSamples.run(s, Array("--keep", "-c", "s.id == \"C1046::HG02024\""))
     val qc = VariantQC.run(keepOneSample, Array.empty[String])
 
-    Count.run(keepOneSample, Array.empty[String])
+    val q = qc.vds.queryVA("qc", "rHetHomVar")
     val missingVariants = qc.vds.variantsAndAnnotations
       .collect()
       .filter { case (v, va) =>
-        va.get[Annotations]("qc").getOption[Double]("rHetHomVar")
-          .isEmpty
+        q(va).isEmpty
       }
         .map(_._1)
 
