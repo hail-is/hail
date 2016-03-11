@@ -502,8 +502,12 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TString, "toFloat") => AST.evalCompose[String](c, lhs)(_.toFloat)
     case (TString, "toDouble") => AST.evalCompose[String](c, lhs)(_.toDouble)
 
-    case (_, "isMissing") => AST.evalCompose[Any](c, lhs)(_ == null)
-    case (_, "isNotMissing") => AST.evalCompose[Any](c, lhs)(_ != null)
+    case (_, "isMissing") =>
+      val f = lhs.eval(c)
+      () => f() == null
+    case (_, "isNotMissing") =>
+      val f = lhs.eval(c)
+      () => f() != null
 
     case (TInt, "abs") => AST.evalCompose[Int](c, lhs)(_.abs)
     case (TLong, "abs") => AST.evalCompose[Long](c, lhs)(_.abs)

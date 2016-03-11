@@ -1,7 +1,6 @@
 package org.broadinstitute.hail
 
 import java.io._
-import java.net.URI
 import breeze.linalg.operators.{OpSub, OpAdd}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
@@ -13,7 +12,6 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
-import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -354,6 +352,8 @@ class RichIndexedRow(val r: IndexedRow) extends AnyVal {
   def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
+
+  def :*(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :* that)
 
   def :/(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :/ that)
 }

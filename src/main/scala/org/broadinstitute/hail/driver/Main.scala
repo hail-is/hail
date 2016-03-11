@@ -172,6 +172,7 @@ object Main {
       FilterVariants,
       FilterSamples,
       GenDataset,
+      Grep,
       GQByDP,
       ImportVCF,
       LinearRegressionCommand,
