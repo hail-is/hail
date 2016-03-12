@@ -86,6 +86,8 @@ class ExportSuite extends SparkSuite {
     s = ExportSamples.run(s, Array("-o", "/tmp/samples.tsv", "-c", "S.A.M.P.L.E.ID = s.id"))
     s = ExportSamples.run(s, Array("-o", "/tmp/samples2.tsv", "-c",
       "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS**** = s.id, ANOTHERTHING=s.id"))
+    s = ExportSamples.run(s, Array("-o", "/tmp/samples3.tsv", "-c",
+      "`I have some spaces and tabs\there` = s.id,`more weird stuff here`=s.id"))
     readFile("/tmp/samples.tsv", sc.hadoopConfiguration){reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
@@ -96,6 +98,10 @@ class ExportSuite extends SparkSuite {
         .getLines()
       assert(lines.next == "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS****\tANOTHERTHING")
     }
+    readFile("/tmp/samples3.tsv", sc.hadoopConfiguration){reader =>
+      val lines = Source.fromInputStream(reader)
+        .getLines()
+      assert(lines.next == "I have some spaces and tabs\there\tmore weird stuff here")
+    }
   }
-
 }
