@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
-import scala.util.matching.Regex.Match
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -103,13 +102,19 @@ object Parser extends JavaTokenParsers {
     }
 
   def named_arg: Parser[(String, AST)] =
-    ident ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
+    tsvIdentifier ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
+
+  def tsvIdentifier: Parser[String] = tickIdentifier ||| """[^\s\p{Cntrl}=,]+""".r
+
+  def tickIdentifier: Parser[String] = """`[^`]+`""".r ^^ { i => i.substring(1, i.length - 1) }
 
   def args: Parser[Array[AST]] =
-    repsep(expr, ",") ^^ {_.toArray}
+    repsep(expr, ",") ^^ {
+      _.toArray
+    }
 
   def dot_expr: Parser[AST] =
-    unary_expr ~ rep((withPos(".") ~ ident) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>
+    unary_expr ~ rep((withPos(".") ~ (ident ||| tickIdentifier)) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
         case (lparen: Positioned[_]) ~ (args: Array[AST]) ~ ")" => Apply(lparen.pos, acc, args)
