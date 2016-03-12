@@ -1,8 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
-import scala.util.matching.Regex.Match
-import scala.util.parsing.combinator._
+import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
 object ParserUtils {
