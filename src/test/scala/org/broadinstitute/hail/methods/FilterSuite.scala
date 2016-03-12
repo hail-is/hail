@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
 import org.broadinstitute.hail.{expr, SparkSuite}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
@@ -188,5 +188,15 @@ class FilterSuite extends SparkSuite {
       .map(_._1)
 
     assert(missingVariantsFilter.toSet == missingVariants.toSet)
+  }
+
+  @Test def testWeirdNames() {
+    var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    vds = vds
+      .addVariantAnnotationSignatures("weird name \t test", SimpleSignature("Int"))
+      .mapAnnotations((v, va) => va.+("weird name \t test", 1000))
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterVariants.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))
+    assert(s2.vds.nVariants == vds.nVariants)
   }
 }

@@ -117,7 +117,7 @@ object Parser extends JavaTokenParsers {
     }
 
   def dot_expr: Parser[AST] =
-    unary_expr ~ rep((withPos(".") ~ ident) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>
+    unary_expr ~ rep((withPos(".") ~ (ident ||| tickIdentifier)) | (withPos("(") ~ args ~ ")")) ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
         case (lparen: Positioned[_]) ~ (args: Array[AST]) ~ ")" => Apply(lparen.pos, acc, args)
