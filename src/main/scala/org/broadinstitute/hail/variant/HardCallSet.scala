@@ -3,17 +3,22 @@ package org.broadinstitute.hail.variant
 import breeze.linalg._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 
 object HardCallSet {
-  def apply(vds: VariantDataset, sparseCutoff: Double = .15): HardCallSet = {
+  def apply(sqlContext: SQLContext, vds: VariantDataset, sparseCutoff: Double = .15): HardCallSet = {
+    import sqlContext.implicits._
+
     val n = vds.nLocalSamples
 
     new HardCallSet(
-      vds.rdd.map { case (v, va, gs) => (v, CallStream(gs, n, sparseCutoff)) },
+      vds.rdd.map { case (v, va, gs) =>
+        (v.start, v.alt, v.ref, CallStream(gs, n, sparseCutoff), "chr" + v.contig, v.start / 100000)
+      }.toDF("start", "alt", "ref", "callStream", "contig", "block"),
       vds.localSamples,
       vds.metadata.sampleIds)
   }
@@ -25,23 +30,33 @@ object HardCallSet {
     val (localSamples, sampleIds) = readDataFile(dirname + "/sampleInfo.ser",
       sqlContext.sparkContext.hadoopConfiguration) {
       ds =>
-        ds.readObject[(Array[Int],IndexedSeq[String])]
+        ds.readObject[(Array[Int], IndexedSeq[String])]
     }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
+    df.printSchema()
 
     new HardCallSet(
-      df.rdd.map(r => (r.getVariant(0), r.getCallStream(1))),
+      df,
       localSamples,
       sampleIds)
   }
 }
 
-case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
+case class HardCallSet(df: DataFrame, localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
+  def rdd: RDD[(Variant, CallStream)] = {
+    import RichRow._
+    df.rdd.map(r =>
+      (Variant(r.getString(4),
+        r.getInt(0),
+        r.getString(1),
+        r.getString(2)),
+        r.getCallStream(3)))
+  }
+
   def write(sqlContext: SQLContext, dirname: String) {
     if (!dirname.endsWith(".hcs"))
       fatal("Hard call set directory must end with .hcs")
-    import sqlContext.implicits._
 
     val hConf = rdd.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
@@ -50,34 +65,40 @@ case class HardCallSet(rdd: RDD[(Variant, CallStream)], localSamples: Array[Int]
         ss.writeObject((localSamples, sampleIds))
     }
 
-    rdd.toDF().write.parquet(dirname + "/rdd.parquet")
+    df.write
+      .partitionBy("contig", "block")
+      .parquet(dirname + "/rdd.parquet")
   }
 
   def sparkContext: SparkContext = rdd.sparkContext
 
-  def copy(rdd: RDD[(Variant, CallStream)],
-           localSamples: Array[Int] = localSamples,
-           sampleIds: IndexedSeq[String] = sampleIds): HardCallSet =
-    new HardCallSet(rdd, localSamples, sampleIds)
+  def copy(df: DataFrame,
+    localSamples: Array[Int] = localSamples,
+    sampleIds: IndexedSeq[String] = sampleIds): HardCallSet =
+    new HardCallSet(df, localSamples, sampleIds)
 
-  def cache(): HardCallSet = copy(rdd = rdd.cache())
+  def cache(): HardCallSet = copy(df = df.cache())
 
-  def repartition(nPartitions: Int) = copy(rdd = rdd.repartition(nPartitions)(null))
+  def persist(level: StorageLevel): HardCallSet = copy(df = df.persist(level))
 
+  def repartition(nPartitions: Int) = copy(df = df.repartition(nPartitions))
+
+  /*
   def filterVariants(p: (Variant) => Boolean): HardCallSet =
     copy(rdd = rdd.filter { case (v, cs) => p(v) })
+  */
 
   def nSamples = localSamples.size
 
   def nVariants: Long = rdd.count()
-  def nSparseVariants: Long = rdd.filter{ case (v, cs) => cs.isSparse }.count()
-  def nDenseVariants: Long = rdd.filter{ case (v, cs) => !cs.isSparse }.count()
+
+  def nSparseVariants: Long = rdd.filter { case (v, cs) => cs.isSparse }.count()
+
+  def nDenseVariants: Long = rdd.filter { case (v, cs) => !cs.isSparse }.count()
 }
 
 
-
 case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, nMissing: Int)
-
 
 
 object CallStream {
@@ -142,7 +163,7 @@ object CallStream {
       case 1 => a(j) = gts(i).toByte
       case 2 => a(j) = (gts(i) | (gts(i + 1) << 2)).toByte
       case 3 => a(j) = (gts(i) | (gts(i + 1) << 2) | (gts(i + 2) << 4)).toByte
-  }
+    }
 
     a
   }
@@ -178,7 +199,7 @@ object CallStream {
           valX(j) = 3
           nMissing += 1
           j += 1
-    }
+      }
 
     val meanX = sumX.toDouble / (n - nMissing)
 
@@ -356,7 +377,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
     while (i < n - 3) {
       val b = a(j)
-      merge(i,      b & mask00000011)
+      merge(i, b & mask00000011)
       merge(i + 1, (b & mask00001100) >> 2)
       merge(i + 2, (b & mask00110000) >> 4)
       merge(i + 3, (b & mask11000000) >> 6)
@@ -368,12 +389,12 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
     (n - i: @unchecked) match {
       case 0 =>
       case 1 =>
-        merge(i,      a(j) & mask00000011)
+        merge(i, a(j) & mask00000011)
       case 2 =>
-        merge(i,      a(j) & mask00000011)
+        merge(i, a(j) & mask00000011)
         merge(i + 1, (a(j) & mask00001100) >> 2)
       case 3 =>
-        merge(i,      a(j) & mask00000011)
+        merge(i, a(j) & mask00000011)
         merge(i + 1, (a(j) & mask00001100) >> 2)
         merge(i + 2, (a(j) & mask00110000) >> 4)
     }
@@ -421,13 +442,13 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
     while (i + 3 < n - nHomRef) {
       val gtByte = a(j)
-      val gt1 =  gtByte & mask00000011
+      val gt1 = gtByte & mask00000011
       val gt2 = (gtByte & mask00001100) >> 2
       val gt3 = (gtByte & mask00110000) >> 4
       val gt4 = (gtByte & mask11000000) >> 6
 
       val lenByte = a(j + 1)
-      val l1 =  lenByte & mask00000011
+      val l1 = lenByte & mask00000011
       val l2 = (lenByte & mask00001100) >> 2
       val l3 = (lenByte & mask00110000) >> 4
       val l4 = (lenByte & mask11000000) >> 6
@@ -462,7 +483,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         val gtByte = a(j)
         val gt1 = gtByte & mask00000011
 
-        val lenByte = a(j+1)
+        val lenByte = a(j + 1)
         val l1 = lenByte & mask00000011
 
         j += 2
@@ -472,11 +493,11 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
       case 2 =>
         val gtByte = a(j)
-        val gt1 =  gtByte & mask00000011
+        val gt1 = gtByte & mask00000011
         val gt2 = (gtByte & mask00001100) >> 2
 
-        val lenByte = a(j+1)
-        val l1 =  lenByte & mask00000011
+        val lenByte = a(j + 1)
+        val l1 = lenByte & mask00000011
         val l2 = (lenByte & mask00001100) >> 2
 
         j += 2
@@ -491,14 +512,14 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
       case 3 =>
         val gtByte = a(j)
-        val gt1 =  gtByte & mask00000011
+        val gt1 = gtByte & mask00000011
         val gt2 = (gtByte & mask00001100) >> 2
         val gt3 = (gtByte & mask00110000) >> 4
 
-        val lenByte = a(j+1)
-        val l1 =  a(j+1) & mask00000011
-        val l2 = (a(j+1) & mask00001100) >> 2
-        val l3 = (a(j+1) & mask00110000) >> 4
+        val lenByte = a(j + 1)
+        val l1 = a(j + 1) & mask00000011
+        val l2 = (a(j + 1) & mask00001100) >> 2
+        val l3 = (a(j + 1) & mask00110000) >> 4
 
         j += 2
 

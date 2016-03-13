@@ -8,6 +8,7 @@ import org.apache.spark._
 import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.VCFReport
+import org.broadinstitute.hail.rest.T2DServer
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -184,6 +185,7 @@ object Main {
       RepartitionHcs,
       SampleQC,
       ShowAnnotations,
+      T2DServer,
       VariantQC,
       Write,
       WriteHcs

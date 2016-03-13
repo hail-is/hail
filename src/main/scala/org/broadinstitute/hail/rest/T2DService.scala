@@ -1,7 +1,9 @@
 package org.broadinstitute.hail.rest
 
+import org.apache.spark.sql.DataFrame
 import org.broadinstitute.hail.methods.{CovariateData, LinearRegressionOnHcs}
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.Utils._
 import breeze.linalg.DenseVector
 
 import org.http4s.headers.`Content-Type`
@@ -20,27 +22,32 @@ case class VariantFilter(operand: String,
   value: String,
   operand_type: String) {
 
-
-  def filter(hcs: HardCallSet): HardCallSet = {
+  def filter(df: DataFrame): DataFrame = {
     operand match {
       case "chrom" =>
         assert(operand_type == "string"
           && operator == "eq")
-        hcs.filterVariants(v => v.contig == value)
+        df.filter(df("contig") === "chr" + value)
       case "pos" =>
         assert(operand_type == "integer")
-        val pos = value.toInt
+        val v = value.toInt
+        val vblock = v / 100000
         operator match {
           case "eq" =>
-            hcs.filterVariants(v => v.start == pos)
+            df.filter(df("block") === vblock)
+              .filter(df("start") === v)
           case "gte" =>
-            hcs.filterVariants(v => v.start >= pos)
+            df.filter(df("block") >= vblock)
+              .filter(df("start") >= v)
           case "gt" =>
-            hcs.filterVariants(v => v.start > pos)
+            df.filter(df("block") >= vblock)
+              .filter(df("start") > v)
           case "lte" =>
-            hcs.filterVariants(v => v.start <= pos)
+            df.filter(df("block") <= vblock)
+              .filter(df("start") <= v)
           case "lt" =>
-            hcs.filterVariants(v => v.start < pos)
+            df.filter(df("block") <= vblock)
+              .filter(df("start") < v)
         }
     }
   }
@@ -74,10 +81,9 @@ case class GetStatsResult(is_error: Boolean,
 
 class RESTFailure(message: String) extends Exception(message)
 
-object T2DService {
-  var task: Server = _
-  
-  def getStats(req: GetStatsRequest, hcs1: HardCallSet, cov1: CovariateData): GetStatsResult = {
+class T2DService(hcs: HardCallSet, cov: CovariateData) {
+
+  def getStats(req: GetStatsRequest): GetStatsResult = {
     req.md_version.foreach { md_version =>
       if (md_version != "mdv1")
         throw new RESTFailure(s"Unknown md_version `$md_version'.  Available md_versions: mdv1.")
@@ -86,16 +92,11 @@ object T2DService {
     if (req.api_version != 1)
       throw new RESTFailure(s"Unsupported API version `${req.api_version}'.  Supported API versions: 1.")
 
-    var hcs: HardCallSet = hcs1
-    req.variant_filters.foreach(_.foreach { filter =>
-      hcs = filter.filter(hcs)
-    })
-
     val y: DenseVector[Double] = req.phenotype match {
       case Some(pheno) =>
-        cov1.covName.indexOf(pheno) match {
+        cov.covName.indexOf(pheno) match {
           case -1 => throw new RESTFailure(s"$pheno is not a valid phenotype name")
-          case i => cov1.data.get(::, i)
+          case i => cov.data.get(::, i)
         }
       case None => throw new RESTFailure(s"Missing phenotype")
     }
@@ -103,7 +104,7 @@ object T2DService {
     def getCovName(c: Covariate): String =
       c.`type` match {
         case "phenotype" =>
-          if (cov1.covName.contains(c.name))
+          if (cov.covName.contains(c.name))
             c.name
           else
             throw new RESTFailure(s"${c.name} is not a valid covariate name")
@@ -113,15 +114,21 @@ object T2DService {
           throw new RESTFailure(s"$other is not a supported covariate type")
       }
 
-    val cov: CovariateData = req.covariates match {
-      case Some(covsToKeep) => cov1.filterCovariates(covsToKeep.map(getCovName).toSet)
-      case None => cov1.filterCovariates(Set())
+    val cov2: CovariateData = req.covariates match {
+      case Some(covsToKeep) => cov.filterCovariates(covsToKeep.map(getCovName).toSet)
+      case None => cov.filterCovariates(Set())
     }
 
-    val hardLimit = 10000
+    val hardLimit = 20000
     val limit = req.limit.map(_.min(hardLimit)).getOrElse(hardLimit)
 
-    val stats: Array[Stat] = LinearRegressionOnHcs(hcs, y, cov)
+    var df = hcs.df
+    req.variant_filters.foreach(
+      _.foreach { f =>
+        df = f.filter(df)
+      })
+
+    val stats: Array[Stat] = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
       .take(limit)
@@ -132,10 +139,10 @@ object T2DService {
       GetStatsResult(is_error = false, None, req.passback, Some(stats), None)
   }
 
-  def service(hcs: HardCallSet, cov: CovariateData)(implicit executionContext: ExecutionContext = ExecutionContext.global): HttpService = Router(
-    "" -> rootService(hcs, cov))
+  def service(implicit executionContext: ExecutionContext = ExecutionContext.global): HttpService = Router(
+    "" -> rootService)
 
-  def rootService(hcs: HardCallSet, cov: CovariateData)(implicit executionContext: ExecutionContext) = HttpService {
+  def rootService(implicit executionContext: ExecutionContext) = HttpService {
     case _ -> Root =>
       // The default route result is NotFound. Sometimes MethodNotAllowed is more appropriate.
       MethodNotAllowed()
@@ -143,19 +150,16 @@ object T2DService {
     case req@POST -> Root / "getStats" =>
       println("in getStats")
 
-      // FIXME error handling
       req.decode[String] { text =>
-        println(text)
+        info("request: " + text)
 
         implicit val formats = Serialization.formats(NoTypeHints)
 
-        // implicit val formats = DefaultFormats // Brings in default date formats etc.
-        // val getStatsReq = parse(text).extract[GetStatsRequest]
         var passback: Option[String] = None
         try {
           val getStatsReq = read[GetStatsRequest](text)
           passback = getStatsReq.passback
-          val result = getStats(getStatsReq, hcs, cov)
+          val result = getStats(getStatsReq)
           Ok(write(result))
             .putHeaders(`Content-Type`(`application/json`))
         } catch {
@@ -166,5 +170,4 @@ object T2DService {
         }
       }
   }
-
 }

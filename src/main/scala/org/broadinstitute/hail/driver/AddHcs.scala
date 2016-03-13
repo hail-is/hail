@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.{CovariateData, Pedigree}
 import org.broadinstitute.hail.variant.HardCallSet
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AddHcs extends Command {
+
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-f", aliases = Array("--fam"), usage = ".fam file")
     var famFilename: String = null
@@ -20,6 +20,7 @@ object AddHcs extends Command {
   def newOptions = new Options
 
   def name = "addhcs"
+
   def description = "Add hard call set to state, filtering samples to those phenotyped and/or with covariates"
 
   def run(state: State, options: Options): State = {
@@ -28,16 +29,16 @@ object AddHcs extends Command {
     val sampleFilter: Int => Boolean =
       (options.famFilename, options.covFilename) match {
         case (null, null) => s => true
-        case (   _, null) =>
+        case (_, null) =>
           Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds).phenotypedSamples
-        case (null,    _) =>
+        case (null, _) =>
           CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds).covRowSample.toSet
-        case _            =>
+        case _ =>
           Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds).phenotypedSamples intersect
-          CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds).covRowSample.toSet
+            CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds).covRowSample.toSet
       }
 
-    val hcs = HardCallSet(vds.filterSamples{ case (s, sa) => sampleFilter(s) }, options.sparseCutOff)
+    val hcs = HardCallSet(state.sqlContext, vds.filterSamples { case (s, sa) => sampleFilter(s) }, options.sparseCutOff)
 
     state.copy(hcs = hcs)
   }

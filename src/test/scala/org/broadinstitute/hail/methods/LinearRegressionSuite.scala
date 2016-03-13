@@ -66,6 +66,7 @@ class LinearRegressionSuite extends SparkSuite {
     linReg.write("/tmp/linearRegression.linreg") //FIXME: How to test?
   }
 
+  /*
   @Test def testOnHcs() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
     val ped = Pedigree.read("src/test/resources/linearRegression.fam", sc.hadoopConfiguration, vds.sampleIds)
@@ -125,6 +126,7 @@ class LinearRegressionSuite extends SparkSuite {
     //val result = "rm -rf /tmp/linearRegression" !;
     linReg.write("/tmp/linearRegressionOnHcs.linreg") //FIXME: How to test?
   }
+  */
 
   @Test def testOnHcsFile() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")

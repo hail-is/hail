@@ -1,3 +1,21 @@
 {
-  "api_version"     : 0.1,
+    "passback"        : "example",
+    "api_version"     : 1,
+    "phenotype": "T2D",
+    "variant_filters" : [ 
+        {"operand": "chrom", "operator": "eq", "value": "22", "operand_type": "string"},
+        {"operand": "pos", "operator": "gte", "value": 47000000, "operand_type": "integer"},
+        {"operand": "pos", "operator": "lte", "value": 47599999, "operand_type": "integer"}
+    ],
+    "covariates"      : [
+        {"type": "phenotype", "name": "SEX"}, 
+        {"type": "phenotype", "name": "PC_GoT2D_1"},
+        {"type": "phenotype", "name": "PC_GoT2D_2"},
+        {"type": "phenotype", "name": "BEFORE"},
+        {"type": "phenotype", "name": "AFTER"},
+        {"type": "phenotype", "name": "OM1"}
+        {"type": "phenotype", "name": "OM2"}
+    ],
+    "limit"           : 5000,
+    "count"           : false,
 }
