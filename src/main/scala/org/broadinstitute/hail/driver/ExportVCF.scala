@@ -4,9 +4,7 @@ import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
-import RichRow._
 import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -35,7 +33,7 @@ object ExportVCF extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val varAnnSig = vds.metadata.vaSignatures
+    val vas = vds.vaSignature
 
     def header: String = {
       val sb = new StringBuilder()
@@ -51,11 +49,11 @@ object ExportVCF extends Command {
           |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
       sb += '\n'
 
-      vds.metadata.filters.map { case (key, desc) =>
+      vds.filters.map { case (key, desc) =>
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
       }
 
-      val infoHeader: Option[Array[(String, VCFSignature)]] = vds.metadata.vaSignatures
+      val infoHeader: Option[Array[(String, VCFSignature)]] = vas
         .getOption(List("info")) match {
         case Some(sigs: StructSignature) =>
           Some(sigs.m.toArray
@@ -104,13 +102,13 @@ object ExportVCF extends Command {
     }
 
     val infoF: (StringBuilder, Annotation) => Unit = {
-      vds.metadata.vaSignatures.getOption(List("info")) match {
+      vas.getOption(List("info")) match {
         case Some(signatures: StructSignature) =>
           val keys = signatures.m.map { case (k, (i, v)) => (k, i, v.dType == expr.TBoolean) }
             .toArray
             .sortBy { case (key, index, isBoolean) => index }
             .map { case (key, index, isBoolean) => (key, isBoolean) }
-          val querier = vds.metadata.vaSignatures.query(List("info"))
+          val querier = vas.query(List("info"))
 
           (sb, ad) => {
             val infoRow = querier(ad).map(_.asInstanceOf[Row])
@@ -147,19 +145,19 @@ object ExportVCF extends Command {
       }
     }
 
-    val idQuery: Querier = if (vds.vaSignatures.getOption("rsid").forall(sig => sig.dType == expr.TString))
+    val idQuery: Querier = if (vas.getOption("rsid").forall(sig => sig.dType == expr.TString))
       vds.queryVA("rsid")
     else
       a => None
 
-    val qualQuery: Querier = if (vds.vaSignatures.getOption("qual").forall(sig => sig.dType == expr.TDouble))
-      vds.queryVA("rsid")
+    val qualQuery: Querier = if (vas.getOption("qual").forall(sig => sig.dType == expr.TDouble))
+      vds.queryVA("qual")
     else
       a => None
 
-    val filterQuery: Querier = if (vds.vaSignatures.getOption("filters").forall(sig =>
+    val filterQuery: Querier = if (vas.getOption("filters").forall(sig =>
       sig.dType == expr.TSet(expr.TString)))
-      vds.queryVA("rsid")
+      vds.queryVA("filters")
     else
       a => None
 

@@ -31,13 +31,13 @@ object ExportVariants extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val vas = vds.metadata.vaSignatures
+    val vas = vds.vaSignature
     val cond = options.condition
     val output = options.output
 
     val symTab = Map(
       "v" ->(0, TVariant),
-      "va" ->(1, vds.metadata.vaSignatures.dType))
+      "va" ->(1, vas.dType))
     val a = new Array[Any](2)
 
     val (header, fs) = if (cond.endsWith(".columns"))

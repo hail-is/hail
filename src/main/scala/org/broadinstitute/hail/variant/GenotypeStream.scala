@@ -5,8 +5,7 @@ import org.apache.spark.sql.types.StructType
 import org.broadinstitute.hail.ByteIterator
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-
-
+import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
 
 // FIXME use zipWithIndex
@@ -73,32 +72,28 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
         GenotypeStream(variant, Some(a.length), LZ4Utils.compress(a))
     }
   }
+
+  def toRow: Row = {
+    Row.fromSeq(Array(
+      decompLenOption.getOrElse(null),
+      a
+    ))
+  }
 }
 
 object GenotypeStream {
   def schema(): StructType = {
     StructType(Array(
-      StructField("variant", Variant.schema(), false),
-      StructField("decompLen", IntegerType, true),
-      StructField("bytes", ArrayType(ByteType), false)
+      StructField("decompLen", IntegerType, nullable = true),
+      StructField("bytes", ArrayType(ByteType), nullable = false)
     ))
   }
 
-  def toRow(gs: GenotypeStream): Row = {
-    Row.fromSeq(Array(
-      Variant.toRow(gs.variant),
-      gs.decompLenOption.getOrElse(null),
-      gs.a
-    ))
-  }
+  def fromRow(v: Variant, row: Row): GenotypeStream = {
 
-  def fromRow(row: Row): GenotypeStream = {
-    GenotypeStream(Variant.fromRow(row.getAs[Row](0)),
-      row.get(1) match {
-        case null => None
-        case i => Some(i.asInstanceOf[Int])
-      },
-      row.getAs[scala.collection.mutable.WrappedArray[Byte]](2)
+    GenotypeStream(v,
+      row.getAsOption[Int](0),
+      row.getAs[mutable.WrappedArray[Byte]](1)
         .toArray)
   }
 }

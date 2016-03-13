@@ -23,8 +23,8 @@ object VariantMetadata {
 case class VariantMetadata(filters: IndexedSeq[(String, String)],
   sampleIds: IndexedSeq[String],
   sampleAnnotations: IndexedSeq[Annotation],
-  saSignatures: Signature,
-  vaSignatures: Signature,
+  saSignature: Signature,
+  vaSignature: Signature,
   wasSplit: Boolean = false) {
 
   def nSamples: Int = sampleIds.length
