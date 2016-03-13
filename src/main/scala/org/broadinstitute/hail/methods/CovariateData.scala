@@ -8,6 +8,8 @@ import scala.io.Source
 case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: Option[DenseMatrix[Double]]) {
   require(data.isDefined || covRowSample.isEmpty || covName.isEmpty)
   require(data.isEmpty || (data.get.rows == covRowSample.size && data.get.cols == covName.size))
+  require(covRowSample.areDistinct())
+  require(covName.areDistinct())
 
   //preserves increasing order of samples
   def filterSamples(samplesToKeep: Set[Int]): CovariateData = {
@@ -65,18 +67,42 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
       CovariateData(covRowSample, filtCovName, Some(filtData))
     }
   }
+
+  def appendCovariates(that: CovariateData): CovariateData = {
+    if (!(this.covRowSample sameElements that.covRowSample)) {
+      fatal("Cannot append covariates: samples (rows) are not aligned.")
+    }
+    
+    val newCovName = this.covName ++ that.covName
+
+    if (!newCovName.areDistinct())
+      fatal(s"Cannot append covariates: covariate names overlap for ${newCovName.duplicates()}")
+
+    val newData = (this.data, that.data) match {
+      case (Some(d1), Some(d2)) => Some(DenseMatrix.horzcat(d1,d2))
+      case (Some(d1), None) => this.data
+      case (None, Some(d2)) => that.data
+      case (None, None) => None
+    }
+
+    CovariateData(covRowSample, newCovName, newData)
+  }
 }
 
 object CovariateData {
 
   def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): CovariateData = {
-    readFile(filename, hConf) { s =>
-      val lines = Source.fromInputStream(s)
+    readFile(filename, hConf) { input =>
+      val lines = Source.fromInputStream(input)
         .getLines()
         .filterNot(_.isEmpty)
 
       val header = lines.next()
       val covName = header.split("\t").tail
+
+      if (!covName.areDistinct()) {
+        fatal(s"Error on covariate import: covariate names occur multiple times for ${covName.duplicates()}")
+      }
 
       var nSamplesDiscarded = 0
 
