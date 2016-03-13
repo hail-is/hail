@@ -1,8 +1,14 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.io.annotators._
+import org.broadinstitute.hail.methods.ProgrammaticAnnotation
+import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
+
+import scala.collection.mutable
 
 object AnnotateVariants extends Command {
 
@@ -15,23 +21,18 @@ object AnnotateVariants extends Command {
       usage = "Define types of fields in annotations files")
     var types: String = _
 
-    @Args4jOption(required = true, name = "-r", aliases = Array("--root"),
+    @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
       usage = "Place annotations in the path 'va.<root>.<field>'")
     var root: String = _
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = "Specify additional identifiers to be treated as missing (default: 'NA')")
-    var missingIdentifiers: String = "NA"
-
-    @Args4jOption(required = false, name = "-i", aliases = Array("--identifier"),
-      usage = "For an interval list, use one boolean " +
-        "for all intervals (set to true) with the given identifier.  If not specified, will expect a target column")
-    var identifier: String = _
+    var missingIdentifiers: String = _
 
     @Args4jOption(required = false, name = "-v", aliases = Array("--vcolumns"),
       usage = "Specify the column identifiers for chromosome, position, ref, and alt (in that order)" +
         " (default: 'Chromosome,Position,Ref,Alt'")
-    var vCols: String = "Chromosome, Position, Ref, Alt"
+    var vCols: String = null
   }
 
   def newOptions = new Options
@@ -66,7 +67,11 @@ object AnnotateVariants extends Command {
     split
   }
 
-  def parseRoot(s: String): List[String] = s.split("\\.").toList
+  def parseRoot(s: String): List[String] = s match {
+    case r if r.startsWith("va.") => r.substring(3).split("""\.""").toList
+    case "va" => List[String]()
+    case error => fatal(s"invalid root '$error': expect 'va.<path[.path2...]>'")
+  }
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -74,35 +79,116 @@ object AnnotateVariants extends Command {
     val cond = options.condition
 
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
-    val root = options.root match {
-      case r if r.startsWith("va.") => parseRoot(r.substring(3))
-      case "va" => List[String]()
-      case error => fatal(s"invalid root '$error': expect 'va.<path[.path2...]>'")
-    }
+
 
     val conf = state.sc.hadoopConfiguration
 
     val annotated = stripped match {
       case intervalList if intervalList.endsWith(".interval_list") =>
-        fatalIf(options.identifier == null, "interval list files require an identifier")
+        if (options.root == null)
+          fatal("argument 'root' is required for '.bed' annotation")
+        if (options.types != null)
+          warn("argument 'types' is unnecessary for '.interval_list' annotation, ignoring it")
+        if (options.missingIdentifiers != null)
+          warn("argument 'missing' is unnecessary for '.interval_list' annotation, ignoring it")
+        if (options.vCols != null)
+          warn("argument 'vcolumns' is unnecessary for '.interval_list' annotation, ignoring it")
         val (iList, signature) = IntervalListAnnotator(cond, conf)
-        vds.annotateInvervals(iList, signature, List(options.identifier).:::(root))
+        vds.annotateInvervals(iList, signature, parseRoot(options.root))
       case bed if bed.endsWith(".bed") =>
+        if (options.root == null)
+          fatal("argument 'root' is required for '.bed' annotation")
+        if (options.types != null)
+          warn("argument 'types' is unnecessary for '.bed' annotation, ignoring it")
+        if (options.missingIdentifiers != null)
+          warn("argument 'missing' is unnecessary for '.bed' annotation, ignoring it")
+        if (options.vCols != null)
+          warn("argument 'vcolumns' is unnecessary for '.bed' annotation, ignoring it")
         val (iList, signature, id) = BedAnnotator(cond, conf)
-        vds.annotateInvervals(iList, signature, List(id).:::(root))
+        vds.annotateInvervals(iList, signature, id :: parseRoot(options.root))
       case tsv if tsv.endsWith(".tsv") =>
-        val (rdd, signature) = TSVAnnotator(vds.sparkContext, cond, parseColumns(options.vCols),
-          parseTypeMap(options.types), parseMissing(options.missingIdentifiers))
-        vds.annotateVariants(rdd, signature, root)
+        if (options.root == null)
+          fatal("argument 'root' is required for '.tsv' annotation")
+        val (rdd, signature) = TSVAnnotator(vds.sparkContext, cond,
+          parseColumns(Option(options.vCols).getOrElse("Chromosome,Position,Ref,Alt")),
+          parseTypeMap(Option(options.types).getOrElse("")),
+          parseMissing(Option(options.missingIdentifiers).getOrElse("NA")))
+        vds.annotateVariants(rdd, signature, parseRoot(options.root))
       case vcf if vcf.endsWith(".vcf") =>
+        if (options.root == null)
+          fatal("argument 'root' is required for '.vcf' annotation")
+        if (options.types != null)
+          warn("argument 'types' is unnecessary for '.vcf' annotation, ignoring it")
+        if (options.missingIdentifiers != null)
+          warn("argument 'missing' is unnecessary for '.vcf' annotation, ignoring it")
+        if (options.vCols != null)
+          warn("argument 'vcolumns' is unnecessary for '.vcf' annotation, ignoring it")
         val (rdd, signature) = VCFAnnotator(vds.sparkContext, cond)
-        vds.annotateVariants(rdd, signature, root)
+        vds.annotateVariants(rdd, signature, parseRoot(options.root))
       case fastFormat if fastFormat.endsWith(".faf") =>
+        if (options.root == null)
+          fatal("argument 'root' is required for 'fast annotation format' annotation")
+        if (options.types != null)
+          warn("argument 'types' is unnecessary for 'fast annotation format' annotation, ignoring it")
+        if (options.missingIdentifiers != null)
+          warn("argument 'missing' is unnecessary for 'fast annotation format' annotation, ignoring it")
+        if (options.vCols != null)
+          warn("argument 'vcolumns' is unnecessary for 'fast annotation format' annotation, ignoring it")
         val (rdd, signature) = ParquetAnnotator(cond, state.sqlContext)
-        vds.annotateVariants(rdd, signature, root)
-      case _ => fatal(s"Unknown file type '$cond'.  Specify a .tsv, .bed, .vcf, .faf, or .interval_list file")
-    }
+        vds.annotateVariants(rdd, signature, parseRoot(options.root))
+      case programmatic =>
+        if (options.root != null)
+          warn("argument 'root' is unnecessary for programmatic annotation, ignoring it")
+        if (options.types != null)
+          warn("argument 'types' is unnecessary for programmatic annotation, ignoring it")
+        if (options.missingIdentifiers != null)
+          warn("argument 'missing' is unnecessary for programmatic annotation, ignoring it")
+        if (options.vCols != null)
+          warn("argument 'vcolumns' is unnecessary for programmatic annotation, ignoring it")
 
+        val symTab = Map(
+          "v" ->(0, expr.TVariant),
+          "va" ->(1, vds.vaSignatures.dType))
+        val a = new Array[Any](2)
+        val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
+        val keyedSignatures = parsed.map { case (ids, t, f) =>
+          if (ids.head != "va")
+            fatal(s"expect 'va[.identifier]+', got ${ids.mkString(".")}")
+          ProgrammaticAnnotation.checkType(ids.mkString("."), t)
+          (ids.tail, SimpleSignature(t))
+        }
+        val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+//        println("original sigs:")
+//        println(vds.vaSchema)
+        val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
+          println("------------------------------")
+          println(s"inserting ${ids}:")
+          val (s, i) = v.insertVA(signature, ids)
+//          println(s.printSchema("va", 2, "va"))
+          inserterBuilder += i
+          v.copy(vaSignatures = s)
+        }
+        println(keyedSignatures.mkString(";"))
+
+        val computationsBc = vds.sparkContext.broadcast(parsed.map(_._3))
+        val insertersBc = vds.sparkContext.broadcast(inserterBuilder.result())
+
+        vdsAddedSigs.mapAnnotations { case (v, va) =>
+          a(0) = v
+          a(1) = va
+
+          val queries = computationsBc.value.map(_ ())
+//          queries.foreach(println)
+          queries.indices.foreach { i =>
+//            println(s"On signature ${keyedSignatures(i)}")
+//            println(Annotation.printAnnotation(a(1)))
+            a(1) = insertersBc.value(i).apply(
+              a(1),
+              Option(queries(i)))
+          }
+          a(1): Annotation
+        }
+    }
     state.copy(vds = annotated)
   }
 }

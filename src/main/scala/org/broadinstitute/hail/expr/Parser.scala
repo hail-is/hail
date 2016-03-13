@@ -47,6 +47,21 @@ object Parser extends JavaTokenParsers {
     (header, fs)
   }
 
+  def parseAnnotationArgs(symTab: Map[String, (Int, Type)],
+    a: Array[Any],
+    code: String): (Array[(List[String], Type, () => Any)]) = {
+    val arr = parseAll(annotationExpressions, code) match {
+      case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
+      case NoSuccess(msg, _) => fatal(msg)
+    }
+
+    arr.map {
+      case (ids, ast) =>
+        ast.typecheck(symTab)
+        (ids.toList, ast.`type`, ast.eval((symTab, a)))
+    }
+  }
+
   def expr: Parser[AST] = if_expr | or_expr
 
   def if_expr: Parser[AST] =
@@ -107,6 +122,20 @@ object Parser extends JavaTokenParsers {
   def tsvIdentifier: Parser[String] = tickIdentifier ||| """[^\s\p{Cntrl}=,]+""".r
 
   def tickIdentifier: Parser[String] = """`[^`]+`""".r ^^ { i => i.substring(1, i.length - 1) }
+
+  def annotationExpressions: Parser[Array[(Array[String], AST)]] =
+    annotationExpression ~ rep("," ~ annotationExpression) ^^ { case arg ~ lst =>
+      (arg :: lst.map { case _ ~ arg => arg }).toArray
+    }
+
+  def annotationExpression: Parser[(Array[String], AST)] = annotationIdentifier ~ "=" ~ expr ^^ {
+    case id ~ eq ~ expr => (id, expr)
+  }
+
+  def annotationIdentifier: Parser[Array[String]] =
+    """[sv]a""".r ~ rep("." ~ (tickIdentifier ||| ident)) ^^ {
+      case arg ~ lst => (arg :: lst.map { case _ ~ arg => arg }).toArray
+    }
 
   def args: Parser[Array[AST]] =
     repsep(expr, ",") ^^ {

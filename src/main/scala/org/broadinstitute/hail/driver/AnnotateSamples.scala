@@ -1,10 +1,14 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.{Annotation, Inserter, SimpleSignature}
 import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
-import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.methods.ProgrammaticAnnotation
 import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
+
+import scala.collection.mutable
 
 object AnnotateSamples extends Command {
 
@@ -21,7 +25,7 @@ object AnnotateSamples extends Command {
       usage = "Define types of fields in annotations files")
     var types: String = _
 
-    @Args4jOption(required = true, name = "-r", aliases = Array("--root"),
+    @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
       usage = "Place annotations in the path 'sa.<root>.<field>, or sa.<field> if unspecified'")
     var root: String = _
 
@@ -44,21 +48,58 @@ object AnnotateSamples extends Command {
     val cond = options.condition
 
     val root = options.root match {
+      case null => null
       case r if r.startsWith("sa.") => AnnotateVariants.parseRoot(r.substring(3))
       case "sa" => List[String]()
       case error => fatal(s"invalid root '$error': expect 'sa.<path[.path2...]>'")
     }
 
-
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
     val annotated = stripped match {
+        //fixme warn on args
       case tsv if tsv.endsWith(".tsv") =>
         val (m, signature) = SampleTSVAnnotator(cond, options.sampleCol,
           AnnotateVariants.parseTypeMap(options.types),
           AnnotateVariants.parseMissing(options.missingIdentifiers),
           vds.sparkContext.hadoopConfiguration)
         vds.annotateSamples(m, signature, root)
-      case _ => fatal(s"unknown file type '$cond'.  Specify a .tsv file")
+      case programmatic =>
+        //fixme warn on args
+        val symTab = Map(
+          "s" ->(0, expr.TSample),
+          "sa" ->(1, vds.saSignatures.dType))
+        val a = new Array[Any](2)
+        val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
+        val keyedSignatures = parsed.map { case (ids, t, f) =>
+          if (ids.head != "sa")
+            fatal(s"expect 'sa[.identifier]+', got ${ids.mkString(".")}")
+          ProgrammaticAnnotation.checkType(ids.mkString("."), t)
+          (ids.tail, SimpleSignature(t))
+        }
+        val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+        val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
+          val (s, i) = v.insertSA(signature, ids)
+          inserterBuilder += i
+          v.copy(saSignatures = s)
+        }
+        println(keyedSignatures.mkString(";"))
+
+        val computations = parsed.map(_._3)
+        val inserters = inserterBuilder.result()
+
+        val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
+          a(0) = Sample(vds.sampleIds(i))
+          a(1) = sa
+
+          val queries = computations.map(_())
+          queries.indices.foreach { i =>
+            a(1) = inserters(i).apply(
+              a(1),
+              Option(queries(i)))
+          }
+          a(1): Annotation
+        }
+        vdsAddedSigs.copy(sampleAnnotations = newAnnotations)
     }
     state.copy(vds = annotated)
   }
