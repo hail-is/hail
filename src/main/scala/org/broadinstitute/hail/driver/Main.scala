@@ -224,7 +224,6 @@ object Main {
         sys.exit(1)
     }
 
-
     val logProps = new Properties()
     if (options.logQuiet) {
       logProps.put("log4j.rootLogger", "OFF, stderr")

@@ -66,14 +66,13 @@ class LinearRegressionSuite extends SparkSuite {
     linReg.write("/tmp/linearRegression.linreg") //FIXME: How to test?
   }
 
-  /*
   @Test def testOnHcs() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
     val ped = Pedigree.read("src/test/resources/linearRegression.fam", sc.hadoopConfiguration, vds.sampleIds)
     val cov = CovariateData.read("src/test/resources/linearRegression.cov", sc.hadoopConfiguration, vds.sampleIds)
       .filterSamples(ped.phenotypedSamples)
 
-    val hcs = HardCallSet(vds.filterSamples{ case (s,sa) => cov.covRowSample.toSet(s)})
+    val hcs = HardCallSet(sqlContext, vds.filterSamples{ case (s,sa) => cov.covRowSample.toSet(s)})
 
     val linReg = LinearRegressionOnHcs(hcs, ped, cov)
     val statsOfVariant: Map[Variant, Option[LinRegStats]] = linReg.rdd.collect().toMap
@@ -126,7 +125,6 @@ class LinearRegressionSuite extends SparkSuite {
     //val result = "rm -rf /tmp/linearRegression" !;
     linReg.write("/tmp/linearRegressionOnHcs.linreg") //FIXME: How to test?
   }
-  */
 
   @Test def testOnHcsFile() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")

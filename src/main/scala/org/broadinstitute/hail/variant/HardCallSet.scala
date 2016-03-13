@@ -17,7 +17,7 @@ object HardCallSet {
 
     new HardCallSet(
       vds.rdd.map { case (v, va, gs) =>
-        (v.start, v.alt, v.ref, CallStream(gs, n, sparseCutoff), "chr" + v.contig, v.start / 100000)
+        (v.start, v.ref, v.alt, CallStream(gs, n, sparseCutoff), "chr" + v.contig, v.start / 100000)
       }.toDF("start", "alt", "ref", "callStream", "contig", "block"),
       vds.localSamples,
       vds.metadata.sampleIds)
@@ -47,7 +47,7 @@ case class HardCallSet(df: DataFrame, localSamples: Array[Int], sampleIds: Index
   def rdd: RDD[(Variant, CallStream)] = {
     import RichRow._
     df.rdd.map(r =>
-      (Variant(r.getString(4),
+      (Variant(r.getString(4).drop(3), // chr
         r.getInt(0),
         r.getString(1),
         r.getString(2)),
