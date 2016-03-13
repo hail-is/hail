@@ -29,13 +29,13 @@ object ExportSamples extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val hConf = vds.sparkContext.hadoopConfiguration
-    val sas = vds.saSignatures
+    val sas = vds.saSignature
     val cond = options.condition
     val output = options.output
 
     val symTab = Map(
       "s" ->(0, expr.TSample),
-      "sa" ->(1, vds.saSignatures.dType))
+      "sa" ->(1, sas.dType))
     val a = new Array[Any](2)
 
     val (header, fs) = if (cond.endsWith(".columns"))

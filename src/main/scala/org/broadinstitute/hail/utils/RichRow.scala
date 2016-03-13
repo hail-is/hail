@@ -1,14 +1,9 @@
-package org.broadinstitute.hail.annotations
+package org.broadinstitute.hail.utils
 
 import org.apache.spark.sql.Row
-
+import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
 import scala.collection.mutable
 import scala.language.implicitConversions
-
-
-object RichRow {
-  implicit def fromRow(r: Row): RichRow = new RichRow(r)
-}
 
 class RichRow(r: Row) {
 
@@ -29,7 +24,7 @@ class RichRow(r: Row) {
     Option(r.get(i))
   }
 
-  def getOptionAs[T](i: Int): Option[T] = {
+  def getAsOption[T](i: Int): Option[T] = {
     if (r.isNullAt(i))
       None
     else
@@ -57,4 +52,7 @@ class RichRow(r: Row) {
     (i until r.size).foreach(ab += r.get(_))
     Row.fromSeq(ab.result())
   }
+
+  def getVariant(i: Int) = Variant.fromRow(r.getAs[Row](i))
+  def getGenotypeStream(v: Variant, i: Int) = GenotypeStream.fromRow(v, r.getAs[Row](i))
 }

@@ -5,59 +5,6 @@ import org.broadinstitute.hail.variant.{Sample, AltAllele, Variant, Genotype}
 import scala.collection.mutable
 import scala.util.parsing.input.{Position, Positional}
 
-object Type {
-  val sampleFields = Map(
-    "id" -> TString)
-
-  val genotypeFields = Map(
-    "gt" -> TInt,
-    "ad" -> TArray(TInt),
-    "dp" -> TInt,
-    "od" -> TInt,
-    "gq" -> TInt,
-    "pl" -> TArray(TInt),
-    "isHomRef" -> TBoolean,
-    "isHet" -> TBoolean,
-    "isHomVar" -> TBoolean,
-    "isCalledNonRef" -> TBoolean,
-    "isHetNonRef" -> TBoolean,
-    "isHetRef" -> TBoolean,
-    "isNotCalled" -> TBoolean,
-    "isCalled" -> TBoolean,
-    "nNonRefAlleles" -> TInt,
-    "pAB" -> TDouble
-  )
-
-  val altAlleleFields = Map(
-    "ref" -> TString,
-    "alt" -> TString,
-    "isSNP" -> TBoolean,
-    "isMNP" -> TBoolean,
-    "isInsertion" -> TBoolean,
-    "isDeletion" -> TBoolean,
-    "isIndel" -> TBoolean,
-    "isComplex" -> TBoolean,
-    "isTransition" -> TBoolean,
-    "isTransversion" -> TBoolean
-  )
-
-  val variantFields = Map(
-    "contig" -> TString,
-    "start" -> TInt,
-    "ref" -> TString,
-    "altAlleles" -> TArray(TAltAllele),
-    "altAllele" -> TAltAllele,
-    "nAltAlleles" -> TInt,
-    "nAlleles" -> TInt,
-    "isBiallelic" -> TBoolean,
-    "nGenotypes" -> TInt,
-    "inParX" -> TInt,
-    "inParY" -> TInt,
-    // assume biallelic
-    "alt" -> TString,
-    "altAllele" -> TAltAllele)
-}
-
 trait NumericConversion[T] extends Serializable {
   def to(numeric: Any): T
 }
@@ -166,37 +113,25 @@ case class TFunction(parameterTypes: Array[Type], returnType: Type) extends Type
   def typeCheck(a: Any): Boolean = throw new UnsupportedOperationException()
 }
 
-abstract class TVdsType extends Type {
-  def fields: Map[String, Type]
-}
-
-case object TSample extends TVdsType {
-  def fields = Type.sampleFields
-
+case object TSample extends Type {
   override def toString = "Sample"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Sample]
 }
 
-case object TGenotype extends TVdsType {
-  def fields = Type.genotypeFields
-
+case object TGenotype extends Type {
   override def toString = "Genotype"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 }
 
-case object TAltAllele extends TVdsType {
-  def fields = Type.altAlleleFields
-
+case object TAltAllele extends Type {
   override def toString = "AltAllele"
 
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 }
 
-case object TVariant extends TVdsType {
-  def fields = Type.variantFields
-
+case object TVariant extends Type {
   override def toString = "Variant"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
@@ -359,12 +294,49 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
   override def typecheckThis(): Type = {
     (lhs.`type`, rhs) match {
-      case (t: TVdsType, _) => {
-        t.fields.get(rhs) match {
-          case Some(t) => t
-          case None => parseError(s"`$t' has no field `$rhs'")
-        }
-      }
+      case (TSample, "id") => TString
+      case (TGenotype, "gt") => TInt
+      case (TGenotype, "ad") => TArray(TInt)
+      case (TGenotype, "dp") => TInt
+      case (TGenotype, "od") => TInt
+      case (TGenotype, "gq") => TInt
+      case (TGenotype, "pl") => TArray(TInt)
+      case (TGenotype, "isHomRef") => TBoolean
+      case (TGenotype, "isHet") => TBoolean
+      case (TGenotype, "isHomVar") => TBoolean
+      case (TGenotype, "isCalledNonRef") => TBoolean
+      case (TGenotype, "isHetNonRef") => TBoolean
+      case (TGenotype, "isHetRef") => TBoolean
+      case (TGenotype, "isCalled") => TBoolean
+      case (TGenotype, "isNotCalled") => TBoolean
+      case (TGenotype, "nNonRefAlleles") => TInt
+      case (TGenotype, "pAB") => TDouble
+
+      case (TVariant, "contig") => TString
+      case (TVariant, "start") => TInt
+      case (TVariant, "ref") => TString
+      case (TVariant, "altAlleles") => TArray(TAltAllele)
+      case (TVariant, "nAltAlleles") => TInt
+      case (TVariant, "nAlleles") => TInt
+      case (TVariant, "isBiallelic") => TBoolean
+      case (TVariant, "nGenotypes") => TInt
+      case (TVariant, "inParX") => TBoolean
+      case (TVariant, "inParY") => TBoolean
+      // assumes biallelic
+      case (TVariant, "alt") => TString
+      case (TVariant, "altAllele") => TAltAllele
+
+      case (TAltAllele, "ref") => TString
+      case (TAltAllele, "alt") => TString
+      case (TAltAllele, "isSNP") => TBoolean
+      case (TAltAllele, "isMNP") => TBoolean
+      case (TAltAllele, "isIndel") => TBoolean
+      case (TAltAllele, "isInsertion") => TBoolean
+      case (TAltAllele, "isDeletion") => TBoolean
+      case (TAltAllele, "isComplex") => TBoolean
+      case (TAltAllele, "isTransition") => TBoolean
+      case (TAltAllele, "isTransversion") => TBoolean
+
       case (t: TStruct, _) => {
         t.fields.get(rhs) match {
           case Some((i, t)) => t
