@@ -30,6 +30,8 @@ object FilterGenotypes extends Command {
   def run(state: State, options: Options): State = {
     val sc = state.sc
     val vds = state.vds
+    val vas = vds.vaSignature
+    val sas = vds.saSignature
 
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
@@ -38,9 +40,9 @@ object FilterGenotypes extends Command {
 
     val symTab = Map(
       "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.vaSignatures.dType),
+      "va" ->(1, vas.dType),
       "s" ->(2, expr.TSample),
-      "sa" ->(3, vds.saSignatures.dType),
+      "sa" ->(3, sas.dType),
       "g" ->(4, expr.TGenotype))
     val a = new Array[Any](5)
 

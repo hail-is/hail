@@ -34,7 +34,7 @@ object VariantQCCombiner {
     "rHetHomVar\t" +
     "rExpectedHetFrequency\tpHWE"
 
-  val signatures: StructSignature = StructSignature(Map(
+  val signature: StructSignature = StructSignature(Map(
     "callRate" ->(0, SimpleSignature(expr.TDouble)),
     "MAC" ->(1, SimpleSignature(expr.TInt)),
     "MAF" ->(2, SimpleSignature(expr.TDouble)),
@@ -225,7 +225,7 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(hwe._2)
   }
 
-  def asRow: Row = {
+  def asAnnotation: Annotation = {
     val maf = {
       val refAlleles = nHomRef * 2 + nHet
       val altAlleles = nHomVar * 2 + nHet
@@ -237,7 +237,7 @@ class VariantQCCombiner extends Serializable {
     val callrate = divOption(nCalled, nCalled + nNotCalled)
     val mac = nHet + 2 * nHomVar
 
-    Row.fromSeq(Array(
+    Annotation(
       divNull(nCalled, nCalled + nNotCalled),
       mac,
       maf.getOrElse(null),
@@ -266,7 +266,7 @@ class VariantQCCombiner extends Serializable {
       divNull(nHet, nHomRef + nHet + nHomVar),
       divNull(nHet, nHomVar),
       hwe._1.getOrElse(null),
-      hwe._2))
+      hwe._2)
   }
 }
 
@@ -315,18 +315,16 @@ object VariantQC extends Command {
       }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
     }
 
-    val (newSignatures, fInsert) = vds.metadata.vaSignatures.insert(List("qc"),
-      VariantQCCombiner.signatures)
-
+    val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature, "qc")
     state.copy(
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
           it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
             assert(v == v2)
-            (v, fInsert(va, Some(comb.asRow)), gs)
+            (v, insertQC(va, Some(comb.asAnnotation)), gs)
           }
         },
-        vaSignatures = newSignatures)
+        vaSignature = newVAS)
     )
   }
 }
