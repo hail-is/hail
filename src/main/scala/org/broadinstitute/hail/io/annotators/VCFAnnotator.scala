@@ -14,17 +14,17 @@ object VCFAnnotator {
 
     val vds2 = LoadVCF(sc, filename)
 
-    val (newSigs1, insertIndex) = vds2.metadata.vaSignatures.insert(List("aIndex"),
-      SimpleSignature(expr.TInt))
-    val (newSigs2, insertSplit) = newSigs1.insert(List("wasSplit"),
-      SimpleSignature(expr.TBoolean))
+    val (newSigs1, insertIndex) = vds2.metadata.vaSignature.insert(SimpleSignature(expr.TInt), List("aIndex"))
+    val (newSigs2, insertSplit) = newSigs1.insert(SimpleSignature(expr.TBoolean), List("wasSplit"))
     val newVDS = vds2.copy[Genotype](
       wasSplit = true,
-      vaSignatures = newSigs2,
+      vaSignature = newSigs2,
       rdd = vds2.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
-        split(v, va, it, false, insertIndex, insertSplit)
+        split(v, va, it, false, { (va, index, wasSplit) =>
+          insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+        })
       })
 
-    (newVDS.variantsAndAnnotations, newVDS.vaSignatures)
+    (newVDS.variantsAndAnnotations, newVDS.vaSignature)
   }
 }
