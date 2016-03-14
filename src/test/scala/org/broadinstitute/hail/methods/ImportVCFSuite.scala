@@ -63,10 +63,10 @@ class ImportVCFSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/undeclaredinfo.vcf"))
 
-    assert(s.vds.metadata.vaSignatures.getOption(List("info")).isDefined)
-    assert(s.vds.metadata.vaSignatures.getOption(List("info", "undeclared")).isEmpty)
-    assert(s.vds.metadata.vaSignatures.getOption(List("info", "undeclaredFlag")).isEmpty)
-    val infoQuerier = s.vds.metadata.vaSignatures.query(List("info"))
+    assert(s.vds.vaSignature.getOption(List("info")).isDefined)
+    assert(s.vds.vaSignature.getOption(List("info", "undeclared")).isEmpty)
+    assert(s.vds.vaSignature.getOption(List("info", "undeclaredFlag")).isEmpty)
+    val infoQuerier = s.vds.vaSignature.query(List("info"))
 
     val anno = s.vds
       .rdd

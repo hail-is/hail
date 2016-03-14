@@ -38,7 +38,7 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rDeletionInsertion"
 
-  val signatures: StructSignature = StructSignature(Map(
+  val signature: StructSignature = StructSignature(Map(
     "callRate" ->(0, new SimpleSignature(expr.TDouble)),
     "nCalled" ->(1, new SimpleSignature(expr.TInt)),
     "nNotCalled" ->(2, new SimpleSignature(expr.TInt)),
@@ -271,8 +271,8 @@ class SampleQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nDel, nIns))
   }
 
-  def asRow: Row = {
-    Row.fromSeq(Array(
+  def asAnnotation: Annotation =
+    Annotation(
       divNull(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
       nHomRef + nHet + nHomVar,
       nNotCalled,
@@ -304,9 +304,7 @@ class SampleQCCombiner extends Serializable {
       nHet + nHomVar,
       divNull(nTi, nTv),
       divNull(nHet, nHomVar),
-      divNull(nDel, nIns)))
-  }
-
+      divNull(nDel, nIns))
 }
 
 object SampleQC extends Command {
@@ -369,22 +367,21 @@ object SampleQC extends Command {
         sb.result()
       }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
     }
-    val rMap = r
-      .mapValues(_.asRow)
+    val sampleQCAnnot = r
+      .mapValues(_.asAnnotation)
       .collectAsMap()
 
-    val (newSignatures, fInsert) = vds.saSignatures.insert(List("qc"),
-      SampleQCCombiner.signatures)
+    val (newSAS, insertQC) = vds.saSignature.insert(SampleQCCombiner.signature, "qc")
     val newSampleAnnotations = vds.sampleAnnotations
       .zipWithIndex
       .map { case (sa, s) =>
-        fInsert(sa, rMap.get(s))
+        insertQC(sa, sampleQCAnnot.get(s))
       }
 
     state.copy(
       vds = vds.copy(
         sampleAnnotations = newSampleAnnotations,
-        saSignatures = newSignatures)
+        saSignature = newSAS)
     )
   }
 }

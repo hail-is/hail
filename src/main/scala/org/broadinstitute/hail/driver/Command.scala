@@ -62,7 +62,7 @@ abstract class Command {
   def runCommand(state: State, options: Options): State = {
     if (!supportsMultiallelic
       && state.vds != null
-      && !state.vds.metadata.wasSplit)
+      && !state.vds.wasSplit)
       fatal(s"`$name' does not support multiallelics.\n  Run `splitmulti' first.")
 
     run(state, options)

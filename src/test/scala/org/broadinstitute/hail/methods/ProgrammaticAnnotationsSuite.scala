@@ -36,7 +36,7 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
     s = VariantQC.run(s)
     s = AnnotateVariants.run(s, Array("-c", "va.a.b.c.d.e = va.qc.MAC, va.a.c = 5"))
     val vaa = s.vds.variantsAndAnnotations.collect()
-    println(s.vds.vaSchema)
+    println(s.vds.vaSignature)
     val q5 = s.vds.queryVA("qc", "MAC")
 //    println(Annotation.printAnnotation(s.vds.variantsAndAnnotations.collect().head._2))
 //    s.vds.variantsAndAnnotations.map(_._2).foreach(i => println("qc.mac is " + q5(i)))

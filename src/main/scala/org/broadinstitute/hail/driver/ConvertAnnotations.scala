@@ -86,7 +86,7 @@ object ConvertAnnotations extends Command {
 //    rdd.take(10).map(_._2)
 //      .foreach { i => println(signature.typeCheck(i)) }
 
-    state.sqlContext.createDataFrame(rdd.map { case (v, a) => Row.fromSeq(Array(Variant.toRow(v), a)) }, schema)
+    state.sqlContext.createDataFrame(rdd.map { case (v, a) => Row.fromSeq(Array(v.toRow, a)) }, schema)
       .write.parquet(out + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
 

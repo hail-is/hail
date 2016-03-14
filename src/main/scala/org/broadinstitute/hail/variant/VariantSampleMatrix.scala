@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
-import org.apache.spark.sql.catalyst.ScalaReflection.Schema
 import org.apache.spark.{SparkEnv, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
@@ -10,8 +9,7 @@ import org.broadinstitute.hail.check.Gen
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
-import org.apache.spark.sql.types.{NullType, StructType, StructField, StringType}
-
+import org.apache.spark.sql.types.{StructType, StructField}
 
 object VariantSampleMatrix {
   def apply[T](metadata: VariantMetadata,
@@ -36,7 +34,8 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
       df.rdd.map(row => {
-        (Variant.fromRow(row.getAs[Row](0)), row.get(1), GenotypeStream.fromRow(row.getAs[Row](2)))
+        val v = row.getVariant(0)
+        (v, row.get(1), row.getGenotypeStream(v, 2))
       }))
   }
 
@@ -48,12 +47,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         values <- genValues[T](nSamples, g(v)))
+      values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         values <- genValues[T](g(v)))
+      values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -78,7 +77,7 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
   }
@@ -109,23 +108,27 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def nLocalSamples: Int = localSamples.length
 
-  def vaSignatures: Signature = metadata.vaSignatures
+  def vaSignature: Signature = metadata.vaSignature
 
-  def saSignatures: Signature = metadata.saSignatures
+  def saSignature: Signature = metadata.saSignature
 
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
+  def wasSplit: Boolean = metadata.wasSplit
+
+  def filters: IndexedSeq[(String, String)] = metadata.filters
+
   def copy[U](localSamples: Array[Int] = localSamples,
     rdd: RDD[(Variant, Annotation, Iterable[U])] = rdd,
-    filters: IndexedSeq[(String, String)] = metadata.filters,
-    sampleIds: IndexedSeq[String] = metadata.sampleIds,
-    sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations,
-    saSignatures: Signature = metadata.saSignatures,
-    vaSignatures: Signature = metadata.vaSignatures,
-    wasSplit: Boolean = metadata.wasSplit)
+    filters: IndexedSeq[(String, String)] = filters,
+    sampleIds: IndexedSeq[String] = sampleIds,
+    sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
+    saSignature: Signature = saSignature,
+    vaSignature: Signature = vaSignature,
+    wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
-      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignatures, vaSignatures, wasSplit), localSamples, rdd)
+      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature, vaSignature, wasSplit), localSamples, rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -234,7 +237,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (Int, Annotation) => Boolean): VariantSampleMatrix[T] = {
-    val mask = localSamples.map((s) => p(s, metadata.sampleAnnotations(s)))
+    val mask = localSamples.map((s) => p(s, sampleAnnotations(s)))
     val maskBc = sparkContext.broadcast(mask)
     val localtct = tct
     copy[T](localSamples = localSamples.zipWithIndex
@@ -391,36 +394,36 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def annotateInvervals(iList: IntervalList, signature: Signature, path: List[String]): VariantSampleMatrix[T] = {
-    val (newSignatures, inserter) = insertVA(signature, path)
+    val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs)}
-    copy(rdd = newRDD, vaSignatures = newSignatures)
+    copy(rdd = newRDD, vaSignature = newSignature)
   }
 
   def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: Signature,
     path: List[String]): VariantSampleMatrix[T] = {
-    val (newSignatures, inserter) = insertVA(signature, path)
+    val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
       .leftOuterJoin(otherRDD)
       .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
-    copy(rdd = newRDD, vaSignatures = newSignatures)
+    copy(rdd = newRDD, vaSignature = newSignature)
   }
 
   def annotateSamples(annotations: Map[String, Annotation], signature: Signature,
     path: List[String]): VariantSampleMatrix[T] = {
-    val (newSignatures, inserter) = insertSA(signature, path)
+    val (newSignature, inserter) = insertSA(signature, path)
 
     copy(sampleAnnotations = localSamples.map { s =>
       val id = sampleIds(s)
       val sa = sampleAnnotations(s)
       inserter(sa, annotations.get(id))
-    }, saSignatures = newSignatures)
+    }, saSignature = newSignature)
   }
 
   def queryVA(args: String*): Querier = queryVA(args.toList)
 
   def queryVA(path: List[String]): Querier = {
     try {
-      vaSignatures.query(path)
+      vaSignature.query(path)
     } catch {
       case e: AnnotationPathException => fatal(s"Invalid variant annotations query: ${path.::("va").mkString(".")}")
     }
@@ -430,7 +433,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def querySA(path: List[String]): Querier = {
     try {
-      saSignatures.query(path)
+      saSignature.query(path)
     } catch {
       case e: AnnotationPathException => fatal(s"Invalid sample annotations query: ${path.::("sa").mkString(".")}")
     }
@@ -439,7 +442,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def deleteVA(args: String*): (Signature, Deleter) = deleteVA(args.toList)
 
   def deleteVA(path: List[String]): (Signature, Deleter) = {
-    vaSignatures.delete(path) match {
+    vaSignature.delete(path) match {
       case (null, null) => (EmptySignature(), a => null)
       case x => x
     }
@@ -448,7 +451,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def deleteSA(args: String*): (Signature, Deleter) = deleteSA(args.toList)
 
   def deleteSA(path: List[String]): (Signature, Deleter) = {
-    saSignatures.delete(path) match {
+    saSignature.delete(path) match {
       case (null, null) => (EmptySignature(), a => null)
       case x => x
     }
@@ -457,27 +460,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def insertVA(sig: Signature, args: String*): (Signature, Inserter) = insertVA(sig, args.toList)
 
   def insertVA(sig: Signature, path: List[String]): (Signature, Inserter) = {
-    vaSignatures.insert(path, sig)
+    vaSignature.insert(sig, path)
   }
 
   def insertSA(sig: Signature, args: String*): (Signature, Inserter) = insertSA(sig, args.toList)
 
   def insertSA(sig: Signature, path: List[String]): (Signature, Inserter) = {
-    saSignatures.insert(path, sig)
-  }
-
-  def vaSchema: String = {
-    metadata.vaSignatures match {
-      case null => "va: empty schema"
-      case s => s.printSchema("va", 2, "va")
-    }
-  }
-
-  def saSchema: String = {
-    metadata.saSignatures match {
-      case null => "sa: empty schema"
-      case s => s.printSchema("sa", 2, "sa")
-    }
+    saSignature.insert(sig, path)
   }
 }
 
@@ -485,12 +474,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 class RichVDS(vds: VariantDataset) {
 
   def makeSchema(): StructType = {
-    val vaStruct = vds.metadata.vaSignatures.getSchema
+    val vaStruct = vds.vaSignature.getSchema
 
     val s = StructType(Array(
-      StructField("variant", Variant.schema(), false),
-      StructField("annotations", vds.metadata.vaSignatures.getSchema, false),
-      StructField("gs", GenotypeStream.schema(), false)
+      StructField("variant", Variant.schema(), nullable = false),
+      StructField("annotations", vds.vaSignature.getSchema, nullable = false),
+      StructField("gs", GenotypeStream.schema(), nullable = false)
     ))
     s
   }
@@ -510,7 +499,7 @@ class RichVDS(vds: VariantDataset) {
     val rowRDD = vds.rdd
       .map {
         case (v, va, gs) =>
-          Row.fromSeq(Array(Variant.toRow(v), va.asInstanceOf[Row], GenotypeStream.toRow(gs.toGenotypeStream(v, compress))))
+          Row.fromSeq(Array(v.toRow, va.asInstanceOf[Row], gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
@@ -519,10 +508,10 @@ class RichVDS(vds: VariantDataset) {
 
   def eraseSplit: VariantDataset = {
     val (newSignatures1, f1) = vds.deleteVA("wasSplit")
-    val vds1 = vds.copy(vaSignatures = newSignatures1)
+    val vds1 = vds.copy(vaSignature = newSignatures1)
     val (newSignatures2, f2) = vds1.deleteVA("aIndex")
     vds1.copy(wasSplit = false,
-      vaSignatures = newSignatures2,
+      vaSignature = newSignatures2,
       rdd = vds1.rdd.map {
         case (v, va, gs) =>
           (v, f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))

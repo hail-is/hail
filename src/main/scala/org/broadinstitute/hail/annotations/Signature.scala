@@ -4,7 +4,6 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.Utils._
-import RichRow._
 
 abstract class Signature {
   def dType: expr.Type
@@ -62,6 +61,8 @@ abstract class Signature {
       None
   }
 
+  def delete(fields: String*): (Signature, Deleter) = delete(fields.toList)
+
   def delete(path: List[String]): (Signature, Deleter) = {
     if (path.nonEmpty) {
       (this, a => a)
@@ -70,11 +71,12 @@ abstract class Signature {
       (null, null)
   }
 
-  def insert(path: List[String], signature: Signature): (Signature, Inserter) = {
+  def insert(signature: Signature, fields: String*): (Signature, Inserter) = insert(signature, fields.toList)
+
+  def insert(signature: Signature, path: List[String]): (Signature, Inserter) = {
     if (path.nonEmpty) {
-      StructSignature(Map.empty[String, (Int, Signature)]).insert(path, signature)
-    }
-    else
+      StructSignature(Map.empty).insert(signature, path)
+    } else
       (this, (a, toIns) => toIns.getOrElse(null))
   }
 
@@ -182,7 +184,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
     }
   }
 
-  override def insert(p: List[String], signature: Signature): (Signature, Inserter) = {
+  override def insert(signature: Signature, p: List[String]): (Signature, Inserter) = {
     if (p.isEmpty)
       (signature, (a, toIns) => toIns.getOrElse(null))
     else if (p.length == 1) {
@@ -211,14 +213,13 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
           val newStruct = StructSignature(m + ((key, (m.size, signature))))
           (newStruct, f)
       }
-    }
-    else {
+    } else {
       val key = p.head
       m.get(key) match {
         case Some((i, s)) =>
           println(s"$key -- $i")
 
-          val (sig, ins) = s.insert(p.tail, signature)
+          val (sig, ins) = s.insert(signature, p.tail)
           val f: Inserter = (a, toIns) =>
             if (a == null)
               Row.fromSeq(Array.fill[Any](m.size)(null))
@@ -234,16 +235,16 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
             println(s"$key -- not found")
             if (p.length > 1)
               StructSignature(Map.empty[String, (Int, Signature)])
-                .insert(p.tail, signature)
+                .insert(signature, p.tail)
             else
-              signature.insert(p.tail, signature)
+              signature.insert(signature, p.tail)
           }
-          val f: Inserter = (a, toIns) => if (a == null) {
-            Row.fromSeq(Array.fill[Any](m.size)(null))
-              .append(ins(null, toIns))
-          }
-          else
-            a.asInstanceOf[Row].append(ins(null, toIns))
+          val f: Inserter = (a, toIns) =>
+            if (a == null) {
+              Row.fromSeq(Array.fill[Any](m.size)(null))
+                .append(ins(null, toIns))
+            } else
+              a.asInstanceOf[Row].append(ins(null, toIns))
           (StructSignature(m + ((key, (m.size, sig)))), f)
       }
     }
@@ -258,7 +259,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         }
         .map {
           case (key, (index, sig)) =>
-            StructField(key, sig.getSchema, true)
+            StructField(key, sig.getSchema, nullable = true)
         }
       )
     assert(s.length > 0)
@@ -274,8 +275,8 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         }
         .map {
           case (k, (i, v)) => v.printSchema(s"""$k""", nSpace + 2, path + "." + k)
-//          keep for future debugging:
-//          case (k, (i, v)) => v.printSchema(s"""[$i] $k""", nSpace + 2, path + "." + k)
+          //          keep for future debugging:
+          //          case (k, (i, v)) => v.printSchema(s"""[$i] $k""", nSpace + 2, path + "." + k)
         }
         .mkString("\n")
   }

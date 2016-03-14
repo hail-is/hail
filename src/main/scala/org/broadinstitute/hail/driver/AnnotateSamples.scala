@@ -19,7 +19,7 @@ object AnnotateSamples extends Command {
 
     @Args4jOption(name = "-s", aliases = Array("--sampleheader"),
       usage = "Identify the name of the column containing the sample IDs (default: 'Sample')")
-    var sampleCol: String = "Sample"
+    var sampleCol: String = _
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Define types of fields in annotations files")
@@ -56,18 +56,28 @@ object AnnotateSamples extends Command {
 
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
     val annotated = stripped match {
-        //fixme warn on args
       case tsv if tsv.endsWith(".tsv") =>
-        val (m, signature) = SampleTSVAnnotator(cond, options.sampleCol,
-          AnnotateVariants.parseTypeMap(options.types),
-          AnnotateVariants.parseMissing(options.missingIdentifiers),
+        if (options.root == null)
+          fatal("argument 'root' is required for '.tsv' annotation")
+        val (m, signature) = SampleTSVAnnotator(cond,
+          Option(options.sampleCol).getOrElse("Sample"),
+          AnnotateVariants.parseTypeMap(Option(options.types).getOrElse("")),
+          AnnotateVariants.parseMissing(Option(options.missingIdentifiers).getOrElse("NA")),
           vds.sparkContext.hadoopConfiguration)
         vds.annotateSamples(m, signature, root)
       case programmatic =>
-        //fixme warn on args
+        if (options.root == null)
+          warn("argument 'root' is required for programmatic annotation, ignoring it")
+        if (options.types != null)
+          warn("argument 'types' is unnecessary for programmatic annotation, ignoring it")
+        if (options.missingIdentifiers != null)
+          warn("argument 'missing' is unnecessary for programmatic annotation, ignoring it")
+        if (options.sampleCol != null)
+          warn("argument 'sampleheader' is unnecessary for programmatic annotation, ignoring it")
+
         val symTab = Map(
           "s" ->(0, expr.TSample),
-          "sa" ->(1, vds.saSignatures.dType))
+          "sa" ->(1, vds.saSignature.dType))
         val a = new Array[Any](2)
         val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
         val keyedSignatures = parsed.map { case (ids, t, f) =>
@@ -80,7 +90,7 @@ object AnnotateSamples extends Command {
         val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
           val (s, i) = v.insertSA(signature, ids)
           inserterBuilder += i
-          v.copy(saSignatures = s)
+          v.copy(saSignature = s)
         }
         println(keyedSignatures.mkString(";"))
 

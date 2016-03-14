@@ -23,7 +23,6 @@ object BedAnnotator {
       if (filt.length != 1)
         fatal("Invalid bed file: found 'track' in more than one header line")
       val nameR = """.*name="([\w\d\s]+)".*""".r
-      println("filter head is " + filt.head)
       val name = filt.head.value match {
         case nameR(str) => str
         case _ => fatal("Invalid bed file: could not find identifier 'name'")
@@ -41,8 +40,6 @@ object BedAnnotator {
         (false, SimpleSignature(expr.TBoolean))
       else
         (true, SimpleSignature(expr.TString))
-
-      println("getString is " + getString)
 
       val intervalList = IntervalList(
         dataLines

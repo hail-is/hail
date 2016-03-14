@@ -86,7 +86,7 @@ object AnnotateVariants extends Command {
     val annotated = stripped match {
       case intervalList if intervalList.endsWith(".interval_list") =>
         if (options.root == null)
-          fatal("argument 'root' is required for '.bed' annotation")
+          fatal("argument 'root' is required for '.interval_list' annotation")
         if (options.types != null)
           warn("argument 'types' is unnecessary for '.interval_list' annotation, ignoring it")
         if (options.missingIdentifiers != null)
@@ -148,7 +148,7 @@ object AnnotateVariants extends Command {
 
         val symTab = Map(
           "v" ->(0, expr.TVariant),
-          "va" ->(1, vds.vaSignatures.dType))
+          "va" ->(1, vds.vaSignature.dType))
         val a = new Array[Any](2)
         val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
         val keyedSignatures = parsed.map { case (ids, t, f) =>
@@ -166,7 +166,7 @@ object AnnotateVariants extends Command {
           val (s, i) = v.insertVA(signature, ids)
 //          println(s.printSchema("va", 2, "va"))
           inserterBuilder += i
-          v.copy(vaSignatures = s)
+          v.copy(vaSignature = s)
         }
         println(keyedSignatures.mkString(";"))
 
