@@ -5,7 +5,7 @@ import org.apache.spark.sql.types._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.Utils._
 
-abstract class Signature {
+abstract class Signature extends Serializable {
   def dType: expr.Type
 
   def dType(path: List[String]): expr.Type = {
@@ -32,10 +32,10 @@ abstract class Signature {
 
   def delete(path: List[String]): (Signature, Deleter) = {
     if (path.nonEmpty) {
-      (this, a => a)
+      throw new AnnotationPathException()
     }
     else
-      (null, null)
+      (EmptySignature(), a => null)
   }
 
   def insert(signature: Signature, fields: String*): (Signature, Inserter) = insert(signature, fields.toList)
@@ -44,7 +44,7 @@ abstract class Signature {
     if (path.nonEmpty) {
       StructSignature(Map.empty).insert(signature, path)
     } else
-      (this, (a, toIns) => toIns.getOrElse(null))
+      (signature, (a, toIns) => toIns.orNull)
   }
 
   def query(fields: String*): Querier = query(fields.toList)
@@ -77,6 +77,8 @@ abstract class Signature {
   def printSchema(key: String, nSpace: Int, path: String): String = {
     s"""${" " * nSpace}$key: $dType"""
   }
+
+  def isEmpty: Boolean = false
 }
 
 case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
@@ -109,105 +111,67 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
     }
   }
 
-  override def delete(p: List[String]): (StructSignature, Deleter) = {
+  override def delete(p: List[String]): (Signature, Deleter) = {
     if (p.isEmpty)
-      (null, null)
+      (EmptySignature(), a => null)
     else {
       val key = p.head
-      m.get(key) match {
-        case Some((i, s)) =>
-          s.delete(p.tail) match {
-            case (null, null) =>
-              // remove this path, bubble up deletions
-              val newStruct = StructSignature((m - key).mapValues { case (index, sig) =>
-                if (index > i)
-                  (index - 1, sig)
-                else
-                  (index, sig)
-              })
-              if (newStruct.size == 0)
-                (null, null)
-              else {
-                val f: Deleter = a =>
-                  if (a == null)
-                    a
-                  else
-                    a.asInstanceOf[Row].delete(i)
-                (newStruct, f)
-              }
-            case (sig, deleter) =>
-              val newStruct = StructSignature(m + ((key, (i, sig))))
-              val f: Deleter = a =>
-                if (a == null)
-                  a
-                else {
-                  val r = a.asInstanceOf[Row]
-                  r.update(i, deleter(r.get(i)))
-                }
-              (newStruct, f)
-          }
-        case None => (this, a => a)
+      val ret = m.get(key)
+      val (index, sigToDelete) = ret.getOrElse(throw new AnnotationPathException(s"$key not found"))
+      val (newS, d) = sigToDelete.delete(p.tail)
+      val newSignature: Signature = if (m.size == 1)
+        EmptySignature()
+      else
+        StructSignature((m - key).mapValues { case (i, s) =>
+          if (i > index)
+            (i - 1, s)
+          else
+            (i, s)
+        }.force)
+
+      val f: Deleter = a => {
+        val r = if (a == null)
+          null
+        else
+          a.asInstanceOf[Row]
+
+        if (newSignature.isEmpty)
+          null
+        else if (p.length > 1)
+          r.update(index, d(r.get(index)))
+        else
+          r.delete(index)
       }
+      (newSignature, f)
     }
   }
 
   override def insert(signature: Signature, p: List[String]): (Signature, Inserter) = {
     if (p.isEmpty)
-      (signature, (a, toIns) => toIns.getOrElse(null))
-    else if (p.length == 1) {
+      (signature, (a, toIns) => toIns.orNull)
+    else {
       val key = p.head
-      m.get(key) match {
-        case Some((i, s)) =>
-          val f: Inserter = (a, toIns) =>
-            if (a == null)
-              Row.fromSeq(Array.fill[Any](m.size)(null))
-                .update(i, toIns.getOrElse(null))
-            else
-              a.asInstanceOf[Row].update(i, toIns.orNull)
-          val newStruct = StructSignature(m + ((key, (i, signature))))
-          (newStruct, f)
-        case None =>
-          // append, not overwrite
-          val f: Inserter = (a, toIns) =>
-            if (a == null)
-              Row.fromSeq(Array.fill[Any](m.size)(null))
-                .append(toIns.getOrElse(null))
-            else
-              a.asInstanceOf[Row].append(toIns.getOrElse(null))
-          val newStruct = StructSignature(m + ((key, (m.size, signature))))
-          (newStruct, f)
+
+      val ret = m.get(key)
+      val sigIndex = ret.map(_._1)
+      val (ss, ff) = ret
+        .map(_._2)
+        .getOrElse(StructSignature(Map.empty[String, (Int, Signature)]))
+        .insert(signature, p.tail)
+
+      val newStruct = StructSignature(m + ((key, (sigIndex.getOrElse(m.size), ss))))
+
+      val f: Inserter = (a, toIns) => {
+        val r = if (a == null)
+          Row.fromSeq(Array.fill[Any](m.size)(null))
+        else
+          a.asInstanceOf[Row]
+        sigIndex match {
+          case Some(i) => r.update(i, ff(r.get(i), toIns))
+          case None => r.append(ff(null, toIns))
+        }
       }
-    } else {
-      val key = p.head
-      m.get(key) match {
-        case Some((i, s)) =>
-          val (sig, ins) = s.insert(signature, p.tail)
-          val f: Inserter = (a, toIns) =>
-            if (a == null)
-              Row.fromSeq(Array.fill[Any](m.size)(null))
-                .update(i, ins(null, toIns))
-            else {
-              val r = a.asInstanceOf[Row]
-              r.update(i, ins(r.get(i), toIns))
-            }
-          val newStruct = StructSignature(m + ((key, (i, sig))))
-          (newStruct, f)
-        case None => // gotta put it in
-          val (sig, ins) = {
-            if (p.length > 1)
-              StructSignature(Map.empty[String, (Int, Signature)])
-                .insert(signature, p.tail)
-            else
-              signature.insert(signature, p.tail)
-          }
-          val f: Inserter = (a, toIns) =>
-            if (a == null) {
-              Row.fromSeq(Array.fill[Any](m.size)(null))
-                .append(ins(null, toIns))
-            } else
-              a.asInstanceOf[Row].append(ins(null, toIns))
-          (StructSignature(m + ((key, (m.size, sig)))), f)
-      }
+      (newStruct, f)
     }
   }
 
@@ -248,11 +212,19 @@ case class EmptySignature(dType: expr.Type = expr.TBoolean) extends Signature {
 
   override def printSchema(key: String, nSpace: Int, path: String): String = s"""${" " * nSpace}$key: EMPTY"""
 
-  override def query(path: List[String]): Querier = throw new AnnotationPathException()
+  override def query(path: List[String]): Querier = { a =>
+    assert(a == null)
+    None
+  }
 
   override def getOption(path: List[String]): Option[Signature] = None
 
-  override def delete(path: List[String]): (Signature, Deleter) = (this, a => a)
+  override def delete(path: List[String]): (Signature, Deleter) = (EmptySignature(), { a =>
+    assert(a == null)
+    null
+  })
+
+  override def isEmpty: Boolean = true
 }
 
 case class SimpleSignature(dType: expr.Type) extends Signature

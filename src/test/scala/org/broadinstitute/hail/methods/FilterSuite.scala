@@ -194,7 +194,7 @@ class FilterSuite extends SparkSuite {
     val (sigs, i) = vds.insertVA(SimpleSignature(expr.TInt), "weird name \t test")
     vds = vds
       .mapAnnotations((v, va) => i(va, Some(1000)))
-      .copy(vaSignatures = sigs)
+      .copy(vaSignature = sigs)
     val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     val s2 = FilterVariants.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))
     assert(s2.vds.nVariants == vds.nVariants)

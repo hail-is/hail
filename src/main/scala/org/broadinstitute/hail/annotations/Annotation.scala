@@ -13,6 +13,7 @@ object Annotation {
   def printAnnotation(a: Any, nSpace: Int = 0): String = {
     val spaces = " " * nSpace
     a match {
+      case null => "NULL"
       case r: Row =>
         "Row:\n" +
           r.toSeq.zipWithIndex.map { case (elem, index) =>
