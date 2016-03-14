@@ -35,11 +35,11 @@ object FilterSamples extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
-
     val keep = options.keep
+    val sas = vds.saSignature
     val p = options.condition match {
       case f if f.endsWith(".sample_list") =>
+        val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
         val samples = readFile(f, state.hadoopConf) { reader =>
           Source.fromInputStream(reader)
             .getLines()
@@ -50,8 +50,8 @@ object FilterSamples extends Command {
         (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val symTab = Map(
-          "s" -> (0, expr.TSample),
-          "sa" -> (1, vds.saSignatures.dType))
+          "s" ->(0, expr.TSample),
+          "sa" ->(1, sas.dType))
         val a = new Array[Any](2)
         val f: () => Any = expr.Parser.parse(symTab, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)

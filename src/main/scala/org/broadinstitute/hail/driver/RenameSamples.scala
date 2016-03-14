@@ -35,7 +35,7 @@ object RenameSamples extends Command {
 
     val vds = state.vds
     val newSamples = mutable.Set.empty[String]
-    val newSampleIds = vds.metadata.sampleIds
+    val newSampleIds = vds.sampleIds
       .map { case s =>
         val news = m.getOrElse(s, s)
         if (newSamples.contains(news))

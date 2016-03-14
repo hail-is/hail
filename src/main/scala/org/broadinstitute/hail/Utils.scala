@@ -15,8 +15,8 @@ import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputForm
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
-import scala.collection.mutable.ListBuffer
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
@@ -995,4 +995,6 @@ object Utils extends Logging {
     def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
       mutable.Map.empty[K, Int]
   }
+
+  implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 }
