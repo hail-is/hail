@@ -191,7 +191,6 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
       val key = p.head
       m.get(key) match {
         case Some((i, s)) =>
-          println(s"$key -- $i (last level)")
           val f: Inserter = (a, toIns) =>
             if (a == null)
               Row.fromSeq(Array.fill[Any](m.size)(null))
@@ -201,7 +200,6 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
           val newStruct = StructSignature(m + ((key, (i, signature))))
           (newStruct, f)
         case None =>
-          println(s"$key -- not found (last level)")
           // append, not overwrite
           val f: Inserter = (a, toIns) => {
             if (a == null)
@@ -217,8 +215,6 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
       val key = p.head
       m.get(key) match {
         case Some((i, s)) =>
-          println(s"$key -- $i")
-
           val (sig, ins) = s.insert(signature, p.tail)
           val f: Inserter = (a, toIns) =>
             if (a == null)
@@ -232,7 +228,6 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
           (newStruct, f)
         case None => // gotta put it in
           val (sig, ins) = {
-            println(s"$key -- not found")
             if (p.length > 1)
               StructSignature(Map.empty[String, (Int, Signature)])
                 .insert(signature, p.tail)

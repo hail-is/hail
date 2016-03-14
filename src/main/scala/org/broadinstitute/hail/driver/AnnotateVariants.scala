@@ -161,8 +161,8 @@ object AnnotateVariants extends Command {
 //        println("original sigs:")
 //        println(vds.vaSchema)
         val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
-          println("------------------------------")
-          println(s"inserting ${ids}:")
+//          println("------------------------------")
+//          println(s"inserting ${ids}:")
           val (s, i) = v.insertVA(signature, ids)
 //          println(s.printSchema("va", 2, "va"))
           inserterBuilder += i
@@ -177,8 +177,9 @@ object AnnotateVariants extends Command {
           a(0) = v
           a(1) = va
 
-          val queries = computationsBc.value.map(_ ())
-//          queries.foreach(println)
+          val queries = computationsBc.value.map(_.apply())
+          println("queries are: ")
+          queries.foreach(println)
           queries.indices.foreach { i =>
 //            println(s"On signature ${keyedSignatures(i)}")
 //            println(Annotation.printAnnotation(a(1)))
