@@ -18,14 +18,13 @@ object HardCallSet {
     new HardCallSet(
       vds.rdd.map { case (v, va, gs) =>
         (v.start, v.ref, v.alt, CallStream(gs, n, sparseCutoff), "chr" + v.contig, v.start / 100000)
-      }.toDF("start", "alt", "ref", "callStream", "contig", "block"),
+      }.toDF("start", "ref", "alt", "callStream", "contig", "block"),
       vds.localSamples,
       vds.metadata.sampleIds)
   }
 
   def read(sqlContext: SQLContext, dirname: String): HardCallSet = {
     require(dirname.endsWith(".hcs"))
-    import RichRow._
 
     val (localSamples, sampleIds) = readDataFile(dirname + "/sampleInfo.ser",
       sqlContext.sparkContext.hadoopConfiguration) {
