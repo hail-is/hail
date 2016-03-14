@@ -1,0 +1,11 @@
+{
+  "passback"        : "example",
+  "api_version"     : 1,
+  "variant_filters" : [ 
+                        {"operand": "chrom", "operator": "eq", "value": "22", "operand_type": "string"},
+                        {"operand": "pos", "operator": "gte", "value": 16000000, "operand_type": "integer"},
+                        {"operand": "pos", "operator": "lte", "value": 17000000, "operand_type": "integer"}
+                      ],
+  "limit"           : 5000,
+  "count"           : false,
+}

@@ -76,8 +76,8 @@ object LinearRegression {
 
     val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
 
-    val n = cov.data.rows
-    val k = cov.data.cols
+    val n = cov.covRowSample.size
+    val k = cov.covName.size
     val d = n - k - 2
     if (d < 1)
       throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
@@ -91,7 +91,11 @@ object LinearRegression {
 
     val samplePheno = ped.samplePheno
     val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
-    val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
+    val covAndOnesVector: DenseMatrix[Double] = cov.data match {
+      case Some(d) => DenseMatrix.horzcat(d, DenseMatrix.ones[Double](n, 1))
+      case None => DenseMatrix.ones[Double](n, 1)
+    }
+
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
     val qty = qt * y
@@ -131,15 +135,13 @@ object LinearRegression {
 
 object LinearRegressionOnHcs {
 
-  def apply(hcs: HardCallSet,
-    y: DenseVector[Double],
-    cov: CovariateData): LinearRegression = {
+  def apply(hcs: HardCallSet, y: DenseVector[Double], cov: CovariateData): LinearRegression = {
 
     if (!(hcs.localSamples sameElements cov.covRowSample))
       fatal("Samples misaligned, recreate .hcs using .ped and .cov")
 
-    val n = cov.data.rows
-    val k = cov.data.cols
+    val n = cov.covRowSample.size
+    val k = cov.covName.size
     val d = n - k - 2
     if (d < 1)
       throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
@@ -149,7 +151,11 @@ object LinearRegressionOnHcs {
     val sc = hcs.sparkContext
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
+    val covAndOnesVector = cov.data match {
+      case Some(d) => DenseMatrix.horzcat(d, DenseMatrix.ones[Double](n, 1))
+      case None => DenseMatrix.ones[Double](n, 1)
+    }
+
     val qt = qr.reduced.justQ(covAndOnesVector).t
     val qty = qt * y
 
@@ -185,17 +191,10 @@ object LinearRegressionOnHcs {
     )
   }
 
-  def computeLR(hcs: HardCallSet,
-    variantFilter: (Variant) => Boolean,
-    y: DenseVector[Double],
-    cov: CovariateData,
-    covsToKeep: Set[String]): LinearRegression =
-    LinearRegressionOnHcs(hcs.filterVariants(variantFilter), y, cov.filterCovariates(covsToKeep))
-
   def apply(hcs: HardCallSet, ped: Pedigree, cov0: CovariateData): LinearRegression = {
     val cov = cov0.filterSamples(ped.phenotypedSamples)
 
-    val n = cov.data.rows
+    val n = cov.covRowSample.size
     val samplePheno = ped.samplePheno
     val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
     val y = DenseVector[Double](yArray)

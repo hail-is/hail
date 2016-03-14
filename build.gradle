@@ -23,7 +23,9 @@ repositories {
     jcenter()
 }
 
-mainClassName = "org.broadinstitute.hail.driver.Main"
+//mainClassName = "org.broadinstitute.hail.driver.Main"
+
+mainClassName = "org.broadinstitute.hail.rest.Main"
 
 String scalaVersion = '2.10.4'
 String scalaMajorVersion = '2.10'
@@ -40,6 +42,8 @@ compileScala {
 
 dependencies {
     compile 'org.scala-lang:scala-library:' + scalaVersion
+    compile 'org.scala-lang:scala-library:' + scalaVersion
+    compile 'org.scala-lang:scala-reflect:' + scalaVersion
     // compile 'org.apache.hadoop:hadoop-aws:2.7.1'
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':1.5.0') {
         exclude module: 'hadoop-client'
@@ -59,6 +63,22 @@ dependencies {
     compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':0.11.2'
     compile 'args4j:args4j:2.32'
     compile 'com.github.samtools:htsjdk:1.143'
+
+    compile 'org.http4s:http4s-core_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-server_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-argonaut_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-dsl_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-scala-xml_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-client_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-websocket_' + scalaMajorVersion + ':0.1.3'
+    compile 'org.http4s:http4s-blaze-core_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-blaze-client_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.http4s:http4s-blaze-server_' + scalaMajorVersion + ':0.12.3'
+    compile 'org.json4s:json4s-core_' + scalaMajorVersion + ':3.3.0'
+    compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.3.0'
+    compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
+    // compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
+    compile 'com.jayway.restassured:rest-assured:2.8.0'
 
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
