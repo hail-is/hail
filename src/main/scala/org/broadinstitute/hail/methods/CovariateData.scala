@@ -69,10 +69,9 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
   }
 
   def appendCovariates(that: CovariateData): CovariateData = {
-    if (!(this.covRowSample sameElements that.covRowSample)) {
+    if (!(this.covRowSample sameElements that.covRowSample))
       fatal("Cannot append covariates: samples (rows) are not aligned.")
-    }
-    
+
     val newCovName = this.covName ++ that.covName
 
     if (!newCovName.areDistinct())
