@@ -96,7 +96,7 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
 
   override def query(p: List[String]): Querier = {
     if (p.isEmpty)
-      a => Some(a)
+      a => Option(a)
     else {
       m.get(p.head) match {
         case Some((i, sig)) =>
@@ -122,33 +122,25 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         case None => throw new AnnotationPathException(s"$key not found")
       }
       val (newS, d) = sigToDelete.delete(p.tail)
-      val newSignature: Signature = if (newS.isEmpty && m.size == 1)
-        EmptySignature()
-      else if (newS.isEmpty)
-        StructSignature((m - key).mapValues { case (i, s) =>
-          if (i > index)
-            (i - 1, s)
-          else
-            (i, s)
-        }.force)
-      else
-        StructSignature(m + ((key, (index, newS))))
+      val newSignature: Signature =
+        if (newS.isEmpty)
+          delete(key, index)
+        else
+          update(key, index, newS)
 
-      val localDeleteThisRow = newSignature.isEmpty
       val localDeleteFromRow = newS.isEmpty
 
       val f: Deleter = a => {
-        val r = if (a == null)
+        if (a == null)
           null
-        else
-          a.asInstanceOf[Row]
+        else {
+          val r = a.asInstanceOf[Row]
 
-        if (localDeleteThisRow)
-          null
-        else if (localDeleteFromRow)
-          r.delete(index)
-        else
-          r.update(index, d(r.get(index)))
+          if (localDeleteFromRow)
+            r.delete(index)
+          else
+            r.update(index, d(r.get(index)))
+        }
       }
       (newSignature, f)
     }
@@ -167,7 +159,10 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         .getOrElse(StructSignature.empty())
         .insert(signature, p.tail)
 
-      val newStruct = StructSignature(m + ((key, (keyIndex.getOrElse(m.size), ss))))
+      val newStruct = keyIndex match {
+        case Some(i) => update(key, i, ss)
+        case None => append(key, ss)
+      }
 
       val localSize = m.size
 
@@ -215,6 +210,27 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         }
         .mkString("\n")
   }
+
+  def update(key: String, i: Int, sig: Signature): Signature = {
+    assert(m.contains(key))
+    StructSignature(m + ((key, (i, sig))))
+  }
+
+  def delete(key: String, index: Int): Signature = {
+    assert(m.contains(key))
+    if (m.size == 1)
+      EmptySignature()
+    else
+      StructSignature((m - key).mapValues { case (i, s) =>
+        if (i > index)
+          (i - 1, s)
+        else
+          (i, s)
+      }.force)
+  }
+
+  def append(key: String, sig: Signature): StructSignature = StructSignature(m + ((key, (m.size, sig))))
+
 }
 
 object StructSignature {

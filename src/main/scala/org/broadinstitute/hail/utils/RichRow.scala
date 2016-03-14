@@ -35,7 +35,11 @@ class RichRow(r: Row) {
     val ab = mutable.ArrayBuilder.make[Any]
     (0 until i).foreach(ab += r.get(_))
     (i + 1 until r.size).foreach(ab += r.get(_))
-    Row.fromSeq(ab.result())
+    val result = ab.result()
+    if (result.isEmpty)
+      null
+    else
+      Row.fromSeq(result)
   }
 
   def append(a: Any): Row = {
@@ -54,5 +58,6 @@ class RichRow(r: Row) {
   }
 
   def getVariant(i: Int) = Variant.fromRow(r.getAs[Row](i))
+
   def getGenotypeStream(v: Variant, i: Int) = GenotypeStream.fromRow(v, r.getAs[Row](i))
 }
