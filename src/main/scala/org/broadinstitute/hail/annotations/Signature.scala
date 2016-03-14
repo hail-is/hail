@@ -70,7 +70,7 @@ abstract class Signature extends Serializable {
       case expr.TSet(expr.TString) => ArrayType(StringType)
       case expr.TBoolean => BooleanType
       case expr.TChar => StringType
-      case _ => throw new UnsupportedOperationException()
+      case _ => throw new UnsupportedOperationException("unsupported type found in annotations")
     }
   }
 
@@ -117,17 +117,25 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
     else {
       val key = p.head
       val ret = m.get(key)
-      val (index, sigToDelete) = ret.getOrElse(throw new AnnotationPathException(s"$key not found"))
+      val (index, sigToDelete) = ret match {
+        case Some((i, s)) => (i, s)
+        case None => throw new AnnotationPathException(s"$key not found")
+      }
       val (newS, d) = sigToDelete.delete(p.tail)
-      val newSignature: Signature = if (m.size == 1)
+      val newSignature: Signature = if (newS.isEmpty && m.size == 1)
         EmptySignature()
-      else
+      else if (newS.isEmpty)
         StructSignature((m - key).mapValues { case (i, s) =>
           if (i > index)
             (i - 1, s)
           else
             (i, s)
         }.force)
+      else
+        StructSignature(m + ((key, (index, newS))))
+
+      val localDeleteThisRow = newSignature.isEmpty
+      val localDeleteFromRow = newS.isEmpty
 
       val f: Deleter = a => {
         val r = if (a == null)
@@ -135,12 +143,12 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         else
           a.asInstanceOf[Row]
 
-        if (newSignature.isEmpty)
+        if (localDeleteThisRow)
           null
-        else if (p.length > 1)
-          r.update(index, d(r.get(index)))
-        else
+        else if (localDeleteFromRow)
           r.delete(index)
+        else
+          r.update(index, d(r.get(index)))
       }
       (newSignature, f)
     }
@@ -153,20 +161,22 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
       val key = p.head
 
       val ret = m.get(key)
-      val sigIndex = ret.map(_._1)
+      val keyIndex = ret.map(_._1)
       val (ss, ff) = ret
         .map(_._2)
-        .getOrElse(StructSignature(Map.empty[String, (Int, Signature)]))
+        .getOrElse(StructSignature.empty())
         .insert(signature, p.tail)
 
-      val newStruct = StructSignature(m + ((key, (sigIndex.getOrElse(m.size), ss))))
+      val newStruct = StructSignature(m + ((key, (keyIndex.getOrElse(m.size), ss))))
+
+      val localSize = m.size
 
       val f: Inserter = (a, toIns) => {
         val r = if (a == null)
-          Row.fromSeq(Array.fill[Any](m.size)(null))
+          Row.fromSeq(Array.fill[Any](localSize)(null))
         else
           a.asInstanceOf[Row]
-        sigIndex match {
+        keyIndex match {
           case Some(i) => r.update(i, ff(r.get(i), toIns))
           case None => r.append(ff(null, toIns))
         }
@@ -205,6 +215,10 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         }
         .mkString("\n")
   }
+}
+
+object StructSignature {
+  def empty(): StructSignature = StructSignature(Map.empty[String, (Int, Signature)])
 }
 
 case class EmptySignature(dType: expr.Type = expr.TBoolean) extends Signature {
