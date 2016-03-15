@@ -133,7 +133,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
             throw new RESTFailure(s"$other is not a supported covariate type")
         }
     }
-    
+
     val cov2: CovariateData = cov.filterCovariates(phenoCovs.toSet)
 
     val hardLimit = 20000
