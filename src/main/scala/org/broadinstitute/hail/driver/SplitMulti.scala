@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
@@ -53,11 +54,12 @@ object SplitMulti extends Command {
   }
 
   def split(v: Variant,
-    va: Annotations,
+    va: Annotation,
     it: Iterable[Genotype],
-    propagateGQ: Boolean): Iterator[(Variant, Annotations, Iterable[Genotype])] = {
+    propagateGQ: Boolean,
+    insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, Annotation, Iterable[Genotype])] = {
     if (v.isBiallelic)
-      return Iterator((v, va +("wasSplit", false), it))
+      return Iterator((v, insertSplitAnnots(va, 0, false), it))
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(_._1.alt != "*")
@@ -115,21 +117,26 @@ object SplitMulti extends Command {
       }
     }
 
-    splitVariants.iterator.map(_._1)
+    splitVariants.iterator
       .zip(splitGenotypeStreamBuilders.iterator)
-      .map { case (v, gsb) =>
-        (v, va +("wasSplit", true), gsb.result())
+      .map { case ((v, ind), gsb) =>
+        (v, insertSplitAnnots(va, ind, true), gsb.result())
       }
   }
 
   def run(state: State, options: Options): State = {
+    val vds = state.vds
+
     val localPropagateGQ = options.propagateGQ
+    val (vas2, insertIndex) = vds.vaSignature.insert(SimpleSignature(expr.TInt), "aIndex")
+    val (vas3, insertSplit) = vas2.insert(SimpleSignature(expr.TBoolean), "wasSplit")
     val newVDS = state.vds.copy[Genotype](
-      metadata = state.vds.metadata
-        .copy(wasSplit = true)
-        .addVariantAnnotationSignatures("wasSplit", new SimpleSignature("Boolean")),
-      rdd = state.vds.rdd.flatMap[(Variant, Annotations, Iterable[Genotype])] { case (v, va, it) =>
-        split(v, va, it, localPropagateGQ)
+      wasSplit = true,
+      vaSignature = vas3,
+      rdd = vds.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
+        split(v, va, it, localPropagateGQ, { (va, index, wasSplit) =>
+          insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+        })
       })
     state.copy(vds = newVDS)
   }

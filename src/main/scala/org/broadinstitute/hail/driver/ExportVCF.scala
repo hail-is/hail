@@ -1,12 +1,15 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.RangePartitioner
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant.{Variant, Genotype}
-import org.broadinstitute.hail.annotations.{VCFSignature, Annotations}
+import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
+import scala.collection.mutable
 import scala.io.Source
 
 object ExportVCF extends Command {
@@ -30,7 +33,7 @@ object ExportVCF extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val varAnnSig = vds.metadata.variantAnnotationSignatures
+    val vas = vds.vaSignature
 
     def header: String = {
       val sb = new StringBuilder()
@@ -43,14 +46,25 @@ object ExportVCF extends Command {
           |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
           |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
           |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-          |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
-          |""".stripMargin)
+          |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
+      sb += '\n'
 
-      vds.metadata.filters.map { case (key, desc) =>
+      vds.filters.map { case (key, desc) =>
         sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
       }
 
-      val infoHeader = vds.metadata.variantAnnotationSignatures.getOption[Annotations]("info").map(_.attrs)
+      val infoHeader: Option[Array[(String, VCFSignature)]] = vas
+        .getOption("info") match {
+        case Some(sigs: StructSignature) =>
+          Some(sigs.m.toArray
+            .sortBy { case (key, (i, s)) => i }
+            .flatMap { case (key, (i, s)) => s match {
+              case vcfSig: VCFSignature => Some(key, vcfSig)
+              case _ => None
+            }
+            })
+        case _ => None
+      }
       infoHeader.foreach { i =>
         i.foreach { case (key, value) =>
           val sig = value.asInstanceOf[VCFSignature]
@@ -87,14 +101,75 @@ object ExportVCF extends Command {
       }
     }
 
-    def appendRow(sb: StringBuilder, v: Variant, a: Annotations, gs: Iterable[Genotype]) {
+    val infoF: (StringBuilder, Annotation) => Unit = {
+      vas.getOption("info") match {
+        case Some(signatures: StructSignature) =>
+          val keys = signatures.m.map { case (k, (i, v)) => (k, i, v.dType == expr.TBoolean) }
+            .toArray
+            .sortBy { case (key, index, isBoolean) => index }
+            .map { case (key, index, isBoolean) => (key, isBoolean) }
+          val querier = vas.query("info")
+
+          (sb, ad) => {
+            val infoRow = querier(ad).map(_.asInstanceOf[Row])
+            var first = true
+            infoRow match {
+              case Some(r) =>
+                var appended = 0
+                keys.iterator.zipWithIndex.map { case ((s, isBoolean), i) =>
+                  (s, isBoolean, r.getOption(i))
+                }
+                  .flatMap { case (s, isBoolean, opt) =>
+                    opt match {
+                      case Some(o) => Some(s, isBoolean, o)
+                      case None => None
+                    }
+                  }
+                  .filter { case (s, isBoolean, v) => !(isBoolean && (v == false)) }
+                  .foreachBetween({ case (s, isBoolean, a) =>
+                    sb.append(s)
+                    if (!isBoolean) {
+                      sb += '='
+                      sb.append(printInfo(a))
+                    }
+                    appended += 1
+                  }) { unit => sb += ';' }
+                if (appended == 0)
+                  sb += '.'
+
+              case None => sb.append(".")
+            }
+          }
+        case _ =>
+          (sb, ad) => sb.append(".")
+      }
+    }
+
+    val idQuery: Querier = if (vas.getOption("rsid").forall(sig => sig.dType == expr.TString))
+      vds.queryVA("rsid")
+    else
+      a => None
+
+    val qualQuery: Querier = if (vas.getOption("qual").forall(sig => sig.dType == expr.TDouble))
+      vds.queryVA("qual")
+    else
+      a => None
+
+    val filterQuery: Querier = if (vas.getOption("filters").forall(sig =>
+      sig.dType == expr.TSet(expr.TString)))
+      vds.queryVA("filters")
+    else
+      a => None
+
+    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype],
+      infoF: (StringBuilder, Annotation) => Unit) {
+
       sb.append(v.contig)
       sb += '\t'
       sb.append(v.start)
       sb += '\t'
 
-      val id = a.getOption[String]("rsid")
-        .getOrElse(".")
+      val id = idQuery(a).getOrElse(".")
       sb.append(id)
 
       sb += '\t'
@@ -104,13 +179,12 @@ object ExportVCF extends Command {
         sb.append(aa.alt))(_ => sb += ',')
       sb += '\t'
 
-      a.getOption[Double]("qual") match {
-        case Some(d) => sb.append(d.formatted("%.2f"))
-        case None => sb += '.'
-      }
+      val qual = qualQuery(a).map(_.asInstanceOf[Double].formatted("%.2f"))
+        .getOrElse(".")
+      sb.append(qual)
       sb += '\t'
 
-      a.getOption[Set[String]]("filters") match {
+      val filters = filterQuery(a).map(_.asInstanceOf[mutable.WrappedArray[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween(s => sb.append(s))(_ => sb += ',')
@@ -121,22 +195,7 @@ object ExportVCF extends Command {
 
       sb += '\t'
 
-      if (a.getOption[Annotations]("info").isDefined) {
-        a.get[Annotations]("info").attrs
-          .foreachBetween({ case (k, v) =>
-            if (varAnnSig.get[Annotations]("info").get[VCFSignature](k).vcfType == "Flag")
-              sb.append(k)
-            else {
-              sb.append(k)
-              sb += '='
-              v match {
-                case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(_ => sb.append(","))
-                case _ => sb.append(v)
-              }
-            }
-          })(_ => sb += ';')
-      } else
-        sb += '.'
+      infoF(sb, a)
 
       sb += '\t'
       sb.append("GT:AD:DP:GQ:PL")
@@ -152,16 +211,17 @@ object ExportVCF extends Command {
     }
     kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
     kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotations, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-      .mapPartitions { it: Iterator[(Variant, (Annotations, Iterable[Genotype]))] =>
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotation, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+      .mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
         val sb = new StringBuilder
         it.map { case (v, (va, gs)) =>
           sb.clear()
-          appendRow(sb, v, va, gs)
+          appendRow(sb, v, va, gs, infoF)
           sb.result()
         }
       }.writeTable(options.output, Some(header), deleteTmpFiles = true)
     kvRDD.unpersist()
     state
   }
+
 }

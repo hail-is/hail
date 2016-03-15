@@ -168,7 +168,9 @@ There are no mandatory methods for annotation classes.  Annotations are generate
  - `va.qual:           Double` -- the number in the qual field
  - `va.multiallelic:  Boolean` -- true if the variant is multiallelic or was split
  - `va.info.<field>:      Any` -- matches (with proper capitalization) any defined info field.  Data types match the definition in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array.
- 
+If `splitmulti` has been run:
+ - `va.wasSplit       Boolean` -- this variant was originally multiallelic 
+ - `va.aIndex             Int` -- The original index of this variant in imported line, 0 for imported biallelic sites
 If `variantqc --store` has been run:
  - `va.qc.<FIELD>:        Any` -- matches (with proper capitalization) variant qc fields.  [See list of available computed statistics here.](QC.md)
 

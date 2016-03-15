@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.annotations.{SimpleSignature}
 import org.broadinstitute.hail.{expr, SparkSuite}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
@@ -169,12 +169,11 @@ class FilterSuite extends SparkSuite {
     val keepOneSample = FilterSamples.run(s, Array("--keep", "-c", "s.id == \"C1046::HG02024\""))
     val qc = VariantQC.run(keepOneSample, Array.empty[String])
 
-    Count.run(keepOneSample, Array.empty[String])
+    val q = qc.vds.queryVA("qc", "rHetHomVar")
     val missingVariants = qc.vds.variantsAndAnnotations
       .collect()
       .filter { case (v, va) =>
-        va.get[Annotations]("qc").getOption[Double]("rHetHomVar")
-          .isEmpty
+        q(va).isEmpty
       }
         .map(_._1)
 
@@ -188,5 +187,16 @@ class FilterSuite extends SparkSuite {
       .map(_._1)
 
     assert(missingVariantsFilter.toSet == missingVariants.toSet)
+  }
+
+  @Test def testWeirdNames() {
+    var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val (sigs, i) = vds.insertVA(SimpleSignature(expr.TInt), "weird name \t test")
+    vds = vds
+      .mapAnnotations((v, va) => i(va, Some(1000)))
+      .copy(vaSignature = sigs)
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterVariants.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))
+    assert(s2.vds.nVariants == vds.nVariants)
   }
 }

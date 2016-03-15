@@ -6,7 +6,7 @@ import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
+import org.broadinstitute.hail.{expr, PropagatedTribbleException, vcf}
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -128,18 +128,23 @@ object LoadVCF {
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-    val infoSignatures = Annotations(header
+
+
+    val infoRowSignatures = header
       .getInfoHeaderLines
       .toList
-      .map(line => (line.getID, VCFSignature.parse(line)))
-      .toMap)
+      .zipWithIndex
+      .map { case (line, index) => (line.getID, VCFSignature.parse(line)) }
+      .toArray
 
-    val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
-      "filters" -> new SimpleSignature("Set[String]"),
-      "pass" -> new SimpleSignature("Boolean"),
-      "qual" -> new SimpleSignature("Double"),
-      "multiallelic" -> new SimpleSignature("Boolean"),
-      "rsid" -> new SimpleSignature("String")))
+    val variantAnnotationSignatures: StructSignature = StructSignature(Map(
+      "qual" ->(0, SimpleSignature(expr.TDouble)),
+      "filters" ->(1, SimpleSignature(expr.TSet(expr.TString))),
+      "pass" ->(2, SimpleSignature(expr.TBoolean)),
+      "rsid" ->(3, SimpleSignature(expr.TString)),
+      "info" ->(4, StructSignature(infoRowSignatures.zipWithIndex
+        .map { case ((key, sig), index) => (key, (index, sig)) }
+        .toMap))))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -148,7 +153,7 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
-    val sigMap = sc.broadcast(infoSignatures.attrs)
+    val infoRowSigsBc = sc.broadcast(infoRowSignatures)
 
     val headerLinesBc = sc.broadcast(headerLines)
 
@@ -174,7 +179,7 @@ object LoadVCF {
             })
             .map { line =>
               try {
-                reader.readRecord(reportAcc, line, sigMap.value, storeGQ)
+                reader.readRecord(reportAcc, line, infoRowSigsBc.value, storeGQ)
               } catch {
                 case e: TribbleException =>
                   log.error(s"${e.getMessage}\n  line: $line", e)
@@ -183,9 +188,8 @@ object LoadVCF {
             }
         }
     })
-
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
+      Annotation.emptyIndexedSeq(sampleIds.length), Signature.empty,
       variantAnnotationSignatures), genotypes)
   }
 

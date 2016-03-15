@@ -10,10 +10,12 @@ import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
@@ -79,14 +81,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
   }
 
   def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
-    var first = true
-    i.foreach { elem =>
-      if (first)
-        first = false
-      else
-        g()
-      f(elem)
-    }
+    richIterator(i.iterator).foreachBetween(f)(g)
   }
 
   def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
@@ -454,6 +449,17 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       }
     n == 1
   }
+
+  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
+    var first = true
+    it.foreach { elem =>
+      if (first)
+        first = false
+      else
+        g()
+      f(elem)
+    }
+  }
 }
 
 class RichBoolean(val b: Boolean) extends AnyVal {
@@ -765,7 +771,7 @@ object Utils extends Logging {
     lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        header.map { h =>
+        header.foreach { h =>
           fw.write(h)
           fw.write('\n')
         }
@@ -777,6 +783,8 @@ object Utils extends Logging {
   }
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
+
+  def triangle(n: Int): Int = ((n * (n + 1)) / 2)
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
@@ -855,8 +863,18 @@ object Utils extends Logging {
     else
       None
 
+  def nullIfNot(p: Boolean, x: Any): Any = {
+    if (p)
+      x
+    else
+      null
+  }
+
   def divOption[T](num: T, denom: T)(implicit ev: T => Double): Option[Double] =
     someIf(denom != 0, ev(num) / denom)
+
+  def divNull[T](num: T, denom: T)(implicit ev: T => Double): Any =
+    nullIfNot(denom != 0, ev(num) / denom)
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder =
     new RichStringBuilder(sb)
@@ -908,4 +926,6 @@ object Utils extends Logging {
     def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
       mutable.Map.empty[K, Int]
   }
+
+  implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 }
