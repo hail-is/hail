@@ -5,6 +5,10 @@ import org.apache.spark.sql.types._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.Utils._
 
+object Signature {
+  def empty: Signature = EmptySignature()
+}
+
 abstract class Signature extends Serializable {
   def dType: expr.Type
 
@@ -31,9 +35,8 @@ abstract class Signature extends Serializable {
   def delete(fields: String*): (Signature, Deleter) = delete(fields.toList)
 
   def delete(path: List[String]): (Signature, Deleter) = {
-    if (path.nonEmpty) {
+    if (path.nonEmpty)
       throw new AnnotationPathException()
-    }
     else
       (EmptySignature(), a => null)
   }
@@ -41,9 +44,9 @@ abstract class Signature extends Serializable {
   def insert(signature: Signature, fields: String*): (Signature, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: Signature, path: List[String]): (Signature, Inserter) = {
-    if (path.nonEmpty) {
+    if (path.nonEmpty)
       StructSignature(Map.empty).insert(signature, path)
-    } else
+    else
       (signature, (a, toIns) => toIns.orNull)
   }
 
@@ -56,23 +59,7 @@ abstract class Signature extends Serializable {
       a => Option(a)
   }
 
-  def getSchema: DataType = {
-    dType match {
-      case expr.TArray(expr.TInt) => ArrayType(IntegerType)
-      case expr.TArray(expr.TDouble) => ArrayType(DoubleType)
-      case expr.TArray(expr.TString) => ArrayType(StringType)
-      case expr.TString => StringType
-      case expr.TInt => IntegerType
-      case expr.TLong => LongType
-      case expr.TDouble => DoubleType
-      case expr.TFloat => FloatType
-      case expr.TSet(expr.TInt) => ArrayType(IntegerType)
-      case expr.TSet(expr.TString) => ArrayType(StringType)
-      case expr.TBoolean => BooleanType
-      case expr.TChar => StringType
-      case _ => throw new UnsupportedOperationException("unsupported type found in annotations")
-    }
-  }
+  def schema: DataType = dType.schema
 
   def printSchema(key: String, nSpace: Int, path: String): String = {
     s"""${" " * nSpace}$key: $dType"""
@@ -116,30 +103,29 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
       (EmptySignature(), a => null)
     else {
       val key = p.head
-      val ret = m.get(key)
-      val (index, sigToDelete) = ret match {
+      val (keyIndex, keyS) = m.get(key) match {
         case Some((i, s)) => (i, s)
         case None => throw new AnnotationPathException(s"$key not found")
       }
-      val (newS, d) = sigToDelete.delete(p.tail)
+      val (newKeyS, d) = keyS.delete(p.tail)
       val newSignature: Signature =
-        if (newS.isEmpty)
-          delete(key, index)
+        if (newKeyS.isEmpty)
+          deleteKey(key, keyIndex)
         else
-          update(key, index, newS)
+          updateKey(key, keyIndex, newKeyS)
 
-      val localDeleteFromRow = newS.isEmpty
+      val localDeleteFromRow = newKeyS.isEmpty
 
-      val f: Deleter = a => {
+      val f: Deleter = { a =>
         if (a == null)
           null
         else {
           val r = a.asInstanceOf[Row]
 
           if (localDeleteFromRow)
-            r.delete(index)
+            r.delete(keyIndex)
           else
-            r.update(index, d(r.get(index)))
+            r.update(keyIndex, d(r.get(keyIndex)))
         }
       }
       (newSignature, f)
@@ -151,17 +137,16 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
       (signature, (a, toIns) => toIns.orNull)
     else {
       val key = p.head
-
-      val ret = m.get(key)
-      val keyIndex = ret.map(_._1)
-      val (ss, ff) = ret
+      val keyIndexS = m.get(key)
+      val keyIndex = keyIndexS.map(_._1)
+      val (newKeyS, keyF) = keyIndexS
         .map(_._2)
-        .getOrElse(StructSignature.empty())
+        .getOrElse(StructSignature.empty)
         .insert(signature, p.tail)
 
-      val newStruct = keyIndex match {
-        case Some(i) => update(key, i, ss)
-        case None => append(key, ss)
+      val newSignature = keyIndex match {
+        case Some(i) => updateKey(key, i, newKeyS)
+        case None => appendKey(key, newKeyS)
       }
 
       val localSize = m.size
@@ -172,28 +157,12 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         else
           a.asInstanceOf[Row]
         keyIndex match {
-          case Some(i) => r.update(i, ff(r.get(i), toIns))
-          case None => r.append(ff(null, toIns))
+          case Some(i) => r.update(i, keyF(r.get(i), toIns))
+          case None => r.append(keyF(null, toIns))
         }
       }
-      (newStruct, f)
+      (newSignature, f)
     }
-  }
-
-  override def getSchema: DataType = {
-    val s =
-      StructType(m
-        .toArray
-        .sortBy {
-          case (key, (index, sig)) => index
-        }
-        .map {
-          case (key, (index, sig)) =>
-            StructField(key, sig.getSchema, nullable = true)
-        }
-      )
-    assert(s.length > 0)
-    s
   }
 
   override def printSchema(key: String, nSpace: Int, path: String): String = {
@@ -211,12 +180,12 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
         .mkString("\n")
   }
 
-  def update(key: String, i: Int, sig: Signature): Signature = {
+  def updateKey(key: String, i: Int, sig: Signature): Signature = {
     assert(m.contains(key))
     StructSignature(m + ((key, (i, sig))))
   }
 
-  def delete(key: String, index: Int): Signature = {
+  def deleteKey(key: String, index: Int): Signature = {
     assert(m.contains(key))
     if (m.size == 1)
       EmptySignature()
@@ -229,16 +198,18 @@ case class StructSignature(m: Map[String, (Int, Signature)]) extends Signature {
       }.force)
   }
 
-  def append(key: String, sig: Signature): StructSignature = StructSignature(m + ((key, (m.size, sig))))
-
+  def appendKey(key: String, sig: Signature): StructSignature = {
+    assert(!m.contains(key))
+    StructSignature(m + ((key, (m.size, sig))))
+  }
 }
 
 object StructSignature {
-  def empty(): StructSignature = StructSignature(Map.empty[String, (Int, Signature)])
+  def empty: StructSignature = StructSignature(Map.empty)
 }
 
 case class EmptySignature(dType: expr.Type = expr.TBoolean) extends Signature {
-  override def getSchema: DataType = BooleanType
+  override def schema: DataType = BooleanType
 
   override def printSchema(key: String, nSpace: Int, path: String): String = s"""${" " * nSpace}$key: EMPTY"""
 

@@ -8,8 +8,6 @@ object Annotation {
 
   def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(null)
 
-  def emptySignature: Signature = EmptySignature()
-
   def printAnnotation(a: Any, nSpace: Int = 0): String = {
     val spaces = " " * nSpace
     a match {
