@@ -5,7 +5,7 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.variant.{GenotypeStream, Genotype, IntervalList, Variant}
+import org.broadinstitute.hail.variant.Variant
 import org.testng.annotations.Test
 import org.broadinstitute.hail.methods._
 import scala.collection.mutable
@@ -36,7 +36,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // type Int - info.DP
     val dpQuery = vas.query("info", "DP")
-    assert(vas.getOption(List("info", "DP")).contains(VCFSignature(expr.TInt, "Integer", "1",
+    assert(vas.getOption("info", "DP").contains(VCFSignature(expr.TInt, "Integer", "1",
       "Approximate read depth; some reads may have been filtered")))
     assert(dpQuery(variantAnnotationMap(firstVariant))
       .get == 77560)
@@ -45,7 +45,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // type Double - info.HWP
     val hwpQuery = vas.query("info", "HWP")
-    assert(vas.getOption(List("info", "HWP")).contains(new VCFSignature(expr.TDouble, "Float", "1",
+    assert(vas.getOption("info", "HWP").contains(new VCFSignature(expr.TDouble, "Float", "1",
       "P value from test of Hardy Weinberg Equilibrium")))
     assert(
       D_==(hwpQuery(variantAnnotationMap(firstVariant))
@@ -55,7 +55,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // type String - info.culprit
     val culpritQuery = vas.query("info", "culprit")
-    assert(vas.getOption(List("info", "culprit")).contains(VCFSignature(expr.TString, "String", "1",
+    assert(vas.getOption("info", "culprit").contains(VCFSignature(expr.TString, "String", "1",
       "The annotation which was the worst performing in the Gaussian mixture model, " +
         "likely the reason why the variant was filtered out")))
     assert(culpritQuery(variantAnnotationMap(firstVariant))
@@ -65,7 +65,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // type Array - info.AC (allele count)
     val acQuery = vas.query("info", "AC")
-    assert(vas.getOption(List("info", "AC")).contains(VCFSignature(expr.TArray(expr.TInt), "Integer", "A",
+    assert(vas.getOption("info", "AC").contains(VCFSignature(expr.TArray(expr.TInt), "Integer", "A",
       "Allele count in genotypes, for each ALT allele, in the same order as listed")))
     assert(acQuery(variantAnnotationMap(firstVariant))
       .contains(Array(89): mutable.WrappedArray[Int]))
@@ -74,7 +74,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // type Boolean/flag - info.DB (dbSNP membership)
     val dbQuery = vas.query("info", "DB")
-    assert(vas.getOption(List("info", "DB")).contains(new VCFSignature(expr.TBoolean, "Flag", "0",
+    assert(vas.getOption("info", "DB").contains(new VCFSignature(expr.TBoolean, "Flag", "0",
       "dbSNP Membership")))
     assert(dbQuery(variantAnnotationMap(firstVariant))
       .contains(true))
@@ -83,7 +83,7 @@ class AnnotationsSuite extends SparkSuite {
 
     //type Set[String]
     val filtQuery = vas.query("filters")
-    assert(vas.getOption(List("filters")).contains(new SimpleSignature(expr.TSet(expr.TString))))
+    assert(vas.getOption("filters").contains(new SimpleSignature(expr.TSet(expr.TString))))
     assert(filtQuery(variantAnnotationMap(firstVariant))
       .contains(Array("PASS"): mutable.WrappedArray[String]))
     assert(filtQuery(variantAnnotationMap(anotherVariant))
@@ -91,7 +91,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // GATK PASS
     val passQuery = vas.query("pass")
-    assert(vas.getOption(List("pass")).contains(new SimpleSignature(expr.TBoolean)))
+    assert(vas.getOption("pass").contains(new SimpleSignature(expr.TBoolean)))
     assert(passQuery(variantAnnotationMap(firstVariant))
       .contains(true))
     assert(passQuery(variantAnnotationMap(anotherVariant))
@@ -133,7 +133,7 @@ class AnnotationsSuite extends SparkSuite {
     val (emptyS, d1) = vds.deleteVA()
     vds = vds.mapAnnotations((v, va) => d1(va))
       .copy(vaSignature = emptyS)
-    assert(emptyS == Annotation.emptySignature)
+    assert(emptyS == Signature.empty)
 
     // add to the first layer
     val toAdd = 5
@@ -141,7 +141,7 @@ class AnnotationsSuite extends SparkSuite {
     val (s1, i1) = vds.vaSignature.insert(toAddSig, "I1")
     vds = vds.mapAnnotations((v, va) => i1(va, Some(toAdd)))
       .copy(vaSignature = s1)
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(StructField("I1", IntegerType))))
 
     val q1 = vds.queryVA("I1")
@@ -155,7 +155,7 @@ class AnnotationsSuite extends SparkSuite {
     val (s2, i2) = vds.vaSignature.insert(toAdd2Sig, "S1")
     vds = vds.mapAnnotations((v, va) => i2(va, Some(toAdd2)))
       .copy(vaSignature = s2)
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(StructField("I1", IntegerType), StructField("S1", StringType))))
 
     val q2 = vds.queryVA("S1")
@@ -171,8 +171,8 @@ class AnnotationsSuite extends SparkSuite {
     val (s3, i3) = vds.vaSignature.insert(toAdd3Sig, "I1")
     vds = vds.mapAnnotations((v, va) => i3(va, Some(toAdd3)))
       .copy(vaSignature = s3)
-    assert(vds.vaSignature.getSchema ==
-      StructType(Array(StructField("I1", toAdd3Sig.getSchema, nullable = true), StructField("S1", StringType))))
+    assert(vds.vaSignature.schema ==
+      StructType(Array(StructField("I1", toAdd3Sig.schema, nullable = true), StructField("S1", StringType))))
 
     val q3 = vds.queryVA("I1")
     val q4 = vds.queryVA("I1", "I2")
@@ -191,9 +191,9 @@ class AnnotationsSuite extends SparkSuite {
     val (s4, i4) = vds.insertVA(toAdd4Sig, "a", "b", "c", "d", "e")
     vds = vds.mapAnnotations((v, va) => i4(va, Some(toAdd4)))
       .copy(vaSignature = s4)
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("I1", toAdd3Sig.getSchema),
+        StructField("I1", toAdd3Sig.schema),
         StructField("S1", StringType),
         StructField("a", StructType(Array(
           StructField("b", StructType(Array(
@@ -213,9 +213,9 @@ class AnnotationsSuite extends SparkSuite {
     vds = vds.mapAnnotations((v, va) => i5(va, Some(toAdd5)))
       .copy(vaSignature = s5)
 
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("I1", toAdd3Sig.getSchema),
+        StructField("I1", toAdd3Sig.schema),
         StructField("S1", StringType),
         StructField("a", StructType(Array(
           StructField("b", StructType(Array(
@@ -235,9 +235,9 @@ class AnnotationsSuite extends SparkSuite {
     vds = vds.mapAnnotations((v, va) => i6(va, Some(toAdd6)))
       .copy(vaSignature = s6)
 
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("I1", toAdd3Sig.getSchema),
+        StructField("I1", toAdd3Sig.schema),
         StructField("S1", StringType),
         StructField("a", StructType(Array(
           StructField("b", StructType(Array(
@@ -256,9 +256,9 @@ class AnnotationsSuite extends SparkSuite {
     vds = vds.mapAnnotations((v, va) => i7(va, Some(toAdd7)))
       .copy(vaSignature = s7)
 
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("I1", toAdd3Sig.getSchema),
+        StructField("I1", toAdd3Sig.schema),
         StructField("S1", StringType),
         StructField("a", StructType(Array(
           StructField("b", StructType(Array(
@@ -275,9 +275,9 @@ class AnnotationsSuite extends SparkSuite {
     val (s8, d2) = vds.deleteVA("a", "b", "c")
     vds = vds.mapAnnotations((v, va) => d2(va))
       .copy(vaSignature = s8)
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("I1", toAdd3Sig.getSchema),
+        StructField("I1", toAdd3Sig.schema),
         StructField("S1", StringType),
         StructField("a", StructType(Array(
           StructField("c", StringType)))))))
@@ -291,9 +291,9 @@ class AnnotationsSuite extends SparkSuite {
     vds = vds.mapAnnotations((v, va) => d3(va))
       .copy(vaSignature = s9)
 
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("I1", toAdd3Sig.getSchema),
+        StructField("I1", toAdd3Sig.schema),
         StructField("S1", StringType))))
 
     assert(vds.variantsAndAnnotations
@@ -305,7 +305,7 @@ class AnnotationsSuite extends SparkSuite {
     vds = vds.mapAnnotations((v, va) => d4(va))
       .copy(vaSignature = s10)
 
-    assert(vds.vaSignature.getSchema ==
+    assert(vds.vaSignature.schema ==
       StructType(Array(
         StructField("S1", StringType))))
     assert(vds.variantsAndAnnotations
@@ -319,7 +319,7 @@ class AnnotationsSuite extends SparkSuite {
     vds = vds.mapAnnotations((v, va) => i8(va, Some(toAdd8)))
       .copy(vaSignature = s11)
 
-    assert(vds.vaSignature.getSchema == toAdd8Sig.getSchema)
+    assert(vds.vaSignature.schema == toAdd8Sig.schema)
     assert(vds.variantsAndAnnotations.collect()
       .forall { case (v, va) => va == "dummy" })
   }

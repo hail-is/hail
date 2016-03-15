@@ -3,6 +3,7 @@ package org.broadinstitute.hail.variant
 import java.util
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
+import org.apache.spark.sql.types._
 import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.check.{Gen, Arbitrary}
 import scala.language.implicitConversions
@@ -199,6 +200,14 @@ object Genotype {
     fakeRef: Boolean = false): Genotype = {
     new Genotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), pl.map(_.toArray).orNull, fakeRef)
   }
+
+  def schema: DataType = StructType(Array(
+    StructField("gt", IntegerType),
+    StructField("ad", ArrayType(IntegerType)),
+    StructField("dp", IntegerType),
+    StructField("gq", IntegerType),
+    StructField("pl", ArrayType(IntegerType)),
+    StructField("fakeRef", BooleanType)))
 
   final val flagMultiHasGTBit = 0x1
   final val flagMultiGTRefBit = 0x2

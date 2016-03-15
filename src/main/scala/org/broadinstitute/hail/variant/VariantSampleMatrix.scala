@@ -448,12 +448,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 class RichVDS(vds: VariantDataset) {
 
   def makeSchema(): StructType = {
-    val vaStruct = vds.vaSignature.getSchema
-
     val s = StructType(Array(
-      StructField("variant", Variant.schema(), nullable = false),
-      StructField("annotations", vds.vaSignature.getSchema, nullable = false),
-      StructField("gs", GenotypeStream.schema(), nullable = false)
+      StructField("variant", Variant.schema, nullable = false),
+      StructField("annotations", vds.vaSignature.schema, nullable = false),
+      StructField("gs", GenotypeStream.schema, nullable = false)
     ))
     s
   }
