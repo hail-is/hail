@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.rest
 
+import collection.mutable
 import org.apache.spark.sql.DataFrame
 import org.broadinstitute.hail.methods.{CovariateData, LinearRegressionOnHcs}
 import org.broadinstitute.hail.variant._
@@ -55,7 +56,11 @@ case class VariantFilter(operand: String,
 
 
 case class Covariate(`type`: String,
-  name: String)
+  name: Option[String],
+  chrom: Option[String],
+  pos: Option[Int],
+  ref: Option[String],
+  alt: Option[String])
 
 case class GetStatsRequest(passback: Option[String],
   md_version: Option[String],
@@ -101,23 +106,35 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       case None => throw new RESTFailure(s"Missing phenotype")
     }
 
-    def getCovName(c: Covariate): String =
-      c.`type` match {
-        case "phenotype" =>
-          if (cov.covName.contains(c.name))
-            c.name
-          else
-            throw new RESTFailure(s"${c.name} is not a valid covariate name")
-        case "variant" =>
-          throw new RESTFailure("\'variant\' is not a supported covariate type (yet)")
-        case other =>
-          throw new RESTFailure(s"$other is not a supported covariate type")
-      }
+    val phenoCovs = mutable.Set[String]()
+    val variantCovs = new mutable.ArrayBuffer[Variant]()
 
-    val cov2: CovariateData = req.covariates match {
-      case Some(covsToKeep) => cov.filterCovariates(covsToKeep.map(getCovName).toSet)
-      case None => cov.filterCovariates(Set())
+    req.covariates.foreach { covariates =>
+      for (c <- covariates)
+        c.`type` match {
+          case "phenotype" =>
+            c.name match {
+              case Some(name) =>
+                if (cov.covName.contains(name))
+                  phenoCovs += name
+                else
+                  throw new RESTFailure(s"${c.name} is not a valid covariate name")
+              case None =>
+                throw new RESTFailure("Covariate of type 'phenotype' must include 'name' field in request.")
+            }
+          case "variant" =>
+            (c.chrom, c.pos, c.ref, c.alt) match {
+              case (Some(chrom), Some(pos), Some(ref), Some(alt)) =>
+                variantCovs += Variant(chrom, pos, ref, alt)
+              case missingFields =>
+                throw new RESTFailure("Covariate of type 'variant' must include 'chrom', 'pos', 'ref', and 'alt' fields in request.")
+            }
+          case other =>
+            throw new RESTFailure(s"$other is not a supported covariate type")
+        }
     }
+    
+    val cov2: CovariateData = cov.filterCovariates(phenoCovs.toSet)
 
     val hardLimit = 20000
     val limit = req.limit.map(_.min(hardLimit)).getOrElse(hardLimit)
@@ -127,6 +144,14 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       _.foreach { f =>
         df = f.filter(df)
       })
+
+    /*
+    var df2 = hcs.df
+    req.variant_filters.foreach(
+      _.foreach { f =>
+        df = f.filter(df)
+      })
+    */
 
     val stats: Array[Stat] = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
       .rdd
