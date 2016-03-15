@@ -5,17 +5,26 @@ Hail supports programmatic annotation, which is the computation of new annotatio
 ## Command syntax
  
 In both `annotatesamples` and `annotatevariants`,  the syntax for creating programmatic annotations is the same.  These commands are composed of one or more annotation statements of the following structure:
+
 ```
-                       va.path.to.new.annotation          =         if (va.pass) va.qc.gqMean else 0    [ , ... ]
+annotatevariants -c   "va.path.to.new.annotation          =         if (va.pass) va.qc.gqMean else 0    [ , ... ]"
                                 ^                         ^                     ^                           ^
                        period-delimited path         equals sign            expression               comma followed by
                      starting with 'va' or 'sa'     delimits path                                     more annotation
                                                     and expression                                       statements
 ```
  
+In this example, `annotatevariants` will produce a new annotation stored in `va.path.to.new.annotation`, which is accessible in all future modules. 
+ 
 ## Order of operations
 
+When you generate more than one new annotation, the operations are structured in the following order:
+
+1.  All computations are evaluated from the current annotations.  This means that you cannot write `annotatevariants -c 'va.a = 5, va.b = va.a * 2'` -- `va.a` does not exist in the base schema, so it is not found during the computations.
+2.  Each statement generates a new schema based on the schema to its left (or the base, for the first command).  These transformations existing 
+
 For the sake of this example, we will define a dummy annotation schema:
+
 ```
     va
         a : Int
