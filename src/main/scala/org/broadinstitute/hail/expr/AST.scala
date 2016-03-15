@@ -177,9 +177,13 @@ object AST extends Positional {
 
   def evalCompose[T](c: EvalContext, subexpr: AST)
     (g: (T) => Any): () => Any = {
+    println("arr is " + c._2 + ", " + c._2.mkString(","))
+    println("subexpr type is " + subexpr.`type`)
     val f = subexpr.eval(c)
+    println("f is " + f())
     () => {
       val x = f()
+      println("x is " + x)
       if (x != null)
         g(x.asInstanceOf[T])
       else

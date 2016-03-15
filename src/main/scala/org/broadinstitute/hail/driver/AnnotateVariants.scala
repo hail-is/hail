@@ -5,7 +5,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.io.annotators._
 import org.broadinstitute.hail.methods.ProgrammaticAnnotation
-import org.broadinstitute.hail.variant.Sample
+import org.broadinstitute.hail.variant.{Variant, Sample}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -150,42 +150,39 @@ object AnnotateVariants extends Command {
           "v" ->(0, expr.TVariant),
           "va" ->(1, vds.vaSignature.dType))
         val a = new Array[Any](2)
+
         val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
+
         val keyedSignatures = parsed.map { case (ids, t, f) =>
           if (ids.head != "va")
             fatal(s"expect 'va[.identifier]+', got ${ids.mkString(".")}")
           ProgrammaticAnnotation.checkType(ids.mkString("."), t)
           (ids.tail, SimpleSignature(t))
         }
+
         val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-//        println("original sigs:")
-//        println(vds.vaSchema)
+
         val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
-//          println("------------------------------")
-//          println(s"inserting ${ids}:")
           val (s, i) = v.insertVA(signature, ids)
-//          println(s.printSchema("va", 2, "va"))
+          println(s"after ${ids.mkString(".")} ------------- ")
+          println(s.printSchema("va", 2, "va"))
           inserterBuilder += i
           v.copy(vaSignature = s)
         }
-        println(keyedSignatures.mkString(";"))
 
-        val computationsBc = vds.sparkContext.broadcast(parsed.map(_._3))
+        val computations = parsed.map(_._3)
         val insertersBc = vds.sparkContext.broadcast(inserterBuilder.result())
 
         vdsAddedSigs.mapAnnotations { case (v, va) =>
           a(0) = v
           a(1) = va
-
-          val queries = computationsBc.value.map(_.apply())
-          println("queries are: ")
-          queries.foreach(println)
-          queries.indices.foreach { i =>
-//            println(s"On signature ${keyedSignatures(i)}")
-//            println(Annotation.printAnnotation(a(1)))
+          computations.indices.foreach { i =>
             a(1) = insertersBc.value(i).apply(
               a(1),
-              Option(queries(i)))
+              Option(computations(i)()))
+            println("*************************************************************")
+            println(s"after index $i")
+            println(Annotation.printAnnotation(a(1)))
           }
           a(1): Annotation
         }

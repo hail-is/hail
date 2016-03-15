@@ -36,15 +36,25 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
     s = s.copy(vds = s.vds.filterVariants((v, va) => v.start == 10019093))
     s = SplitMulti.run(s)
     s = VariantQC.run(s)
-    s = AnnotateVariants.run(s, Array("-c", "va.a.b = va.pass"))
+    FilterVariants.run(s, Array("--keep", "-c", "va.pass")).vds.rdd.collect()
+    s = AnnotateVariants.run(s, Array("-c", "va.a.b.c.d.e = va.qc.callRate * 100, va.a.c = if (va.pass) 1 else 0, va.`weird spaces name` = 5 / (va.qual - 5)"))
     val vaa = s.vds.variantsAndAnnotations.collect()
-    println(s.vds.vaSignature.dType)
-//    println(s.vds.vaSignature.printSchema("va", 2, "va"))
-    val q5 = s.vds.queryVA("qc", "MAC")
-    println(s.vds.variantsAndAnnotations.collect().head._2.asInstanceOf[Row].get(8))
-//    println(Annotation.printAnnotation(s.vds.variantsAndAnnotations.collect().head._2))
-//    s.vds.variantsAndAnnotations.map(_._2).foreach(i => println("qc.mac is " + q5(i)))
-//    s.vds.variantsAndAnnotations.map(_._2).foreach(i => println("qc.mac is " + q5(i)))
-
+    val q = s.vds.queryVA("a", "b", "c", "d", "e")
+    val q2 = s.vds.queryVA("a", "c")
+    val q3 = s.vds.queryVA("weird spaces name")
+    val qCallRate = s.vds.queryVA("qc", "callRate")
+    val qPass = s.vds.queryVA("pass")
+    val qQual = s.vds.queryVA("qual")
+    s.vds.variantsAndAnnotations
+      .collect()
+      .foreach { case (v, va) =>
+        assert(q(va) == qCallRate(va).map(_.asInstanceOf[Double] * 100) &&
+          q2(va) == qPass(va).map(_.asInstanceOf[Boolean] match {
+            case true => 1
+            case false => 0
+          }) &&
+          q3(va) == qQual(va).map(x => 5 / (x.asInstanceOf[Double] - 5)))
+      }
   }
+
 }
