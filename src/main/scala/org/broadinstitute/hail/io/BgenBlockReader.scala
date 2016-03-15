@@ -36,7 +36,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   }
 
   override def seekToFirstBlock(start: Long) {
-    pos = IndexBTree.queryStart(start, hadoopOpen(indexArrayPath, job))
+    pos = IndexBTree.query(start, indexArrayPath, job)
     bfis.seek(pos)
   }
 

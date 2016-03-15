@@ -11,7 +11,7 @@ import sys.process._
 import scala.language.postfixOps
 
 class LoadBgenSuite extends SparkSuite {
-  
+
   @Test def testMultipleUKBioBank10Variants() {
     val bgen = "/Users/jigold/ukbiobank_test10.chr*.bgen"
     val sampleFile = "/Users/jigold/ukbiobank_test10.sample"

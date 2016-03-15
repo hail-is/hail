@@ -110,7 +110,7 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
       dataBlockStarts(i) = position
     }
 
-    IndexBTree.write(dataBlockStarts, hadoopCreate(file + ".idx", sc.hadoopConfiguration))
+    IndexBTree.write(dataBlockStarts, file + ".idx", sc.hadoopConfiguration)
 
     sampleIDs
   }
@@ -184,6 +184,10 @@ object BgenLoader {
 
     val nSamples = bgenLoaders(0).getNSamples
     val nVariants = bgenLoaders.map{_.getNVariants}.sum
+
+    if (nVariants < 1)
+      fatal("Require at least 1 Variant in BGEN files")
+
     val sampleIDs = bgenLoaders(0).getSampleIDs
 
     info(s"Number of BGEN files parsed: ${bgenLoaders.length}")
