@@ -54,7 +54,7 @@ object ExportVCF extends Command {
       }
 
       val infoHeader: Option[Array[(String, VCFSignature)]] = vas
-        .getOption(List("info")) match {
+        .getOption("info") match {
         case Some(sigs: StructSignature) =>
           Some(sigs.m.toArray
             .sortBy { case (key, (i, s)) => i }
@@ -102,13 +102,13 @@ object ExportVCF extends Command {
     }
 
     val infoF: (StringBuilder, Annotation) => Unit = {
-      vas.getOption(List("info")) match {
+      vas.getOption("info") match {
         case Some(signatures: StructSignature) =>
           val keys = signatures.m.map { case (k, (i, v)) => (k, i, v.dType == expr.TBoolean) }
             .toArray
             .sortBy { case (key, index, isBoolean) => index }
             .map { case (key, index, isBoolean) => (key, isBoolean) }
-          val querier = vas.query(List("info"))
+          val querier = vas.query("info")
 
           (sb, ad) => {
             val infoRow = querier(ad).map(_.asInstanceOf[Row])

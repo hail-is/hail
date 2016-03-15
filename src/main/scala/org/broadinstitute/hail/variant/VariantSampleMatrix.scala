@@ -47,12 +47,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](nSamples, g(v)))
+         values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](g(v)))
+         values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -77,7 +77,7 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
   }
@@ -474,12 +474,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 class RichVDS(vds: VariantDataset) {
 
   def makeSchema(): StructType = {
-    val vaStruct = vds.vaSignature.getSchema
-
     val s = StructType(Array(
-      StructField("variant", Variant.schema(), nullable = false),
-      StructField("annotations", vds.vaSignature.getSchema, nullable = false),
-      StructField("gs", GenotypeStream.schema(), nullable = false)
+      StructField("variant", Variant.schema, nullable = false),
+      StructField("annotations", vds.vaSignature.schema, nullable = false),
+      StructField("gs", GenotypeStream.schema, nullable = false)
     ))
     s
   }
@@ -507,14 +505,17 @@ class RichVDS(vds: VariantDataset) {
   }
 
   def eraseSplit: VariantDataset = {
-    val (newSignatures1, f1) = vds.deleteVA("wasSplit")
-    val vds1 = vds.copy(vaSignature = newSignatures1)
-    val (newSignatures2, f2) = vds1.deleteVA("aIndex")
-    vds1.copy(wasSplit = false,
-      vaSignature = newSignatures2,
-      rdd = vds1.rdd.map {
-        case (v, va, gs) =>
-          (v, f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
-      })
+    if (vds.wasSplit) {
+      val (newSignatures1, f1) = vds.deleteVA("wasSplit")
+      val vds1 = vds.copy(vaSignature = newSignatures1)
+      val (newSignatures2, f2) = vds1.deleteVA("aIndex")
+      vds1.copy(wasSplit = false,
+        vaSignature = newSignatures2,
+        rdd = vds1.rdd.map {
+          case (v, va, gs) =>
+            (v, f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
+        })
+    } else
+      vds
   }
 }

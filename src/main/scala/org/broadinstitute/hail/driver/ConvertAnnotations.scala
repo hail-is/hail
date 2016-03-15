@@ -77,8 +77,8 @@ object ConvertAnnotations extends Command {
     }
 
     val schema = StructType(Array(
-      StructField("variant", Variant.schema(), false),
-      StructField("annotation", signature.getSchema, true)
+      StructField("variant", Variant.schema, false),
+      StructField("annotation", signature.schema, true)
     ))
 
 //    println(signature.printSchema("va"))

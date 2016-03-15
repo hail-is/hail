@@ -18,7 +18,7 @@ object CopyState extends Enumeration {
 }
 
 object AltAllele {
-  def schema(): StructType = StructType(Array(
+  def schema: StructType = StructType(Array(
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
 
@@ -135,12 +135,12 @@ object Variant {
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
 
-  def schema(): StructType =
+  def schema: StructType =
     StructType(Array(
       StructField("contig", StringType, nullable = false),
       StructField("start", IntegerType, nullable = false),
       StructField("ref", StringType, nullable = false),
-      StructField("altAlleles", ArrayType(AltAllele.schema(), containsNull = false),
+      StructField("altAlleles", ArrayType(AltAllele.schema, containsNull = false),
         nullable = false)))
 
   def fromRow(r: Row) =

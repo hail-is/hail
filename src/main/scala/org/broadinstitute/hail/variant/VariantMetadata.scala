@@ -7,8 +7,8 @@ object VariantMetadata {
   def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(Array.empty[(String, String)],
     sampleIds,
     Annotation.emptyIndexedSeq(sampleIds.length),
-    Annotation.emptySignature,
-    Annotation.emptySignature)
+    Signature.empty,
+    Signature.empty)
 
   def apply(filters: IndexedSeq[(String, String)], sampleIds: Array[String],
     sa: IndexedSeq[Annotation], sas: Signature, vas: Signature): VariantMetadata = {

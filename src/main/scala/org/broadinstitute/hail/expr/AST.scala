@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
 import org.broadinstitute.hail.variant.{Sample, AltAllele, Variant, Genotype}
 import scala.collection.mutable
 import scala.util.parsing.input.{Position, Positional}
@@ -41,18 +42,21 @@ object DoubleNumericConversion extends NumericConversion[Double] {
 
 sealed abstract class Type {
   def typeCheck(a: Any): Boolean
+  def schema: DataType
 }
 
 case object TBoolean extends Type {
   override def toString = "Boolean"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
+  def schema = BooleanType
 }
 
 case object TChar extends Type {
   override def toString = "Char"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Character]
+  def schema = throw new UnsupportedOperationException
 }
 
 abstract class TNumeric extends Type
@@ -61,36 +65,35 @@ case object TInt extends TNumeric {
   override def toString = "Int"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
+  def schema = IntegerType
 }
 
 case object TLong extends TNumeric {
   override def toString = "Long"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
+  def schema = LongType
 }
 
 case object TFloat extends TNumeric {
   override def toString = "Float"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
+  def schema = FloatType
 }
 
 case object TDouble extends TNumeric {
   override def toString = "Double"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
-}
-
-case object TUnit extends Type {
-  override def toString = "Unit"
-
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Unit]
+  def schema = DoubleType
 }
 
 case object TString extends Type {
   override def toString = "String"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
+  def schema = StringType
 }
 
 case class TArray(elementType: Type) extends Type {
@@ -98,6 +101,8 @@ case class TArray(elementType: Type) extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[mutable.WrappedArray[_]] &&
     a.asInstanceOf[mutable.WrappedArray[_]].forall(elementType.typeCheck)
+
+  def schema = ArrayType(elementType.schema)
 }
 
 case class TSet(elementType: Type) extends Type {
@@ -105,36 +110,44 @@ case class TSet(elementType: Type) extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[mutable.WrappedArray[_]] &&
     a.asInstanceOf[mutable.WrappedArray[_]].forall(elementType.typeCheck)
+
+  def schema = ArrayType(elementType.schema)
 }
 
 case class TFunction(parameterTypes: Array[Type], returnType: Type) extends Type {
   override def toString = s"(${parameterTypes.mkString(",")}) => $returnType"
 
   def typeCheck(a: Any): Boolean = throw new UnsupportedOperationException()
+  def schema = throw new UnsupportedOperationException
 }
 
 case object TSample extends Type {
   override def toString = "Sample"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Sample]
+  def schema = StructType(Array(
+    StructField("id", StringType, nullable = false)))
 }
 
 case object TGenotype extends Type {
   override def toString = "Genotype"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
+  def schema = Genotype.schema
 }
 
 case object TAltAllele extends Type {
   override def toString = "AltAllele"
 
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
+  def schema = AltAllele.schema
 }
 
 case object TVariant extends Type {
   override def toString = "Variant"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
+  def schema = Variant.schema
 }
 
 case class TStruct(fields: Map[String, (Int, Type)]) extends Type {
@@ -147,6 +160,17 @@ case class TStruct(fields: Map[String, (Int, Type)]) extends Type {
     a.isInstanceOf[Row] &&
       ((a.asInstanceOf[Row].length == types.length) &&
         a.asInstanceOf[Row].toSeq.zip(types).forall { case (v, t) => t.typeCheck(v) })
+  }
+
+  def schema = {
+    assert(fields.size > 0)
+    StructType(fields
+      .toArray
+      .sortBy { case (key, (index, ft)) => index }
+      .map { case (key, (index, ft)) =>
+        StructField(key, ft.schema)
+      }
+    )
   }
 }
 
