@@ -18,6 +18,10 @@ object SampleTSVAnnotator {
       val split = header.split("\t")
       val sampleIndex = split.indexOf(sampleCol)
       fatalIf(sampleIndex < 0, s"Could not find designated sample column id '$sampleCol")
+      typeMap.foreach { case (id, t) =>
+        if (!split.contains(id))
+          warn(s"""found "$id" in type map but not in TSV header """)
+      }
 
       val orderedSignatures: Array[(String, Option[Signature])] = split.map { s =>
         if (s != sampleCol)

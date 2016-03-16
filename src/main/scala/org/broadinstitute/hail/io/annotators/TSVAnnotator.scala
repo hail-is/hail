@@ -15,9 +15,14 @@ object TSVAnnotator {
     missing: Set[String]): (RDD[(Variant, Annotation)], Signature) = {
 
     val (header, split) = readLines(filename, sc.hadoopConfiguration) { lines =>
-      // fatalIf(lines.isEmpty, "empty TSV file")
+      fatalIf(lines.isEmpty, "empty TSV file")
       val h = lines.next().value
       (h, h.split("\t"))
+    }
+
+    typeMap.foreach { case (id, t) =>
+      if (!split.contains(id))
+        warn(s"""found "$id" in type map but not in TSV header """)
     }
 
     val (shortForm, vColIndices) = if (vColumns.length == 1) {
