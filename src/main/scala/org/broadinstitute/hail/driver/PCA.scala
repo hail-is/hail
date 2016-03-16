@@ -52,7 +52,7 @@ object PCA extends Command {
       lSorted.persist(StorageLevel.MEMORY_AND_DISK)
       lSorted
         .map { case (v, vl) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + vl.mkString("\t") }
-        .writeTable(options.eOutput, Some("chrom\tpos\tref\talt\t" + (1 to options.k).map("PC" + _).mkString("\t")))
+        .writeTable(options.lOutput, Some("chrom\tpos\tref\talt\t" + (1 to options.k).map("PC" + _).mkString("\t")))
       lSorted.unpersist()
       l.unpersist()
     }
