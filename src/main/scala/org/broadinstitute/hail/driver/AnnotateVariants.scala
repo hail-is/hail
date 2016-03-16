@@ -5,7 +5,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.io.annotators._
 import org.broadinstitute.hail.methods.ProgrammaticAnnotation
-import org.broadinstitute.hail.variant.{Variant, Sample}
+import org.broadinstitute.hail.variant.{VariantSampleMatrix, Variant, Sample}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -125,6 +125,24 @@ object AnnotateVariants extends Command {
           warn("argument 'vcolumns' is unnecessary for '.vcf' annotation, ignoring it")
         val (rdd, signature) = VCFAnnotator(vds.sparkContext, cond)
         vds.annotateVariants(rdd, signature, parseRoot(options.root))
+      case otherVds if otherVds.endsWith(".vds") =>
+        if (options.root == null)
+          fatal("argument 'root' is required for '.vds' annotation")
+        if (options.types != null)
+          warn("argument 'types' is unnecessary for '.vds' annotation, ignoring it")
+        if (options.missingIdentifiers != null)
+          warn("argument 'missing' is unnecessary for '.vds' annotation, ignoring it")
+        if (options.vCols != null)
+          warn("argument 'vcolumns' is unnecessary for '.vds' annotation, ignoring it")
+        val readOtherVds = {
+          val s2 = Read.run(State(state.sc, state.sqlContext, null))
+          if (s2.vds.wasSplit)
+            s2.vds
+          else
+            SplitMulti.run(s2).vds
+        }
+        vds.annotateVariants(readOtherVds.variantsAndAnnotations,
+          readOtherVds.vaSignature, parseRoot(options.root))
       case fastFormat if fastFormat.endsWith(".faf") =>
         if (options.root == null)
           fatal("argument 'root' is required for 'fast annotation format' annotation")
@@ -162,27 +180,21 @@ object AnnotateVariants extends Command {
 
         val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
 
+        val computations = parsed.map(_._3)
+
         val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
           val (s, i) = v.insertVA(signature, ids)
-          println(s"after ${ids.mkString(".")} ------------- ")
-          println(s.printSchema("va", 2, "va"))
           inserterBuilder += i
           v.copy(vaSignature = s)
         }
 
-        val computations = parsed.map(_._3)
-        val insertersBc = vds.sparkContext.broadcast(inserterBuilder.result())
+        val inserters = inserterBuilder.result()
 
         vdsAddedSigs.mapAnnotations { case (v, va) =>
           a(0) = v
           a(1) = va
           computations.indices.foreach { i =>
-            a(1) = insertersBc.value(i).apply(
-              a(1),
-              Option(computations(i)()))
-            println("*************************************************************")
-            println(s"after index $i")
-            println(Annotation.printAnnotation(a(1)))
+            a(1) = inserters(i).apply(a(1), Option(computations(i)()))
           }
           a(1): Annotation
         }

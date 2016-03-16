@@ -31,7 +31,7 @@ object AnnotateSamples extends Command {
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = "Specify identifiers to be treated as missing (default: 'NA')")
-    var missingIdentifiers: String = "NA"
+    var missingIdentifiers: String = _
   }
 
   def newOptions = new Options
@@ -66,8 +66,8 @@ object AnnotateSamples extends Command {
           vds.sparkContext.hadoopConfiguration)
         vds.annotateSamples(m, signature, root)
       case programmatic =>
-        if (options.root == null)
-          warn("argument 'root' is required for programmatic annotation, ignoring it")
+        if (options.root != null)
+          warn("argument 'root' is unnecessary for programmatic annotation, ignoring it")
         if (options.types != null)
           warn("argument 'types' is unnecessary for programmatic annotation, ignoring it")
         if (options.missingIdentifiers != null)
@@ -92,7 +92,6 @@ object AnnotateSamples extends Command {
           inserterBuilder += i
           v.copy(saSignature = s)
         }
-        println(keyedSignatures.mkString(";"))
 
         val computations = parsed.map(_._3)
         val inserters = inserterBuilder.result()

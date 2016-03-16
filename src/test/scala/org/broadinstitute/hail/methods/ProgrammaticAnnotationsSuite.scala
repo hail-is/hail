@@ -22,10 +22,11 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
     val q3 = s.vds.querySA("anotherthing")
     val q4 = s.vds.querySA("hi there i have spaces", "another")
     val head = s.vds.sampleAnnotations.head
-    println(qCall(head))
-    println(qMiss(head))
-    println(q3(head))
-    println(q4(head))
+    s.vds.sampleAnnotations.foreach { sa =>
+      qCall(sa) == qMiss(sa).map(x => (1 - x.asInstanceOf[Double]) * 100) &&
+      q3(sa) == Some(5) &&
+      q4(sa) == Some(true)
+    }
   }
 
   @Test def testVariants() {
@@ -36,7 +37,6 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
     s = s.copy(vds = s.vds.filterVariants((v, va) => v.start == 10019093))
     s = SplitMulti.run(s)
     s = VariantQC.run(s)
-    FilterVariants.run(s, Array("--keep", "-c", "va.pass")).vds.rdd.collect()
     s = AnnotateVariants.run(s, Array("-c", "va.a.b.c.d.e = va.qc.callRate * 100, va.a.c = if (va.pass) 1 else 0, va.`weird spaces name` = 5 / (va.qual - 5)"))
     val vaa = s.vds.variantsAndAnnotations.collect()
     val q = s.vds.queryVA("a", "b", "c", "d", "e")
@@ -56,5 +56,4 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
           q3(va) == qQual(va).map(x => 5 / (x.asInstanceOf[Double] - 5)))
       }
   }
-
 }
