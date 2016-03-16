@@ -170,6 +170,7 @@ object Main {
       GenDataset,
       Grep,
       GQByDP,
+      GQHist,
       ImportVCF,
       LinearRegressionCommand,
       MendelErrorsCommand,
