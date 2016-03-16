@@ -16,6 +16,7 @@ $ hail importvcf /path/to/file.vcf splitmulti write -o /path/to/file.vds
 Methods that don't support multiallelics will generate a error message
 if applied to a dataset that has not been split.  The list of commands
 that support multiallelics are:
+ - `annotatesamples`
  - `count`
  - `exportvcf`
  - `read`

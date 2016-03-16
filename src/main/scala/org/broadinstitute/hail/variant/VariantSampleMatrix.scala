@@ -393,6 +393,32 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
+  def annotateInvervals(iList: IntervalList, signature: Signature, path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignature, inserter) = insertVA(signature, path)
+    val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs)}
+    copy(rdd = newRDD, vaSignature = newSignature)
+  }
+
+  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: Signature,
+    path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignature, inserter) = insertVA(signature, path)
+    val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
+      .leftOuterJoin(otherRDD)
+      .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
+    copy(rdd = newRDD, vaSignature = newSignature)
+  }
+
+  def annotateSamples(annotations: Map[String, Annotation], signature: Signature,
+    path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignature, inserter) = insertSA(signature, path)
+
+    copy(sampleAnnotations = localSamples.map { s =>
+      val id = sampleIds(s)
+      val sa = sampleAnnotations(s)
+      inserter(sa, annotations.get(id))
+    }, saSignature = newSignature)
+  }
+
   def queryVA(args: String*): Querier = queryVA(args.toList)
 
   def queryVA(path: List[String]): Querier = {

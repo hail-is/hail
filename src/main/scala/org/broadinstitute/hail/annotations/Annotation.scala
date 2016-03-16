@@ -18,8 +18,8 @@ object Annotation {
             s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}"""
           }
             .mkString("\n")
-
-      case a => a.toString
+      case null => "NULL"
+      case a => a.toString + a.getClass.getName
     }
   }
 

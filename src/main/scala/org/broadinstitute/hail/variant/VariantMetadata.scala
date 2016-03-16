@@ -1,9 +1,5 @@
 package org.broadinstitute.hail.variant
 
-import java.io.{DataInputStream, DataOutputStream}
-import java.nio.ByteBuffer
-import org.apache.spark.serializer.{SerializerInstance, KryoSerializer}
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 
 object VariantMetadata {
