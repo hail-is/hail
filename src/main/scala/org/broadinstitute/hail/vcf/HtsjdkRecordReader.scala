@@ -212,6 +212,12 @@ object HtsjdkRecordReader {
           case expr.TArray(expr.TString) =>
             stupid.asScala.map(_.asInstanceOf[String]).toArray[String]: mutable.WrappedArray[String]
         }
+      case stupid: java.util.ArrayList[_] =>
+        sig.typeOf match {
+          case "Array[Int]" => stupid.asScala.iterator.map(_.asInstanceOf[String].toInt).toIndexedSeq
+          case "Array[Double]" => stupid.asScala.iterator.map(_.asInstanceOf[String].toDouble).toIndexedSeq
+          case "Array[String]" => stupid.asScala.iterator.map(_.asInstanceOf[String]).toIndexedSeq
+        }
       case _ => value
     }
   }
