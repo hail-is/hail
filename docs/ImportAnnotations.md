@@ -2,90 +2,101 @@
 
 Hail includes modules for importing annotations from external files, for use in downstream filtering and analysis.  There are two such modules, one for annotating samples and one for annotating variants:
  - `annotatesamples`
- - `annotatevariants`
+ - `annotatevariants` [Skip to annotate variants section](#AnnoVar)
  
-Most command line arguments differ between the two modules and individual file formats.  The following are universal:
- - `-c <condition or file>, --condition <condition or file>` -- path of file to read
- - `-r | --root <path>` -- root annotations in `path`.  If no root is provided, all annotations will be placed directly under `va` or `sa`.  For arbitrarily deep placement, you can specify a path like `--root va.this.is.a.big.tree` 
-
 ## Annotating Samples
 
-Hail currently supports annotating samples from tsv files and programmatic commands.
+Hail currently supports annotating samples from [tsv files](#SampleTSV) and [programmatic commands](#SampleProg).
 
-1. **Tab separated values (tsv[.gz]).**  This file format requires one column containing sample IDs, and each other column will be written to annotations.
+____
 
-  Command line arguments:
-  
-    - `-c <path-to-tsv>, --condition <path-to-tsv>`: **(Required)** specify the file path
-    - `-s <id>, --sampleheader <id>` **(Optional with default "Sample")** specify the name of the column containing sample IDs
-    - `-t <typestring>, --types <typestring>` **(Optional)** specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string
-    - `-m <missings>, --missing <missings>` **(Optional with default "NA")** specify identifiers to be treated as missing, in a comma-separated list
-    
-   
-   
-   **Example 1:**
-   ```
-   $ cat ~/samples.tsv
-   Sample  Phenotype1   Phenotype2 Age
-   PT-1234 24.15   ADHD    24
-   PT-1235 31.01   ADHD    25
-   PT-1236 25.95   Control 19
-   PT-1237 26.80   Control 42
-   PT-1238 NA      ADHD    89
-   PT-1239 27.53   Control 55
-   ```
-   
-   To annotate from this file, one must a) specify where to put it in sample annotations, and b) specify the types of `Phenotype1` and `Age`.  The sample header agrees with the default ("Sample") and the missingness is encoded as "NA", also the default.  The Hail command line should look like:
-   
-   ```
-   hail [read / import / previous commands] \
-       annotatesamples \
-           -c file:///user/me/samples.tsv \
-           -t "Phenotype1: Double, Age: Int"
-           -r sa.phenotypes
-   ```
+<a name="SampleTSV"></a>
+### Tab separated values (tsv[.gz])
+
+This file format requires one column containing sample IDs, and each other column will be written to sample annotations.
+
+**Command line arguments:**
+- `-c <path-to-tsv>, --condition <path-to-tsv>` specify the file path **(Required)**
+- `-s <id>, --sampleheader <id>` specify the name of the column containing sample IDs **(Optional with default "Sample")**
+- `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
+- `-m <missings>, --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")** 
+ 
+____
+
+**Example 1:**
+```
+$ cat ~/samples.tsv
+Sample  Phenotype1   Phenotype2  Age
+PT-1234 24.15        ADHD        24
+PT-1235 31.01        ADHD        25
+PT-1236 25.95        Control     19
+PT-1237 26.80        Control     42
+PT-1238 NA           ADHD        89
+PT-1239 27.53        Control     55
+```
+
+To annotate from this file, one must a) specify where to put it in sample annotations, and b) specify the types of `Phenotype1` and `Age`.  The sample header agrees with the default ("Sample") and the missingness is encoded as "NA", also the default.  The Hail command line should look like:
+
+```
+hail [read / import / previous commands] \
+    annotatesamples \
+        -c file:///user/me/samples.tsv \
+        -t "Phenotype1: Double, Age: Int"
+        -r sa.phenotypes
+```
    
    This will read the tsv and produce annotations of the following schema:
    
-   ```
-   Sample annotations:  sa: sa.<identifier>
-       phenotypes: sa.phenotypes.<identifier>
-           Phenotype1: Double
-           Phenotype2: String
-           Age: Int
-   ```
+```
+Sample annotations:  sa: sa.<identifier>
+    phenotypes: sa.phenotypes.<identifier>
+        Phenotype1: Double
+        Phenotype2: String
+        Age: Int
+```
    
-   ***
-   
-   **Example 2:**
-   ```
-   $ cat ~/samples2.tsv
-   Batch   PT-ID
-   1kg     PT-0001
-   1kg     PT-0002
-   study1  PT-0003
-   study3  PT-0003
-   .       PT-0004
-   1kg     PT-0005
-   .       PT-0006
-   1kg     PT-0007
-   ```
-   
-   This file does not have non-string types, but it does have a sample column identifier that is not "Sample", and missingness encoded by "." instead of "NA".  The command line should read:
-   
-   ```
-   hail [read / import / previous commands] \
-       annotatesamples \
-           -c file:///user/me/samples2.tsv \
-           -s PT-ID
-           --missing "."
-           -r sa.group1.batch
-   ```
-   
-   ***
-   
-2. Programmatic Annotation
+____
 
+**Example 2:**
+```
+$ cat ~/samples2.tsv
+Batch   PT-ID
+1kg     PT-0001
+1kg     PT-0002
+study1  PT-0003
+study3  PT-0003
+.       PT-0004
+1kg     PT-0005
+.       PT-0006
+1kg     PT-0007
+```
+
+This file does not have non-string types, but it does have a sample column identifier that is not "Sample", and missingness encoded by "." instead of "NA".  The command line should read:
+
+```
+hail [read / import, previous commands] \
+    annotatesamples \
+        -c file:///user/me/samples2.tsv \
+        -s PT-ID
+        --missing "."
+        -r sa.group1.batch
+```
+
+***
+   
+<a name="SampleProg"></a>
+### Programmatic Annotation
+
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the sample (`s`) and the sample annotations (`sa`).
+
+**Command line arguments:**
+ - `-c <condition>, --condition <condition>` 
+ 
+ For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
+ 
+____
+
+<a name="AnnoVar"></a>
 ## Annotating Variants
 
 There are currently five file types supported for annotating variants:

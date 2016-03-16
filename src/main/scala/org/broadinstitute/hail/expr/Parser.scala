@@ -121,7 +121,7 @@ object Parser extends JavaTokenParsers {
 
   def tsvIdentifier: Parser[String] = tickIdentifier ||| """[^\s\p{Cntrl}=,]+""".r
 
-  def tickIdentifier: Parser[String] = """`[^`]+`""".r ^^ { i => i.substring(1, i.length - 1) }
+  def tickIdentifier: Parser[String] = """`[^`]*`""".r ^^ { i => i.substring(1, i.length - 1) }
 
   def annotationExpressions: Parser[Array[(Array[String], AST)]] =
     annotationExpression ~ rep("," ~ annotationExpression) ^^ { case arg ~ lst =>

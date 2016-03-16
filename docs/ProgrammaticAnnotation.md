@@ -39,15 +39,16 @@ annotatevariants -c   "va.path.to.new.annotation          =         if (va.pass)
                      starting with 'va' or 'sa'     delimits path                                     more annotation
                                                     and expression                                       statements
 ```                                                 
+In this example, `annotatevariants` will produce a new annotation stored in `va.path.to.new.annotation`, which is accessible in all future modules. 
+
 `*` Note: if a field exists in annotations that contains characters 
-not valid in simple identifiers (like whitespace, $, %, etc...), 
-access it with backticks using this format: 
+not valid in simple identifiers (like whitespace, '$', '%', etc...), 
+access it by escaping an identifier with backticks: 
 ```
 va.custom.`this field has whitespace`
-sa.`ExcitingAnnotations!!!!!`.annotation1
+sa.`identifier...with...dots`.annotation1
 ```
  
-In this example, `annotatevariants` will produce a new annotation stored in `va.path.to.new.annotation`, which is accessible in all future modules. 
  
 ## Order of operations
 
