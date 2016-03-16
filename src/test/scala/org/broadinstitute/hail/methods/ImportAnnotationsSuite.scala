@@ -141,9 +141,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(bed3r.vds.same(bed2r.vds))
 
     val int1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation1.interval_list",
-      "-i", "BedTest", "-r", "va.test"))
+      "-r", "va.test.BedTest"))
     val int2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation2.interval_list",
-      "-i", "BedTest", "-r", "va.test"))
+      "-r", "va.test.BedTest"))
 
     assert(int1r.vds.same(bed1r.vds))
     assert(int2r.vds.same(bed2r.vds))

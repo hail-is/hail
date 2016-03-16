@@ -42,17 +42,16 @@ object AnnotateSamples extends Command {
 
   override def supportsMultiallelic = true
 
+  def parseRoot(s: String): List[String] = s match {
+    case r if r.startsWith("sa.") => r.substring(3).split("""\.""").toList
+    case "sa" => List[String]()
+    case error => fatal(s"invalid root '$error': expect 'sa.<path[.path2...]>'")
+  }
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
     val cond = options.condition
-
-    val root = options.root match {
-      case null => null
-      case r if r.startsWith("sa.") => AnnotateVariants.parseRoot(r.substring(3))
-      case "sa" => List[String]()
-      case error => fatal(s"invalid root '$error': expect 'sa.<path[.path2...]>'")
-    }
 
     val stripped = hadoopStripCodec(cond, state.sc.hadoopConfiguration)
     val annotated = stripped match {
@@ -64,7 +63,7 @@ object AnnotateSamples extends Command {
           AnnotateVariants.parseTypeMap(Option(options.types).getOrElse("")),
           AnnotateVariants.parseMissing(Option(options.missingIdentifiers).getOrElse("NA")),
           vds.sparkContext.hadoopConfiguration)
-        vds.annotateSamples(m, signature, root)
+        vds.annotateSamples(m, signature, parseRoot(options.root))
       case programmatic =>
         if (options.root != null)
           warn("argument 'root' is unnecessary for programmatic annotation, ignoring it")
