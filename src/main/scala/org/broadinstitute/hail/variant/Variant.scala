@@ -155,7 +155,7 @@ case class Variant(contig: String,
 
   def nAlleles: Int = 1 + nAltAlleles
 
-  def alllele(i: Int): String = if (i == 0)
+  def allele(i: Int): String = if (i == 0)
     ref
   else
     altAlleles(i - 1).alt
