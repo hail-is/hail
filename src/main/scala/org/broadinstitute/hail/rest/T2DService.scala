@@ -5,7 +5,7 @@ import org.apache.spark.sql.DataFrame
 import org.broadinstitute.hail.methods.{CovariateData, LinearRegressionOnHcs}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import breeze.linalg.DenseVector
+import breeze.linalg.{DenseMatrix, DenseVector}
 
 import org.http4s.headers.`Content-Type`
 import org.http4s._
@@ -107,6 +107,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     }
 
     val phenoCovs = mutable.Set[String]()
+
     val variantCovs = new mutable.ArrayBuffer[Variant]()
 
     req.covariates.foreach { covariates =>
@@ -134,7 +135,10 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
         }
     }
 
-    val cov2: CovariateData = cov.filterCovariates(phenoCovs.toSet)
+    var cov2 = cov.filterCovariates(phenoCovs.toSet)
+
+    if (variantCovs.nonEmpty)
+      cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
 
     val hardLimit = 20000
     val limit = req.limit.map(_.min(hardLimit)).getOrElse(hardLimit)
@@ -144,14 +148,6 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       _.foreach { f =>
         df = f.filter(df)
       })
-
-    /*
-    var df2 = hcs.df
-    req.variant_filters.foreach(
-      _.foreach { f =>
-        df = f.filter(df)
-      })
-    */
 
     val stats: Array[Stat] = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
       .rdd

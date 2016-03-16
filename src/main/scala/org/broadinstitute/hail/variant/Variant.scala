@@ -202,4 +202,6 @@ case class Variant(contig: String,
 
     return 0
   }
+
+  def asString: String = s"$contig:$start:$ref:$alt"
 }

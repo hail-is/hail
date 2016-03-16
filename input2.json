@@ -4,8 +4,8 @@
     "phenotype": "T2D",
     "variant_filters" : [ 
         {"operand": "chrom", "operator": "eq", "value": "22", "operand_type": "string"},
-        {"operand": "pos", "operator": "gte", "value": 47000000, "operand_type": "integer"},
-        {"operand": "pos", "operator": "lte", "value": 47599999, "operand_type": "integer"}
+        {"operand": "pos", "operator": "gte", "value": 16000000, "operand_type": "integer"},
+        {"operand": "pos", "operator": "lte", "value": 46060000, "operand_type": "integer"}
     ],
     "covariates"      : [
         {"type": "phenotype", "name": "SEX"}, 
@@ -15,6 +15,8 @@
         {"type": "phenotype", "name": "AFTER"},
         {"type": "phenotype", "name": "OM1"}
         {"type": "phenotype", "name": "OM2"}
+        {"type": "variant", "chrom": "chr22", "pos": 16051249, "ref": "T", "alt": "C"}
+        {"type": "variant", "chrom": "chr22", "pos": 16053444, "ref": "A", "alt": "T"}
     ],
     "limit"           : 5000,
     "count"           : false,

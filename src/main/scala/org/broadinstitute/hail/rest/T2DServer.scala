@@ -27,7 +27,7 @@ object T2DServer extends Command {
   def run(state: State, options: Options): State = {
     val hcs = state.hcs
     if (hcs == null)
-      fatal("hard callset required")
+      fatal("hard call set required")
 
     val cov = CovariateData.read(options.covFile, state.hadoopConf, hcs.sampleIds)
 
