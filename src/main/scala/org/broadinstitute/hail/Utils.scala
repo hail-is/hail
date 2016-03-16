@@ -182,6 +182,17 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         seen += x
     true
   }
+
+  def duplicates(): Set[T] = {
+    val dups = mutable.HashSet[T]()
+    val seen = mutable.HashSet[T]()
+    for (x <- i)
+      if (seen(x))
+        dups += x
+      else
+        seen += x
+    dups.toSet
+  }
 }
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
@@ -263,7 +274,9 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
-  def areDistinct() = a.toIterable.areDistinct()
+  def areDistinct(): Boolean = a.toIterable.areDistinct()
+
+  def duplicates(): Set[T] = a.toIterable.duplicates()
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {

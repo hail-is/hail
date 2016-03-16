@@ -33,4 +33,11 @@ class UtilsSuite extends TestNGSuite {
     assert(!Array(1,1).areDistinct())
     assert(!Array(1,2,1).areDistinct())
   }
+
+  @Test def duplicates() {
+    assert(Array().duplicates().isEmpty)
+    assert(Array(1,2).duplicates().isEmpty)
+    assert(Array(1,1).duplicates() == Set(1))
+    assert(Array(1,2,1,2,1,3,4,5,1,5).duplicates() == Set(1,2,5))
+  }
 }
