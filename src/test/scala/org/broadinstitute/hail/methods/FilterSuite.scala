@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
@@ -18,7 +19,9 @@ class FilterSuite extends SparkSuite {
       "s" ->(4, TString),
       "s2" ->(5, TString),
       "a" ->(6, TArray(TInt)),
-      "m" ->(7, TInt))
+      "m" ->(7, TInt),
+      "as" ->(8, TArray(TStruct(("a", TInt),
+        ("b", TString)))))
     val a = new ArrayBuffer[Any]()
     a += 5
     a += -7
@@ -28,6 +31,8 @@ class FilterSuite extends SparkSuite {
     a += "this is a String, there are many like it, but this one is mine"
     a += IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
     a += null
+    a += (Array[Any](Annotation(23, "foo"),
+      Annotation(-7, null)): IndexedSeq[Any])
 
     def eval[T](s: String): T = {
       val f = Parser.parse[T](symTab, null, a, s)
@@ -48,6 +53,10 @@ class FilterSuite extends SparkSuite {
 
     assert(eval[Boolean]("a[2].isMissing"))
     assert(!eval[Boolean]("a[2].isNotMissing"))
+
+    assert(eval[Int]("as.length") == 2)
+    assert(eval[Int]("as[0].a") == 23)
+    assert(eval[Boolean]("as[1].b.isMissing"))
 
     assert(eval[Int]("i") == 5)
     assert(eval[Int]("j") == -7)
