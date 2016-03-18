@@ -25,26 +25,28 @@ object VariantSampleMatrix {
     require(dirname.endsWith(".vds"))
 
     val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
-      sqlContext.sparkContext.hadoopConfiguration) {
-      dis => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        val deseris = serializer.deserializeStream(dis)
-
+      sqlContext.sparkContext.hadoopConfiguration) { dis => {
         try {
-          val m = deseris.readObject[Int]
+          val serializer = SparkEnv.get.serializer.newInstance()
+          val ds = serializer.deserializeStream(dis)
+
+          val m = ds.readObject[Int]
           if (m != magicNumber)
             fatal("Invalid VDS: invalid magic number.\n  Recreate with current version of Hail.")
 
-          val v = deseris.readObject[Int]
+          val v = ds.readObject[Int]
           if (v != fileVersion)
             fatal("Old VDS version found.  Recreate with current version of Hail.")
 
-          val localSamples = deseris.readObject[Array[Int]]
-          val metadata = deseris.readObject[VariantMetadata]
+          val localSamples = ds.readObject[Array[Int]]
+          val metadata = ds.readObject[VariantMetadata]
+
+          ds.close()
 
           (localSamples, metadata)
         } catch {
           case e: Exception =>
+            println(e)
             fatal(s"Invalid VDS: ${e.getMessage}\n  Recreate with current version of Hail.")
         }
       }
@@ -487,11 +489,13 @@ class RichVDS(vds: VariantDataset) {
     writeDataFile(dirname + "/metadata.ser", hConf) {
       dos => {
         val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.serializeStream(dos)
+        val ss = serializer.serializeStream(dos)
+        ss
           .writeObject(VariantSampleMatrix.magicNumber)
           .writeObject(VariantSampleMatrix.fileVersion)
           .writeObject(vds.localSamples)
           .writeObject(vds.metadata)
+        ss.close()
       }
     }
 
