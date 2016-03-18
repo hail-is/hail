@@ -6,7 +6,7 @@
 2. [Importing](docs/Importing.md)
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
 4. [Renaming Samples](docs/RenameSamples.md)
-5. [Importing annotations](docs/ImportAnnotations.md)
+5. [Annotating Samples or Variants](docs/ImportAnnotations.md)
 5. [Quality Control](docs/QC.md)
 6. [Filtering](docs/Filtering.md)
 7. [Linear regression](docs/LinearRegression.md)
@@ -14,8 +14,6 @@
 9. [Exporting to TSV](docs/ExportTSV.md)
 10. [Exporting to VCF](docs/ExportVCF.md)
 11. [Exporting to Plink](docs/ExportPlink.md)
-
->>>>>>> origin/master
 
 ## Tools
 

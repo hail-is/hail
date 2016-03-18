@@ -116,9 +116,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     val bed2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example2.bed", "-r", "va.test"))
     val bed3r = AnnotateVariants.run(state, Array("-c", "src/test/resources/example3.bed", "-r", "va.test"))
 
-    val q1 = bed1r.vds.queryVA("test", "BedTest")
-    val q2 = bed2r.vds.queryVA("test", "BedTest")
-    val q3 = bed3r.vds.queryVA("test", "BedTest")
+    val q1 = bed1r.vds.queryVA("test")
+    val q2 = bed2r.vds.queryVA("test")
+    val q3 = bed3r.vds.queryVA("test")
 
     bed1r.vds.variantsAndAnnotations
       .collect()
@@ -141,9 +141,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(bed3r.vds.same(bed2r.vds))
 
     val int1r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation1.interval_list",
-      "-r", "va.test.BedTest"))
+      "-r", "va.test"))
     val int2r = AnnotateVariants.run(state, Array("-c", "src/test/resources/exampleAnnotation2.interval_list",
-      "-r", "va.test.BedTest"))
+      "-r", "va.test"))
 
     assert(int1r.vds.same(bed1r.vds))
     assert(int2r.vds.same(bed2r.vds))

@@ -104,8 +104,8 @@ object AnnotateVariants extends Command {
           warn("argument 'missing' is unnecessary for '.bed' annotation, ignoring it")
         if (options.vCols != null)
           warn("argument 'vcolumns' is unnecessary for '.bed' annotation, ignoring it")
-        val (iList, signature, id) = BedAnnotator(cond, conf)
-        vds.annotateInvervals(iList, signature, parseRoot(options.root).++(List(id)))
+        val (iList, signature) = BedAnnotator(cond, conf)
+        vds.annotateInvervals(iList, signature, parseRoot(options.root))
       case tsv if tsv.endsWith(".tsv") =>
         if (options.root == null)
           fatal("argument 'root' is required for '.tsv' annotation")
