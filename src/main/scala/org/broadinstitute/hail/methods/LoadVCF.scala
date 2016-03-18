@@ -8,7 +8,7 @@ import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
+import org.broadinstitute.hail.{expr, PropagatedTribbleException, vcf}
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -110,7 +110,15 @@ object LoadVCF {
     case VCFHeaderLineCount.UNBOUNDED => "."
   }
 
-  def infoField(line: VCFInfoHeaderLine): Field = {
+  def infoTypeToString(line: VCFInfoHeaderLine): String = line.getType match {
+    case VCFHeaderLineType.Integer => "Integer"
+    case VCFHeaderLineType.Flag => "Flag"
+    case VCFHeaderLineType.Float => "Float"
+    case VCFHeaderLineType.Character => "Character"
+    case VCFHeaderLineType.String => "String"
+  }
+
+  def infoField(line: VCFInfoHeaderLine, i: Int): Field = {
     val baseType = line.getType match {
       case VCFHeaderLineType.Integer => TInt
       case VCFHeaderLineType.Float => TDouble
@@ -120,13 +128,14 @@ object LoadVCF {
     }
 
     val attrs = Map("Description" -> line.getDescription,
-      "Number" -> infoNumberToString(line))
+      "Number" -> infoNumberToString(line),
+      "Type" -> infoTypeToString(line))
     if (line.isFixedCount &&
       (line.getCount == 1 ||
         (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
-      Field(line.getID, baseType, attrs)
+      Field(line.getID, baseType, i, attrs)
     else
-      Field(line.getID, TArray(baseType), attrs)
+      Field(line.getID, TArray(baseType), i, attrs)
   }
 
   def apply(sc: SparkContext,
@@ -158,18 +167,18 @@ object LoadVCF {
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-    val infoSignatures = TStruct(header
+    val infoSignature = TStruct(header
       .getInfoHeaderLines
-      .map(line => (line.getID, infoField(line)))
-      .toMap)
+      .zipWithIndex
+      .map { case (line, i) => infoField(line, i) }
+      .toArray)
 
-    val variantAnnotationSignatures = TStruct(Map("info" -> infoSignatures,
+    val variantAnnotationSignatures = TStruct(
+      "rsid" -> TString,
+      "qual" -> TDouble,
       "filters" -> TSet(TString),
       "pass" -> TBoolean,
-      "qual" -> TDouble,
-      "multiallelic" -> TBoolean,
-      "rsid" -> TString)
-      .map { case (k, v) => (k, Field(k, v)) })
+      "info" -> infoSignature)
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -178,7 +187,7 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
-    val infoSignaturesBc = sc.broadcast(infoSignatures)
+    val infoSignatureBc = sc.broadcast(infoSignature)
 
     val headerLinesBc = sc.broadcast(headerLines)
 
@@ -204,7 +213,7 @@ object LoadVCF {
             })
             .map { line =>
               try {
-                reader.readRecord(reportAcc, line, infoSignaturesBc.value, storeGQ)
+                reader.readRecord(reportAcc, line, infoSignatureBc.value, storeGQ)
               } catch {
                 case e: TribbleException =>
                   log.error(s"${e.getMessage}\n  line: $line", e)
@@ -215,8 +224,8 @@ object LoadVCF {
     })
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyIndexedSeq(sampleIds.length),
-      TStruct.empty,
+      Annotation.emptyIndexedSeq(sampleIds.length),
+      TEmpty,
       variantAnnotationSignatures), genotypes)
   }
 

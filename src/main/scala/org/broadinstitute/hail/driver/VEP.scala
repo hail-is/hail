@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import java.io.{IOException, FileInputStream, InputStream}
 import java.util.Properties
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.Variant
@@ -42,20 +42,20 @@ object VEP extends Command {
         x.toDouble
     case (JBool(x), TBoolean) => x
 
-    case (JObject(jfields), TStruct(fields)) =>
-      val m = mutable.Map.empty[String, Any]
+    case (JObject(jfields), t: TStruct) =>
+      val a = Array.fill[Any](t.size)(null)
+
       for ((name, jv2) <- jfields) {
-        fields.get(name) match {
-          case Some(f) =>
-            val v2 = jsonToAnnotation(jv2, f.`type`, parent + "." + name)
-            if (v2 != null)
-              m += ((name, v2))
+        t.selfField(name) match {
+          case Some (f) =>
+            a(f.index) = jsonToAnnotation(jv2, f.`type`, parent + "." + name)
 
           case None =>
             warn(s"Signature for $parent has no field $name")
         }
       }
-      Annotations(m.toMap)
+
+      Annotation(a: _*)
 
     case (JArray(a), TArray(elementType)) =>
       a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
@@ -278,6 +278,8 @@ object VEP extends Command {
     info(s"vep command: ${cmd.mkString(" ")}")
     info(s"vep env: ${env.map { case (k, v) => s"$k=$v" }.mkString(";")}")
 
+    val inputQuery = vepSignature.query("input")
+
     val annotations = vds.rdd
       .map { case (v, va, gs) => v }
       .pipe(cmd,
@@ -285,10 +287,12 @@ object VEP extends Command {
         printContext,
         printElement)
       .map { jv =>
-        val a = jsonToAnnotation(parse(jv), vepSignature, "<root>").asInstanceOf[Annotations]
-        val v = variantFromInput(a.get("input"))
+        val a = jsonToAnnotation(parse(jv), vepSignature, "<root>")
+        val v = variantFromInput(inputQuery(a).asInstanceOf[String])
         (v, a)
       }.persist(StorageLevel.MEMORY_AND_DISK)
+
+    val (newVASignature, insertVEP) = vds.vaSignature.insert(vepSignature, "vep")
 
     val newRDD = vds.rdd
       .zipPartitions(annotations) { case (it, ita) =>
@@ -297,12 +301,12 @@ object VEP extends Command {
         its.iterator.zip(itas.iterator)
           .map { case ((v1, va, gs), (v2, vep)) =>
             assert(v1 == v2)
-            (v1, va ++ Annotations(Map("vep" -> vep)), gs)
+            (v1, insertVEP(va, Some(vep)), gs)
           }
       }
 
     val newVDS = vds.copy(rdd = newRDD,
-      metadata = vds.metadata.addVariantAnnotationSignatures("vep", vepSignature))
+      vaSignature = newVASignature)
 
     state.copy(vds = newVDS)
   }

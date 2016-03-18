@@ -1,7 +1,10 @@
 package org.broadinstitute.hail.variant
 
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.Utils._
+import scala.collection.mutable
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
@@ -15,6 +18,13 @@ object CopyState extends Enumeration {
 }
 
 object AltAllele {
+  def schema: StructType = StructType(Array(
+    StructField("ref", StringType, nullable = false),
+    StructField("alt", StringType, nullable = false)))
+
+  def fromRow(r: Row): AltAllele =
+    AltAllele(r.getString(0), r.getString(1))
+
   def gen(ref: String): Gen[AltAllele] =
     for (alt <- Gen.frequency((10, genDNAString),
       (1, Gen.const("*"))) if alt != ref)
@@ -130,6 +140,21 @@ object Variant {
     }
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
+
+  def schema: StructType =
+    StructType(Array(
+      StructField("contig", StringType, nullable = false),
+      StructField("start", IntegerType, nullable = false),
+      StructField("ref", StringType, nullable = false),
+      StructField("altAlleles", ArrayType(AltAllele.schema, containsNull = false),
+        nullable = false)))
+
+  def fromRow(r: Row) =
+    Variant(r.getAs[String](0),
+      r.getAs[Int](1),
+      r.getAs[String](2),
+      r.getAs[mutable.WrappedArray[Row]](3)
+        .map(s => AltAllele.fromRow(s)))
 }
 
 case class Variant(contig: String,
@@ -206,6 +231,14 @@ case class Variant(contig: String,
       i += 1
     }
 
-    return 0
+    0
+  }
+
+  def toRow = {
+    Row.fromSeq(Array(
+      contig,
+      start,
+      ref,
+      altAlleles.map { a => Row.fromSeq(Array(a.ref, a.alt)) }))
   }
 }

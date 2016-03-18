@@ -1,10 +1,9 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable.ArrayBuffer
 
@@ -39,15 +38,15 @@ object ExportGenotypes extends Command {
     val sc = vds.sparkContext
     val cond = options.condition
     val output = options.output
-    val vas = vds.metadata.variantAnnotationSignatures
-    val sas = vds.metadata.sampleAnnotationSignatures
+    val vas = vds.vaSignature
+    val sas = vds.saSignature
 
     val symTab = Map(
-      "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures),
-      "s" ->(2, expr.TSample),
-      "sa" ->(3, vds.metadata.sampleAnnotationSignatures),
-      "g" ->(4, expr.TGenotype))
+      "v" ->(0, TVariant),
+      "va" ->(1, vas),
+      "s" ->(2, TSample),
+      "sa" ->(3, sas),
+      "g" ->(4, TGenotype))
     val a = new ArrayBuffer[Any]()
     for (_ <- symTab)
       a += null
@@ -55,12 +54,12 @@ object ExportGenotypes extends Command {
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, sc.hadoopConfiguration)
     else
-      expr.Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(symTab, a, cond)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
+    val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
 
     val localPrintRef = options.printRef
     val localPrintMissing = options.printMissing

@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.{expr, SparkSuite}
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
@@ -10,13 +11,13 @@ import scala.collection.mutable.ArrayBuffer
 class FilterSuite extends SparkSuite {
 
   @Test def exprTest() {
-    val symTab = Map("i" ->(0, expr.TInt),
-      "j" ->(1, expr.TInt),
-      "d" ->(2, expr.TDouble),
-      "d2" ->(3, expr.TDouble),
-      "s" ->(4, expr.TString),
-      "s2" ->(5, expr.TString),
-      "a" ->(6, expr.TArray(expr.TInt)))
+    val symTab = Map("i" ->(0, TInt),
+      "j" ->(1, TInt),
+      "d" ->(2, TDouble),
+      "d2" ->(3, TDouble),
+      "s" ->(4, TString),
+      "s2" ->(5, TString),
+      "a" ->(6, TArray(TInt)))
     val a = new ArrayBuffer[Any]()
     a += 5
     a += -7
@@ -24,10 +25,10 @@ class FilterSuite extends SparkSuite {
     a += 5.79e7
     a += "12,34,56,78"
     a += "this is a String, there are many like it, but this one is mine"
-    a += Array(1, 2, 6, 3, 3, -1, 8)
+    a += IndexedSeq(1, 2, 6, 3, 3, -1, 8)
 
     def eval[T](s: String): T = {
-      val f = expr.Parser.parse[T](symTab, null, a, s)
+      val f = Parser.parse[T](symTab, null, a, s)
       f()
     }
 
@@ -36,7 +37,7 @@ class FilterSuite extends SparkSuite {
     assert(eval[Int]("i.max(j)") == 5)
     assert(eval[Int]("i.min(j)") == -7)
     assert(D_==(eval[Double]("d"), 3.14))
-    assert(eval[Array[String]]("""s.split(",")""") sameElements Array("12", "34", "56", "78"))
+    assert(eval[IndexedSeq[String]]("""s.split(",")""") == IndexedSeq("12", "34", "56", "78"))
     assert(eval[Int]("s2.length") == 62)
 
     assert(eval[Int]("""a.find(x => x < 0)""") == -1)
@@ -165,4 +166,47 @@ class FilterSuite extends SparkSuite {
 
   }
 
+  @Test def filterRegexTest() {
+    val vds = LoadVCF(sc, "src/test/resources/multipleChromosomes.vcf")
+    val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterVariants.run(s, Array("--keep", "-c", """ "^\\d+$" ~ v.contig """))
+    assert(s.vds.nVariants == s2.vds.nVariants)
+  }
+
+  @Test def MissingTest() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val keepOneSample = FilterSamples.run(s, Array("--keep", "-c", "s.id == \"C1046::HG02024\""))
+    val qc = VariantQC.run(keepOneSample, Array.empty[String])
+
+    val q = qc.vds.queryVA("qc", "rHetHomVar")
+    val missingVariants = qc.vds.variantsAndAnnotations
+      .collect()
+      .filter { case (v, va) =>
+        q(va).isEmpty
+      }
+        .map(_._1)
+
+    // ensure that we're not checking empty vs empty
+    assert(missingVariants.size > 0)
+
+    val missingVariantsFilter = FilterVariants.run(qc, Array("--keep", "-c", "va.qc.rHetHomVar.isMissing"))
+      .vds
+      .variantsAndAnnotations
+      .collect()
+      .map(_._1)
+
+    assert(missingVariantsFilter.toSet == missingVariants.toSet)
+  }
+
+  @Test def testWeirdNames() {
+    var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val (sigs, i) = vds.insertVA(TInt, "weird name \t test")
+    vds = vds
+      .mapAnnotations((v, va) => i(va, Some(1000)))
+      .copy(vaSignature = sigs)
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterVariants.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))
+    assert(s2.vds.nVariants == vds.nVariants)
+  }
 }

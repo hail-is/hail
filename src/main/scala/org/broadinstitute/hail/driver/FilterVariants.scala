@@ -1,12 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr.{TBoolean, TVariant}
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.expr
 import scala.collection.mutable.ArrayBuffer
 
 object FilterVariants extends Command {
@@ -37,23 +36,23 @@ object FilterVariants extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
+    val vas = vds.vaSignature
     val cond = options.condition
-    val vas = vds.metadata.variantAnnotationSignatures
     val keep = options.keep
-    val p: (Variant, Annotations) => Boolean = cond match {
+    val p: (Variant, Annotation) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
         val ilistBc = state.sc.broadcast(ilist)
-        (v: Variant, va: Annotations) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
+        (v: Variant, va: Annotation) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
       case c: String =>
         val symTab = Map(
           "v" ->(0, TVariant),
-          "va" ->(1, vds.metadata.variantAnnotationSignatures))
+          "va" ->(1, vas))
         val a = new ArrayBuffer[Any]()
         for (_ <- symTab)
           a += null
-        val f: () => Any = expr.Parser.parse[Any](symTab, TBoolean, a, options.condition)
-        (v: Variant, va: Annotations) => {
+        val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
+        (v: Variant, va: Annotation) => {
           a(0) = v
           a(1) = va
           Filter.keepThisAny(f(), keep)

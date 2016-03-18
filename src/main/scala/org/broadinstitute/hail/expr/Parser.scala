@@ -25,7 +25,6 @@ object Parser extends JavaTokenParsers {
       case Success(result, _) => result.asInstanceOf[AST]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
-    // println(s"t = $t")
 
     t.typecheck(symTab)
     if (expected != null
@@ -113,14 +112,19 @@ object Parser extends JavaTokenParsers {
     }
 
   def named_arg: Parser[(String, AST)] =
-    ident ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
+    tsvIdentifier ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
+
+  def tsvIdentifier: Parser[String] = tickIdentifier | """[^\s\p{Cntrl}=,]+""".r
+
+  def tickIdentifier: Parser[String] = """`[^`]+`""".r ^^ { i => i.substring(1, i.length - 1) }
+  def identifier = tickIdentifier | ident
 
   def args: Parser[Array[AST]] =
     repsep(expr, ",") ^^ {_.toArray}
 
   def dot_expr: Parser[AST] =
-    unary_expr ~ rep((withPos(".") ~ ident ~ "(" ~ args ~ ")")
-      | (withPos(".") ~ ident)
+    unary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
+      | (withPos(".") ~ identifier)
       | withPos("[") ~ expr ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
@@ -137,19 +141,25 @@ object Parser extends JavaTokenParsers {
       }
     }
 
+  // """"([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r
+  def evalStringLiteral(lit: String): String = {
+    assert(lit.head == '"' && lit.last == '"')
+    val r = """\\[\\'"bfnrt]""".r
+    // replacement does backslash expansion
+    r.replaceAllIn(lit.tail.init, _.matched)
+  }
+
   def primary_expr: Parser[AST] =
     withPos("""-?\d+\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       // FIXME L suffix
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
-      withPos(stringLiteral) ^^ { r =>
-        val x = r.x
-        assert(x.head == '"' && x.last == '"')
-        Const(r.pos, x.tail.init, TString)
+      withPos(""""([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r) ^^ { r =>
+        Const(r.pos, evalStringLiteral(r.x), TString)
       } |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
-      guard(not("if" | "else")) ~> withPos(ident) ^^ (r => SymRef(r.pos, r.x)) |
+      guard(not("if" | "else")) ~> withPos(identifier) ^^ (r => SymRef(r.pos, r.x)) |
       "{" ~> expr <~ "}" |
       "(" ~> expr <~ ")"
 }

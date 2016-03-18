@@ -26,16 +26,18 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     line: String,
-    infoSignatures: TStruct,
-    storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
+    infoSignature: TStruct,
+    storeGQ: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
-    val filts = {
+    val filters: mutable.WrappedArray[String] = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
-        Set("PASS")
-      else
-        vc.getFilters.asScala.toSet
+        Array("PASS")
+      else {
+        val arr = vc.getFilters.asScala.toArray
+        arr
+      }
     }
     val rsid = vc.getID
 
@@ -45,18 +47,17 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
 
-    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
-      .asScala
-      .iterator
-      .flatMap { case (k, v) =>
-        infoSignatures.fields.get(k).map { f =>
-          (k, cast(v, f.`type`))
-        }
-      }.toMap),
-      "qual" -> vc.getPhredScaledQual,
-      "filters" -> filts,
-      "pass" -> pass,
-      "rsid" -> rsid))
+    val info = Annotation(
+      infoSignature.fields.map(f =>
+        cast(vc.getAttribute(f.name), f.`type`)): _*)
+    assert(infoSignature.typeCheck(info))
+
+    val va = Annotation(
+      rsid,
+      vc.getPhredScaledQual,
+      filters,
+      pass,
+      info)
 
     val gb = new GenotypeBuilder(v)
 
@@ -184,53 +185,27 @@ object HtsjdkRecordReader {
     new HtsjdkRecordReader(codec)
   }
 
-  // FIXME document types returned by htsjdk, support full set of types
-  def cast(value: Any, t: Type): Any = t match {
-    case TInt =>
-      value match {
-        case s: String => s.toInt
-        case _ => value
-      }
+  def cast(value: Any, t: Type): Any = {
+    ((value, t): @unchecked) match {
+      case (null, _) => null
+      case (s: String, TArray(TInt)) =>
+        s.split(",").map(_.toInt): IndexedSeq[Int]
+      case (s: String, TArray(TDouble)) =>
+        s.split(",").map(_.toDouble): IndexedSeq[Double]
+      case (s: String, TArray(TString)) =>
+        s.split(","): IndexedSeq[String]
+      case (s: String, TBoolean) => s.toBoolean
+      case (b: Boolean, TBoolean) => b
+      case (s: String, TString) => s
+      case (s: String, TInt) => s.toInt
+      case (s: String, TDouble) => s.toDouble
 
-    case TDouble =>
-      value match {
-        case s: String => s.toDouble
-        case _ => value
-      }
-
-    case TArray(TInt) =>
-      value match {
-        case s: String =>
-          s.split(",").iterator.map(_.toInt).toArray: IndexedSeq[Int]
-        case  al: java.util.ArrayList[_] =>
-          al.asScala.iterator.map(v => cast(v, TInt).asInstanceOf[Int]).toArray: IndexedSeq[Int]
-        case it: Iterable[_] =>
-          it.iterator.map(v => cast(v, TInt).asInstanceOf[Int]).toArray: IndexedSeq[Int]
-        case _ => value
-      }
-
-    case TArray(TDouble) =>
-      value match {
-        case s: String =>
-          s.split(",").iterator.map(_.toDouble).toArray: IndexedSeq[Double]
-        case  al: java.util.ArrayList[_] =>
-          al.asScala.iterator.map(v => cast(v, TDouble).asInstanceOf[Double]).toArray: IndexedSeq[Double]
-        case it: Iterable[_] =>
-          it.iterator.map(v => cast(v, TDouble).asInstanceOf[Double]).toArray: IndexedSeq[Double]
-        case _ => value
-      }
-
-    case TArray(TString) =>
-      value match {
-        case s: String =>
-          s.split(",")
-        case  al: java.util.ArrayList[_] =>
-          al.asScala.iterator.map(v => cast(v, TString).asInstanceOf[String]).toArray
-        case it: Iterable[_] =>
-          it.iterator.map(v => cast(v, TString).asInstanceOf[String]).toArray
-        case _ => value
-      }
-
-    case _ => value
+      case (a: java.util.ArrayList[_], TArray(TInt)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String].toInt).toArray: IndexedSeq[Int]
+      case (a: java.util.ArrayList[_], TArray(TDouble)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String].toDouble).toArray: IndexedSeq[Double]
+      case (a: java.util.ArrayList[_], TArray(TString)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
+    }
   }
 }

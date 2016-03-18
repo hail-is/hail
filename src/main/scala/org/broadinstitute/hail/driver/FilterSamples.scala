@@ -1,8 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.expr.TBoolean
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -38,27 +37,27 @@ object FilterSamples extends Command {
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
-    val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
-
     val keep = options.keep
+    val sas = vds.saSignature
     val p = options.condition match {
       case f if f.endsWith(".sample_list") =>
+        val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
         val samples = Source.fromInputStream(hadoopOpen(f, state.hadoopConf))
           .getLines()
           .filter(line => !line.isEmpty)
           .flatMap(indexOfSample.get)
           .toSet
-        (s: Int, sa: Annotations) => Filter.keepThis(samples.contains(s), keep)
+        (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val symTab = Map(
-          "s" -> (0, expr.TSample),
-          "sa" -> (1, vds.metadata.sampleAnnotationSignatures))
+          "s" -> (0, TSample),
+          "sa" -> (1, sas))
         val a = new ArrayBuffer[Any]()
         for (_ <- symTab)
           a += null
-        val f: () => Any = expr.Parser.parse(symTab, TBoolean, a, c)
+        val f: () => Any = Parser.parse(symTab, TBoolean, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-        (s: Int, sa: Annotations) => {
+        (s: Int, sa: Annotation) => {
           a(0) = sampleIdsBc.value(s)
           a(1) = sa
           Filter.keepThisAny(f(), keep)

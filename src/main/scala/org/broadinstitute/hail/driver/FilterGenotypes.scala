@@ -1,8 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.expr.TBoolean
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant._
@@ -32,6 +31,8 @@ object FilterGenotypes extends Command {
   def run(state: State, options: Options): State = {
     val sc = state.sc
     val vds = state.vds
+    val vas = vds.vaSignature
+    val sas = vds.saSignature
 
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
@@ -39,22 +40,22 @@ object FilterGenotypes extends Command {
     val keep = options.keep
 
     val symTab = Map(
-      "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures),
-      "s" ->(2, expr.TSample),
-      "sa" ->(3, vds.metadata.sampleAnnotationSignatures),
-      "g" ->(4, expr.TGenotype))
+      "v" ->(0, TVariant),
+      "va" ->(1, vas),
+      "s" ->(2, TSample),
+      "sa" ->(3, sas),
+      "g" ->(4, TGenotype))
     val a = new ArrayBuffer[Any]()
     for (_ <- symTab)
       a += null
-    val f: () => Any = expr.Parser.parse[Any](symTab, TBoolean, a, options.condition)
+    val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
+    val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
 
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
-      (v: Variant, va: Annotations, s: Int, g: Genotype) => {
+      (v: Variant, va: Annotation, s: Int, g: Genotype) => {
         a(0) = v
         a(1) = va
         a(2) = sampleIdsBc.value(s)

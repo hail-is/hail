@@ -1,10 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.{AnnotationSignature, Annotations}
-import org.broadinstitute.hail.expr
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable
 
 object ShowAnnotations extends Command {
 
@@ -29,11 +26,11 @@ object ShowAnnotations extends Command {
 
     val sb = new StringBuilder()
     sb.append("Sample annotations:\n")
-    vds.metadata.sampleAnnotationSignatures.pretty(sb, 0, Vector("sa"), 0)
+    vds.metadata.saSignature.pretty(sb, 0, Vector("sa"), 0)
 
     sb += '\n'
     sb.append("Variant annotations:\n")
-    vds.metadata.variantAnnotationSignatures.pretty(sb, 0, Vector("va"), 0)
+    vds.metadata.vaSignature.pretty(sb, 0, Vector("va"), 0)
 
     val result = sb.result()
     options.output match {

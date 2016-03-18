@@ -36,7 +36,7 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rDeletionInsertion"
 
-  val signatures = TStruct(Map("callRate" -> TDouble,
+  val signature = TStruct("callRate" -> TDouble,
     "nCalled" -> TInt,
     "nNotCalled" -> TInt,
     "nHomRef" -> TInt,
@@ -68,7 +68,6 @@ object SampleQCCombiner {
     "rTiTv" -> TDouble,
     "rHetHomVar" -> TDouble,
     "rDeletionInsertion" -> TDouble)
-    .map { case (k, v) => (k, Field(k, v)) })
 }
 
 class SampleQCCombiner extends Serializable {
@@ -269,48 +268,40 @@ class SampleQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nDel, nIns))
   }
 
-  def asMap: Map[String, Any] = {
-
-    Map[String, Any]("callRate" -> divOption(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
-      "nCalled" -> (nHomRef + nHet + nHomVar),
-      "nNotCalled" -> nNotCalled,
-      "nHomRef" -> nHomRef,
-      "nHet" -> nHet,
-      "nHomVar" -> nHomVar,
-      "nSNP" -> nSNP,
-      "nInsertion" -> nIns,
-      "nDeletion" -> nDel,
-      "nSingleton" -> nSingleton,
-      "nTransition" -> nTi,
-      "nTransversion" -> nTv,
-      "dpMean" -> someIf(dpSC.count > 0, dpSC.mean),
-      "dpStDev" -> someIf(dpSC.count > 0, dpSC.stdev),
-      "dpMeanHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.mean),
-      "dpStDevHomRef" -> someIf(dpHomRefSC.count > 0, dpHomRefSC.stdev),
-      "dpMeanHet" -> someIf(dpHetSC.count > 0, dpHetSC.mean),
-      "dpStDevHet" -> someIf(dpHetSC.count > 0, dpHetSC.stdev),
-      "dpMeanHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.mean),
-      "dpStDevHomVar" -> someIf(dpHomVarSC.count > 0, dpHomVarSC.stdev),
-      "gqMean" -> someIf(gqSC.count > 0, gqSC.mean),
-      "gqStDev" -> someIf(gqSC.count > 0, gqSC.stdev),
-      "gqMeanHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.mean),
-      "gqStDevHomRef" -> someIf(gqHomRefSC.count > 0, gqHomRefSC.stdev),
-      "gqMeanHet" -> someIf(gqHetSC.count > 0, gqHetSC.mean),
-      "gqStDevHet" -> someIf(gqHetSC.count > 0, gqHetSC.stdev),
-      "gqMeanHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.mean),
-      "gqStDevHomVar" -> someIf(gqHomVarSC.count > 0, gqHomVarSC.stdev),
-      "nNonRef" -> (nHet + nHomVar),
-      "rTiTv" -> divOption(nTi, nTv),
-      "rHetHomVar" -> divOption(nHet, nHomVar),
-      "rDeletionInsertion" -> divOption(nDel, nIns))
-      .flatMap { case (k, v) => v match {
-        case Some(value) => Some(k, value)
-        case None => None
-        case _ => Some(k, v)
-      }
-      }
-  }
-
+  def asAnnotation: Annotation =
+    Annotation(
+      divNull(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
+      nHomRef + nHet + nHomVar,
+      nNotCalled,
+      nHomRef,
+      nHet,
+      nHomVar,
+      nSNP,
+      nIns,
+      nDel,
+      nSingleton,
+      nTi,
+      nTv,
+      nullIfNot(dpSC.count > 0, dpSC.mean),
+      nullIfNot(dpSC.count > 0, dpSC.stdev),
+      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.mean),
+      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.stdev),
+      nullIfNot(dpHetSC.count > 0, dpHetSC.mean),
+      nullIfNot(dpHetSC.count > 0, dpHetSC.stdev),
+      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.mean),
+      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.stdev),
+      nullIfNot(gqSC.count > 0, gqSC.mean),
+      nullIfNot(gqSC.count > 0, gqSC.stdev),
+      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.mean),
+      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.stdev),
+      nullIfNot(gqHetSC.count > 0, gqHetSC.mean),
+      nullIfNot(gqHetSC.count > 0, gqHetSC.stdev),
+      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.mean),
+      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.stdev),
+      nHet + nHomVar,
+      divNull(nTi, nTv),
+      divNull(nHet, nHomVar),
+      divNull(nDel, nIns))
 }
 
 object SampleQC extends Command {
@@ -342,7 +333,7 @@ object SampleQC extends Command {
     val localSamplesBc = vds.sparkContext.broadcast(vds.localSamples)
     vds
       .rdd
-      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Annotations, Iterable[Genotype])]) =>
+      .mapPartitions[(Int, SampleQCCombiner)] { (it: Iterator[(Variant, Annotation, Iterable[Genotype])]) =>
       val zeroValue = Array.fill[SampleQCCombiner](localSamplesBc.value.length)(new SampleQCCombiner)
       localSamplesBc.value.iterator
         .zip(it.foldLeft(zeroValue) { case (acc, (v, va, gs)) =>
@@ -373,19 +364,21 @@ object SampleQC extends Command {
         sb.result()
       }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
     }
+    val sampleQCAnnot = r
+      .mapValues(_.asAnnotation)
+      .collectAsMap()
 
-    val sa = Array.fill[Annotations](vds.nSamples)(Annotations.empty())
-    r.mapValues(comb => Annotations(comb.asMap))
-      .collect()
-      .foreach { case (s, a) =>
-        sa(s) = Annotations(Map("qc" -> a))
+    val (newSAS, insertQC) = vds.saSignature.insert(SampleQCCombiner.signature, "qc")
+    val newSampleAnnotations = vds.sampleAnnotations
+      .zipWithIndex
+      .map { case (sa, s) =>
+        insertQC(sa, sampleQCAnnot.get(s))
       }
 
     state.copy(
       vds = vds.copy(
-        metadata = vds.metadata.addSampleAnnotations(
-          TStruct(Map("qc" -> Field("qc", SampleQCCombiner.signatures))),
-          sa)
-      ))
+        sampleAnnotations = newSampleAnnotations,
+        saSignature = newSAS)
+    )
   }
 }

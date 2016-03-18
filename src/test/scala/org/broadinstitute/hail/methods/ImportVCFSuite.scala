@@ -2,7 +2,6 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.SparkException
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
 import org.testng.annotations.Test
@@ -34,7 +33,6 @@ class ImportVCFSuite extends SparkSuite {
     val gqs = s.vds.flatMapWithKeys { case (v, s, g) =>
       g.gq.map { gqx => ((v.start, s), gqx) }
     }.collectAsMap()
-    println(gqs)
     val expectedGQs = Map(
       (16050612, 0) -> 27,
       (16050612, 1) -> 15,
@@ -66,26 +64,18 @@ class ImportVCFSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/undeclaredinfo.vcf"))
 
-    assert(s.vds.metadata.variantAnnotationSignatures
-        .asInstanceOf[TStruct]
-        .fields
-        .contains("info"))
+    assert(s.vds.vaSignature.getOption("info").isDefined)
+    assert(s.vds.vaSignature.getOption("info", "undeclared").isEmpty)
+    assert(s.vds.vaSignature.getOption("info", "undeclaredFlag").isEmpty)
+    val infoQuerier = s.vds.vaSignature.query("info")
 
-    assert(!s.vds.metadata.variantAnnotationSignatures
-        .asInstanceOf[TStruct]
-        .get("info").get
-        .asInstanceOf[TStruct]
-        .fields.contains("undeclared"))
-    assert(!s.vds.metadata.variantAnnotationSignatures
-      .asInstanceOf[TStruct]
-      .get("info").get
-      .asInstanceOf[TStruct]
-      .fields.contains("undeclaredFlag"))
+    val anno = s.vds
+      .rdd
+      .map { case (v, va, gs) => va }
+      .collect()
+      .head
 
-    val info = s.vds.rdd.map { case (v, va, gs) => va }.collect().head
-    assert(info.contains("info"))
-    assert(!info.get[Annotations]("info").contains("undeclared"))
-    assert(!info.get[Annotations]("info").contains("undeclaredFlag"))
+    assert(infoQuerier(anno) != null)
   }
 
   @Test def testMalformed() {

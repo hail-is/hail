@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.variant.vsm
 
+import org.broadinstitute.hail.expr._
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.expr.TStruct
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
@@ -10,7 +11,6 @@ import scala.language.postfixOps
 import org.broadinstitute.hail.methods.LoadVCF
 import org.testng.annotations.Test
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.annotations._
 
 class VSMSuite extends SparkSuite {
@@ -22,24 +22,47 @@ class VSMSuite extends SparkSuite {
 
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
-    val mdata3 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyIndexedSeq(2).map(_ + ("1", "5")), TStruct.empty,
-      TStruct.empty)
-    val mdata4 = new VariantMetadata(IndexedSeq.empty[(String, String)], Array("S1", "S2"),
-      Annotations.emptyIndexedSeq(2), TStruct.empty, TStruct.empty
-        + ("dummy", TStruct.empty))
+    val mdata3 = new VariantMetadata(
+      IndexedSeq.empty[(String, String)],
+      Array("S1", "S2"),
+      Annotation.emptyIndexedSeq(2),
+      TStruct(
+        "inner" -> TStruct(
+          "thing1" -> TString),
+        "thing2" -> TString),
+      TEmpty)
+    val mdata4 = new VariantMetadata(
+      IndexedSeq.empty[(String, String)],
+      Array("S1", "S2"),
+      Annotation.emptyIndexedSeq(2),
+      TStruct(
+        "inner" -> TStruct(
+          "thing1" -> TString),
+        "thing2" -> TString,
+        "dummy" -> TString),
+      TEmpty)
 
     assert(mdata1 != mdata2)
+    assert(mdata1 != mdata3)
+    assert(mdata2 != mdata3)
+    assert(mdata1 != mdata4)
+    assert(mdata2 != mdata4)
+    assert(mdata3 != mdata4)
 
     val v1 = Variant("1", 1, "A", "T")
     val v2 = Variant("1", 2, "T", "G")
     val v3 = Variant("1", 2, "T", "A")
 
-    val va1 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v1otherThing" -> "yes"))
-    val va2 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v2otherThing" -> "yes"))
-    val va3 = Annotations(Map("info" -> Map("v1thing" -> "yes"), "v1otherThing" -> "no"))
+    val r1 = Annotation(Annotation("yes"), "yes")
+    val r2 = Annotation(Annotation("yes"), "no")
+    val r3 = Annotation(Annotation("no"), "yes")
 
-    val rdd1 = sc.parallelize(Seq((v1, va1,
+
+    val va1 = r1
+    val va2 = r2
+    val va3 = r3
+
+    val rdd1: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2))),
@@ -49,7 +72,7 @@ class VSMSuite extends SparkSuite {
           Genotype(1)))))
 
     // differ in variant
-    val rdd2 = sc.parallelize(Seq((v1, va1,
+    val rdd2: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2))),
@@ -59,7 +82,7 @@ class VSMSuite extends SparkSuite {
           Genotype(1)))))
 
     // differ in genotype
-    val rdd3 = sc.parallelize(Seq((v1, va1,
+    val rdd3: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(1),
         Genotype(2))),
@@ -69,7 +92,7 @@ class VSMSuite extends SparkSuite {
           Genotype(1)))))
 
     // for mdata2
-    val rdd4 = sc.parallelize(Seq((v1, va1,
+    val rdd4: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0))),
       (v2, va2, Iterable(
@@ -77,12 +100,12 @@ class VSMSuite extends SparkSuite {
         Genotype(0)))))
 
     // differ in number of variants
-    val rdd5 = sc.parallelize(Seq((v1, va1,
+    val rdd5: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0)))))
 
     // differ in annotations
-    val rdd6 = sc.parallelize(Seq((v1, va1,
+    val rdd6: RDD[(Variant, Annotation, Iterable[Genotype])] = sc.parallelize(Seq((v1, va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2))),
@@ -159,7 +182,7 @@ class VSMSuite extends SparkSuite {
       assert(sampleKeys.toSet == keep)
 
       val filteredOut = "/tmp/test_filtered.vds"
-      hadoopDelete(filteredOut, sc.hadoopConfiguration, true)
+      hadoopDelete(filteredOut, sc.hadoopConfiguration, recursive = true)
       filtered.write(sqlContext, filteredOut, compress = true)
 
       val filtered2 = VariantSampleMatrix.read(sqlContext, filteredOut)
