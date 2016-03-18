@@ -17,6 +17,9 @@ object VEP extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "--config", usage = "VEP configuration file")
     var config: String = _
+
+    @Args4jOption(name = "-r", aliases = Array("--root"), usage = "Variant annotation path to store VEP output")
+    var root: String = "va.vep"
   }
 
   def newOptions = new Options
@@ -221,6 +224,11 @@ object VEP extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
+    val root = options.root.split("\\.").toList
+    if (root.isEmpty
+      || root.head != "va")
+      fatal("root must begin with `va.'")
+
     val properties = try {
       val p = new Properties()
       val is = new FileInputStream(options.config)
@@ -275,8 +283,8 @@ object VEP extends Command {
       "--plugin", s"LoF,human_ancestor_fa:${humanAncestor},filter_position:0.05,min_intron_size:15,conservation_file:${conservationFile}",
       "-o", "STDOUT")
 
-    info(s"vep command: ${cmd.mkString(" ")}")
-    info(s"vep env: ${env.map { case (k, v) => s"$k=$v" }.mkString(";")}")
+    log.info(s"vep env: ${env.map { case (k, v) => s"$k=$v" }.mkString(";")}")
+    log.info(s"vep command: ${cmd.mkString(" ")}")
 
     val inputQuery = vepSignature.query("input")
 
@@ -288,11 +296,11 @@ object VEP extends Command {
         printElement)
       .map { jv =>
         val a = jsonToAnnotation(parse(jv), vepSignature, "<root>")
-        val v = variantFromInput(inputQuery(a).asInstanceOf[String])
+        val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
         (v, a)
       }.persist(StorageLevel.MEMORY_AND_DISK)
 
-    val (newVASignature, insertVEP) = vds.vaSignature.insert(vepSignature, "vep")
+    val (newVASignature, insertVEP) = vds.vaSignature.insert(vepSignature, root.tail)
 
     val newRDD = vds.rdd
       .zipPartitions(annotations) { case (it, ita) =>

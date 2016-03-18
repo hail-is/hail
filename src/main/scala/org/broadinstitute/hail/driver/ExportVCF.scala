@@ -9,7 +9,6 @@ import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import java.time._
-import scala.collection.mutable
 import scala.io.Source
 
 object ExportVCF extends Command {
@@ -135,7 +134,7 @@ object ExportVCF extends Command {
       sb.append(v.start)
       sb += '\t'
 
-      sb.append(idQuery.flatMap { q => q(a) }
+      sb.append(idQuery.flatMap(_(a))
         .getOrElse("."))
 
       sb += '\t'
@@ -145,14 +144,14 @@ object ExportVCF extends Command {
         sb.append(aa.alt))(() => sb += ',')
       sb += '\t'
 
-      sb.append(qualQuery.flatMap { q => q(a) }
+      sb.append(qualQuery.flatMap(_(a))
         .map(_.asInstanceOf[Double].formatted("%.2f"))
         .getOrElse("."))
 
       sb += '\t'
 
-      filterQuery.flatMap { q => q(a) }
-        .map(_.asInstanceOf[mutable.WrappedArray[String]]) match {
+      filterQuery.flatMap(_(a))
+        .map(_.asInstanceOf[IndexedSeq[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween { s =>

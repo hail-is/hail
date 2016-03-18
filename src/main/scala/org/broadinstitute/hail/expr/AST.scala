@@ -628,8 +628,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TAltAllele, "isTransition") => TBoolean
       case (TAltAllele, "isTransversion") => TBoolean
 
-      case (_, "isDefined") => TBoolean
-
       case (t: TStruct, _) => {
         t.selfField(rhs) match {
           case Some(f) => f.`type`
@@ -860,11 +858,14 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
     case (_, "orElse", Array(a)) =>
-      AST.evalCompose[Any, Any](c, lhs, a) { case (v, alt) =>
-        if (v != null)
-          v
+      val f1 = lhs.eval(c)
+      val f2 = a.eval(c)
+      () => {
+        val v = f1()
+        if (v == null)
+          f2()
         else
-          a
+          v
       }
 
     case (TArray(elementType), "contains", Array(a)) =>

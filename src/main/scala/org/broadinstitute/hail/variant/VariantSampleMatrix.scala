@@ -13,6 +13,9 @@ import scala.reflect.ClassTag
 import org.apache.spark.sql.types.{StructType, StructField}
 
 object VariantSampleMatrix {
+  final val magicNumber: Int = 0xe51e2c58
+  final val fileVersion: Int = 2
+
   def apply[T](metadata: VariantMetadata,
     rdd: RDD[(Variant, Annotation, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     new VariantSampleMatrix(metadata, rdd)
@@ -25,12 +28,29 @@ object VariantSampleMatrix {
       sqlContext.sparkContext.hadoopConfiguration) {
       dis => {
         val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.deserializeStream(dis).readObject[(Array[Int], VariantMetadata)]
+        val deseris = serializer.deserializeStream(dis)
+
+        try {
+          val m = deseris.readObject[Int]
+          if (m != magicNumber)
+            fatal("Invalid VDS: invalid magic number.\n  Recreate with current version of Hail.")
+
+          val v = deseris.readObject[Int]
+          if (v != fileVersion)
+            fatal("Old VDS version found.  Recreate with current version of Hail.")
+
+          val localSamples = deseris.readObject[Array[Int]]
+          val metadata = deseris.readObject[VariantMetadata]
+
+          (localSamples, metadata)
+        } catch {
+          case e: Exception =>
+            fatal(s"Invalid VDS: ${e.getMessage}\n  Recreate with current version of Hail.")
+        }
       }
     }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-    // val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
 
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
@@ -452,7 +472,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
 // FIXME AnyVal Scala 2.11
 class RichVDS(vds: VariantDataset) {
-
   def makeSchema(): StructType =
     StructType(Array(
       StructField("variant", Variant.schema, nullable = false),
@@ -468,7 +487,11 @@ class RichVDS(vds: VariantDataset) {
     writeDataFile(dirname + "/metadata.ser", hConf) {
       dos => {
         val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.serializeStream(dos).writeObject((vds.localSamples, vds.metadata))
+        serializer.serializeStream(dos)
+          .writeObject(VariantSampleMatrix.magicNumber)
+          .writeObject(VariantSampleMatrix.fileVersion)
+          .writeObject(vds.localSamples)
+          .writeObject(vds.metadata)
       }
     }
 

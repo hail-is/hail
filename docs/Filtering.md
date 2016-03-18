@@ -67,7 +67,7 @@ Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without e
  - Missingness:
    - isMissing: `a.isMissing` -- returns true if `a` is missing
    - isNotMissing: `a.isNotMissing` -- returns true if `a` is defined
-   - orElse: `a.OrElse(x)` -- return `a` if `a` is defined, else `x`
+   - orElse: `a.OrElse(x)` -- return `a` if `a` is defined, otherwise `x`.  `x` is only evaluated if `a` is NA.
  - Numerical comparisons: `<`, `<=`, `>`, `>=`
  - Numerical conversions: 
    - toDouble: `i.toDouble`

@@ -17,7 +17,8 @@ class FilterSuite extends SparkSuite {
       "d2" ->(3, TDouble),
       "s" ->(4, TString),
       "s2" ->(5, TString),
-      "a" ->(6, TArray(TInt)))
+      "a" ->(6, TArray(TInt)),
+      "m" ->(7, TInt))
     val a = new ArrayBuffer[Any]()
     a += 5
     a += -7
@@ -25,12 +26,28 @@ class FilterSuite extends SparkSuite {
     a += 5.79e7
     a += "12,34,56,78"
     a += "this is a String, there are many like it, but this one is mine"
-    a += IndexedSeq(1, 2, 6, 3, 3, -1, 8)
+    a += IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
+    a += null
 
     def eval[T](s: String): T = {
       val f = Parser.parse[T](symTab, null, a, s)
       f()
     }
+
+    assert(eval[Int]("i.orElse(3)") == 5)
+    assert(eval[Int]("m.orElse(3)") == 3)
+
+    assert(!eval[Boolean]("i.isMissing"))
+    assert(eval[Boolean]("i.isNotMissing"))
+
+    assert(eval[Boolean]("m.isMissing"))
+    assert(!eval[Boolean]("m.isNotMissing"))
+
+    assert(!eval[Boolean]("a[1].isMissing"))
+    assert(eval[Boolean]("a[1].isNotMissing"))
+
+    assert(eval[Boolean]("a[2].isMissing"))
+    assert(!eval[Boolean]("a[2].isNotMissing"))
 
     assert(eval[Int]("i") == 5)
     assert(eval[Int]("j") == -7)
@@ -185,7 +202,7 @@ class FilterSuite extends SparkSuite {
       .filter { case (v, va) =>
         q(va).isEmpty
       }
-        .map(_._1)
+      .map(_._1)
 
     // ensure that we're not checking empty vs empty
     assert(missingVariants.size > 0)
