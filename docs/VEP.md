@@ -1,6 +1,6 @@
 # Annotating with the Variant Effect Predictor
 
-The `vep` command runs the (Variant Effect Predictor)[http://www.ensembl.org/info/docs/tools/vep/index.html] on the current dataset and adds the result as a variant annotation at `va.vep` by default.  `vep` runs VEP with the [LOFTEE](https://github.com/konradjk/loftee) plugin.
+The `vep` command runs the [Variant Effect Predictor](http://www.ensembl.org/info/docs/tools/vep/index.html) on the current dataset and adds the result as a variant annotation at `va.vep` by default.  `vep` runs VEP with the [LOFTEE](https://github.com/konradjk/loftee) plugin.
 
 ## Examples
 
