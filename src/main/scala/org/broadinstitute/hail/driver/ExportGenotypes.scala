@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.collection.mutable.ArrayBuffer
 
 object ExportGenotypes extends Command {
 
@@ -42,17 +42,19 @@ object ExportGenotypes extends Command {
     val sas = vds.saSignature
 
     val symTab = Map(
-      "v" ->(0, expr.TVariant),
-      "va" ->(1, vas.dType),
-      "s" ->(2, expr.TSample),
-      "sa" ->(3, sas.dType),
-      "g" ->(4, expr.TGenotype))
-    val a = new Array[Any](5)
+      "v" ->(0, TVariant),
+      "va" ->(1, vas),
+      "s" ->(2, TSample),
+      "sa" ->(3, sas),
+      "g" ->(4, TGenotype))
+    val a = new ArrayBuffer[Any]()
+    for (_ <- symTab)
+      a += null
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, sc.hadoopConfiguration)
     else
-      expr.Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(symTab, a, cond)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 

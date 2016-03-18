@@ -8,6 +8,7 @@
 4. [Renaming Samples](docs/RenameSamples.md)
 5. [Quality Control](docs/QC.md)
 6. [PCA](docs/PCA.md)
+7. [Annotating with the Variant Effect Predictor](docs/VEP.md)
 7. [Filtering](docs/Filtering.md)
 8. [Linear regression](docs/LinearRegression.md)
 9. [Mendel errors](docs/MendelErrors.md)

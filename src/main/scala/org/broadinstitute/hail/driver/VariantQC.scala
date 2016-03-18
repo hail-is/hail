@@ -1,12 +1,9 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
@@ -34,36 +31,36 @@ object VariantQCCombiner {
     "rHetHomVar\t" +
     "rExpectedHetFrequency\tpHWE"
 
-  val signature: StructSignature = StructSignature(Map(
-    "callRate" ->(0, SimpleSignature(expr.TDouble)),
-    "MAC" ->(1, SimpleSignature(expr.TInt)),
-    "MAF" ->(2, SimpleSignature(expr.TDouble)),
-    "nCalled" ->(3, SimpleSignature(expr.TInt)),
-    "nNotCalled" ->(4, SimpleSignature(expr.TInt)),
-    "nHomRef" ->(5, SimpleSignature(expr.TInt)),
-    "nHet" ->(6, SimpleSignature(expr.TInt)),
-    "nHomVar" ->(7, SimpleSignature(expr.TInt)),
-    "dpMean" ->(8, SimpleSignature(expr.TDouble)),
-    "dpStDev" ->(9, SimpleSignature(expr.TDouble)),
-    "dpMeanHomRef" ->(10, SimpleSignature(expr.TDouble)),
-    "dpStDevHomRef" ->(11, SimpleSignature(expr.TDouble)),
-    "dpMeanHet" ->(12, SimpleSignature(expr.TDouble)),
-    "dpStDevHet" ->(13, SimpleSignature(expr.TDouble)),
-    "dpMeanHomVar" ->(14, SimpleSignature(expr.TDouble)),
-    "dpStDevHomVar" ->(15, SimpleSignature(expr.TDouble)),
-    "gqMean" ->(16, SimpleSignature(expr.TDouble)),
-    "gqStDev" ->(17, SimpleSignature(expr.TDouble)),
-    "gqMeanHomRef" ->(18, SimpleSignature(expr.TDouble)),
-    "gqStDevHomRef" ->(19, SimpleSignature(expr.TDouble)),
-    "gqMeanHet" ->(20, SimpleSignature(expr.TDouble)),
-    "gqStDevHet" ->(21, SimpleSignature(expr.TDouble)),
-    "gqMeanHomVar" ->(22, SimpleSignature(expr.TDouble)),
-    "gqStDevHomVar" ->(23, SimpleSignature(expr.TDouble)),
-    "nNonRef" ->(24, SimpleSignature(expr.TInt)),
-    "rHeterozygosity" ->(25, SimpleSignature(expr.TDouble)),
-    "rHetHomVar" ->(26, SimpleSignature(expr.TDouble)),
-    "rExpectedHetFrequency" ->(27, SimpleSignature(expr.TDouble)),
-    "pHWE" ->(28, SimpleSignature(expr.TDouble))))
+  val signature = TStruct(
+    "callRate" -> TDouble,
+    "MAC" -> TInt,
+    "MAF" -> TDouble,
+    "nCalled" -> TInt,
+    "nNotCalled" -> TInt,
+    "nHomRef" -> TInt,
+    "nHet" -> TInt,
+    "nHomVar" -> TInt,
+    "dpMean" -> TDouble,
+    "dpStDev" -> TDouble,
+    "dpMeanHomRef" -> TDouble,
+    "dpStDevHomRef" -> TDouble,
+    "dpMeanHet" -> TDouble,
+    "dpStDevHet" -> TDouble,
+    "dpMeanHomVar" -> TDouble,
+    "dpStDevHomVar" -> TDouble,
+    "gqMean" -> TDouble,
+    "gqStDev" -> TDouble,
+    "gqMeanHomRef" -> TDouble,
+    "gqStDevHomRef" -> TDouble,
+    "gqMeanHet" -> TDouble,
+    "gqStDevHet" -> TDouble,
+    "gqMeanHomVar" -> TDouble,
+    "gqStDevHomVar" -> TDouble,
+    "nNonRef" -> TInt,
+    "rHeterozygosity" -> TDouble,
+    "rHetHomVar" -> TDouble,
+    "rExpectedHetFrequency" -> TDouble,
+    "pHWE" -> TDouble)
 }
 
 class VariantQCCombiner extends Serializable {

@@ -1,12 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -38,39 +36,38 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rDeletionInsertion"
 
-  val signature: StructSignature = StructSignature(Map(
-    "callRate" ->(0, new SimpleSignature(expr.TDouble)),
-    "nCalled" ->(1, new SimpleSignature(expr.TInt)),
-    "nNotCalled" ->(2, new SimpleSignature(expr.TInt)),
-    "nHomRef" ->(3, new SimpleSignature(expr.TInt)),
-    "nHet" ->(4, new SimpleSignature(expr.TInt)),
-    "nHomVar" ->(5, new SimpleSignature(expr.TInt)),
-    "nSNP" ->(6, new SimpleSignature(expr.TInt)),
-    "nInsertion" ->(7, new SimpleSignature(expr.TInt)),
-    "nDeletion" ->(8, new SimpleSignature(expr.TInt)),
-    "nSingleton" ->(9, new SimpleSignature(expr.TInt)),
-    "nTransition" ->(10, new SimpleSignature(expr.TInt)),
-    "nTransversion" ->(11, new SimpleSignature(expr.TInt)),
-    "dpMean" ->(12, new SimpleSignature(expr.TDouble)),
-    "dpStDev" ->(13, new SimpleSignature(expr.TDouble)),
-    "dpMeanHomRef" ->(14, new SimpleSignature(expr.TDouble)),
-    "dpStDevHomRef" ->(15, new SimpleSignature(expr.TDouble)),
-    "dpMeanHet" ->(16, new SimpleSignature(expr.TDouble)),
-    "dpStDevHet" ->(17, new SimpleSignature(expr.TDouble)),
-    "dpMeanHomVar" ->(18, new SimpleSignature(expr.TDouble)),
-    "dpStDevHomVar" ->(19, new SimpleSignature(expr.TDouble)),
-    "gqMean" ->(20, new SimpleSignature(expr.TDouble)),
-    "gqStDev" ->(21, new SimpleSignature(expr.TDouble)),
-    "gqMeanHomRef" ->(22, new SimpleSignature(expr.TDouble)),
-    "gqStDevHomRef" ->(23, new SimpleSignature(expr.TDouble)),
-    "gqMeanHet" ->(24, new SimpleSignature(expr.TDouble)),
-    "gqStDevHet" ->(25, new SimpleSignature(expr.TDouble)),
-    "gqMeanHomVar" ->(26, new SimpleSignature(expr.TDouble)),
-    "gqStDevHomVar" ->(27, new SimpleSignature(expr.TDouble)),
-    "nNonRef" ->(28, new SimpleSignature(expr.TInt)),
-    "rTiTv" ->(29, new SimpleSignature(expr.TDouble)),
-    "rHetHomVar" ->(30, new SimpleSignature(expr.TDouble)),
-    "rDeletionInsertion" ->(31, new SimpleSignature(expr.TDouble))))
+  val signature = TStruct("callRate" -> TDouble,
+    "nCalled" -> TInt,
+    "nNotCalled" -> TInt,
+    "nHomRef" -> TInt,
+    "nHet" -> TInt,
+    "nHomVar" -> TInt,
+    "nSNP" -> TInt,
+    "nInsertion" -> TInt,
+    "nDeletion" -> TInt,
+    "nSingleton" -> TInt,
+    "nTransition" -> TInt,
+    "nTransversion" -> TInt,
+    "dpMean" -> TDouble,
+    "dpStDev" -> TDouble,
+    "dpMeanHomRef" -> TDouble,
+    "dpStDevHomRef" -> TDouble,
+    "dpMeanHet" -> TDouble,
+    "dpStDevHet" -> TDouble,
+    "dpMeanHomVar" -> TDouble,
+    "dpStDevHomVar" -> TDouble,
+    "gqMean" -> TDouble,
+    "gqStDev" -> TDouble,
+    "gqMeanHomRef" -> TDouble,
+    "gqStDevHomRef" -> TDouble,
+    "gqMeanHet" -> TDouble,
+    "gqStDevHet" -> TDouble,
+    "gqMeanHomVar" -> TDouble,
+    "gqStDevHomVar" -> TDouble,
+    "nNonRef" -> TInt,
+    "rTiTv" -> TDouble,
+    "rHetHomVar" -> TDouble,
+    "rDeletionInsertion" -> TDouble)
 }
 
 class SampleQCCombiner extends Serializable {

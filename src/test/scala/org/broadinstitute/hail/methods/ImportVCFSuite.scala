@@ -3,6 +3,7 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.SparkException
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr.TStruct
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {

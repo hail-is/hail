@@ -1,36 +1,72 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.annotations.{SimpleSignature}
-import org.broadinstitute.hail.{expr, SparkSuite}
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
+import scala.collection.mutable.ArrayBuffer
 
 class FilterSuite extends SparkSuite {
 
   @Test def exprTest() {
-    val symTab = Map("i" ->(0, expr.TInt),
-      "j" ->(1, expr.TInt),
-      "d" ->(2, expr.TDouble),
-      "d2" ->(3, expr.TDouble),
-      "s" ->(4, expr.TString),
-      "s2" ->(5, expr.TString))
-    val a = Array[Any](5, -7, 3.14, 5.79e7, "12,34,56,78",
-      "this is a String, there are many like it, but this one is mine")
+    val symTab = Map("i" ->(0, TInt),
+      "j" ->(1, TInt),
+      "d" ->(2, TDouble),
+      "d2" ->(3, TDouble),
+      "s" ->(4, TString),
+      "s2" ->(5, TString),
+      "a" ->(6, TArray(TInt)),
+      "m" ->(7, TInt),
+      "as" ->(8, TArray(TStruct(("a", TInt),
+        ("b", TString)))))
+    val a = new ArrayBuffer[Any]()
+    a += 5
+    a += -7
+    a += 3.14
+    a += 5.79e7
+    a += "12,34,56,78"
+    a += "this is a String, there are many like it, but this one is mine"
+    a += IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
+    a += null
+    a += (Array[Any](Annotation(23, "foo"),
+      Annotation(-7, null)): IndexedSeq[Any])
 
     def eval[T](s: String): T = {
-      val f = expr.Parser.parse[T](symTab, a, s)
+      val f = Parser.parse[T](symTab, null, a, s)
       f()
     }
+
+    assert(eval[Int]("i.orElse(3)") == 5)
+    assert(eval[Int]("m.orElse(3)") == 3)
+
+    assert(!eval[Boolean]("i.isMissing"))
+    assert(eval[Boolean]("i.isNotMissing"))
+
+    assert(eval[Boolean]("m.isMissing"))
+    assert(!eval[Boolean]("m.isNotMissing"))
+
+    assert(!eval[Boolean]("a[1].isMissing"))
+    assert(eval[Boolean]("a[1].isNotMissing"))
+
+    assert(eval[Boolean]("a[2].isMissing"))
+    assert(!eval[Boolean]("a[2].isNotMissing"))
+
+    assert(eval[Int]("as.length") == 2)
+    assert(eval[Int]("as[0].a") == 23)
+    assert(eval[Boolean]("as[1].b.isMissing"))
 
     assert(eval[Int]("i") == 5)
     assert(eval[Int]("j") == -7)
     assert(eval[Int]("i.max(j)") == 5)
     assert(eval[Int]("i.min(j)") == -7)
     assert(D_==(eval[Double]("d"), 3.14))
-    assert(eval[Array[String]]("""s.split(",")""") sameElements Array("12", "34", "56", "78"))
+    assert(eval[IndexedSeq[String]]("""s.split(",")""") == IndexedSeq("12", "34", "56", "78"))
     assert(eval[Int]("s2.length") == 62)
+
+    assert(eval[Int]("""a.find(x => x < 0)""") == -1)
 
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
@@ -113,9 +149,9 @@ class FilterSuite extends SparkSuite {
     var state2 = State(sc, sqlContext, vds2.cache())
     state2 = SplitMulti.run(state2, Array.empty[String])
 
-    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad(0) < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad[0] < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
 
-    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad(1).toDouble / g.dp > 0.05")).vds.expand().collect().count(_._3.isCalled) == 3)
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad[1].toDouble / g.dp > 0.05")).vds.expand().collect().count(_._3.isCalled) == 3)
 
     val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
 
@@ -175,7 +211,7 @@ class FilterSuite extends SparkSuite {
       .filter { case (v, va) =>
         q(va).isEmpty
       }
-        .map(_._1)
+      .map(_._1)
 
     // ensure that we're not checking empty vs empty
     assert(missingVariants.size > 0)
@@ -191,7 +227,7 @@ class FilterSuite extends SparkSuite {
 
   @Test def testWeirdNames() {
     var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val (sigs, i) = vds.insertVA(SimpleSignature(expr.TInt), "weird name \t test")
+    val (sigs, i) = vds.insertVA(TInt, "weird name \t test")
     vds = vds
       .mapAnnotations((v, va) => i(va, Some(1000)))
       .copy(vaSignature = sigs)
