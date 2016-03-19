@@ -5,7 +5,6 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.io.annotators._
 import org.broadinstitute.hail.methods.ProgrammaticAnnotation
-import org.broadinstitute.hail.variant.{VariantSampleMatrix, Variant, Sample}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -109,7 +108,7 @@ object AnnotateVariants extends Command {
       case tsv if tsv.endsWith(".tsv") =>
         if (options.root == null)
           fatal("argument 'root' is required for '.tsv' annotation")
-        val (rdd, signature) = TSVAnnotator(vds.sparkContext, cond,
+        val (rdd, signature) = VariantTSVAnnotator(vds.sparkContext, cond,
           parseColumns(Option(options.vCols).getOrElse("Chromosome,Position,Ref,Alt")),
           parseTypeMap(Option(options.types).getOrElse("")),
           parseMissing(Option(options.missingIdentifiers).getOrElse("NA")))
@@ -166,8 +165,8 @@ object AnnotateVariants extends Command {
 
         val symTab = Map(
           "v" ->(0, expr.TVariant),
-          "va" ->(1, vds.vaSignature.dType))
-        val a = new Array[Any](2)
+          "va" ->(1, vds.vaSignature))
+        val a = new mutable.ArrayBuffer[Any](2)
 
         val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
 
@@ -175,7 +174,7 @@ object AnnotateVariants extends Command {
           if (ids.head != "va")
             fatal(s"expect 'va[.identifier]+', got ${ids.mkString(".")}")
           ProgrammaticAnnotation.checkType(ids.mkString("."), t)
-          (ids.tail, SimpleSignature(t))
+          (ids.tail, t)
         }
 
         val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
@@ -189,6 +188,9 @@ object AnnotateVariants extends Command {
         }
 
         val inserters = inserterBuilder.result()
+
+        for (_ <- computations)
+          a += null
 
         vdsAddedSigs.mapAnnotations { case (v, va) =>
           a(0) = v

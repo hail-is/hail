@@ -6,6 +6,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
@@ -417,13 +418,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def annotateInvervals(iList: IntervalList, signature: Signature, path: List[String]): VariantSampleMatrix[T] = {
+  def annotateInvervals(iList: IntervalList, signature: expr.Type, path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs)}
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: Signature,
+  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: expr.Type,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
@@ -432,7 +433,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateSamples(annotations: Map[String, Annotation], signature: Signature,
+  def annotateSamples(annotations: Map[String, Annotation], signature: expr.Type,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertSA(signature, path)
 
@@ -471,7 +472,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def deleteVA(path: List[String]): (Type, Deleter) = {
     vaSignature.delete(path) match {
-      case (null, null) => (TEmpty, a => null)
+      case (null, null) => (TEmpty, a => Annotation.empty)
       case x => x
     }
   }
@@ -480,7 +481,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def deleteSA(path: List[String]): (Type, Deleter) = {
     saSignature.delete(path) match {
-      case (null, null) => (TEmpty, a => null)
+      case (null, null) => (TEmpty, a => Annotation.empty)
       case x => x
     }
   }

@@ -10,7 +10,7 @@ import org.broadinstitute.hail.io.annotators._
 import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object ConvertAnnotations extends Command {
+object PreprocessAnnotations extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-c", aliases = Array("--import"),
@@ -37,7 +37,7 @@ object ConvertAnnotations extends Command {
 
   def newOptions = new Options
 
-  def name = "convertannotations"
+  def name = "preprocessannotations"
 
   def description = "Convert a tsv or vcf file containing variant annotations into the fast hail format"
 
@@ -55,14 +55,14 @@ object ConvertAnnotations extends Command {
 
     val (rdd, signature) = hadoopStripCodec(options.condition, conf) match {
       case tsv if tsv.endsWith(".tsv") =>
-        TSVAnnotator(state.sc, cond, AnnotateVariants.parseColumns(options.vCols),
+        VariantTSVAnnotator(state.sc, cond, AnnotateVariants.parseColumns(options.vCols),
           AnnotateVariants.parseTypeMap(options.types), AnnotateVariants.parseMissing(options.missingIdentifiers))
       case vcf if vcf.endsWith(".vcf") =>
         VCFAnnotator(state.sc, cond)
       case _ =>
         fatal(
           """This module requires an input file ending in one of the following:
-            |  .tsv (tab separated values with chr, pos, ref, alt)
+            |  .tsv (tab separated values with chr, pos, ref, and alt columns, or chr:pos:ref:alt column)
             |  .vcf (vcf, only the info field / filters / qual are parsed here)""".stripMargin)
     }
 
@@ -80,11 +80,6 @@ object ConvertAnnotations extends Command {
       StructField("variant", Variant.schema, false),
       StructField("annotation", signature.schema, true)
     ))
-
-//    println(signature.printSchema("va"))
-//    println(Annotation.printAnnotation(rdd.take(1).head._2))
-//    rdd.take(10).map(_._2)
-//      .foreach { i => println(signature.typeCheck(i)) }
 
     state.sqlContext.createDataFrame(rdd.map { case (v, a) => Row.fromSeq(Array(v.toRow, a)) }, schema)
       .write.parquet(out + "/rdd.parquet")

@@ -157,7 +157,7 @@ object Main {
       AnnotateSamples,
       AnnotateVariants,
       Cache,
-      ConvertAnnotations,
+      PreprocessAnnotations,
       Count,
       DownsampleVariants,
       ExportPlink,

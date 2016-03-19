@@ -158,10 +158,10 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val vcf1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
 
-    ConvertAnnotations.run(state,
+    PreprocessAnnotations.run(state,
       Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double",
         "-o", "/tmp/variantAnnotationsTSV.faf"))
-    ConvertAnnotations.run(state,
+    PreprocessAnnotations.run(state,
       Array("-c", "src/test/resources/sampleInfoOnly.vcf", "-o", "/tmp/variantAnnotationsVCF.faf"))
 
     val tsvSer1r = AnnotateVariants.run(state,

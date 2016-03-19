@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.annotations.{Inserter, Signature}
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.Utils.fatal
 

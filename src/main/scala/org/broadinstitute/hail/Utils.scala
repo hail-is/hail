@@ -720,20 +720,14 @@ object Utils extends Logging {
   }
 
   def hadoopStripCodec(s: String, conf: hadoop.conf.Configuration): String = {
-    import scala.collection.JavaConverters._
+    val path = new org.apache.hadoop.fs.Path(s)
 
-    val ccf = new CompressionCodecFactory(conf)
-    val extensions = CompressionCodecFactory.getCodecClasses(conf)
-      .asScala
-      .toArray
-      .map(a => a.getName)
-      .map(name => ccf.getCodecByClassName(name).getDefaultExtension)
-      .toSet
+    val ext = Option(new CompressionCodecFactory(conf)
+      .getCodec(path))
+    val toStrip = ext.map(_.getDefaultExtension.length)
+      .getOrElse(0)
 
-    if (!s.contains(".") || !extensions(s.substring(s.lastIndexOf("."))))
-      s
-    else
-      s.subSequence(0, s.lastIndexOf(".")).toString
+    s.substring(0, s.length - toStrip)
   }
 
 

@@ -1,18 +1,36 @@
 package org.broadinstitute.hail.io.annotators
 
-import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.{StructSignature, Signature, Annotation, SimpleSignature}
-import org.broadinstitute.hail.variant.{Variant}
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.variant.Variant
 
 import scala.collection.mutable
 
 object VariantTSVAnnotator {
+
+  def parseStringType(s: String): expr.Type = {
+    s match {
+      case "Double" => expr.TDouble
+      case "Int" => expr.TInt
+      case "Boolean" => expr.TBoolean
+      case "String" => expr.TString
+      case _ => fatal(
+        s"""Unrecognized type "$s".  Hail supports parsing the following types in annotations:
+            |  - Double (floating point number)
+            |  - Int  (integer)
+            |  - Boolean
+            |  - String
+            |
+             |  Note that the above types are case sensitive.""".stripMargin)
+    }
+  }
+
   def apply(sc: SparkContext, filename: String, vColumns: Array[String], typeMap: Map[String, String],
-    missing: Set[String]): (RDD[(Variant, Annotation)], Signature) = {
+    missing: Set[String]): (RDD[(Variant, Annotation)], expr.Type) = {
 
     val (header, split) = readLines(filename, sc.hadoopConfiguration) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
@@ -44,21 +62,22 @@ object VariantTSVAnnotator {
       (false, variantIndex)
     }
 
-    val orderedSignatures: Array[(String, Option[Signature])] = split.map { s =>
+    val orderedSignatures: Array[(String, Option[expr.Type])] = split.map { s =>
       if (!vColumns.contains(s))
-        (s, Some(SimpleSignature(typeMap.getOrElse(s, "String"))))
+        (s, Some(parseStringType(typeMap.getOrElse(s, "String"))))
       else
         (s, None)
     }
 
-    val signatures = StructSignature(
-      orderedSignatures.flatMap { case (key, o) => o match {
-        case Some(sig) => Some(key, sig)
-        case None => None
-      }}
+    val signature = expr.TStruct(
+      orderedSignatures.flatMap { case (key, o) =>
+        o match {
+          case Some(sig) => Some(key, sig)
+          case None => None
+        }
+      }
         .zipWithIndex
-        .map { case ((key, sig), i) => (key, (i, sig)) }
-        .toMap
+        .map { case ((key, t), i) => expr.Field(key, t, i) }
     )
 
     val functions: Array[(mutable.ArrayBuilder[Annotation], String) => Unit] =
@@ -102,6 +121,6 @@ object VariantTSVAnnotator {
           val ab = mutable.ArrayBuilder.make[Any]
           iter.map(line => f(ab, line))
       }
-    (rdd, signatures)
+    (rdd, signature)
   }
 }

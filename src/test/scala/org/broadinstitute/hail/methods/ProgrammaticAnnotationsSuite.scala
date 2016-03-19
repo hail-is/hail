@@ -1,8 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.sql.Row
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 

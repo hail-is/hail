@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.{Annotation, Inserter, SimpleSignature}
+import org.broadinstitute.hail.annotations.{Annotation, Inserter}
 import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods.ProgrammaticAnnotation
@@ -76,14 +76,14 @@ object AnnotateSamples extends Command {
 
         val symTab = Map(
           "s" ->(0, expr.TSample),
-          "sa" ->(1, vds.saSignature.dType))
-        val a = new Array[Any](2)
+          "sa" ->(1, vds.saSignature))
+        val a = new mutable.ArrayBuffer[Any](2)
         val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
         val keyedSignatures = parsed.map { case (ids, t, f) =>
           if (ids.head != "sa")
             fatal(s"expect 'sa[.identifier]+', got ${ids.mkString(".")}")
           ProgrammaticAnnotation.checkType(ids.mkString("."), t)
-          (ids.tail, SimpleSignature(t))
+          (ids.tail, t)
         }
         val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
         val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
@@ -94,6 +94,9 @@ object AnnotateSamples extends Command {
 
         val computations = parsed.map(_._3)
         val inserters = inserterBuilder.result()
+
+        for (_ <- computations)
+          a += null
 
         val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
           a(0) = Sample(vds.sampleIds(i))
