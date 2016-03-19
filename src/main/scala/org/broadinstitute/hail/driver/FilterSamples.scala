@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.collection.mutable.ArrayBuffer
 
 import scala.io.Source
 
@@ -29,6 +29,8 @@ object FilterSamples extends Command {
 
   def description = "Filter samples in current dataset"
 
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -50,10 +52,12 @@ object FilterSamples extends Command {
         (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val symTab = Map(
-          "s" ->(0, expr.TSample),
-          "sa" ->(1, sas.dType))
-        val a = new Array[Any](2)
-        val f: () => Any = expr.Parser.parse(symTab, a, c)
+          "s" -> (0, TSample),
+          "sa" -> (1, sas))
+        val a = new ArrayBuffer[Any]()
+        for (_ <- symTab)
+          a += null
+        val f: () => Any = Parser.parse(symTab, TBoolean, a, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
         (s: Int, sa: Annotation) => {
           a(0) = sampleIdsBc.value(s)

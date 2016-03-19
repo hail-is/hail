@@ -6,12 +6,16 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.expr._
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
 import org.apache.spark.sql.types.{StructType, StructField}
 
 object VariantSampleMatrix {
+  final val magicNumber: Int = 0xe51e2c58
+  final val fileVersion: Int = 2
+
   def apply[T](metadata: VariantMetadata,
     rdd: RDD[(Variant, Annotation, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     new VariantSampleMatrix(metadata, rdd)
@@ -21,15 +25,34 @@ object VariantSampleMatrix {
     require(dirname.endsWith(".vds"))
 
     val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
-      sqlContext.sparkContext.hadoopConfiguration) {
-      dis => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.deserializeStream(dis).readObject[(Array[Int], VariantMetadata)]
+      sqlContext.sparkContext.hadoopConfiguration) { dis => {
+        try {
+          val serializer = SparkEnv.get.serializer.newInstance()
+          val ds = serializer.deserializeStream(dis)
+
+          val m = ds.readObject[Int]
+          if (m != magicNumber)
+            fatal("Invalid VDS: invalid magic number.\n  Recreate with current version of Hail.")
+
+          val v = ds.readObject[Int]
+          if (v != fileVersion)
+            fatal("Old VDS version found.  Recreate with current version of Hail.")
+
+          val localSamples = ds.readObject[Array[Int]]
+          val metadata = ds.readObject[VariantMetadata]
+
+          ds.close()
+
+          (localSamples, metadata)
+        } catch {
+          case e: Exception =>
+            println(e)
+            fatal(s"Invalid VDS: ${e.getMessage}\n  Recreate with current version of Hail.")
+        }
       }
     }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
-    // val df = sqlContext.parquetFile(dirname + "/rdd.parquet")
 
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
@@ -47,12 +70,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         values <- genValues[T](nSamples, g(v)))
+      values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         values <- genValues[T](g(v)))
+      values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -77,7 +100,7 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
   }
@@ -108,9 +131,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def nLocalSamples: Int = localSamples.length
 
-  def vaSignature: Signature = metadata.vaSignature
+  def vaSignature: Type = metadata.vaSignature
 
-  def saSignature: Signature = metadata.saSignature
+  def saSignature: Type = metadata.saSignature
 
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
@@ -123,8 +146,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     filters: IndexedSeq[(String, String)] = filters,
     sampleIds: IndexedSeq[String] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
-    saSignature: Signature = saSignature,
-    vaSignature: Signature = vaSignature,
+    saSignature: Type = saSignature,
+    vaSignature: Type = vaSignature,
     wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
@@ -363,11 +386,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       localSamples.sameElements(that.localSamples) &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
-        .map { case (v, t) => t match {
-          case (Some((va1, it1)), Some((va2, it2))) =>
+        .map {
+          case (v, (Some((va1, it1)), Some((va2, it2)))) =>
             it1.sameElements(it2) && va1 == va2
           case _ => false
-        }
         }.fold(true)(_ && _)
   }
 
@@ -383,13 +405,15 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     zeroBuffer.get(zeroArray)
 
     copy(rdd = rdd
-      .map { case (v, va, gs) =>
-        val serializer = SparkEnv.get.serializer.newInstance()
-        val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+      .map {
+        case (v, va, gs) =>
+          val serializer = SparkEnv.get.serializer.newInstance()
+          val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
 
-        (v, mapOp(va, gs.iterator.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
-          seqOp(acc, v, localSamplesBc.value(i), g)
-        }), gs)
+          (v, mapOp(va, gs.iterator.zipWithIndex.foldLeft(zeroValue) {
+            case (acc, (g, i)) =>
+              seqOp(acc, v, localSamplesBc.value(i), g)
+          }), gs)
       })
   }
 
@@ -425,7 +449,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     try {
       vaSignature.query(path)
     } catch {
-      case e: AnnotationPathException => fatal(s"Invalid variant annotations query: ${path.::("va").mkString(".")}")
+      case e: AnnotationPathException => fatal(s"Invalid variant annotations query: ${
+        path.::("va").mkString(".")
+      }")
     }
   }
 
@@ -435,52 +461,51 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     try {
       saSignature.query(path)
     } catch {
-      case e: AnnotationPathException => fatal(s"Invalid sample annotations query: ${path.::("sa").mkString(".")}")
+      case e: AnnotationPathException => fatal(s"Invalid sample annotations query: ${
+        path.::("sa").mkString(".")
+      }")
     }
   }
 
-  def deleteVA(args: String*): (Signature, Deleter) = deleteVA(args.toList)
+  def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
-  def deleteVA(path: List[String]): (Signature, Deleter) = {
+  def deleteVA(path: List[String]): (Type, Deleter) = {
     vaSignature.delete(path) match {
-      case (null, null) => (EmptySignature(), a => null)
+      case (null, null) => (TEmpty, a => null)
       case x => x
     }
   }
 
-  def deleteSA(args: String*): (Signature, Deleter) = deleteSA(args.toList)
+  def deleteSA(args: String*): (Type, Deleter) = deleteSA(args.toList)
 
-  def deleteSA(path: List[String]): (Signature, Deleter) = {
+  def deleteSA(path: List[String]): (Type, Deleter) = {
     saSignature.delete(path) match {
-      case (null, null) => (EmptySignature(), a => null)
+      case (null, null) => (TEmpty, a => null)
       case x => x
     }
   }
 
-  def insertVA(sig: Signature, args: String*): (Signature, Inserter) = insertVA(sig, args.toList)
+  def insertVA(sig: Type, args: String*): (Type, Inserter) = insertVA(sig, args.toList)
 
-  def insertVA(sig: Signature, path: List[String]): (Signature, Inserter) = {
+  def insertVA(sig: Type, path: List[String]): (Type, Inserter) = {
     vaSignature.insert(sig, path)
   }
 
-  def insertSA(sig: Signature, args: String*): (Signature, Inserter) = insertSA(sig, args.toList)
+  def insertSA(sig: Type, args: String*): (Type, Inserter) = insertSA(sig, args.toList)
 
-  def insertSA(sig: Signature, path: List[String]): (Signature, Inserter) = {
+  def insertSA(sig: Type, path: List[String]): (Type, Inserter) = {
     saSignature.insert(sig, path)
   }
 }
 
 // FIXME AnyVal Scala 2.11
 class RichVDS(vds: VariantDataset) {
-
-  def makeSchema(): StructType = {
-    val s = StructType(Array(
+  def makeSchema(): StructType =
+    StructType(Array(
       StructField("variant", Variant.schema, nullable = false),
       StructField("annotations", vds.vaSignature.schema, nullable = false),
       StructField("gs", GenotypeStream.schema, nullable = false)
     ))
-    s
-  }
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
     require(dirname.endsWith(".vds"))
@@ -490,7 +515,13 @@ class RichVDS(vds: VariantDataset) {
     writeDataFile(dirname + "/metadata.ser", hConf) {
       dos => {
         val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.serializeStream(dos).writeObject((vds.localSamples, vds.metadata))
+        val ss = serializer.serializeStream(dos)
+        ss
+          .writeObject(VariantSampleMatrix.magicNumber)
+          .writeObject(VariantSampleMatrix.fileVersion)
+          .writeObject(vds.localSamples)
+          .writeObject(vds.metadata)
+        ss.close()
       }
     }
 

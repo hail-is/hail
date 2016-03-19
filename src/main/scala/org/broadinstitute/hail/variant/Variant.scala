@@ -99,6 +99,12 @@ object Variant {
     ref: String,
     alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
 
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: Array[String]): Variant =
+    Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
+
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0)
     nAlleles * (nAlleles + 1) / 2
@@ -174,7 +180,7 @@ case class Variant(contig: String,
 
   def nAlleles: Int = 1 + nAltAlleles
 
-  def alllele(i: Int): String = if (i == 0)
+  def allele(i: Int): String = if (i == 0)
     ref
   else
     altAlleles(i - 1).alt

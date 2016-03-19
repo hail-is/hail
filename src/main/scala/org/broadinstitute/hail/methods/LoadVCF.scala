@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.methods
 
 import htsjdk.tribble.TribbleException
+import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.vcf.BufferedLineIterator
 import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
@@ -100,6 +102,42 @@ object LoadVCF {
     s.substring(start, end)
   }
 
+  def infoNumberToString(line: VCFInfoHeaderLine): String = line.getCountType match {
+    case VCFHeaderLineCount.A => "A"
+    case VCFHeaderLineCount.G => "G"
+    case VCFHeaderLineCount.R => "R"
+    case VCFHeaderLineCount.INTEGER => line.getCount.toString
+    case VCFHeaderLineCount.UNBOUNDED => "."
+  }
+
+  def infoTypeToString(line: VCFInfoHeaderLine): String = line.getType match {
+    case VCFHeaderLineType.Integer => "Integer"
+    case VCFHeaderLineType.Flag => "Flag"
+    case VCFHeaderLineType.Float => "Float"
+    case VCFHeaderLineType.Character => "Character"
+    case VCFHeaderLineType.String => "String"
+  }
+
+  def infoField(line: VCFInfoHeaderLine, i: Int): Field = {
+    val baseType = line.getType match {
+      case VCFHeaderLineType.Integer => TInt
+      case VCFHeaderLineType.Float => TDouble
+      case VCFHeaderLineType.String => TString
+      case VCFHeaderLineType.Character => TChar
+      case VCFHeaderLineType.Flag => TBoolean
+    }
+
+    val attrs = Map("Description" -> line.getDescription,
+      "Number" -> infoNumberToString(line),
+      "Type" -> infoTypeToString(line))
+    if (line.isFixedCount &&
+      (line.getCount == 1 ||
+        (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
+      Field(line.getID, baseType, i, attrs)
+    else
+      Field(line.getID, TArray(baseType), i, attrs)
+  }
+
   def apply(sc: SparkContext,
     file1: String,
     files: Array[String] = null, // FIXME hack
@@ -125,26 +163,22 @@ object LoadVCF {
     val filters: IndexedSeq[(String, String)] = header
       .getFilterLines
       .toList
+      // (filter, description)
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-
-
-    val infoRowSignatures = header
+    val infoSignature = TStruct(header
       .getInfoHeaderLines
-      .toList
       .zipWithIndex
-      .map { case (line, index) => (line.getID, VCFSignature.parse(line)) }
-      .toArray
+      .map { case (line, i) => infoField(line, i) }
+      .toArray)
 
-    val variantAnnotationSignatures: StructSignature = StructSignature(Map(
-      "qual" ->(0, SimpleSignature(expr.TDouble)),
-      "filters" ->(1, SimpleSignature(expr.TSet(expr.TString))),
-      "pass" ->(2, SimpleSignature(expr.TBoolean)),
-      "rsid" ->(3, SimpleSignature(expr.TString)),
-      "info" ->(4, StructSignature(infoRowSignatures.zipWithIndex
-        .map { case ((key, sig), index) => (key, (index, sig)) }
-        .toMap))))
+    val variantAnnotationSignatures = TStruct(
+      "rsid" -> TString,
+      "qual" -> TDouble,
+      "filters" -> TSet(TString),
+      "pass" -> TBoolean,
+      "info" -> infoSignature)
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -153,7 +187,7 @@ object LoadVCF {
       .split("\t")
       .drop(9)
 
-    val infoRowSigsBc = sc.broadcast(infoRowSignatures)
+    val infoSignatureBc = sc.broadcast(infoSignature)
 
     val headerLinesBc = sc.broadcast(headerLines)
 
@@ -170,7 +204,7 @@ object LoadVCF {
         .mapPartitions { lines =>
           val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
           lines.filterNot(line =>
-            line.isEmpty() || line(0) == '#' || {
+            line.isEmpty || line(0) == '#' || {
               val containsNonACGT = !lineRef(line).forall(c =>
                 c == 'A' || c == 'C' || c == 'G' || c == 'T')
               if (containsNonACGT)
@@ -179,7 +213,7 @@ object LoadVCF {
             })
             .map { line =>
               try {
-                reader.readRecord(reportAcc, line, infoRowSigsBc.value, storeGQ)
+                reader.readRecord(reportAcc, line, infoSignatureBc.value, storeGQ)
               } catch {
                 case e: TribbleException =>
                   log.error(s"${e.getMessage}\n  line: $line", e)
@@ -188,8 +222,10 @@ object LoadVCF {
             }
         }
     })
+
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotation.emptyIndexedSeq(sampleIds.length), Signature.empty,
+      Annotation.emptyIndexedSeq(sampleIds.length),
+      TEmpty,
       variantAnnotationSignatures), genotypes)
   }
 

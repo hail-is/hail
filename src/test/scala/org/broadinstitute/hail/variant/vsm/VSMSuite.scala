@@ -1,8 +1,8 @@
 package org.broadinstitute.hail.variant.vsm
 
+import org.broadinstitute.hail.expr._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import org.broadinstitute.hail.{expr, SparkSuite}
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
@@ -11,7 +11,6 @@ import scala.language.postfixOps
 import org.broadinstitute.hail.methods.LoadVCF
 import org.testng.annotations.Test
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.annotations._
 
 class VSMSuite extends SparkSuite {
@@ -27,21 +26,21 @@ class VSMSuite extends SparkSuite {
       IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
-      StructSignature(Map(
-        "inner" -> (0, StructSignature(Map(
-          "thing1" -> (0, SimpleSignature(expr.TString))))),
-        "thing2" -> (1, SimpleSignature(expr.TString)))),
-      Signature.empty)
+      TStruct(
+        "inner" -> TStruct(
+          "thing1" -> TString),
+        "thing2" -> TString),
+      TEmpty)
     val mdata4 = new VariantMetadata(
       IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
-      StructSignature(Map(
-        "inner" -> (0, StructSignature(Map(
-          "thing1" -> (0, SimpleSignature(expr.TString))))),
-        "thing2" -> (1, SimpleSignature(expr.TString)),
-      "dummy" -> (2, SimpleSignature(expr.TString)))),
-      Signature.empty)
+      TStruct(
+        "inner" -> TStruct(
+          "thing1" -> TString),
+        "thing2" -> TString,
+        "dummy" -> TString),
+      TEmpty)
 
     assert(mdata1 != mdata2)
     assert(mdata1 != mdata3)
@@ -183,7 +182,7 @@ class VSMSuite extends SparkSuite {
       assert(sampleKeys.toSet == keep)
 
       val filteredOut = "/tmp/test_filtered.vds"
-      hadoopDelete(filteredOut, sc.hadoopConfiguration, true)
+      hadoopDelete(filteredOut, sc.hadoopConfiguration, recursive = true)
       filtered.write(sqlContext, filteredOut, compress = true)
 
       val filtered2 = VariantSampleMatrix.read(sqlContext, filteredOut)

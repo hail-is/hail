@@ -1,11 +1,12 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype, Sample}
+import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.collection.mutable.ArrayBuffer
 
 object FilterGenotypes extends Command {
 
@@ -39,14 +40,15 @@ object FilterGenotypes extends Command {
     val keep = options.keep
 
     val symTab = Map(
-      "v" ->(0, expr.TVariant),
-      "va" ->(1, vas.dType),
-      "s" ->(2, expr.TSample),
-      "sa" ->(3, sas.dType),
-      "g" ->(4, expr.TGenotype))
-    val a = new Array[Any](5)
-
-    val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
+      "v" ->(0, TVariant),
+      "va" ->(1, vas),
+      "s" ->(2, TSample),
+      "sa" ->(3, sas),
+      "g" ->(4, TGenotype))
+    val a = new ArrayBuffer[Any]()
+    for (_ <- symTab)
+      a += null
+    val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)

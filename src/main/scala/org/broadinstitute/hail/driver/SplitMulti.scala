@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
+import org.broadinstitute.hail.expr.{TInt, TBoolean}
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.Utils._
@@ -128,8 +128,8 @@ object SplitMulti extends Command {
     val vds = state.vds
 
     val localPropagateGQ = options.propagateGQ
-    val (vas2, insertIndex) = vds.vaSignature.insert(SimpleSignature(expr.TInt), "aIndex")
-    val (vas3, insertSplit) = vas2.insert(SimpleSignature(expr.TBoolean), "wasSplit")
+    val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
+    val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
     val newVDS = state.vds.copy[Genotype](
       wasSplit = true,
       vaSignature = vas3,

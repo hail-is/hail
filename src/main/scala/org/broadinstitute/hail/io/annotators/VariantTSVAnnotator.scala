@@ -10,7 +10,7 @@ import org.broadinstitute.hail.variant.{Variant}
 
 import scala.collection.mutable
 
-object TSVAnnotator {
+object VariantTSVAnnotator {
   def apply(sc: SparkContext, filename: String, vColumns: Array[String], typeMap: Map[String, String],
     missing: Set[String]): (RDD[(Variant, Annotation)], Signature) = {
 

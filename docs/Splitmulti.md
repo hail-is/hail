@@ -18,10 +18,18 @@ if applied to a dataset that has not been split.  The list of commands
 that support multiallelics are:
  - `annotatesamples`
  - `count`
+ - `exportvariants`
  - `exportvcf`
+ - `filtersamples'
+ - `filtervariants'
+ - `grep`
  - `read`
- - `write`, and
- - `splitmulti`.
+ - `renamesamples`
+ - `repartition`
+ - `showannotations`
+ - `splitmulti`
+ - `vep`, and
+ - `write`.
 
 ## How Hail Splits Multallelics
 

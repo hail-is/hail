@@ -81,7 +81,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     }
   }
 
-  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
+  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
     richIterator(i.iterator).foreachBetween(f)(g)
   }
 
@@ -392,7 +392,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
         sb += ':'
         sb.append(v.ref)
         sb += ':'
-        sb.append(v.alt)
+        sb.append(v.altAlleles.map(_.alt).mkString(","))
       case i: Iterable[_] =>
         var first = true
         i.foreach { x =>
@@ -451,7 +451,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     n == 1
   }
 
-  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
+  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
     var first = true
     it.foreach { elem =>
       if (first)
@@ -482,6 +482,14 @@ trait Logging {
 class FatalException(msg: String) extends RuntimeException(msg)
 
 class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
+
+class RichAny(val a: Any) extends AnyVal {
+  def castOption[T](implicit ct: ClassTag[T]): Option[T] =
+    if (ct.runtimeClass.isInstance(a))
+      Some(a.asInstanceOf[T])
+    else
+      None
+}
 
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -995,6 +1003,8 @@ object Utils extends Logging {
     def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
       mutable.Map.empty[K, Int]
   }
+
+  implicit def toRichAny(a: Any): RichAny = new RichAny(a)
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 }
