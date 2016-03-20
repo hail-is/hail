@@ -179,20 +179,28 @@ If `splitmulti` has been run:
 
 Example.  For an multi-allelic site:
 
+```
 A	T,G
+```
 
 after splitting:
 
+```
 A	T	wasSplit=true,aIndex=0
 A	G	wasSplit=true,aIndex=1
+```
 
 For a biallelic site:
 
+```
 A	T
+```
 
 after splitting:
 
+```
 A	T	wasSplit=false,aIndex=0
+```
 
 If `variantqc --store` has been run:
  - `va.qc.<FIELD>:        Any` -- matches (with proper capitalization) variant qc fields.  [See list of available computed statistics here.](QC.md)
