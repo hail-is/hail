@@ -587,6 +587,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     (lhs.`type`, rhs) match {
       case (TSample, "id") => TString
       case (TGenotype, "gt") => TInt
+      case (TGenotype, "gtj") => TInt
+      case (TGenotype, "gtk") => TInt
       case (TGenotype, "ad") => TArray(TInt)
       case (TGenotype, "dp") => TInt
       case (TGenotype, "od") => TInt
@@ -659,6 +661,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
     case (TGenotype, "gt") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.gt)
+    case (TGenotype, "gtj") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.gt.map(gtx => Genotype.gtPair(gtx).j))
+    case (TGenotype, "gtk") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.gt.map(gtx => Genotype.gtPair(gtx).k))
     case (TGenotype, "ad") =>
       AST.evalFlatCompose[Genotype](c, lhs)(g => g.ad.map(a => a: IndexedSeq[Int]))
     case (TGenotype, "dp") =>

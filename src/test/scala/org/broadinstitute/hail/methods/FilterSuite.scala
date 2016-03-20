@@ -5,6 +5,7 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
+import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
 import scala.collection.mutable.ArrayBuffer
@@ -21,7 +22,12 @@ class FilterSuite extends SparkSuite {
       "a" ->(6, TArray(TInt)),
       "m" ->(7, TInt),
       "as" ->(8, TArray(TStruct(("a", TInt),
-        ("b", TString)))))
+        ("b", TString)))),
+      "gs" ->(9, TStruct(("noCall", TGenotype),
+        ("homRef", TGenotype),
+        ("het", TGenotype),
+        ("homVar", TGenotype),
+        ("hetNonRef35", TGenotype))))
     val a = new ArrayBuffer[Any]()
     a += 5
     a += -7
@@ -33,11 +39,30 @@ class FilterSuite extends SparkSuite {
     a += null
     a += (Array[Any](Annotation(23, "foo"),
       Annotation(-7, null)): IndexedSeq[Any])
+    a += Annotation(
+      Genotype(),
+      Genotype(gt = Some(0)),
+      Genotype(gt = Some(1)),
+      Genotype(gt = Some(2)),
+      Genotype(gt = Some(Genotype.gtIndex(3, 5))))
 
     def eval[T](s: String): T = {
       val f = Parser.parse[T](symTab, null, a, s)
       f()
     }
+
+    assert(eval[Boolean]("gs.noCall.gt.isMissing"))
+    assert(eval[Boolean]("gs.noCall.gtj.isMissing"))
+    assert(eval[Boolean]("gs.noCall.gtk.isMissing"))
+
+    assert(eval[Int]("gs.homRef.gtj") == 0
+      && eval[Int]("gs.homRef.gtk") == 0)
+    assert(eval[Int]("gs.het.gtj") == 0
+      && eval[Int]("gs.het.gtk") == 1)
+    assert(eval[Int]("gs.homVar.gtj") == 1
+      && eval[Int]("gs.homVar.gtk") == 1)
+    assert(eval[Int]("gs.hetNonRef35.gtj") == 3
+      && eval[Int]("gs.hetNonRef35.gtk") == 5)
 
     assert(eval[Int]("i.orElse(3)") == 5)
     assert(eval[Int]("m.orElse(3)") == 3)

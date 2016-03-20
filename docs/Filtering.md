@@ -116,6 +116,8 @@ Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without e
 
 **Genotype:** `g`
  - `g.gt                  Int` -- the call, `gt = k*(k+1)/2+j` for call `j/k`
+ - `g.gtj                 Int` -- the first called allele, `j` for call `j/k`
+ - `g.gtk                 Int` -- the second called allele, `k` for call `j/k`
  - `g.ad:          Array[Int]` -- allelic depth for each allele
  - `g.dp:                 Int` -- the total number of informative reads
  - `g.od                  Int` -- `od = dp - ad.sum`
@@ -170,9 +172,28 @@ There are no mandatory methods for annotation classes.  Annotations are generate
  - `va.qual:           Double` -- the number in the qual field
  - `va.multiallelic:  Boolean` -- true if the variant is multiallelic or was split
  - `va.info.<field>:      Any` -- matches (with proper capitalization) any defined info field.  Data types match the definition in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array.
+
 If `splitmulti` has been run:
  - `va.wasSplit       Boolean` -- this variant was originally multiallelic 
- - `va.aIndex             Int` -- The original index of this variant in imported line, 0 for imported biallelic sites
+ - `va.aIndex             Int` -- Original, pre-split alternate alelle index of the alternate allele at this site.  
+
+Example.  For an multi-allelic site:
+
+A	T,G
+
+after splitting:
+
+A	T	wasSplit=true,aIndex=0
+A	G	wasSplit=true,aIndex=1
+
+For a biallelic site:
+
+A	T
+
+after splitting:
+
+A	T	wasSplit=false,aIndex=0
+
 If `variantqc --store` has been run:
  - `va.qc.<FIELD>:        Any` -- matches (with proper capitalization) variant qc fields.  [See list of available computed statistics here.](QC.md)
 

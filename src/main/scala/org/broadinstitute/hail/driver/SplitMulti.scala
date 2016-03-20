@@ -120,7 +120,7 @@ object SplitMulti extends Command {
     splitVariants.iterator
       .zip(splitGenotypeStreamBuilders.iterator)
       .map { case ((v, ind), gsb) =>
-        (v, insertSplitAnnots(va, ind, true), gsb.result())
+        (v, insertSplitAnnots(va, ind - 1, true), gsb.result())
       }
   }
 
