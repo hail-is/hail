@@ -320,7 +320,7 @@ itemRgb="On"
 20    17000000   18000000  cnv2
 ```
 
-This file has a more complicated header, but the header will always be skipped (Hail is not a genome browser).  However, it also has a fourth column, so this column will be parsed as a string.  The command line should be identical:
+This file has a more complicated header, but that does not affect Hail's parsing because the header is always skipped (Hail is not a genome browser).  However, it also has a fourth column, so this column will be parsed as a string.  The command line should follow the same format:
 
 ```
 $ hail [read / import / previous commands] \
@@ -341,7 +341,16 @@ va: va.<identifier>
 ____
 
 <a name="VCF"></a>
-### 
+### VCF files (.vcf[.bgz])
+
+Hail can call out to its `importvcf` module internally to read VCF files and merge their annotations into a VDS.
+UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQformat.html#format1) function similarly to .interval_list files, with a slightly different format.  Like interval list files, bed files can produce either a string or boolean annotation, depending on the presence of the 4th column (the target).  
+
+**Command line arguments:**
+- `-c <path-to-bed>, --condition <path-to-bed>` specify the file path **(Required)**
+- `-r <root>, --root <root>` specify the annotation path in which to place the field read from the bed, as a period-delimited list starting with `va` **(Required)**
+
+UCSC bed files can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (`chrom`, `chromStart`, and `chromEnd`).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a boolean annotation based on whether that variant was a member of any interval.
 
 
 <a name="VDS"></a>
