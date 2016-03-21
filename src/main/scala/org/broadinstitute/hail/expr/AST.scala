@@ -693,7 +693,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Genotype](c, lhs)(_.isNotCalled)
     case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](c, lhs)(_.nNonRefAlleles)
     case (TGenotype, "pAB") =>
-      AST.evalCompose[Genotype](c, lhs)(_.pAB())
+      AST.evalFlatCompose[Genotype](c, lhs)(_.pAB())
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](c, lhs)(_.contig)
