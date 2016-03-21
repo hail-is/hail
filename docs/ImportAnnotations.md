@@ -343,7 +343,7 @@ ____
 <a name="VCF"></a>
 ### VCF files (.vcf[.bgz])
 
-Hail can call out to its `importvcf` module internally to read VCF files and merge their annotations into a VDS.
+Hail can read vcf files to annotate a variant dataset.  Since Hail internally calls out to its `importvcf` module, these files must follow the same format / spec as described in the [importvcf module documentation].  Hail will read the same annotations as described
 UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQformat.html#format1) function similarly to .interval_list files, with a slightly different format.  Like interval list files, bed files can produce either a string or boolean annotation, depending on the presence of the 4th column (the target).  
 
 **Command line arguments:**
