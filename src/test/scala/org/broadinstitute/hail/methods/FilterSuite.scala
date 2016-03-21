@@ -260,4 +260,15 @@ class FilterSuite extends SparkSuite {
     val s2 = FilterVariants.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))
     assert(s2.vds.nVariants == vds.nVariants)
   }
+
+  @Test def testPAB() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterGenotypes.run(state, Array("--keep", "-c", "g.isHet && g.pAB > 0.0005"))
+    s2.vds.expand()
+      .collect()
+      .foreach { case (v, s, g) =>
+          assert(!g.isHet || g.pAB().forall(_ > 0.0005))
+      }
+  }
 }
