@@ -18,8 +18,9 @@ ____
 This file format requires one column containing sample IDs, and each other column will be written to sample annotations.
 
 **Command line arguments:**
+
 - `-c <path-to-tsv>, --condition <path-to-tsv>` specify the file path **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited list starting with `sa` **(Required)**
+- `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `sa` **(Required)**
 - `-s <id>, --sampleheader <id>` specify the name of the column containing sample IDs **(Optional with default "Sample")**
 - `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
 - `-m <missings>, --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")** 
@@ -88,7 +89,7 @@ $ hail [read / import, previous commands] \
         -r sa.group1.batch
 ```
 
-***
+____
    
 <a name="SampleProg"></a>
 ### Programmatic Annotation
@@ -96,6 +97,7 @@ $ hail [read / import, previous commands] \
 Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the sample (`s`) and the sample annotations (`sa`).
 
 **Command line arguments:**
+
  - `-c <condition>, --condition <condition>` 
  
  For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
@@ -122,8 +124,9 @@ ____
 This file format requires either one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations.
 
 **Command line arguments:**
+
 - `-c <path-to-tsv>, --condition <path-to-tsv>` specify the file path **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited list starting with `va` **(Required)**
+- `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `va` **(Required)**
 - `-v <variantcols>, --vcolumns <variantcols>` Either one column name (if Chr:Pos:Ref:Alt), or four comma-separated column identifiers **(Optional with default "Chromosome, Position, Ref, Alt")**
 - `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
 - `-m <missings>, --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")** 
@@ -187,6 +190,16 @@ $ hail [read / import / previous commands] \
         -v "Chr,Pos,Ref,Alt"
 ```
 
+And the schema:
+
+```
+Variant annotations:  
+va: va.<identifier>
+    <probably lots of other stuff here>
+    exac: va.exac.<identifier>
+        AC: Int
+```
+
 ____
 
 <a name="IntervalList"></a>
@@ -195,8 +208,9 @@ ____
 Interval list files annotate variants in certain regions of the genome.  Depending on the format of the file used, these can annotate variants with a boolean (whether the variant was in a window in the file) or a string (the target field).
 
 **Command line arguments:**
+
 - `-c <path-to-interval-list>, --condition <path-to-interval-list>` specify the file path **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the field read from the interval list, as a period-delimited list starting with `va` **(Required)**
+- `-r <root>, --root <root>` specify the annotation path in which to place the field read from the interval list, as a period-delimited path starting with `va` **(Required)**
 
 There are two formats for interval list files.  The first appears as `chromosome:start-end` as below.  This format will annotate variants with a **boolean**, which is `true` if that variant is found in any interval specified in the file and `false` otherwise.
     
@@ -272,8 +286,9 @@ ____
 UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQformat.html#format1) function similarly to .interval_list files, with a slightly different format.  Like interval list files, bed files can produce either a string or boolean annotation, depending on the presence of the 4th column (the target).  
 
 **Command line arguments:**
+
 - `-c <path-to-bed>, --condition <path-to-bed>` specify the file path **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the field read from the bed, as a period-delimited list starting with `va` **(Required)**
+- `-r <root>, --root <root>` specify the annotation path in which to place the field read from the bed, as a period-delimited path starting with `va` **(Required)**
 
 UCSC bed files can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (`chrom`, `chromStart`, and `chromEnd`).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a boolean annotation based on whether that variant was a member of any interval.
 
@@ -343,24 +358,130 @@ ____
 <a name="VCF"></a>
 ### VCF files (.vcf[.bgz])
 
-Hail can read vcf files to annotate a variant dataset.  Since Hail internally calls out to its `importvcf` module, these files must follow the same format / spec as described in the [importvcf module documentation].  Hail will read the same annotations as described
-UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQformat.html#format1) function similarly to .interval_list files, with a slightly different format.  Like interval list files, bed files can produce either a string or boolean annotation, depending on the presence of the 4th column (the target).  
+Hail can read vcf files to annotate a variant dataset.  Since Hail internally calls out to its `importvcf` module, these files must follow the same format / spec as described in the [importvcf module documentation](Importing.md).  Any VCF to spec will function in this module, but "info-only" VCFs are preferred (no samples, no format field in each line, 8 fields total).  Hail will read the same annotations as described in the importing documentation linked above.
 
 **Command line arguments:**
-- `-c <path-to-bed>, --condition <path-to-bed>` specify the file path **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the field read from the bed, as a period-delimited list starting with `va` **(Required)**
 
-UCSC bed files can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (`chrom`, `chromStart`, and `chromEnd`).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a boolean annotation based on whether that variant was a member of any interval.
+- `-c <path-to-vcf>, --condition <path-to-vcf>` specify the file path **(Required)**
+- `-r <root>, --root <root>` specify the annotation path in which to place the annotations read from the vcf, as a period-delimited path starting with `va` **(Required)**
 
+____
+
+**Example 1**
+
+```
+$ hdfs dfs -zcat 1kg.chr22.vcf.bgz
+##fileformat=VCFv4.1
+##FILTER =<ID=LowQual,Description="Low quality">
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes, for each ALT allele, in the same order as listed">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency, for each ALT allele, in the same order as listed">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##INFO=<ID=BaseQRankSum,Number=1,Type=Float,Description="Z-score from Wilcoxon rank sum test of Alt Vs. Ref base qualities">
+ ...truncated...
+#CHROM  POS             ID      REF     ALT     QUAL            FILTER  INFO
+22      16050036        .       A       C       19961.13        .       AC=1124;AF=0.597;AN=1882;BaseQRankSum=2.875
+22      16050115        .       G       A       134.13          .       AC=20;AF=7.252e-03;AN=2758;BaseQRankSum=5.043
+22      16050159        .       C       T       12499.96        .       AC=689;AF=0.266;AN=2592;BaseQRankSum=-6.983
+22      16050213        .       C       T       216.35          .       AC=25;AF=8.096e-03;AN=3088;BaseQRankSum=-2.275
+22      16050252        .       A       T       22211           .       AC=1094;AF=0.291;AN=3754;BaseQRankSum=-7.052
+22      16050408        .       T       C       83.90           .       AC=75;AF=0.015;AN=5026;BaseQRankSum=-18.144
+ ...truncated...
+```
+
+The proper command line:
+
+```
+$ hail [read / import / previous commands] \
+    annotatevariants \
+        -c /user/me/1kg.chr22.vcf.bgz \
+        -r va.1kg \
+```
+
+The schema will include all the standard VCF annotations, as well as the info field:
+
+```
+Variant annotations:
+va: va.<identifier>   
+    <probably lots of other stuff here>
+    1kg: va.1kg.<identifier>
+        pass: Boolean
+        filters: Set[String]
+        rsid: String
+        qual: Double
+        cnvRegion: String
+        info: va.1kg.info.<identifier>
+            AC: Int
+            AF: Double
+            AN: Int
+            BaseQRankSum: Double
+```
 
 <a name="VDS"></a>
-<a name="FAF"></a>
-1. **Tab separated values (.tsv[.gz]).**  This file format **requires** 4 columns for contig, position, ref, and alt.  Each other column in the file will be written to variant annotations.  The following command line arguments exist for .tsv files:
- - `-v | --vcolumns <columns>` -- specify the column headers for the contig, position, ref, and alt fields.  (Default: `Chromosome,Position,Ref,Alt`)
- - `-t | --types <type string>` -- specify data types of fields, in a comma-delimited string of `name:Type` elements.  If a field is not found in this type map, it will be interpreted as a string. (optional)
- - `-m | --missing <missing values>` -- specify identifiers to be treated as missing, in a comma-separated list.  (Default: `NA`)
-2. **VCF (vcf, vcf.gz, vcf.bgz).**  This file format **requires** the `--root` command line option so that all info field annotations in the variant dataset are not overwritten.
-4. **Interval list (.interval_list, .interval_list.gz).**  This file extension encompasses two file formats, `chr:start-end` and `chr start end strand target` (tsv).  The former will produce a boolean annotation, while the latter will store the `target` as a string.  The following argument is **required** for interval_list files:
- - `-i | --identifier <name>` -- Choose the name of the annotation in the vds.  If a `root` is specified, it can be found in `va.root.identifier`, otherwise `va.identifier`.
-5. **UCSC bed (.bed, .bed.gz).**  This format is similar to the interval_list format.  The annotation name is designated in the track header of the bed file (`name="identifier"`).  If the body of the file contains the fourth (name) column, the annotation will be stored as a string with that field, otherwise boolean.  The spec for UCSC BED files is defined  [here.](https://genome.ucsc.edu/FAQ/FAQformat.html#format1)
-6. **Hail-processed RDDs (.faf).**  Large TSV and VCF files can be very slow to parse and load into memory.  Since we still want to load these files, Hail supports reading pre-parsed and serialized files generated with the `convertannotations` module. [See conversion documentation here.](ConvertAnnotations.md)
+### Hail variant dataset (.vds) files
+
+Hail can also annotate from other VDS files.  This functionality calls out to the `read` module, and merges variant annotations into the current dataset.  These files may come from standard imported datasets, or could be generated by Hail's [preprocess annotations module](PreprocessAnnotations.md).
+
+**Command line arguments:**
+
+- `-c <path-to-vds>, --condition <path-to-vds>` specify the path to the VDS **(Required)**
+- `-r <root>, --root <root>` specify the annotation path in which to place the annotations read from the vds, as a period-delimited path starting with `va` **(Required)**
+
+____
+
+**Example 1**
+
+```
+$ hail read /user/me/myfile.vds showannotations
+hail: info: running: read /user/me/myfile.vds
+hail: info: running: showannotations
+Sample annotations:
+sa: Empty
+
+Variant annotations:
+va: va.<identifier>
+  rsid: String
+  qual: Double
+  filters: Set[String]
+  pass: Boolean
+  info: va.info.<identifier>
+    AC: Int
+  custom_annotation_1: Double
+```
+
+The above VDS file was imported from a VCF, and thus contains all the expected annotations from VCF files, as well as one user-added custom annotation (`va.custom_annotation_1`).  The proper command line to import it is below:
+
+```
+$ hail [read / import / previous commands] \
+    annotatevariants \
+        -c /user/me/myfile.vds \
+        -r va.other \
+```
+
+The schema produced will look like this:
+
+```
+Variant annotations:
+va: va.<identifier>   
+    <probably lots of other stuff here>
+    other: va.other.<identifier>
+        rsid: String
+        qual: Double
+        filters: Set[String]
+        pass: Boolean
+        info: va.1kg.info.<identifier>
+            AC: Int
+        custom_annotation_1: Double
+```
+
+____
+   
+<a name="VariantProg"></a>
+### Programmatic Annotation
+
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the variant (`v`) and the variant annotations (`va`).
+
+**Command line arguments:**
+
+`-c <condition>, --condition <condition>` 
+
+For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)

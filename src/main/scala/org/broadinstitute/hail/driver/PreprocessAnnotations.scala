@@ -6,8 +6,10 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{StructField, StructType}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.io.annotators._
-import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
+import org.broadinstitute.hail.methods.LoadVCF
+import org.broadinstitute.hail.variant.{GenotypeStream, GenotypeStreamBuilder, Variant, VariantDataset, VariantMetadata}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object PreprocessAnnotations extends Command {
@@ -18,7 +20,7 @@ object PreprocessAnnotations extends Command {
     var condition: String = _
 
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"),
-      usage = "Path for writing write serialized file")
+      usage = "Path for writing annotation VDS")
     var output: String = _
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
@@ -39,51 +41,36 @@ object PreprocessAnnotations extends Command {
 
   def name = "preprocessannotations"
 
-  def description = "Convert a tsv or vcf file containing variant annotations into the fast hail format"
+  def description = "Convert a tsv file containing variant annotations into a sample-free vds"
 
   def run(state: State, options: Options): State = {
-    val vds = state.vds
-
     val out = options.output
-    if (!out.endsWith(".faf"))
-      fatal("Output path must end in 'faf'")
+    if (!out.endsWith(".vds"))
+      fatal("Output path must end in '.vds'")
 
     val cond = options.condition
 
     val conf = state.sc.hadoopConfiguration
     val serializer = SparkEnv.get.serializer.newInstance()
 
-    val (rdd, signature) = hadoopStripCodec(options.condition, conf) match {
+    val vds = hadoopStripCodec(options.condition, conf) match {
       case tsv if tsv.endsWith(".tsv") =>
-        VariantTSVAnnotator(state.sc, cond, AnnotateVariants.parseColumns(options.vCols),
-          AnnotateVariants.parseTypeMap(options.types), AnnotateVariants.parseMissing(options.missingIdentifiers))
-      case vcf if vcf.endsWith(".vcf") =>
-        VCFAnnotator(state.sc, cond)
+        val (rdd, signature) = VariantTSVAnnotator(state.sc, cond, AnnotateVariants.parseColumns(options.vCols),
+          AnnotateVariants.parseTypeMap(Option(options.types).getOrElse("")), AnnotateVariants.parseMissing(options.missingIdentifiers))
+        new VariantDataset(
+          VariantMetadata(IndexedSeq.empty[(String, String)], Array.empty[String], Annotation.emptyIndexedSeq(0),
+            expr.TEmpty, signature, wasSplit = true),
+          Array.empty[Int],
+          rdd.map { case (v, va) => (v, va, new GenotypeStreamBuilder(v, true).result()) })
       case _ =>
         fatal(
-          """This module requires an input file ending in one of the following:
-            |  .tsv (tab separated values with chr, pos, ref, and alt columns, or chr:pos:ref:alt column)
-            |  .vcf (vcf, only the info field / filters / qual are parsed here)""".stripMargin)
+          """This module requires an input file in the following format:
+            |  .tsv (tab separated values with chr, pos, ref, and alt columns, or chr:pos:ref:alt column)""".stripMargin)
     }
 
-    hadoopDelete(out, conf, true)
+    hadoopDelete(out, state.hadoopConf, recursive = true)
 
-    hadoopMkdir(out, conf)
-    writeDataFile(out + "/signature.ser", conf) {
-      dos => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        serializer.serializeStream(dos).writeObject(signature)
-      }
-    }
-
-    val schema = StructType(Array(
-      StructField("variant", Variant.schema, false),
-      StructField("annotation", signature.schema, true)
-    ))
-
-    state.sqlContext.createDataFrame(rdd.map { case (v, a) => Row.fromSeq(Array(v.toRow, a)) }, schema)
-      .write.parquet(out + "/rdd.parquet")
-    // .saveAsParquetFile(dirname + "/rdd.parquet")
+    vds.write(state.sqlContext, out)
 
     state
   }

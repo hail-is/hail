@@ -134,7 +134,7 @@ object AnnotateVariants extends Command {
         if (options.vCols != null)
           warn("argument 'vcolumns' is unnecessary for '.vds' annotation, ignoring it")
         val readOtherVds = {
-          val s2 = Read.run(State(state.sc, state.sqlContext, null))
+          val s2 = Read.run(State(state.sc, state.sqlContext, null), Array("-i", cond))
           if (s2.vds.wasSplit)
             s2.vds
           else
@@ -142,17 +142,6 @@ object AnnotateVariants extends Command {
         }
         vds.annotateVariants(readOtherVds.variantsAndAnnotations,
           readOtherVds.vaSignature, parseRoot(options.root))
-      case fastFormat if fastFormat.endsWith(".faf") =>
-        if (options.root == null)
-          fatal("argument 'root' is required for 'fast annotation format' annotation")
-        if (options.types != null)
-          warn("argument 'types' is unnecessary for 'fast annotation format' annotation, ignoring it")
-        if (options.missingIdentifiers != null)
-          warn("argument 'missing' is unnecessary for 'fast annotation format' annotation, ignoring it")
-        if (options.vCols != null)
-          warn("argument 'vcolumns' is unnecessary for 'fast annotation format' annotation, ignoring it")
-        val (rdd, signature) = ParquetAnnotator(cond, state.sqlContext)
-        vds.annotateVariants(rdd, signature, parseRoot(options.root))
       case programmatic =>
         if (options.root != null)
           warn("argument 'root' is unnecessary for programmatic annotation, ignoring it")

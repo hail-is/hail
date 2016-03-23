@@ -158,20 +158,26 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val vcf1 = AnnotateVariants.run(state, Array("-c", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
 
+      val s2 = ImportVCF.run(state, Array("src/test/resources/sampleInfoOnly.vcf"))
+    Write.run(s2, Array("-o", "/tmp/variantAnnotationsVCF.vds"))
+
     PreprocessAnnotations.run(state,
       Array("-c", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double",
-        "-o", "/tmp/variantAnnotationsTSV.faf"))
-    PreprocessAnnotations.run(state,
-      Array("-c", "src/test/resources/sampleInfoOnly.vcf", "-o", "/tmp/variantAnnotationsVCF.faf"))
+        "-o", "/tmp/variantAnnotationsTSV.vds"))
 
-    val tsvSer1r = AnnotateVariants.run(state,
-      Array("-c", "/tmp/variantAnnotationsTSV.faf", "-r", "va.stuff"))
+    val tsvToVDS = AnnotateVariants.run(state,
+      Array("-c", "/tmp/variantAnnotationsTSV.vds", "-r", "va.stuff"))
 
-    val vcfSer1 = AnnotateVariants.run(state,
-      Array("-c", "/tmp/variantAnnotationsVCF.faf", "-r", "va.other"))
+    val vcfToVDS = AnnotateVariants.run(state,
+      Array("-c", "/tmp/variantAnnotationsVCF.vds", "-r", "va.other"))
 
-    assert(tsv1r.vds.same(tsvSer1r.vds))
-    assert(vcf1.vds.same(vcfSer1.vds))
+
+//    val vcfToVDS2 = AnnotateVariants.run(state,
+//      Array("-c", "/tmp/variantAnnotationsVCF2.vds", "-r", "va.other"))
+
+
+    assert(tsv1r.vds.same(tsvToVDS.vds))
+    assert(vcf1.vds.same(vcfToVDS.vds))
   }
 }
 

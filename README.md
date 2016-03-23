@@ -3,6 +3,7 @@
 ## Table of Contents
 
 1. [Representation](docs/Representation.md)
+2. [Hail's expression language](docs/HailExpressionLanguage.md)
 2. [Importing](docs/Importing.md)
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
 4. [Renaming Samples](docs/RenameSamples.md)
