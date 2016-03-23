@@ -3,7 +3,7 @@ package org.broadinstitute.hail.variant
 import breeze.linalg._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.{Row, DataFrame, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.RichRow._
@@ -131,10 +131,20 @@ case class HardCallSet(df: DataFrame, localSamples: Array[Int], sampleIds: Index
     else
       CovariateData(covRowSample, Array[String](), None)
   }
+
+  def writeNVariantsPerBlock(filename: String) {
+    def removeChr(s: String): String = if (s.startsWith("chr")) s.drop(3) else s
+
+    df.groupBy("contig", "block")
+      .count()
+      .sort("contig", "block")
+      .map(r => s"${removeChr(r.getString(0))}\t${r.getInt(1)}\t${r.getLong(2)}")
+      .writeTable(filename, Some("CHR\tBLOCK\tN"))
+  }
 }
 
 
-case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, nMissing: Int)
+case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, nMiossing: Int)
 
 
 object CallStream {
