@@ -91,4 +91,4 @@ The above command will produce one annotation, where `va.a` is `3`.  You should 
 Some common reasons to create new annotations from existing ones are:
 
 1. **Simplifying a workflow.**  If there is a metric computed from other annotations that is used in multiple places in a workflow, it should be placed in annotations.  This will also have performance benefits if the metric is expensive to compute.
-2. **VCF info field annotations.**  Hail does not recompute the metrics in `va.info` when samples or genotypes are filtered, so something like `info.AC` does not necessarily reflect the state of data passed to `exportvcf`.  This can be resolved by copying annotations to `va.info`.  [See additional information here.](ExportVCF.md)
+2. **VCF info field annotations.**  Hail does not recompute the metrics in `va.info` when samples or genotypes are filtered, so something like `info.AC` does not necessarily reflect the state of data passed to `exportvcf`.  This can be resolved by copying annotations to `va.info`.  [See additional information here.](ExportVCF.md#annotations)

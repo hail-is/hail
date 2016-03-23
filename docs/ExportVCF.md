@@ -26,6 +26,7 @@ Hail's VCF header will not contain:
  - contig lines
  - lines added by external tools (bcftools, GATK, etc.)
 
+<a name="annotations"></a>
 ## Annotations included in the info field
 
 In order to determine what to export in the INFO field of a VCF, Hail looks in the variant annotation schema under `va.info`.  The workflow `hail importvcf <args> exportvcf <args>` will write out the same info field that was read in.  This means that problems can emerge when a workflow becomes more complicated.  If samples or genotypes are filtered after importing a VCF, the value stored in `va.info.AC` value may no longer reflect the number of called alternate alleles in the variant dataset.  If this state is exported to VCF, downstream tools may produce false results.
@@ -50,4 +51,4 @@ $ hail importvcf file.vcf.bgz \
 
 For more information about what types of functionality is available to copy and create annotations, [see the documentation here](ProgrammaticAnnotation.md)
 
-Hail's VCF will not contain any added sample annotations, or variant annotations not in `va.info`.
+**Hail's VCF will not contain any added sample annotations, or variant annotations not in `va.info`.**
