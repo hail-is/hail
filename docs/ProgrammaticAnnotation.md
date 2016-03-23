@@ -58,7 +58,20 @@ hail read -i my.vds \
  annotatevariants -c 'va.a = 2, va.b = 3, va.c = 4, va.d = if (va.pass) va.qc.pHWE else 1'
 ```
 
+```
+hail read -i my.vds \
+ variantqc \
+ annotatevariants -c 'va.a = 2, va.b = 3, va.c = 4, va.d = if (va.pass) va.qc.pHWE else 1'
+```
+
+```
+hail read -i my.vds \
+ variantqc \
+ annotatevariants -c 'va.info.AC = va.qc.MAC'
+```
+
 ____
+
  
 ## Order of operations
 
@@ -76,5 +89,6 @@ The above command will produce one annotation, where `va.a` is `3`.  You should 
 ## Reasons to use this functionality
 
 Some common reasons to create new annotations from existing ones are:
+
 1. **Simplifying a workflow.**  If there is a metric computed from other annotations that is used in multiple places in a workflow, it should be placed in annotations.  This will also have performance benefits if the metric is expensive to compute.
 2. **VCF info field annotations.**  Hail does not recompute the metrics in `va.info` when samples or genotypes are filtered, so something like `info.AC` does not necessarily reflect the state of data passed to `exportvcf`.  This can be resolved by copying annotations to `va.info`.  [See additional information here.](ExportVCF.md)
