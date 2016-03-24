@@ -39,22 +39,59 @@ object FilterVariants extends Command {
     val vas = vds.vaSignature
     val cond = options.condition
     val keep = options.keep
-    val p: (Variant, Annotation) => Boolean = cond match {
+    val p: (Variant, Annotation, Iterable[Genotype]) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
         val ilistBc = state.sc.broadcast(ilist)
-        (v: Variant, va: Annotation) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
+        (v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+          Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
       case c: String =>
         val symTab = Map(
           "v" ->(0, TVariant),
-          "va" ->(1, vas))
+          "va" ->(1, vas),
+          "gs" ->(2, TGenotypeStream))
+        val symTab2 = Map(
+          "v" ->(0, TVariant),
+          "va" ->(1, vas),
+          "s" ->(2, TSample),
+          "sa" ->(3, vds.saSignature),
+          "g" ->(4, TGenotype)
+        )
         val a = new ArrayBuffer[Any]()
+        val a2 = new ArrayBuffer[Any]()
+        val a3 = new ArrayBuffer[Aggregator]()
         for (_ <- symTab)
           a += null
-        val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
-        (v: Variant, va: Annotation) => {
+        for (_ <- symTab2)
+          a2 += null
+        val f: () => Any = Parser.parse[Any](symTab, symTab2, TBoolean, a, a2, a3, options.condition)
+        for (_ <- a3)
+          a2 += null
+        println(a3.length)
+        val sampleAnnotationsBc = vds.sparkContext.broadcast(
+          vds.localSamples.map(vds.sampleAnnotations)
+            .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
+        (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
           a(0) = v
           a(1) = va
+          a(2) = gs
+
+          val computations = a3.toArray.map(_._1)
+          gs.iterator
+            .zip(sampleAnnotationsBc.value.iterator)
+            .foreach {
+              case (g, (sa, s)) =>
+                a2(0) = v
+                a2(1) = va
+                a2(2) = s
+                a2(3) = sa
+                a2(4) = g
+                a3.iterator.zipWithIndex
+                  .foreach {
+                    case ((zv, so, co), i) =>
+                      computations(i) = so(computations(i))
+                  }
+            }
           Filter.keepThisAny(f(), keep)
         }
     }

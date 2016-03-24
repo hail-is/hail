@@ -47,7 +47,7 @@ class FilterSuite extends SparkSuite {
       Genotype(gt = Some(Genotype.gtIndex(3, 5))))
 
     def eval[T](s: String): T = {
-      val f = Parser.parse[T](symTab, null, a, s)
+      val f = Parser.parse[T](symTab, null, null, a, null, null, s)
       f()
     }
 

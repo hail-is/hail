@@ -4,13 +4,16 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.broadinstitute.hail.variant.{Sample, AltAllele, Variant, Genotype}
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, GenotypeStream, Sample, Variant}
+import sun.security.pkcs11.wrapper.Functions
+
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
 
-case class EvalContext(symTab: SymbolTable,
-  a: ArrayBuffer[Any])
+case class EvalContext(symTab: SymbolTable, symTab2: SymbolTable,
+  a: ArrayBuffer[Any], a2: ArrayBuffer[Any],
+  functions: ArrayBuffer[Aggregator], useSecond: Boolean)
 
 trait NumericConversion[T] extends Serializable {
   def to(numeric: Any): T
@@ -181,7 +184,21 @@ case object TString extends Type {
   def schema = StringType
 }
 
-case class TArray(elementType: Type) extends Type {
+abstract class TIterable extends Type {
+  def elementType: Type
+}
+
+case object TGenotypeStream extends TIterable {
+  override def toString = "GenotypeStream"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Iterable[Genotype]]
+
+  def schema = GenotypeStream.schema
+
+  def elementType: Type = TGenotype
+}
+
+case class TArray(elementType: Type) extends TIterable {
   override def toString = s"Array[$elementType]"
 
   override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
@@ -561,13 +578,13 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
 
   def eval(c: EvalContext): () => Any
 
-  def typecheckThis(typeSymTab: SymbolTable): Type = typecheckThis()
+  def typecheckThis(typeSymTab: SymbolTable, typeSymTab2: SymbolTable, useSecond: Boolean): Type = typecheckThis()
 
   def typecheckThis(): Type = throw new UnsupportedOperationException
 
-  def typecheck(typeSymTab: SymbolTable) {
-    subexprs.foreach(_.typecheck(typeSymTab))
-    `type` = typecheckThis(typeSymTab)
+  def typecheck(typeSymTab: SymbolTable, typeSymTab2: SymbolTable, useSecond: Boolean) {
+    subexprs.foreach(_.typecheck(typeSymTab, typeSymTab2, useSecond))
+    `type` = typecheckThis(typeSymTab, typeSymTab2, useSecond)
   }
 
   def parseError(msg: String): Nothing = ParserUtils.error(pos, msg)
@@ -797,26 +814,42 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
-  override def typecheck(symTab: SymbolTable) {
+  override def typecheck(symTab: SymbolTable, symTab2: SymbolTable, useSecond: Boolean) {
     (method, args) match {
       case ("find", Array(Lambda(_, param, body))) =>
-        lhs.typecheck(symTab)
+        lhs.typecheck(symTab, symTab2, useSecond)
 
         val elementType = lhs.`type` match {
           case TArray(elementType) => elementType
           case _ =>
-            fatal("no `$method' on non-array")
+            fatal(s"no `$method' on non-array")
         }
 
         `type` = elementType
 
         // index unused in typecheck
-        body.typecheck(symTab + (param ->(-1, elementType)))
+        body.typecheck(symTab + (param ->(-1, elementType)), symTab2, useSecond)
         if (body.`type` != TBoolean)
           fatal(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
 
+      case ("count", Array(rhs)) =>
+        lhs.typecheck(symTab, symTab2, useSecond)
+
+        val elementType = lhs.`type` match {
+          case iter: TIterable => iter.elementType
+          case _ =>
+            fatal(s"no `$method' on non-iterable")
+        }
+
+        `type` = TInt
+
+        rhs.typecheck(symTab, symTab2, true)
+        if (rhs.`type` != TBoolean)
+          fatal(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
+
+
       case _ =>
-        super.typecheck(symTab)
+        super.typecheck(symTab, symTab2, useSecond)
     }
   }
 
@@ -861,6 +894,26 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           } else
             null
         f(0)
+      }
+
+    case (returnType, "count", Array(rhs)) =>
+      val localIdx = c.a2.length
+      val fn = rhs.eval(c.copy(useSecond = true))
+      val localA2 = c.a2
+      val localFunctions = c.functions
+      val seqOp: (Any) => Any =
+        (sum) => {
+          val ret = fn().asInstanceOf[Boolean]
+          val toAdd = if (ret)
+            1
+          else
+            0
+          sum.asInstanceOf[Int] + toAdd
+        }
+      val combOp: (Any, Any) => Any = _.asInstanceOf[Int] + _.asInstanceOf[Int]
+      localFunctions += ((0, seqOp, combOp))
+      AST.evalCompose[Any](c, lhs) {
+        case a => c.a2(localIdx)
       }
 
     case (_, "orElse", Array(a)) =>
@@ -1055,21 +1108,37 @@ case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def eval(c: EvalContext): () => Any = {
-    val i = c.symTab(symbol)._1
-    val localA = c.a
-    () => localA(i)
+
+    if (c.useSecond) {
+      val localI = c.symTab2(symbol)._1
+      val localA = c.a2
+      () => localA(localI)
+    } else {
+      val localI = c.symTab(symbol)._1
+      val localA = c.a
+      () => localA(localI)
+    }
   }
 
-  override def typecheckThis(typeSymTab: SymbolTable): Type = typeSymTab.get(symbol) match {
-    case Some((_, t)) => t
-    case None =>
-      parseError(s"symbol `$symbol' not found")
+  override def typecheckThis(typeSymTab: SymbolTable, typeSymTab2: SymbolTable, useSecond: Boolean): Type = {
+    if (useSecond)
+      typeSymTab2.get(symbol) match {
+        case Some((_, t)) => t
+        case None =>
+          parseError(s"symbol `$symbol' not found")
+      }
+    else
+      typeSymTab.get(symbol) match {
+        case Some((_, t)) => t
+        case None =>
+          parseError(s"symbol `$symbol' not found")
+      }
   }
 }
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
-  override def typecheckThis(typeSymTab: SymbolTable): Type =
+  override def typecheckThis(typeSymTab: SymbolTable, typeSymTab2: SymbolTable, useSecond: Boolean): Type =
     TBoolean
 
   def eval(c: EvalContext): () => Any = {

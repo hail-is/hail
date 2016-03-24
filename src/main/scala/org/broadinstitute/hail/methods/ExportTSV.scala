@@ -26,7 +26,7 @@ object ExportTSV {
 
     val header = pairs.map(_._1).mkString("\t")
     val fs = pairs.map { case (_, e) =>
-      Parser.parse[Any](symTab, null, a, e)
+      Parser.parse[Any](symTab, null, null, a, null, null, e)
     }
 
     (Some(header), fs)

@@ -252,11 +252,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }
   }
 
-  def filterVariants(p: (Variant, Annotation) => Boolean): VariantSampleMatrix[T] =
-    copy(rdd = rdd.filter { case (v, va, gs) => p(v, va) })
+  def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
+    copy(rdd = rdd.filter { case (v, va, gs) => p(v, va, gs) })
 
   def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
-    filterVariants((v, va) => ilist.contains(v.contig, v.start))
+    filterVariants((v, va, gs) => ilist.contains(v.contig, v.start))
 
   // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (Int, Annotation) => Boolean): VariantSampleMatrix[T] = {

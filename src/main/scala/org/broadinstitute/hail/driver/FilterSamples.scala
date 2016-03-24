@@ -52,10 +52,18 @@ object FilterSamples extends Command {
         val symTab = Map(
           "s" -> (0, TSample),
           "sa" -> (1, sas))
+        val symTab2 = Map(
+          "v" -> (0, TVariant),
+          "va" -> (1, vds.vaSignature),
+          "s" -> (2, TSample),
+          "sa" -> (3, sas),
+          "g" -> (4, TGenotype)
+        )
         val a = new ArrayBuffer[Any]()
+        val a2 = new ArrayBuffer[Any]()
         for (_ <- symTab)
           a += null
-        val f: () => Any = Parser.parse(symTab, TBoolean, a, c)
+        val f: () => Any = Parser.parse(symTab, symTab2, TBoolean, a, a2, null, c)
         val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
         (s: Int, sa: Annotation) => {
           a(0) = sampleIdsBc.value(s)

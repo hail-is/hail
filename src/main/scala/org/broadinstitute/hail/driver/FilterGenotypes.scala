@@ -48,7 +48,7 @@ object FilterGenotypes extends Command {
     val a = new ArrayBuffer[Any]()
     for (_ <- symTab)
       a += null
-    val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
+    val f: () => Any = Parser.parse[Any](symTab, null, TBoolean, a, null, null, options.condition)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)

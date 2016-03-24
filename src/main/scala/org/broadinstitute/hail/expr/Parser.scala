@@ -19,19 +19,20 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse[T](symTab: Map[String, (Int, Type)], expected: Type, a: ArrayBuffer[Any], code: String): () => T = {
+  def parse[T](symTab: Map[String, (Int, Type)], symTab2: Map[String, (Int, Type)],
+    expected: Type, a: ArrayBuffer[Any], a2: ArrayBuffer[Any], functions: ArrayBuffer[Aggregator], code: String): () => T = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result.asInstanceOf[AST]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    t.typecheck(symTab)
+    t.typecheck(symTab, symTab2, false)
     if (expected != null
       && t.`type` != expected)
       fatal(s"expression has wrong type: expected `$expected', got ${t.`type`}")
 
-    val f: () => Any = t.eval(EvalContext(symTab, a))
+    val f: () => Any = t.eval(EvalContext(symTab, symTab2, a, a2, functions, false))
     () => f().asInstanceOf[T]
   }
 
@@ -46,9 +47,9 @@ object Parser extends JavaTokenParsers {
       case NoSuccess(msg, _) => fatal(msg)
     }
 
-    ts.foreach(_.typecheck(symTab))
+    ts.foreach(_.typecheck(symTab, null, false))
     val fs = ts.map { t =>
-      t.eval(EvalContext(symTab, a))
+      t.eval(EvalContext(symTab, null, a, null, null, false))
     }
     (header, fs)
   }
