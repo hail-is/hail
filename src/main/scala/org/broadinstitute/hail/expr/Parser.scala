@@ -54,6 +54,21 @@ object Parser extends JavaTokenParsers {
     (header, fs)
   }
 
+  def parseAnnotationArgs(symTab: Map[String, (Int, Type)], symTab2: Map[String, (Int, Type)],
+    a: ArrayBuffer[Any], a2: ArrayBuffer[Any], functions: ArrayBuffer[Aggregator],
+    code: String): (Array[(List[String], Type, () => Any)]) = {
+    val arr = parseAll(annotationExpressions, code) match {
+      case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
+      case NoSuccess(msg, _) => fatal(msg)
+    }
+
+    arr.map {
+      case (ids, ast) =>
+        ast.typecheck(symTab, symTab2, false)
+        (ids.toList, ast.`type`, ast.eval(EvalContext(symTab, symTab2, a, a2, functions, false)))
+    }
+  }
+
   def expr: Parser[AST] = ident ~ withPos("=>") ~ expr ^^ { case param ~ arrow ~ body =>
     Lambda(arrow.pos, param, body)
   } |
@@ -115,13 +130,31 @@ object Parser extends JavaTokenParsers {
   def named_arg: Parser[(String, AST)] =
     tsvIdentifier ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
 
+
+  def annotationExpressions: Parser[Array[(Array[String], AST)]] =
+    annotationExpression ~ rep("," ~ annotationExpression) ^^ { case arg ~ lst =>
+      (arg :: lst.map { case _ ~ arg => arg }).toArray
+    }
+
+  def annotationExpression: Parser[(Array[String], AST)] = annotationIdentifier ~ "=" ~ expr ^^ {
+    case id ~ eq ~ expr => (id, expr)
+  }
+
+  def annotationIdentifier: Parser[Array[String]] =
+    """[sv]a""".r ~ rep("." ~ (tickIdentifier ||| ident)) ^^ {
+      case arg ~ lst => (arg :: lst.map { case _ ~ arg => arg }).toArray
+    }
+
   def tsvIdentifier: Parser[String] = tickIdentifier | """[^\s\p{Cntrl}=,]+""".r
 
   def tickIdentifier: Parser[String] = """`[^`]+`""".r ^^ { i => i.substring(1, i.length - 1) }
+
   def identifier = tickIdentifier | ident
 
   def args: Parser[Array[AST]] =
-    repsep(expr, ",") ^^ {_.toArray}
+    repsep(expr, ",") ^^ {
+      _.toArray
+    }
 
   def dot_expr: Parser[AST] =
     unary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")

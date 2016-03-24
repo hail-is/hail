@@ -21,8 +21,7 @@ object Annotation {
               "Null"}"""
           }
             .mkString("\n")
-
-      case a => a.toString
+      case a => a.toString + ": " + a.getClass.getName
     }
   }
 

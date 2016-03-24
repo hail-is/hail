@@ -75,7 +75,7 @@ sealed abstract class Type extends Serializable {
     if (path.nonEmpty)
       throw new AnnotationPathException()
     else
-      (TEmpty, a => null)
+      (TEmpty, a => Annotation.empty)
   }
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
@@ -114,6 +114,9 @@ sealed abstract class Type extends Serializable {
   def typeCheck(a: Any): Boolean
 
   def schema: DataType
+
+  def parser(missing: Set[String], colName: String): String => Annotation =
+    throw new UnsupportedOperationException(s"Cannot generate a parser for $toString")
 }
 
 case object TEmpty extends Type {
@@ -132,6 +135,15 @@ case object TBoolean extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
 
   def schema = BooleanType
+
+  override def parser(missing: Set[String], colName: String): String => Annotation =
+    (v: String) =>
+      try {
+        if (missing(v)) Annotation.empty else v.toBoolean
+      } catch {
+        case e: java.lang.IllegalArgumentException =>
+          fatal( s"""java.lang.IllegalArgumentException: tried to convert "$v" to Boolean in column "$colName" """)
+      }
 }
 
 case object TChar extends Type {
@@ -150,6 +162,15 @@ case object TInt extends TNumeric {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
   def schema = IntegerType
+
+  override def parser(missing: Set[String], colName: String): String => Annotation =
+    (v: String) =>
+      try {
+        if (missing(v)) Annotation.empty else v.toInt
+      } catch {
+        case e: java.lang.IllegalArgumentException =>
+          fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Int in column "$colName" """)
+      }
 }
 
 case object TLong extends TNumeric {
@@ -158,6 +179,15 @@ case object TLong extends TNumeric {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 
   def schema = LongType
+
+  override def parser(missing: Set[String], colName: String): String => Annotation =
+    (v: String) =>
+      try {
+        if (missing(v)) Annotation.empty else v.toLong
+      } catch {
+        case e: java.lang.IllegalArgumentException =>
+          fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Long in column "$colName" """)
+      }
 }
 
 case object TFloat extends TNumeric {
@@ -166,6 +196,15 @@ case object TFloat extends TNumeric {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 
   def schema = FloatType
+
+  override def parser(missing: Set[String], colName: String): String => Annotation =
+    (v: String) =>
+      try {
+        if (missing(v)) Annotation.empty else v.toFloat
+      } catch {
+        case e: java.lang.IllegalArgumentException =>
+          fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$colName" """)
+      }
 }
 
 case object TDouble extends TNumeric {
@@ -174,6 +213,15 @@ case object TDouble extends TNumeric {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
   def schema = DoubleType
+
+  override def parser(missing: Set[String], colName: String): String => Annotation =
+    (v: String) =>
+      try {
+        if (missing(v)) Annotation.empty else v.toDouble
+      } catch {
+        case e: java.lang.IllegalArgumentException =>
+          fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$colName" """)
+      }
 }
 
 case object TString extends Type {
@@ -182,6 +230,10 @@ case object TString extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
   def schema = StringType
+
+  override def parser(missing: Set[String], colName: String): String => Annotation =
+    (v: String) =>
+      if (missing(v)) Annotation.empty else v
 }
 
 abstract class TIterable extends Type {
@@ -304,7 +356,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
           val q = f.`type`.query(p.tail)
           val localIndex = f.index
           a =>
-            if (a == null)
+            if (a == Annotation.empty)
               None
             else
               q(a.asInstanceOf[Row].get(localIndex))
@@ -315,7 +367,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def delete(p: List[String]): (Type, Deleter) = {
     if (p.isEmpty)
-      (TEmpty, a => null)
+      (TEmpty, a => Annotation.empty)
     else {
       val key = p.head
       val f = selfField(key) match {
@@ -333,8 +385,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val localDeleteFromRow = newFieldType == TEmpty
 
       val deleter: Deleter = { a =>
-        if (a == null)
-          null
+        if (a == Annotation.empty)
+          Annotation.empty
         else {
           val r = a.asInstanceOf[Row]
 
@@ -368,13 +420,13 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val localSize = fields.size
 
       val inserter: Inserter = (a, toIns) => {
-        val r = if (a == null)
+        val r = if (a == Annotation.empty)
           Row.fromSeq(Array.fill[Any](localSize)(null))
         else
           a.asInstanceOf[Row]
         keyIndex match {
           case Some(i) => r.update(i, keyF(r.get(i), toIns))
-          case None => r.append(keyF(null, toIns))
+          case None => r.append(keyF(Annotation.empty, toIns))
         }
       }
       (newSignature, inserter)

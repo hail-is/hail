@@ -18,6 +18,7 @@ import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
 import scala.collection.{TraversableOnce, mutable}
+import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
@@ -592,6 +593,11 @@ object Utils extends Logging {
     System.err.println("hail: error: " + msg)
   }
 
+  def fatalIf(b: Boolean, msg: String): Unit = {
+    if (b)
+      fatal(msg)
+  }
+
   def fatal(msg: String): Nothing = {
     throw new FatalException(msg)
   }
@@ -604,7 +610,7 @@ object Utils extends Logging {
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
     new hadoop.fs.Path(filename).getFileSystem(hConf)
 
-  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
+  private def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val os = fs.create(hPath)
@@ -617,7 +623,7 @@ object Utils extends Logging {
       os
   }
 
-  def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
+  private def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val is = fs.open(hPath)
@@ -713,6 +719,18 @@ object Utils extends Logging {
     }
   }
 
+  def hadoopStripCodec(s: String, conf: hadoop.conf.Configuration): String = {
+    val path = new org.apache.hadoop.fs.Path(s)
+
+    val ext = Option(new CompressionCodecFactory(conf)
+      .getCodec(path))
+    val toStrip = ext.map(_.getDefaultExtension.length)
+      .getOrElse(0)
+
+    s.substring(0, s.length - toStrip)
+  }
+
+
   def writeObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
@@ -772,6 +790,51 @@ object Utils extends Logging {
       reader(is)
     } finally {
       is.close()
+    }
+  }
+
+  case class Line(value: String, position: Int, filename: String) {
+    def fatal(msg: String): Nothing = {
+      val lineToPrint =
+        if (value.length > 100)
+          value.take(100) + "..."
+        else
+          value
+      Utils.fatal(
+        s"""
+           |$msg at $filename:${position + 1}
+           |Offending line: "$lineToPrint""".stripMargin)
+    }
+
+    def transform[T](f: Line => T): T = {
+      try {
+        f(this)
+      } catch {
+        case e: Exception =>
+          val lineToPrint =
+            if (value.length > 100)
+              value.take(100) + "..."
+            else
+              value
+          Utils.fatal(
+            s"""
+               |${e.getClass.getName} at $filename:${position + 1}
+               |Offending line: $lineToPrint
+               |${e.getMessage}""".stripMargin)
+      }
+    }
+  }
+
+  def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {
+    readFile[T](filename, hConf) {
+      is =>
+        val lines = Source.fromInputStream(is)
+          .getLines
+          .zipWithIndex
+          .map {
+            case (value, position) => Line(value, position, filename)
+          }
+        reader(lines)
     }
   }
 

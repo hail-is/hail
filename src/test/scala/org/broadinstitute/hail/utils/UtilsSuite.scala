@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.utils
 
-import org.scalatest.testng.TestNGSuite
+import org.broadinstitute.hail.SparkSuite
 import org.testng.annotations.Test
 
 import org.broadinstitute.hail.Utils._
 
-class UtilsSuite extends TestNGSuite {
+class UtilsSuite extends SparkSuite {
   @Test def testD_==() {
     assert(D_==(1, 1))
     assert(D_==(1, 1 + 1E-7))
@@ -32,5 +32,13 @@ class UtilsSuite extends TestNGSuite {
     assert(Array(1,2).areDistinct())
     assert(!Array(1,1).areDistinct())
     assert(!Array(1,2,1).areDistinct())
+  }
+
+  @Test def testHadoopStripCodec() {
+    assert(hadoopStripCodec("file.tsv", sc.hadoopConfiguration) == "file.tsv")
+    assert(hadoopStripCodec("file.tsv.gz", sc.hadoopConfiguration) == "file.tsv")
+    assert(hadoopStripCodec("file.tsv.bgz", sc.hadoopConfiguration) == "file.tsv")
+    assert(hadoopStripCodec("file.tsv.lz4", sc.hadoopConfiguration) == "file.tsv")
+    assert(hadoopStripCodec("file", sc.hadoopConfiguration) == "file")
   }
 }

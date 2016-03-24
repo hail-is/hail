@@ -149,11 +149,15 @@ object Main {
           acc :+ Array(s)
         else
           acc.init :+ (acc.last :+ s)
+
       }
     */
 
     val commands = Array(
+      AnnotateSamples,
+      AnnotateVariants,
       Cache,
+      PreprocessAnnotations,
       Count,
       DownsampleVariants,
       ExportPlink,
