@@ -20,7 +20,7 @@ annotatevariants -c   "va.path.to.new.annotation          =         if (va.pass)
 
 In this example, `annotatevariants` will produce a new annotation stored in `va.path.to.new.annotation`, which is accessible in all future modules. 
 
-`*` Note: if a field exists in annotations that contains characters 
+<sup>*</sup> Note: if a field exists in annotations that contains characters 
 not valid in simple identifiers (like whitespace, `$`, `%`, etc...), 
 access it by escaping an identifier with backticks: 
 ```
