@@ -126,8 +126,8 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       "16" ->  90354753,
       "17" ->  81195210,
       "18" ->  78077248,
-      "19" ->  59128983, //582
-      "20" ->  63025520, //624
+      "19" ->  59128983,
+      "20" ->  63025520,
       "21" ->  48129895,
       "22" ->  51304566,
        "X" -> 155270560,
@@ -167,19 +167,18 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     if (variantCovs.nonEmpty)
       cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
 
-    val MAXWIDTH = 1e7
     val HARDLIMIT = 20000
+    val MAXWIDTH = 10000000
 
     val limit = req.limit.map(_.min(HARDLIMIT)).getOrElse(HARDLIMIT)
 
+    var minPos = 0
+    var maxPos = 1000000000
+
     val chromFilters = mutable.Set[VariantFilter]()
     val posFilters = mutable.Set[VariantFilter]()
-    var minPos = 0
-    var maxPos = 1e9
 
-    var df = hcs.df
-
-    req.variant_filters.foreach(_.foreach{f =>
+    req.variant_filters.foreach(_.foreach { f =>
       f.operand match {
         case "chrom" =>
           chromFilters += f
@@ -187,25 +186,25 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
           posFilters += f
           f.operator match {
             case "gte" => minPos = minPos max f.value.toInt
-            case "gt"  => minPos = minPos max (f.value.toInt + 1)
+            case "gt" => minPos = minPos max (f.value.toInt + 1)
             case "lte" => maxPos = maxPos min f.value.toInt
-            case "le"  => maxPos = maxPos min (f.value.toInt - 1)
+            case "le" => maxPos = maxPos min (f.value.toInt - 1)
             case other =>
               throw new RESTFailure(s"'pos filter operator must be 'gte', 'gt', 'lte', or 'lt': '$other' not supported.")
           }
         case other => throw new RESTFailure(s"Filter operant must be 'chrom' or 'pos': '$other' not supported.")
       }
+    })
 
     if (chromFilters.isEmpty)
-      chromFilters += VariantFilter("chrom", "eq", "1", "String")
+      chromFilters += VariantFilter("chrom", "eq", "1", "string")
 
     if (maxPos - minPos > MAXWIDTH)
-      posFilters += VariantFilter("pos", "lte", (minPos + MAXWIDTH).toString, "Int")
+      posFilters += VariantFilter("pos", "lte", (minPos + MAXWIDTH).toString, "integer")
 
-    req.variant_filters.foreach(
-      _.foreach { f =>
-        df = f.filterDf(df)
-      })
+    var df = hcs.df
+    chromFilters.foreach(f => df = f.filterDf(df))
+    posFilters.foreach(f => df = f.filterDf(df))
 
     val stats: Array[Stat] = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
       .rdd
