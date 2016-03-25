@@ -32,7 +32,7 @@ object T2DServer extends Command {
     val cov = CovariateData.read(options.covFile, state.hadoopConf, hcs.sampleIds)
 
     val service = new T2DService(hcs, cov)
-    val task = BlazeBuilder.bindHttp(options.port)
+    val task = BlazeBuilder.bindHttp(options.port, "0.0.0.0")
       .mountService(service.service, "/")
       .run
     task.awaitShutdown()
