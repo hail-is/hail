@@ -148,9 +148,10 @@ case object TBoolean extends Type {
 case object TChar extends Type {
   override def toString = "Char"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Character]
+  def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
+    && a.asInstanceOf[String].length == 1)
 
-  def schema = throw new UnsupportedOperationException
+  def schema = StringType
 }
 
 abstract class TNumeric extends Type
@@ -1237,7 +1238,7 @@ case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(
       AST.evalCompose[IndexedSeq[_], Int](c, f, idx)((a, i) => a(i))
 
     case (TString, TInt) =>
-      AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i))
+      AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i).toString)
   }
 
 }
@@ -1274,8 +1275,14 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
-  override def typecheckThis(typeSymTab: SymbolTable, typeSymTab2: SymbolTable, useSecond: Boolean): Type =
-    TBoolean
+  override def typecheckThis(typeSymTab: SymbolTable, typeSymTab2: SymbolTable, useSecond: Boolean): Type = {
+    thenTree.typecheck(typeSymTab, typeSymTab2, useSecond)
+    elseTree.typecheck(typeSymTab, typeSymTab2, useSecond)
+    if (thenTree.`type` != elseTree.`type`)
+      parseError(s"expected same-type `then' and `else' clause, got `${thenTree.`type`}' and `${elseTree.`type`}'")
+    else
+      thenTree.`type`
+  }
 
   def eval(c: EvalContext): () => Any = {
     val f1 = cond.eval(c)
