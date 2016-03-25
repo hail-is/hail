@@ -10,7 +10,7 @@ object T2DServer extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(name = "-p", aliases = Array("--port"), usage = "Service port")
-    var port: Int = 6060
+    var port: Int = 6061
 
     @Args4jOption(required = true, name = "-c", aliases= Array("--covariate-file"), usage = "Covariate file")
     var covFile: String = _
