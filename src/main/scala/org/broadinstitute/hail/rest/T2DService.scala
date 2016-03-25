@@ -140,18 +140,18 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     if (variantCovs.nonEmpty)
       cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
 
-    val hardLimit = 100000
+    val hardLimit = 20000
     val limit = req.limit.map(_.min(hardLimit)).getOrElse(hardLimit)
 
     if (req.variant_filters.isEmpty)
       throw new RESTFailure("Missing variant filters.")
 
     val chromFilter = req.variant_filters.get.filter(_.operand == "chrom")
-    val startFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && (vf.operand == "ge" || vf.operand == "gte"))
-    val endFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && (vf.operand == "le" || vf.operand == "lte"))
-    val equalFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && vf.operand == "eq")
+    val startFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && (vf.operator == "ge" || vf.operator == "gte"))
+    val endFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && (vf.operator == "le" || vf.operator == "lte"))
+    val equalFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && vf.operator == "eq")
 
-    val maxWidth = 1000000
+    val maxWidth = 10000000
 
     if (chromFilter.size != 1)
       throw new RESTFailure("Must have exactly one chromosome filter.")
