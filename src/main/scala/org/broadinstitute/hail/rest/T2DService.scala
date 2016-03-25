@@ -167,55 +167,45 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     if (variantCovs.nonEmpty)
       cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
 
-    val hardLimit = 20000
-    val limit = req.limit.map(_.min(hardLimit)).getOrElse(hardLimit)
+    val MAXWIDTH = 1e7
+    val HARDLIMIT = 20000
 
-    if (req.variant_filters.isEmpty)
-      throw new RESTFailure("Missing variant filters.")
+    val limit = req.limit.map(_.min(HARDLIMIT)).getOrElse(HARDLIMIT)
 
-    val chromFilter = req.variant_filters.get.filter(_.operand == "chrom")
-    val startFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && (vf.operator == "ge" || vf.operator == "gte"))
-    val endFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && (vf.operator == "le" || vf.operator == "lte"))
-    val equalFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && vf.operator == "eq")
-
-    val maxWidth = 10000000
-
-    if (chromFilter.size != 1)
-      throw new RESTFailure("Must have exactly one chromosome filter.")
+    val chromFilters = mutable.Set[VariantFilter]()
+    val posFilters = mutable.Set[VariantFilter]()
+    var minPos = 0
+    var maxPos = 1e9
 
     var df = hcs.df
 
-    df = chromFilter(0).filterDf(df)
+    req.variant_filters.foreach(_.foreach{f =>
+      f.operand match {
+        case "chrom" =>
+          chromFilters += f
+        case "pos" =>
+          posFilters += f
+          f.operator match {
+            case "gte" => minPos = minPos max f.value.toInt
+            case "gt"  => minPos = minPos max (f.value.toInt + 1)
+            case "lte" => maxPos = maxPos min f.value.toInt
+            case "le"  => maxPos = maxPos min (f.value.toInt - 1)
+            case other =>
+              throw new RESTFailure(s"'pos filter operator must be 'gte', 'gt', 'lte', or 'lt': '$other' not supported.")
+          }
+        case other => throw new RESTFailure(s"Filter operant must be 'chrom' or 'pos': '$other' not supported.")
+      }
 
-    (startFilter.size, endFilter.size, equalFilter.size) match {
-      case (1, 1, 0) =>
-        val width = endFilter(0).value.toInt - startFilter(0).value.toInt
-        if (width > maxWidth)
-          throw new RESTFailure(s"Width $width exceeds the maximum width of $maxWidth.")
-        df = startFilter(0).filterDf(df)
-        df = endFilter(0).filterDf(df)
-      case (1, 0, 0) =>
-        val width = chromEnd(chromFilter(0).operand) - startFilter(0).value.toInt
-        df = startFilter(0).filterDf(df)
-      case (0, 1, 0) =>
-        val width = endFilter(0).value.toInt
-        if (width > maxWidth)
-          throw new RESTFailure(s"Width $width exceeds the maximum width of $maxWidth.")
-        df = endFilter(0).filterDf(df)
-      case (_, _, nEqualFilter) =>
-        if (nEqualFilter > 0) {
-          startFilter.foreach(_.filterDf(df))
-          endFilter.foreach(_.filterDf(df))
-          equalFilter.foreach(_.filterDf(df))
-        } else
-          throw new RESTFailure("Must have  or one pos filter (eq)")
-    }
+    if (chromFilters.isEmpty)
+      chromFilters += VariantFilter("chrom", "eq", "1", "String")
 
+    if (maxPos - minPos > MAXWIDTH)
+      posFilters += VariantFilter("pos", "lte", (minPos + MAXWIDTH).toString, "Int")
 
-//    req.variant_filters.foreach(
-//      _.foreach { f =>
-//        df = f.filterDf(df)
-//      })
+    req.variant_filters.foreach(
+      _.foreach { f =>
+        df = f.filterDf(df)
+      })
 
     val stats: Array[Stat] = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
       .rdd
