@@ -106,6 +106,33 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       case None => throw new RESTFailure(s"Missing phenotype")
     }
 
+    // GRCh37, http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/data/
+    val chromEnd: Map[String, Int] = Map(
+       "1" -> 249250621,
+       "2" -> 243199373,
+       "3" -> 198022430,
+       "4" -> 191154276,
+       "5" -> 180915260,
+       "6" -> 171115067,
+       "7" -> 159138663,
+       "8" -> 146364022,
+       "9" -> 141213431,
+      "10" -> 135534747,
+      "11" -> 135006516,
+      "12" -> 133851895,
+      "13" -> 115169878,
+      "14" -> 107349540,
+      "15" -> 102531392,
+      "16" ->  90354753,
+      "17" ->  81195210,
+      "18" ->  78077248,
+      "19" ->  59128983, //582
+      "20" ->  63025520, //624
+      "21" ->  48129895,
+      "22" ->  51304566,
+       "X" -> 155270560,
+       "Y" ->  59373566)
+
     val phenoCovs = mutable.Set[String]()
 
     val variantCovs = new mutable.ArrayBuffer[Variant]()
@@ -158,18 +185,32 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
 
     var df = hcs.df
 
-    if (startFilter.size == 1 && endFilter.size == 1 && equalFilter.isEmpty) {
-      val width = endFilter(0).value.toInt - startFilter(0).value.toInt
-      if (width > maxWidth)
-        throw new RESTFailure(s"Width $width exceeds the maximum width of $maxWidth.")
-      df = chromFilter(0).filterDf(df)
-      df = startFilter(0).filterDf(df)
-      df = endFilter(0).filterDf(df)
-    } else if (startFilter.isEmpty && endFilter.isEmpty && equalFilter.size == 1) {
-      df = chromFilter(0).filterDf(df)
-      df = equalFilter(0).filterDf(df)
-    } else
-      throw new RESTFailure("Must have two pos filters (gt/gte and le/lte) or one pos filter (eq)")
+    df = chromFilter(0).filterDf(df)
+
+    (startFilter.size, endFilter.size, equalFilter.size) match {
+      case (1, 1, 0) =>
+        val width = endFilter(0).value.toInt - startFilter(0).value.toInt
+        if (width > maxWidth)
+          throw new RESTFailure(s"Width $width exceeds the maximum width of $maxWidth.")
+        df = startFilter(0).filterDf(df)
+        df = endFilter(0).filterDf(df)
+      case (1, 0, 0) =>
+        val width = chromEnd(chromFilter(0).operand) - startFilter(0).value.toInt
+        df = startFilter(0).filterDf(df)
+      case (0, 1, 0) =>
+        val width = endFilter(0).value.toInt
+        if (width > maxWidth)
+          throw new RESTFailure(s"Width $width exceeds the maximum width of $maxWidth.")
+        df = endFilter(0).filterDf(df)
+      case (_, _, nEqualFilter) =>
+        if (nEqualFilter > 0) {
+          startFilter.foreach(_.filterDf(df))
+          endFilter.foreach(_.filterDf(df))
+          equalFilter.foreach(_.filterDf(df))
+        } else
+          throw new RESTFailure("Must have  or one pos filter (eq)")
+    }
+
 
 //    req.variant_filters.foreach(
 //      _.foreach { f =>
