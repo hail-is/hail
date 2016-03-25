@@ -103,7 +103,8 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
           case -1 => throw new RESTFailure(s"$pheno is not a valid phenotype name")
           case i => cov.data.get(::, i)
         }
-      case None => throw new RESTFailure(s"Missing phenotype")
+      case None =>
+        cov.data.get(::, cov.covName.indexOf("T2D"))
     }
 
     /* GRCh37, http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/data/
