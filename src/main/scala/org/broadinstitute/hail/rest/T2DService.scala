@@ -178,6 +178,8 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     val chromFilters = mutable.Set[VariantFilter]()
     val posFilters = mutable.Set[VariantFilter]()
 
+    var isSingleVariant = false
+
     req.variant_filters.foreach(_.foreach { f =>
       f.operand match {
         case "chrom" =>
@@ -189,6 +191,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
             case "gt" => minPos = minPos max (f.value.toInt + 1)
             case "lte" => maxPos = maxPos min f.value.toInt
             case "le" => maxPos = maxPos min (f.value.toInt - 1)
+            case "eq" => isSingleVariant = true
             case other =>
               throw new RESTFailure(s"'pos filter operator must be 'gte', 'gt', 'lte', or 'lt': '$other' not supported.")
           }
@@ -199,7 +202,11 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     if (chromFilters.isEmpty)
       chromFilters += VariantFilter("chrom", "eq", "1", "string")
 
-    val width = maxPos - minPos
+    val width =
+      if (isSingleVariant)
+        1
+      else
+        maxPos - minPos
 
     if (width > MAXWIDTH)
       posFilters += VariantFilter("pos", "lte", (minPos + MAXWIDTH).toString, "integer")
