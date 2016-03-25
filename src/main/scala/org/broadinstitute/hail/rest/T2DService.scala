@@ -22,8 +22,8 @@ case class VariantFilter(operand: String,
   operator: String,
   value: String,
   operand_type: String) {
-
-  def filter(df: DataFrame): DataFrame = {
+  
+  def filterDf(df: DataFrame): DataFrame = {
     operand match {
       case "chrom" =>
         assert(operand_type == "string"
@@ -91,12 +91,12 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
   def getStats(req: GetStatsRequest): GetStatsResult = {
     req.md_version.foreach { md_version =>
       if (md_version != "mdv1")
-        throw new RESTFailure(s"Unknown md_version `$md_version'.  Available md_versions: mdv1.")
+        throw new RESTFailure(s"Unknown md_version `$md_version'. Available md_versions: mdv1.")
     }
 
     if (req.api_version != 1)
-      throw new RESTFailure(s"Unsupported API version `${req.api_version}'.  Supported API versions: 1.")
-
+      throw new RESTFailure(s"Unsupported API version `${req.api_version}'. Supported API versions: 1.")
+    
     val y: DenseVector[Double] = req.phenotype match {
       case Some(pheno) =>
         cov.covName.indexOf(pheno) match {
@@ -131,7 +131,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
                 throw new RESTFailure("Covariate of type 'variant' must include 'chrom', 'pos', 'ref', and 'alt' fields in request.")
             }
           case other =>
-            throw new RESTFailure(s"$other is not a supported covariate type")
+            throw new RESTFailure(s"$other is not a supported covariate type.")
         }
     }
 
@@ -140,14 +140,41 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     if (variantCovs.nonEmpty)
       cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
 
-    val hardLimit = 20000
+    val hardLimit = 100000
     val limit = req.limit.map(_.min(hardLimit)).getOrElse(hardLimit)
 
+    if (req.variant_filters.isEmpty)
+      throw new RESTFailure("Missing variant filters.")
+
+    val chromFilter = req.variant_filters.get.filter(_.operand == "chrom")
+    val startFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && (vf.operand == "ge" || vf.operand == "gte"))
+    val endFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && (vf.operand == "le" || vf.operand == "lte"))
+    val equalFilter = req.variant_filters.get.filter(vf => vf.operand == "pos" && vf.operand == "eq")
+
+    val maxWidth = 1000000
+
+    if (chromFilter.size != 1)
+      throw new RESTFailure("Must have exactly one chromosome filter.")
+
     var df = hcs.df
-    req.variant_filters.foreach(
-      _.foreach { f =>
-        df = f.filter(df)
-      })
+
+    if (startFilter.size == 1 && endFilter.size == 1 && equalFilter.isEmpty) {
+      val width = endFilter(0).value.toInt - startFilter(0).value.toInt
+      if (width > maxWidth)
+        throw new RESTFailure(s"Width $width exceeds the maximum width of $maxWidth.")
+      df = chromFilter(0).filterDf(df)
+      df = startFilter(0).filterDf(df)
+      df = endFilter(0).filterDf(df)
+    } else if (startFilter.isEmpty && endFilter.isEmpty && equalFilter.size == 1) {
+      df = chromFilter(0).filterDf(df)
+      df = equalFilter(0).filterDf(df)
+    } else
+      throw new RESTFailure("Must have two pos filters (gt/gte and le/lte) or one pos filter (eq)")
+
+//    req.variant_filters.foreach(
+//      _.foreach { f =>
+//        df = f.filterDf(df)
+//      })
 
     val stats: Array[Stat] = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
       .rdd
