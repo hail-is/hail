@@ -167,7 +167,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     if (variantCovs.nonEmpty)
       cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
 
-    val HARDLIMIT = 20000
+    val HARDLIMIT = 17000
     val MAXWIDTH = 2000000
 
     val limit = req.limit.map(_.min(HARDLIMIT)).getOrElse(HARDLIMIT)
@@ -199,17 +199,24 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     if (chromFilters.isEmpty)
       chromFilters += VariantFilter("chrom", "eq", "1", "string")
 
-    if (maxPos - minPos > MAXWIDTH)
+    val width = maxPos - minPos
+
+    if (width > MAXWIDTH)
       posFilters += VariantFilter("pos", "lte", (minPos + MAXWIDTH).toString, "integer")
 
     var df = hcs.df
     chromFilters.foreach(f => df = f.filterDf(df))
     posFilters.foreach(f => df = f.filterDf(df))
 
-    val stats: Array[Stat] = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
+    val statsRDD = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
-      .take(limit)
+
+    val stats: Array[Stat] =
+      if (width <= 600000)
+        statsRDD.collect()
+      else
+        statsRDD.take(limit)
 
     if (req.count.getOrElse(false))
       GetStatsResult(is_error = false, None, req.passback, None, Some(stats.length))
