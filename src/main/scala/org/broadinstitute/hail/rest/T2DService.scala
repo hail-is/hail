@@ -168,7 +168,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
 
     val HARDLIMIT = 20000
-    val MAXWIDTH = 10000000
+    val MAXWIDTH = 2000000
 
     val limit = req.limit.map(_.min(HARDLIMIT)).getOrElse(HARDLIMIT)
 
