@@ -22,7 +22,7 @@ case class VariantFilter(operand: String,
   operator: String,
   value: String,
   operand_type: String) {
-  
+
   def filterDf(df: DataFrame): DataFrame = {
     operand match {
       case "chrom" =>
@@ -96,16 +96,14 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
 
     if (req.api_version != 1)
       throw new RESTFailure(s"Unsupported API version `${req.api_version}'. Supported API versions: 1.")
-    
-    val y: DenseVector[Double] = req.phenotype match {
-      case Some(pheno) =>
-        cov.covName.indexOf(pheno) match {
-          case -1 => throw new RESTFailure(s"$pheno is not a valid phenotype name")
-          case i => cov.data.get(::, i)
+
+    val y: DenseVector[Double] = {
+      val pheno = req.phenotype.getOrElse("T2D")
+      cov.covName.indexOf(pheno) match {
+        case -1 => throw new RESTFailure(s"$pheno is not a valid phenotype name")
+        case i => cov.data.get(::, i)
         }
-      case None =>
-        cov.data.get(::, cov.covName.indexOf("T2D"))
-    }
+      }
 
     /* GRCh37, http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/data/
     val chromEnd: Map[String, Int] = Map(
