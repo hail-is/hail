@@ -15,13 +15,10 @@ object Annotation {
       case r: Row =>
         "Row:\n" +
           r.toSeq.zipWithIndex.map { case (elem, index) =>
-            s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}: ${if (elem != null)
-              elem.getClass.getCanonicalName
-            else
-              "Null"}"""
+            s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}"""
           }
             .mkString("\n")
-      case a => a.toString + ": " + a.getClass.getName
+      case a => a.toString + ": " + a.getClass.getCanonicalName
     }
   }
 

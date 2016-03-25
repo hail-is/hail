@@ -67,8 +67,7 @@ object FilterVariants extends Command {
         val f: () => Any = Parser.parse[Any](symTab, symTab2, TBoolean, a, a2, a3, options.condition)
         for (_ <- a3)
           a2 += null
-        println(a3.length)
-        val sampleAnnotationsBc = vds.sparkContext.broadcast(
+        val sampleInfoBc = vds.sparkContext.broadcast(
           vds.localSamples.map(vds.sampleAnnotations)
             .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
         (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
@@ -78,7 +77,7 @@ object FilterVariants extends Command {
 
           val computations = a3.toArray.map(_._1)
           gs.iterator
-            .zip(sampleAnnotationsBc.value.iterator)
+            .zip(sampleInfoBc.value.iterator)
             .foreach {
               case (g, (sa, s)) =>
                 a2(0) = v

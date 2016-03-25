@@ -32,7 +32,7 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
       .cache()
 
     var s = State(sc, sqlContext, vds)
-    s = s.copy(vds = s.vds.filterVariants((v, va) => v.start == 10019093))
+    s = s.copy(vds = s.vds.filterVariants((v, va, gs) => v.start == 10019093))
     s = SplitMulti.run(s)
     s = VariantQC.run(s)
     s = AnnotateVariants.run(s, Array("-c", "va.a.b.c.d.e = va.qc.callRate * 100, va.a.c = if (va.pass) 1 else 0, va.`weird spaces name` = 5 / (va.qual - 5)"))

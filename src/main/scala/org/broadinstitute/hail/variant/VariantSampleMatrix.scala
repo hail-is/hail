@@ -239,8 +239,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     }
   }
 
-  def mapAnnotations(f: (Variant, Annotation) => Annotation): VariantSampleMatrix[T] =
-    copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va), gs) })
+  def mapAnnotations(f: (Variant, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[T] =
+    copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va, gs), gs) })
 
   def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     flatMapWithKeys((v, s, g) => f(g))

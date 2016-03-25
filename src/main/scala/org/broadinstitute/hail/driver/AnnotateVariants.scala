@@ -3,11 +3,14 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators._
 import org.broadinstitute.hail.methods.ProgrammaticAnnotation
+import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 object AnnotateVariants extends Command {
 
@@ -153,11 +156,26 @@ object AnnotateVariants extends Command {
           warn("argument 'vcolumns' is unnecessary for programmatic annotation, ignoring it")
 
         val symTab = Map(
-          "v" ->(0, expr.TVariant),
-          "va" ->(1, vds.vaSignature))
-        val a = new mutable.ArrayBuffer[Any](2)
+          "v" ->(0, TVariant),
+          "va" ->(1, vds.vaSignature),
+          "gs" ->(2, TGenotypeStream))
+        val symTab2 = Map(
+          "v" ->(0, TVariant),
+          "va" ->(1, vds.vaSignature),
+          "s" ->(2, TSample),
+          "sa" ->(3, vds.saSignature),
+          "g" ->(4, TGenotype)
+        )
+        val a = new ArrayBuffer[Any]()
+        val a2 = new ArrayBuffer[Any]()
+        val a3 = new ArrayBuffer[Aggregator]()
 
-        val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
+        for (_ <- symTab)
+          a += null
+        for (_ <- symTab2)
+          a2 += null
+        val parsed = expr.Parser.parseAnnotationArgs(symTab, symTab2, a, a2, a3, cond)
+
 
         val keyedSignatures = parsed.map { case (ids, t, f) =>
           if (ids.head != "va")
@@ -178,12 +196,37 @@ object AnnotateVariants extends Command {
 
         val inserters = inserterBuilder.result()
 
-        for (_ <- computations)
-          a += null
+        val sampleInfoBc = vds.sparkContext.broadcast(
+          vds.localSamples.map(vds.sampleAnnotations)
+            .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
 
-        vdsAddedSigs.mapAnnotations { case (v, va) =>
+        vdsAddedSigs.mapAnnotations { case (v, va, gs) =>
           a(0) = v
           a(1) = va
+          a(2) = gs
+          if (a3.nonEmpty) {
+            val gsQueries = a3.toArray.map(_._1)
+            gs.iterator
+              .zip(sampleInfoBc.value.iterator)
+              .foreach {
+                case (g, (sa, s)) =>
+                  a2(0) = v
+                  a2(1) = va
+                  a2(2) = s
+                  a2(3) = sa
+                  a2(4) = g
+                  a3.iterator.zipWithIndex
+                    .foreach {
+                      case ((zv, so, co), i) =>
+                        gsQueries(i) = so(gsQueries(i))
+                    }
+              }
+            gsQueries.iterator.zipWithIndex
+              .foreach { case (res, i) =>
+                a2(5 + i) = res
+              }
+          }
+
           computations.indices.foreach { i =>
             a(1) = inserters(i).apply(a(1), Option(computations(i)()))
           }

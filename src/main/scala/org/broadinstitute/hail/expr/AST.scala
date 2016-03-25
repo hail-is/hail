@@ -5,7 +5,6 @@ import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, GenotypeStream, Sample, Variant}
-import sun.security.pkcs11.wrapper.Functions
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
@@ -872,9 +871,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         lhs.typecheck(symTab, symTab2, useSecond)
 
         val elementType = lhs.`type` match {
-          case TArray(elementType) => elementType
+          case arr: TArray => arr.elementType
           case _ =>
-            fatal(s"no `$method' on non-array")
+            parseError(s"no `$method' on non-iterable")
         }
 
         `type` = elementType
@@ -882,7 +881,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         // index unused in typecheck
         body.typecheck(symTab + (param ->(-1, elementType)), symTab2, useSecond)
         if (body.`type` != TBoolean)
-          fatal(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
+          parseError(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
 
       case ("count", Array(rhs)) =>
         lhs.typecheck(symTab, symTab2, useSecond)
@@ -890,15 +889,39 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         val elementType = lhs.`type` match {
           case iter: TIterable => iter.elementType
           case _ =>
-            fatal(s"no `$method' on non-iterable")
+            parseError(s"no `$method' on non-iterable")
         }
 
         `type` = TInt
 
         rhs.typecheck(symTab, symTab2, true)
         if (rhs.`type` != TBoolean)
-          fatal(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
+          parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
 
+      case ("sum", Array(rhs)) =>
+        lhs.typecheck(symTab, symTab2, useSecond)
+        val elementType = lhs.`type` match {
+          case iter: TIterable => iter.elementType
+          case _ =>
+            parseError(s"no `$method' on non-iterable")
+        }
+        rhs.typecheck(symTab, symTab2, true)
+        println("rhs is " + rhs)
+        if (!rhs.`type`.isInstanceOf[TNumeric])
+          parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
+        `type` = rhs.`type`
+
+      case ("fraction", Array(rhs)) =>
+        lhs.typecheck(symTab, symTab2, useSecond)
+        val elementType = lhs.`type` match {
+          case iter: TIterable => iter.elementType
+          case _ =>
+            parseError(s"no `$method' on non-iterable")
+        }
+        rhs.typecheck(symTab, symTab2, true)
+        if (rhs.`type` != TBoolean)
+          parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
+        `type` = TDouble
 
       case _ =>
         super.typecheck(symTab, symTab2, useSecond)
@@ -950,8 +973,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
     case (returnType, "count", Array(rhs)) =>
       val localIdx = c.a2.length
+      c.a2 += null
       val fn = rhs.eval(c.copy(useSecond = true))
-      val localA2 = c.a2
       val localFunctions = c.functions
       val seqOp: (Any) => Any =
         (sum) => {
@@ -964,8 +987,69 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
       val combOp: (Any, Any) => Any = _.asInstanceOf[Int] + _.asInstanceOf[Int]
       localFunctions += ((0, seqOp, combOp))
+      val localA = c.a2
       AST.evalCompose[Any](c, lhs) {
-        case a => c.a2(localIdx)
+        case a =>
+          localA(localIdx)
+      }
+
+    case (returnType, "sum", Array(rhs)) =>
+      val localIdx = c.a2.length
+      c.a2 += null
+      val fn = rhs.eval(c.copy(useSecond = true))
+      val localFunctions = c.functions
+      val (zv, seqOp, combOp) =
+        if (rhs.`type` == TInt || rhs.`type` == TLong) {
+          val so = (sum: Any) => {
+            val ret = fn().asInstanceOf[Long]
+            ret + sum.asInstanceOf[Long]
+          }
+          val co: (Any, Any) => Any = _.asInstanceOf[Long] + _.asInstanceOf[Long]
+          (0L, so, co)
+        } else {
+          val so = (sum: Any) => {
+            val ret = fn().asInstanceOf[Double]
+            ret + sum.asInstanceOf[Double]
+          }
+          val co: (Any, Any) => Any = _.asInstanceOf[Double] + _.asInstanceOf[Double]
+          (0.0, so, co)
+        }
+      localFunctions += ((zv, seqOp, combOp))
+      val localA = c.a2
+      AST.evalCompose[Any](c, lhs) {
+        case a =>
+          localA(localIdx)
+      }
+
+    case (returnType, "fraction", Array(rhs)) =>
+      val localIdx = c.a2.length
+      println("index is " + localIdx)
+      c.a2 += null
+      val fn = rhs.eval(c.copy(useSecond = true))
+      val localFunctions = c.functions
+      val (zv, seqOp, combOp) = {
+        val so = (sum: Any) => {
+          val counts = sum.asInstanceOf[(Long, Long)]
+          val ret = fn().asInstanceOf[Boolean]
+          if (ret)
+            (counts._1 + 1, counts._2 + 1)
+          else
+            (counts._1, counts._2 + 1)
+        }
+        val co: (Any, Any) => Any = (left: Any, right: Any) => {
+          val lh = left.asInstanceOf[(Long, Long)]
+          val rh = right.asInstanceOf[(Long, Long)]
+          (lh._1 + rh._1, lh._2 + rh._2)
+        }
+        ((0L, 0L), so, co)
+      }
+      localFunctions += ((zv, seqOp, combOp))
+      val localA = c.a2
+      AST.evalCompose[Any](c, lhs) {
+        case a => {
+          val (a: Long, b: Long) = localA(localIdx)
+          divNull(a.toDouble, b)
+        }
       }
 
     case (_, "orElse", Array(a)) =>
