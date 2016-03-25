@@ -1070,8 +1070,14 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
-  override def typecheckThis(typeSymTab: SymbolTable): Type =
-    TBoolean
+  override def typecheckThis(typeSymTab: SymbolTable): Type = {
+    thenTree.typecheck(typeSymTab)
+    elseTree.typecheck(typeSymTab)
+    if (thenTree.`type` != elseTree.`type`)
+      parseError(s"expected same-type `then' and `else' clause, got `${thenTree.`type`}' and `${elseTree.`type`}'")
+    else
+      thenTree.`type`
+  }
 
   def eval(c: EvalContext): () => Any = {
     val f1 = cond.eval(c)
