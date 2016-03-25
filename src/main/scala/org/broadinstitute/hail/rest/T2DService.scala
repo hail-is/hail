@@ -106,7 +106,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       case None => throw new RESTFailure(s"Missing phenotype")
     }
 
-    // GRCh37, http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/data/
+    /* GRCh37, http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/data/
     val chromEnd: Map[String, Int] = Map(
        "1" -> 249250621,
        "2" -> 243199373,
@@ -132,6 +132,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       "22" ->  51304566,
        "X" -> 155270560,
        "Y" ->  59373566)
+    */
 
     val phenoCovs = mutable.Set[String]()
 
