@@ -150,7 +150,7 @@ object Parser extends JavaTokenParsers {
   }
 
   def primary_expr: Parser[AST] =
-    withPos("""-?\d+\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
+    withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       // FIXME L suffix
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
