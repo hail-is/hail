@@ -194,9 +194,12 @@ object HtsjdkRecordReader {
         s.split(",").map(_.toDouble): IndexedSeq[Double]
       case (s: String, TArray(TString)) =>
         s.split(","): IndexedSeq[String]
+      case (s: String, TArray(TChar)) =>
+        s.split(","): IndexedSeq[String]
       case (s: String, TBoolean) => s.toBoolean
       case (b: Boolean, TBoolean) => b
       case (s: String, TString) => s
+      case (s: String, TChar) => s
       case (s: String, TInt) => s.toInt
       case (s: String, TDouble) => s.toDouble
 
@@ -205,6 +208,8 @@ object HtsjdkRecordReader {
       case (a: java.util.ArrayList[_], TArray(TDouble)) =>
         a.asScala.iterator.map(_.asInstanceOf[String].toDouble).toArray: IndexedSeq[Double]
       case (a: java.util.ArrayList[_], TArray(TString)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
+      case (a: java.util.ArrayList[_], TArray(TChar)) =>
         a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
     }
   }

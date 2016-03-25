@@ -134,9 +134,10 @@ case object TBoolean extends Type {
 case object TChar extends Type {
   override def toString = "Char"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Character]
+  def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
+    && a.asInstanceOf[String].length == 1)
 
-  def schema = throw new UnsupportedOperationException
+  def schema = StringType
 }
 
 abstract class TNumeric extends Type
@@ -1048,7 +1049,7 @@ case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(
       AST.evalCompose[IndexedSeq[_], Int](c, f, idx)((a, i) => a(i))
 
     case (TString, TInt) =>
-      AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i))
+      AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i).toString)
   }
 
 }
