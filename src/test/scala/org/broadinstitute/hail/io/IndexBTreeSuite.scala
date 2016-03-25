@@ -22,11 +22,22 @@ class IndexBTreeSuite extends SparkSuite {
       var nIndices = 0
       while (nIndices != arraySize) {
         randArray(nIndices) = pos
-        pos += choose(1.toLong,5000.toLong).sample()
+        pos += choose(5.toLong,5000.toLong).sample()
         nIndices += 1
       }
       randArray
     }
+
+    property("guess correct depth from index size") =
+      forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
+        val arrayRandomStarts = fillRandomArray(arraySize)
+        IndexBTree.write(arrayRandomStarts, "/tmp/testBtree.idx", sc.hadoopConfiguration)
+        val estimatedDepth = IndexBTree.calcDepth("/tmp/testBtree.idx", sc.hadoopConfiguration)
+        if (estimatedDepth == depth)
+          true
+        else
+          false
+      }
 
     property("index is correct size after write") =
       forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
@@ -34,80 +45,72 @@ class IndexBTreeSuite extends SparkSuite {
         IndexBTree.write(arrayRandomStarts, "/tmp/testBtree.idx", sc.hadoopConfiguration)
         val indexSize = hadoopGetFileSize("/tmp/testBtree.idx", sc.hadoopConfiguration)
         val depth = math.max(1,(math.log10(arrayRandomStarts.length) / math.log10(1024)).ceil.toInt)
-        val numEntries = arraySize + (0 until depth).map{math.pow(1024,_).toInt}.sum
+        val padding = if (arraySize <= 1024) 1024 - arraySize else arraySize % 1024
+        val numEntries = arraySize + padding + (1 until depth).map{math.pow(1024,_).toInt}.sum
 
-        if (indexSize == (numEntries * 8)) {
+        if (indexSize == (numEntries * 8))
           true
-        }
-        else {
+        else
           false
-        }
       }
 
     property("query gives same answer as array") =
       forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
         val arrayRandomStarts = fillRandomArray(arraySize)
-        //println(s"arraysize=$arraySize depth=$depth")
+        val maxLong = arrayRandomStarts.takeRight(1)(0)
 
         IndexBTree.write(arrayRandomStarts, "/tmp/testBtree.idx", sc.hadoopConfiguration)
-        val indexsize = hadoopGetFileSize("/tmp/testBtree.idx", sc.hadoopConfiguration)
 
-
-        if (arrayRandomStarts.length < 0)
-          arrayRandomStarts.forall{case (l) => IndexBTree.query(l,"/tmp/testBtree.idx", sc.hadoopConfiguration) == l}
+        if (arrayRandomStarts.length < 100)
+          arrayRandomStarts.forall{case (l) => IndexBTree.queryIndex(l-1, maxLong + 5, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l}
         else {
           val randomIndices = Array.fill(100)(choose(0,arraySize - 1).sample())
-          val maxLong = arrayRandomStarts.takeRight(1)(0)
-          println(s"arraysize=$arraySize depth=$depth maxStart=$maxLong")
-          //randomIndices.map(arrayRandomStarts).forall{case (l) => l <= maxLong && l >= 0.toLong}
-          randomIndices.map(arrayRandomStarts).forall { case (l) => IndexBTree.query(l, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l }
+          randomIndices.map(arrayRandomStarts).forall { case (l) => IndexBTree.queryIndex(l-1,maxLong + 5, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l }
         }
       }
   }
 
-/*  @Test def test() {
+  @Test def test() {
     Spec.check()
-  }*/
+  }
 
   @Test def oneVariant() {
     val index = Array(24.toLong)
+    val fileSize = 30 //made-up value greater than index
     IndexBTree.write(index, "/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)
-    index.forall{case (l) => IndexBTree.query(l,"/tmp/testBtree.idx", sc.hadoopConfiguration) == l}
+    index.forall{case (l) => IndexBTree.queryIndex(l, fileSize, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l}
   }
 
   @Test def zeroVariants() {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
+      val fileSize = 30 //made-up value greater than index
       IndexBTree.write(index, "/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)
-      index.forall { case (l) => IndexBTree.query(l, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l }
+      index.forall { case (l) => IndexBTree.queryIndex(l, fileSize, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l }
     }
   }
 
-  @Test def jackieTest() {
+  @Test def hardCodedTest() {
     val index = Array(24.toLong)
+    val fileSize = 30 //filled in for file size in this fake example
     val idx = "/tmp/testBtree_1variant.idx"
     val hConf = sc.hadoopConfiguration
+
     IndexBTree.write(index, "/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)
+
     intercept[FatalException]{
-      IndexBTree.queryJackie(-5,idx,hConf)
+      IndexBTree.queryIndex(-5, fileSize, idx, hConf)
     }
-    assert(IndexBTree.queryJackie(0,idx,hConf) == 24)
-    assert(IndexBTree.queryJackie(10,idx,hConf) == 24)
-    assert(IndexBTree.queryJackie(20,idx,hConf) == 24)
-    assert(IndexBTree.queryJackie(24,idx,hConf) == 24)
-    assert(IndexBTree.queryJackie(25,idx,hConf) == -1)
-    assert(IndexBTree.queryJackie(30,idx,hConf) == -1)
-    assert(IndexBTree.queryJackie(100,idx,hConf) == -1)
 
-    println(s"0:${IndexBTree.queryJackie(0,"/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)}")
-    println(s"10:${IndexBTree.queryJackie(10,"/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)}")
-    println(s"20:${IndexBTree.queryJackie(20,"/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)}")
-    println(s"24:${IndexBTree.queryJackie(24,"/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)}")
-    println(s"30:${IndexBTree.queryJackie(30,"/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)}")
+    intercept[FatalException]{
+      IndexBTree.queryIndex(100, fileSize, idx, hConf)
+    }
 
-    index.forall{case (l) => IndexBTree.query(l-1,"/tmp/testBtree_1variant.idx", sc.hadoopConfiguration) == l}
+    assert(IndexBTree.queryIndex(0, fileSize, idx, hConf) == 24)
+    assert(IndexBTree.queryIndex(10, fileSize, idx, hConf) == 24)
+    assert(IndexBTree.queryIndex(20, fileSize, idx, hConf) == 24)
+    assert(IndexBTree.queryIndex(24, fileSize, idx, hConf) == 24)
+    assert(IndexBTree.queryIndex(25, fileSize, idx, hConf) == -1)
+    assert(IndexBTree.queryIndex(fileSize - 1, fileSize, idx, hConf) == -1)
   }
-
-  // assert index < 1024
-  // seek function of where to go next == total size of all layers up to one you're on plus index times 8KB (1024 * 8)
 }

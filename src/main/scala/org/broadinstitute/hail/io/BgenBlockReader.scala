@@ -10,6 +10,7 @@ import org.broadinstitute.hail.Utils._
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Variant](job, split) {
   val file = split.getPath
+  val fileSize = hadoopGetFileSize(file.toString, job)
   val indexArrayPath = file + ".idx"
   val compressGS = job.getBoolean("compressGS", false)
 
@@ -36,7 +37,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   }
 
   override def seekToFirstBlock(start: Long) {
-    pos = IndexBTree.query(start, indexArrayPath, job)
+    pos = IndexBTree.queryIndex(start, fileSize, indexArrayPath, job)
     bfis.seek(pos)
   }
 
