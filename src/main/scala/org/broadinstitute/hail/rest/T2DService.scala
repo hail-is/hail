@@ -193,7 +193,7 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
             case "le" => maxPos = maxPos min (f.value.toInt - 1)
             case "eq" => isSingleVariant = true
             case other =>
-              throw new RESTFailure(s"'pos filter operator must be 'gte', 'gt', 'lte', or 'lt': '$other' not supported.")
+              throw new RESTFailure(s"'pos filter operator must be 'gte', 'gt', 'lte', 'lt', or 'eq': '$other' not supported.")
           }
         case other => throw new RESTFailure(s"Filter operant must be 'chrom' or 'pos': '$other' not supported.")
       }
