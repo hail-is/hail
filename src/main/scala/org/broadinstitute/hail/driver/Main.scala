@@ -159,6 +159,7 @@ object Main {
       AddHcs,
       Cache,
       CacheHcs,
+      CapVariantsPerBlockHcs,
       Count,
       DownsampleVariants,
       ExportPlink,

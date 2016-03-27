@@ -104,9 +104,15 @@ class HardCallSetSuite extends SparkSuite {
     assert(hcs.localSamples sameElements filtVds.localSamples)
     assert(hcs.sampleIds == filtVds.sampleIds)
 
-    hcs.writeNVariantsPerBlock("nVariantsPerBlock.tsv")
+    assert(hcs.df.groupBy("contig", "block").count().first().getLong(2) == 7)
 
-    //assert(HardCallSet(sqlContext, vds).filterVariants(variantFilter).nVariants == 7)
+    assert(hcs.capVariantsPerBlock(3).df.groupBy("contig", "block").count().first().getLong(2) == 3)
+
+    // hcs.writeNVariantsPerBlock("nVariantsPerBlock.tsv")
+
+    // hcs.capVariantsPerBlock(2).writeNVariantsPerBlock("nVariantsPerBlock.tsv")
+
+    // assert(HardCallSet(sqlContext, vds).filterVariants(variantFilter).nVariants == 7)
 
     /* FIXME: This passes but fails on "file already exists" error on second run
     hcs.write(sqlContext, "/tmp/hardCallSet.hcs")
