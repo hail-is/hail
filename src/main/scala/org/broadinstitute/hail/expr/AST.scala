@@ -4,6 +4,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, GenotypeStream, Sample, Variant}
 
 import scala.collection.mutable.ArrayBuffer
@@ -243,7 +244,7 @@ abstract class TIterable extends Type {
 case object TGenotypeStream extends TIterable {
   override def toString = "GenotypeStream"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Iterable[Genotype]]
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Iterable[_]]
 
   def schema = GenotypeStream.schema
 
@@ -892,33 +893,79 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           case _ =>
             parseError(s"no `$method' on non-iterable")
         }
-
         `type` = TInt
-
         rhs.typecheck(symTab, symTab2, true)
         if (rhs.`type` != TBoolean)
           parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
 
       case ("sum", Array(rhs)) =>
         lhs.typecheck(symTab, symTab2, useSecond)
-        val elementType = lhs.`type` match {
-          case iter: TIterable => iter.elementType
-          case _ =>
-            parseError(s"no `$method' on non-iterable")
-        }
+        if (lhs.`type` != TGenotypeStream)
+          parseError(s"`$method' exists only for genotype streams")
+
         rhs.typecheck(symTab, symTab2, true)
-        println("rhs is " + rhs)
         if (!rhs.`type`.isInstanceOf[TNumeric])
           parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
-        `type` = rhs.`type`
+        `type` = (rhs.`type`: @unchecked) match {
+          case TDouble | TFloat => TDouble
+          case TInt | TLong => TLong
+        }
 
       case ("fraction", Array(rhs)) =>
         lhs.typecheck(symTab, symTab2, useSecond)
-        val elementType = lhs.`type` match {
-          case iter: TIterable => iter.elementType
-          case _ =>
-            parseError(s"no `$method' on non-iterable")
-        }
+        if (lhs.`type` != TGenotypeStream)
+          parseError(s"`$method' exists only for genotype streams")
+
+        rhs.typecheck(symTab, symTab2, true)
+        if (rhs.`type` != TBoolean)
+          parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
+        `type` = TDouble
+
+      case ("stats", Array(rhs)) =>
+        lhs.typecheck(symTab, symTab2, useSecond)
+        if (lhs.`type` != TGenotypeStream)
+          parseError(s"`$method' exists only for genotype streams")
+
+        rhs.typecheck(symTab, symTab2, true)
+        val t = rhs.`type`
+        if (!t.isInstanceOf[TNumeric])
+          parseError(s"expected Numeric, got `$t' in `$method' expression")
+
+        val sumT = if (t == TInt || t == TLong)
+          TLong
+        else
+          TDouble
+        `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t),
+          ("max", t), ("nNotMissing", TLong), ("sum", sumT))
+
+      case ("statsif", Array(condition, computation)) =>
+        lhs.typecheck(symTab, symTab2, useSecond)
+        if (lhs.`type` != TGenotypeStream)
+          parseError(s"`$method' exists only for genotype streams")
+
+        condition.typecheck(symTab, symTab2, true)
+        computation.typecheck(symTab, symTab2, true)
+
+        val t1 = condition.`type`
+        val t2 = computation.`type`
+
+        if (t1 != TBoolean)
+          parseError(s"expected Boolean, got `$t1' in `$method' predicate")
+        if (!t2.isInstanceOf[TNumeric])
+          parseError(s"expected Numeric, got `$t2' in `$method' expression")
+
+        val sumT = if (t2 == TInt || t2 == TLong)
+          TLong
+        else
+          TDouble
+        `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t2),
+          ("max", t2), ("nNotMissing", TLong), ("sum", sumT))
+
+      case ("hist", Array(rhs)) =>
+        lhs.typecheck(symTab, symTab2, useSecond)
+        if (lhs.`type` != TGenotypeStream)
+          parseError(s"`$method' exists only for genotype streams")
+
         rhs.typecheck(symTab, symTab2, true)
         if (rhs.`type` != TBoolean)
           parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
@@ -987,7 +1034,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           sum.asInstanceOf[Int] + toAdd
         }
       val combOp: (Any, Any) => Any = _.asInstanceOf[Int] + _.asInstanceOf[Int]
-      localFunctions += ((0, seqOp, combOp))
+      localFunctions += ((() => 0, seqOp, combOp))
       val localA = c.a2
       AST.evalCompose[Any](c, lhs) {
         case a =>
@@ -999,22 +1046,19 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       c.a2 += null
       val fn = rhs.eval(c.copy(useSecond = true))
       val localFunctions = c.functions
-      val (zv, seqOp, combOp) =
-        if (rhs.`type` == TInt || rhs.`type` == TLong) {
-          val so = (sum: Any) => {
-            val ret = fn().asInstanceOf[Long]
-            ret + sum.asInstanceOf[Long]
-          }
-          val co: (Any, Any) => Any = _.asInstanceOf[Long] + _.asInstanceOf[Long]
-          (0L, so, co)
-        } else {
-          val so = (sum: Any) => {
-            val ret = fn().asInstanceOf[Double]
-            ret + sum.asInstanceOf[Double]
-          }
-          val co: (Any, Any) => Any = _.asInstanceOf[Double] + _.asInstanceOf[Double]
-          (0.0, so, co)
-        }
+      val t = rhs.`type`
+      val seqOp = (t: @unchecked) match {
+        case TInt => (sum: Any) => fn().asInstanceOf[Int] + sum.asInstanceOf[Long]
+        case TLong => (sum: Any) => fn().asInstanceOf[Long] + sum.asInstanceOf[Long]
+        case TDouble => (sum: Any) => fn().asInstanceOf[Double] + sum.asInstanceOf[Double]
+        case TFloat => (sum: Any) => fn().asInstanceOf[Float] + sum.asInstanceOf[Double]
+      }
+      val (zv, combOp) = (t: @unchecked) match {
+        case TInt | TLong => (() => 0L,
+          (a: Any, b: Any) => a.asInstanceOf[Long] + b.asInstanceOf[Long])
+        case TFloat | TDouble => (() => 0.0,
+          (a: Any, b: Any) => a.asInstanceOf[Double] + b.asInstanceOf[Double])
+      }
       localFunctions += ((zv, seqOp, combOp))
       val localA = c.a2
       AST.evalCompose[Any](c, lhs) {
@@ -1024,7 +1068,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
     case (returnType, "fraction", Array(rhs)) =>
       val localIdx = c.a2.length
-      println("index is " + localIdx)
       c.a2 += null
       val fn = rhs.eval(c.copy(useSecond = true))
       val localFunctions = c.functions
@@ -1042,16 +1085,165 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           val rh = right.asInstanceOf[(Long, Long)]
           (lh._1 + rh._1, lh._2 + rh._2)
         }
-        ((0L, 0L), so, co)
+        (() => (0L, 0L), so, co)
       }
       localFunctions += ((zv, seqOp, combOp))
       val localA = c.a2
       AST.evalCompose[Any](c, lhs) {
-        case a => {
+        case a =>
           val (a: Long, b: Long) = localA(localIdx)
           divNull(a.toDouble, b)
+      }
+
+
+    case (returnType, "stats", Array(rhs)) =>
+      val localIdx = c.a2.length
+      c.a2 += null
+      val localA = c.a2
+      val fn = rhs.eval(c.copy(useSecond = true))
+      val localFunctions = c.functions
+
+      val seqOp = (rhs.`type`: @unchecked) match {
+        case TInt => (a: Any) => {
+          val query = fn()
+          val sc = a.asInstanceOf[StatCounter]
+          if (query != null)
+            sc.merge(query.asInstanceOf[Int])
+          else
+            sc
+        }
+        case TLong => (a: Any) => {
+          val query = fn()
+          val sc = a.asInstanceOf[StatCounter]
+          if (query != null)
+            sc.merge(query.asInstanceOf[Long])
+          else
+            sc
+        }
+        case TFloat => (a: Any) => {
+          val query = fn()
+          val sc = a.asInstanceOf[StatCounter]
+          if (query != null)
+            sc.merge(query.asInstanceOf[Float])
+          else
+            sc
+        }
+        case TDouble => (a: Any) => {
+          val query = fn()
+          val sc = a.asInstanceOf[StatCounter]
+          if (query != null)
+            sc.merge(query.asInstanceOf[Double])
+          else
+            sc
         }
       }
+
+      val combOp = (a: Any, b: Any) => a.asInstanceOf[StatCounter].merge(b.asInstanceOf[StatCounter])
+
+      val recast: (Double) => Any = (rhs.`type`: @unchecked) match {
+        case TInt => (d: Double) => d.round.toInt
+        case TLong => (d: Double) => d.round
+        case TFloat => (d: Double) => d.toFloat
+        case TDouble => (d: Double) => d
+      }
+
+      val recast2: (Double) => Any =
+        if (rhs.`type` == TInt || rhs.`type` == TLong)
+          (d: Double) => d.round
+        else
+          (d: Double) => d
+
+      val getOp = (a: Any) => {
+        val statcounter = a.asInstanceOf[StatCounter]
+        if (statcounter.count == 0)
+          null
+        else
+          Annotation(statcounter.mean, statcounter.stdev, recast(statcounter.min),
+            recast(statcounter.max), statcounter.count, recast2(statcounter.sum))
+      }
+
+      localFunctions += ((() => new StatCounter, seqOp, combOp))
+      AST.evalCompose[Any](c, lhs) { case a => getOp(localA(localIdx)) }
+
+    case (returnType, "statsif", Array(condition, computation)) =>
+      val localIdx = c.a2.length
+      c.a2 += null
+      val localA = c.a2
+      val conditionFn = condition.eval(c.copy(useSecond = true))
+      val fn = computation.eval(c.copy(useSecond = true))
+      val localFunctions = c.functions
+
+      val seqOp = (computation.`type`: @unchecked) match {
+        case TInt => (a: Any) => {
+          val sc = a.asInstanceOf[StatCounter]
+          if (conditionFn().asInstanceOf[Boolean]) {
+            val query = fn()
+            if (query != null)
+              sc.merge(query.asInstanceOf[Int])
+            else
+              sc
+          } else sc
+        }
+        case TLong => (a: Any) => {
+          val sc = a.asInstanceOf[StatCounter]
+          if (conditionFn().asInstanceOf[Boolean]) {
+            val query = fn()
+            if (query != null)
+              sc.merge(query.asInstanceOf[Long])
+            else
+              sc
+          } else sc
+        }
+        case TFloat => (a: Any) => {
+          val sc = a.asInstanceOf[StatCounter]
+          if (conditionFn().asInstanceOf[Boolean]) {
+            val query = fn()
+            if (query != null)
+              sc.merge(query.asInstanceOf[Float])
+            else
+              sc
+          } else sc
+        }
+        case TDouble => (a: Any) => {
+          val sc = a.asInstanceOf[StatCounter]
+          if (conditionFn().asInstanceOf[Boolean]) {
+            val query = fn()
+            if (query != null)
+              sc.merge(query.asInstanceOf[Double])
+            else
+              sc
+          } else sc
+        }
+      }
+
+      val combOp = (a: Any, b: Any) => a.asInstanceOf[StatCounter].merge(b.asInstanceOf[StatCounter])
+
+      val recast: (Double) => Any = (computation.`type`: @unchecked) match {
+        case TInt => (d: Double) => d.round.toInt
+        case TLong => (d: Double) => d.round
+        case TFloat => (d: Double) => d.toFloat
+        case TDouble => (d: Double) => d
+      }
+
+      val recast2: (Double) => Any =
+        if (computation.`type` == TInt || computation.`type` == TLong)
+          (d: Double) => d.round
+        else
+          (d: Double) => d
+
+      val getOp = (a: Any) => {
+        val statcounter = a.asInstanceOf[StatCounter]
+        if (statcounter.count == 0)
+          null
+        else
+          Annotation(statcounter.mean, statcounter.stdev, recast(statcounter.min),
+            recast(statcounter.max), statcounter.count, recast2(statcounter.sum))
+      }
+
+      localFunctions += ((() => new StatCounter, seqOp, combOp))
+      AST.evalCompose[Any](c, lhs) { case a => getOp(localA(localIdx)) }
+
+    case (returnType, "hist", Array(rhs)) => ???
 
     case (_, "orElse", Array(a)) =>
       val f1 = lhs.eval(c)

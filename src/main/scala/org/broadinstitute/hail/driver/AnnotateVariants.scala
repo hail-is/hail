@@ -205,7 +205,7 @@ object AnnotateVariants extends Command {
           a(1) = va
           a(2) = gs
           if (a3.nonEmpty) {
-            val gsQueries = a3.toArray.map(_._1)
+            val gsQueries = a3.toArray.map(_._1())
             gs.iterator
               .zip(sampleInfoBc.value.iterator)
               .foreach {

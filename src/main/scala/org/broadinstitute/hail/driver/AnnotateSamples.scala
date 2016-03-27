@@ -97,8 +97,6 @@ object AnnotateSamples extends Command {
         for (_ <- symTab2)
           a2 += null
         val parsed = expr.Parser.parseAnnotationArgs(symTab, symTab2, a, a2, a3, cond)
-        for (_ <- a3)
-          a2 += null
 
         val keyedSignatures = parsed.map { case (ids, t, f) =>
           if (ids.head != "sa")
@@ -119,13 +117,11 @@ object AnnotateSamples extends Command {
         val doAggregates = a3.nonEmpty
         val aggregatorArray = if (doAggregates) {
           val a3arr = a3.toArray
-          println("ZEROVAL IS " + a3arr(0))
           val sampleInfoBc = vds.sparkContext.broadcast(vds.localSamples
             .map(vds.sampleIds)
             .map(Sample)
             .zip(vds.localSamples.map(vds.sampleAnnotations)))
-          //          Array.fill[Array[Any]](vds.nLocalSamples)(Array.fill[Any](a3.length)(null))
-          vds.rdd.aggregate(Array.fill[Array[Any]](vds.nLocalSamples)(a3arr.map(_._1)))({ case (arr, (v, va, gs)) =>
+          vds.rdd.aggregate(Array.fill[Array[Any]](vds.nLocalSamples)(a3arr.map(_._1())))({ case (arr, (v, va, gs)) =>
             gs.iterator
               .zipWithIndex
               .foreach { case (g, i) =>
@@ -167,10 +163,8 @@ object AnnotateSamples extends Command {
       if (doAggregates) {
         aggregatorArray(i).iterator.zipWithIndex
           .foreach { case (value, j) =>
-//            println(s"filling in $i, $j with $value")
             a2(5 + j) = value }
       }
-      println(a2.mkString(","))
 
       val queries = computations.map(_ ())
       queries.indices.foreach { i =>

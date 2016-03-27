@@ -2,49 +2,90 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.variant.Genotype
+import org.broadinstitute.hail.Utils._
 import org.testng.annotations.Test
-
-import scala.collection.mutable.ArrayBuffer
 
 class AggregatorSuite extends SparkSuite {
 
-  @Test def test() {
+  @Test def testRows() {
     val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
     var s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
-    s = s.copy(vds = s.vds.copy(rdd = s.vds.rdd.filter { case (v, va, gs) => v.start == 16050036 }))
-    s = AnnotateVariants.run(s, Array("-c", "va.countOver20 = gs.count(g.gq >= 20)"))
-    val q = s.vds.queryVA("countOver20")
+    s = VariantQC.run(s, Array.empty[String])
+    s = AnnotateVariants.run(s, Array("-c", "va.test.callrate = gs.fraction(g.isCalled), va.test.MAC = gs.stats(g.nNonRefAlleles).sum, va.test.MAF = gs.stats(g.nNonRefAlleles).sum.toDouble / gs.count(g.isCalled) / 2.0, va.test.gqstats = gs.stats(g.gq), va.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
+
+    val qCallRate = s.vds.queryVA("test", "callrate")
+    val qCallRateQC = s.vds.queryVA("qc", "callRate")
+    val qMAC = s.vds.queryVA("test", "MAC")
+    val qMACQC = s.vds.queryVA("qc", "MAC")
+    val qMAF = s.vds.queryVA("test", "MAF")
+    val qMAFQC = s.vds.queryVA("qc", "MAF")
+    val gqStatsMean = s.vds.queryVA("test", "gqstats", "mean")
+    val gqStatsMeanQC = s.vds.queryVA("qc", "gqMean")
+    val gqStatsStDev = s.vds.queryVA("test", "gqstats", "stdev")
+    val gqStatsStDevQC = s.vds.queryVA("qc", "gqStDev")
+    val gqStatsHetMean = s.vds.queryVA("test", "gqhetstats", "mean")
+    val gqStatsHetMeanQC = s.vds.queryVA("qc", "gqMeanHet")
+    val gqStatsHetStDev = s.vds.queryVA("test", "gqhetstats", "stdev")
+    val gqStatsHetStDevQC = s.vds.queryVA("qc", "gqStDevHet")
+
     s.vds.rdd.collect()
       .foreach {
         case (v, va, gs) =>
-          val vaq = q(va)
-          val gsC = gs.count(g => g.gq.isDefined && g.gq.get >= 20)
-          assert(vaq == Option(gsC))
+          assert(qCallRate(va) == qCallRateQC(va))
+          assert(qMAC(va) == qMACQC(va))
+          assert(qMAF(va) == qMAFQC(va))
+          assert(gqStatsMean(va).zip(gqStatsMeanQC(va)).forall {
+            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+          })
+          assert(gqStatsStDev(va).zip(gqStatsStDevQC(va)).forall {
+            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+          })
+          assert(gqStatsHetMean(va).zip(gqStatsHetMeanQC(va)).forall {
+            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+          })
+          assert(gqStatsHetStDev(va).zip(gqStatsHetStDevQC(va)).forall {
+            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+          })
+
       }
+  }
 
-    import org.broadinstitute.hail.expr
-    val a = new ArrayBuffer[Any]()
-    val a2 = new ArrayBuffer[Any]()
-    val a3 = new ArrayBuffer[expr.Aggregator]()
-    val cond = "sa.a = if (g.isHomVar) g.gq else 0"
-    val cond2 = "sa.a = if (g.isHomVar) {g.gq} else {0}"
-    val cond3 = "sa.a = g.isHomVar"
-    val f = expr.Parser.parseAnnotationArgs(Map("g" ->(0, expr.TGenotype)), null, a, a2, a3, cond)
-    val f2 = expr.Parser.parseAnnotationArgs(Map("g" ->(0, expr.TGenotype)), null, a, a2, a3, cond2)
-    val f3 = expr.Parser.parseAnnotationArgs(Map("g" ->(0, expr.TGenotype)), null, a, a2, a3, cond3)
-    println(f.head)
-    println(f2.head)
-    println(f3.head)
-    val genotypes = vds.rdd.take(1).head._3.take(20).toArray
-    val g1 = genotypes(0)
-    println(genotypes.mkString("\n - "))
+  @Test def testColumns() {
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
+    var s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
 
-    //    s = AnnotateSamples.run(s, Array("-c", "sa.fractionOver20 = gs.fraction(g.gq >= 20), sa.hetmeangq = gs.sum(if (g.isHet) g.gq else 0).toDouble / gs.count(g.isHet)"))
-    //    s = AnnotateSamples.run(s, Array("-c", "sa.fractionOver20 = gs.fraction(g.gq >= 20), sa.hetmeangq = gs.sum(if (g.isHet) g.gq else 0).toDouble / gs.count(g.isHet)"))
-    //    s.vds.sampleAnnotations.foreach { x =>
-    //      println(Annotation.printAnnotation(x, 2))
-    //    }
+    s = SampleQC.run(s, Array.empty[String])
+
+    s = AnnotateSamples.run(s, Array("-c", "sa.test.callrate = gs.fraction(g.isCalled), sa.test.gqstats = " +
+      "gs.stats(g.gq), sa.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
+
+    val qCallRate = s.vds.querySA("test", "callrate")
+    val qCallRateQC = s.vds.querySA("qc", "callRate")
+    val gqStatsMean = s.vds.querySA("test", "gqstats", "mean")
+    val gqStatsMeanQC = s.vds.querySA("qc", "gqMean")
+    val gqStatsStDev = s.vds.querySA("test", "gqstats", "stdev")
+    val gqStatsStDevQC = s.vds.querySA("qc", "gqStDev")
+    val gqStatsHetMean = s.vds.querySA("test", "gqhetstats", "mean")
+    val gqStatsHetMeanQC = s.vds.querySA("qc", "gqMeanHet")
+    val gqStatsHetStDev = s.vds.querySA("test", "gqhetstats", "stdev")
+    val gqStatsHetStDevQC = s.vds.querySA("qc", "gqStDevHet")
+
+    s.vds.sampleAnnotations
+      .foreach {
+        sa =>
+          assert(qCallRate(sa) == qCallRateQC(sa))
+          assert(gqStatsMean(sa).zip(gqStatsMeanQC(sa)).forall {
+            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+          })
+          assert(gqStatsStDev(sa).zip(gqStatsStDevQC(sa)).forall {
+            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+          })
+          assert(gqStatsHetMean(sa).zip(gqStatsHetMeanQC(sa)).forall {
+            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+          })
+          assert(gqStatsHetStDev(sa).zip(gqStatsHetStDevQC(sa)).forall {
+            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+          })
+      }
   }
 }

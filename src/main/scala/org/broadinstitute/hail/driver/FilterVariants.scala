@@ -75,7 +75,7 @@ object FilterVariants extends Command {
           a(1) = va
           a(2) = gs
 
-          val computations = a3.toArray.map(_._1)
+          val computations = a3.toArray.map(_._1())
           gs.iterator
             .zip(sampleInfoBc.value.iterator)
             .foreach {
