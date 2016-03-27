@@ -105,6 +105,7 @@ class HardCallSetSuite extends SparkSuite {
     assert(hcs.sampleIds == filtVds.sampleIds)
 
     hcs.writeNVariantsPerBlock("nVariantsPerBlock.tsv")
+
     //assert(HardCallSet(sqlContext, vds).filterVariants(variantFilter).nVariants == 7)
 
     /* FIXME: This passes but fails on "file already exists" error on second run

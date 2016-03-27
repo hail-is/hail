@@ -145,15 +145,15 @@ case class HardCallSet(df: DataFrame,
   def capVariantsPerBlock(maxPerBlock: Int): HardCallSet = {
     import df.sqlContext.implicits._
 
-    val filtRDD = df
+    val filtRdd = df
       .rdd
       .groupBy(r => (r.getString(4), r.getInt(5)))
-      .mapValues(it => scala.util.Random.shuffle(it).take(maxPerBlock))
-      .
+      .map(_._2)
+      .map(it => scala.util.Random.shuffle(it).take(maxPerBlock)) // is shuffle lazy here?
+      .flatMap(identity)
+      .map(r => (r.getInt(0), r.getString(1), r.getString(2), r.getCallStream(3), r.getString(4), r.getInt(5)))
 
-    //val filtRdd = rdd.filter{ case (Variant(contig, pos, _, _), cs) => Set(("chr1", 1)) contains (contig, pos) }
-
-    new HardCallSet(filtRdd.toDF(),
+    new HardCallSet(filtRdd.toDF("start", "ref", "alt", "callStream", "contig", "block"),
       localSamples,
       sampleIds,
       sparseCutoff,
