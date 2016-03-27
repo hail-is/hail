@@ -15,6 +15,9 @@ object AddHcs extends Command {
 
     @Args4jOption(required = false, name = "-s", aliases = Array("--sparse"), usage = "Sparse cut off, < s is sparse: s <= 0 is all dense, s > 1 is all sparse")
     var sparseCutOff: Double = .15
+
+    @Args4jOption(required = false, name = "-b", aliases = Array("--blockwidth"), usage = "Width of DataFrame block in basepairs")
+    var blockWidth: Int = 100000
   }
 
   def newOptions = new Options
@@ -38,7 +41,10 @@ object AddHcs extends Command {
             CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds).covRowSample.toSet
       }
 
-    val hcs = HardCallSet(state.sqlContext, vds.filterSamples { case (s, sa) => sampleFilter(s) }, options.sparseCutOff)
+    val hcs = HardCallSet(state.sqlContext,
+      vds.filterSamples { case (s, sa) => sampleFilter(s) },
+      sparseCutoff = options.sparseCutOff,
+      blockWidth = options.blockWidth)
 
     state.copy(hcs = hcs)
   }

@@ -93,7 +93,7 @@ class HardCallSetSuite extends SparkSuite {
       .filterVariants((v, va) => variantFilter(v))
       .filterSamples((s, sa) => sampleFilter(s))
 
-    val hcs = HardCallSet(sqlContext, filtVds, .5)
+    val hcs = HardCallSet(sqlContext, filtVds, sparseCutoff = .5)
 
     assert(hcs.nVariants == 7)
     assert(hcs.nSparseVariants == 2)

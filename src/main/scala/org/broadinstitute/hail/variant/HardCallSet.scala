@@ -12,39 +12,47 @@ import org.broadinstitute.hail.methods.CovariateData
 import scala.collection.mutable
 
 object HardCallSet {
-  def apply(sqlContext: SQLContext, vds: VariantDataset, sparseCutoff: Double = .15): HardCallSet = {
+  def apply(sqlContext: SQLContext, vds: VariantDataset, sparseCutoff: Double = .15, blockWidth: Int = 1000000): HardCallSet = {
     import sqlContext.implicits._
 
     val n = vds.nLocalSamples
 
     new HardCallSet(
       vds.rdd.map { case (v, va, gs) =>
-        (v.start, v.ref, v.alt, CallStream(gs, n, sparseCutoff), "chr" + v.contig, v.start / 100000)
+        (v.start, v.ref, v.alt, CallStream(gs, n, sparseCutoff), "chr" + v.contig, v.start / blockWidth)
       }.toDF("start", "ref", "alt", "callStream", "contig", "block"),
       vds.localSamples,
-      vds.metadata.sampleIds)
+      vds.metadata.sampleIds,
+      sparseCutoff,
+      blockWidth)
   }
 
   def read(sqlContext: SQLContext, dirname: String): HardCallSet = {
     require(dirname.endsWith(".hcs"))
 
-    val (localSamples, sampleIds) = readDataFile(dirname + "/sampleInfo.ser",
+    val (localSamples, sampleIds, sparseCutoff, blockWidth) = readDataFile(dirname + "/sampleInfo.ser",
       sqlContext.sparkContext.hadoopConfiguration) {
       ds =>
-        ds.readObject[(Array[Int], IndexedSeq[String])]
+        ds.readObject[(Array[Int], IndexedSeq[String], Double, Int)]
     }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     df.printSchema()
 
-    new HardCallSet(
-      df,
+    new HardCallSet(df,
       localSamples,
-      sampleIds)
+      sampleIds,
+      sparseCutoff,
+      blockWidth)
   }
 }
 
-case class HardCallSet(df: DataFrame, localSamples: Array[Int], sampleIds: IndexedSeq[String]) {
+case class HardCallSet(df: DataFrame,
+  localSamples: Array[Int],
+  sampleIds: IndexedSeq[String],
+  sparseCutoff: Double,
+  blockWidth: Int) {
+
   def rdd: RDD[(Variant, CallStream)] = {
     import RichRow._
     df.rdd.map(r =>
@@ -63,7 +71,7 @@ case class HardCallSet(df: DataFrame, localSamples: Array[Int], sampleIds: Index
     hadoopMkdir(dirname, hConf)
     writeDataFile(dirname + "/sampleInfo.ser", hConf) {
       ss =>
-        ss.writeObject((localSamples, sampleIds))
+        ss.writeObject((localSamples, sampleIds, sparseCutoff, blockWidth))
     }
 
     df.write
@@ -75,8 +83,10 @@ case class HardCallSet(df: DataFrame, localSamples: Array[Int], sampleIds: Index
 
   def copy(df: DataFrame,
     localSamples: Array[Int] = localSamples,
-    sampleIds: IndexedSeq[String] = sampleIds): HardCallSet =
-    new HardCallSet(df, localSamples, sampleIds)
+    sampleIds: IndexedSeq[String] = sampleIds,
+    sparseCutoff: Double = sparseCutoff,
+    blockWidth: Int = blockWidth): HardCallSet =
+    new HardCallSet(df, localSamples, sampleIds, sparseCutoff, blockWidth)
 
   def cache(): HardCallSet = copy(df = df.cache())
 
@@ -103,7 +113,7 @@ case class HardCallSet(df: DataFrame, localSamples: Array[Int], sampleIds: Index
 
       val vRow = df
         .filter(df("contig") === v.contig)
-        .filter(df("block") === v.start / 100000)
+        .filter(df("block") === v.start / blockWidth)
         .filter(df("start") === v.start)
         .filter(df("ref") === v.ref)
         .filter(df("alt") === v.alt)
@@ -130,6 +140,24 @@ case class HardCallSet(df: DataFrame, localSamples: Array[Int], sampleIds: Index
     }
     else
       CovariateData(covRowSample, Array[String](), None)
+  }
+
+  def capVariantsPerBlock(maxPerBlock: Int): HardCallSet = {
+    import df.sqlContext.implicits._
+
+    val filtRDD = df
+      .rdd
+      .groupBy(r => (r.getString(4), r.getInt(5)))
+      .mapValues(it => scala.util.Random.shuffle(it).take(maxPerBlock))
+      .
+
+    //val filtRdd = rdd.filter{ case (Variant(contig, pos, _, _), cs) => Set(("chr1", 1)) contains (contig, pos) }
+
+    new HardCallSet(filtRdd.toDF(),
+      localSamples,
+      sampleIds,
+      sparseCutoff,
+      blockWidth)
   }
 }
 
