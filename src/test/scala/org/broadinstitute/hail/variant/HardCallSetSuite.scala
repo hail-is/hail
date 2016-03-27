@@ -6,6 +6,7 @@ import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.driver.{WriteHcs, AddHcs, SplitMulti, State}
 import org.broadinstitute.hail.methods._
 import org.testng.annotations.Test
+import org.broadinstitute.hail.Utils._
 
 import scala.util.Random
 
@@ -75,6 +76,7 @@ class HardCallSetSuite extends SparkSuite {
     }
   }
 
+
   @Test def hcsTest() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
 
@@ -102,6 +104,7 @@ class HardCallSetSuite extends SparkSuite {
     assert(hcs.localSamples sameElements filtVds.localSamples)
     assert(hcs.sampleIds == filtVds.sampleIds)
 
+    hcs.writeNVariantsPerBlock("nVariantsPerBlock.tsv")
     //assert(HardCallSet(sqlContext, vds).filterVariants(variantFilter).nVariants == 7)
 
     /* FIXME: This passes but fails on "file already exists" error on second run

@@ -188,7 +188,8 @@ object Main {
       T2DServer,
       VariantQC,
       Write,
-      WriteHcs
+      WriteHcs,
+      WriteNVariantsPerBlockHcs
     )
 
     val nameCommand = commands
