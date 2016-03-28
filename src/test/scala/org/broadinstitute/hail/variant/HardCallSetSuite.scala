@@ -106,7 +106,7 @@ class HardCallSetSuite extends SparkSuite {
 
     assert(hcs.df.groupBy("contig", "block").count().first().getLong(2) == 7)
 
-    assert(hcs.capVariantsPerBlock(3).df.groupBy("contig", "block").count().first().getLong(2) == 3)
+    assert(hcs.capNVariantsPerBlock(3).df.groupBy("contig", "block").count().first().getLong(2) == 3)
 
     // hcs.writeNVariantsPerBlock("nVariantsPerBlock.tsv")
 

@@ -142,22 +142,21 @@ case class HardCallSet(df: DataFrame,
       CovariateData(covRowSample, Array[String](), None)
   }
 
-  def capVariantsPerBlock(maxPerBlock: Int): HardCallSet = {
+  def capNVariantsPerBlock(maxPerBlock: Int, newBlockWidth: Int = blockWidth): HardCallSet = {
     import df.sqlContext.implicits._
 
-    val filtRdd = df
-      .rdd
+    val filtRdd = df.rdd
       .groupBy(r => (r.getString(4), r.getInt(5)))
       .map(_._2)
       .map(it => scala.util.Random.shuffle(it).take(maxPerBlock)) // is shuffle lazy here?
       .flatMap(identity)
-      .map(r => (r.getInt(0), r.getString(1), r.getString(2), r.getCallStream(3), r.getString(4), r.getInt(5)))
+      .map(r => (r.getInt(0), r.getString(1), r.getString(2), r.getCallStream(3), r.getString(4), r.getInt(0) / newBlockWidth))
 
     new HardCallSet(filtRdd.toDF("start", "ref", "alt", "callStream", "contig", "block"),
       localSamples,
       sampleIds,
       sparseCutoff,
-      blockWidth)
+      newBlockWidth)
   }
 
   def writeNVariantsPerBlock(filename: String) {
