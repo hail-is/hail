@@ -72,11 +72,17 @@ object Parser extends JavaTokenParsers {
     Lambda(arrow.pos, param, body)
   } |
     if_expr |
+    let_expr |
     or_expr
 
   def if_expr: Parser[AST] =
     withPos("if") ~ ("(" ~> expr <~ ")") ~ expr ~ ("else" ~> expr) ^^ { case ifx ~ cond ~ thenTree ~ elseTree =>
       If(ifx.pos, cond, thenTree, elseTree)
+    }
+
+  def let_expr: Parser[AST] =
+    withPos("let") ~ rep1sep((identifier <~ "=") ~ expr, "and") ~ ("in" ~> expr) ^^ { case let ~ bindings ~ body =>
+        Let(let.pos, bindings.iterator.map { case id ~ v => (id, v) }.toArray, body)
     }
 
   def or_expr: Parser[AST] =

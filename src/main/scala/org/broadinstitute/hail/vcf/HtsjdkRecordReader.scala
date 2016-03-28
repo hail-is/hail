@@ -4,6 +4,7 @@ import org.apache.spark.Accumulable
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -48,8 +49,18 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
 
     val info = Annotation(
-      infoSignature.fields.map(f =>
-        cast(vc.getAttribute(f.name), f.`type`)): _*)
+      infoSignature.fields.map { f =>
+        val a = vc.getAttribute(f.name)
+        try {
+          cast(a, f.`type`)
+        } catch {
+          case e: Exception =>
+            fatal(
+              s"""variant $v: INFO field ${f.name}:
+                  |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
+                  |  caught $e""".stripMargin)
+        }
+      }: _*)
     assert(infoSignature.typeCheck(info))
 
     val va = Annotation(

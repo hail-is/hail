@@ -4,7 +4,9 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.broadinstitute.hail.variant.{Sample, AltAllele, Variant, Genotype}
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
+
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
@@ -912,6 +914,44 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   }
 }
 
+case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extends AST(posn, bindings.map(_._2) :+ body) {
+
+  def eval(c: EvalContext): () => Any = {
+    val indexb = new mutable.ArrayBuilder.ofInt
+    val bindingfb = mutable.ArrayBuilder.make[() => Any]()
+
+    var symTab2 = c.symTab
+    val localA = c.a
+    for ((id, v) <- bindings) {
+      val i = localA.length
+      localA += null
+      bindingfb += v.eval(c.copy(symTab = symTab2))
+      indexb += i
+      symTab2 = symTab2 + (id ->(i, v.`type`))
+    }
+
+    val n = bindings.length
+    val indices = indexb.result()
+    val bindingfs = bindingfb.result()
+    val bodyf = body.eval(c.copy(symTab = symTab2))
+    () => {
+      for (i <- 0 until n)
+        localA(indices(i)) = bindingfs(i)()
+      bodyf()
+    }
+  }
+
+  override def typecheck(symTab: SymbolTable) {
+    var symTab2 = symTab
+    for ((id, v) <- bindings) {
+      v.typecheck(symTab2)
+      symTab2 = symTab2 + (id ->(-1, v.`type`))
+    }
+    body.typecheck(symTab2)
+    `type` = body.`type`
+  }
+}
+
 case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
   def eval(c: EvalContext): () => Any = ((operation, `type`): @unchecked) match {
     case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
@@ -924,16 +964,16 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
       val f2 = rhs.eval(c)
 
       () => {
-        val x = f1()
-        if (x != null) {
-          if (x.asInstanceOf[Boolean])
+        val x1 = f1()
+        if (x1 != null) {
+          if (x1.asInstanceOf[Boolean])
             true
           else
             f2()
         } else {
           val x2 = f2()
-          if (x != null
-            && x.asInstanceOf[Boolean])
+          if (x2 != null
+            && x2.asInstanceOf[Boolean])
             true
           else
             null

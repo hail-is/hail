@@ -71,6 +71,11 @@ filtervariants -c '!va.pass' --remove
 ```
 
 ```
+[after importvcf & splitmulti]
+filtervariants -c 'va.info.AC[va.aIndex] > 1' --keep 
+```
+
+```
 filtergenotypes -c 'g.ad(1).toDouble / g.dp < 0.2' --remove
 ```
 
@@ -84,3 +89,7 @@ filtersamples -c 'if ("DUMMY" ~ s.id)
 ```
 filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
 ```
+
+**Remember:**
+ - All variables and values are case sensitive
+ - Missing values will always be **excluded**, regardless of `--keep`/`--remove`.  Expressions in which any value is missing will evaluate to missing.
