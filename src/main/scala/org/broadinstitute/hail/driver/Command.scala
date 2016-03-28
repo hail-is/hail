@@ -53,6 +53,7 @@ object ToplevelCommands {
   register(ExportGenotypes)
   register(ExportSamples)
   register(ExportVariants)
+  register(ExportVariantsSolr)
   register(ExportVCF)
   register(FilterGenotypes)
   register(FamSummary)
