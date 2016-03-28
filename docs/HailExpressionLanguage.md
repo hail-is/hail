@@ -77,4 +77,4 @@ In the below expression, we will use a different cutoff for samples with Europea
 filtersamples --keep -c 'if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200'
 ```
 
-
+See documentatation on [exporting to TSV](ExportTSV.md) and [programmatic annotation](ProgrammaticAnnotation.md) for more examples of what Hail's language can do.
