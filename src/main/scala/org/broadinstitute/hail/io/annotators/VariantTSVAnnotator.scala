@@ -10,27 +10,9 @@ import org.broadinstitute.hail.variant.Variant
 
 import scala.collection.mutable
 
-object VariantTSVAnnotator {
-
-  def parseStringType(s: String): expr.Type = {
-    s match {
-      case "Double" => expr.TDouble
-      case "Int" => expr.TInt
-      case "Boolean" => expr.TBoolean
-      case "String" => expr.TString
-      case _ => fatal(
-        s"""Unrecognized type "$s".  Hail supports parsing the following types in annotations:
-            |  - Double (floating point number)
-            |  - Int  (integer)
-            |  - Boolean
-            |  - String
-            |
-             |  Note that the above types are case sensitive.""".stripMargin)
-    }
-  }
-
+object VariantTSVAnnotator extends TSVAnnotator {
   def apply(sc: SparkContext, filename: String, vColumns: Array[String], typeMap: Map[String, String],
-    missing: Set[String]): (RDD[(Variant, Annotation)], expr.Type) = {
+    missing: String): (RDD[(Variant, Annotation)], expr.Type) = {
 
     val (header, split) = readLines(filename, sc.hadoopConfiguration) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
@@ -80,17 +62,7 @@ object VariantTSVAnnotator {
         .map { case ((key, t), i) => expr.Field(key, t, i) }
     )
 
-    val functions: Array[(mutable.ArrayBuilder[Annotation], String) => Unit] =
-      orderedSignatures
-        .map { case (id, o) => o.map(_.parser(missing, id)) }
-        .map {
-          case Some(parser) =>
-            (ab: mutable.ArrayBuilder[Annotation], str: String) =>
-              ab += parser(str)
-              ()
-          case None =>
-            (ab: mutable.ArrayBuilder[Annotation], str: String) => ()
-        }
+    val functions = buildParsers(missing, orderedSignatures)
 
     val f: (mutable.ArrayBuilder[Annotation], String) => (Variant, Annotation) = {
       (ab, line) =>

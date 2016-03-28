@@ -62,9 +62,9 @@ object Parser extends JavaTokenParsers {
     }
 
     arr.map {
-      case (ids, ast) =>
+      case (path, ast) =>
         ast.typecheck(symTab)
-        (ids.toList, ast.`type`, ast.eval(EvalContext(symTab, a)))
+        (path.toList, ast.`type`, ast.eval(EvalContext(symTab, a)))
     }
   }
 

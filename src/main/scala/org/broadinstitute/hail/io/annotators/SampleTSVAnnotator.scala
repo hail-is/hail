@@ -8,8 +8,8 @@ import org.broadinstitute.hail.expr
 
 import scala.collection.mutable
 
-object SampleTSVAnnotator {
-  def apply(filename: String, sampleCol: String, typeMap: Map[String, String], missing: Set[String],
+object SampleTSVAnnotator extends TSVAnnotator {
+  def apply(filename: String, sampleCol: String, typeMap: Map[String, String], missing: String,
     hConf: hadoop.conf.Configuration): (Map[String, Annotation], expr.Type) = {
     readLines(filename, hConf) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
@@ -26,7 +26,7 @@ object SampleTSVAnnotator {
 
       val orderedSignatures: Array[(String, Option[expr.Type])] = split.map { s =>
         if (s != sampleCol)
-          (s, Some(VariantTSVAnnotator.parseStringType(typeMap.getOrElse(s, "String"))))
+          (s, Some(parseStringType(typeMap.getOrElse(s, "String"))))
         else
           (s, None)
       }
@@ -42,17 +42,7 @@ object SampleTSVAnnotator {
           .map { case ((key, t), i) => expr.Field(key, t, i) }
       )
 
-      val functions: Array[(mutable.ArrayBuilder[Annotation], String) => Unit] =
-        orderedSignatures
-          .map { case (id, o) => o.map(_.parser(missing, id)) }
-          .map {
-            case Some(parser) =>
-              (ab: mutable.ArrayBuilder[Annotation], str: String) =>
-                ab += parser(str)
-                ()
-            case None =>
-              (ab: mutable.ArrayBuilder[Annotation], str: String) => ()
-          }
+      val functions = buildParsers(missing, orderedSignatures)
 
       val ab = mutable.ArrayBuilder.make[Any]
       val m = lines.map {

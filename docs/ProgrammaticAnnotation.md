@@ -10,12 +10,13 @@ Hail supports programmatic annotation, which is the computation of new annotatio
 In both `annotatesamples` and `annotatevariants`,  the syntax for creating programmatic annotations is the same.  These commands are composed of one or more annotation statements of the following structure:
 
 ```
-annotatevariants -c   "va.path.to.new.annotation          =         if (va.pass) va.qc.gqMean else 0    [ , ... ]"
-                                ^                         ^                     ^                           ^
-                       *period-delimited path         equals sign            expression               comma followed by
-                     starting with 'va' or 'sa'     delimits path                                     more annotation
-                     where the annotation will      and expression                                       statements
-                           be placed
+annotatevariants expr \
+   -c   "va.path.to.new.annotation          =         if (va.pass) va.qc.gqMean else 0    [ , ... ]"
+                  ^                         ^                     ^                           ^
+         *period-delimited path         equals sign            expression               comma followed by
+       starting with 'va' or 'sa'     delimits path                                     more annotation
+       where the annotation will      and expression                                       statements
+             be placed
 ```
 
 In this example, `annotatevariants` will produce a new annotation stored in `va.path.to.new.annotation`, which is accessible in all future modules. 
@@ -38,36 +39,36 @@ ____
 ```
 hail read -i my.vds \
  sampleqc \
- annotatesamples -c 'sa.missingness = 1 - sa.qc.callRate'
+ annotatesamples expr -c 'sa.missingness = 1 - sa.qc.callRate'
 ```
 
 ```
 hail read -i my.vds \
  sampleqc \
- annotatesamples -c 'sa.myannotations.indelSnpRatio = (sa.qc.nInsertion + sa.qc.nDeletion) / sa.qc.nSNP.toDouble'
+ annotatesamples expr -c 'sa.myannotations.indelSnpRatio = (sa.qc.nInsertion + sa.qc.nDeletion) / sa.qc.nSNP.toDouble'
 ```
 
 ```
 hail importvcf my.vcf.bgz \
- annotatevariants -c 'va.custom.percentCalled = 100 * sa.qc.callRate'
+ annotatevariants expr -c 'va.custom.percentCalled = 100 * sa.qc.callRate'
 ```
 
 ```
 hail read -i my.vds \
  variantqc \
- annotatevariants -c 'va.a = 2, va.b = 3, va.c = 4, va.d = if (va.pass) va.qc.pHWE else 1'
+ annotatevariants expr -c 'va.a = 2, va.b = 3, va.c = 4, va.d = if (va.pass) va.qc.pHWE else 1'
 ```
 
 ```
 hail read -i my.vds \
  variantqc \
- annotatevariants -c 'va.a = 2, va.b = 3, va.c = 4, va.d = if (va.pass) va.qc.pHWE else 1'
+ annotatevariants expr -c 'va.a = 2, va.b = 3, va.c = 4, va.d = if (va.pass) va.qc.pHWE else 1'
 ```
 
 ```
 hail read -i my.vds \
  variantqc \
- annotatevariants -c 'va.info.AC = va.qc.MAC'
+ annotatevariants expr -c 'va.info.AC = va.qc.MAC'
 ```
 
 ____
@@ -81,7 +82,7 @@ When you generate more than one new annotation, the operations are structured in
 2.  Each statement generates a new schema based on the schema to its left (or the base, for the first command).  These transformations overwrite previous annotations in their path, i.e. if your dataset contains `va.a: Int` and you insert `va.a.b = 10`, `va.a: Int` is overwritten.  These overwrites happen left to right: 
 
 ```
-annotatevariants -c 'va.a = 1, va.a = 2, va.a = 3'
+annotatevariants expr -c 'va.a = 1, va.a = 2, va.a = 3'
 ```
 
 The above command will produce one annotation, where `va.a` is `3`.  You should not do this because it is silly.

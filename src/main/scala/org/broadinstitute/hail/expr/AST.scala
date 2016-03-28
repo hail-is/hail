@@ -112,7 +112,7 @@ sealed abstract class Type extends Serializable {
 
   def schema: DataType
 
-  def parser(missing: Set[String], colName: String): String => Annotation =
+  def parse(s: String): Annotation =
     throw new UnsupportedOperationException(s"Cannot generate a parser for $toString")
 }
 
@@ -133,14 +133,7 @@ case object TBoolean extends Type {
 
   def schema = BooleanType
 
-  override def parser(missing: Set[String], colName: String): String => Annotation =
-    (v: String) =>
-      try {
-        if (missing(v)) Annotation.empty else v.toBoolean
-      } catch {
-        case e: java.lang.IllegalArgumentException =>
-          fatal( s"""java.lang.IllegalArgumentException: tried to convert "$v" to Boolean in column "$colName" """)
-      }
+  override def parse(s: String): Annotation = s.toBoolean
 }
 
 case object TChar extends Type {
@@ -160,14 +153,7 @@ case object TInt extends TNumeric {
 
   def schema = IntegerType
 
-  override def parser(missing: Set[String], colName: String): String => Annotation =
-    (v: String) =>
-      try {
-        if (missing(v)) Annotation.empty else v.toInt
-      } catch {
-        case e: java.lang.IllegalArgumentException =>
-          fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Int in column "$colName" """)
-      }
+  override def parse(s: String): Annotation = s.toInt
 }
 
 case object TLong extends TNumeric {
@@ -177,14 +163,7 @@ case object TLong extends TNumeric {
 
   def schema = LongType
 
-  override def parser(missing: Set[String], colName: String): String => Annotation =
-    (v: String) =>
-      try {
-        if (missing(v)) Annotation.empty else v.toLong
-      } catch {
-        case e: java.lang.IllegalArgumentException =>
-          fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Long in column "$colName" """)
-      }
+  override def parse(s: String): Annotation = s.toLong
 }
 
 case object TFloat extends TNumeric {
@@ -194,14 +173,7 @@ case object TFloat extends TNumeric {
 
   def schema = FloatType
 
-  override def parser(missing: Set[String], colName: String): String => Annotation =
-    (v: String) =>
-      try {
-        if (missing(v)) Annotation.empty else v.toFloat
-      } catch {
-        case e: java.lang.IllegalArgumentException =>
-          fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$colName" """)
-      }
+  override def parse(s: String): Annotation = s.toFloat
 }
 
 case object TDouble extends TNumeric {
@@ -211,14 +183,7 @@ case object TDouble extends TNumeric {
 
   def schema = DoubleType
 
-  override def parser(missing: Set[String], colName: String): String => Annotation =
-    (v: String) =>
-      try {
-        if (missing(v)) Annotation.empty else v.toDouble
-      } catch {
-        case e: java.lang.IllegalArgumentException =>
-          fatal( s"""java.lang.NumberFormatException: tried to convert "$v" to Double in column "$colName" """)
-      }
+  override def parse(s: String): Annotation = s.toDouble
 }
 
 case object TString extends Type {
@@ -228,9 +193,7 @@ case object TString extends Type {
 
   def schema = StringType
 
-  override def parser(missing: Set[String], colName: String): String => Annotation =
-    (v: String) =>
-      if (missing(v)) Annotation.empty else v
+  override def parse(s: String): Annotation = s
 }
 
 case class TArray(elementType: Type) extends Type {

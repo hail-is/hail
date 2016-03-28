@@ -470,21 +470,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
-  def deleteVA(path: List[String]): (Type, Deleter) = {
-    vaSignature.delete(path) match {
-      case (null, null) => (TEmpty, a => Annotation.empty)
-      case x => x
-    }
-  }
+  def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
 
   def deleteSA(args: String*): (Type, Deleter) = deleteSA(args.toList)
 
-  def deleteSA(path: List[String]): (Type, Deleter) = {
-    saSignature.delete(path) match {
-      case (null, null) => (TEmpty, a => Annotation.empty)
-      case x => x
-    }
-  }
+  def deleteSA(path: List[String]): (Type, Deleter) = saSignature.delete(path)
 
   def insertVA(sig: Type, args: String*): (Type, Inserter) = insertVA(sig, args.toList)
 
