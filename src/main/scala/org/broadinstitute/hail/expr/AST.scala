@@ -139,9 +139,10 @@ case object TBoolean extends Type {
 case object TChar extends Type {
   override def toString = "Char"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Character]
+  def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
+    && a.asInstanceOf[String].length == 1)
 
-  def schema = throw new UnsupportedOperationException
+  def schema = StringType
 }
 
 abstract class TNumeric extends Type
@@ -602,6 +603,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     (lhs.`type`, rhs) match {
       case (TSample, "id") => TString
       case (TGenotype, "gt") => TInt
+      case (TGenotype, "gtj") => TInt
+      case (TGenotype, "gtk") => TInt
       case (TGenotype, "ad") => TArray(TInt)
       case (TGenotype, "dp") => TInt
       case (TGenotype, "od") => TInt
@@ -674,6 +677,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
     case (TGenotype, "gt") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.gt)
+    case (TGenotype, "gtj") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.gt.map(gtx => Genotype.gtPair(gtx).j))
+    case (TGenotype, "gtk") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.gt.map(gtx => Genotype.gtPair(gtx).k))
     case (TGenotype, "ad") =>
       AST.evalFlatCompose[Genotype](c, lhs)(g => g.ad.map(a => a: IndexedSeq[Int]))
     case (TGenotype, "dp") =>
@@ -702,7 +709,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Genotype](c, lhs)(_.isNotCalled)
     case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](c, lhs)(_.nNonRefAlleles)
     case (TGenotype, "pAB") =>
-      AST.evalCompose[Genotype](c, lhs)(_.pAB())
+      AST.evalFlatCompose[Genotype](c, lhs)(_.pAB())
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](c, lhs)(_.contig)
@@ -1057,7 +1064,7 @@ case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(
       AST.evalCompose[IndexedSeq[_], Int](c, f, idx)((a, i) => a(i))
 
     case (TString, TInt) =>
-      AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i))
+      AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i).toString)
   }
 
 }
@@ -1078,8 +1085,14 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
-  override def typecheckThis(typeSymTab: SymbolTable): Type =
-    TBoolean
+  override def typecheckThis(typeSymTab: SymbolTable): Type = {
+    thenTree.typecheck(typeSymTab)
+    elseTree.typecheck(typeSymTab)
+    if (thenTree.`type` != elseTree.`type`)
+      parseError(s"expected same-type `then' and `else' clause, got `${thenTree.`type`}' and `${elseTree.`type`}'")
+    else
+      thenTree.`type`
+  }
 
   def eval(c: EvalContext): () => Any = {
     val f1 = cond.eval(c)

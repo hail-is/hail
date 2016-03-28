@@ -70,7 +70,7 @@ abstract class Command {
     run(state, options)
   }
 
-  def run(state: State, args: Array[String] = Array.empty[String]): State =
+  def run(state: State, args: Array[String] = Array.empty): State =
     runCommand(state, parseArgs(args))
 
   protected def run(state: State, options: Options): State

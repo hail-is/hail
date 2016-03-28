@@ -104,4 +104,14 @@ class ExportSuite extends SparkSuite {
       assert(lines.next == "I have some spaces and tabs\there\tmore weird stuff here")
     }
   }
+
+  @Test def testIf() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    s = SplitMulti.run(s, Array.empty[String])
+    s = SampleQC.run(s, Array.empty[String])
+
+      // this should run without errors
+    s = ExportSamples.run(s, Array("-o", "/tmp/samples3.tsv", "-c", "computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)"))
+  }
 }

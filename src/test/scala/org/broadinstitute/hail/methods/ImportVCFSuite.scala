@@ -7,6 +7,14 @@ import org.broadinstitute.hail.expr.TStruct
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
+  @Test def testInfo() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/infochar.vcf"))
+
+    // force
+    s = Count.run(s)
+  }
+
   @Test def lineRef() {
 
     val line1 = "20\t10280082\t.\tA\tG\t844.69\tPASS\tAC=1;..."

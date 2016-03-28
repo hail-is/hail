@@ -84,4 +84,3 @@ filtersamples -c 'if ("DUMMY" ~ s.id)
 ```
 filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
 ```
-
