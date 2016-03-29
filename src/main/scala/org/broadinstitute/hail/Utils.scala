@@ -724,10 +724,12 @@ object Utils extends Logging {
 
     val ext = Option(new CompressionCodecFactory(conf)
       .getCodec(path))
-    val toStrip = ext.map(_.getDefaultExtension.length)
+    val toStrip = ext.map(_.getDefaultExtension)
+    assert(toStrip.forall(s.endsWith))
+    val lengthToStrip = toStrip.map(_.length)
       .getOrElse(0)
 
-    s.substring(0, s.length - toStrip)
+    s.substring(0, s.length - lengthToStrip)
   }
 
 

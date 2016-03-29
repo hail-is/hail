@@ -19,7 +19,7 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse[T](symTab: Map[String, (Int, Type)], symTab2: Map[String, (Int, Type)],
+  def parse[T](tcc: TypeCheckContext,
     expected: Type, a: ArrayBuffer[Any], a2: ArrayBuffer[Any], functions: ArrayBuffer[Aggregator], code: String): () => T = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
@@ -27,36 +27,34 @@ object Parser extends JavaTokenParsers {
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    t.typecheck(symTab, symTab2, false)
+    t.typecheck(tcc)
     if (expected != null
       && t.`type` != expected)
       fatal(s"expression has wrong type: expected `$expected', got ${t.`type`}")
 
-    val f: () => Any = t.eval(EvalContext(symTab, symTab2, a, a2, functions, false))
+    val f: () => Any = t.eval(EvalContext(tcc, a, a2, functions, false))
     () => f().asInstanceOf[T]
   }
 
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(symTab: Map[String, (Int, Type)],
-    a: ArrayBuffer[Any],
+  def parseExportArgs(tcc: TypeCheckContext, ec: EvalContext,
     code: String): (Option[String], Array[() => Any]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[String], Array[AST])]
       case NoSuccess(msg, _) => fatal(msg)
     }
 
-    ts.foreach(_.typecheck(symTab, null, false))
+    ts.foreach(_.typecheck(tcc))
     val fs = ts.map { t =>
-      t.eval(EvalContext(symTab, null, a, null, null, false))
+      t.eval(ec)
     }
     (header, fs)
   }
 
-  def parseAnnotationArgs(symTab: Map[String, (Int, Type)], symTab2: Map[String, (Int, Type)],
-    a: ArrayBuffer[Any], a2: ArrayBuffer[Any], functions: ArrayBuffer[Aggregator],
-    code: String): (Array[(List[String], Type, () => Any)]) = {
+  def parseAnnotationArgs(tcc: TypeCheckContext,
+    ec: EvalContext, code: String): (Array[(List[String], Type, () => Any)]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
       case NoSuccess(msg, _) => fatal(msg)
@@ -64,8 +62,8 @@ object Parser extends JavaTokenParsers {
 
     arr.map {
       case (ids, ast) =>
-        ast.typecheck(symTab, symTab2, false)
-        (ids.toList, ast.`type`, ast.eval(EvalContext(symTab, symTab2, a, a2, functions, false)))
+        ast.typecheck(tcc)
+        (ids.toList, ast.`type`, ast.eval(ec))
     }
   }
 
@@ -73,11 +71,17 @@ object Parser extends JavaTokenParsers {
     Lambda(arrow.pos, param, body)
   } |
     if_expr |
+    let_expr |
     or_expr
 
   def if_expr: Parser[AST] =
     withPos("if") ~ ("(" ~> expr <~ ")") ~ expr ~ ("else" ~> expr) ^^ { case ifx ~ cond ~ thenTree ~ elseTree =>
       If(ifx.pos, cond, thenTree, elseTree)
+    }
+
+  def let_expr: Parser[AST] =
+    withPos("let") ~ rep1sep((identifier <~ "=") ~ expr, "and") ~ ("in" ~> expr) ^^ { case let ~ bindings ~ body =>
+        Let(let.pos, bindings.iterator.map { case id ~ v => (id, v) }.toArray, body)
     }
 
   def or_expr: Parser[AST] =

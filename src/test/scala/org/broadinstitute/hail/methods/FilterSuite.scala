@@ -27,16 +27,19 @@ class FilterSuite extends SparkSuite {
         ("homRef", TGenotype),
         ("het", TGenotype),
         ("homVar", TGenotype),
-        ("hetNonRef35", TGenotype))))
+        ("hetNonRef35", TGenotype))),
+      "t" ->(10, TBoolean),
+      "f" ->(11, TBoolean),
+      "mb" ->(12, TBoolean))
     val a = new ArrayBuffer[Any]()
-    a += 5
-    a += -7
+    a += 5 // i
+    a += -7 // j
     a += 3.14
     a += 5.79e7
     a += "12,34,56,78"
     a += "this is a String, there are many like it, but this one is mine"
     a += IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
-    a += null
+    a += null // m
     a += (Array[Any](Annotation(23, "foo"),
       Annotation(-7, null)): IndexedSeq[Any])
     a += Annotation(
@@ -45,6 +48,10 @@ class FilterSuite extends SparkSuite {
       Genotype(gt = Some(1)),
       Genotype(gt = Some(2)),
       Genotype(gt = Some(Genotype.gtIndex(3, 5))))
+    a += true
+    a += false
+    a += null // mb
+    assert(a.length == 13)
 
     def eval[T](s: String): T = {
       val f = Parser.parse[T](symTab, null, null, a, null, null, s)
@@ -54,6 +61,16 @@ class FilterSuite extends SparkSuite {
     assert(eval[Boolean]("gs.noCall.gt.isMissing"))
     assert(eval[Boolean]("gs.noCall.gtj.isMissing"))
     assert(eval[Boolean]("gs.noCall.gtk.isMissing"))
+
+    assert(eval[Int]("let a = i and b = j in a + b") == -2)
+    assert(eval[Int]("let a = i and b = a + j in b") == -2)
+    assert(eval[Int]("let i = j in i") == -7)
+    assert(eval[Int]("let a = let b = j in b + 1 in a + 1") == -5)
+
+    assert(eval[Boolean]("mb || true"))
+    assert(eval[Boolean]("true || mb"))
+    assert(eval[Boolean]("(false || mb).isMissing"))
+    assert(eval[Boolean]("(mb || false).isMissing"))
 
     assert(eval[Int]("gs.homRef.gtj") == 0
       && eval[Int]("gs.homRef.gtk") == 0)
@@ -268,7 +285,7 @@ class FilterSuite extends SparkSuite {
     s2.vds.expand()
       .collect()
       .foreach { case (v, s, g) =>
-          assert(!g.isHet || g.pAB().forall(_ > 0.0005))
+        assert(!g.isHet || g.pAB().forall(_ > 0.0005))
       }
   }
 }

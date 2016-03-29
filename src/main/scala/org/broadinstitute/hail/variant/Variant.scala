@@ -234,6 +234,9 @@ case class Variant(contig: String,
     0
   }
 
+  override def toString: String =
+    s"$contig:$start:$ref:${altAlleles.map(_.alt).mkString(",")}"
+
   def toRow = {
     Row.fromSeq(Array(
       contig,

@@ -4,6 +4,17 @@ Hail includes modules for importing annotations from external files, for use in 
  - `annotatesamples`
  - `annotatevariants` [(click to skip to annotate variants section)](#AnnoVar)
  
+Each of these modules has multiple run modes, which are specified with the first word after the command invocation:
+```
+<...> annotatesamples tsv <args>
+```
+
+```
+<...> annotatevariants expr <args>
+```
+
+Read on and see examples for more information.
+ 
 ## Annotating Samples
 
 Hail currently supports annotating samples from:
@@ -19,7 +30,8 @@ This file format requires one column containing sample IDs, and each other colum
 
 **Command line arguments:**
 
-- `-c <path-to-tsv>, --condition <path-to-tsv>` specify the file path **(Required)**
+- `tsv` Invoke this functionality (`annotatesamples tsv <args>`)
+- `-i <path-to-tsv>, --input <path-to-tsv>` specify the file path **(Required)**
 - `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `sa` **(Required)**
 - `-s <id>, --sampleheader <id>` specify the name of the column containing sample IDs **(Optional with default "Sample")**
 - `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
@@ -44,8 +56,8 @@ To annotate from this file, one must a) specify where to put it in sample annota
 
 ```
 $ hail [read / import / previous commands] \
-    annotatesamples \
-        -c file:///user/me/samples.tsv \
+    annotatesamples tsv \
+        -i file:///user/me/samples.tsv \
         -t "Phenotype1: Double, Age: Int" \
         -r sa.phenotypes
 ```
@@ -82,8 +94,8 @@ This file does not have non-string types, but it does have a sample column ident
 
 ```
 $ hail [read / import, previous commands] \
-    annotatesamples \
-        -c file:///user/me/samples2.tsv \
+    annotatesamples tsv \
+        -i file:///user/me/samples2.tsv \
         -s PT-ID \
         --missing "." \
         -r sa.group1.batch
@@ -98,6 +110,7 @@ Programmatic annotation means computing new annotations from the existing expose
 
 **Command line arguments:**
 
+ - `expr` Invoke this functionality (`annotatesamples expr <args>`)
  - `-c <condition>, --condition <condition>` 
  
  For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
@@ -113,7 +126,6 @@ Hail currently supports annotating variants from seven sources:
  - [UCSC bed files](#UCSCBed)
  - [VCFs (info field, filters, qual)](#VCF)
  - [VDS (Hail internal representation)](#VDS)
- - [Hail-generated Fast Annotation Format files](#FAF)
  - [Programmatic commands](#VariantProg)
 
 ____
@@ -125,7 +137,8 @@ This file format requires either one column of the format "Chr:Pos:Ref:Alt", or 
 
 **Command line arguments:**
 
-- `-c <path-to-tsv>, --condition <path-to-tsv>` specify the file path **(Required)**
+- `tsv` Invoke this functionality (`annotatevariants tsv <args>`)
+- `-i <path-to-tsv>, --input <path-to-tsv>` specify the file path **(Required)**
 - `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `va` **(Required)**
 - `-v <variantcols>, --vcolumns <variantcols>` Either one column name (if Chr:Pos:Ref:Alt), or four comma-separated column identifiers **(Optional with default "Chromosome, Position, Ref, Alt")**
 - `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
@@ -148,8 +161,8 @@ This file contains one field to identify the variant and two data columns: one w
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants \
-        -c file:///user/me/consequences.tsv.gz \
+    annotatevariants tsv \
+        -i file:///user/me/consequences.tsv.gz \
         -t "DNAseSensitivity: Double" \
         -r va.varianteffects \
         -v Variant
@@ -183,8 +196,8 @@ In this case, the variant is indicated by four columns, but the header does not 
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants \
-        -c file:///user/me/ExAC_Counts.tsv.gz \
+    annotatevariants tsv \
+        -i file:///user/me/ExAC_Counts.tsv.gz \
         -t "AC: Int" \
         -r va.exac \
         -v "Chr,Pos,Ref,Alt"
@@ -209,7 +222,8 @@ Interval list files annotate variants in certain regions of the genome.  Dependi
 
 **Command line arguments:**
 
-- `-c <path-to-interval-list>, --condition <path-to-interval-list>` specify the file path **(Required)**
+- `intervals` Invoke this functionality (`annotatevariants intervals <args>`)
+- `-i <path-to-interval-list>, --input <path-to-interval-list>` specify the file path **(Required)**
 - `-r <root>, --root <root>` specify the annotation path in which to place the field read from the interval list, as a period-delimited path starting with `va` **(Required)**
 
 There are two formats for interval list files.  The first appears as `chromosome:start-end` as below.  This format will annotate variants with a **boolean**, which is `true` if that variant is found in any interval specified in the file and `false` otherwise.
@@ -240,8 +254,8 @@ In this case, we will use as an example the first file above (`exons.interval_li
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants \
-        -c file:///user/me/exons.interval_list \
+    annotatevariants intervals \
+        -i file:///user/me/exons.interval_list \
         -r va.inExon \
 ```
 
@@ -263,7 +277,7 @@ In this case, we will use the second file, `exons2.interval_list`.  This file co
 ```
 $ hail [read / import / previous commands] \
     annotatevariants \
-        -c file:///user/me/exons2.interval_list \
+        -i file:///user/me/exons2.interval_list \
         -r va.gene \
 ```
 
@@ -287,7 +301,8 @@ UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQforma
 
 **Command line arguments:**
 
-- `-c <path-to-bed>, --condition <path-to-bed>` specify the file path **(Required)**
+- `bed` Invoke this functionality (`annotatevariants bed <args>`)
+- `-i <path-to-bed>, --input <path-to-bed>` specify the file path **(Required)**
 - `-r <root>, --root <root>` specify the annotation path in which to place the field read from the bed, as a period-delimited path starting with `va` **(Required)**
 
 UCSC bed files can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (`chrom`, `chromStart`, and `chromEnd`).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a boolean annotation based on whether that variant was a member of any interval.
@@ -307,8 +322,8 @@ In order to annotate with this file, the command should appear as:
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants \
-        -c file:///user/me/file1.bed \
+    annotatevariants bed \
+        -i file:///user/me/file1.bed \
         -r va.cnvRegion \
 ```
 
@@ -339,8 +354,8 @@ This file has a more complicated header, but that does not affect Hail's parsing
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants \
-        -c file:///user/me/file2.bed \
+    annotatevariants bed \
+        -i file:///user/me/file2.bed \
         -r va.cnvRegion \
 ```
 
@@ -362,7 +377,8 @@ Hail can read vcf files to annotate a variant dataset.  Since Hail internally ca
 
 **Command line arguments:**
 
-- `-c <path-to-vcf>, --condition <path-to-vcf>` specify the file path **(Required)**
+- `vcf` Invoke this functionality (`annotatevariants vcf <args>`)
+- `-i <path-to-vcf>, --input <path-to-vcf>` specify the file path **(Required)**
 - `-r <root>, --root <root>` specify the annotation path in which to place the annotations read from the vcf, as a period-delimited path starting with `va` **(Required)**
 
 ____
@@ -392,8 +408,8 @@ The proper command line:
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants \
-        -c /user/me/1kg.chr22.vcf.bgz \
+    annotatevariants vcf \
+        -i /user/me/1kg.chr22.vcf.bgz \
         -r va.1kg \
 ```
 
@@ -423,7 +439,8 @@ Hail can also annotate from other VDS files.  This functionality calls out to th
 
 **Command line arguments:**
 
-- `-c <path-to-vds>, --condition <path-to-vds>` specify the path to the VDS **(Required)**
+- `vds` Invoke this functionality (`annotatevariants vds <args>`)
+- `-i <path-to-vds>, --input <path-to-vds>` specify the path to the VDS **(Required)**
 - `-r <root>, --root <root>` specify the annotation path in which to place the annotations read from the vds, as a period-delimited path starting with `va` **(Required)**
 
 ____
@@ -452,8 +469,8 @@ The above VDS file was imported from a VCF, and thus contains all the expected a
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants \
-        -c /user/me/myfile.vds \
+    annotatevariants vds \
+        -i /user/me/myfile.vds \
         -r va.other \
 ```
 
@@ -482,6 +499,7 @@ Programmatic annotation means computing new annotations from the existing expose
 
 **Command line arguments:**
 
+- `expr` Invoke this functionality (`annotatevariants expr <args>`)
 `-c <condition>, --condition <condition>` 
 
 For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)

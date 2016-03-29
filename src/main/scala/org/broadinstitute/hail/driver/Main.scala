@@ -157,7 +157,7 @@ object Main {
       AnnotateSamples,
       AnnotateVariants,
       Cache,
-      PreprocessAnnotations,
+      ImportAnnotations,
       Count,
       DownsampleVariants,
       ExportPlink,
@@ -252,7 +252,8 @@ object Main {
         val cmdName = args(0)
         nameCommand.get(cmdName) match {
           case Some(cmd) =>
-            (cmd, cmd.parseArgs(args.tail), args)
+            val (cmdLookup, cmdArgs) = cmd.lookup(args.tail)
+            (cmdLookup, cmdLookup.parseArgs(cmdArgs): Command#Options, cmdArgs)
           case None =>
             fatal("unknown command `" + cmdName + "'")
         }

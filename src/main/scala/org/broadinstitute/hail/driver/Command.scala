@@ -36,6 +36,8 @@ abstract class Command {
 
   def supportsMultiallelic = false
 
+  def lookup(args: Array[String]): (Command, Array[String]) = (this, args)
+
   def parseArgs(args: Array[String]): Options = {
     val options = newOptions
     val parser = new CmdLineParser(options)

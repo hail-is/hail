@@ -3,8 +3,11 @@
 Several Hail commands provide the ability to perform a broad array of computations based on data structures exposed to the user.  
 
 **Supported comparisons and transformations:**
+ - Conditionals: `if (p) a else b` -- The value of the conditional is the value of `a` or `b` depending on `p`.  If `p` is missing, the value of the conditional is missing.
+ - Let: `let v1 = e1 and v2 = e2 and ... and vn = en in b` -- Bind variables `v1` through `vn` to result of evaluating the `ei`.  The value of the `let` is the value of `b`.  `v1` is visible in `e2` through `en`, etc.
  - Global comparisons: `a == b`, `a != b`
- - Boolean comparisons: `a || b`, `a && b`  *NB: Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without evaluating `b`.  If `a` is missing, `b` is evaluated and the comparison returns `true` if `b` is true, otherwise missing.*
+ - Boolean comparisons: `a || b`, `a && b`
+Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without evaluating `b`.  If `a` is missing, `b` is evaluated and the comparison returns `true` if `b` is true, otherwise missing.
  - Missingness:
    - isMissing: `a.isMissing` -- returns true if `a` is missing
    - isNotMissing: `a.isNotMissing` -- returns true if `a` is defined
@@ -26,7 +29,6 @@ Several Hail commands provide the ability to perform a broad array of computatio
    - length: `str.length` -- returns the length of the string
    - concatenate: `str1 + str2` -- returns the two strings joined start-to-end
    - split: `str.split(delimiter)` -- returns an array of strings, split on the given `delimiter` 
-   - ~: `regex ~ str` -- returns true if the given regex was found in `str`.  For example, `' "HI" ~ "THIS" '` returns true, and `' "HH" ~ "THIS" '` returns false.
  - String conversions:
    - toInt: `str.toInt`
    - toDouble: `str.toDouble`
@@ -49,7 +51,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
    - union: `set1.union(set2)` -- returns a new set with all elements in `set1` or `set2`
    - intersect: `set1.intersect(set2)` -- returns a new set with all elements in both `set1` and `set2`
    - diff: `set1.diff(set2)` -- returns a new set with all elements not shared between `set1` and `set2`
-
+   
 **Note:**
  - All variables and values are case sensitive
  - Missingness propagates up.  If any element in an expression is missing, the expression will evaluate to missing.  
@@ -77,4 +79,10 @@ In the below expression, we will use a different cutoff for samples with Europea
 filtersamples --keep -c 'if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200'
 ```
 
+The below expression assumes a VDS was split from a VCF, and filters down to sites which were singletons on import.  `va.aIndex` indexes into the originally-multiallelic array `va.info.AC` with the original position of each variant.
 
+```
+filtervariants --keep -c 'if (va.info.AC[va.aIndex]) == 1' 
+```
+
+See documentation on [exporting to TSV](ExportTSV.md) and [programmatic annotation](ProgrammaticAnnotation.md) for more examples of what Hail's language can do.
