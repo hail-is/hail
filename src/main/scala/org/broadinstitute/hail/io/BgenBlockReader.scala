@@ -7,6 +7,7 @@ import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.{InvalidFileTypeException, FileSplit}
 import org.broadinstitute.hail.variant.{Genotype, GenotypeStreamBuilder, Variant}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Variant](job, split) {
   val file = split.getPath
@@ -25,18 +26,26 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   def readFileParameters() {
     bfis.seek(0)
     val offset = bfis.readInt()
-
-    bfis.seek(8)
+    val headerLength = bfis.readInt()
     nVariants = bfis.readInt()
     nSamples = bfis.readInt()
+    val magicNumber = bfis.readString(4) //readers ignore these bytes
 
-    bfis.seek(offset)
+    val headerInfo = {
+      if (headerLength > 20)
+        bfis.readString(headerLength.toInt - 20)
+      else
+        ""
+    }
+
     val flags = bfis.readInt()
+
     bgenCompressed = (flags & 1) != 0 // either 0 or 1 based on the first bit
-    version = flags >> 2 & 0xf
+    version = (flags >> 2) & 0xf
   }
 
   override def seekToFirstBlock(start: Long) {
+    require(start >= 0 && start < fileSize)
     pos = IndexBTree.queryIndex(start, fileSize, indexArrayPath, job)
     bfis.seek(pos)
   }
@@ -50,6 +59,8 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       val rsid = bfis.readLengthAndString(2)
       val chr = bfis.readLengthAndString(2)
       val position = bfis.readInt()
+
+
       val nAlleles = if (version == 1) 2 else bfis.readShort()
       val alleles = Array.ofDim[String](nAlleles)
 
@@ -57,8 +68,6 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         alleles(i) = bfis.readLengthAndString(4)
       }
 
-/*      println("nRow=%d, Lid=%s, rsid=%s, chr=%s, pos=%d, K=%d, ref=%s, alt=%s".format(nRow, lid, rsid, chr, pos, nAlleles, alleles(0),
-              alleles(1)))*/
 
       // FIXME no multiallelic support (version 1.2)
       if (alleles.length > 2)
@@ -66,6 +75,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
       // FIXME: using first allele as ref and second as alt
       val variant = Variant(chr, position, alleles(0), alleles(1))
+      val varAnnotation = Annotations(Map[String,String]("rsid" -> rsid,"varid" -> lid))
 
       val bytes = {
         if (bgenCompressed) {
@@ -97,13 +107,14 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
         assert(PLs(0) == 0 || PLs(1) == 0 || PLs(2) == 0)
         val gtCall = BgenLoader.parseGenotype(PLs)
-        PLs = if (gtCall == -1) null else PLs
+        PLs = if (gtCall == -1) null else PLs //FIXME : Is this correct behavior?
 
         val gt = Genotype(Option(gtCall), None, None, None, Option(PLs))
         b += gt
       }
 
       value.setKey(variant)
+      value.setAnnotation(varAnnotation)
       value.setGS(b.result())
       pos = bfis.getPosition
       true

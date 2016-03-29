@@ -8,14 +8,17 @@ import org.apache.hadoop.mapred._
 import org.apache.hadoop.mapred.LineRecordReader
 import org.broadinstitute.hail.variant.{Variant, Genotype}
 import scala.collection.mutable.ArrayBuffer
+import org.broadinstitute.hail.annotations._
 
-case class BlockIndex(start: Long, length: Int, variantIndex: Int) {
+/*case class BlockIndex(start: Long, length: Int, variantIndex: Int) {
   override def toString: String = s"start=$start, length=$length, index=$variantIndex"
-}
+}*/
 
 abstract class ParsedLine[K] extends Serializable {
   def setGS(gs: Iterable[Genotype])
   def getGS: Iterable[Genotype]
+  def setAnnotation(ann: Annotations)
+  def getAnnotation: Annotations
   def setKey(k: K)
   def getKey: K
 }
@@ -23,11 +26,17 @@ abstract class ParsedLine[K] extends Serializable {
 class BgenParsedLine extends ParsedLine[Variant] {
   var gs: Iterable[Genotype] = null
   var variant: Variant = null
+  var ann: Annotations = null
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
   }
   def getGS: Iterable[Genotype] = gs
+
+  def setAnnotation(ann: Annotations) {
+    this.ann = ann
+  }
+  def getAnnotation: Annotations = ann
 
   def setKey(k: Variant) {
     variant = k
@@ -38,11 +47,17 @@ class BgenParsedLine extends ParsedLine[Variant] {
 class PlinkParsedLine extends ParsedLine[Int] {
   var gs: Iterable[Genotype] = null
   var pos: Int = -1
+  var ann: Annotations = null
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
   }
   def getGS: Iterable[Genotype] = gs
+
+  def setAnnotation(ann: Annotations) {
+    this.ann = ann
+  }
+  def getAnnotation: Annotations = ann
 
   def setKey(k: Int) {
     pos = k

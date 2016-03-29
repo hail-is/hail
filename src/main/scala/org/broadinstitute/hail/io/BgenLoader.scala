@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.io
 
 import org.apache.hadoop.conf.Configuration
-import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.hadoop.io.LongWritable
@@ -25,7 +25,7 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
   private def getNextBlockPosition(position: Long): Long = {
     reader.seek(position)
 
-    var nRow = nSamples
+    var nRow = nSamples //check this gets updated properly
     if (version == 1)
       nRow = reader.readInt()
 
@@ -33,6 +33,8 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
     val rsid = reader.readLengthAndString(2) // rsid
     val chr = reader.readLengthAndString(2) // chr
     val pos = reader.readInt() // pos
+
+    //println(s"position=$position snpid=$snpid rsid=$rsid chr=$chr pos=$pos")
 
     val nAlleles = if (version == 1) 2 else reader.readShort()
 
@@ -68,7 +70,7 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
 
     val flags = reader.readInt()
     compression = (flags & 1) != 0 // either 0 or 1 based on the first bit
-    version = flags >> 2 & 0xf
+    version = flags >> 2 & 0xf // FIXME add support for more than 1 bit for v1.2
     hasSampleIdBlock = (flags >> 30 & 1) != 0
 
     if (version != 1)
@@ -90,7 +92,7 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
 
         val sampleIdArr = new Array[String](nSamples)
         for (i <- 0 until nSamples) {
-          sampleIdArr(i) = reader.readLengthAndString(2)
+          sampleIdArr(i) = reader.readLengthAndString(2) // FIXME should 2 be sampleIdSize?
         }
         sampleIdArr
       }
@@ -99,18 +101,21 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
     if (sampleIDs.length != nSamples)
       fatal(s"Length of sample IDs in file [$sampleFile] does not equal number of samples in BGEN file $file")
 
-    val dataBlockStarts = new Array[Long](nVariants+1)
+    if (!hadoopIsFile(file + ".idx", sc.hadoopConfiguration)) {
+      info(s"Creating index for file [$file]")
+      val dataBlockStarts = new Array[Long](nVariants + 1)
 
-    // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
-    var position: Long = (allInfoLength + 4).toLong
-    dataBlockStarts(0) = position
+      // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
+      var position: Long = (allInfoLength + 4).toLong
+      dataBlockStarts(0) = position
 
-    for (i <- 1 until nVariants+1) {
-      position = getNextBlockPosition(position)
-      dataBlockStarts(i) = position
+      for (i <- 1 until nVariants + 1) {
+        position = getNextBlockPosition(position)
+        dataBlockStarts(i) = position
+      }
+
+      IndexBTree.write(dataBlockStarts, file + ".idx", sc.hadoopConfiguration)
     }
-
-    IndexBTree.write(dataBlockStarts, file + ".idx", sc.hadoopConfiguration)
 
     sampleIDs
   }
@@ -118,10 +123,23 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
 
 object BgenLoader {
 
+  def parseGenotype(pls: Array[Double], gtThreshold: Double): Int = {
+    require(pls.count(_ >= gtThreshold) <= 1)
+
+    if (pls(0) >= gtThreshold)
+      0
+    else if (pls(1) >= gtThreshold)
+      1
+    else if (pls(2) >= gtThreshold)
+      2
+    else
+      -1
+  }
+
   def parseGenotype(pls: Array[Int]): Int = {
     if (pls(0) == 0 && pls(1) == 0
       || pls(0) == 0 && pls(2) == 0
-      || pls(0) == 0 && pls(2) == 0)
+      || pls(1) == 0 && pls(2) == 0)
       -1
     else {
       if (pls(0) == 0)
@@ -133,6 +151,16 @@ object BgenLoader {
       else
         -1
     }
+  }
+
+  def convertIntToPP(prob: Int): Double = prob.toDouble / 32768
+
+  def convertIntToPPs(probAA: Int, probAB: Int, probBB: Int) = Array(probAA, probAB, probBB).map{i => convertIntToPP(i)}
+
+  def phredConversionTable: Array[Double] = (0 to 65535).map{i => if (i == 0) 48 else -10 * math.log10(convertIntToPP(i))}.toArray
+
+  def convertPPsToInt(probAA: Double, probAB: Double, probBB: Double): Array[Int] = {
+    Array(probAA, probAB, probBB).map{ d => val tmp = d * 32768; require(tmp >= 0 && tmp < 65535.5); math.round(tmp).toInt}
   }
 
   def phredScalePPs(probAA: Int, probAB: Int, probBB: Int): Array[Int] = {
@@ -165,7 +193,7 @@ object BgenLoader {
         .filter(line => !line.isEmpty)
         .map { line =>
           val arr = line.split("\\s+")
-          arr(1)
+          arr(0) // using ID_1
         }
         .toArray
     }
@@ -196,10 +224,12 @@ object BgenLoader {
 
     sc.hadoopConfiguration.setBoolean("compressGS", compress)
 
-    VariantSampleMatrix(metadata = VariantMetadata(sampleIDs), rdd = sc.union(bgenFiles.map{ file =>
+    val signatures = Annotations(Map("rsid" -> new SimpleSignature("String"), "varid" -> new SimpleSignature("String")))
+
+    VariantSampleMatrix(metadata = VariantMetadata(sampleIDs).addVariantAnnotationSignatures(signatures), rdd = sc.union(bgenFiles.map{ file =>
       sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
         nPartitions.getOrElse(sc.defaultMinPartitions))
-        .map { case (lw, pl) => (pl.getKey, Annotations.empty(), pl.getGS) }
+        .map { case (lw, pl) => (pl.getKey, pl.getAnnotation, pl.getGS) }
     }))
   }
 }
