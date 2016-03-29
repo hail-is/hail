@@ -13,10 +13,39 @@ import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
 
 case class EvalContext(tcc: TypeCheckContext,
-  a: ArrayBuffer[Any], aggregationA: ArrayBuffer[Any],
-  aggregationFunctions: ArrayBuffer[Aggregator], useSecond: Boolean)
+  a: ArrayBuffer[Any], aggregatorA: ArrayBuffer[Any],
+  aggregationFunctions: ArrayBuffer[Aggregator]) {
+  def switchToAggregator: EvalContext = {
+    assert(aggregatorA != null)
+    copy(tcc = tcc.switchToAggregator, a = aggregatorA, aggregatorA = null)
+  }
+}
 
-case class TypeCheckContext(symTab: SymbolTable, aggregatorSymTab: SymbolTable)
+object EvalContext {
+  def apply(symTab: SymbolTable, aggregationTab: SymbolTable): EvalContext = {
+    val tcc = TypeCheckContext(symTab, aggregationTab)
+    val a = new ArrayBuffer[Any]()
+    val a2 = new ArrayBuffer[Any]()
+    val a3 = new ArrayBuffer[Aggregator]()
+    for (_ <- tcc.symTab) {
+      a += null
+    }
+    if (tcc.aggregatorSymTab != null)
+      for (_ <- tcc.aggregatorSymTab) {
+        a2 += null
+      }
+
+    EvalContext(tcc, a, a2, a3)
+  }
+}
+
+
+case class TypeCheckContext(symTab: SymbolTable, aggregatorSymTab: SymbolTable) {
+  def switchToAggregator: TypeCheckContext = {
+    assert(aggregatorSymTab != null)
+    copy(symTab = aggregatorSymTab, aggregatorSymTab = null)
+  }
+}
 
 trait NumericConversion[T] extends Serializable {
   def to(numeric: Any): T
@@ -847,7 +876,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = elementType
 
         // index unused in typecheck
-        body.typecheck(tcc.copy(symTab = tcc.symTab + (param ->(-1, elementType))))
+        body.typecheck(tcc.switchToAggregator)
         if (body.`type` != TBoolean)
           parseError(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
 
@@ -860,7 +889,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             parseError(s"no `$method' on non-iterable")
         }
         `type` = TInt
-        rhs.typecheck(tcc.copy(symTab = tcc.aggregatorSymTab, aggregatorSymTab = null))
+        rhs.typecheck(tcc.switchToAggregator)
         if (rhs.`type` != TBoolean)
           parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
 
@@ -869,7 +898,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (lhs.`type` != TGenotypeStream)
           parseError(s"`$method' exists only for genotype streams")
 
-        rhs.typecheck(tcc.copy(symTab = tcc.aggregatorSymTab, aggregatorSymTab = null))
+        rhs.typecheck(tcc.switchToAggregator)
         if (!rhs.`type`.isInstanceOf[TNumeric])
           parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
         `type` = (rhs.`type`: @unchecked) match {
@@ -882,7 +911,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (lhs.`type` != TGenotypeStream)
           parseError(s"`$method' exists only for genotype streams")
 
-        rhs.typecheck(tcc.copy(symTab = tcc.aggregatorSymTab, aggregatorSymTab = null))
+        rhs.typecheck(tcc.switchToAggregator)
         if (rhs.`type` != TBoolean)
           parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
         `type` = TDouble
@@ -892,7 +921,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (lhs.`type` != TGenotypeStream)
           parseError(s"`$method' exists only for genotype streams")
 
-        rhs.typecheck(tcc.copy(symTab = tcc.aggregatorSymTab, aggregatorSymTab = null))
+        rhs.typecheck(tcc.switchToAggregator)
         val t = rhs.`type`
         if (!t.isInstanceOf[TNumeric])
           parseError(s"expected Numeric, got `$t' in `$method' expression")
@@ -909,8 +938,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (lhs.`type` != TGenotypeStream)
           parseError(s"`$method' exists only for genotype streams")
 
-        condition.typecheck(tcc.copy(symTab = tcc.aggregatorSymTab, aggregatorSymTab = null))
-        computation.typecheck(tcc.copy(symTab = tcc.aggregatorSymTab, aggregatorSymTab = null))
+        condition.typecheck(tcc.switchToAggregator)
+        computation.typecheck(tcc.switchToAggregator)
 
         val t1 = condition.`type`
         val t2 = computation.`type`
@@ -927,15 +956,47 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t2),
           ("max", t2), ("nNotMissing", TLong), ("sum", sumT))
 
+      case ("findmap", Array(condition, computation)) =>
+        lhs.typecheck(tcc)
+        if (lhs.`type` != TGenotypeStream)
+          parseError(s"`$method' exists only for genotype streams")
+
+        condition.typecheck(tcc.switchToAggregator)
+        computation.typecheck(tcc.switchToAggregator)
+
+        val t1 = condition.`type`
+        val t2 = computation.`type`
+
+        if (t1 != TBoolean)
+          parseError(s"expected Boolean, got `$t1' in `$method' predicate")
+
+        `type` = t2
+
+      case ("collect", Array(condition, computation)) =>
+        lhs.typecheck(tcc)
+        if (lhs.`type` != TGenotypeStream)
+          parseError(s"`$method' exists only for genotype streams")
+
+        condition.typecheck(tcc.switchToAggregator)
+        computation.typecheck(tcc.switchToAggregator)
+
+        val t1 = condition.`type`
+        val t2 = computation.`type`
+
+        if (t1 != TBoolean)
+          parseError(s"expected Boolean, got `$t1' in `$method' predicate")
+
+        `type` = TArray(t2)
+
       case ("hist", Array(rhs)) =>
         lhs.typecheck(tcc)
         if (lhs.`type` != TGenotypeStream)
           parseError(s"`$method' exists only for genotype streams")
 
-        rhs.typecheck(tcc.copy(symTab = tcc.aggregatorSymTab, aggregatorSymTab = null))
+        rhs.typecheck(tcc.switchToAggregator)
         if (rhs.`type` != TBoolean)
           parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
-        `type` = TDouble
+        ???
 
       case _ =>
         super.typecheck(tcc)
@@ -986,7 +1047,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
     case (returnType, "count", Array(rhs)) =>
-      val newContext = c.copy(a = c.aggregationA, aggregationA = null)
+      val newContext = c.switchToAggregator
       val localIdx = newContext.a.length
       val localA = newContext.a
       localA += null
@@ -1003,13 +1064,13 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
       val combOp: (Any, Any) => Any = _.asInstanceOf[Int] + _.asInstanceOf[Int]
       localFunctions += ((() => 0, seqOp, combOp))
-      AST.evalCompose[Any](newContext, lhs) {
+      AST.evalCompose[Any](c, lhs) {
         case a =>
           localA(localIdx)
       }
 
     case (returnType, "sum", Array(rhs)) =>
-      val newContext = c.copy(a = c.aggregationA, aggregationA = null)
+      val newContext = c.switchToAggregator
       val localIdx = newContext.a.length
       val localA = newContext.a
       localA += null
@@ -1029,13 +1090,13 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           (a: Any, b: Any) => a.asInstanceOf[Double] + b.asInstanceOf[Double])
       }
       localFunctions += ((zv, seqOp, combOp))
-      AST.evalCompose[Any](newContext, lhs) {
+      AST.evalCompose[Any](c, lhs) {
         case a =>
           localA(localIdx)
       }
 
     case (returnType, "fraction", Array(rhs)) =>
-      val newContext = c.copy(a = c.aggregationA, aggregationA = null)
+      val newContext = c.switchToAggregator
       val localIdx = newContext.a.length
       val localA = newContext.a
       localA += null
@@ -1058,7 +1119,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         (() => (0L, 0L), so, co)
       }
       localFunctions += ((zv, seqOp, combOp))
-      AST.evalCompose[Any](newContext, lhs) {
+      AST.evalCompose[Any](c, lhs) {
         case a =>
           val (a: Long, b: Long) = localA(localIdx)
           divNull(a.toDouble, b)
@@ -1066,7 +1127,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
 
     case (returnType, "stats", Array(rhs)) =>
-      val newContext = c.copy(a = c.aggregationA, aggregationA = null)
+      val newContext = c.switchToAggregator
       val localIdx = newContext.a.length
       val localA = newContext.a
       localA += null
@@ -1133,10 +1194,10 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
       localFunctions += ((() => new StatCounter, seqOp, combOp))
-      AST.evalCompose[Any](newContext, lhs) { case a => getOp(localA(localIdx)) }
+      AST.evalCompose[Any](c, lhs) { case a => getOp(localA(localIdx)) }
 
     case (returnType, "statsif", Array(condition, computation)) =>
-      val newContext = c.copy(a = c.aggregationA, aggregationA = null)
+      val newContext = c.switchToAggregator
       val localIdx = newContext.a.length
       val localA = newContext.a
       localA += null
@@ -1212,7 +1273,83 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
       localFunctions += ((() => new StatCounter, seqOp, combOp))
-      AST.evalCompose[Any](newContext, lhs) { case a => getOp(localA(localIdx)) }
+      AST.evalCompose[Any](c, lhs) { case a => getOp(localA(localIdx)) }
+
+    case (returnType, "findmap", Array(condition, computation)) =>
+      val newContext = c.switchToAggregator
+      val localIdx = newContext.a.length
+      val localA = newContext.a
+      localA += null
+      val conditionFn = condition.eval(newContext)
+      val fn = computation.eval(newContext)
+      val localFunctions = newContext.aggregationFunctions
+      val seqOp: (Any) => Any =
+        (value) => {
+          if (value != null)
+            value
+          else {
+            val cond = conditionFn().asInstanceOf[Boolean]
+            if (cond) {
+              val comp = fn()
+              if (comp != null)
+                comp
+              else
+                null
+            }
+            else
+              null
+          }
+        }
+      val combOp: (Any, Any) => Any = (a, b) => {
+        if (a != null)
+          a
+        else if (b != null)
+          b
+        else
+          null
+      }
+
+      localFunctions += ((() => null, seqOp, combOp))
+      AST.evalCompose[Any](c, lhs) {
+        case a =>
+          localA(localIdx)
+      }
+
+    case (returnType, "collect", Array(condition, computation)) =>
+      val newContext = c.switchToAggregator
+      val localIdx = newContext.a.length
+      val localA = newContext.a
+      localA += null
+      val conditionFn = condition.eval(newContext)
+      val fn = computation.eval(newContext)
+      val localFunctions = newContext.aggregationFunctions
+      val seqOp: (Any) => Any =
+        (arr) => {
+          val ab = arr.asInstanceOf[ArrayBuffer[Any]]
+          if (conditionFn().asInstanceOf[Boolean]) {
+            val comp = fn()
+            if (comp != null && ab.length < 1000)
+              ab += comp
+          }
+          ab
+        }
+      val combOp: (Any, Any) => Any = (a, b) => {
+        val ab1 = a.asInstanceOf[ArrayBuffer[Any]]
+        val ab2 = b.asInstanceOf[ArrayBuffer[Any]]
+
+        ab2.foreach { elem =>
+          if (ab1.length < 1000)
+            ab1 += elem
+        }
+
+        ab1
+      }
+
+      localFunctions += ((() => new ArrayBuffer[Any], seqOp, combOp))
+      AST.evalCompose[Any](c, lhs) {
+        case a =>
+          localA(localIdx).asInstanceOf[ArrayBuffer[Any]].toIndexedSeq
+      }
 
     case (returnType, "hist", Array(rhs)) => ???
 
@@ -1286,207 +1423,205 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
     `type` = body.`type`
   }
+}
 
-  case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
-    def eval(c: EvalContext): () => Any = ((operation, `type`): @unchecked) match {
-      case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
-      case ("~", TBoolean) => AST.evalCompose[String, String](c, lhs, rhs) { (s, t) =>
-        s.r.findFirstIn(t).isDefined
-      }
-
-      case ("||", TBoolean) => {
-        val f1 = lhs.eval(c)
-        val f2 = rhs.eval(c)
-
-        () => {
-          val x1 = f1()
-          if (x1 != null) {
-            if (x1.asInstanceOf[Boolean])
-              true
-            else
-              f2()
-          } else {
-            val x2 = f2()
-            if (x2 != null
-              && x2.asInstanceOf[Boolean])
-              true
-            else
-              null
-          }
-        }
-      }
-
-      case ("&&", TBoolean) => {
-        val f1 = lhs.eval(c)
-        val f2 = rhs.eval(c)
-        () => {
-          val x = f1()
-          if (x != null) {
-            if (x.asInstanceOf[Boolean])
-              f2()
-            else
-              false
-          } else {
-            val x2 = f2()
-            if (x2 != null
-              && !x2.asInstanceOf[Boolean])
-              false
-            else
-              null
-          }
-        }
-      }
-
-      case ("+", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ + _)
-      case ("-", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ - _)
-      case ("*", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ * _)
-      case ("/", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ / _)
-      case ("%", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ % _)
-
-      case ("+", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ + _)
-      case ("-", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ - _)
-      case ("*", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ * _)
-      case ("/", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
+case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
+  def eval(c: EvalContext): () => Any = ((operation, `type`): @unchecked) match {
+    case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
+    case ("~", TBoolean) => AST.evalCompose[String, String](c, lhs, rhs) { (s, t) =>
+      s.r.findFirstIn(t).isDefined
     }
 
-    override def typecheckThis(): Type = (lhs.`type`, operation, rhs.`type`) match {
-      case (TString, "+", TString) => TString
-      case (TString, "~", TString) => TBoolean
-      case (TBoolean, "||", TBoolean) => TBoolean
-      case (TBoolean, "&&", TBoolean) => TBoolean
-      case (lhsType: TNumeric, "+", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
-      case (lhsType: TNumeric, "-", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
-      case (lhsType: TNumeric, "*", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
-      case (lhsType: TNumeric, "/", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case ("||", TBoolean) => {
+      val f1 = lhs.eval(c)
+      val f2 = rhs.eval(c)
 
-      case (lhsType, _, rhsType) =>
-        parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")
-    }
-  }
-
-  case class Comparison(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
-    var operandType: Type = null
-
-    def eval(c: EvalContext): () => Any = ((operation, operandType): @unchecked) match {
-      case ("==", _) => AST.evalCompose[Any, Any](c, lhs, rhs)(_ == _)
-      case ("!=", _) => AST.evalCompose[Any, Any](c, lhs, rhs)(_ != _)
-
-      case ("<", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ < _)
-      case ("<=", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ <= _)
-      case (">", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ > _)
-      case (">=", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ >= _)
-
-      case ("<", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ < _)
-      case ("<=", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ <= _)
-      case (">", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ > _)
-      case (">=", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ >= _)
-
-      case ("<", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ < _)
-      case ("<=", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ <= _)
-      case (">", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ > _)
-      case (">=", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ >= _)
-
-      case ("<", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ < _)
-      case ("<=", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ <= _)
-      case (">", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ > _)
-      case (">=", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ >= _)
-    }
-
-    override def typecheckThis(): Type = {
-      operandType = (lhs.`type`, operation, rhs.`type`) match {
-        case (_, "==" | "!=", _) => null
-        case (lhsType: TNumeric, "<=" | ">=" | "<" | ">", rhsType: TNumeric) =>
-          AST.promoteNumeric(lhsType, rhsType)
-
-        case (lhsType, _, rhsType) =>
-          parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")
-      }
-
-      TBoolean
-    }
-  }
-
-  case class UnaryOp(posn: Position, operation: String, operand: AST) extends AST(posn, operand) {
-    def eval(c: EvalContext): () => Any = ((operation, `type`): @unchecked) match {
-      case ("-", TInt) => AST.evalComposeNumeric[Int](c, operand)(-_)
-      case ("-", TLong) => AST.evalComposeNumeric[Long](c, operand)(-_)
-      case ("-", TFloat) => AST.evalComposeNumeric[Float](c, operand)(-_)
-      case ("-", TDouble) => AST.evalComposeNumeric[Double](c, operand)(-_)
-
-      case ("!", TBoolean) => AST.evalCompose[Boolean](c, operand)(!_)
-    }
-
-    override def typecheckThis(): Type = (operation, operand.`type`) match {
-      case ("-", t: TNumeric) => AST.promoteNumeric(t)
-      case ("!", TBoolean) => TBoolean
-
-      case (_, t) =>
-        parseError(s"invalid argument to unary `$operation': ${t.toString}")
-    }
-  }
-
-  case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, idx)) {
-    override def typecheckThis(): Type = (f.`type`, idx.`type`) match {
-      case (TArray(elementType), TInt) => elementType
-      case (TString, TInt) => TChar
-
-      case _ =>
-        parseError("invalid array index expression")
-    }
-
-    def eval(c: EvalContext): () => Any = ((f.`type`, idx.`type`): @unchecked) match {
-      case (TArray(elementType), TInt) =>
-        AST.evalCompose[IndexedSeq[_], Int](c, f, idx)((a, i) => a(i))
-
-      case (TString, TInt) =>
-        AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i).toString)
-    }
-
-  }
-
-  case class SymRef(posn: Position, symbol: String) extends AST(posn) {
-    def eval(c: EvalContext): () => Any = {
-        val localI = c.tcc.symTab(symbol)._1
-        val localA = c.a
-        () => localA(localI)
-    }
-
-    override def typecheckThis(tcc: TypeCheckContext): Type = {
-      tcc.symTab.get(symbol) match {
-        case Some((_, t)) => t
-        case None =>
-          parseError(s"symbol `$symbol' not found")
-      }
-    }
-
-    case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
-      extends AST(pos, Array(cond, thenTree, elseTree)) {
-      override def typecheckThis(tcc: TypeCheckContext): Type = {
-        thenTree.typecheck(tcc)
-        elseTree.typecheck(tcc)
-        if (thenTree.`type` != elseTree.`type`)
-          parseError(s"expected same-type `then' and `else' clause, got `${thenTree.`type`}' and `${elseTree.`type`}'")
-        else
-          thenTree.`type`
-      }
-
-      def eval(c: EvalContext): () => Any = {
-        val f1 = cond.eval(c)
-        val f2 = thenTree.eval(c)
-        val f3 = elseTree.eval(c)
-        () => {
-          val c = f1()
-          if (c != null) {
-            if (c.asInstanceOf[Boolean])
-              f2()
-            else
-              f3()
-          } else
+      () => {
+        val x1 = f1()
+        if (x1 != null) {
+          if (x1.asInstanceOf[Boolean])
+            true
+          else
+            f2()
+        } else {
+          val x2 = f2()
+          if (x2 != null
+            && x2.asInstanceOf[Boolean])
+            true
+          else
             null
         }
       }
     }
 
+    case ("&&", TBoolean) => {
+      val f1 = lhs.eval(c)
+      val f2 = rhs.eval(c)
+      () => {
+        val x = f1()
+        if (x != null) {
+          if (x.asInstanceOf[Boolean])
+            f2()
+          else
+            false
+        } else {
+          val x2 = f2()
+          if (x2 != null
+            && !x2.asInstanceOf[Boolean])
+            false
+          else
+            null
+        }
+      }
+    }
+
+    case ("+", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ + _)
+    case ("-", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ - _)
+    case ("*", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ * _)
+    case ("/", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ / _)
+    case ("%", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ % _)
+
+    case ("+", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ + _)
+    case ("-", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ - _)
+    case ("*", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ * _)
+    case ("/", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
   }
 
+  override def typecheckThis(): Type = (lhs.`type`, operation, rhs.`type`) match {
+    case (TString, "+", TString) => TString
+    case (TString, "~", TString) => TBoolean
+    case (TBoolean, "||", TBoolean) => TBoolean
+    case (TBoolean, "&&", TBoolean) => TBoolean
+    case (lhsType: TNumeric, "+", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case (lhsType: TNumeric, "-", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case (lhsType: TNumeric, "*", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case (lhsType: TNumeric, "/", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+
+    case (lhsType, _, rhsType) =>
+      parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")
+  }
+}
+
+case class Comparison(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
+  var operandType: Type = null
+
+  def eval(c: EvalContext): () => Any = ((operation, operandType): @unchecked) match {
+    case ("==", _) => AST.evalCompose[Any, Any](c, lhs, rhs)(_ == _)
+    case ("!=", _) => AST.evalCompose[Any, Any](c, lhs, rhs)(_ != _)
+
+    case ("<", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ < _)
+    case ("<=", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ <= _)
+    case (">", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ > _)
+    case (">=", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ >= _)
+
+    case ("<", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ < _)
+    case ("<=", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ <= _)
+    case (">", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ > _)
+    case (">=", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ >= _)
+
+    case ("<", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ < _)
+    case ("<=", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ <= _)
+    case (">", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ > _)
+    case (">=", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ >= _)
+
+    case ("<", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ < _)
+    case ("<=", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ <= _)
+    case (">", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ > _)
+    case (">=", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ >= _)
+  }
+
+  override def typecheckThis(): Type = {
+    operandType = (lhs.`type`, operation, rhs.`type`) match {
+      case (_, "==" | "!=", _) => null
+      case (lhsType: TNumeric, "<=" | ">=" | "<" | ">", rhsType: TNumeric) =>
+        AST.promoteNumeric(lhsType, rhsType)
+
+      case (lhsType, _, rhsType) =>
+        parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")
+    }
+
+    TBoolean
+  }
+}
+
+case class UnaryOp(posn: Position, operation: String, operand: AST) extends AST(posn, operand) {
+  def eval(c: EvalContext): () => Any = ((operation, `type`): @unchecked) match {
+    case ("-", TInt) => AST.evalComposeNumeric[Int](c, operand)(-_)
+    case ("-", TLong) => AST.evalComposeNumeric[Long](c, operand)(-_)
+    case ("-", TFloat) => AST.evalComposeNumeric[Float](c, operand)(-_)
+    case ("-", TDouble) => AST.evalComposeNumeric[Double](c, operand)(-_)
+
+    case ("!", TBoolean) => AST.evalCompose[Boolean](c, operand)(!_)
+  }
+
+  override def typecheckThis(): Type = (operation, operand.`type`) match {
+    case ("-", t: TNumeric) => AST.promoteNumeric(t)
+    case ("!", TBoolean) => TBoolean
+
+    case (_, t) =>
+      parseError(s"invalid argument to unary `$operation': ${t.toString}")
+  }
+}
+
+case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, idx)) {
+  override def typecheckThis(): Type = (f.`type`, idx.`type`) match {
+    case (TArray(elementType), TInt) => elementType
+    case (TString, TInt) => TChar
+
+    case _ =>
+      parseError("invalid array index expression")
+  }
+
+  def eval(c: EvalContext): () => Any = ((f.`type`, idx.`type`): @unchecked) match {
+    case (TArray(elementType), TInt) =>
+      AST.evalCompose[IndexedSeq[_], Int](c, f, idx)((a, i) => a(i))
+
+    case (TString, TInt) =>
+      AST.evalCompose[String, Int](c, f, idx)((s, i) => s(i).toString)
+  }
+
+}
+
+case class SymRef(posn: Position, symbol: String) extends AST(posn) {
+  def eval(c: EvalContext): () => Any = {
+    val localI = c.tcc.symTab(symbol)._1
+    val localA = c.a
+    () => localA(localI)
+  }
+
+  override def typecheckThis(tcc: TypeCheckContext): Type = {
+    tcc.symTab.get(symbol) match {
+      case Some((_, t)) => t
+      case None =>
+        parseError(s"symbol `$symbol' not found")
+    }
+  }
+}
+
+case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
+  extends AST(pos, Array(cond, thenTree, elseTree)) {
+  override def typecheckThis(tcc: TypeCheckContext): Type = {
+    thenTree.typecheck(tcc)
+    elseTree.typecheck(tcc)
+    if (thenTree.`type` != elseTree.`type`)
+      parseError(s"expected same-type `then' and `else' clause, got `${thenTree.`type`}' and `${elseTree.`type`}'")
+    else
+      thenTree.`type`
+  }
+
+  def eval(c: EvalContext): () => Any = {
+    val f1 = cond.eval(c)
+    val f2 = thenTree.eval(c)
+    val f3 = elseTree.eval(c)
+    () => {
+      val c = f1()
+      if (c != null) {
+        if (c.asInstanceOf[Boolean])
+          f2()
+        else
+          f3()
+      } else
+        null
+    }
+  }
 }

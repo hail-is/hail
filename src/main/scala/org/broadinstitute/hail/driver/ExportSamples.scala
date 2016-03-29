@@ -35,14 +35,27 @@ object ExportSamples extends Command {
     val symTab = Map(
       "s" ->(0, TSample),
       "sa" ->(1, sas))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
+    val aggregationTable = Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)
+    )
+
+    val ec = EvalContext(symTab, aggregationTable)
+
 
     val (header, fs) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)
+      ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
     else
-      Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(ec, cond)
+
+
+    val a = ec.a
+    val aggregatorA = ec.aggregatorA
+
+    val sampleAggregations = Aggregators.buildSampleAggregations(vds, ec)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
@@ -51,6 +64,13 @@ object ExportSamples extends Command {
       sb.clear()
       a(0) = vds.sampleIds(s)
       a(1) = vds.sampleAnnotations(s)
+      sampleAggregations.foreach { arr =>
+        arr(s).iterator.zipWithIndex
+          .foreach { case (value, j) =>
+            aggregatorA(5 + j) = value
+          }
+      }
+
       var first = true
       fs.foreach { f =>
         if (first)

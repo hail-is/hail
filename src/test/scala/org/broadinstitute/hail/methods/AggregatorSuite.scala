@@ -11,7 +11,10 @@ class AggregatorSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
     var s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     s = VariantQC.run(s, Array.empty[String])
-    s = AnnotateVariants.run(s, Array("-c", "va.test.callrate = gs.fraction(g.isCalled), va.test.MAC = gs.stats(g.nNonRefAlleles).sum, va.test.MAF = gs.stats(g.nNonRefAlleles).sum.toDouble / gs.count(g.isCalled) / 2.0, va.test.gqstats = gs.stats(g.gq), va.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
+    s = AnnotateVariants.run(s, Array("expr", "-c",
+      "va.test.callrate = gs.fraction(g.isCalled), va.test.MAC = gs.stats(g.nNonRefAlleles).sum, " +
+        "va.test.MAF = gs.stats(g.nNonRefAlleles).sum.toDouble / gs.count(g.isCalled) / 2.0, " +
+        "va.test.gqstats = gs.stats(g.gq), va.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
 
     val qCallRate = s.vds.queryVA("test", "callrate")
     val qCallRateQC = s.vds.queryVA("qc", "callRate")
@@ -56,7 +59,7 @@ class AggregatorSuite extends SparkSuite {
 
     s = SampleQC.run(s, Array.empty[String])
 
-    s = AnnotateSamples.run(s, Array("-c", "sa.test.callrate = gs.fraction(g.isCalled), sa.test.gqstats = " +
+    s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.callrate = gs.fraction(g.isCalled), sa.test.gqstats = " +
       "gs.stats(g.gq), sa.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
 
     val qCallRate = s.vds.querySA("test", "callrate")
@@ -86,6 +89,18 @@ class AggregatorSuite extends SparkSuite {
           assert(gqStatsHetStDev(sa).zip(gqStatsHetStDevQC(sa)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
+      }
+
+    s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.findmapped = gs.findmap(v.start == 16052684, g), " +
+      "sa.test.collected = gs.collect(g.isHet, g)"))
+    val qfm = s.vds.querySA("test", "findmapped")
+    val qcol = s.vds.querySA("test", "collected")
+    s.vds.sampleAnnotations
+      .foreach {
+        sa =>
+          println(qfm(sa))
+          println(qcol(sa))
+
       }
   }
 }

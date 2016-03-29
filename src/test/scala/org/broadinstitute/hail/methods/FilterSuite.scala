@@ -53,8 +53,9 @@ class FilterSuite extends SparkSuite {
     a += null // mb
     assert(a.length == 13)
 
+    val ec = EvalContext(symTab, null)
     def eval[T](s: String): T = {
-      val f = Parser.parse[T](symTab, null, null, a, null, null, s)
+      val f = Parser.parse[T](ec, null, s)
       f()
     }
 

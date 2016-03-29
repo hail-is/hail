@@ -10,8 +10,7 @@ import scala.language.implicitConversions
 object ExportTSV {
 
   def parseColumnsFile(
-    symTab: Map[String, (Int, Type)],
-    a: ArrayBuffer[Any],
+    ec: EvalContext,
     path: String,
     hConf: hadoop.conf.Configuration): (Option[String], Array[() => Any]) = {
     val pairs = readFile(path, hConf) { reader =>
@@ -28,7 +27,7 @@ object ExportTSV {
 
     val header = pairs.map(_._1).mkString("\t")
     val fs = pairs.map { case (_, e) =>
-      Parser.parse[Any](symTab, null, null, a, null, null, e)
+      Parser.parse[Any](ec, null, e)
     }
 
     (Some(header), fs)

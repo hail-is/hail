@@ -37,22 +37,36 @@ object ExportVariants extends Command {
 
     val symTab = Map(
       "v" ->(0, TVariant),
-      "va" ->(1, vas))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
+      "va" ->(1, vds.vaSignature),
+      "gs" ->(2, TGenotypeStream))
+    val aggregationTable = Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)
+    )
+
+    val ec = EvalContext(symTab, aggregationTable)
 
     val (header, fs) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)
+      ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
     else
-      Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(ec, cond)
+
+    val a = ec.a
+
+
+    val variantAggregations = Aggregators.buildVariantaggregations(vds, ec)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
-    vds.variantsAndAnnotations
+    vds.rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
-        it.map { case (v, va) =>
+        it.map { case (v, va, gs) =>
+
+          variantAggregations.foreach { f => f(v, va, gs)}
           sb.clear()
           var first = true
           fs.foreach { f =>

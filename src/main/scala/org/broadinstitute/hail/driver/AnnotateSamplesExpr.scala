@@ -5,6 +5,7 @@ import org.broadinstitute.hail.annotations.{Annotation, Inserter}
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
+import org.broadinstitute.hail.methods.Aggregators
 import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -34,26 +35,19 @@ object AnnotateSamplesExpr extends Command {
 
     val cond = options.condition
     val symTab = Map(
-      "s" ->(0, expr.TSample),
+      "s" ->(0, TSample),
       "sa" ->(1, vds.saSignature),
-      "gs" -> (2, expr.TGenotypeStream))
-
-    val symTab2 = Map(
+      "gs" ->(2, TGenotypeStream))
+    val aggregationTable = Map(
       "v" ->(0, TVariant),
       "va" ->(1, vds.vaSignature),
       "s" ->(2, TSample),
       "sa" ->(3, vds.saSignature),
       "g" ->(4, TGenotype)
     )
-    val a = new ArrayBuffer[Any]()
-    val a2 = new ArrayBuffer[Any]()
-    val a3 = new ArrayBuffer[Aggregator]()
 
-    for (_ <- symTab)
-      a += null
-    for (_ <- symTab2)
-      a2 += null
-    val parsed = expr.Parser.parseAnnotationArgs(symTab, symTab2, a, a2, a3, cond)
+    val ec = EvalContext(symTab, aggregationTable)
+    val parsed = expr.Parser.parseAnnotationArgs(ec, cond)
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "sa")
@@ -69,57 +63,21 @@ object AnnotateSamplesExpr extends Command {
 
     val computations = parsed.map(_._3)
     val inserters = inserterBuilder.result()
+    
+    val a = ec.a
+    val aggregatorA = ec.aggregatorA
 
-    val doAggregates = a3.nonEmpty
-    val aggregatorArray = if (doAggregates) {
-      val a3arr = a3.toArray
-      val sampleInfoBc = vds.sparkContext.broadcast(vds.localSamples
-        .map(vds.sampleIds)
-        .map(Sample)
-        .zip(vds.localSamples.map(vds.sampleAnnotations)))
-      vds.rdd.aggregate(Array.fill[Array[Any]](vds.nLocalSamples)(a3arr.map(_._1())))({ case (arr, (v, va, gs)) =>
-        gs.iterator
-          .zipWithIndex
-          .foreach { case (g, i) =>
-            a2(0) = v
-            a2(1) = va
-            a2(2) = sampleInfoBc.value(i)._1
-            a2(3) = sampleInfoBc.value(i)._2
-            a2(4) = g
-
-            a3arr.iterator
-              .zipWithIndex
-              .foreach { case ((zv, seqOp, combOp), j) =>
-                val iArray = arr(i)
-                iArray(j) = seqOp(iArray(j))
-              }
-          }
-        //            println(arr.map(subarr => "(" + subarr.mkString(",") + ")").mkString("|"))
-        arr
-      }, { case (arr1, arr2) =>
-        val combOp = a3arr.map(_._3)
-        arr1.iterator
-          .zip(arr2.iterator)
-          .map { case (ai1, ai2) =>
-            ai1.iterator
-              .zip(ai2.iterator)
-              .zip(combOp.iterator)
-              .map { case ((ij1, ij2), c) => c(ij1, ij2) }
-              .toArray
-          }
-          .toArray
-      })
-    } else null
+    val aggregatorArray = Aggregators.buildSampleAggregations(vds, ec)
 
     val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
       a(0) = Sample(vds.sampleIds(i))
       a(1) = sa
       a(2) = 0 //FIXME placeholder?
 
-      if (doAggregates) {
-        aggregatorArray(i).iterator.zipWithIndex
+      aggregatorArray.foreach {arr =>
+        arr(i).iterator.zipWithIndex
           .foreach { case (value, j) =>
-            a2(5 + j) = value }
+            aggregatorA(5 + j) = value }
       }
 
       val queries = computations.map(_ ())
