@@ -23,7 +23,7 @@ case class VariantFilter(operand: String,
   value: String,
   operand_type: String) {
 
-  def filterDf(df: DataFrame): DataFrame = {
+  def filterDf(df: DataFrame, blockWidth: Int): DataFrame = {
     operand match {
       case "chrom" =>
         assert(operand_type == "string"
@@ -32,7 +32,7 @@ case class VariantFilter(operand: String,
       case "pos" =>
         assert(operand_type == "integer")
         val v = value.toInt
-        val vblock = v / 100000
+        val vblock = v / blockWidth
         operator match {
           case "eq" =>
             df.filter(df("block") === vblock)
@@ -86,7 +86,7 @@ case class GetStatsResult(is_error: Boolean,
 
 class RESTFailure(message: String) extends Exception(message)
 
-class T2DService(hcs: HardCallSet, cov: CovariateData) {
+class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, cov: CovariateData) {
 
   def getStats(req: GetStatsRequest): GetStatsResult = {
     req.md_version.foreach { md_version =>
@@ -167,10 +167,11 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
     if (variantCovs.nonEmpty)
       cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
 
-    val HARDLIMIT = 10000
-    val MAXWIDTH = 600000
+    val maxWidthForHcs = 600000
+    val maxWidthForHcs1Mb = 10000000
 
-    val limit = req.limit.map(_.min(HARDLIMIT)).getOrElse(HARDLIMIT)
+    //    val HARDLIMIT = 100000
+    //    val limit = req.limit.map(_.min(HARDLIMIT)).getOrElse(HARDLIMIT)
 
     var minPos = 0
     var maxPos = 1000000000
@@ -208,22 +209,37 @@ class T2DService(hcs: HardCallSet, cov: CovariateData) {
       else
         maxPos - minPos
 
-    if (width > MAXWIDTH)
-      posFilters += VariantFilter("pos", "lte", (minPos + MAXWIDTH).toString, "integer")
+    assert(maxPos >= minPos)
 
-    var df = hcs.df
-    chromFilters.foreach(f => df = f.filterDf(df))
-    posFilters.foreach(f => df = f.filterDf(df))
+//    if (width > MAXWIDTH)
+//      posFilters += VariantFilter("pos", "lte", (minPos + MAXWIDTH).toString, "integer")
 
-    val statsRDD = LinearRegressionOnHcs(hcs.copy(df = df), y, cov2)
+    val hcsToUse =
+      if (width <= maxWidthForHcs)
+        hcs
+      else if (width <= maxWidthForHcs1Mb)
+        hcs1Mb
+      else
+        hcs10Mb
+
+    var df = hcsToUse.df
+    val blockWidth = hcsToUse.blockWidth
+
+    chromFilters.foreach(f => df = f.filterDf(df, blockWidth))
+    posFilters.foreach(f => df = f.filterDf(df, blockWidth))
+
+    val stats = LinearRegressionOnHcs(hcsToUse.copy(df = df), y, cov2)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
+      .collect()
 
+    /*
     val stats: Array[Stat] =
       if (width <= 600000)
         statsRDD.collect()
       else
         statsRDD.take(limit)
+    */
 
     if (req.count.getOrElse(false))
       GetStatsResult(is_error = false, None, req.passback, None, Some(stats.length))
