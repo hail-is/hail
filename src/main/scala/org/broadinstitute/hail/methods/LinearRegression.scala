@@ -4,10 +4,19 @@ import breeze.linalg._
 import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
 import scala.collection.mutable.ArrayBuffer
 
-case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double)
+object LinRegStats {
+  def `type`: Type = TStruct(("nMissing", TInt), ("beta", TDouble),
+    ("stderr", TDouble), ("tstat", TDouble), ("pval", TDouble))
+}
+
+case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double) {
+  def toAnnotation: Annotation = Annotation(nMissing, beta, se, t, p)
+}
 
 class LinRegBuilder extends Serializable {
   private val rowsX = ArrayBuffer[Int]()
@@ -134,13 +143,13 @@ object LinearRegression {
   }
 }
 
-case class LinearRegression(lr: RDD[(Variant, Option[LinRegStats])]) {
+case class LinearRegression(rdd: RDD[(Variant, Option[LinRegStats])]) {
   def write(filename: String) {
     def toLine(v: Variant, olrs: Option[LinRegStats]) = olrs match {
       case Some(lrs) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + lrs.nMissing + "\t" + lrs.beta + "\t" + lrs.se + "\t" + lrs.t + "\t" + lrs.p
       case None => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\tNA\tNA\tNA\tNA\tNA"
     }
-    lr.map((toLine _).tupled)
+    rdd.map((toLine _).tupled)
       .writeTable(filename, Some("CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP"))
   }
 }
