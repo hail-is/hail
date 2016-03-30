@@ -92,18 +92,19 @@ case class HardCallSet(df: DataFrame,
 
   def persist(level: StorageLevel): HardCallSet = copy(df = df.persist(level))
 
-  def rangePartition(nPartitions: Int = rdd.partitions.length): HardCallSet = {
+  def nPartitions: Int = df.rdd.partitions.length
+
+  def rangePartition(n: Int = nPartitions): HardCallSet = {
     import df.sqlContext.implicits._
 
     val newDf = rdd
-        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, CallStream](nPartitions, rdd)) //Is sorting necessary?
+        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, CallStream](n, rdd)) //Is sorting necessary?
         .map { case (v, gs) =>
           (v.start, v.ref, v.alt, gs, "chr" + v.contig, v.start / blockWidth)
         }.toDF("start", "ref", "alt", "callStream", "contig", "block")
 
     copy(df = newDf)
   }
-
 
   /*
   def filterVariants(p: (Variant) => Boolean): HardCallSet =
