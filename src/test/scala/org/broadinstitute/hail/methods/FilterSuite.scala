@@ -58,6 +58,10 @@ class FilterSuite extends SparkSuite {
       f()
     }
 
+    assert(eval[Boolean]("(1 / 2) == 0.5"))
+    assert(eval[Boolean]("(1.0 / 2.0) == 0.5"))
+    assert(eval[Boolean]("(1 / 2.0) == 0.5"))
+    assert(eval[Boolean]("(1.0 / 2) == 0.5"))
     assert(eval[Boolean]("gs.noCall.gt.isMissing"))
     assert(eval[Boolean]("gs.noCall.gtj.isMissing"))
     assert(eval[Boolean]("gs.noCall.gtk.isMissing"))

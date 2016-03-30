@@ -150,7 +150,9 @@ case object TChar extends Type {
 
 abstract class TNumeric extends Type
 
-case object TInt extends TNumeric with Parsable {
+abstract class TIntegral extends TNumeric
+
+case object TInt extends TIntegral with Parsable {
   override def toString = "Int"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
@@ -160,7 +162,7 @@ case object TInt extends TNumeric with Parsable {
   def parse(s: String): Annotation = s.toInt
 }
 
-case object TLong extends TNumeric with Parsable {
+case object TLong extends TIntegral with Parsable {
   override def toString = "Long"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
@@ -170,7 +172,7 @@ case object TLong extends TNumeric with Parsable {
   def parse(s: String): Annotation = s.toLong
 }
 
-case object TFloat extends TNumeric {
+case object TFloat extends TNumeric with Parsable {
   override def toString = "Float"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
@@ -1006,8 +1008,19 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case ("+", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ + _)
     case ("-", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ - _)
     case ("*", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ * _)
-    case ("/", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ / _)
+    case ("/", TInt) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
     case ("%", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ % _)
+
+    case ("+", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ + _)
+    case ("-", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ - _)
+    case ("*", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ * _)
+    case ("/", TLong) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
+    case ("%", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ % _)
+
+    case ("+", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ + _)
+    case ("-", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ - _)
+    case ("*", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ * _)
+    case ("/", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ / _)
 
     case ("+", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ + _)
     case ("-", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ - _)
@@ -1020,10 +1033,11 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case (TString, "~", TString) => TBoolean
     case (TBoolean, "||", TBoolean) => TBoolean
     case (TBoolean, "&&", TBoolean) => TBoolean
+    case (lhsType: TIntegral, "%", rhsType: TIntegral) => AST.promoteNumeric(lhsType, rhsType)
     case (lhsType: TNumeric, "+", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
     case (lhsType: TNumeric, "-", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
     case (lhsType: TNumeric, "*", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
-    case (lhsType: TNumeric, "/", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case (lhsType: TNumeric, "/", rhsType: TNumeric) => TDouble
 
     case (lhsType, _, rhsType) =>
       parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")
