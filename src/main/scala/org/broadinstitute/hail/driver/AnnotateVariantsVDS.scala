@@ -19,20 +19,18 @@ object AnnotateVariantsVDS extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatevariants/vds"
+  def name = "annotatevariants vds"
 
-  override def hidden = true
-
-  def description = "Annotate variants in current dataset"
+  def description = "Annotate variants with VDS file"
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
     val filepath = options.input
 
-    val readOtherVds = Read.run(State(state.sc, state.sqlContext, null), Array("-i", filepath)).vds
+    val readOtherVds = Read.run(state, Array("-i", filepath)).vds
 
-    fatalIf(!readOtherVds.wasSplit, "cannot annotate from a multiallelic VDS, run 'splitmulti' on that VDS first.")
+    fatalIf(!readOtherVds.wasSplit, "cannot annotate from a multiallelic VDS, run `splitmulti' on that VDS first.")
 
     val (rdd, signature) =(readOtherVds.variantsAndAnnotations, readOtherVds.vaSignature)
     val annotated = vds.annotateVariants(readOtherVds.variantsAndAnnotations,

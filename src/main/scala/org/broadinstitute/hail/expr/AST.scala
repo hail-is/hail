@@ -48,6 +48,10 @@ object DoubleNumericConversion extends NumericConversion[Double] {
   }
 }
 
+trait Parsable {
+  def parse(s: String): Annotation
+}
+
 sealed abstract class Type extends Serializable {
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
@@ -113,9 +117,6 @@ sealed abstract class Type extends Serializable {
   def typeCheck(a: Any): Boolean
 
   def schema: DataType
-
-  def parse(s: String): Annotation =
-    throw new UnsupportedOperationException(s"Cannot generate a parser for $toString")
 }
 
 case object TEmpty extends Type {
@@ -128,14 +129,14 @@ case object TEmpty extends Type {
     BooleanType
 }
 
-case object TBoolean extends Type {
+case object TBoolean extends Type with Parsable {
   override def toString = "Boolean"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
 
   def schema = BooleanType
 
-  override def parse(s: String): Annotation = s.toBoolean
+  def parse(s: String): Annotation = s.toBoolean
 }
 
 case object TChar extends Type {
@@ -149,24 +150,24 @@ case object TChar extends Type {
 
 abstract class TNumeric extends Type
 
-case object TInt extends TNumeric {
+case object TInt extends TNumeric with Parsable {
   override def toString = "Int"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
   def schema = IntegerType
 
-  override def parse(s: String): Annotation = s.toInt
+  def parse(s: String): Annotation = s.toInt
 }
 
-case object TLong extends TNumeric {
+case object TLong extends TNumeric with Parsable {
   override def toString = "Long"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 
   def schema = LongType
 
-  override def parse(s: String): Annotation = s.toLong
+  def parse(s: String): Annotation = s.toLong
 }
 
 case object TFloat extends TNumeric {
@@ -176,27 +177,27 @@ case object TFloat extends TNumeric {
 
   def schema = FloatType
 
-  override def parse(s: String): Annotation = s.toFloat
+  def parse(s: String): Annotation = s.toFloat
 }
 
-case object TDouble extends TNumeric {
+case object TDouble extends TNumeric with Parsable {
   override def toString = "Double"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
   def schema = DoubleType
 
-  override def parse(s: String): Annotation = s.toDouble
+  def parse(s: String): Annotation = s.toDouble
 }
 
-case object TString extends Type {
+case object TString extends Type with Parsable {
   override def toString = "String"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
   def schema = StringType
 
-  override def parse(s: String): Annotation = s
+  def parse(s: String): Annotation = s
 }
 
 case class TArray(elementType: Type) extends Type {

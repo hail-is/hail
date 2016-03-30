@@ -143,7 +143,8 @@ object LoadVCF {
     files: Array[String] = null, // FIXME hack
     storeGQ: Boolean = false,
     compress: Boolean = true,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None,
+    skipGenotypes: Boolean = false): VariantDataset = {
 
     val hConf = sc.hadoopConfiguration
     val headerLines = readFile(file1, hConf) { s =>
@@ -183,9 +184,13 @@ object LoadVCF {
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
 
-    val sampleIds = headerLine
-      .split("\t")
-      .drop(9)
+    val sampleIds: Array[String] =
+      if (skipGenotypes)
+        Array.empty
+      else
+        headerLine
+          .split("\t")
+          .drop(9)
 
     val infoSignatureBc = sc.broadcast(infoSignature)
 
@@ -213,7 +218,7 @@ object LoadVCF {
             })
             .map { line =>
               try {
-                reader.readRecord(reportAcc, line, infoSignatureBc.value, storeGQ)
+                reader.readRecord(reportAcc, line, infoSignatureBc.value, storeGQ, skipGenotypes)
               } catch {
                 case e: TribbleException =>
                   log.error(s"${e.getMessage}\n  line: $line", e)

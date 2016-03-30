@@ -722,17 +722,15 @@ object Utils extends Logging {
   def hadoopStripCodec(s: String, conf: hadoop.conf.Configuration): String = {
     val path = new org.apache.hadoop.fs.Path(s)
 
-    val ext = Option(new CompressionCodecFactory(conf)
+    Option(new CompressionCodecFactory(conf)
       .getCodec(path))
-    val toStrip = ext.map(_.getDefaultExtension)
-    assert(toStrip.forall(s.endsWith))
-    val lengthToStrip = toStrip.map(_.length)
-      .getOrElse(0)
-
-    s.substring(0, s.length - lengthToStrip)
+      .map { case codec =>
+        val ext = codec.getDefaultExtension
+        assert(s.endsWith(ext))
+        s.dropRight(ext.length)
+      }.getOrElse(s)
   }
-
-
+  
   def writeObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))

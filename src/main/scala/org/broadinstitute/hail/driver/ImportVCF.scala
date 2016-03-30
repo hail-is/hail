@@ -26,6 +26,9 @@ object ImportVCF extends Command {
     @Args4jOption(name = "-n", aliases = Array("--npartition"), usage = "Number of partitions")
     var nPartitions: Int = 0
 
+    @Args4jOption(name = "--skip-genotypes", usage = "Don't load genotypes")
+    var skipGenotypes: Boolean = false
+
     @Args4jOption(name = "--store-gq", usage = "Store GQ instead of computing from PL")
     var storeGQ: Boolean = false
 
@@ -76,7 +79,8 @@ object ImportVCF extends Command {
       if (options.nPartitions != 0)
         Some(options.nPartitions)
       else
-        None))
+        None,
+      options.skipGenotypes))
   }
 
 }

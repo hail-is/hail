@@ -19,11 +19,9 @@ object AnnotateSamplesExpr extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatesamples/expr"
+  def name = "annotatesamples expr"
 
-  def description = "Annotate samples in current dataset"
-
-  override def hidden = true
+  def description = "Annotate samples programatically"
 
   override def supportsMultiallelic = true
 
@@ -36,36 +34,36 @@ object AnnotateSamplesExpr extends Command {
       "s" ->(0, expr.TSample),
       "sa" ->(1, vds.saSignature))
     val a = new mutable.ArrayBuffer[Any](2)
+    for (_ <- symTab)
+      a += null
+
     val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "sa")
-        fatal(s"expect 'sa[.identifier]+', got ${ids.mkString(".")}")
+        fatal(s"Path must start with `sa.', got `${ids.mkString(".")}'")
       (ids.tail, t)
     }
+    val computations = parsed.map(_._3)
+
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
       val (s, i) = v.insertSA(signature, ids)
       inserterBuilder += i
       v.copy(saSignature = s)
     }
-
-    val computations = parsed.map(_._3)
     val inserters = inserterBuilder.result()
-
-    for (_ <- symTab)
-      a += null
 
     val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
       a(0) = Sample(vds.sampleIds(i))
       a(1) = sa
 
       val queries = computations.map(_ ())
+      var newSA = sa
       queries.indices.foreach { i =>
-        a(1) = inserters(i).apply(
-          a(1),
+        newSA = inserters(i)(newSA,
           Option(queries(i)))
       }
-      a(1): Annotation
+      newSA
     }
     val annotated = vdsAddedSigs.copy(sampleAnnotations = newAnnotations)
     state.copy(vds = annotated)
