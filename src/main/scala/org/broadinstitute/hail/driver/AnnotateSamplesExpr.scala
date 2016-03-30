@@ -4,7 +4,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotation, Inserter}
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
 import org.broadinstitute.hail.methods.Aggregators
 import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -46,7 +45,7 @@ object AnnotateSamplesExpr extends Command {
       "g" ->(4, TGenotype)
     )
 
-    val ec = EvalContext(symTab, aggregationTable)
+    val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
     val parsed = expr.Parser.parseAnnotationArgs(ec, cond)
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
@@ -65,9 +64,9 @@ object AnnotateSamplesExpr extends Command {
     val inserters = inserterBuilder.result()
     
     val a = ec.a
-    val aggregatorA = ec.aggregatorA
+    val aggregatorA = ec.children("gs").a
 
-    val aggregatorArray = Aggregators.buildSampleAggregations(vds, ec)
+    val aggregatorArray = Aggregators.buildSampleAggregations(vds, ec, "gs")
 
     val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
       a(0) = Sample(vds.sampleIds(i))
@@ -75,9 +74,10 @@ object AnnotateSamplesExpr extends Command {
       a(2) = 0 //FIXME placeholder?
 
       aggregatorArray.foreach {arr =>
-        arr(i).iterator.zipWithIndex
+        arr(i).iterator
+            .zip(ec.children("gs").aggregationFunctions.map(_._4).iterator)
           .foreach { case (value, j) =>
-            aggregatorA(5 + j) = value }
+            aggregatorA(j) = value }
       }
 
       val queries = computations.map(_ ())

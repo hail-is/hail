@@ -26,7 +26,7 @@ object Parser extends JavaTokenParsers {
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    t.typecheck(ec.tcc)
+    t.typecheck(ec)
     if (expected != null
       && t.`type` != expected)
       fatal(s"expression has wrong type: expected `$expected', got ${t.`type`}")
@@ -45,7 +45,7 @@ object Parser extends JavaTokenParsers {
       case NoSuccess(msg, _) => fatal(msg)
     }
 
-    ts.foreach(_.typecheck(ec.tcc))
+    ts.foreach(_.typecheck(ec))
     val fs = ts.map { t =>
       t.eval(ec)
     }
@@ -60,7 +60,7 @@ object Parser extends JavaTokenParsers {
 
     arr.map {
       case (ids, ast) =>
-        ast.typecheck(ec.tcc)
+        ast.typecheck(ec)
         (ids.toList, ast.`type`, ast.eval(ec))
     }
   }

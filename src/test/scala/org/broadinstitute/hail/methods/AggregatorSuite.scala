@@ -91,16 +91,16 @@ class AggregatorSuite extends SparkSuite {
           })
       }
 
-    s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.findmapped = gs.findmap(v.start == 16052684, g), " +
-      "sa.test.collected = gs.collect(g.isHet, g)"))
-    val qfm = s.vds.querySA("test", "findmapped")
-    val qcol = s.vds.querySA("test", "collected")
-    s.vds.sampleAnnotations
-      .foreach {
-        sa =>
-          println(qfm(sa))
-          println(qcol(sa))
-
-      }
+//    s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.findmapped = gs.findmap(v.start == 16052684, g), " +
+//      "sa.test.collected = gs.collect(g.isHet, g)"))
+//    val qfm = s.vds.querySA("test", "findmapped")
+//    val qcol = s.vds.querySA("test", "collected")
+//    s.vds.sampleAnnotations
+//      .foreach {
+//        sa =>
+//          println(qfm(sa))
+//          println(qcol(sa))
+//
+//      }
   }
 }

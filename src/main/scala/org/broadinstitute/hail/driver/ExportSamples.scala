@@ -43,7 +43,7 @@ object ExportSamples extends Command {
       "g" ->(4, TGenotype)
     )
 
-    val ec = EvalContext(symTab, aggregationTable)
+    val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
 
 
     val (header, fs) = if (cond.endsWith(".columns"))
@@ -53,9 +53,9 @@ object ExportSamples extends Command {
 
 
     val a = ec.a
-    val aggregatorA = ec.aggregatorA
+    val aggregatorA = ec.children("gs").a
 
-    val sampleAggregations = Aggregators.buildSampleAggregations(vds, ec)
+    val sampleAggregations = Aggregators.buildSampleAggregations(vds, ec, "gs")
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
@@ -65,9 +65,10 @@ object ExportSamples extends Command {
       a(0) = vds.sampleIds(s)
       a(1) = vds.sampleAnnotations(s)
       sampleAggregations.foreach { arr =>
-        arr(s).iterator.zipWithIndex
+        arr(s).iterator
+          .zip(ec.children("gs").aggregationFunctions.map(_._4).iterator)
           .foreach { case (value, j) =>
-            aggregatorA(5 + j) = value
+            aggregatorA(j) = value
           }
       }
 

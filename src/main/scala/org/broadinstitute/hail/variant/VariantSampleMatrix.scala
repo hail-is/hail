@@ -138,6 +138,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
+  def taSignature: Type = metadata.taSignature
+
+  def globalAnnotation: Annotation = metadata.tAnnotation
+
   def wasSplit: Boolean = metadata.wasSplit
 
   def filters: IndexedSeq[(String, String)] = metadata.filters
@@ -149,10 +153,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     saSignature: Type = saSignature,
     vaSignature: Type = vaSignature,
+    taSignature: Type = taSignature,
+    tAnnotation: Annotation = globalAnnotation,
     wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
-      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature, vaSignature, wasSplit), localSamples, rdd)
+      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature,
+        vaSignature, tAnnotation, taSignature, wasSplit), localSamples, rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -472,21 +479,32 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
 
-  def deleteSA(args: String*): (Type, Deleter) = deleteSA(args.toList)
-
-  def deleteSA(path: List[String]): (Type, Deleter) = saSignature.delete(path)
-
   def insertVA(sig: Type, args: String*): (Type, Inserter) = insertVA(sig, args.toList)
 
   def insertVA(sig: Type, path: List[String]): (Type, Inserter) = {
     vaSignature.insert(sig, path)
   }
 
+  def deleteSA(args: String*): (Type, Deleter) = deleteSA(args.toList)
+
+  def deleteSA(path: List[String]): (Type, Deleter) = saSignature.delete(path)
+
   def insertSA(sig: Type, args: String*): (Type, Inserter) = insertSA(sig, args.toList)
 
   def insertSA(sig: Type, path: List[String]): (Type, Inserter) = {
     saSignature.insert(sig, path)
   }
+
+  def deleteTA(args: String*): (Type, Deleter) = deleteTA(args.toList)
+
+  def deleteTA(path: List[String]): (Type, Deleter) = taSignature.delete(path)
+
+  def insertTA(sig: Type, args: String*): (Type, Inserter) = insertTA(sig, args.toList)
+
+  def insertTA(sig: Type, path: List[String]): (Type, Inserter) = {
+    taSignature.insert(sig, path)
+  }
+
 }
 
 // FIXME AnyVal Scala 2.11

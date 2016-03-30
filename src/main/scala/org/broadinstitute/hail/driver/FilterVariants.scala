@@ -58,16 +58,16 @@ object FilterVariants extends Command {
           "g" ->(4, TGenotype)
         )
 
-        val ec = EvalContext(symTab, aggregationTable)
+        val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
         val f: () => Any = Parser.parse[Any](ec, TBoolean, cond)
         val sampleInfoBc = vds.sparkContext.broadcast(
           vds.localSamples.map(vds.sampleAnnotations)
             .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
         
         val a = ec.a
-        val aggregatorA = ec.aggregatorA
+        val aggregatorA = ec.children("gs").a
 
-        val aggregatorOption = Aggregators.buildVariantaggregations(vds, ec)
+        val aggregatorOption = Aggregators.buildVariantaggregations(vds, ec, "gs")
 
         (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
           a(0) = v

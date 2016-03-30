@@ -57,24 +57,24 @@ object FilterSamples extends Command {
         val symTab = Map(
           "s" ->(0, TSample),
           "sa" ->(1, sas))
-        val symTab2 = Map(
+        val aggregationTable = Map(
           "v" ->(0, TVariant),
           "va" ->(1, vds.vaSignature),
           "s" ->(2, TSample),
           "sa" ->(3, sas),
           "g" ->(4, TGenotype)
         )
-        val ec = EvalContext(symTab, symTab2)
+        val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
         val f: () => Any = Parser.parse(ec, TBoolean, cond)
 
 
         val a = ec.a
-        val aggregatorA = ec.aggregatorA
+        val aggregatorA = ec.children("gs").a
         val aggregators = ec.aggregationFunctions
 
         val doAggregates = aggregators.nonEmpty
 
-        val sampleAggregations = Aggregators.buildSampleAggregations(vds, ec)
+        val sampleAggregations = Aggregators.buildSampleAggregations(vds, ec, "gs")
 
 
         val sampleIds = state.vds.sampleIds
@@ -83,9 +83,10 @@ object FilterSamples extends Command {
           a(1) = sa
 
           sampleAggregations.foreach { arr =>
-            arr(s).iterator.zipWithIndex
+            arr(s).iterator
+              .zip(ec.children("gs").aggregationFunctions.map(_._4).iterator)
               .foreach { case (value, j) =>
-                aggregatorA(5 + j) = value
+                aggregatorA(j) = value
               }
           }
 

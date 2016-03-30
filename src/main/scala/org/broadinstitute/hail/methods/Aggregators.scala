@@ -6,15 +6,19 @@ import org.broadinstitute.hail.annotations.Annotation
 
 object Aggregators {
 
-  def buildVariantaggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
-    val aggregators = ec.aggregationFunctions.toArray
-    val aggregatorA = ec.aggregatorA
+  def buildVariantaggregations(vds: VariantDataset, ec: EvalContext,
+    key: String): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
+    val aggregators = ec.children(key).aggregationFunctions.toArray
+    val aggregatorA = ec.children(key).a
 
     if (aggregators.nonEmpty) {
       val sampleInfoBc = vds.sparkContext.broadcast(
         vds.localSamples.map(vds.sampleAnnotations)
           .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
 
+      val seqOps = aggregators.map(_._2)
+      val combOps = aggregators.map(_._3)
+      val endIndices = aggregators.map(_._4)
       val f = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
         val aggregations = aggregators.map(_._1())
         gs.iterator
@@ -26,24 +30,25 @@ object Aggregators {
               aggregatorA(2) = s
               aggregatorA(3) = sa
               aggregatorA(4) = g
-              aggregators.iterator.zipWithIndex
+              seqOps.iterator.zipWithIndex
                 .foreach {
-                  case ((zv, so, co), i) =>
+                  case (so, i) =>
                     aggregations(i) = so(aggregations(i))
                 }
           }
-        aggregations.iterator.zipWithIndex
+        aggregations.iterator
+          .zip(endIndices.iterator)
           .foreach { case (res, i) =>
-            aggregatorA(5 + i) = res
+            aggregatorA(i) = res
           }
       }
       Some(f)
     } else None
   }
 
-  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[Array[Array[Any]]] = {
-    val aggregators = ec.aggregationFunctions
-    val aggregatorA = ec.aggregatorA
+  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext, key: String): Option[Array[Array[Any]]] = {
+    val aggregators = ec.children(key).aggregationFunctions
+    val aggregatorA = ec.children(key).a
 
     if (aggregators.isEmpty)
       None
@@ -53,32 +58,37 @@ object Aggregators {
         .map(vds.sampleIds)
         .map(Sample)
         .zip(vds.localSamples.map(vds.sampleAnnotations)))
-      val arr = vds.rdd.aggregate(Array.fill[Array[Any]](vds.nLocalSamples)(aggregatorInternalArray.map(_._1())))({ case (arr, (v, va, gs)) =>
-        gs.iterator
-          .zipWithIndex
-          .foreach { case (g, i) =>
-            aggregatorA(0) = v
-            aggregatorA(1) = va
-            aggregatorA(2) = sampleInfoBc.value(i)._1
-            aggregatorA(3) = sampleInfoBc.value(i)._2
-            aggregatorA(4) = g
 
-            aggregatorInternalArray.iterator
-              .zipWithIndex
-              .foreach { case ((zv, seqOp, combOp), j) =>
-                val iArray = arr(i)
-                iArray(j) = seqOp(iArray(j))
-              }
-          }
-        arr
+      val seqOps = aggregators.map(_._2)
+      val combOps = aggregators.map(_._3)
+      val endIndices = aggregators.map(_._4)
+
+      val arr = vds.rdd.treeAggregate(Array.fill[Array[Any]](vds.nLocalSamples)(aggregatorInternalArray.map(_._1())))({
+        case (arr, (v, va, gs)) =>
+          gs.iterator
+            .zipWithIndex
+            .foreach { case (g, i) =>
+              aggregatorA(0) = v
+              aggregatorA(1) = va
+              aggregatorA(2) = sampleInfoBc.value(i)._1
+              aggregatorA(3) = sampleInfoBc.value(i)._2
+              aggregatorA(4) = g
+
+              seqOps.iterator
+                .zipWithIndex
+                .foreach { case (seqOp, j) =>
+                  val iArray = arr(i)
+                  iArray(j) = seqOp(iArray(j))
+                }
+            }
+          arr
       }, { case (arr1, arr2) =>
-        val combOp = aggregatorInternalArray.map(_._3)
         arr1.iterator
           .zip(arr2.iterator)
           .map { case (ai1, ai2) =>
             ai1.iterator
               .zip(ai2.iterator)
-              .zip(combOp.iterator)
+              .zip(combOps.iterator)
               .map { case ((ij1, ij2), c) => c(ij1, ij2) }
               .toArray
           }

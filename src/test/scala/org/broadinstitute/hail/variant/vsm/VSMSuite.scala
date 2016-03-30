@@ -30,7 +30,7 @@ class VSMSuite extends SparkSuite {
         "inner" -> TStruct(
           "thing1" -> TString),
         "thing2" -> TString),
-      TEmpty)
+      TEmpty, Annotation.empty, TEmpty)
     val mdata4 = new VariantMetadata(
       IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
@@ -40,7 +40,7 @@ class VSMSuite extends SparkSuite {
           "thing1" -> TString),
         "thing2" -> TString,
         "dummy" -> TString),
-      TEmpty)
+      TEmpty, Annotation.empty, TEmpty)
 
     assert(mdata1 != mdata2)
     assert(mdata1 != mdata3)

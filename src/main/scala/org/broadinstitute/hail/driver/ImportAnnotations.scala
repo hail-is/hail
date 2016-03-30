@@ -50,7 +50,7 @@ object ImportAnnotations extends Command {
           AnnotateVariantsTSV.parseTypeMap(options.types), options.missingIdentifiers)
         new VariantDataset(
           VariantMetadata(IndexedSeq.empty[(String, String)], Array.empty[String], Annotation.emptyIndexedSeq(0),
-            expr.TEmpty, signature, wasSplit = true),
+            expr.TEmpty, signature, Annotation.empty, expr.TEmpty, wasSplit = true),
           Array.empty[Int],
           rdd.map { case (v, va) => (v, va, new GenotypeStreamBuilder(v, true).result()) })
       case _ =>

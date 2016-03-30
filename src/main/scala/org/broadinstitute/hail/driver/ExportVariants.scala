@@ -47,7 +47,7 @@ object ExportVariants extends Command {
       "g" ->(4, TGenotype)
     )
 
-    val ec = EvalContext(symTab, aggregationTable)
+    val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
@@ -57,7 +57,7 @@ object ExportVariants extends Command {
     val a = ec.a
 
 
-    val variantAggregations = Aggregators.buildVariantaggregations(vds, ec)
+    val variantAggregations = Aggregators.buildVariantaggregations(vds, ec, "gs")
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 

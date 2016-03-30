@@ -45,7 +45,7 @@ object AnnotateVariantsExpr extends Command {
       "g" ->(4, TGenotype)
     )
 
-    val ec = EvalContext(symTab, aggregationTable)
+    val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
     val parsed = expr.Parser.parseAnnotationArgs(ec, cond)
 
 
@@ -68,9 +68,9 @@ object AnnotateVariantsExpr extends Command {
     val inserters = inserterBuilder.result()
 
     val a = ec.a
-    val aggregatorA = ec.aggregatorA
+    val aggregatorA = ec.children("gs").a
 
-    val aggregateOption = Aggregators.buildVariantaggregations(vds, ec)
+    val aggregateOption = Aggregators.buildVariantaggregations(vds, ec, "gs")
 
     val annotated = vdsAddedSigs.mapAnnotations { case (v, va, gs) =>
       a(0) = v
