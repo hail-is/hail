@@ -69,8 +69,7 @@ object VariantTSVAnnotator extends TSVAnnotator {
             // chr:pos:ref:alt
             val Array(chr, pos, ref, alt) = lineSplit(vColIndices.head).split(":")
             Variant(chr, pos.toInt, ref, alt)
-          }
-          else {
+          } else {
             // long form
             Variant(lineSplit(vColIndices(0)), lineSplit(vColIndices(1)).toInt,
               lineSplit(vColIndices(2)), lineSplit(vColIndices(3)))

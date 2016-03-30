@@ -17,7 +17,7 @@ object BedAnnotator {
           line.value.startsWith("track") ||
           line.value.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
 
-      fatalIf(remainder.isEmpty, "bed file contains interval lines")
+      fatalIf(remainder.isEmpty, "bed file contains no interval lines")
 
       val dataLines = remainder.toArray
       fatalIf(dataLines.isEmpty, "bed file contains no data lines")
@@ -34,13 +34,14 @@ object BedAnnotator {
       val intervalList = IntervalList(
         dataLines
           .filter(l => !l.value.isEmpty)
-          .map { l => l.transform(line => {
+          .map { l => l.transform { line =>
             val arr = line.value.split("""\s+""")
-            if (getString)
-              Interval(arr(0), arr(1).toInt, arr(2).toInt, Some(arr(3)))
-            else
-              Interval(arr(0), arr(1).toInt, arr(2).toInt, Some(true))
-          })
+            Interval(arr(0), arr(1).toInt, arr(2).toInt,
+              if (getString)
+                Some(arr(3))
+              else
+                Some(true))
+          }
           }
           .toTraversable)
 
