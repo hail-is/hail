@@ -17,7 +17,7 @@ object RepartitionHcs extends Command {
 
     if (options.k != null) {
       if (options.k < 1)
-        fatal("Number of partitions must be positive")
+        fatal("Number of partitions must be positive.")
       state.copy(hcs = state.hcs.rangePartition(options.k))
     } else
       state.copy(hcs = state.hcs.rangePartition())
