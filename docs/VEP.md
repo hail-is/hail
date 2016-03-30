@@ -58,6 +58,7 @@ VEP is invoked as follows:
   -o STDOUT
 ```
 
+<a name="annotations"></a>
 ## VEP output
 
 The VEP output has the following schema, which can of course be viewed

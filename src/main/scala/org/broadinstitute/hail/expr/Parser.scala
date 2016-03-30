@@ -22,7 +22,7 @@ object Parser extends JavaTokenParsers {
   def parse[T](symTab: Map[String, (Int, Type)], expected: Type, a: ArrayBuffer[Any], code: String): () => T = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
-      case Success(result, _) => result.asInstanceOf[AST]
+      case Success(result, _) => result
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
@@ -33,6 +33,22 @@ object Parser extends JavaTokenParsers {
 
     val f: () => Any = t.eval(EvalContext(symTab, a))
     () => f().asInstanceOf[T]
+  }
+
+  def parseType(code: String): Type = {
+    // println(s"code = $code")
+    parseAll(type_expr, code) match {
+      case Success(result, _) => result
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+  }
+
+  def parseAnnotationTypes(code: String): Map[String, Type] = {
+    // println(s"code = $code")
+    parseAll(struct_fields, code) match {
+      case Success(result, _) => result.toMap
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
   }
 
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
@@ -53,6 +69,21 @@ object Parser extends JavaTokenParsers {
     (header, fs)
   }
 
+  def parseAnnotationArgs(symTab: Map[String, (Int, Type)],
+    a: ArrayBuffer[Any],
+    code: String): (Array[(List[String], Type, () => Any)]) = {
+    val arr = parseAll(annotationExpressions, code) match {
+      case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
+      case NoSuccess(msg, _) => fatal(msg)
+    }
+
+    arr.map {
+      case (path, ast) =>
+        ast.typecheck(symTab)
+        (path.toList, ast.`type`, ast.eval(EvalContext(symTab, a)))
+    }
+  }
+
   def expr: Parser[AST] = ident ~ withPos("=>") ~ expr ^^ { case param ~ arrow ~ body =>
     Lambda(arrow.pos, param, body)
   } |
@@ -67,7 +98,7 @@ object Parser extends JavaTokenParsers {
 
   def let_expr: Parser[AST] =
     withPos("let") ~ rep1sep((identifier <~ "=") ~ expr, "and") ~ ("in" ~> expr) ^^ { case let ~ bindings ~ body =>
-        Let(let.pos, bindings.iterator.map { case id ~ v => (id, v) }.toArray, body)
+      Let(let.pos, bindings.iterator.map { case id ~ v => (id, v) }.toArray, body)
     }
 
   def or_expr: Parser[AST] =
@@ -118,15 +149,26 @@ object Parser extends JavaTokenParsers {
     }
 
   def named_arg: Parser[(String, AST)] =
-    tsvIdentifier ~ "=" ~ expr ^^ { case id ~ eq ~ expr => (id, expr) }
+    tsvIdentifier ~ "=" ~ expr ^^ { case id ~ _ ~ expr => (id, expr) }
+
+  def annotationExpressions: Parser[Array[(Array[String], AST)]] =
+    rep1sep(annotationExpression, ",") ^^ { _.toArray }
+
+  def annotationExpression: Parser[(Array[String], AST)] = annotationIdentifier ~ "=" ~ expr ^^ {
+    case id ~ eq ~ expr => (id, expr)
+  }
+
+  def annotationIdentifier: Parser[Array[String]] =
+    rep1sep(identifier, ".") ^^ { _.toArray }
 
   def tsvIdentifier: Parser[String] = tickIdentifier | """[^\s\p{Cntrl}=,]+""".r
 
   def tickIdentifier: Parser[String] = """`[^`]+`""".r ^^ { i => i.substring(1, i.length - 1) }
+
   def identifier = tickIdentifier | ident
 
   def args: Parser[Array[AST]] =
-    repsep(expr, ",") ^^ {_.toArray}
+    repsep(expr, ",") ^^ { _.toArray }
 
   def dot_expr: Parser[AST] =
     unary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
@@ -168,4 +210,33 @@ object Parser extends JavaTokenParsers {
       guard(not("if" | "else")) ~> withPos(identifier) ^^ (r => SymRef(r.pos, r.x)) |
       "{" ~> expr <~ "}" |
       "(" ~> expr <~ ")"
+
+  def annotationSignature: Parser[TStruct] =
+    struct_fields ^^ { fields => TStruct(fields: _*) }
+
+  def struct_field: Parser[(String, Type)] =
+    (identifier <~ ":") ~ type_expr ^^ { case name ~ t =>
+      (name, t)
+    }
+
+  def struct_fields: Parser[Array[(String, Type)]] = rep1sep(struct_field, ",") ^^ { _.toArray }
+
+  def type_expr: Parser[Type] =
+    "Empty" ^^ { _ => TEmpty } |
+      "Boolean" ^^ { _ => TBoolean } |
+      "Char" ^^ { _ => TChar } |
+      "Int" ^^ { _ => TInt } |
+      "Long" ^^ { _ => TLong } |
+      "Float" ^^ { _ => TFloat } |
+      "Double" ^^ { _ => TDouble } |
+      "String" ^^ { _ => TString } |
+      "Sample" ^^ { _ => TSample } |
+      "AltAllele" ^^ { _ => TAltAllele } |
+      "Variant" ^^ { _ => TVariant } |
+      "Genotype" ^^ { _ => TGenotype } |
+      "String" ^^ { _ => TString } |
+      ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
+      ("Struct" ~ "(") ~> struct_fields <~ ")" ^^ { fields =>
+        TStruct(fields: _*)
+      }
 }

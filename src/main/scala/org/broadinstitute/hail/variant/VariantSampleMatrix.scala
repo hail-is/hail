@@ -6,6 +6,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
@@ -417,6 +418,32 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
+  def annotateInvervals(iList: IntervalList, signature: expr.Type, path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignature, inserter) = insertVA(signature, path)
+    val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs)}
+    copy(rdd = newRDD, vaSignature = newSignature)
+  }
+
+  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: expr.Type,
+    path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignature, inserter) = insertVA(signature, path)
+    val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
+      .leftOuterJoin(otherRDD)
+      .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
+    copy(rdd = newRDD, vaSignature = newSignature)
+  }
+
+  def annotateSamples(annotations: Map[String, Annotation], signature: expr.Type,
+    path: List[String]): VariantSampleMatrix[T] = {
+    val (newSignature, inserter) = insertSA(signature, path)
+
+    copy(sampleAnnotations = localSamples.map { s =>
+      val id = sampleIds(s)
+      val sa = sampleAnnotations(s)
+      inserter(sa, annotations.get(id))
+    }, saSignature = newSignature)
+  }
+
   def queryVA(args: String*): Querier = queryVA(args.toList)
 
   def queryVA(path: List[String]): Querier = {
@@ -443,21 +470,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
-  def deleteVA(path: List[String]): (Type, Deleter) = {
-    vaSignature.delete(path) match {
-      case (null, null) => (TEmpty, a => null)
-      case x => x
-    }
-  }
+  def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
 
   def deleteSA(args: String*): (Type, Deleter) = deleteSA(args.toList)
 
-  def deleteSA(path: List[String]): (Type, Deleter) = {
-    saSignature.delete(path) match {
-      case (null, null) => (TEmpty, a => null)
-      case x => x
-    }
-  }
+  def deleteSA(path: List[String]): (Type, Deleter) = saSignature.delete(path)
 
   def insertVA(sig: Type, args: String*): (Type, Inserter) = insertVA(sig, args.toList)
 

@@ -49,6 +49,18 @@ object Main {
     var tmpDir: String = "/tmp"
   }
 
+  def handleFatal(e: Exception): Nothing = {
+    System.err.println(s"hail: fatal: ${e.getMessage}")
+    log.error(e.getMessage)
+    sys.exit(1)
+  }
+
+  def handleFatal(cmd: Command, e: Exception): Nothing = {
+    System.err.println(s"hail: fatal: ${cmd.name}: ${e.getMessage}")
+    log.error(e.getMessage)
+    sys.exit(1)
+  }
+
   def logAndPropagateException(cmd: Command, e: Exception): Nothing = {
     log.error(s"${cmd.name}: exception", e)
     if (HailConfiguration.stacktrace)
@@ -76,10 +88,8 @@ object Main {
     try {
       cmd.runCommand(s, cmdOpts.asInstanceOf[cmd.Options])
     } catch {
-      case f: FatalException =>
-        System.err.println(s"hail: ${cmd.name}: fatal: ${f.getMessage}")
-        log.error(f.getMessage)
-        sys.exit(1)
+      case e: FatalException =>
+        handleFatal(cmd, e)
 
       case e: SparkException =>
         handlePropagatedException(cmd, "org.broadinstitute.hail.FatalException", e)
@@ -149,46 +159,12 @@ object Main {
           acc :+ Array(s)
         else
           acc.init :+ (acc.last :+ s)
+
       }
     */
 
-    val commands = Array(
-      Cache,
-      Count,
-      DownsampleVariants,
-      ExportPlink,
-      ExportGenotypes,
-      ExportSamples,
-      ExportVariants,
-      ExportVCF,
-      FilterGenotypes,
-      FamSummary,
-      FilterVariants,
-      FilterSamples,
-      GenDataset,
-      Grep,
-      GQByDP,
-      GQHist,
-      ImportVCF,
-      LinearRegressionCommand,
-      MendelErrorsCommand,
-      SplitMulti,
-      PCA,
-      Read,
-      RenameSamples,
-      Repartition,
-      SampleQC,
-      ShowAnnotations,
-      VariantQC,
-      VEP,
-      Write
-    )
-
-    val nameCommand = commands
-      .map(c => (c.name, c))
-      .toMap
-
-    val splitArgs: Array[Array[String]] = splitBefore[String](args, (arg: String) => nameCommand.contains(arg))
+    val commandNames = ToplevelCommands.commandNames
+    val splitArgs: Array[Array[String]] = splitBefore[String](args, (arg: String) => commandNames.contains(arg))
 
     val globalArgs = splitArgs(0)
 
@@ -197,18 +173,14 @@ object Main {
     try {
       parser.parseArgument((globalArgs: Iterable[String]).asJavaCollection)
       if (options.printUsage) {
-        println("usage: hail [<global options>] <cmd1> [<cmd1 args>]")
-        println("            [<cmd2> [<cmd2 args>] ... <cmdN> [<cmdN args>]]")
+        println("usage: hail [global options] <cmd1> [cmd1 args]")
+        println("  [<cmd2> [cmd2 args] ... <cmdN> [cmdN args]]")
         println("")
-        println("global options:")
+        println("Global options:")
         new CmdLineParser(new Options).printUsage(System.out)
         println("")
-        println("commands:")
-        val visibleCommands = commands.filterNot(_.hidden)
-        val maxLen = visibleCommands.map(_.name.length).max
-        visibleCommands
-          .foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.length + 2))
-            + cmd.description))
+        println("Commands:")
+        ToplevelCommands.printCommands()
         sys.exit(0)
       }
     } catch {
@@ -244,15 +216,22 @@ object Main {
       fatal("no commands given")
 
     val invocations: Array[(Command, Command#Options, Array[String])] = splitArgs.tail
-      .map(args => {
-        val cmdName = args(0)
-        nameCommand.get(cmdName) match {
-          case Some(cmd) =>
-            (cmd, cmd.parseArgs(args.tail), args)
-          case None =>
-            fatal("unknown command `" + cmdName + "'")
+      .map { args =>
+        val (cmd, cmdArgs) =
+          try {
+            ToplevelCommands.lookup(args)
+          } catch {
+            case e: FatalException =>
+              handleFatal(e)
+          }
+
+        try {
+          (cmd, cmd.parseArgs(cmdArgs): Command#Options, args)
+        } catch {
+          case e: FatalException =>
+            handleFatal(cmd, e)
         }
-      })
+      }
 
     val conf = new SparkConf().setAppName("Hail")
     if (options.master != null)

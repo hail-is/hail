@@ -48,6 +48,10 @@ object DoubleNumericConversion extends NumericConversion[Double] {
   }
 }
 
+trait Parsable {
+  def parse(s: String): Annotation
+}
+
 sealed abstract class Type extends Serializable {
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
@@ -74,7 +78,7 @@ sealed abstract class Type extends Serializable {
     if (path.nonEmpty)
       throw new AnnotationPathException()
     else
-      (TEmpty, a => null)
+      (TEmpty, a => Annotation.empty)
   }
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
@@ -125,12 +129,14 @@ case object TEmpty extends Type {
     BooleanType
 }
 
-case object TBoolean extends Type {
+case object TBoolean extends Type with Parsable {
   override def toString = "Boolean"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
 
   def schema = BooleanType
+
+  def parse(s: String): Annotation = s.toBoolean
 }
 
 case object TChar extends Type {
@@ -146,44 +152,54 @@ abstract class TNumeric extends Type
 
 abstract class TIntegral extends TNumeric
 
-case object TInt extends TIntegral {
+case object TInt extends TIntegral with Parsable {
   override def toString = "Int"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
   def schema = IntegerType
+
+  def parse(s: String): Annotation = s.toInt
 }
 
-case object TLong extends TIntegral {
+case object TLong extends TIntegral with Parsable {
   override def toString = "Long"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 
   def schema = LongType
+
+  def parse(s: String): Annotation = s.toLong
 }
 
-case object TFloat extends TNumeric {
+case object TFloat extends TNumeric with Parsable {
   override def toString = "Float"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 
   def schema = FloatType
+
+  def parse(s: String): Annotation = s.toFloat
 }
 
-case object TDouble extends TNumeric {
+case object TDouble extends TNumeric with Parsable {
   override def toString = "Double"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
   def schema = DoubleType
+
+  def parse(s: String): Annotation = s.toDouble
 }
 
-case object TString extends Type {
+case object TString extends Type with Parsable {
   override def toString = "String"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
   def schema = StringType
+
+  def parse(s: String): Annotation = s
 }
 
 case class TArray(elementType: Type) extends Type {
@@ -292,7 +308,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
           val q = f.`type`.query(p.tail)
           val localIndex = f.index
           a =>
-            if (a == null)
+            if (a == Annotation.empty)
               None
             else
               q(a.asInstanceOf[Row].get(localIndex))
@@ -303,7 +319,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def delete(p: List[String]): (Type, Deleter) = {
     if (p.isEmpty)
-      (TEmpty, a => null)
+      (TEmpty, a => Annotation.empty)
     else {
       val key = p.head
       val f = selfField(key) match {
@@ -321,8 +337,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val localDeleteFromRow = newFieldType == TEmpty
 
       val deleter: Deleter = { a =>
-        if (a == null)
-          null
+        if (a == Annotation.empty)
+          Annotation.empty
         else {
           val r = a.asInstanceOf[Row]
 
@@ -356,13 +372,13 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val localSize = fields.size
 
       val inserter: Inserter = (a, toIns) => {
-        val r = if (a == null)
+        val r = if (a == Annotation.empty)
           Row.fromSeq(Array.fill[Any](localSize)(null))
         else
           a.asInstanceOf[Row]
         keyIndex match {
           case Some(i) => r.update(i, keyF(r.get(i), toIns))
-          case None => r.append(keyF(null, toIns))
+          case None => r.append(keyF(Annotation.empty, toIns))
         }
       }
       (newSignature, inserter)

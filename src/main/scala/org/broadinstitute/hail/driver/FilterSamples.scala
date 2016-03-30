@@ -42,11 +42,13 @@ object FilterSamples extends Command {
     val p = options.condition match {
       case f if f.endsWith(".sample_list") =>
         val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
-        val samples = Source.fromInputStream(hadoopOpen(f, state.hadoopConf))
-          .getLines()
-          .filter(line => !line.isEmpty)
-          .flatMap(indexOfSample.get)
-          .toSet
+        val samples = readFile(f, state.hadoopConf) { reader =>
+          Source.fromInputStream(reader)
+            .getLines()
+            .filter(line => !line.isEmpty)
+            .flatMap(indexOfSample.get)
+            .toSet
+        }
         (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val symTab = Map(
