@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.io
 
-import org.apache.spark.SparkContext
+import org.apache.hadoop.conf.Configuration
+import org.apache.spark.{RangePartitioner, SparkContext}
+import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
@@ -29,8 +31,10 @@ object GenLoader {
     val variant = Variant(arr(0), arr(3).toInt, arr(4), arr(5))
     val annotations = Annotations(Map[String,String]("varid" -> arr(1), "rsid" -> arr(2)))
     val dosages = arr.drop(6).map{_.toDouble}
+
     if (dosages.length != (3 * nSamples))
       fatal("Number of dosages does not match number of samples")
+
     val genotypeStream: Iterable[Genotype] = {
       for (i <- dosages.indices by 3) yield {
         val ints = convertPPsToInt(Array(dosages(i), dosages(i + 1), dosages(i + 2)))
@@ -41,5 +45,69 @@ object GenLoader {
       }
     }
     (variant, annotations, genotypeStream)
+  }
+}
+
+
+object GenWriter {
+
+  def apply(outputRoot: String, vds: VariantDataset, sc: SparkContext) {
+    val outGenFile = outputRoot + ".gen"
+    val outSampleFile = outputRoot + ".sample"
+    val hConf = sc.hadoopConfiguration
+
+    writeSampleFile(outSampleFile, hConf, vds.sampleIds)
+    writeGenFile(outGenFile, vds)
+  }
+
+  def convertPlsToDosage(pl: Array[Int]): Array[Double] = {
+    val tmp = pl.map{case p => math.pow(10,p / -10.0)}
+    tmp.map{d => d / tmp.sum}
+  }
+
+  def appendRow(sb: StringBuilder, v: Variant, va: Annotations, gs: Iterable[Genotype]) {
+    sb.append(v.contig)
+    sb += ' '
+    sb.append("fakeVariantID")
+    sb += ' '
+    sb.append("fakeRSID")
+    sb += ' '
+    sb.append(v.start)
+    sb += ' '
+    sb.append(v.ref)
+    sb += ' '
+    sb.append(v.alt)
+
+    for (gt <- gs) {
+      val dosages = gt.pl match {
+        case Some(x) => convertPlsToDosage(x)
+        case None => Array(0.0,0.0,0.0)
+      }
+      sb += ' '
+      sb.append(dosages.mkString(" "))
+    }
+  }
+
+  def writeGenFile(outFile: String, vds: VariantDataset) {
+    val kvRDD = vds.rdd.map { case (v, a, gs) =>
+      (v, (a, gs.toGenotypeStream(v, compress = false)))
+    }
+    kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
+    kvRDD
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotations, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+      .mapPartitions { it: Iterator[(Variant, (Annotations, Iterable[Genotype]))] =>
+        val sb = new StringBuilder
+        it.map { case (v, (va, gs)) =>
+          sb.clear()
+          appendRow(sb, v, va, gs)
+          sb.result()
+        }
+      }.writeTable(outFile, None, deleteTmpFiles = true)
+    kvRDD.unpersist()
+  }
+
+  def writeSampleFile(outFile: String, hConf: Configuration, sampleIds: IndexedSeq[String]){
+    val header = Array("ID_1 ID_2 missing","0 0 0")
+    writeTable(outFile, hConf, header ++ sampleIds.map{case s => Array(s, s, "0").mkString(" ")})
   }
 }

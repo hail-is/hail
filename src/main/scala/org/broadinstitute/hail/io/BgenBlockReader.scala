@@ -47,6 +47,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   override def seekToFirstBlock(start: Long) {
     require(start >= 0 && start < fileSize)
     pos = IndexBTree.queryIndex(start, fileSize, indexArrayPath, job)
+    require(pos >= 0 && pos < fileSize)
     bfis.seek(pos)
   }
 

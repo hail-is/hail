@@ -157,7 +157,13 @@ object BgenLoader {
 
   def convertIntToPPs(probAA: Int, probAB: Int, probBB: Int) = Array(probAA, probAB, probBB).map{i => convertIntToPP(i)}
 
-  def phredConversionTable: Array[Double] = (0 to 65535).map{i => if (i == 0) 48 else -10 * math.log10(convertIntToPP(i))}.toArray
+  def convertPLToDosage(prob: Array[Int]): Array[Double] = {
+    val transformedProb = prob.map{p => math.pow(10,p / -10.0)}
+    val sum = transformedProb.sum
+    transformedProb.map{p => p / sum}
+  }
+
+  val phredConversionTable: Array[Double] = (0 to 65535).map{i => if (i == 0) 48 else -10 * math.log10(i)}.toArray
 
   def convertPPsToInt(probAA: Double, probAB: Double, probBB: Double): Array[Int] = {
     Array(probAA, probAB, probBB).map{ d => val tmp = d * 32768; require(tmp >= 0 && tmp < 65535.5); math.round(tmp).toInt}
@@ -169,9 +175,14 @@ object BgenLoader {
     }
     else {
       val phredDoubles: (Double, Double, Double) = (
+        if (probAA == 0) 48 else phredConversionTable(probAA),
+        if (probAB == 0) 48 else phredConversionTable(probAB),
+        if (probBB == 0) 48 else phredConversionTable(probBB))
+
+/*      val phredDoubles: (Double, Double, Double) = (
         if (probAA == 0) 48 else -10 * math.log10(probAA),
         if (probAB == 0) 48 else  -10 * math.log10(probAB),
-        if (probBB == 0) 48 else  -10 * math.log10(probBB))
+        if (probBB == 0) 48 else  -10 * math.log10(probBB))*/
 
       val minValue = math.min(math.min(phredDoubles._1, phredDoubles._2), phredDoubles._3)
       Array((phredDoubles._1 - minValue + .5).toInt,
