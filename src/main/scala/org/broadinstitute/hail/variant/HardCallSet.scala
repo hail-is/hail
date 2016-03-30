@@ -1,9 +1,9 @@
 package org.broadinstitute.hail.variant
 
 import breeze.linalg._
-import org.apache.spark.SparkContext
+import org.apache.spark.{RangePartitioner, SparkContext}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, DataFrame, SQLContext}
+import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.RichRow._
@@ -92,7 +92,18 @@ case class HardCallSet(df: DataFrame,
 
   def persist(level: StorageLevel): HardCallSet = copy(df = df.persist(level))
 
-  def repartition(nPartitions: Int) = copy(df = df.repartition(nPartitions))
+  def rangePartition(nPartitions: Int = rdd.partitions.length): HardCallSet = {
+    import df.sqlContext.implicits._
+
+    val newDf = rdd
+        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, CallStream](nPartitions, rdd)) //Is sorting necessary?
+        .map { case (v, gs) =>
+          (v.start, v.ref, v.alt, gs, "chr" + v.contig, v.start / blockWidth)
+        }.toDF("start", "ref", "alt", "callStream", "contig", "block")
+
+    copy(df = newDf)
+  }
+
 
   /*
   def filterVariants(p: (Variant) => Boolean): HardCallSet =
