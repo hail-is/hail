@@ -27,21 +27,19 @@ object AnnotateVariantsVCF extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatevariants/vcf"
+  def name = "annotatevariants vcf"
 
-  override def hidden = true
-
-  def description = "Annotate variants in current dataset"
+  def description = "Annotate variants with VCF file"
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
     val filepath = options.input
 
-    fatalIf(!options.force && filepath.endsWith(".gz"), "Hail does not load '.gz' files by default, " +
-      "rename to '.bgz' if the file is block-gzipped or use argument '--force'.")
+    fatalIf(!options.force && filepath.endsWith(".gz"),
+      ".gz cannot be loaded in parallel, use .bgz or -f override")
 
-    val otherVds = LoadVCF(vds.sparkContext, filepath).filterSamples({case (s, sa) => false})
+    val otherVds = LoadVCF(vds.sparkContext, filepath, skipGenotypes = true)
     val otherVdsSplit = SplitMulti.run(state.copy(vds = otherVds)).vds
 
     val annotated = vds.annotateVariants(otherVdsSplit.variantsAndAnnotations, otherVdsSplit.vaSignature,

@@ -5,14 +5,14 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Variant
 
 import scala.collection.mutable
 
 object VariantTSVAnnotator extends TSVAnnotator {
-  def apply(sc: SparkContext, filename: String, vColumns: Array[String], typeMap: Map[String, String],
-    missing: String): (RDD[(Variant, Annotation)], expr.Type) = {
+  def apply(sc: SparkContext, filename: String, vColumns: Array[String], declaredSig: Map[String, Type],
+    missing: String): (RDD[(Variant, Annotation)], Type) = {
 
     val (header, split) = readLines(filename, sc.hadoopConfiguration) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
@@ -20,47 +20,44 @@ object VariantTSVAnnotator extends TSVAnnotator {
       (h, h.split("\t"))
     }
 
-    typeMap.foreach { case (id, t) =>
+    declaredSig.foreach { case (id, _) =>
       if (!split.contains(id))
-        warn(s"""found "$id" in type map but not in TSV header """)
+        warn(s"found `$id' in type map but not in TSV header")
     }
 
     val (shortForm, vColIndices) = if (vColumns.length == 1) {
       // format CHR:POS:REF:ALT
       val variantIndex = vColumns.map(s => split.indexOf(s))
       variantIndex.foreach { i =>
-        fatalIf(i < 0, s"Could not find designated CHR:POS:REF:ALT column identifier '${vColumns.head}'")
+        fatalIf(i < 0, s"Could not find designated CHR:POS:REF:ALT column identifier `${vColumns.head}'")
       }
       (true, variantIndex)
-    }
-    else {
+    } else {
       // format CHR  POS  REF  ALT
       // lengths not equal to 1 or 4 are checked in AnnotateVariants.parseColumns
       val variantIndex = vColumns.map(s => split.indexOf(s))
       if (variantIndex(0) < 0 || variantIndex(1) < 0 || variantIndex(2) < 0 || variantIndex(2) < 0) {
         val notFound = vColumns.flatMap(i => if (split.indexOf(i) < 0) Some(i) else None)
-        fatal(s"Could not find designated identifier column(s): [${notFound.mkString(", ")}]")
+        fatal(s"Could not find designated identifier column(s): ${notFound.mkString(", ")}")
       }
       (false, variantIndex)
     }
 
-    val orderedSignatures: Array[(String, Option[expr.Type])] = split.map { s =>
-      if (!vColumns.contains(s))
-        (s, Some(parseStringType(typeMap.getOrElse(s, "String"))))
-      else
+    val orderedSignatures: Array[(String, Option[Type])] = split.map { s =>
+      if (!vColumns.contains(s)) {
+        val t = declaredSig.getOrElse(s, TString)
+        if (!t.isInstanceOf[Parsable])
+          fatal(
+            s"Unsupported type $t in TSV annotation.  Supported types: Boolean, Int, Long, Float, Double and String.")
+        (s, Some(t))
+      } else
         (s, None)
     }
 
-    val signature = expr.TStruct(
+    val signature = TStruct(
       orderedSignatures.flatMap { case (key, o) =>
-        o match {
-          case Some(sig) => Some(key, sig)
-          case None => None
-        }
-      }
-        .zipWithIndex
-        .map { case ((key, t), i) => expr.Field(key, t, i) }
-    )
+        o.map(sig => (key, sig))
+      }: _*)
 
     val functions = buildParsers(missing, orderedSignatures)
 
@@ -95,4 +92,5 @@ object VariantTSVAnnotator extends TSVAnnotator {
       }
     (rdd, signature)
   }
+
 }
