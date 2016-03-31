@@ -5,7 +5,36 @@ import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._
 
-object ImportVCF extends Command {
+trait VCFImporter {
+  def globAndReturn(state: State, arguments: Array[String], forcegz: Boolean = false): Array[String] = {
+    val inputs = arguments
+      .iterator
+      .flatMap { arg =>
+        val fss = hadoopGlobAndSort(arg, state.hadoopConf)
+        val files = fss.map(_.getPath.toString)
+        if (files.isEmpty)
+          warn(s"`$arg' refers to no files")
+        files
+      }.toArray
+
+    if (inputs.isEmpty)
+      fatal("arguments refer to no files")
+
+    inputs.foreach { input =>
+      if (!input.endsWith(".vcf")
+        && !input.endsWith(".vcf.bgz")) {
+        if (input.endsWith(".vcf.gz")) {
+          if (!forcegz)
+            fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
+        } else
+          fatal("unknown input file type")
+      }
+    }
+    inputs
+  }
+}
+
+object ImportVCF extends Command with VCFImporter {
   def name = "importvcf"
 
   def description = "Load file (.vcf or .vcf.bgz) as the current dataset"
@@ -42,29 +71,7 @@ object ImportVCF extends Command {
     if (options.input)
       warn("-i deprecated, no longer needed")
 
-    val inputs = options.arguments.asScala
-      .iterator
-      .flatMap { arg =>
-        val fss = hadoopGlobAndSort(arg, state.hadoopConf)
-        val files = fss.map(_.getPath.toString)
-        if (files.isEmpty)
-          warn(s"`$arg' refers to no files")
-        files
-      }.toArray
-
-    if (inputs.isEmpty)
-      fatal("arguments refer to no files")
-
-    inputs.foreach { input =>
-      if (!input.endsWith(".vcf")
-        && !input.endsWith(".vcf.bgz")) {
-        if (input.endsWith(".vcf.gz")) {
-          if (!options.force)
-            fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
-        } else
-          fatal("unknown input file type")
-      }
-    }
+    val inputs = globAndReturn(state, options.arguments.asScala.toArray, options.force)
 
     val headerFile = if (options.headerFile != null)
       options.headerFile
@@ -73,7 +80,7 @@ object ImportVCF extends Command {
 
     state.copy(vds = LoadVCF(state.sc,
       headerFile,
-      options.arguments.asScala.toArray,
+      inputs,
       options.storeGQ,
       !options.noCompress,
       if (options.nPartitions != 0)

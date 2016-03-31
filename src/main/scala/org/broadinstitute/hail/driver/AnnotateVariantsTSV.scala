@@ -3,15 +3,12 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators._
-import org.kohsuke.args4j.{Option => Args4jOption}
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+import scala.collection.JavaConverters._
 
 object AnnotateVariantsTSV extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
-      usage = "TSV file path")
-    var condition: String = _
-
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Define types of fields in annotations files")
     var types: String = ""
@@ -27,6 +24,10 @@ object AnnotateVariantsTSV extends Command {
     @Args4jOption(required = false, name = "-v", aliases = Array("--vcolumns"),
       usage = "Specify the column identifiers for chromosome, position, ref, and alt (in that order)")
     var vCols: String = "Chromosome,Position,Ref,Alt"
+
+    @Argument(usage = "<files...>")
+    var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
+
   }
 
   def newOptions = new Options
@@ -51,8 +52,20 @@ object AnnotateVariantsTSV extends Command {
   }
 
   def run(state: State, options: Options): State = {
+
+    val files = options.arguments.asScala
+      .iterator
+      .flatMap { arg =>
+        val fss = hadoopGlobAndSort(arg, state.hadoopConf)
+        val files = fss.map(_.getPath.toString)
+        if (files.isEmpty)
+          warn(s"`$arg' refers to no files")
+        files
+      }.toArray
+
+
     val vds = state.vds
-    val (rdd, signature) = VariantTSVAnnotator(vds.sparkContext, options.condition,
+    val (rdd, signature) = VariantTSVAnnotator(vds.sparkContext, files,
       parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
       options.missingIdentifier)

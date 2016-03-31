@@ -65,7 +65,7 @@ class ImportAnnotationsSuite extends SparkSuite {
         .toMap
     }
     val anno1 = AnnotateVariants.run(state,
-      Array("tsv", "-i", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
+      Array("tsv", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
     val q1 = anno1.vds.queryVA("stuff")
     anno1.vds.rdd
@@ -77,10 +77,14 @@ class ImportAnnotationsSuite extends SparkSuite {
       }
 
     val anno1alternate = AnnotateVariants.run(state,
-      Array("tsv", "-i", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
+      Array("tsv", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
         "Chromosome:Position:Ref:Alt", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
+    val anno1glob = AnnotateVariants.run(state, Array("tsv", "src/test/resources/variantAnnotations.split.*.tsv",
+      "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
+
     assert(anno1alternate.vds.same(anno1.vds))
+    assert(anno1glob.vds.same(anno1.vds))
   }
 
   @Test def testVCFAnnotator() {
