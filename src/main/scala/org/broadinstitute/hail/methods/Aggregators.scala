@@ -6,10 +6,9 @@ import org.broadinstitute.hail.annotations.Annotation
 
 object Aggregators {
 
-  def buildVariantaggregations(vds: VariantDataset, ec: EvalContext,
-    key: String): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
-    val aggregators = ec.children(key).aggregationFunctions.toArray
-    val aggregatorA = ec.children(key).a
+  def buildVariantaggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
+    val aggregators = ec.aggregationFunctions.toArray
+    val aggregatorA = ec.a
 
     if (aggregators.nonEmpty) {
       val sampleInfoBc = vds.sparkContext.broadcast(
@@ -46,9 +45,9 @@ object Aggregators {
     } else None
   }
 
-  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext, key: String): Option[Array[Array[Any]]] = {
-    val aggregators = ec.children(key).aggregationFunctions
-    val aggregatorA = ec.children(key).a
+  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[Array[Array[Any]]] = {
+    val aggregators = ec.aggregationFunctions
+    val aggregatorA = ec.a
 
     if (aggregators.isEmpty)
       None

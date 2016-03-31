@@ -49,7 +49,7 @@ object ExportGenotypes extends Command {
       "sa" ->(3, sas),
       "g" ->(4, TGenotype))
 
-    val ec = EvalContext(symTab, null)
+    val ec = EvalContext(symTab)
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(ec, cond, sc.hadoopConfiguration)

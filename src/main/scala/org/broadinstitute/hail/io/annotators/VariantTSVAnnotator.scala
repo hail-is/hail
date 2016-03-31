@@ -5,14 +5,14 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Variant
 
 import scala.collection.mutable
 
 object VariantTSVAnnotator extends TSVAnnotator {
   def apply(sc: SparkContext, filename: String, vColumns: Array[String], typeMap: Map[String, String],
-    missing: String): (RDD[(Variant, Annotation)], expr.Type) = {
+    missing: String): (RDD[(Variant, Annotation)], TypeWithSchema) = {
 
     val (header, split) = readLines(filename, sc.hadoopConfiguration) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
@@ -44,14 +44,14 @@ object VariantTSVAnnotator extends TSVAnnotator {
       (false, variantIndex)
     }
 
-    val orderedSignatures: Array[(String, Option[expr.Type])] = split.map { s =>
+    val orderedSignatures: Array[(String, Option[TypeWithSchema])] = split.map { s =>
       if (!vColumns.contains(s))
         (s, Some(parseStringType(typeMap.getOrElse(s, "String"))))
       else
         (s, None)
     }
 
-    val signature = expr.TStruct(
+    val signature = TStruct(
       orderedSignatures.flatMap { case (key, o) =>
         o match {
           case Some(sig) => Some(key, sig)
@@ -59,7 +59,7 @@ object VariantTSVAnnotator extends TSVAnnotator {
         }
       }
         .zipWithIndex
-        .map { case ((key, t), i) => expr.Field(key, t, i) }
+        .map { case ((key, t), i) => Field(key, t, i) }
     )
 
     val functions = buildParsers(missing, orderedSignatures)

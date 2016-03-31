@@ -33,19 +33,19 @@ object AnnotateSamplesExpr extends Command {
     val vds = state.vds
 
     val cond = options.condition
-    val symTab = Map(
-      "s" ->(0, TSample),
-      "sa" ->(1, vds.saSignature),
-      "gs" ->(2, TGenotypeStream))
-    val aggregationTable = Map(
+    val aggregationEC = EvalContext(Map(
       "v" ->(0, TVariant),
       "va" ->(1, vds.vaSignature),
       "s" ->(2, TSample),
       "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype)
-    )
+      "g" ->(4, TGenotype)))
 
-    val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
+    val symTab = Map(
+      "s" ->(0, TSample),
+      "sa" ->(1, vds.saSignature),
+      "gs" ->(2, TAggregable(aggregationEC)))
+
+    val ec = EvalContext(symTab)
     val parsed = expr.Parser.parseAnnotationArgs(ec, cond)
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
@@ -64,9 +64,9 @@ object AnnotateSamplesExpr extends Command {
     val inserters = inserterBuilder.result()
     
     val a = ec.a
-    val aggregatorA = ec.children("gs").a
+    val aggregatorA = aggregationEC.a
 
-    val aggregatorArray = Aggregators.buildSampleAggregations(vds, ec, "gs")
+    val aggregatorArray = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
       a(0) = Sample(vds.sampleIds(i))
@@ -75,7 +75,7 @@ object AnnotateSamplesExpr extends Command {
 
       aggregatorArray.foreach {arr =>
         arr(i).iterator
-            .zip(ec.children("gs").aggregationFunctions.map(_._4).iterator)
+            .zip(aggregationEC.aggregationFunctions.map(_._4).iterator)
           .foreach { case (value, j) =>
             aggregatorA(j) = value }
       }

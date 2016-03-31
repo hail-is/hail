@@ -42,7 +42,7 @@ object Parser extends JavaTokenParsers {
     code: String): (Option[String], Array[() => Any]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[String], Array[AST])]
-      case NoSuccess(msg, _) => fatal(msg)
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
     ts.foreach(_.typecheck(ec))
@@ -52,16 +52,27 @@ object Parser extends JavaTokenParsers {
     (header, fs)
   }
 
-  def parseAnnotationArgs(ec: EvalContext, code: String): (Array[(List[String], Type, () => Any)]) = {
+  def parseAnnotationArgs(ec: EvalContext, code: String): (Array[(List[String], TypeWithSchema, () => Any)]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
-      case NoSuccess(msg, _) => fatal(msg)
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+
+    def convertSchemable(l: List[String], t: Type): TypeWithSchema = {
+      t match {
+        case tws: TypeWithSchema => tws
+        case _ => fatal(
+          s"""Annotations must be stored as types with schema.
+            |  Got invalid type `$t' from the result of `${l.mkString(".")}'""".stripMargin)
+      }
     }
 
     arr.map {
       case (ids, ast) =>
         ast.typecheck(ec)
-        (ids.toList, ast.`type`, ast.eval(ec))
+        val path = ids.toList
+        val t = convertSchemable(path, ast.`type`)
+        (ids.toList, t, ast.eval(ec))
     }
   }
 

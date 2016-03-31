@@ -103,4 +103,8 @@ class AggregatorSuite extends SparkSuite {
 //
 //      }
   }
+
+  @Test def testMapReduce() {
+
+  }
 }

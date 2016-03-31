@@ -35,19 +35,19 @@ object ExportVariants extends Command {
     val cond = options.condition
     val output = options.output
 
-    val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "gs" ->(2, TGenotypeStream))
-    val aggregationTable = Map(
+    val aggregationEC = EvalContext(Map(
       "v" ->(0, TVariant),
       "va" ->(1, vds.vaSignature),
       "s" ->(2, TSample),
       "sa" ->(3, vds.saSignature),
       "g" ->(4, TGenotype)
-    )
+    ))
+    val symTab = Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "gs" ->(2, TAggregable(aggregationEC)))
 
-    val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
+    val ec = EvalContext(symTab)
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
@@ -56,8 +56,7 @@ object ExportVariants extends Command {
 
     val a = ec.a
 
-
-    val variantAggregations = Aggregators.buildVariantaggregations(vds, ec, "gs")
+    val variantAggregations = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 

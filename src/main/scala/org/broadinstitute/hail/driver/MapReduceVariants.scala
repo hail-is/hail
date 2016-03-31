@@ -29,42 +29,39 @@ object MapReduceVariants extends Command {
 
     val cond = options.condition
 
+    val aggECV2 = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)))
+    val aggECS2 = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)))
+
+    val aggECV = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "gs" ->(2, TAggregable(aggECV2))))
+    val aggECS = EvalContext(Map(
+      "s" ->(0, TSample),
+      "sa" ->(1, vds.saSignature)
+//      "gs" ->(2, TGenotypeStream)
+    ))
     val symTab = Map(
       "a" ->(0, vds.taSignature),
-      "vas" ->(1, TGenotypeStream),
-      "sas" ->(2, TGenotypeStream))
-
-    val aggregationTableV = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature)
-//      "gs" ->(2, TGenotypeStream)
-    )
-    val aggregationTableS = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature)
-//      "gs" ->(2, TGenotypeStream)
-    )
-//    val aggregationTableV2 = Map(
-//      "v" ->(0, TVariant),
-//      "va" ->(1, vds.vaSignature),
-//      "s" ->(2, TSample),
-//      "sa" ->(3, vds.saSignature),
-//      "g" ->(4, TGenotype)
-//    )
-//    val aggregationTableS2 = Map(
-//      "v" ->(0, TVariant),
-//      "va" ->(1, vds.vaSignature),
-//      "s" ->(2, TSample),
-//      "sa" ->(3, vds.saSignature),
-//      "g" ->(4, TGenotype)
-//    )
+      "vas" ->(1, TAggregable(aggECV)),
+      "sas" ->(2, TAggregable(aggECS)))
 
 
 //    val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
 //
 //    val aggregationEC2 = EvalContext(aggregationTable2)
 //    val aggregationEC = EvalContext(aggregationTable, aggregationEC2)
-    val ec = EvalContext(symTab, ("vas", EvalContext(aggregationTableV)), ("sas", EvalContext(aggregationTableS)))
+    val ec = EvalContext(symTab)
     val parsed = expr.Parser.parseAnnotationArgs(ec, cond)
 
 
@@ -87,11 +84,11 @@ object MapReduceVariants extends Command {
     val inserters = inserterBuilder.result()
 
     val a = ec.a
-    val sampleA = ec.children("sas").a
-    val variantA = ec.children("vas").a
+    val sampleA = aggECV.a
+    val variantA = aggECS.a
 
-    val sampleAggregateOption = Aggregators.buildSampleAggregations(vds, ec, "sas")
-    val variantAggregateOption = Aggregators.buildVariantaggregations(vds, ec, "sas")
+    val sampleAggregateOption = Aggregators.buildSampleAggregations(vds, aggECS)
+    val variantAggregateOption = Aggregators.buildVariantaggregations(vds, aggECV)
 
     val toplevelAggregations = ec.aggregationFunctions.toArray
 

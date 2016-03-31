@@ -47,7 +47,7 @@ object FilterGenotypes extends Command {
       "sa" ->(3, sas),
       "g" ->(4, TGenotype))
 
-    val ec = EvalContext(symTab, null)
+    val ec = EvalContext(symTab)
     val f: () => Any = Parser.parse[Any](ec, TBoolean, cond)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)

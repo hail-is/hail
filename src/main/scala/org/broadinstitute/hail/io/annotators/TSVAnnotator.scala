@@ -2,19 +2,19 @@ package org.broadinstitute.hail.io.annotators
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 
 import scala.collection.mutable
 
 trait TSVAnnotator {
-  def parseStringType(s: String): expr.Type = {
+  def parseStringType(s: String): TypeWithSchema = {
     s match {
-      case "Float" => expr.TFloat
-      case "Double" => expr.TDouble
-      case "Int" => expr.TInt
-      case "Long" => expr.TLong
-      case "Boolean" => expr.TBoolean
-      case "String" => expr.TString
+      case "Float" => TFloat
+      case "Double" => TDouble
+      case "Int" => TInt
+      case "Long" => TLong
+      case "Boolean" => TBoolean
+      case "String" => TString
       case _ => fatal(
         s"""Unrecognized type "$s".  Hail supports parsing the following types in annotations:
             |  - Float (4-byte floating point number)
@@ -29,7 +29,7 @@ trait TSVAnnotator {
   }
 
   def buildParsers(missing: String,
-    namesAndTypes: Array[(String, Option[expr.Type])]): Array[(mutable.ArrayBuilder[Annotation], String) => Unit] = {
+    namesAndTypes: Array[(String, Option[TypeWithSchema])]): Array[(mutable.ArrayBuilder[Annotation], String) => Unit] = {
     namesAndTypes.map {
       case (head, ot) =>
         ot match {

@@ -13,24 +13,19 @@ import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
 
 case class EvalContext(st: SymbolTable,
-  a: ArrayBuffer[Any], 
-  aggregationFunctions: ArrayBuffer[Aggregator],
-  children: Map[String, EvalContext]) {
-  def goDeeper(s: String): EvalContext = {
-    assert(children.contains(s))
-    children(s)
-  }
-}
+  a: ArrayBuffer[Any],
+  aggregationFunctions: ArrayBuffer[Aggregator])
 
 object EvalContext {
-  def apply(symTab: SymbolTable, children: (String, EvalContext)*): EvalContext = {
+  def apply(symTab: SymbolTable): EvalContext = {
     val a = new ArrayBuffer[Any]()
     val af = new ArrayBuffer[Aggregator]()
-    for (_ <- symTab) {
-      a += null
+    for ((i, t) <- symTab.values) {
+      if (i >= 0)
+        a += null
     }
 
-    EvalContext(symTab, a, af, children.toMap)
+    EvalContext(symTab, a, af)
   }
 }
 
@@ -69,6 +64,25 @@ object DoubleNumericConversion extends NumericConversion[Double] {
 }
 
 sealed abstract class Type extends Serializable {
+
+  def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
+    sb.append(" " * indent)
+    sb.append(path.last)
+    sb.append(": ")
+    sb.append("Array[" * arrayDepth)
+    sb.append(toString)
+    sb.append("]" * arrayDepth)
+    sb += '\n'
+  }
+
+  def typeCheck(a: Any): Boolean
+
+
+  def parse(s: String): Annotation =
+    throw new UnsupportedOperationException(s"Cannot generate a parser for $toString")
+}
+
+sealed abstract class TypeWithSchema extends Type {
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
       .flatMap { t =>
@@ -79,27 +93,27 @@ sealed abstract class Type extends Serializable {
       }
   }
 
-  def getOption(fields: String*): Option[Type] = getOption(fields.toList)
+  def getOption(fields: String*): Option[TypeWithSchema] = getOption(fields.toList)
 
-  def getOption(path: List[String]): Option[Type] = {
+  def getOption(path: List[String]): Option[TypeWithSchema] = {
     if (path.isEmpty)
       Some(this)
     else
       None
   }
 
-  def delete(fields: String*): (Type, Deleter) = delete(fields.toList)
+  def delete(fields: String*): (TypeWithSchema, Deleter) = delete(fields.toList)
 
-  def delete(path: List[String]): (Type, Deleter) = {
+  def delete(path: List[String]): (TypeWithSchema, Deleter) = {
     if (path.nonEmpty)
       throw new AnnotationPathException()
     else
       (TEmpty, a => Annotation.empty)
   }
 
-  def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
+  def insert(signature: TypeWithSchema, fields: String*): (TypeWithSchema, Inserter) = insert(signature, fields.toList)
 
-  def insert(signature: Type, path: List[String]): (Type, Inserter) = {
+  def insert(signature: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = {
     if (path.nonEmpty)
       TStruct.empty.insert(signature, path)
     else
@@ -115,30 +129,15 @@ sealed abstract class Type extends Serializable {
       a => Option(a)
   }
 
-  def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
-    sb.append(" " * indent)
-    sb.append(path.last)
-    sb.append(": ")
-    sb.append("Array[" * arrayDepth)
-    sb.append(toString)
-    sb.append("]" * arrayDepth)
-    sb += '\n'
-  }
-
   def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
 
   def fieldOption(path: List[String]): Option[Field] =
     None
 
-  def typeCheck(a: Any): Boolean
-
   def schema: DataType
-
-  def parse(s: String): Annotation =
-    throw new UnsupportedOperationException(s"Cannot generate a parser for $toString")
 }
 
-case object TEmpty extends Type {
+case object TEmpty extends TypeWithSchema {
   override def toString = "Empty"
 
   def typeCheck(a: Any): Boolean = a == null
@@ -148,7 +147,7 @@ case object TEmpty extends Type {
     BooleanType
 }
 
-case object TBoolean extends Type {
+case object TBoolean extends TypeWithSchema {
   override def toString = "Boolean"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
@@ -158,7 +157,7 @@ case object TBoolean extends Type {
   override def parse(s: String): Annotation = s.toBoolean
 }
 
-case object TChar extends Type {
+case object TChar extends TypeWithSchema {
   override def toString = "Char"
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
@@ -167,7 +166,7 @@ case object TChar extends Type {
   def schema = StringType
 }
 
-abstract class TNumeric extends Type
+abstract class TNumeric extends TypeWithSchema
 
 case object TInt extends TNumeric {
   override def toString = "Int"
@@ -209,7 +208,7 @@ case object TDouble extends TNumeric {
   override def parse(s: String): Annotation = s.toDouble
 }
 
-case object TString extends Type {
+case object TString extends TypeWithSchema {
   override def toString = "String"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
@@ -219,21 +218,17 @@ case object TString extends Type {
   override def parse(s: String): Annotation = s
 }
 
-abstract class TIterable extends Type {
+abstract class TIterable extends TypeWithSchema {
   def elementType: Type
 }
 
-case object TGenotypeStream extends TIterable {
-  override def toString = "GenotypeStream"
+case class TAggregable(ec: EvalContext) extends Type {
+  override def toString = "Aggregable"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Iterable[_]]
-
-  def schema = GenotypeStream.schema
-
-  def elementType: Type = TGenotype
 }
 
-case class TArray(elementType: Type) extends TIterable {
+case class TArray(elementType: TypeWithSchema) extends TIterable {
   override def toString = s"Array[$elementType]"
 
   override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
@@ -246,7 +241,7 @@ case class TArray(elementType: Type) extends TIterable {
   def schema = ArrayType(elementType.schema)
 }
 
-case class TSet(elementType: Type) extends Type {
+case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
   override def toString = s"Set[$elementType]"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[IndexedSeq[_]] &&
@@ -255,7 +250,7 @@ case class TSet(elementType: Type) extends Type {
   def schema = ArrayType(elementType.schema)
 }
 
-case object TSample extends Type {
+case object TSample extends TypeWithSchema {
   override def toString = "Sample"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Sample]
@@ -264,7 +259,7 @@ case object TSample extends Type {
     StructField("id", StringType, nullable = false)))
 }
 
-case object TGenotype extends Type {
+case object TGenotype extends TypeWithSchema {
   override def toString = "Genotype"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
@@ -272,7 +267,7 @@ case object TGenotype extends Type {
   def schema = Genotype.schema
 }
 
-case object TAltAllele extends Type {
+case object TAltAllele extends TypeWithSchema {
   override def toString = "AltAllele"
 
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
@@ -280,7 +275,7 @@ case object TAltAllele extends Type {
   def schema = AltAllele.schema
 }
 
-case object TVariant extends Type {
+case object TVariant extends TypeWithSchema {
   override def toString = "Variant"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
@@ -291,7 +286,7 @@ case object TVariant extends Type {
 object TStruct {
   def empty: TStruct = TStruct(Array.empty[Field])
 
-  def apply(args: (String, Type)*): TStruct =
+  def apply(args: (String, TypeWithSchema)*): TStruct =
     TStruct(args
       .iterator
       .zipWithIndex
@@ -299,13 +294,13 @@ object TStruct {
       .toArray)
 }
 
-case class Field(name: String, `type`: Type,
+case class Field(name: String, `type`: TypeWithSchema,
   index: Int,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 }
 
-case class TStruct(fields: IndexedSeq[Field]) extends Type {
+case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
@@ -313,7 +308,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   def size: Int = fields.length
 
-  override def getOption(path: List[String]): Option[Type] =
+  override def getOption(path: List[String]): Option[TypeWithSchema] =
     if (path.isEmpty)
       Some(this)
     else
@@ -348,7 +343,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  override def delete(p: List[String]): (Type, Deleter) = {
+  override def delete(p: List[String]): (TypeWithSchema, Deleter) = {
     if (p.isEmpty)
       (TEmpty, a => Annotation.empty)
     else {
@@ -359,7 +354,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       }
       val index = f.index
       val (newFieldType, d) = f.`type`.delete(p.tail)
-      val newType: Type =
+      val newType: TypeWithSchema =
         if (newFieldType == TEmpty)
           deleteKey(key, f.index)
         else
@@ -383,7 +378,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
+  override def insert(signature: TypeWithSchema, p: List[String]): (TypeWithSchema, Inserter) = {
     if (p.isEmpty)
       (signature, (a, toIns) => toIns.orNull)
     else {
@@ -416,7 +411,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  def updateKey(key: String, i: Int, sig: Type): Type = {
+  def updateKey(key: String, i: Int, sig: TypeWithSchema): TypeWithSchema = {
     assert(fieldIdx.contains(key))
 
     val newFields = Array.fill[Field](fields.length)(null)
@@ -426,7 +421,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     TStruct(newFields)
   }
 
-  def deleteKey(key: String, index: Int): Type = {
+  def deleteKey(key: String, index: Int): TypeWithSchema = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
       TEmpty
@@ -440,7 +435,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  def appendKey(key: String, sig: Type): TStruct = {
+  def appendKey(key: String, sig: TypeWithSchema): TStruct = {
     assert(!fieldIdx.contains(key))
     val newFields = Array.fill[Field](fields.length + 1)(null)
     for (i <- fields.indices)
@@ -865,36 +860,37 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         val elementType = lhs.`type` match {
           case arr: TArray => arr.elementType
           case _ =>
-            parseError(s"no `$method' on non-iterable")
+            parseError(s"no `$method' on non-array")
         }
 
         `type` = elementType
 
         // index unused in typecheck
         // FIXME I BROKE THIS
-        body.typecheck(ec)
+        body.typecheck(ec.copy(st = ec.st + ((param, (-1, elementType)))))
         if (body.`type` != TBoolean)
           parseError(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
 
       case ("count", Array(rhs)) =>
         lhs.typecheck(ec)
 
-        val elementType = lhs.`type` match {
-          case iter: TIterable => iter.elementType
-          case _ =>
-            parseError(s"no `$method' on non-iterable")
+        val lhsType = lhs.`type` match {
+          case agg: TAggregable => agg
+          case _ => parseError(s"no `$method' on non-aggragable")
         }
-        `type` = TInt
-        rhs.typecheck(ec.goDeeper(getSymRefId(lhs)))
+        rhs.typecheck(lhsType.ec)
+
         if (rhs.`type` != TBoolean)
           parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
+        `type` = TLong
 
       case ("sum", Array(rhs)) =>
         lhs.typecheck(ec)
-        if (lhs.`type` != TGenotypeStream)
-          parseError(s"`$method' exists only for genotype streams")
-
-        rhs.typecheck(ec.goDeeper(getSymRefId(lhs)))
+        val lhsType = lhs.`type` match {
+          case agg: TAggregable => agg
+          case _ => parseError(s"no `$method' on non-aggragable")
+        }
+        rhs.typecheck(lhsType.ec)
         if (!rhs.`type`.isInstanceOf[TNumeric])
           parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
         `type` = (rhs.`type`: @unchecked) match {
@@ -904,23 +900,27 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       case ("fraction", Array(rhs)) =>
         lhs.typecheck(ec)
-        if (lhs.`type` != TGenotypeStream)
-          parseError(s"`$method' exists only for genotype streams")
-
-        rhs.typecheck(ec.goDeeper(getSymRefId(lhs)))
+        val lhsType = lhs.`type` match {
+          case agg: TAggregable => agg
+          case _ => parseError(s"no `$method' on non-aggragable")
+        }
+        rhs.typecheck(lhsType.ec)
         if (rhs.`type` != TBoolean)
           parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
         `type` = TDouble
 
       case ("stats", Array(rhs)) =>
         lhs.typecheck(ec)
-        if (lhs.`type` != TGenotypeStream)
-          parseError(s"`$method' exists only for genotype streams")
-
-        rhs.typecheck(ec.goDeeper(getSymRefId(lhs)))
-        val t = rhs.`type`
-        if (!t.isInstanceOf[TNumeric])
-          parseError(s"expected Numeric, got `$t' in `$method' expression")
+        val lhsType = lhs.`type` match {
+          case agg: TAggregable => agg
+          case _ => parseError(s"no `$method' on non-aggragable")
+        }
+        rhs.typecheck(lhsType.ec)
+        val t = rhs.`type` match {
+          case tNum: TNumeric => tNum
+          case _ =>
+          parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
+        }
 
         val sumT = if (t == TInt || t == TLong)
           TLong
@@ -931,14 +931,19 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       case ("statsif", Array(condition, computation)) =>
         lhs.typecheck(ec)
-        if (lhs.`type` != TGenotypeStream)
-          parseError(s"`$method' exists only for genotype streams")
-
-        condition.typecheck(ec.goDeeper(getSymRefId(lhs)))
-        computation.typecheck(ec.goDeeper(getSymRefId(lhs)))
+        val lhsType = lhs.`type` match {
+          case agg: TAggregable => agg
+          case _ => parseError(s"no `$method' on non-aggragable")
+        }
+        condition.typecheck(lhsType.ec)
+        computation.typecheck(lhsType.ec)
 
         val t1 = condition.`type`
-        val t2 = computation.`type`
+        val t2 = computation.`type` match {
+          case tNum: TNumeric => tNum
+          case invalid =>
+            parseError(s"expected Numeric, got `$invalid' in `$method' expression")
+        }
 
         if (t1 != TBoolean)
           parseError(s"expected Boolean, got `$t1' in `$method' predicate")
@@ -954,14 +959,19 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       case ("findmap", Array(condition, computation)) =>
         lhs.typecheck(ec)
-        if (lhs.`type` != TGenotypeStream)
-          parseError(s"`$method' exists only for genotype streams")
-
-        condition.typecheck(ec.goDeeper(getSymRefId(lhs)))
-        computation.typecheck(ec.goDeeper(getSymRefId(lhs)))
+        val lhsType = lhs.`type` match {
+          case agg: TAggregable => agg
+          case _ => parseError(s"no `$method' on non-aggragable")
+        }
+        condition.typecheck(lhsType.ec)
+        computation.typecheck(lhsType.ec)
 
         val t1 = condition.`type`
-        val t2 = computation.`type`
+        val t2 = computation.`type` match {
+          case tws: TypeWithSchema => tws
+          case invalid =>
+            fatal(s"expected type with schema, got `$invalid' in `$method' map")
+        }
 
         if (t1 != TBoolean)
           parseError(s"expected Boolean, got `$t1' in `$method' predicate")
@@ -970,29 +980,24 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       case ("collect", Array(condition, computation)) =>
         lhs.typecheck(ec)
-        if (lhs.`type` != TGenotypeStream)
-          parseError(s"`$method' exists only for genotype streams")
-
-        condition.typecheck(ec.goDeeper(getSymRefId(lhs)))
-        computation.typecheck(ec.goDeeper(getSymRefId(lhs)))
+        val lhsType = lhs.`type` match {
+          case agg: TAggregable => agg
+          case _ => parseError(s"no `$method' on non-aggragable")
+        }
+        condition.typecheck(lhsType.ec)
+        computation.typecheck(lhsType.ec)
 
         val t1 = condition.`type`
-        val t2 = computation.`type`
+        val t2 = computation.`type` match {
+          case tws: TypeWithSchema => tws
+          case invalid =>
+            fatal(s"expected type with schema, got `$invalid' in `$method' map")
+        }
 
         if (t1 != TBoolean)
           parseError(s"expected Boolean, got `$t1' in `$method' predicate")
 
         `type` = TArray(t2)
-
-      case ("hist", Array(rhs)) =>
-        lhs.typecheck(ec)
-        if (lhs.`type` != TGenotypeStream)
-          parseError(s"`$method' exists only for genotype streams")
-
-        rhs.typecheck(ec.goDeeper(getSymRefId(lhs)))
-        if (rhs.`type` != TBoolean)
-          parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
-        ???
 
       case _ =>
         super.typecheck(ec)
@@ -1042,7 +1047,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
     case (returnType, "count", Array(rhs)) =>
-      val newContext = ec.goDeeper(getSymRefId(lhs))
+      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
       val localA = newContext.a
       val localIdx = localA.length
       localA += null
@@ -1065,7 +1070,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
     case (returnType, "sum", Array(rhs)) =>
-      val newContext = ec.goDeeper(getSymRefId(lhs))
+      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
       val localA = newContext.a
       val localIdx = localA.length
       localA += null
@@ -1091,11 +1096,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
     case (returnType, "fraction", Array(rhs)) =>
-      val name = lhs match {
-        case (SymRef(_, ident)) => ident
-        case _ => ???
-      }
-      val newContext = ec.goDeeper(getSymRefId(lhs))
+      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
       val localA = newContext.a
       val localIdx = localA.length
       localA += null
@@ -1126,7 +1127,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
 
     case (returnType, "stats", Array(rhs)) =>
-      val newContext = ec.goDeeper(getSymRefId(lhs))
+      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
       val localA = newContext.a
       val localIdx = localA.length
       localA += null
@@ -1196,7 +1197,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       AST.evalCompose[Any](ec, lhs) { case a => getOp(localA(localIdx)) }
 
     case (returnType, "statsif", Array(condition, computation)) =>
-      val newContext = ec.goDeeper(getSymRefId(lhs))
+      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
       val localA = newContext.a
       val localIdx = localA.length
       localA += null
@@ -1275,7 +1276,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       AST.evalCompose[Any](ec, lhs) { case a => getOp(localA(localIdx)) }
 
     case (returnType, "findmap", Array(condition, computation)) =>
-      val newContext = ec.goDeeper(getSymRefId(lhs))
+      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
       val localIdx = newContext.a.length
       val localA = newContext.a
       localA += null
@@ -1315,7 +1316,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
     case (returnType, "collect", Array(condition, computation)) =>
-      val newContext = ec.goDeeper(getSymRefId(lhs))
+      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
       val localIdx = newContext.a.length
       val localA = newContext.a
       localA += null
@@ -1349,8 +1350,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         case a =>
           localA(localIdx).asInstanceOf[ArrayBuffer[Any]].toIndexedSeq
       }
-
-    case (returnType, "hist", Array(rhs)) => ???
 
     case (_, "orElse", Array(a)) =>
       val f1 = lhs.eval(ec)
@@ -1408,7 +1407,6 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
     () => {
       for (i <- 0 until n)
         localA(indices(i)) = bindingfs(i)()
-      println(localA)
       bodyf()
     }
   }

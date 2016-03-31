@@ -46,28 +46,28 @@ object FilterVariants extends Command {
         (v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
           Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
       case c: String =>
-        val symTab = Map(
-          "v" ->(0, TVariant),
-          "va" ->(1, vds.vaSignature),
-          "gs" ->(2, TGenotypeStream))
-        val aggregationTable = Map(
+        val aggregationEC = EvalContext(Map(
           "v" ->(0, TVariant),
           "va" ->(1, vds.vaSignature),
           "s" ->(2, TSample),
           "sa" ->(3, vds.saSignature),
           "g" ->(4, TGenotype)
-        )
+        ))
+        val symTab = Map(
+          "v" ->(0, TVariant),
+          "va" ->(1, vds.vaSignature),
+          "gs" ->(2, TAggregable(aggregationEC)))
 
-        val ec = EvalContext(symTab, ("gs", EvalContext(aggregationTable)))
+        val ec = EvalContext(symTab)
         val f: () => Any = Parser.parse[Any](ec, TBoolean, cond)
         val sampleInfoBc = vds.sparkContext.broadcast(
           vds.localSamples.map(vds.sampleAnnotations)
             .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
         
         val a = ec.a
-        val aggregatorA = ec.children("gs").a
+        val aggregatorA = aggregationEC.a
 
-        val aggregatorOption = Aggregators.buildVariantaggregations(vds, ec, "gs")
+        val aggregatorOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
         (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
           a(0) = v

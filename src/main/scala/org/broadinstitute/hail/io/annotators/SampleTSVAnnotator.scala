@@ -4,13 +4,13 @@ import org.apache.hadoop
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 
 import scala.collection.mutable
 
 object SampleTSVAnnotator extends TSVAnnotator {
   def apply(filename: String, sampleCol: String, typeMap: Map[String, String], missing: String,
-    hConf: hadoop.conf.Configuration): (Map[String, Annotation], expr.Type) = {
+    hConf: hadoop.conf.Configuration): (Map[String, Annotation], TypeWithSchema) = {
     readLines(filename, hConf) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
 
@@ -24,14 +24,14 @@ object SampleTSVAnnotator extends TSVAnnotator {
           warn(s"""found "$id" in type map but not in TSV header """)
       }
 
-      val orderedSignatures: Array[(String, Option[expr.Type])] = split.map { s =>
+      val orderedSignatures: Array[(String, Option[TypeWithSchema])] = split.map { s =>
         if (s != sampleCol)
           (s, Some(parseStringType(typeMap.getOrElse(s, "String"))))
         else
           (s, None)
       }
 
-      val signature = expr.TStruct(
+      val signature = TStruct(
         orderedSignatures.flatMap { case (key, o) =>
           o match {
             case Some(sig) => Some(key, sig)
@@ -39,7 +39,7 @@ object SampleTSVAnnotator extends TSVAnnotator {
           }
         }
           .zipWithIndex
-          .map { case ((key, t), i) => expr.Field(key, t, i) }
+          .map { case ((key, t), i) => Field(key, t, i) }
       )
 
       val functions = buildParsers(missing, orderedSignatures)
