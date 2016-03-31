@@ -1,10 +1,9 @@
 package org.broadinstitute.hail.io
 
 import java.util.zip.Inflater
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
-import org.apache.hadoop.mapred.{InvalidFileTypeException, FileSplit}
+import org.apache.hadoop.mapred.FileSplit
 import org.broadinstitute.hail.variant.{Genotype, GenotypeStreamBuilder, Variant}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
@@ -47,8 +46,10 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   override def seekToFirstBlock(start: Long) {
     require(start >= 0 && start < fileSize)
     pos = IndexBTree.queryIndex(start, fileSize, indexArrayPath, job)
-    require(pos >= 0 && pos < fileSize)
-    bfis.seek(pos)
+    if (pos < 0 || pos > fileSize)
+      fatal(s"incorrect seek position: pos=$pos start=$start fileSize=$fileSize")
+    if (pos >= 0 && pos < fileSize)
+      bfis.seek(pos)
   }
 
   def next(key: LongWritable, value: ParsedLine[Variant]): Boolean = {

@@ -77,40 +77,32 @@ class IndexBTreeSuite extends SparkSuite {
   @Test def oneVariant() {
     val index = Array(24.toLong)
     val fileSize = 30 //made-up value greater than index
-    IndexBTree.write(index, "/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)
-    index.forall{case (l) => IndexBTree.queryIndex(l, fileSize, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l}
+    val idxFile = "/tmp/testBtree_1variant.idx"
+    val hConf = sc.hadoopConfiguration
+
+    IndexBTree.write(index, idxFile, hConf)
+
+    intercept[FatalException]{
+      IndexBTree.queryIndex(-5, fileSize, idxFile, hConf)
+    }
+
+    intercept[FatalException]{
+      IndexBTree.queryIndex(100, fileSize, idxFile, hConf)
+    }
+
+    assert(IndexBTree.queryIndex(0, fileSize, idxFile, hConf) == 24)
+    assert(IndexBTree.queryIndex(10, fileSize, idxFile, hConf) == 24)
+    assert(IndexBTree.queryIndex(20, fileSize, idxFile, hConf) == 24)
+    assert(IndexBTree.queryIndex(24, fileSize, idxFile, hConf) == 24)
+    assert(IndexBTree.queryIndex(25, fileSize, idxFile, hConf) == -1)
+    assert(IndexBTree.queryIndex(fileSize - 1, fileSize, idxFile, hConf) == -1)
   }
 
   @Test def zeroVariants() {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
       val fileSize = 30 //made-up value greater than index
-      IndexBTree.write(index, "/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)
-      index.forall { case (l) => IndexBTree.queryIndex(l, fileSize, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l }
+      IndexBTree.write(index, "/tmp/testBtree_0variant.idx", sc.hadoopConfiguration)
     }
-  }
-
-  @Test def hardCodedTest() {
-    val index = Array(24.toLong)
-    val fileSize = 30 //filled in for file size in this fake example
-    val idx = "/tmp/testBtree_1variant.idx"
-    val hConf = sc.hadoopConfiguration
-
-    IndexBTree.write(index, "/tmp/testBtree_1variant.idx", sc.hadoopConfiguration)
-
-    intercept[FatalException]{
-      IndexBTree.queryIndex(-5, fileSize, idx, hConf)
-    }
-
-    intercept[FatalException]{
-      IndexBTree.queryIndex(100, fileSize, idx, hConf)
-    }
-
-    assert(IndexBTree.queryIndex(0, fileSize, idx, hConf) == 24)
-    assert(IndexBTree.queryIndex(10, fileSize, idx, hConf) == 24)
-    assert(IndexBTree.queryIndex(20, fileSize, idx, hConf) == 24)
-    assert(IndexBTree.queryIndex(24, fileSize, idx, hConf) == 24)
-    assert(IndexBTree.queryIndex(25, fileSize, idx, hConf) == -1)
-    assert(IndexBTree.queryIndex(fileSize - 1, fileSize, idx, hConf) == -1)
   }
 }

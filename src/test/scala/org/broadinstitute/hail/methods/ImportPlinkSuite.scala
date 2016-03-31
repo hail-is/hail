@@ -19,9 +19,7 @@ class ImportPlinkSuite extends SparkSuite {
 
     property("import generates same output as export") =
       forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
-
-
-        println(s"nPartitions:$nPartitions nSamples:${vds.nSamples} nVariants:${vds.nVariants}")
+        
         var s = State(sc, sqlContext, vds)
 
         s = SplitMulti.run(s, Array[String]())
@@ -32,7 +30,7 @@ class ImportPlinkSuite extends SparkSuite {
             false
           } catch {
             case e:FatalException => true
-            case _ => false
+            case _: Throwable => false
           }
         else {
           s = ImportPlink.run(s, Array("--bfile","/tmp/truth", "-n", nPartitions.toString))

@@ -40,7 +40,7 @@ object GenLoader {
         val ints = convertPPsToInt(Array(dosages(i), dosages(i + 1), dosages(i + 2)))
         val pls = BgenLoader.phredScalePPs(ints(0), ints(1), ints(2))
         val gt = BgenLoader.parseGenotype(pls)
-        val pls2 = if (gt == -1) null else pls //FIXME: Is this correct behavior?
+        val pls2 = if (gt == -1) null else pls
         Genotype(gt = Option(gt), pl = Option(pls2))
       }
     }

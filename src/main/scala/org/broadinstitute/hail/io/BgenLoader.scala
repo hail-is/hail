@@ -29,12 +29,10 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
     if (version == 1)
       nRow = reader.readInt()
 
-    val snpid = reader.readLengthAndString(2) // Lid
-    val rsid = reader.readLengthAndString(2) // rsid
-    val chr = reader.readLengthAndString(2) // chr
-    val pos = reader.readInt() // pos
-
-    //println(s"position=$position snpid=$snpid rsid=$rsid chr=$chr pos=$pos")
+    val snpid = reader.readLengthAndString(2)
+    val rsid = reader.readLengthAndString(2)
+    val chr = reader.readLengthAndString(2)
+    val pos = reader.readInt()
 
     val nAlleles = if (version == 1) 2 else reader.readShort()
 
@@ -70,10 +68,10 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
 
     val flags = reader.readInt()
     compression = (flags & 1) != 0 // either 0 or 1 based on the first bit
-    version = flags >> 2 & 0xf // FIXME add support for more than 1 bit for v1.2
+    version = flags >> 2 & 0xf
     hasSampleIdBlock = (flags >> 30 & 1) != 0
 
-    if (version != 1)
+    if (version != 1) // FIXME add support for more than 1 bit for v1.2
       fatal("Hail supports only BGEN v1.1 formats")
 
     if (!hasSampleIdBlock && sampleFile.isEmpty)
@@ -87,22 +85,26 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
       else {
         val sampleIdSize = reader.readInt()
         val nSamplesConfirmation = reader.readInt()
+
         if (nSamplesConfirmation != nSamples)
           fatal("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
 
+        if (sampleIdSize + headerLength > allInfoLength)
+          fatal("BGEN file is malformed -- offset is smaller than length of header")
+
         val sampleIdArr = new Array[String](nSamples)
         for (i <- 0 until nSamples) {
-          sampleIdArr(i) = reader.readLengthAndString(2) // FIXME should 2 be sampleIdSize?
+          sampleIdArr(i) = reader.readLengthAndString(2)
         }
         sampleIdArr
       }
     }
 
     if (sampleIDs.length != nSamples)
-      fatal(s"Length of sample IDs in file [$sampleFile] does not equal number of samples in BGEN file $file")
+      fatal(s"Length of sample IDs does not equal number of samples in BGEN file (${sampleIDs.length}, ${nSamples})")
 
     if (!hadoopIsFile(file + ".idx", sc.hadoopConfiguration)) {
-      info(s"Creating index for file [$file]")
+      info(s"Creating index [${file + ".idx"}]")
       val dataBlockStarts = new Array[Long](nVariants + 1)
 
       // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
@@ -123,19 +125,6 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
 
 object BgenLoader {
 
-  def parseGenotype(pls: Array[Double], gtThreshold: Double): Int = {
-    require(pls.count(_ >= gtThreshold) <= 1)
-
-    if (pls(0) >= gtThreshold)
-      0
-    else if (pls(1) >= gtThreshold)
-      1
-    else if (pls(2) >= gtThreshold)
-      2
-    else
-      -1
-  }
-
   def parseGenotype(pls: Array[Int]): Int = {
     if (pls(0) == 0 && pls(1) == 0
       || pls(0) == 0 && pls(2) == 0
@@ -153,21 +142,7 @@ object BgenLoader {
     }
   }
 
-  def convertIntToPP(prob: Int): Double = prob.toDouble / 32768
-
-  def convertIntToPPs(probAA: Int, probAB: Int, probBB: Int) = Array(probAA, probAB, probBB).map{i => convertIntToPP(i)}
-
-  def convertPLToDosage(prob: Array[Int]): Array[Double] = {
-    val transformedProb = prob.map{p => math.pow(10,p / -10.0)}
-    val sum = transformedProb.sum
-    transformedProb.map{p => p / sum}
-  }
-
   val phredConversionTable: Array[Double] = (0 to 65535).map{i => if (i == 0) 48 else -10 * math.log10(i)}.toArray
-
-  def convertPPsToInt(probAA: Double, probAB: Double, probBB: Double): Array[Int] = {
-    Array(probAA, probAB, probBB).map{ d => val tmp = d * 32768; require(tmp >= 0 && tmp < 65535.5); math.round(tmp).toInt}
-  }
 
   def phredScalePPs(probAA: Int, probAB: Int, probBB: Int): Array[Int] = {
     if (probAA == 32768 || probBB == 32768 || probAB == 32768) {
@@ -179,21 +154,11 @@ object BgenLoader {
         if (probAB == 0) 48 else phredConversionTable(probAB),
         if (probBB == 0) 48 else phredConversionTable(probBB))
 
-/*      val phredDoubles: (Double, Double, Double) = (
-        if (probAA == 0) 48 else -10 * math.log10(probAA),
-        if (probAB == 0) 48 else  -10 * math.log10(probAB),
-        if (probBB == 0) 48 else  -10 * math.log10(probBB))*/
-
       val minValue = math.min(math.min(phredDoubles._1, phredDoubles._2), phredDoubles._3)
       Array((phredDoubles._1 - minValue + .5).toInt,
         (phredDoubles._2 - minValue + .5).toInt,
         (phredDoubles._3 - minValue + .5).toInt)
     }
-  }
-
-  def expectedSize(nSamples: Int, nVariants: Long): Long = {
-      //this is only used for random generator testing to not have partition size be smaller than file size
-      nVariants * (31 + 6*nSamples) + 24
   }
 
   def parseSampleFile(file: String, hConf: Configuration): Array[String] = {
@@ -211,7 +176,7 @@ object BgenLoader {
   }
 
   def apply(bgenFiles: Array[String], sampleFile: Option[String] = None, sc: SparkContext,
-            nPartitions: Option[Int] = None, compress: Boolean = true, gtProbThreshold: Double = 0.8): VariantDataset = {
+            nPartitions: Option[Int] = None, compress: Boolean = true): VariantDataset = {
     val bgenLoaders = bgenFiles.map{file => new BgenLoader(file, sampleFile, sc)}
     val nSamplesEqual = bgenLoaders.map{_.getNSamples}.forall(_.equals(bgenLoaders(0).getNSamples))
     if (!nSamplesEqual)
