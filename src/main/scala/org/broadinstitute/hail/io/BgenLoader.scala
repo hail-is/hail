@@ -110,12 +110,14 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
       // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
       var position: Long = (allInfoLength + 4).toLong
       dataBlockStarts(0) = position
+      info(s"0th index position is $position for file $file")
 
       for (i <- 1 until nVariants + 1) {
         position = getNextBlockPosition(position)
         dataBlockStarts(i) = position
-        if (i % 10000 == 0)
-          info(s"Read the ${i}th variant out of $nVariants in file [$file]")
+        info(s"${i}th index position is $position for file $file")
+        /*if (i % 10000 == 0)
+          info(s"Read the ${i}th variant out of $nVariants in file [$file]")*/
       }
 
       IndexBTree.write(dataBlockStarts, file + ".idx", sc.hadoopConfiguration)
