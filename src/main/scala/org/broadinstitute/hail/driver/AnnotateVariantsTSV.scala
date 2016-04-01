@@ -53,16 +53,7 @@ object AnnotateVariantsTSV extends Command {
 
   def run(state: State, options: Options): State = {
 
-    val files = options.arguments.asScala
-      .iterator
-      .flatMap { arg =>
-        val fss = hadoopGlobAndSort(arg, state.hadoopConf)
-        val files = fss.map(_.getPath.toString)
-        if (files.isEmpty)
-          warn(s"`$arg' refers to no files")
-        files
-      }.toArray
-
+    val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
     val vds = state.vds
     val (rdd, signature) = VariantTSVAnnotator(vds.sparkContext, files,

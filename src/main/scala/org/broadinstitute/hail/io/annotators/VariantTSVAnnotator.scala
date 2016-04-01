@@ -82,15 +82,13 @@ object VariantTSVAnnotator extends TSVAnnotator {
         (variant, Row.fromSeq(res))
     }
 
-    val rdd = sc.union(files.map { file =>
-      sc.textFile(file)
-        .filter(line => line != header)
+    val rdd = sc.textFiles(files)
+        .filter(_ != header)
         .mapPartitions {
           iter =>
             val ab = mutable.ArrayBuilder.make[Any]
             iter.map(line => f(ab, line))
         }
-    })
 
     (rdd, signature)
   }

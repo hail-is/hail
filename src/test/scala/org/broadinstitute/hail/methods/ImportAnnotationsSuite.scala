@@ -91,7 +91,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
 
-    val anno1 = AnnotateVariants.run(state, Array("vcf", "-i", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
+    val anno1 = AnnotateVariants.run(state, Array("vcf", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
 
     val otherMap = SplitMulti.run(State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sampleInfoOnly.vcf")), Array[String]())
       .vds
@@ -158,16 +158,16 @@ class ImportAnnotationsSuite extends SparkSuite {
     val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
 
     val tsv1r = AnnotateVariants.run(state,
-      Array("tsv", "-i", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
+      Array("tsv", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
-    val vcf1 = AnnotateVariants.run(state, Array("vcf", "-i", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
+    val vcf1 = AnnotateVariants.run(state, Array("vcf", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
 
     val s2 = ImportVCF.run(state, Array("src/test/resources/sampleInfoOnly.vcf"))
     val s2split = SplitMulti.run(s2)
     Write.run(s2split, Array("-o", "/tmp/variantAnnotationsVCF.vds"))
 
     val annoState = ImportAnnotations.run(state,
-      Array("-i", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double"))
+      Array("src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double"))
     Write.run(annoState, Array("-o", "/tmp/variantAnnotationsTSV.vds"))
 
     val tsvToVDS = AnnotateVariants.run(state,

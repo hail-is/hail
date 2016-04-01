@@ -30,7 +30,7 @@ object AnnotateVariantsVCF extends Command with VCFImporter {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val inputs = globAndReturn(state, options.arguments.asScala.toArray, options.force)
+    val inputs = globAllVcfs(options.arguments.asScala.toArray, state.hadoopConf, options.force)
 
     val otherVds = LoadVCF(vds.sparkContext, inputs.head, inputs, skipGenotypes = true)
     val otherVdsSplit = SplitMulti.run(state.copy(vds = otherVds)).vds

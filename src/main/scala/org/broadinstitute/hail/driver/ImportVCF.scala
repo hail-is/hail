@@ -4,18 +4,11 @@ import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._
+import org.apache.hadoop
 
 trait VCFImporter {
-  def globAndReturn(state: State, arguments: Array[String], forcegz: Boolean = false): Array[String] = {
-    val inputs = arguments
-      .iterator
-      .flatMap { arg =>
-        val fss = hadoopGlobAndSort(arg, state.hadoopConf)
-        val files = fss.map(_.getPath.toString)
-        if (files.isEmpty)
-          warn(s"`$arg' refers to no files")
-        files
-      }.toArray
+  def globAllVcfs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
+    val inputs = hadoopGlobAll(arguments, hConf)
 
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
@@ -71,7 +64,7 @@ object ImportVCF extends Command with VCFImporter {
     if (options.input)
       warn("-i deprecated, no longer needed")
 
-    val inputs = globAndReturn(state, options.arguments.asScala.toArray, options.force)
+    val inputs = globAllVcfs(options.arguments.asScala.toArray, state.hadoopConf, options.force)
 
     val headerFile = if (options.headerFile != null)
       options.headerFile
