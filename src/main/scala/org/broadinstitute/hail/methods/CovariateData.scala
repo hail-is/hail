@@ -7,7 +7,7 @@ import scala.io.Source
 
 case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: Option[DenseMatrix[Double]]) {
   require(data.isDefined || covRowSample.isEmpty || covName.isEmpty)
-  require(data.isEmpty || (data.get.rows == covRowSample.size && data.get.cols == covName.size))
+  require(data.forall(m => m.rows == covRowSample.size && m.cols == covName.size))
   require(covRowSample.areDistinct())
   require(covName.areDistinct())
 
