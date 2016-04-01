@@ -40,7 +40,7 @@ class ImportVCFSuite extends SparkSuite {
     s = ImportVCF.run(s, Array("src/test/resources/symbolicVariant.vcf"))
     val n = s.vds.nVariants
 
-    assert(n == 2)
+    assert(n == 1)
     assert(VCFReport.accumulators.head._2.value(VCFReport.SymbolicOrSV) == 2)
   }
 
