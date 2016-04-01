@@ -7,6 +7,7 @@ import org.broadinstitute.hail.expr.TStruct
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
+
   @Test def testInfo() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/infochar.vcf"))
@@ -32,6 +33,15 @@ class ImportVCFSuite extends SparkSuite {
     assert(LoadVCF.lineRef("20\t0\t.\t\t") == "")
 
     assert(LoadVCF.lineRef("\t\t\tabcd") == "abcd")
+  }
+
+  @Test def symbolicOrSV() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/symbolicVariant.vcf"))
+    val n = s.vds.nVariants
+
+    assert(n == 2)
+    assert(VCFReport.accumulators.head._2.value(VCFReport.SymbolicOrSV) == 2)
   }
 
   @Test def testStoreGQ() {
