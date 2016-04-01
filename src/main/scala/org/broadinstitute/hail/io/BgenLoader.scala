@@ -114,6 +114,8 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
       for (i <- 1 until nVariants + 1) {
         position = getNextBlockPosition(position)
         dataBlockStarts(i) = position
+        if (i % 10000 == 0)
+          info(s"Read the ${i}th variant out of $nVariants in file [$file]")
       }
 
       IndexBTree.write(dataBlockStarts, file + ".idx", sc.hadoopConfiguration)

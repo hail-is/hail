@@ -19,7 +19,7 @@ class ImportPlinkSuite extends SparkSuite {
 
     property("import generates same output as export") =
       forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
-        
+
         var s = State(sc, sqlContext, vds)
 
         s = SplitMulti.run(s, Array[String]())

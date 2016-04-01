@@ -46,6 +46,7 @@ abstract class AbstractBinaryReader {
 
 
   def readString(length: Int): String = {
+    require(length > 0)
     val byteArray = new Array[Byte](length)
     val result = readBytes(byteArray, 0, length)
     if (result < 0)
