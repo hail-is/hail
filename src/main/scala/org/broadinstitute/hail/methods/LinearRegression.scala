@@ -86,13 +86,12 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    // LinearRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
-    require(cov.covRowSample.forall(ped.phenotypedSamples))
+    val cov1 = cov.filterSamples(ped.phenotypedSamples)
 
-    val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
+    val sampleCovRow = cov1.covRowSample.zipWithIndex.toMap
 
-    val n = cov.data.rows
-    val k = cov.data.cols
+    val n = cov1.covRowSample.size
+    val k = cov1.covName.size
     val d = n - k - 2
     if (d < 1)
       throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
@@ -105,8 +104,12 @@ object LinearRegression {
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
     val samplePheno = ped.samplePheno
-    val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
-    val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
+    val yArray = (0 until n).flatMap(cr => samplePheno(cov1.covRowSample(cr)).map(_.toString.toDouble)).toArray
+    val covAndOnesVector: DenseMatrix[Double] = cov1.data match {
+      case Some(d) => DenseMatrix.horzcat(d, DenseMatrix.ones[Double](n, 1))
+      case None => DenseMatrix.ones[Double](n, 1)
+    }
+
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
     val qty = qt * y
