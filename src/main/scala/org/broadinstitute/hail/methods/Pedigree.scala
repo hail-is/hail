@@ -54,7 +54,7 @@ object Pedigree {
         .getLines()
         .filter(line => !line.isEmpty)
         .flatMap{ line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
-          val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
+          val Array(fam, kid, dad, mom, sex, pheno) = line.split("\t")
           sampleIndex.get(kid) match {
             case Some(s) =>
               if (sampleSet(s))
