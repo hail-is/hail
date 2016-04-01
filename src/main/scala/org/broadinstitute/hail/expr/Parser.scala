@@ -45,10 +45,13 @@ object Parser extends JavaTokenParsers {
 
   def parseAnnotationTypes(code: String): Map[String, Type] = {
     // println(s"code = $code")
-    parseAll(struct_fields, code) match {
-      case Success(result, _) => result.toMap
-      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
+    if (code.isEmpty)
+      Map.empty[String, Type]
+    else
+      parseAll(struct_fields, code) match {
+        case Success(result, _) => result.toMap
+        case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+      }
   }
 
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
@@ -152,14 +155,18 @@ object Parser extends JavaTokenParsers {
     tsvIdentifier ~ "=" ~ expr ^^ { case id ~ _ ~ expr => (id, expr) }
 
   def annotationExpressions: Parser[Array[(Array[String], AST)]] =
-    rep1sep(annotationExpression, ",") ^^ { _.toArray }
+    rep1sep(annotationExpression, ",") ^^ {
+      _.toArray
+    }
 
   def annotationExpression: Parser[(Array[String], AST)] = annotationIdentifier ~ "=" ~ expr ^^ {
     case id ~ eq ~ expr => (id, expr)
   }
 
   def annotationIdentifier: Parser[Array[String]] =
-    rep1sep(identifier, ".") ^^ { _.toArray }
+    rep1sep(identifier, ".") ^^ {
+      _.toArray
+    }
 
   def tsvIdentifier: Parser[String] = tickIdentifier | """[^\s\p{Cntrl}=,]+""".r
 
@@ -168,7 +175,9 @@ object Parser extends JavaTokenParsers {
   def identifier = tickIdentifier | ident
 
   def args: Parser[Array[AST]] =
-    repsep(expr, ",") ^^ { _.toArray }
+    repsep(expr, ",") ^^ {
+      _.toArray
+    }
 
   def dot_expr: Parser[AST] =
     unary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
@@ -219,7 +228,9 @@ object Parser extends JavaTokenParsers {
       (name, t)
     }
 
-  def struct_fields: Parser[Array[(String, Type)]] = rep1sep(struct_field, ",") ^^ { _.toArray }
+  def struct_fields: Parser[Array[(String, Type)]] = rep1sep(struct_field, ",") ^^ {
+    _.toArray
+  }
 
   def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TEmpty } |

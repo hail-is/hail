@@ -457,7 +457,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     assert(fields.length > 0)
     StructType(fields
       .map { case f =>
-        StructField(f.name, f.`type`.schema)
+        StructField(f.index.toString, f.`type`.schema) //FIXME hack
+//        StructField(f.name, f.`type`.schema)
       })
   }
 }
