@@ -11,10 +11,10 @@ import org.broadinstitute.hail.variant.Variant
 import scala.collection.mutable
 
 object VariantTSVAnnotator extends TSVAnnotator {
-  def apply(sc: SparkContext, filename: String, vColumns: Array[String], declaredSig: Map[String, Type],
+  def apply(sc: SparkContext, files: Array[String], vColumns: Array[String], declaredSig: Map[String, Type],
     missing: String): (RDD[(Variant, Annotation)], Type) = {
 
-    val (header, split) = readLines(filename, sc.hadoopConfiguration) { lines =>
+    val (header, split) = readLines(files.head, sc.hadoopConfiguration) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
       val h = lines.next().value
       (h, h.split("\t"))
@@ -82,13 +82,14 @@ object VariantTSVAnnotator extends TSVAnnotator {
         (variant, Row.fromSeq(res))
     }
 
-    val rdd = sc.textFile(filename)
-      .filter(line => line != header)
-      .mapPartitions {
-        iter =>
-          val ab = mutable.ArrayBuilder.make[Any]
-          iter.map(line => f(ab, line))
-      }
+    val rdd = sc.textFiles(files)
+        .filter(_ != header)
+        .mapPartitions {
+          iter =>
+            val ab = mutable.ArrayBuilder.make[Any]
+            iter.map(line => f(ab, line))
+        }
+
     (rdd, signature)
   }
 
