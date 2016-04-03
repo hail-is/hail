@@ -218,14 +218,12 @@ object LoadVCF {
               else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
                 reportAcc += VCFReport.RefNonACGTN
                 None
-              }
-              else {
+              } else {
                 val vc = codec.decode(line)
                 if (vc.isSymbolicOrSV) {
                   reportAcc += VCFReport.SymbolicOrSV
                   None
-                }
-                else
+                } else
                   Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes))
               }
             } catch {
