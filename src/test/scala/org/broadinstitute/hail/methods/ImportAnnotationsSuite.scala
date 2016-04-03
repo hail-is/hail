@@ -47,14 +47,14 @@ class ImportAnnotationsSuite extends SparkSuite {
   }
 
   @Test def testSampleFamAnnotator() {
-    val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
+    val vds = LoadVCF(sc, "src/test/resources/importFam.vcf")
 
     val state = State(sc, sqlContext, vds)
 
     val anno1 = AnnotateSamples.run(state,
-      Array("fam", "-i", "src/test/resources/linearRegression.fam"))
+      Array("fam", "-i", "src/test/resources/importFam.fam"))
 
-    val q = anno1.vds.querySA("fam", "sex")
+    val q = anno1.vds.querySA("fam")
 
     val m = anno1.vds.sampleIds
     .zip(anno1.vds.sampleAnnotations)
@@ -63,12 +63,6 @@ class ImportAnnotationsSuite extends SparkSuite {
     m.foreach(println)
 
 
-//    anno1.vds.metadata.sampleIds.zip(anno1.vds.metadata.sampleAnnotations)
-//      .forall {
-//        case (id, sa) =>
-//          !fileMap.contains(id) ||
-//            ((Some(fileMap(id)._1) == q1(sa)) && (Some(fileMap(id)._2) == q2(sa)))
-//      }
   }
 
   @Test def testVariantTSVAnnotator() {

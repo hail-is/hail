@@ -15,7 +15,7 @@ object SampleFamAnnotator {
 
       val phenoSig = if (isQuantitative) ("qPheno", TDouble) else ("isCase", TBoolean)
 
-      val signature = TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("sex", TInt), phenoSig)
+      val signature = TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isMale", TBoolean), phenoSig)
 
       val kidSet = mutable.Set[String]()
 
@@ -30,29 +30,34 @@ object SampleFamAnnotator {
           else
             kidSet += kid
 
-          val fam2 = if (fam != "0") fam else null
-          val dad2 = if (dad != "0") dad else null
-          val mom2 = if (mom != "0") mom else null
-          val sex2 =
-            if (sex == "1" || sex == "2")
-              sex.toInt
-            else if (sex == "0")
-              null
-            else
-              fatal(s"Sex value must be `0', `1', or `2'") // FIXME
-          val pheno2 =
+          val fam1 = if (fam != "0") fam else null
+          val dad1 = if (dad != "0") dad else null
+          val mom1 = if (mom != "0") mom else null
+          val sex1 = sex match {
+            case "0" => null
+            case "1" => true
+            case "2" => false
+            case other => fatal(s"Invalid sex: `$other'. Legal values are `0', `1', or `2'.")
+          }
+          val pheno1 =
             if (isQuantitative)
               pheno.toDouble
-            else if (pheno == "1")
-              false
-            else if (pheno == "2")
-              true
-            else if (pheno == "0" || pheno == "-9")
-              null
             else
-              fatal(s"Blah")
+              pheno match {
+                case "0" => null
+                case "1" => false
+                case "2" => true
+                case "-9" => null
+                case other =>
+                  try {
+                    other.toDouble
+                    fatal(s"Invalid case-control phenotype: `$other'. Legal values are `0', `1', `2', `-9', and non-numeric.")
+                  } catch {
+                    case e: NumberFormatException => null
+                  }
+              }
 
-          (kid, Annotation(fam2, dad2, mom2, sex2, pheno2))
+          (kid, Annotation(fam1, dad1, mom1, sex1, pheno1))
         }
       }.toMap
       (m, signature)
