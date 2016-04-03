@@ -8,6 +8,7 @@ import org.testng.annotations.Test
 
 import scala.io.Source
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr.TInt
 
 class ImportAnnotationsSuite extends SparkSuite {
 
@@ -178,6 +179,26 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     assert(tsv1r.vds.same(tsvToVDS.vds))
     assert(vcf1.vds.same(vcfToVDS.vds))
+  }
+
+  @Test def testAnnotateSamples() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
+
+    val annoMap = vds.sampleIds.map(id => (id, 5))
+      .toMap
+    val vds2 = vds.filterSamples({case (s, sa) => scala.util.Random.nextFloat > 0.5})
+      .annotateSamples(annoMap, TInt, List("test"))
+
+    val q = vds2.querySA("test")
+
+    vds2.sampleIds
+      .zipWithIndex
+      .foreach {
+        case (s, i) =>
+          assert(q(vds2.sampleAnnotations(i)) == Some(5))
+      }
+
   }
 }
 
