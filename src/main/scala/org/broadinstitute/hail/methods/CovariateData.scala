@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.hadoop
 import breeze.linalg._
+import org.broadinstitute.hail.RichDenseMatrixDouble
 import org.broadinstitute.hail.Utils._
 import scala.io.Source
 
@@ -37,14 +38,7 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
     fatalIf(!newCovName.areDistinct(),
       s"Cannot append covariates: covariate names overlap for ${newCovName.duplicates()}")
 
-    val newData = (this.data, that.data) match {
-      case (Some(d1), Some(d2)) => Some(DenseMatrix.horzcat(d1, d2))
-      case (Some(d1), None) => this.data
-      case (None, Some(d2)) => that.data
-      case (None, None) => None
-    }
-
-    CovariateData(covRowSample, newCovName, newData)
+    CovariateData(covRowSample, newCovName, RichDenseMatrixDouble.horzcat(this.data, that.data))
   }
 }
 

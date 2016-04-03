@@ -516,6 +516,16 @@ class RichAny(val a: Any) extends AnyVal {
       None
 }
 
+object RichDenseMatrixDouble {
+  def horzcat(oms: Option[DenseMatrix[Double]]*): Option[DenseMatrix[Double]] = {
+    val ms = oms.flatMap(m => m)
+    if (ms.isEmpty)
+      None
+    else
+      Some(DenseMatrix.horzcat(ms: _*))
+  }
+}
+
 class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   def filterRows(rowsToKeep: Int => Boolean): Option[DenseMatrix[Double]] = {
     val ab = new mutable.ArrayBuilder.ofDouble // How to allow generic type with ArrayBuilder?
