@@ -437,11 +437,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertSA(signature, path)
 
-    copy(sampleAnnotations = localSamples.map { s =>
-      val id = sampleIds(s)
-      val sa = sampleAnnotations(s)
+    val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
+      val sa = sampleAnnotations(i)
       inserter(sa, annotations.get(id))
-    }, saSignature = newSignature)
+    }
+
+    copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
   }
 
   def queryVA(args: String*): Querier = queryVA(args.toList)
