@@ -1,31 +1,35 @@
 package org.broadinstitute.hail
 
 import java.io._
-import breeze.linalg.operators.{OpSub, OpAdd}
+
+import breeze.linalg.operators.{OpAdd, OpSub}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
+import org.apache.hadoop.io.{BytesWritable, NullWritable, Text}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.AccumulableParam
+import org.apache.spark.{AccumulableParam, SparkContext}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
+import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
+
 import scala.collection.mutable.ArrayBuilder
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector, DenseMatrix}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
+import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
+
 import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
-
 import Utils._
 
 final class ByteIterator(val a: Array[Byte]) {
@@ -274,6 +278,16 @@ class RichArray[T](a: Array[T]) {
   def areDistinct() = a.toIterable.areDistinct()
 
   def duplicates(): Set[T] = a.toIterable.duplicates()
+}
+
+class RichSparkContext(val sc: SparkContext) extends AnyVal {
+  def textFiles[T](files: Array[String], f: String => Unit = s => (),
+    nPartitions: Int = sc.defaultMinPartitions): RDD[String] = {
+    files.foreach(f)
+    sc.union(
+      files.map(file =>
+        sc.textFile(file, nPartitions)))
+  }
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
@@ -547,6 +561,8 @@ object Utils extends Logging {
 
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
+  implicit def toRichSC(sc: SparkContext): RichSparkContext = new RichSparkContext(sc)
+
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
@@ -716,6 +732,17 @@ object Utils extends Logging {
     getRandomName
   }
 
+  def hadoopGlobAll(filenames: Iterable[String], hConf: hadoop.conf.Configuration): Array[String] = {
+    filenames.iterator
+      .flatMap { arg =>
+        val fss = hadoopGlobAndSort(arg, hConf)
+        val files = fss.map(_.getPath.toString)
+        if (files.isEmpty)
+          warn(s"`$arg' refers to no files")
+        files
+      }.toArray
+  }
+
   def hadoopGlobAndSort(filename: String, hConf: hadoop.conf.Configuration): Array[FileStatus] = {
     val fs = hadoopFS(filename, hConf)
     val path = new hadoop.fs.Path(filename)
@@ -784,7 +811,7 @@ object Utils extends Logging {
         s.dropRight(ext.length)
       }.getOrElse(s)
   }
-  
+
   def writeObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))

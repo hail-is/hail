@@ -1,15 +1,12 @@
-# Preprocessing annotations TSVs
+# Importing annotations TSVs
 
-Importing large TSV files into Hail annotations can be slow, and these commands can be cumbersome to write on the command line (types may need to be specified, etc.).  Hail includes the module `preprocessannotations` to do the slow parsing steps ahead of time, which is useful if a large TSV will be used to annotate many datasets.  This module reads in a TSV file, and writes a VDS file with no samples in which the TSV fields are stored as annotations.
-
-Appropriate TSV files contain variant identifiers either in one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations.
+Importing large TSV files into Hail annotations can be slow, and these commands can be cumbersome to write on the command line (types may need to be specified, etc.).  Hail includes the module `importannotations` to do the slow parsing steps ahead of time, which is useful if a large TSV will be used to annotate many datasets or if one wants to perform filtering and querying operations on these large files.  The expected TSV files contain variant identifiers either in one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations.
 
 **Command line arguments:**
- - `-c <path-to-tsv>, --condition <path-to-tsv>` specify the file path **(Required)**
+ - `<files>` specify the file or files to read **(Required)**
  - `-v <variantcols>, --vcolumns <variantcols>` Either one column identifier (if Chr:Pos:Ref:Alt), or four comma-separated column identifiers **(Optional with default "Chromosome, Position, Ref, Alt")**
  - `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
  - `-m <missings>, --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")** 
- - `-o <output-file.vds>, --output <output-file.vds>` specify path to which the processed VDS should be written **(Required)**
 
 **Example 1**
 ```
@@ -25,11 +22,13 @@ Variant             Consequence     DNAseSensitivity
 This file contains one field to identify the variant and two data columns: one which encodes a string and one which encodes a double.  The command line should appear as:
 
 ```
-$ hail preprocessannotations \
-        -c file:///user/tpot/consequences.tsv.gz \
+$ hail \
+    importannotations \
+        file:///user/tpot/consequences.tsv.gz \
         -t "DNAseSensitivity: Double" \
         -r va.varianteffects \
-        -v Variant
+        -v Variant \
+    write \
         -o /user/tpot/consequences.vds
 ```
 
@@ -60,10 +59,12 @@ Chr  Pos        Ref     Alt     AC
 In this case, the variant is indicated by four columns, but the header does not match the default ("Chromosome, Position, Ref, Alt").  The proper command line is below:
 
 ```
-$ hail preprocessannotations \
-        -c file:///user/tpot/ExAC_Counts.tsv.gz \
+$ hail \
+    importannotations \
+        file:///user/tpot/ExAC_Counts.tsv.gz \
         -t "AC: Int" \
         -r va.exac \
-        -v "Chr,Pos,Ref,Alt"
+        -v "Chr,Pos,Ref,Alt" \
+    write \
         -o /user/tpot/ExAC_Counts.vds
 ```
