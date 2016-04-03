@@ -17,10 +17,11 @@ import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
+import scala.collection.mutable.ArrayBuilder
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
-import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
+import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector, DenseMatrix}
 import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
 import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
@@ -504,6 +505,43 @@ class RichAny(val a: Any) extends AnyVal {
       None
 }
 
+class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
+  def filterRows(rowsToKeep: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble // How to allow generic type with ArrayBuilder?
+
+    var nRows = 0
+    for (row <- 0 until m.rows)
+      if (rowsToKeep(row)) {
+        nRows += 1
+        for (col <- 0 until m.cols)
+          ab += m(row, col)
+      }
+
+    if (nRows > 0)
+      Some(new DenseMatrix[Double](rows = nRows, cols = m.cols, data = ab.result(),
+        offset = 0, majorStride = m.cols, isTranspose = true))
+    else
+      None
+  }
+
+  def filterCols(colsToKeep: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nCols = 0
+    for (col <- 0 until m.cols)
+      if (colsToKeep(col)) {
+        nCols += 1
+        for (row <- 0 until m.rows)
+          ab += m(row, col)
+      }
+
+    if (nCols > 0)
+      Some(new DenseMatrix[Double](rows = m.rows, cols = nCols, data = ab.result()))
+    else
+      None
+  }
+}
+
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -582,6 +620,9 @@ object Utils extends Logging {
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
+
+  implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble =
+    new RichDenseMatrixDouble(m)
 
   def plural(n: Int, sing: String, plur: String = null): String =
     if (n == 1)

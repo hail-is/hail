@@ -6,10 +6,10 @@ import org.testng.annotations.Test
 
 class CovariateDataSuite extends SparkSuite {
   @Test def test() {
-    def assertCov(cov1: CovariateData, cov2: CovariateData): Boolean = {
-      (cov1.covRowSample sameElements cov2.covRowSample) &&
-        (cov1.covName sameElements cov2.covName) &&
-        (cov1.data == cov2.data)
+    def assertCov(cov1: CovariateData, cov2: CovariateData) {
+      assert(cov1.covRowSample sameElements cov2.covRowSample)
+      assert(cov1.covName sameElements cov2.covName)
+      assert(cov1.data == cov2.data)
     }
 
     val vds = LoadVCF(sc, "src/test/resources/covariateData.vcf")
