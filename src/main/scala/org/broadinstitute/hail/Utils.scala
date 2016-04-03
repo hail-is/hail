@@ -6,7 +6,7 @@ import breeze.linalg.operators.{OpAdd, OpSub}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, NullWritable, Text}
+import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.{AccumulableParam, SparkContext}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
@@ -19,13 +19,10 @@ import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
 
-import scala.collection.mutable.ArrayBuilder
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
-import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector, DenseMatrix}
-import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
-import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector, DenseMatrix}
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 
 import scala.reflect.ClassTag
@@ -910,7 +907,7 @@ object Utils extends Logging {
     readFile[T](filename, hConf) {
       is =>
         val lines = Source.fromInputStream(is)
-          .getLines
+          .getLines()
           .zipWithIndex
           .map {
             case (value, position) => Line(value, position, filename)
