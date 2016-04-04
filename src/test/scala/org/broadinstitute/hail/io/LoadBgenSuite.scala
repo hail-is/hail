@@ -22,21 +22,12 @@ class LoadBgenSuite extends SparkSuite {
     }.toLong
   }
 
-  @Test def testUkBioBank10Variants() {
-    val bgen = "/Users/jigold/ukbiobank_test10.chr*.bgen"
-    val sampleFile = "/Users/jigold/ukbiobank_test10.sample"
-
-    var s = State(sc, sqlContext, null)
-
-    s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", "1", bgen))
-    s = SplitMulti.run(s, Array[String]())
-    s = ExportPlink.run(s, Array("-o","/tmp/testUkBiobank10var_hail"))
-  }
-
   @Test def testGavinExample() {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
     val bgen = "src/test/resources/example.v11.bgen"
+
+    hadoopDelete(bgen + ".idx", sc.hadoopConfiguration, true)
 
     val nSamples = getNumberOfLinesInFile(sampleFile) - 2
     val nVariants = getNumberOfLinesInFile(gen)
@@ -75,7 +66,7 @@ class LoadBgenSuite extends SparkSuite {
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
         val qcToolLogFile = fileRoot + ".qctool.log"
-        val qcToolPath = "qctool" //FIXME: remove path /Users/jigold/Downloads/qctool_v1.4-osx/
+        val qcToolPath = "qctool"
 
         hadoopDelete(fileRoot + "*", sc.hadoopConfiguration, true)
         hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, true)

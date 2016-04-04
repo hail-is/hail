@@ -12,9 +12,9 @@ class IndexBTreeSuite extends SparkSuite {
 
   object Spec extends Properties("BTree") {
 
-    val arraySizeGenerator = for (depth: Int <- choose(1,2);
+    val arraySizeGenerator = for (depth: Int <- choose(2,3);
                               arraySize: Int <- choose(math.max(1, math.pow(10, (depth - 1) * math.log10(1024)).toInt),
-                                math.pow(10, depth * math.log10(1024)).toInt)) yield (depth, arraySize)
+                                math.min(10000000,math.pow(10, depth * math.log10(1024)).toInt))) yield (depth, arraySize)
 
     def fillRandomArray(arraySize: Int): Array[Long] = {
       val randArray = new Array[Long](arraySize)
@@ -56,16 +56,19 @@ class IndexBTreeSuite extends SparkSuite {
 
     property("query gives same answer as array") =
       forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
+
         val arrayRandomStarts = fillRandomArray(arraySize)
         val maxLong = arrayRandomStarts.takeRight(1)(0)
+        val index = "/tmp/testBtree.idx"
 
-        IndexBTree.write(arrayRandomStarts, "/tmp/testBtree.idx", sc.hadoopConfiguration)
+        hadoopDelete(index, sc.hadoopConfiguration, true)
+        IndexBTree.write(arrayRandomStarts, index, sc.hadoopConfiguration)
 
         if (arrayRandomStarts.length < 100)
-          arrayRandomStarts.forall{case (l) => IndexBTree.queryIndex(l-1, maxLong + 5, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l}
+          arrayRandomStarts.forall{case (l) => IndexBTree.queryIndex(l-1, maxLong + 5, index, sc.hadoopConfiguration) == l}
         else {
-          val randomIndices = Array.fill(100)(choose(0,arraySize - 1).sample())
-          randomIndices.map(arrayRandomStarts).forall { case (l) => IndexBTree.queryIndex(l-1,maxLong + 5, "/tmp/testBtree.idx", sc.hadoopConfiguration) == l }
+          val randomIndices = Array(0) ++ Array.fill(100)(choose(0,arraySize - 1).sample())
+          randomIndices.map(arrayRandomStarts).forall { case (l) => IndexBTree.queryIndex(l-1,maxLong + 5, index, sc.hadoopConfiguration) == l }
         }
       }
   }
@@ -80,6 +83,7 @@ class IndexBTreeSuite extends SparkSuite {
     val idxFile = "/tmp/testBtree_1variant.idx"
     val hConf = sc.hadoopConfiguration
 
+    hadoopDelete(idxFile, sc.hadoopConfiguration, true)
     IndexBTree.write(index, idxFile, hConf)
 
     intercept[FatalException]{
@@ -102,7 +106,9 @@ class IndexBTreeSuite extends SparkSuite {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
       val fileSize = 30 //made-up value greater than index
-      IndexBTree.write(index, "/tmp/testBtree_0variant.idx", sc.hadoopConfiguration)
+      val idxFile = "/tmp/testBtree_0variant.idx"
+      hadoopDelete(idxFile, sc.hadoopConfiguration, true)
+      IndexBTree.write(index, idxFile, sc.hadoopConfiguration)
     }
   }
 }

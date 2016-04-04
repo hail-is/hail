@@ -10,10 +10,7 @@ class HadoopFSDataBinaryReader(is: InputStream) extends AbstractBinaryReader {
 
   override def read(): Int = fis.read()
 
-  override def read(byteArray: Array[Byte], hasRead: Int, toRead: Int): Int =
-    fis.read(byteArray, hasRead, toRead)
-
-  override def readBytes(byteArray: Array[Byte], offset: Int, length: Int): Int = fis.read(byteArray, offset, length)
+  override def read(byteArray: Array[Byte], hasRead: Int, toRead: Int): Int = fis.read(byteArray, hasRead, toRead)
 
   def close() = fis.close()
 

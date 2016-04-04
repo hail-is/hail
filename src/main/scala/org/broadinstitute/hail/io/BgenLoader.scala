@@ -16,11 +16,13 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
   private val reader = new HadoopFSDataBinaryReader(hadoopOpen(file, sc.hadoopConfiguration))
   private var nSamples: Int = 0
   private var nVariants: Int = 0
-  private var sampleIDs: Array[String] = parseHeaderAndIndex(sampleFile)
+  private val sampleIDs: Array[String] = parseHeaderAndIndex(sampleFile)
 
   def getNSamples: Int = nSamples
   def getNVariants: Int = nVariants
   def getSampleIDs: Array[String] = sampleIDs
+  def getIndex: String = file + ".idx"
+  def getFile: String = file
 
   private def getNextBlockPosition(position: Long): Long = {
     reader.seek(position)
@@ -110,14 +112,12 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
       // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
       var position: Long = (allInfoLength + 4).toLong
       dataBlockStarts(0) = position
-      info(s"0th index position is $position for file $file")
 
       for (i <- 1 until nVariants + 1) {
         position = getNextBlockPosition(position)
         dataBlockStarts(i) = position
-        info(s"${i}th index position is $position for file $file")
-        /*if (i % 10000 == 0)
-          info(s"Read the ${i}th variant out of $nVariants in file [$file]")*/
+        if (i % 100000 == 0)
+          info(s"Read the ${i}th variant out of $nVariants in file [$file]")
       }
 
       IndexBTree.write(dataBlockStarts, file + ".idx", sc.hadoopConfiguration)
@@ -181,23 +181,32 @@ object BgenLoader {
 
   def apply(bgenFiles: Array[String], sampleFile: Option[String] = None, sc: SparkContext,
             nPartitions: Option[Int] = None, compress: Boolean = true): VariantDataset = {
+    //val bgenLoaders = sc.makeRDD(bgenFiles).map{file => new BgenLoader(file, sampleFile, sc)}
+    //val bgenLoaders = sc.makeRDD(bgenFiles.map{file => new BgenLoader(file, sampleFile, sc)})
     val bgenLoaders = bgenFiles.map{file => new BgenLoader(file, sampleFile, sc)}
-    val nSamplesEqual = bgenLoaders.map{_.getNSamples}.forall(_.equals(bgenLoaders(0).getNSamples))
+    //val sampleBgen = bgenLoaders.take(1)(0)
+    val sampleBgen = bgenLoaders(0)
+
+    //val nSamplesEqual = bgenLoaders.map{_.getNSamples}.collect.forall(_.equals(sampleBgen.getNSamples))
+    val nSamplesEqual = bgenLoaders.map{_.getNSamples}forall(_.equals(sampleBgen.getNSamples))
     if (!nSamplesEqual)
       fatal("Different number of samples in BGEN files")
 
-    val sampleIDsEqual = bgenLoaders.map{_.getSampleIDs}.forall(_.sameElements(bgenLoaders(0).getSampleIDs))
+    //val sampleIDsEqual = bgenLoaders.map{_.getSampleIDs}.collect.forall(_.sameElements(sampleBgen.getSampleIDs))
+    val sampleIDsEqual = bgenLoaders.map{_.getSampleIDs}.forall(_.sameElements(sampleBgen.getSampleIDs))
     if (!sampleIDsEqual)
       fatal("Sample IDs are not equal across BGEN files")
 
-    val nSamples = bgenLoaders(0).getNSamples
+
+    val nSamples = sampleBgen.getNSamples
     val nVariants = bgenLoaders.map{_.getNVariants}.sum
 
     if (nVariants < 1)
       fatal("Require at least 1 Variant in BGEN files")
 
-    val sampleIDs = bgenLoaders(0).getSampleIDs
+    val sampleIDs = sampleBgen.getSampleIDs
 
+    //info(s"Number of BGEN files parsed: ${bgenLoaders.count}")
     info(s"Number of BGEN files parsed: ${bgenLoaders.length}")
     info(s"Number of variants in all BGEN files: $nVariants")
     info(s"Number of samples in BGEN files: $nSamples")
