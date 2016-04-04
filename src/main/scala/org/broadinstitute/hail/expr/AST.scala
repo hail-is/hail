@@ -75,6 +75,18 @@ sealed abstract class Type extends Serializable {
     sb += '\n'
   }
 
+  def prettyWithValues(sb: StringBuilder, a: Any, indent: Int, path: Vector[String], arrayDepth: Int) {
+    sb.append(" " * indent)
+    sb.append(path.last)
+    sb.append(": ")
+    sb.append("Array[" * arrayDepth)
+    sb.append(toString)
+    sb.append("]" * arrayDepth)
+    sb.append(" = ")
+    sb.tsvAppend(a)
+    sb += '\n'
+  }
+
   def typeCheck(a: Any): Boolean
 
 
@@ -233,6 +245,10 @@ case class TArray(elementType: TypeWithSchema) extends TIterable {
 
   override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
     elementType.pretty(sb, indent, path, arrayDepth + 1)
+  }
+
+  override def prettyWithValues(sb: StringBuilder, a: Any, indent: Int, path: Vector[String], arrayDepth: Int) {
+    elementType.prettyWithValues(sb, a, indent, path, arrayDepth + 1)
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
@@ -468,6 +484,37 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     */
     }
   }
+
+  override def prettyWithValues(sb: StringBuilder, a: Any, indent: Int, path: Vector[String], arrayDepth: Int) {
+    sb.append(" " * indent)
+    sb.append(path.last)
+    sb.append(": ")
+    path.foreachBetween { f => sb.append(f) } { () => sb += '.' }
+    for (i <- 0 until arrayDepth)
+      sb.append("[<index>]")
+    sb.append(".<identifier>\n")
+
+    val rowToPrint =
+      if (a == null)
+        Row.fromSeq(Array.fill[Any](fields.length)(null))
+      else
+        a.asInstanceOf[Row]
+
+    for (f <- fields) {
+      f.`type`.pretty(sb, rowToPrint.get(f.index), indent + 2, path :+ f.name, 0)
+      /*
+      if (f.attrs.nonEmpty) {
+        sb.append(" " * (indent + 2))
+        f.attrs.foreachBetween { case (k, v) =>
+          sb.append(k)
+          sb += '='
+          sb.append(v)
+        } { () => sb.append(", ") }
+      }
+    */
+    }
+  }
+
 
   override def typeCheck(a: Any): Boolean = a == null || {
     a.isInstanceOf[Row] &&
@@ -919,7 +966,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         val t = rhs.`type` match {
           case tNum: TNumeric => tNum
           case _ =>
-          parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
+            parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
         }
 
         val sumT = if (t == TInt || t == TLong)
@@ -1584,7 +1631,10 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def eval(ec: EvalContext): () => Any = {
     val localI = ec.st(symbol)._1
     val localA = ec.a
-    () => localA(localI)
+    if (localI < 0)
+      () => 0 // FIXME placeholder
+    else
+      () => localA(localI)
   }
 
   override def typecheckThis(ec: EvalContext): Type = {

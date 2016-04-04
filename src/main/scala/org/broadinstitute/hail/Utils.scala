@@ -1,30 +1,32 @@
 package org.broadinstitute.hail
 
 import java.io._
-import breeze.linalg.operators.{OpSub, OpAdd}
+
+import breeze.linalg.operators.{OpAdd, OpSub}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
+import org.apache.hadoop.io.{BytesWritable, NullWritable, Text}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.AccumulableParam
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
+import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.utils.RichRow
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant.{Sample, Variant}
+
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
-import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
-import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
+import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
+
 import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
-
 import Utils._
 
 final class ByteIterator(val a: Array[Byte]) {
@@ -413,6 +415,26 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
         }
       case _ => sb.append(a)
     }
+  }
+
+  def prettyAppend(a: Any) {
+    case null | None => sb.append("NA")
+    case Some(x) => prettyAppend(x)
+    case v: Variant =>
+      sb.append(v.contig)
+      sb += ':'
+      sb.append(v.start)
+      sb += ':'
+      sb.append(v.ref)
+      sb += ':'
+      sb.append(v.altAlleles.map(_.alt).mkString(","))
+    case s: Sample =>
+      sb.append(s.id)
+    case s: Seq[_] =>
+      sb.append("Array(")
+      s.foreachBetween(value => sb.prettyAppend(value))(() => sb.append(','))
+      sb.append(")")
+    case _ => sb.append(a)
   }
 }
 

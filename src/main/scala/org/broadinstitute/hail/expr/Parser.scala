@@ -154,7 +154,7 @@ object Parser extends JavaTokenParsers {
   }
 
   def annotationIdentifier: Parser[Array[String]] =
-    """[sv]a""".r ~ rep("." ~ (tickIdentifier ||| ident)) ^^ {
+    """[sv]?a""".r ~ rep("." ~ (tickIdentifier ||| ident)) ^^ {
       case arg ~ lst => (arg :: lst.map { case _ ~ arg => arg }).toArray
     }
 

@@ -1,6 +1,9 @@
 package org.broadinstitute.hail.annotations
 
 import org.apache.spark.sql.Row
+import org.broadinstitute.hail.expr._
+
+import scala.collection.mutable
 
 object Annotation {
 
@@ -19,6 +22,19 @@ object Annotation {
           }
             .mkString("\n")
       case a => a.toString + ": " + a.getClass.getCanonicalName
+    }
+  }
+
+  def zipAnnotations(args: Array[Annotation]): Annotation = {
+    if (args.forall(_.isInstanceOf[Row])) {
+      val size = args.head.asInstanceOf[Row].size
+      val rows = args.map(_.asInstanceOf[Row]).toArray
+      val propagated = (0 until size).map { i => rows.map(_.get(i))}.toArray
+      Row.fromSeq(propagated.map(arr => zipAnnotations(arr)))
+  }
+    else {
+      args.toSet
+        .take(5)
     }
   }
 

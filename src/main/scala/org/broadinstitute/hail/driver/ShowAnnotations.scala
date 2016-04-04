@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ShowAnnotations extends Command {
@@ -30,7 +31,10 @@ object ShowAnnotations extends Command {
 
     sb += '\n'
     sb.append("Variant annotations:\n")
-    vds.metadata.vaSignature.pretty(sb, 0, Vector("va"), 0)
+    val rows = vds.variantsAndAnnotations.take(100).map(_._2)
+    val zipped = Annotation.zipAnnotations(rows)
+    vds.metadata.vaSignature.prettyWithValues(sb, zipped, 0, Vector("va"), 0)
+//    vds.metadata.vaSignature.pretty(sb, 0, Vector("va"), 0)
 
     val result = sb.result()
     options.output match {
