@@ -33,6 +33,7 @@ class LoadBgenSuite extends SparkSuite {
     val nVariants = getNumberOfLinesInFile(gen)
 
     var s = State(sc, sqlContext, null)
+    s = IndexBGEN.run(s, Array("-s", sampleFile, bgen))
     s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", "10", bgen))
     assert(s.vds.nSamples == nSamples && s.vds.nVariants == nVariants)
 
@@ -85,6 +86,7 @@ class LoadBgenSuite extends SparkSuite {
 
         if (vds.nVariants == 0)
           try {
+            s = IndexBGEN.run(s, Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
             s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
             false
           } catch {
@@ -92,7 +94,8 @@ class LoadBgenSuite extends SparkSuite {
             case _: Throwable => false
           }
         else {
-          val q = ImportBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
+          var q = IndexBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, bgenFile))
+          q = ImportBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
           val importedVds = q.vds
 
           assert(importedVds.nSamples == origVds.nSamples)

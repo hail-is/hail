@@ -9,18 +9,22 @@ import org.apache.spark.SparkContext
 
 import scala.io.Source
 
-class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
+class BgenLoader(file: String, sampleFile: Option[String] = None, sc: SparkContext) {
   private var compression: Boolean = false
   private var version: Int = 0
   private var hasSampleIdBlock: Boolean = false
   private val reader = new HadoopFSDataBinaryReader(hadoopOpen(file, sc.hadoopConfiguration))
   private var nSamples: Int = 0
   private var nVariants: Int = 0
-  private val sampleIDs: Array[String] = parseHeaderAndIndex(sampleFile)
+  private var dataStart: Int = 24
+  private var headerLength: Int = 0
+  private var allInfoLength: Int = 0
+  parseHeader()
+  val sampleIds: Array[String] = parseSampleIds(sampleFile)
 
+  def getSampleIds: Array[String] = sampleIds
   def getNSamples: Int = nSamples
   def getNVariants: Int = nVariants
-  def getSampleIDs: Array[String] = sampleIDs
   def getIndex: String = file + ".idx"
   def getFile: String = file
 
@@ -50,10 +54,64 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
       throw new UnsupportedOperationException()
   }
 
-  def parseHeaderAndIndex(sampleFile: Option[String] = None): Array[String] = {
+  def createIndex() = {
+    val indexFile = file + ".idx"
+    val dataBlockStarts = new Array[Long](nVariants + 1)
+    var position: Long = dataStart
+
+    dataBlockStarts(0) = position
+
+    for (i <- 1 until nVariants + 1) {
+      position = getNextBlockPosition(position)
+      dataBlockStarts(i) = position
+      if (i % 100000 == 0)
+        info(s"Read the ${i}th variant out of $nVariants in file [$file]")
+    }
+
+    IndexBTree.write(dataBlockStarts, indexFile, sc.hadoopConfiguration)
+  }
+
+  def parseSampleIds(sampleFile: Option[String] = None): Array[String] = {
+    if (!hasSampleIdBlock && sampleFile.isEmpty)
+      fatal("No sample ids detected in BGEN file. Use -s with Sample ID file")
+    else if (hasSampleIdBlock && sampleFile.isDefined)
+      warn("Sample ids detected in BGEN file but Sample ID file given. Using IDs from sample ID file")
+
+    val sampleIDs = {
+      if (sampleFile.isDefined)
+        BgenLoader.parseSampleFile(sampleFile.get, sc.hadoopConfiguration)
+      else {
+        reader.seek(headerLength + 4)
+        val sampleIdSize = reader.readInt()
+        val nSamplesConfirmation = reader.readInt()
+
+        if (nSamplesConfirmation != nSamples)
+          fatal("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
+
+        if (sampleIdSize + headerLength > allInfoLength)
+          fatal("BGEN file is malformed -- offset is smaller than length of header")
+
+        val sampleIdArr = new Array[String](nSamples)
+        for (i <- 0 until nSamples) {
+          sampleIdArr(i) = reader.readLengthAndString(2)
+        }
+        sampleIdArr
+      }
+    }
+
+    if (sampleIDs.length != nSamples)
+      fatal(s"Length of sample IDs does not equal number of samples in BGEN file (${sampleIDs.length}, $nSamples)")
+
+    sampleIDs
+  }
+
+  private def parseHeader() = {
     reader.seek(0)
-    val allInfoLength = reader.readInt()
-    val headerLength = reader.readInt()
+    allInfoLength = reader.readInt()
+    headerLength = reader.readInt()
+
+    // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
+    dataStart = allInfoLength + 4
 
     require(headerLength <= allInfoLength)
 
@@ -76,54 +134,6 @@ class BgenLoader(file: String, sampleFile: Option[String], sc: SparkContext) {
     if (version != 1) // FIXME add support for more than 1 bit for v1.2
       fatal("Hail supports only BGEN v1.1 formats")
 
-    if (!hasSampleIdBlock && sampleFile.isEmpty)
-      fatal("No sample ids detected in BGEN file. Use -s with Sample ID file")
-    else if (hasSampleIdBlock && sampleFile.isDefined)
-      warn("Sample ids detected in BGEN file but Sample ID file given. Using IDs from sample ID file")
-
-    val sampleIDs = {
-      if (sampleFile.isDefined)
-        BgenLoader.parseSampleFile(sampleFile.get, sc.hadoopConfiguration)
-      else {
-        val sampleIdSize = reader.readInt()
-        val nSamplesConfirmation = reader.readInt()
-
-        if (nSamplesConfirmation != nSamples)
-          fatal("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
-
-        if (sampleIdSize + headerLength > allInfoLength)
-          fatal("BGEN file is malformed -- offset is smaller than length of header")
-
-        val sampleIdArr = new Array[String](nSamples)
-        for (i <- 0 until nSamples) {
-          sampleIdArr(i) = reader.readLengthAndString(2)
-        }
-        sampleIdArr
-      }
-    }
-
-    if (sampleIDs.length != nSamples)
-      fatal(s"Length of sample IDs does not equal number of samples in BGEN file (${sampleIDs.length}, ${nSamples})")
-
-    if (!hadoopIsFile(file + ".idx", sc.hadoopConfiguration)) {
-      info(s"Creating index [${file + ".idx"}]")
-      val dataBlockStarts = new Array[Long](nVariants + 1)
-
-      // allInfoLength is the "offset relative to the 5th byte of the start of the first variant block
-      var position: Long = (allInfoLength + 4).toLong
-      dataBlockStarts(0) = position
-
-      for (i <- 1 until nVariants + 1) {
-        position = getNextBlockPosition(position)
-        dataBlockStarts(i) = position
-        if (i % 100000 == 0)
-          info(s"Read the ${i}th variant out of $nVariants in file [$file]")
-      }
-
-      IndexBTree.write(dataBlockStarts, file + ".idx", sc.hadoopConfiguration)
-    }
-
-    sampleIDs
   }
 }
 
@@ -179,21 +189,36 @@ object BgenLoader {
     }
   }
 
-  def apply(bgenFiles: Array[String], sampleFile: Option[String] = None, sc: SparkContext,
+  def createIndex(bgenFile: String, sampleFile: Option[String] = None, sc: SparkContext) = {
+    val bl = new BgenLoader(bgenFile, sampleFile, sc)
+    info(s"Creating index file at ${bgenFile + ".idx"}")
+    bl.createIndex()
+  }
+
+  def readData(bgenFiles: Array[String], sampleFile: Option[String] = None, sc: SparkContext,
             nPartitions: Option[Int] = None, compress: Boolean = true): VariantDataset = {
-    //val bgenLoaders = sc.makeRDD(bgenFiles).map{file => new BgenLoader(file, sampleFile, sc)}
-    //val bgenLoaders = sc.makeRDD(bgenFiles.map{file => new BgenLoader(file, sampleFile, sc)})
+
     val bgenLoaders = bgenFiles.map{file => new BgenLoader(file, sampleFile, sc)}
-    //val sampleBgen = bgenLoaders.take(1)(0)
+
+    val bgenIndexed = bgenFiles.forall{file =>
+      if (!hadoopIsFile(file + ".idx", sc.hadoopConfiguration)) {
+        warn(s"No index file detected for $file")
+        false
+      }
+      else
+        true
+    }
+
+    if (!bgenIndexed)
+      fatal(s"Not all BGEN files have been indexed. Run the command indexbgen.")
+
     val sampleBgen = bgenLoaders(0)
 
-    //val nSamplesEqual = bgenLoaders.map{_.getNSamples}.collect.forall(_.equals(sampleBgen.getNSamples))
     val nSamplesEqual = bgenLoaders.map{_.getNSamples}forall(_.equals(sampleBgen.getNSamples))
     if (!nSamplesEqual)
       fatal("Different number of samples in BGEN files")
 
-    //val sampleIDsEqual = bgenLoaders.map{_.getSampleIDs}.collect.forall(_.sameElements(sampleBgen.getSampleIDs))
-    val sampleIDsEqual = bgenLoaders.map{_.getSampleIDs}.forall(_.sameElements(sampleBgen.getSampleIDs))
+    val sampleIDsEqual = bgenLoaders.map{_.getSampleIds}.forall(_.sameElements(sampleBgen.getSampleIds))
     if (!sampleIDsEqual)
       fatal("Sample IDs are not equal across BGEN files")
 
@@ -201,12 +226,11 @@ object BgenLoader {
     val nSamples = sampleBgen.getNSamples
     val nVariants = bgenLoaders.map{_.getNVariants}.sum
 
-    if (nVariants < 1)
-      fatal("Require at least 1 Variant in BGEN files")
+    if (!bgenLoaders.forall(_.getNVariants > 0))
+      fatal("Require at least 1 Variant in each BGEN file")
 
-    val sampleIDs = sampleBgen.getSampleIDs
+    val sampleIDs = sampleBgen.getSampleIds
 
-    //info(s"Number of BGEN files parsed: ${bgenLoaders.count}")
     info(s"Number of BGEN files parsed: ${bgenLoaders.length}")
     info(s"Number of variants in all BGEN files: $nVariants")
     info(s"Number of samples in BGEN files: $nSamples")

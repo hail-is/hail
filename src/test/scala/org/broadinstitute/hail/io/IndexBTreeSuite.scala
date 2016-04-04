@@ -14,7 +14,7 @@ class IndexBTreeSuite extends SparkSuite {
 
     val arraySizeGenerator = for (depth: Int <- choose(2,3);
                               arraySize: Int <- choose(math.max(1, math.pow(10, (depth - 1) * math.log10(1024)).toInt),
-                                math.min(10000000,math.pow(10, depth * math.log10(1024)).toInt))) yield (depth, arraySize)
+                                math.min(3000000,math.pow(10, depth * math.log10(1024)).toInt))) yield (depth, arraySize)
 
     def fillRandomArray(arraySize: Int): Array[Long] = {
       val randArray = new Array[Long](arraySize)

@@ -172,6 +172,7 @@ object Main {
       ImportBGEN,
       ImportPlink,
       ImportVCF,
+      IndexBGEN,
       LinearRegressionCommand,
       MendelErrorsCommand,
       SplitMulti,
