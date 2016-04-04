@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators.{SampleFamAnnotator, SampleTSVAnnotator}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -13,31 +12,29 @@ object AnnotateSamplesFam extends Command {
     var input: String = _
 
     @Args4jOption(required = false, name = "-q", aliases = Array("--quantpheno"),
-      usage = "Use this flag if phenotype is quanitative")
+      usage = "Quantitative phenotype flag")
     var isQuantitative: Boolean = false
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Field delimiter, default is \\t") // FIXME: specify some options here and in documentation
+      usage = "Field delimiter, default: `\\t'")
     var delimiter: String = "\t"
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
-      usage = "Argument is a period-delimited path starting with `sa', default is `sa.fam'")
+      usage = "Annotation root, a period-delimited path starting with `sa', default: `sa.fam'")
     var root: String = "sa.fam"
+
+    @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
+      usage = "Identifier to be treated as missing (in addition to `0', `-9', and non-numeric for case-control), default: `NA'")
+    var missing: String = "NA"
   }
 
   def newOptions = new Options
 
   def name = "annotatesamples fam"
 
-  def description = "Annotate samples with .fam file"
+  def description = "Annotate samples with .fam file: famID, patID, matID, isMale, and either isCase or qPheno"
 
   override def supportsMultiallelic = true
-
-  def parseRoot(s: String): List[String] = {
-    val split = s.split("\\.").toList
-    fatalIf(split.isEmpty || split.head != "sa", s"Root must start with `sa.', got `$s'")
-    split.tail
-  }
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -49,8 +46,8 @@ object AnnotateSamplesFam extends Command {
     val delimiter = options.delimiter
     val isQuantitative = options.isQuantitative
 
-    val (m, signature) = SampleFamAnnotator(input, delimiter, isQuantitative, state.hadoopConf)
-    val annotated = vds.annotateSamples(m, signature, parseRoot(options.root))
+    val (m, signature) = SampleFamAnnotator(input, delimiter, isQuantitative, options.missing, state.hadoopConf)
+    val annotated = vds.annotateSamples(m, signature, AnnotateSamplesTSV.parseRoot(options.root))
     state.copy(vds = annotated)
   }
 }

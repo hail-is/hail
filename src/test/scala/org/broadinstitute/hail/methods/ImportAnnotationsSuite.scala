@@ -42,27 +42,55 @@ class ImportAnnotationsSuite extends SparkSuite {
       .forall {
         case (id, sa) =>
           !fileMap.contains(id) ||
-            ((Some(fileMap(id)._1) == q1(sa)) && (Some(fileMap(id)._2) == q2(sa)))
+            (q1(sa).contains(fileMap(id)._1) && q2(sa).contains(fileMap(id)._2))
       }
   }
 
   @Test def testSampleFamAnnotator() {
+    def qMap(query: List[String], s: State): Map[String, Option[Any]] = {
+      val q = s.vds.querySA(query)
+      s.vds.sampleIds
+        .zip(s.vds.sampleAnnotations)
+        .map { case (id, sa) => (id, q(sa)) }
+        .toMap
+    }
+
     val vds = LoadVCF(sc, "src/test/resources/importFam.vcf")
-
-    val state = State(sc, sqlContext, vds)
-
-    val anno1 = AnnotateSamples.run(state,
-      Array("fam", "-i", "src/test/resources/importFam.fam"))
-
-    val q = anno1.vds.querySA("fam")
-
-    val m = anno1.vds.sampleIds
-    .zip(anno1.vds.sampleAnnotations)
-    .map { case (id, sa) => (id, q(sa))}
-
-    m.foreach(println)
+    var s = State(sc, sqlContext, vds)
 
 
+    s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamCaseControl.fam"))
+    val m = qMap(List("fam"), s)
+
+    assert(m("A").contains(Annotation("Newton", "C", "D", true, false)))
+    assert(m("B").contains(Annotation("Turing", "C", "D", false, true)))
+    assert(m("C").contains(Annotation(null, null, null, null, null)))
+    assert(m("D").contains(Annotation(null, null, null, null, null)))
+    assert(m("E").contains(Annotation(null, null, null, null, null)))
+    assert(m("F").isEmpty)
+
+
+    s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamQPheno.fam", "-q"))
+    val m1 = qMap(List("fam"), s)
+
+    assert(m1("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
+    assert(m1("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
+    assert(m1("C").contains(Annotation(null, null, null, null, 0.0)))
+    assert(m1("D").contains(Annotation(null, null, null, null, -9.0)))
+    assert(m1("E").contains(Annotation(null, null, null, null, null)))
+    assert(m1("F").isEmpty)
+
+
+    s = AnnotateSamples.run(s,
+      Array("fam", "-i", "src/test/resources/importFamQPheno.space.m9.fam", "-q", "-d", "\\s+", "-m", "-9", "-r", "sa.ped"))
+    val m2 = qMap(List("ped"), s)
+
+    assert(m2("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
+    assert(m2("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
+    assert(m2("C").contains(Annotation(null, null, null, null, 0.0)))
+    assert(m2("D").contains(Annotation(null, null, null, null, null)))
+    assert(m2("E").contains(Annotation(null, null, null, null, 3.0)))
+    assert(m2("F").isEmpty)
   }
 
   @Test def testVariantTSVAnnotator() {
@@ -92,7 +120,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .foreach {
         case (v, va, gs) =>
           val (rand1, rand2, gene) = fileMap(v)
-          assert(q1(va) == Some(Annotation(rand1.getOrElse(null), rand2.getOrElse(null), gene.getOrElse(null))))
+          assert(q1(va).contains(Annotation(rand1.getOrElse(null), rand2.getOrElse(null), gene.getOrElse(null))))
       }
 
     val anno1alternate = AnnotateVariants.run(state,
@@ -145,16 +173,16 @@ class ImportAnnotationsSuite extends SparkSuite {
         case (v, va) =>
           assert(v.start <= 14000000 ||
             v.start >= 17000000 ||
-            q1(va) == None)
+            q1(va).isEmpty)
       }
 
     bed2r.vds.variantsAndAnnotations
       .collect()
       .foreach {
         case (v, va) =>
-          (v.start <= 14000000 && (q2(va) == Some("gene1"))) ||
-            (v.start >= 17000000 && (q2(va) == Some("gene2"))) ||
-            (q2(va) == None)
+          (v.start <= 14000000 && q2(va).contains("gene1")) ||
+            (v.start >= 17000000 && q2(va).contains("gene2")) ||
+            (q2(va).isEmpty)
       }
 
     assert(bed3r.vds.same(bed2r.vds))
