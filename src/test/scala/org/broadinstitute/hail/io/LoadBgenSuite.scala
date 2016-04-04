@@ -129,7 +129,7 @@ class LoadBgenSuite extends SparkSuite {
       }
   }
 
-/*  @Test def testBgenImportRandom() {
+  @Test def testBgenImportRandom() {
     Spec.check()
-  }*/
+  }
 }
