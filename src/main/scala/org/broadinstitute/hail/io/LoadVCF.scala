@@ -1,12 +1,14 @@
 package org.broadinstitute.hail.io
 
 import htsjdk.tribble.TribbleException
+import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.vcf.BufferedLineIterator
 import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
+import org.broadinstitute.hail.{expr, PropagatedTribbleException, vcf}
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -18,8 +20,13 @@ object VCFReport {
   val ADODDPPMismatch = 4
   val GQPLMismatch = 5
   val GQMissingPL = 6
+  val RefNonACGT = 7
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
+
+  def isVariant(id: Int): Boolean = id == RefNonACGT
+
+  def isGenotype(id: Int): Boolean = !isVariant(id)
 
   def warningMessage(id: Int, count: Int): String = {
     val desc = id match {
@@ -29,6 +36,7 @@ object VCFReport {
       case ADODDPPMismatch => "DP != sum(AD) + OD"
       case GQPLMismatch => "GQ != difference of two smallest PL entries"
       case GQMissingPL => "GQ present but PL missing"
+      case RefNonACGT => "REF contains non-ACGT"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -37,33 +45,107 @@ object VCFReport {
     val sb = new StringBuilder()
     for ((file, m) <- accumulators) {
       sb.clear()
-      val nFiltered = m.value.values.sum
-      if (nFiltered > 0) {
-        sb.append(s"filtered $nFiltered genotypes while importing:\n    $file\n  details:")
-        m.value.foreach { case (id, n) =>
+
+      sb.append(s"while importing:\n    $file")
+
+      val variantWarnings = m.value.filter { case (k, v) => isVariant(k) }
+      val nVariantsFiltered = variantWarnings.values.sum
+      if (nVariantsFiltered > 0) {
+        sb.append(s"\n  filtered $nVariantsFiltered variants:")
+        variantWarnings.foreach { case (id, n) =>
           if (n > 0) {
-            sb += '\n'
-            sb.append("    ")
+            sb.append("\n    ")
             sb.append(warningMessage(id, n))
           }
         }
         warn(sb.result())
-      } else {
-        sb.append(s"import clean while importing:\n  $file")
-        info(sb.result())
       }
+
+      val genotypeWarnings = m.value.filter { case (k, v) => isGenotype(k) }
+      val nGenotypesFiltered = genotypeWarnings.values.sum
+      if (nGenotypesFiltered > 0) {
+        sb.append(s"\n  filtered $nGenotypesFiltered genotypes:")
+        genotypeWarnings.foreach { case (id, n) =>
+          if (n > 0) {
+            sb.append("\n    ")
+            sb.append(warningMessage(id, n))
+          }
+        }
+      }
+
+      if (nVariantsFiltered == 0 && nGenotypesFiltered == 0) {
+        sb.append("  import clean")
+        info(sb.result())
+      } else
+        warn(sb.result())
     }
   }
 }
 
 
 object LoadVCF {
+  def lineRef(s: String): String = {
+    var i = 0
+    var t = 0
+    while (t < 3
+      && i < s.length) {
+      if (s(i) == '\t')
+        t += 1
+      i += 1
+    }
+    val start = i
+
+    while (i < s.length
+      && s(i) != '\t')
+      i += 1
+    val end = i
+
+    s.substring(start, end)
+  }
+
+  def infoNumberToString(line: VCFInfoHeaderLine): String = line.getCountType match {
+    case VCFHeaderLineCount.A => "A"
+    case VCFHeaderLineCount.G => "G"
+    case VCFHeaderLineCount.R => "R"
+    case VCFHeaderLineCount.INTEGER => line.getCount.toString
+    case VCFHeaderLineCount.UNBOUNDED => "."
+  }
+
+  def infoTypeToString(line: VCFInfoHeaderLine): String = line.getType match {
+    case VCFHeaderLineType.Integer => "Integer"
+    case VCFHeaderLineType.Flag => "Flag"
+    case VCFHeaderLineType.Float => "Float"
+    case VCFHeaderLineType.Character => "Character"
+    case VCFHeaderLineType.String => "String"
+  }
+
+  def infoField(line: VCFInfoHeaderLine, i: Int): Field = {
+    val baseType = line.getType match {
+      case VCFHeaderLineType.Integer => TInt
+      case VCFHeaderLineType.Float => TDouble
+      case VCFHeaderLineType.String => TString
+      case VCFHeaderLineType.Character => TChar
+      case VCFHeaderLineType.Flag => TBoolean
+    }
+
+    val attrs = Map("Description" -> line.getDescription,
+      "Number" -> infoNumberToString(line),
+      "Type" -> infoTypeToString(line))
+    if (line.isFixedCount &&
+      (line.getCount == 1 ||
+        (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
+      Field(line.getID, baseType, i, attrs)
+    else
+      Field(line.getID, TArray(baseType), i, attrs)
+  }
+
   def apply(sc: SparkContext,
     file1: String,
     files: Array[String] = null, // FIXME hack
     storeGQ: Boolean = false,
     compress: Boolean = true,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None,
+    skipGenotypes: Boolean = false): VariantDataset = {
 
     val hConf = sc.hadoopConfiguration
     val headerLines = readFile(file1, hConf) { s =>
@@ -83,30 +165,35 @@ object LoadVCF {
     val filters: IndexedSeq[(String, String)] = header
       .getFilterLines
       .toList
+      // (filter, description)
       .map(line => (line.getID, ""))
       .toArray[(String, String)]
 
-    val infoSignatures = Annotations(header
+    val infoSignature = TStruct(header
       .getInfoHeaderLines
-      .toList
-      .map(line => (line.getID, VCFSignature.parse(line)))
-      .toMap)
+      .zipWithIndex
+      .map { case (line, i) => infoField(line, i) }
+      .toArray)
 
-    val variantAnnotationSignatures: Annotations = Annotations(Map("info" -> infoSignatures,
-      "filters" -> new SimpleSignature("Set[String]"),
-      "pass" -> new SimpleSignature("Boolean"),
-      "qual" -> new SimpleSignature("Double"),
-      "multiallelic" -> new SimpleSignature("Boolean"),
-      "rsid" -> new SimpleSignature("String")))
+    val variantAnnotationSignatures = TStruct(
+      "rsid" -> TString,
+      "qual" -> TDouble,
+      "filters" -> TSet(TString),
+      "pass" -> TBoolean,
+      "info" -> infoSignature)
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
 
-    val sampleIds = headerLine
-      .split("\t")
-      .drop(9)
+    val sampleIds: Array[String] =
+      if (skipGenotypes)
+        Array.empty
+      else
+        headerLine
+          .split("\t")
+          .drop(9)
 
-    val sigMap = sc.broadcast(infoSignatures.attrs)
+    val infoSignatureBc = sc.broadcast(infoSignature)
 
     val headerLinesBc = sc.broadcast(headerLines)
 
@@ -122,10 +209,17 @@ object LoadVCF {
       sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
         .mapPartitions { lines =>
           val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
-          lines.filter(line => !line.isEmpty && line(0) != '#')
+          lines.filterNot(line =>
+            line.isEmpty || line(0) == '#' || {
+              val containsNonACGT = !lineRef(line).forall(c =>
+                c == 'A' || c == 'C' || c == 'G' || c == 'T')
+              if (containsNonACGT)
+                reportAcc += VCFReport.RefNonACGT
+              containsNonACGT
+            })
             .map { line =>
               try {
-                reader.readRecord(reportAcc, line, sigMap.value, storeGQ)
+                reader.readRecord(reportAcc, line, infoSignatureBc.value, storeGQ, skipGenotypes)
               } catch {
                 case e: TribbleException =>
                   log.error(s"${e.getMessage}\n  line: $line", e)
@@ -136,7 +230,8 @@ object LoadVCF {
     })
 
     VariantSampleMatrix(VariantMetadata(filters, sampleIds,
-      Annotations.emptyIndexedSeq(sampleIds.length), Annotations.empty(),
+      Annotation.emptyIndexedSeq(sampleIds.length),
+      TEmpty,
       variantAnnotationSignatures), genotypes)
   }
 

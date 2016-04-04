@@ -1,41 +1,16 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.io.LoadVCF
-import org.broadinstitute.hail.driver.{FilterVariants, FilterSamples, FilterGenotypes, State}
-import org.broadinstitute.hail.{expr, SparkSuite}
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.utils.TestRDDBuilder
+import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
+import scala.collection.mutable.ArrayBuffer
 
 class FilterSuite extends SparkSuite {
-
-  @Test def exprTest() {
-    val symTab = Map ("i" ->(0, expr.TInt),
-      "j" ->(1, expr.TInt),
-      "d" ->(2, expr.TDouble),
-      "d2" ->(3, expr.TDouble),
-      "s" ->(4, expr.TString),
-      "s2" ->(5, expr.TString))
-    val a = Array[Any](5, -7, 3.14, 5.79e7, "12,34,56,78",
-      "this is a String, there are many like it, but this one is mine")
-
-    def eval[T](s: String): T = {
-      val f = expr.Parser.parse[T](symTab, a, s)
-      f()
-    }
-
-    assert(eval[Int]("i") == 5)
-    assert(eval[Int]("j") == -7)
-    assert(eval[Int]("i.max(j)") == 5)
-    assert(eval[Int]("i.min(j)") == -7)
-    assert(D_==(eval[Double]("d"), 3.14))
-    assert(eval[Array[String]]("""s.split(",")""") sameElements Array("12", "34", "56", "78"))
-    assert(eval[Int]("s2.length") == 62)
-
-    // FIXME catch parse errors
-    // assert(eval[Boolean]("i.max(d) == 5"))
-  }
 
   @Test def filterTest() {
 
@@ -114,9 +89,9 @@ class FilterSuite extends SparkSuite {
     var state2 = State(sc, sqlContext, vds2.cache())
     state2 = SplitMulti.run(state2, Array.empty[String])
 
-    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad(0) < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad[0] < 30")).vds.expand().collect().count(_._3.isCalled) == 3)
 
-    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad(1).toDouble / g.dp > 0.05")).vds.expand().collect().count(_._3.isCalled) == 3)
+    assert(FilterGenotypes.run(state2, Array("--keep", "-c", "g.ad[1].toDouble / g.dp > 0.05")).vds.expand().collect().count(_._3.isCalled) == 3)
 
     val highGQ2 = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
 
@@ -157,4 +132,58 @@ class FilterSuite extends SparkSuite {
 
   }
 
+  @Test def filterRegexTest() {
+    val vds = LoadVCF(sc, "src/test/resources/multipleChromosomes.vcf")
+    val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterVariants.run(s, Array("--keep", "-c", """ "^\\d+$" ~ v.contig """))
+    assert(s.vds.nVariants == s2.vds.nVariants)
+  }
+
+  @Test def MissingTest() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val keepOneSample = FilterSamples.run(s, Array("--keep", "-c", "s.id == \"C1046::HG02024\""))
+    val qc = VariantQC.run(keepOneSample, Array.empty[String])
+
+    val q = qc.vds.queryVA("qc", "rHetHomVar")
+    val missingVariants = qc.vds.variantsAndAnnotations
+      .collect()
+      .filter { case (v, va) =>
+        q(va).isEmpty
+      }
+      .map(_._1)
+
+    // ensure that we're not checking empty vs empty
+    assert(missingVariants.size > 0)
+
+    val missingVariantsFilter = FilterVariants.run(qc, Array("--keep", "-c", "va.qc.rHetHomVar.isMissing"))
+      .vds
+      .variantsAndAnnotations
+      .collect()
+      .map(_._1)
+
+    assert(missingVariantsFilter.toSet == missingVariants.toSet)
+  }
+
+  @Test def testWeirdNames() {
+    var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val (sigs, i) = vds.insertVA(TInt, "weird name \t test")
+    vds = vds
+      .mapAnnotations((v, va) => i(va, Some(1000)))
+      .copy(vaSignature = sigs)
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterVariants.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))
+    assert(s2.vds.nVariants == vds.nVariants)
+  }
+
+  @Test def testPAB() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val s2 = FilterGenotypes.run(state, Array("--keep", "-c", "g.isHet && g.pAB > 0.0005"))
+    s2.vds.expand()
+      .collect()
+      .foreach { case (v, s, g) =>
+        assert(!g.isHet || g.pAB().forall(_ > 0.0005))
+      }
+  }
 }

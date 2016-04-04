@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.collection.mutable.ArrayBuffer
 
 object ExportGenotypes extends Command {
 
@@ -32,32 +32,35 @@ object ExportGenotypes extends Command {
   def name = "exportgenotypes"
 
   def description = "Export list of sample-variant information to tsv"
+  override def supportsMultiallelic = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val sc = vds.sparkContext
     val cond = options.condition
     val output = options.output
-    val vas = vds.metadata.variantAnnotationSignatures
-    val sas = vds.metadata.sampleAnnotationSignatures
+    val vas = vds.vaSignature
+    val sas = vds.saSignature
 
     val symTab = Map(
-      "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType),
-      "s" ->(2, expr.TSample),
-      "sa" ->(3, vds.metadata.sampleAnnotationSignatures.toExprType),
-      "g" ->(4, expr.TGenotype))
-    val a = new Array[Any](5)
+      "v" ->(0, TVariant),
+      "va" ->(1, vas),
+      "s" ->(2, TSample),
+      "sa" ->(3, sas),
+      "g" ->(4, TGenotype))
+    val a = new ArrayBuffer[Any]()
+    for (_ <- symTab)
+      a += null
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, sc.hadoopConfiguration)
     else
-      expr.Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(symTab, a, cond)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
+    val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
 
     val localPrintRef = options.printRef
     val localPrintMissing = options.printMissing
@@ -71,9 +74,9 @@ object ExportGenotypes extends Command {
         .filter { case (v, va, s, g) => filterF(g) }
         .map { case (v, va, s, g) =>
           a(0) = v
-          a(1) = va.attrs
+          a(1) = va
           a(2) = sampleIdsBc.value(s)
-          a(3) = sampleAnnotationsBc.value(s).attrs
+          a(3) = sampleAnnotationsBc.value(s)
           a(4) = g
           sb.clear()
           var first = true

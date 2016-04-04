@@ -1,29 +1,32 @@
 package org.broadinstitute.hail
 
 import java.io._
-import java.net.URI
-import breeze.linalg.operators.{OpSub, OpAdd}
+
+import breeze.linalg.operators.{OpAdd, OpSub}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
+import org.apache.hadoop.io.{BytesWritable, NullWritable, Text}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.AccumulableParam
+import org.apache.spark.{AccumulableParam, SparkContext}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
-import org.broadinstitute.hail.driver.HailConfiguration
+import org.apache.spark.sql.Row
+import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
+
 import scala.collection.{TraversableOnce, mutable}
+import scala.io.Source
 import scala.language.implicitConversions
-import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
-import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
+import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
+
 import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
-
 import Utils._
 
 final class ByteIterator(val a: Array[Byte]) {
@@ -80,15 +83,8 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     }
   }
 
-  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
-    var first = true
-    i.foreach { elem =>
-      if (first)
-        first = false
-      else
-        g()
-      f(elem)
-    }
+  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
+    richIterator(i.iterator).foreachBetween(f)(g)
   }
 
   def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
@@ -268,6 +264,16 @@ class RichArray[T](a: Array[T]) {
   def areDistinct() = a.toIterable.areDistinct()
 }
 
+class RichSparkContext(val sc: SparkContext) extends AnyVal {
+  def textFiles[T](files: Array[String], f: String => Unit = s => (),
+    nPartitions: Int = sc.defaultMinPartitions): RDD[String] = {
+    files.foreach(f)
+    sc.union(
+      files.map(file =>
+        sc.textFile(file, nPartitions)))
+  }
+}
+
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
@@ -359,6 +365,8 @@ class RichIndexedRow(val r: IndexedRow) extends AnyVal {
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
 
+  def :*(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :* that)
+
   def :/(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :/ that)
 }
 
@@ -396,7 +404,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
         sb += ':'
         sb.append(v.ref)
         sb += ':'
-        sb.append(v.alt)
+        sb.append(v.altAlleles.map(_.alt).mkString(","))
       case i: Iterable[_] =>
         var first = true
         i.foreach { x =>
@@ -454,6 +462,17 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       }
     n == 1
   }
+
+  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
+    var first = true
+    it.foreach { elem =>
+      if (first)
+        first = false
+      else
+        g()
+      f(elem)
+    }
+  }
 }
 
 class RichBoolean(val b: Boolean) extends AnyVal {
@@ -476,15 +495,25 @@ class FatalException(msg: String) extends RuntimeException(msg)
 
 class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
 
+class RichAny(val a: Any) extends AnyVal {
+  def castOption[T](implicit ct: ClassTag[T]): Option[T] =
+    if (ct.runtimeClass.isInstance(a))
+      Some(a.asInstanceOf[T])
+    else
+      None
+}
+
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
+  implicit def toRichSC(sc: SparkContext): RichSparkContext = new RichSparkContext(sc)
+
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-  
+
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
@@ -578,6 +607,11 @@ object Utils extends Logging {
     System.err.println("hail: error: " + msg)
   }
 
+  def fatalIf(b: Boolean, msg: String): Unit = {
+    if (b)
+      fatal(msg)
+  }
+
   def fatal(msg: String): Nothing = {
     throw new FatalException(msg)
   }
@@ -595,7 +629,7 @@ object Utils extends Logging {
     fs.isFile(new hadoop.fs.Path(filename))
   }
 
-  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
+  private def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val os = fs.create(hPath)
@@ -608,7 +642,7 @@ object Utils extends Logging {
       os
   }
 
-  def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
+  private def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val is = fs.open(hPath)
@@ -657,6 +691,17 @@ object Utils extends Logging {
         getRandomName
     }
     getRandomName
+  }
+
+  def hadoopGlobAll(filenames: Iterable[String], hConf: hadoop.conf.Configuration): Array[String] = {
+    filenames.iterator
+      .flatMap { arg =>
+        val fss = hadoopGlobAndSort(arg, hConf)
+        val files = fss.map(_.getPath.toString)
+        if (files.isEmpty)
+          warn(s"`$arg' refers to no files")
+        files
+      }.toArray
   }
 
   def hadoopGlobAndSort(filename: String, hConf: hadoop.conf.Configuration): Array[FileStatus] = {
@@ -714,6 +759,18 @@ object Utils extends Logging {
         case fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, true)
       }
     }
+  }
+
+  def hadoopStripCodec(s: String, conf: hadoop.conf.Configuration): String = {
+    val path = new org.apache.hadoop.fs.Path(s)
+
+    Option(new CompressionCodecFactory(conf)
+      .getCodec(path))
+      .map { case codec =>
+        val ext = codec.getDefaultExtension
+        assert(s.endsWith(ext))
+        s.dropRight(ext.length)
+      }.getOrElse(s)
   }
 
   def writeObjectFile[T](filename: String,
@@ -778,11 +835,56 @@ object Utils extends Logging {
     }
   }
 
+  case class Line(value: String, position: Int, filename: String) {
+    def fatal(msg: String): Nothing = {
+      val lineToPrint =
+        if (value.length > 100)
+          value.take(100) + "..."
+        else
+          value
+      Utils.fatal(
+        s"""
+           |$msg at $filename:${position + 1}
+           |Offending line: "$lineToPrint""".stripMargin)
+    }
+
+    def transform[T](f: Line => T): T = {
+      try {
+        f(this)
+      } catch {
+        case e: Exception =>
+          val lineToPrint =
+            if (value.length > 100)
+              value.take(100) + "..."
+            else
+              value
+          Utils.fatal(
+            s"""
+               |${e.getClass.getName} at $filename:${position + 1}
+               |Offending line: $lineToPrint
+               |${e.getMessage}""".stripMargin)
+      }
+    }
+  }
+
+  def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {
+    readFile[T](filename, hConf) {
+      is =>
+        val lines = Source.fromInputStream(is)
+          .getLines
+          .zipWithIndex
+          .map {
+            case (value, position) => Line(value, position, filename)
+          }
+        reader(lines)
+    }
+  }
+
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
     lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        header.map { h =>
+        header.foreach { h =>
           fw.write(h)
           fw.write('\n')
         }
@@ -794,6 +896,8 @@ object Utils extends Logging {
   }
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
+
+  def triangle(n: Int): Int = ((n * (n + 1)) / 2)
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
@@ -872,8 +976,18 @@ object Utils extends Logging {
     else
       None
 
+  def nullIfNot(p: Boolean, x: Any): Any = {
+    if (p)
+      x
+    else
+      null
+  }
+
   def divOption[T](num: T, denom: T)(implicit ev: T => Double): Option[Double] =
     someIf(denom != 0, ev(num) / denom)
+
+  def divNull[T](num: T, denom: T)(implicit ev: T => Double): Any =
+    nullIfNot(denom != 0, ev(num) / denom)
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder =
     new RichStringBuilder(sb)
@@ -925,4 +1039,8 @@ object Utils extends Logging {
     def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
       mutable.Map.empty[K, Int]
   }
+
+  implicit def toRichAny(a: Any): RichAny = new RichAny(a)
+
+  implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 }

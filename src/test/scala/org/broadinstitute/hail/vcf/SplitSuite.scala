@@ -2,7 +2,7 @@ package org.broadinstitute.hail.vcf
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.io.LoadVCF
-import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver.{SplitMulti, State}
 import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix, VariantDataset, Variant}
 import org.broadinstitute.hail.check.Properties
@@ -17,8 +17,9 @@ class SplitSuite extends SparkSuite {
       forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vds: VariantDataset) =>
         var s = State(sc, sqlContext, vds)
         s = SplitMulti.run(s, Array[String]())
-        s.vds.mapWithAll((v: Variant, va: Annotations, _: Int, g: Genotype) =>
-          !g.fakeRef || va.attrs("wasSplit").asInstanceOf[Boolean])
+        val wasSplitQuerier = s.vds.vaSignature.query("wasSplit")
+        s.vds.mapWithAll((v: Variant, va: Annotation, _: Int, g: Genotype) =>
+          !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get)
           .collect()
           .forall(identity)
       }
@@ -48,8 +49,10 @@ class SplitSuite extends SparkSuite {
       .join(vds2.mapWithKeys((v, s, g) => ((v, s), g)))
       .foreach { case (k, (g1, g2)) => simpleAssert(g1 == g2) }
 
+    val wasSplitQuerier = vds1.vaSignature.query("wasSplit")
+
     // test for wasSplit
-    vds1.mapWithAll((v, va, s, g) => (v.start, va.attrs("wasSplit").asInstanceOf[Boolean]))
+    vds1.mapWithAll((v, va, s, g) => (v.start, wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get))
       .foreach { case (i, b) =>
         simpleAssert(b == (i != 1180))
       }

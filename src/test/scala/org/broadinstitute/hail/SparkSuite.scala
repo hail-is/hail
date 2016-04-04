@@ -11,6 +11,7 @@ import org.testng.annotations.{BeforeClass, AfterClass}
 class SparkSuite extends TestNGSuite {
   var sc: SparkContext = null
   var sqlContext: SQLContext = null
+  val noArgs: Array[String] = Array.empty[String]
 
   @BeforeClass
   def startSpark() {

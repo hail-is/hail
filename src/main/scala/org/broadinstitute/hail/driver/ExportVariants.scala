@@ -1,12 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.expr.TVariant
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.collection.mutable.ArrayBuffer
 
 import scala.io.Source
 
@@ -29,21 +27,25 @@ object ExportVariants extends Command {
 
   def description = "Export list of variant information to tsv"
 
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val vas = vds.metadata.variantAnnotationSignatures
+    val vas = vds.vaSignature
     val cond = options.condition
     val output = options.output
 
     val symTab = Map(
       "v" ->(0, TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType))
-    val a = new Array[Any](2)
+      "va" ->(1, vas))
+    val a = new ArrayBuffer[Any]()
+    for (_ <- symTab)
+      a += null
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)
     else
-      expr.Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(symTab, a, cond)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
@@ -55,7 +57,7 @@ object ExportVariants extends Command {
           var first = true
           fs.foreach { f =>
             a(0) = v
-            a(1) = va.attrs
+            a(1) = va
             if (first)
               first = false
             else

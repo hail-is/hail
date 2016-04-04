@@ -1,8 +1,10 @@
 package org.broadinstitute.hail.vcf
 
 import org.apache.spark.Accumulable
-import org.broadinstitute.hail.io.VCFReport
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -20,17 +22,24 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
+
+  import HtsjdkRecordReader._
+
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     line: String,
-    typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
+    infoSignature: TStruct,
+    storeGQ: Boolean,
+    skipGenotypes: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
     val vc = codec.decode(line)
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
-    val filts = {
+    val filters: mutable.WrappedArray[String] = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
-        Set("PASS")
-      else
-        vc.getFilters.asScala.toSet
+        Array("PASS")
+      else {
+        val arr = vc.getFilters.asScala.toArray
+        arr
+      }
     }
     val rsid = vc.getID
 
@@ -40,19 +49,30 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
 
-    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
-      .asScala
-      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
-      .toMap
-      .flatMap { case (k, v) =>
-        typeMap.get(k).map { t =>
-          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
+    val info = Annotation(
+      infoSignature.fields.map { f =>
+        val a = vc.getAttribute(f.name)
+        try {
+          cast(a, f.`type`)
+        } catch {
+          case e: Exception =>
+            fatal(
+              s"""variant $v: INFO field ${f.name}:
+                  |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
+                  |  caught $e""".stripMargin)
         }
-      }),
-      "qual" -> vc.getPhredScaledQual,
-      "filters" -> filts,
-      "pass" -> pass,
-      "rsid" -> rsid))
+      }: _*)
+    assert(infoSignature.typeCheck(info))
+
+    val va = Annotation(
+      rsid,
+      vc.getPhredScaledQual,
+      filters,
+      pass,
+      info)
+
+    if (skipGenotypes)
+      return (v, va, Iterable.empty)
 
     val gb = new GenotypeBuilder(v)
 
@@ -180,30 +200,32 @@ object HtsjdkRecordReader {
     new HtsjdkRecordReader(codec)
   }
 
-  def purgeJavaArrayLists(ar: AnyRef): Any = {
-    ar match {
-      case arr: java.util.ArrayList[_] => arr.asScala
-      case _ => ar
-    }
-  }
+  def cast(value: Any, t: Type): Any = {
+    ((value, t): @unchecked) match {
+      case (null, _) => null
+      case (s: String, TArray(TInt)) =>
+        s.split(",").map(_.toInt): IndexedSeq[Int]
+      case (s: String, TArray(TDouble)) =>
+        s.split(",").map(_.toDouble): IndexedSeq[Double]
+      case (s: String, TArray(TString)) =>
+        s.split(","): IndexedSeq[String]
+      case (s: String, TArray(TChar)) =>
+        s.split(","): IndexedSeq[String]
+      case (s: String, TBoolean) => s.toBoolean
+      case (b: Boolean, TBoolean) => b
+      case (s: String, TString) => s
+      case (s: String, TChar) => s
+      case (s: String, TInt) => s.toInt
+      case (s: String, TDouble) => s.toDouble
 
-  def mapType(value: Any, sig: VCFSignature): Any = {
-    value match {
-      case str: String =>
-        sig.typeOf match {
-          case "Int" => str.toInt
-          case "Double" => str.toDouble
-          case "Array[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
-          case "Array[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
-          case _ => value
-        }
-      case i: IndexedSeq[_] =>
-        sig.number match {
-          case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
-          case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)
-
-        }
-      case _ => value
+      case (a: java.util.ArrayList[_], TArray(TInt)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String].toInt).toArray: IndexedSeq[Int]
+      case (a: java.util.ArrayList[_], TArray(TDouble)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String].toDouble).toArray: IndexedSeq[Double]
+      case (a: java.util.ArrayList[_], TArray(TString)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
+      case (a: java.util.ArrayList[_], TArray(TChar)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
     }
   }
 }

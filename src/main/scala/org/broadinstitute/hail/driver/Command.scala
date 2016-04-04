@@ -1,12 +1,12 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.{SparkException, SparkContext}
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
-import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.variant.VariantDataset
-import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
+import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option => Args4jOption}
 import scala.collection.JavaConverters._
 import org.broadinstitute.hail.Utils._
+import scala.collection.mutable
 
 case class State(sc: SparkContext,
   sqlContext: SQLContext,
@@ -15,7 +15,136 @@ case class State(sc: SparkContext,
   def hadoopConf = sc.hadoopConfiguration
 }
 
-// FIXME: HasArgs vs Command
+object ToplevelCommands {
+  val commands = mutable.Map.empty[String, Command]
+
+  def commandNames: Set[String] = commands.keys.toSet
+
+  def register(command: Command) {
+    commands += command.name -> command
+  }
+
+  def lookup(args: Array[String]): (Command, Array[String]) = {
+    assert(!args.isEmpty)
+
+    val commandName = args.head
+    commands.get(commandName) match {
+      case Some(c) => c.lookup(args.tail)
+      case None =>
+        fatal(s"no such command `$commandName'")
+    }
+  }
+
+  def printCommands() {
+    val visibleCommands = commands.values.filterNot(_.hidden)
+    val maxLen = visibleCommands.map(_.name.length).max
+    visibleCommands
+      .foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.length + 2))
+        + cmd.description))
+  }
+
+  register(AnnotateSamples)
+  register(AnnotateVariants)
+  register(Cache)
+  register(ImportAnnotations)
+  register(Count)
+  register(DownsampleVariants)
+  register(ExportPlink)
+  register(ExportGenotypes)
+  register(ExportSamples)
+  register(ExportVariants)
+  register(ExportVCF)
+  register(FilterGenotypes)
+  register(FamSummary)
+  register(FilterVariants)
+  register(FilterSamples)
+  register(GenDataset)
+  register(Grep)
+  register(GQByDP)
+  register(GQHist)
+  register(ImportBGEN)
+  register(ImportVCF)
+  register(IndexBGEN)
+  register(LinearRegressionCommand)
+  register(MendelErrorsCommand)
+  register(SplitMulti)
+  register(PCA)
+  register(Read)
+  register(RenameSamples)
+  register(Repartition)
+  register(SampleQC)
+  register(ShowAnnotations)
+  register(VariantQC)
+  register(VEP)
+  register(Write)
+
+  // example commands
+  register(example.CaseControlCount)
+}
+
+abstract class SuperCommand extends Command {
+
+  class Options extends BaseOptions {
+    @Argument(required = true, usage = "<subcommand> <arguments...>")
+    var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
+  }
+
+  def newOptions = new Options
+
+  val subcommands = mutable.Map.empty[String, Command]
+
+  def subcommandNames: Set[String] = subcommands.keys.toSet
+
+  def register(subcommand: Command) {
+    val split = subcommand.name.split(" ")
+    assert(name == split.init.mkString(" "))
+    subcommands += split.last -> subcommand
+  }
+
+  override def supportsMultiallelic = true
+
+  override def lookup(args: Array[String]): (Command, Array[String]) = {
+    if (args.isEmpty
+      || args.head(0) == '-')
+      return (this, args)
+
+    val subcommandName = args.head
+    subcommands.get(subcommandName) match {
+      case Some(sc) => sc.lookup(args.tail)
+      case None =>
+        fatal(s"$name: no such sub-command `$subcommandName'")
+    }
+  }
+
+  override def printUsage() {
+    super.printUsage()
+
+    println("")
+    println("Sub-commands:")
+    val visibleSubcommands = subcommands.values.filterNot(_.hidden)
+    val maxLen = visibleSubcommands.map(_.name.length).max
+    visibleSubcommands
+      .foreach(sc => println("  " + sc.name + (" " * (maxLen - sc.name.length + 2))
+        + sc.description))
+  }
+
+  override def parseArgs(args: Array[String]): Options = {
+    val options = newOptions
+    options.arguments = new java.util.ArrayList[String](args.toList.asJava)
+    options
+  }
+
+  def run(state: State, options: Options): State = {
+    val args = options.arguments.asScala.toArray
+
+    if (args.isEmpty)
+      fatal(s"no sub-command given.  See help (-h) output for list of sub-commands.")
+
+    val (sc, scArgs) = lookup(args)
+    sc.run(state, scArgs)
+  }
+}
+
 abstract class Command {
 
   class BaseOptions {
@@ -36,6 +165,17 @@ abstract class Command {
 
   def supportsMultiallelic = false
 
+  def lookup(args: Array[String]): (Command, Array[String]) = (this, args)
+
+  def printUsage() {
+    println("usage: " + name + " [<args>]")
+    println("")
+    println(description)
+    println("")
+    println("Arguments:")
+    new CmdLineParser(newOptions).printUsage(System.out)
+  }
+
   def parseArgs(args: Array[String]): Options = {
     val options = newOptions
     val parser = new CmdLineParser(options)
@@ -43,17 +183,12 @@ abstract class Command {
     try {
       parser.parseArgument((args: Iterable[String]).asJavaCollection)
       if (options.printUsage) {
-        println("usage: " + name + " [<args>]")
-        println("")
-        println(description)
-        println("")
-        println("Arguments:")
-        new CmdLineParser(newOptions).printUsage(System.out)
+        printUsage()
         sys.exit(0)
       }
     } catch {
       case e: CmdLineException =>
-        fatal(s"$name: parse error: ${e.getMessage}")
+        fatal(s"parse error: ${e.getMessage}")
     }
 
     options
@@ -62,13 +197,13 @@ abstract class Command {
   def runCommand(state: State, options: Options): State = {
     if (!supportsMultiallelic
       && state.vds != null
-      && !state.vds.metadata.wasSplit)
-      fatal(s"`$name' does not support multiallelics.\n  Run `splitmulti' first.")
+      && !state.vds.wasSplit)
+      fatal(s"does not support multiallelics.\n  Run `splitmulti' first.")
 
     run(state, options)
   }
 
-  def run(state: State, args: Array[String]): State =
+  def run(state: State, args: Array[String] = Array.empty): State =
     runCommand(state, parseArgs(args))
 
   protected def run(state: State, options: Options): State
