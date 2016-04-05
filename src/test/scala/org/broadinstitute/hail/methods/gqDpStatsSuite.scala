@@ -37,7 +37,7 @@ class gqDpStatsSuite extends SparkSuite {
         simpleAssert(D_==(a.dpSC.stdev, variantDevs(v.start - 1)))
     }
 
-      dpSampleR.collect().foreach {
+      dpSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
@@ -58,7 +58,7 @@ class gqDpStatsSuite extends SparkSuite {
         simpleAssert(D_==(a.gqSC.stdev, variantDevs(v.start - 1)))
     }
 
-    gqSampleR.collect().foreach {
+    gqSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))

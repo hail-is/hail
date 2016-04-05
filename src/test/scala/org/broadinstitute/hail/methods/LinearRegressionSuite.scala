@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.io.LoadVCF
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver.{SplitMulti, LinearRegressionCommand, State}
 import org.broadinstitute.hail.variant.Variant

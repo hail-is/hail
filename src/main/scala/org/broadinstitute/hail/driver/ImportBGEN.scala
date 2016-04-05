@@ -20,7 +20,7 @@ object ImportBGEN extends Command {
     @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
     var noCompress: Boolean = false
 
-    @Argument
+    @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
 

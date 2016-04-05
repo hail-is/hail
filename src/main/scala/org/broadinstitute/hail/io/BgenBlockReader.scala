@@ -6,6 +6,7 @@ import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 import org.broadinstitute.hail.variant.{Genotype, GenotypeStreamBuilder, Variant}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.annotations._
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Variant](job, split) {
@@ -77,7 +78,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
       // FIXME: using first allele as ref and second as alt
       val variant = Variant(chr, position, alleles(0), alleles(1))
-      val varAnnotation = Annotations(Map[String,String]("rsid" -> rsid,"varid" -> lid))
+      val varAnnotation = Annotation(rsid, lid) //order must match TStruct
 
       val bytes = {
         if (bgenCompressed) {

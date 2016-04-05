@@ -1,8 +1,7 @@
 package org.broadinstitute.hail.io
 
-import java.io.{EOFException, OutputStream, InputStream}
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.fs._
 import scala.collection.mutable
 import org.broadinstitute.hail.Utils._
 
@@ -12,7 +11,6 @@ object IndexBTree {
     require(arr.length > 0)
 
     writeDataFile(fileName, hConf) { w =>
-      val fs = new FSDataOutputStream(w)
       val depth = calcDepth(arr)
 
       // Write layers above last layer if needed -- padding of -1 included
@@ -44,7 +42,8 @@ object IndexBTree {
         (l >>> 8).toByte,
         (l >>> 0).toByte)).toArray
 
-      fs.write(bytes)
+      //fs.write(bytes)
+      w.write(bytes)
     }
   }
 

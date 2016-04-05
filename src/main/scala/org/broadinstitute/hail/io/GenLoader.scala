@@ -6,6 +6,7 @@ import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
 
 
 object GenLoader {
@@ -14,8 +15,8 @@ object GenLoader {
     val sampleIds = BgenLoader.parseSampleFile(sampleFile, hConf)
     val nSamples = sampleIds.length
     val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions)).map{case line => readGenLine(line, nSamples)}
-    val signatures = Annotations(Map("rsid" -> new SimpleSignature("String"), "varid" -> new SimpleSignature("String")))
-    VariantSampleMatrix(metadata = VariantMetadata(sampleIds).addVariantAnnotationSignatures(signatures), rdd = rdd)
+    val signatures = TStruct("rsid" -> TString, "varid" -> TString)
+    VariantSampleMatrix(metadata = VariantMetadata(sampleIds).copy(vaSignature = signatures), rdd = rdd)
   }
 
   def convertPPsToInt(prob: Double): Int = {
@@ -26,10 +27,10 @@ object GenLoader {
 
   def convertPPsToInt(probArray: Array[Double]): Array[Int] = probArray.map{d => convertPPsToInt(d)}
 
-  def readGenLine(line: String, nSamples: Int): (Variant, Annotations, Iterable[Genotype]) = {
+  def readGenLine(line: String, nSamples: Int): (Variant, Annotation, Iterable[Genotype]) = {
     val arr = line.split("\\s+")
     val variant = Variant(arr(0), arr(3).toInt, arr(4), arr(5))
-    val annotations = Annotations(Map[String,String]("varid" -> arr(1), "rsid" -> arr(2)))
+    val annotations = Annotation(arr(2), arr(1)) //rsid, varid
     val dosages = arr.drop(6).map{_.toDouble}
 
     if (dosages.length != (3 * nSamples))
@@ -65,7 +66,7 @@ object GenWriter {
     tmp.map{d => d / tmp.sum}
   }
 
-  def appendRow(sb: StringBuilder, v: Variant, va: Annotations, gs: Iterable[Genotype]) {
+  def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype]) {
     sb.append(v.contig)
     sb += ' '
     sb.append("fakeVariantID")
@@ -94,8 +95,8 @@ object GenWriter {
     }
     kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
     kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotations, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-      .mapPartitions { it: Iterator[(Variant, (Annotations, Iterable[Genotype]))] =>
+      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotation, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+      .mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
         val sb = new StringBuilder
         it.map { case (v, (va, gs)) =>
           sb.clear()

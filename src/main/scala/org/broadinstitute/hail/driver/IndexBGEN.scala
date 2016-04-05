@@ -14,7 +14,7 @@ object IndexBGEN extends Command {
     @Args4jOption(name = "-s", aliases = Array("--samplefile"), usage = "Sample file for BGEN files")
     var sampleFile: String = null
 
-    @Argument
+    @Argument(usage = "<file>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
 

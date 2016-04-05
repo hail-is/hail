@@ -43,8 +43,11 @@ class LoadBgenSuite extends SparkSuite {
     val bgenVariantsAnnotations = bgenVDS.variantsAndAnnotations
     val bgenSampleIds = s.vds.sampleIds
     val genSampleIds = genVDS.sampleIds
-    val bgenFull = bgenVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((va.get("varid").toString,bgenSampleIds(i)),gt)}
-    val genFull = genVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((va.get("varid").toString,genSampleIds(i)),gt)}
+
+    val bgenQuery = bgenVDS.vaSignature.query("varid")
+    val genQuery = genVDS.vaSignature.query("varid")
+    val bgenFull = bgenVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((bgenQuery(va).get,bgenSampleIds(i)),gt)}
+    val genFull = genVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((genQuery(va).get,genSampleIds(i)),gt)}
 
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)

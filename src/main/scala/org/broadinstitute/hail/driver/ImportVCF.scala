@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.methods.LoadVCF
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._
 import org.apache.hadoop

@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.io.LoadVCF
 import org.testng.annotations.Test
 
 class GQByDPBinSuite extends SparkSuite {

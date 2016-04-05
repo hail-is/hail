@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.io
 
+import org.apache.hadoop.fs._
 import org.apache.hadoop.conf.Configuration
-import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.hadoop.io.LongWritable
@@ -10,10 +11,13 @@ import org.apache.spark.SparkContext
 import scala.io.Source
 
 class BgenLoader(file: String, sampleFile: Option[String] = None, sc: SparkContext) {
+  val fs = hadoopFS(file, sc.hadoopConfiguration)
+  val is = fs.open(new Path(file))
+  private val reader = new HadoopFSDataBinaryReader(is)
+
   private var compression: Boolean = false
   private var version: Int = 0
   private var hasSampleIdBlock: Boolean = false
-  private val reader = new HadoopFSDataBinaryReader(hadoopOpen(file, sc.hadoopConfiguration))
   private var nSamples: Int = 0
   private var nVariants: Int = 0
   private var dataStart: Int = 24
@@ -237,9 +241,9 @@ object BgenLoader {
 
     sc.hadoopConfiguration.setBoolean("compressGS", compress)
 
-    val signatures = Annotations(Map("rsid" -> new SimpleSignature("String"), "varid" -> new SimpleSignature("String")))
+    val signatures = TStruct("rsid" -> TString, "varid" -> TString)
 
-    VariantSampleMatrix(metadata = VariantMetadata(sampleIDs).addVariantAnnotationSignatures(signatures), rdd = sc.union(bgenFiles.map{ file =>
+    VariantSampleMatrix(metadata = VariantMetadata(sampleIDs).copy(vaSignature = signatures), rdd = sc.union(bgenFiles.map{ file =>
       sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
         nPartitions.getOrElse(sc.defaultMinPartitions))
         .map { case (lw, pl) => (pl.getKey, pl.getAnnotation, pl.getGS) }
