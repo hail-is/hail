@@ -3,11 +3,13 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.io.annotators.SampleFamAnnotator
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
 import scala.io.Source
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.TestUtils._
 
 class ImportAnnotationsSuite extends SparkSuite {
 
@@ -47,6 +49,12 @@ class ImportAnnotationsSuite extends SparkSuite {
   }
 
   @Test def testSampleFamAnnotator() {
+    def assertNumeric(s: String) = assert(SampleFamAnnotator.numericRegex.findFirstIn(s).isDefined)
+    def assertNonNumeric(s: String) = assert(SampleFamAnnotator.numericRegex.findFirstIn(s).isEmpty)
+
+    List("0", "0.0", ".0", "-01", "1e5", "1e10", "1.1e10", ".1E-10").foreach(assertNumeric)
+    List("", "a", "1.", ".1.", "1e", "e", "E0", "1e1.", "1e.1", "1e1.1").foreach(assertNonNumeric)
+
     def qMap(query: List[String], s: State): Map[String, Option[Any]] = {
       val q = s.vds.querySA(query)
       s.vds.sampleIds
@@ -68,6 +76,10 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(m("D").contains(Annotation(null, null, null, null, null)))
     assert(m("E").contains(Annotation(null, null, null, null, null)))
     assert(m("F").isEmpty)
+
+    interceptFatal("non-numeric") {
+      AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamCaseControlNumericException.fam"))
+    }
 
 
     s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamQPheno.fam", "-q"))
@@ -91,6 +103,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(m2("D").contains(Annotation(null, null, null, null, null)))
     assert(m2("E").contains(Annotation(null, null, null, null, 3.0)))
     assert(m2("F").isEmpty)
+
   }
 
   @Test def testVariantTSVAnnotator() {

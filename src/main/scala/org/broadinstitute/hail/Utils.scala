@@ -802,14 +802,15 @@ object Utils extends Logging {
           value
       Utils.fatal(
         s"""
-           |$msg at $filename:${position + 1}
-           |Offending line: "$lineToPrint""".stripMargin)
+           |$filename:${position + 1}: $msg
+           |Offending line: "$lineToPrint"  """.stripMargin)
     }
 
     def transform[T](f: Line => T): T = {
       try {
         f(this)
       } catch {
+        case fe: FatalException => throw fe
         case e: Exception =>
           val lineToPrint =
             if (value.length > 100)
@@ -818,9 +819,9 @@ object Utils extends Logging {
               value
           Utils.fatal(
             s"""
-               |${e.getClass.getName} at $filename:${position + 1}
-               |Offending line: $lineToPrint
-               |${e.getMessage}""".stripMargin)
+               |${e.getClass.getSimpleName}
+               |$filename:${position + 1}: ${e.getMessage}
+               |Offending line: "$lineToPrint" """.stripMargin)
       }
     }
   }
@@ -829,7 +830,7 @@ object Utils extends Logging {
     readFile[T](filename, hConf) {
       is =>
         val lines = Source.fromInputStream(is)
-          .getLines
+          .getLines()
           .zipWithIndex
           .map {
             case (value, position) => Line(value, position, filename)
@@ -855,7 +856,7 @@ object Utils extends Logging {
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
-  def triangle(n: Int): Int = ((n * (n + 1)) / 2)
+  def triangle(n: Int): Int = (n * (n + 1)) / 2
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
