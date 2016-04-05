@@ -1,9 +1,9 @@
 package org.broadinstitute.hail.vcf
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.io.LoadVCF
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver.{SplitMulti, State}
+import org.broadinstitute.hail.methods.LoadVCF
 import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix, VariantDataset, Variant}
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.check.Prop._

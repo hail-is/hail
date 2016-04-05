@@ -1,7 +1,9 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.io.BgenLoader
+import org.broadinstitute.hail.io._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._
 
@@ -20,24 +22,18 @@ object ImportBGEN extends Command {
     @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
     var noCompress: Boolean = false
 
-    @Argument
+    @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
 
   def newOptions = new Options
 
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     val nPartitions = if (options.nPartitions > 0) Some(options.nPartitions) else None
 
-    val inputs = options.arguments.asScala
-      .iterator
-      .flatMap { arg =>
-        val fss = hadoopGlobAndSort(arg, state.hadoopConf)
-        val files = fss.map(_.getPath.toString)
-        if (files.isEmpty)
-          warn(s"`$arg' refers to no files")
-        files
-      }.toArray
+    val inputs = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
@@ -47,10 +43,43 @@ object ImportBGEN extends Command {
         fatal("unknown input file type")
       }
     }
+    val sc = state.sc
 
-    val sampleFile = Option(options.sampleFile)
+    val samples = Option(options.sampleFile) match {
+      case Some(file) => BgenLoader.readSampleFile(sc.hadoopConfiguration, file)
+      case _ => BgenLoader.readSamples(sc.hadoopConfiguration, inputs.head)
+    }
 
-    //FIXME to be an array
-    state.copy(vds = BgenLoader.readData(inputs, sampleFile, state.sc, nPartitions, !options.noCompress))
+    val nSamples = samples.length
+
+    sc.hadoopConfiguration.setBoolean("compressGS", !options.noCompress)
+
+
+    val results = inputs.map(f => (f, BgenLoader.load(sc, f, Option(options.nPartitions))))
+
+    val unequalSamples = results.filter(_._2._1 != nSamples).map(x => (x._1, x._2._1))
+    if (unequalSamples.length > 0)
+      fatal(s"""The following BGEN files did not contain the expected number of samples $nSamples:
+           |  ${unequalSamples.map(x => s"""(${x._2} ${x._1}""").mkString("\n  ")}""".stripMargin)
+
+    val noVariants = results.filter(_._2._2 == 0).map(x => x._1)
+    if (noVariants.length > 0)
+      fatal(s"""The following BGEN files did not contain at least 1 variant:
+           |  ${noVariants.mkString("\n  ")})""".stripMargin)
+
+    val nVariants = results.map(x => x._2._2).sum
+
+
+
+    info(s"Number of BGEN files parsed: ${results.length}")
+    info(s"Number of variants in all BGEN files: $nVariants")
+    info(s"Number of samples in BGEN files: $nSamples")
+
+    val signature = TStruct("rsid" -> TString, "varid" -> TString)
+
+    val rdd = sc.union(results.map(_._2._3))
+    val vds = VariantSampleMatrix(VariantMetadata(samples), rdd).copy(vaSignature = signature, wasSplit = true)
+
+    state.copy(vds = vds)
   }
 }

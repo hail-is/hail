@@ -1,17 +1,18 @@
-package org.broadinstitute.hail.io
+package org.broadinstitute.hail.methods
 
 import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.vcf.BufferedLineIterator
-import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
-import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{expr, PropagatedTribbleException, vcf}
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.vcf.BufferedLineIterator
+import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable
+import scala.io.Source
 
 object VCFReport {
   val GTPLMismatch = 1

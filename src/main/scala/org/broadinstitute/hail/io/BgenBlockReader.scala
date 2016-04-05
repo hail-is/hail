@@ -1,12 +1,15 @@
 package org.broadinstitute.hail.io
 
 import java.util.zip.Inflater
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
-import org.broadinstitute.hail.variant.{Genotype, GenotypeStreamBuilder, Variant}
+import org.broadinstitute.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder, Variant}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.annotations._
+import scala.collection.mutable
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Variant](job, split) {
   val file = split.getPath
@@ -18,6 +21,8 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   var nVariants = 0
   var bgenCompressed = false
   var version = -1
+  val ab = new mutable.ArrayBuilder.ofByte
+  println(ab.getClass.getName)
 
   readFileParameters()
   seekToFirstBlock(split.getStart)
@@ -77,7 +82,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
       // FIXME: using first allele as ref and second as alt
       val variant = Variant(chr, position, alleles(0), alleles(1))
-      val varAnnotation = Annotations(Map[String,String]("rsid" -> rsid,"varid" -> lid))
+      val varAnnotation = Annotation(rsid, lid) //order must match TStruct
 
       val bytes = {
         if (bgenCompressed) {
@@ -98,21 +103,72 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       assert(bytes.length == nRow * 6)
 
       val bar = new ByteArrayReader(bytes)
-      val b = new GenotypeStreamBuilder(variant, compress = bgenCompressed)
+      val b = new GenotypeStreamBuilder(variant, ab, compress = compressGS)
+
+      val genoBuilder = new GenotypeBuilder(variant)
+      val plArray = Array(-1, -1, -1)
 
       for (i <- 0 until nSamples) {
+
         val pAA = bar.readShort()
         val pAB = bar.readShort()
         val pBB = bar.readShort()
+        if (lid == "SNPID_99")
+          if (i == 345)
+            println(pAA, pAB, pBB)
 
-        var PLs = BgenLoader.phredScalePPs(pAA, pAB, pBB)
+        if (pAA == 32768) {
+          plArray(0) = 0
+          plArray(1) = 51
+          plArray(2) = 51
+        } else if (pAB == 32768) {
+          plArray(0) = 51
+          plArray(1) = 0
+          plArray(2) = 51
+        } else if (pBB == 32768) {
+          plArray(0) = 51
+          plArray(1) = 51
+          plArray(2) = 0
+        } else {
+          val dAA = if (pAA == 0) 51 else BgenLoader.phredConversionTable(pAA)
+          val dAB = if (pAB == 0) 51 else BgenLoader.phredConversionTable(pAB)
+          val dBB = if (pBB == 0) 51 else BgenLoader.phredConversionTable(pBB)
 
-        assert(PLs(0) == 0 || PLs(1) == 0 || PLs(2) == 0)
-        val gtCall = BgenLoader.parseGenotype(PLs)
-        PLs = if (gtCall == -1) null else PLs //FIXME : Is this correct behavior?
+          val minValue = math.min(math.min(dAA, dAB), dBB)
 
-        val gt = Genotype(Option(gtCall), None, None, None, Option(PLs))
-        b += gt
+          plArray(0) = (dAA - minValue + .5).toInt
+          plArray(1) = (dAB - minValue + .5).toInt
+          plArray(2) = (dBB - minValue + .5).toInt
+          //            if (lid == "SNPID_99")
+          //              if (i == 345)
+          //                println(Array((dAA - minValue + .5).toInt,
+          //                  (dAB - minValue + .5).toInt,
+          //                  (dBB - minValue + .5).toInt).mkString(", "))
+        }
+
+        assert(plArray(0) == 0 || plArray(1) == 0 || plArray(2) == 0)
+
+        val gt = if (plArray(0) == 0 && plArray(1) == 0
+          || plArray(0) == 0 && plArray(2) == 0
+          || plArray(1) == 0 && plArray(2) == 0)
+          -1
+        else {
+          if (plArray(0) == 0)
+            0
+          else if (plArray(1) == 0)
+            1
+          else
+            2
+        }
+
+        genoBuilder.clear()
+        if (gt >= 0) {
+          genoBuilder.setGT(gt)
+          genoBuilder.setPL(plArray)
+        }
+        b.write(genoBuilder)
+        //        val genotype = Genotype(Option(gt), None, None, None, if (gt < 0) None else Some(PLs))
+        //        b += genotype
       }
 
       value.setKey(variant)

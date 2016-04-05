@@ -4,14 +4,15 @@ import java.io._
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
-import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.{SparkContext}
 
 import scala.io.Source
 
-case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotations], signatures: Annotations)
+case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
 
 class VariantParser(bimPath: String, hConf: Configuration)
@@ -59,16 +60,12 @@ object PlinkLoader {
         .toArray
     }
 
-    val signatures = Annotations(Map("fid" -> new SimpleSignature("String"),
-      "mid" -> new SimpleSignature("String"),
-      "pid" -> new SimpleSignature("String"),
-      "reportedSex" -> new SimpleSignature("String"),
-      "phenotype" -> new SimpleSignature("String")))
+    val signatures = TStruct("fid" -> TString, "mid" -> TString, "pid" -> TString, "reportedSex" -> TString, "phenotype" -> TString)
 
     val sampleIds = sampleArray.map { arr => arr(1) } //using IID as primary ID
 
-    val sampleAnnotations = sampleArray.map{case Array(fid, iid, mat, pat, sex, pheno) =>
-      Annotations(Map[String,Any]("fid" -> fid, "mid" -> mat, "pid" -> pat, "reportedSex" -> sex, "phenotype" -> pheno))
+    val sampleAnnotations = sampleArray.map{case Array(fid, iid, mid, pid, sex, pheno) =>
+      Annotation(fid, mid, pid, sex, pheno)
     }.toIndexedSeq
 
     val nSamples = sampleIds.length
@@ -76,7 +73,7 @@ object PlinkLoader {
     if (sampleIds.toSet.size != nSamples)
       fatal("Duplicate ids present in .fam file")
 
-    println("number of samples is " + nSamples)
+    println("Number of samples is " + nSamples)
 
     SampleInfo(sampleIds, sampleAnnotations, signatures)
   }
@@ -95,14 +92,14 @@ object PlinkLoader {
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val variantRDD = rdd.map {
-      case (lw, pl) => (variants(pl.getKey), Annotations.empty(), pl.getGS)
+      case (lw, pl) => (variants(pl.getKey), Annotation.empty, pl.getGS)
     }
 
     VariantSampleMatrix(VariantMetadata(Array.empty[(String, String)],
       sampleInfo.sampleIds,
       sampleInfo.annotations,
       sampleInfo.signatures,
-      Annotations.empty()), variantRDD)
+      TEmpty), variantRDD)
   }
 
   def apply(bedPath: String, bimPath: String, famPath: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
@@ -129,19 +126,14 @@ object PlinkLoader {
         fatal("Bed file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
     }
 
-    // check num bytes matches fam and bim lengths
     val bedSize = hadoopGetFileSize(bedPath, sc.hadoopConfiguration)
     if (bedSize != expectedBedSize(nSamples, nVariants))
       fatal("bed file size does not match expected number of bytes based on bed and fam files")
 
-    //check number of partitions requested is less than file size
     if (bedSize < nPartitions.getOrElse(sc.defaultMinPartitions))
       fatal(s"The number of partitions requested (${nPartitions.getOrElse(sc.defaultMinPartitions)}) is greater than the file size ($bedSize)")
 
-    val startTime = System.nanoTime()
     val vds = parseBed(bedPath, sampleInfo, variants, sc, nPartitions)
-    val endTime = System.nanoTime()
-    val diff = (endTime - startTime) / 1e9
     vds
   }
 }

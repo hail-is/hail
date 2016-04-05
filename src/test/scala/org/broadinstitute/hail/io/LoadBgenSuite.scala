@@ -43,13 +43,24 @@ class LoadBgenSuite extends SparkSuite {
     val bgenVariantsAnnotations = bgenVDS.variantsAndAnnotations
     val bgenSampleIds = s.vds.sampleIds
     val genSampleIds = genVDS.sampleIds
-    val bgenFull = bgenVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((va.get("varid").toString,bgenSampleIds(i)),gt)}
-    val genFull = genVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((va.get("varid").toString,genSampleIds(i)),gt)}
+
+    val bgenQuery = bgenVDS.vaSignature.query("varid")
+    val genQuery = genVDS.vaSignature.query("varid")
+    val bgenFull = bgenVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((bgenQuery(va).get,bgenSampleIds(i)),gt)}
+    val genFull = genVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((genQuery(va).get,genSampleIds(i)),gt)}
 
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)
     assert(bgenVariantsAnnotations.collect() sameElements genVariantsAnnotations.collect())
-    assert(genFull.fullOuterJoin(bgenFull).map{case ((v,i),(gt1,gt2)) => gt1 == gt2}.fold(true)(_ && _))
+    genFull.fullOuterJoin(bgenFull)
+      .collect()
+      .foreach{case ((v,i),(gt1,gt2)) =>
+        println("variant = " + v)
+        println("sample = " + i)
+
+        println("genGT = " + gt1)
+        println("bgenGT = " + gt2)
+        assert(gt1 == gt2)}
   }
 
 

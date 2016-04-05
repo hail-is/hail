@@ -17,8 +17,8 @@ import org.broadinstitute.hail.annotations._
 abstract class ParsedLine[K] extends Serializable {
   def setGS(gs: Iterable[Genotype])
   def getGS: Iterable[Genotype]
-  def setAnnotation(ann: Annotations)
-  def getAnnotation: Annotations
+  def setAnnotation(ann: Annotation)
+  def getAnnotation: Annotation
   def setKey(k: K)
   def getKey: K
 }
@@ -26,17 +26,17 @@ abstract class ParsedLine[K] extends Serializable {
 class BgenParsedLine extends ParsedLine[Variant] {
   var gs: Iterable[Genotype] = null
   var variant: Variant = null
-  var ann: Annotations = null
+  var ann: Annotation = Annotation.empty
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
   }
   def getGS: Iterable[Genotype] = gs
 
-  def setAnnotation(ann: Annotations) {
+  def setAnnotation(ann: Annotation) {
     this.ann = ann
   }
-  def getAnnotation: Annotations = ann
+  def getAnnotation: Annotation = ann
 
   def setKey(k: Variant) {
     variant = k
@@ -47,17 +47,17 @@ class BgenParsedLine extends ParsedLine[Variant] {
 class PlinkParsedLine extends ParsedLine[Int] {
   var gs: Iterable[Genotype] = null
   var pos: Int = -1
-  var ann: Annotations = null
+  var ann: Annotation = Annotation.empty
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
   }
   def getGS: Iterable[Genotype] = gs
 
-  def setAnnotation(ann: Annotations) {
+  def setAnnotation(ann: Annotation) {
     this.ann = ann
   }
-  def getAnnotation: Annotations = ann
+  def getAnnotation: Annotation = ann
 
   def setKey(k: Int) {
     pos = k

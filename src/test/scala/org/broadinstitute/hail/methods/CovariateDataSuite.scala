@@ -2,7 +2,6 @@ package org.broadinstitute.hail.methods
 
 import breeze.linalg.DenseMatrix
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.io.LoadVCF
 import org.testng.annotations.Test
 
 class CovariateDataSuite extends SparkSuite {
