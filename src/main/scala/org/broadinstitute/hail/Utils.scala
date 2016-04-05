@@ -1026,4 +1026,11 @@ object Utils extends Logging {
   implicit def toRichAny(a: Any): RichAny = new RichAny(a)
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
+
+  def backtick(str: String): String = {
+    if (str.matches("""\p{javaJavaIdentifierPart}+"""))
+      str
+    else
+      s"`$str`"
+  }
 }

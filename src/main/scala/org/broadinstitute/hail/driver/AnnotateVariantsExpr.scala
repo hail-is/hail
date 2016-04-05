@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr.TypeWithSchema
 import org.broadinstitute.hail.io.annotators._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -38,7 +39,11 @@ object AnnotateVariantsExpr extends Command {
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "va")
         fatal(s"Path must start with `va.', got `${ids.mkString(".")}'")
-      (ids.tail, t)
+      val sig = t match {
+        case tws: TypeWithSchema => tws
+        case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
+      }
+      (ids.tail, sig)
     }
     val computations = parsed.map(_._3)
 

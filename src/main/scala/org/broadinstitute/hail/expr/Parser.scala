@@ -43,13 +43,13 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseAnnotationTypes(code: String): Map[String, Type] = {
+  def parseAnnotationTypes(code: String): Map[String, TypeWithSchema] = {
     // println(s"code = $code")
     if (code.isEmpty)
-      Map.empty[String, Type]
+      Map.empty[String, TypeWithSchema]
     else
       parseAll(struct_fields, code) match {
-        case Success(result, _) => result.toMap
+        case Success(result, _) => result.map(f => (f.name, f.`type`)).toMap
         case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
       }
   }
@@ -221,18 +221,24 @@ object Parser extends JavaTokenParsers {
       "(" ~> expr <~ ")"
 
   def annotationSignature: Parser[TStruct] =
-    struct_fields ^^ { fields => TStruct(fields: _*) }
+    struct_fields ^^ { fields => TStruct(fields) }
 
-  def struct_field: Parser[(String, Type)] =
-    (identifier <~ ":") ~ type_expr ^^ { case name ~ t =>
-      (name, t)
-    }
-
-  def struct_fields: Parser[Array[(String, Type)]] = rep1sep(struct_field, ",") ^^ {
-    _.toArray
+  def decorator: Parser[(String, String)] =
+    ("@" ~> (identifier <~ "=")) ~ ("\"" ~> "[^\"]*".r <~ "\"") ^^ { case name ~ desc =>
+    (name, desc)
   }
 
-  def type_expr: Parser[Type] =
+  def struct_field: Parser[(String, TypeWithSchema, Map[String, String])] =
+    (identifier <~ ":") ~ type_expr ~ rep(decorator) ^^ { case name ~ t ~ decorators =>
+      (name, t, decorators.toMap)
+    }
+
+  def struct_fields: Parser[Array[Field]] = rep1sep(struct_field, ",") ^^ {
+    _.zipWithIndex.map {case ((id, t, attrs), index) => Field(id, t, index, attrs) }
+      .toArray
+  }
+
+  def type_expr: Parser[TypeWithSchema] =
     "Empty" ^^ { _ => TEmpty } |
       "Boolean" ^^ { _ => TBoolean } |
       "Char" ^^ { _ => TChar } |
@@ -247,7 +253,8 @@ object Parser extends JavaTokenParsers {
       "Genotype" ^^ { _ => TGenotype } |
       "String" ^^ { _ => TString } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
-      ("Struct" ~ "(") ~> struct_fields <~ ")" ^^ { fields =>
-        TStruct(fields: _*)
+      ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
+      ("Struct" ~ "{") ~> struct_fields <~ "}" ^^ { fields =>
+        TStruct(fields)
       }
 }
