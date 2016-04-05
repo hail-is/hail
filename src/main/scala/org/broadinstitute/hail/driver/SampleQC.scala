@@ -319,6 +319,26 @@ object SampleQC extends Command {
 
   def description = "Compute per-sample QC metrics"
 
+  def results(vds: VariantDataset): Map[Int, SampleQCCombiner] = {
+    vds
+      .rdd
+      .treeAggregate(Array.fill[SampleQCCombiner](vds.nLocalSamples)(new SampleQCCombiner))({ case (acc, (v, va, gs)) =>
+        val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
+        for ((g, i) <- gs.iterator.zipWithIndex)
+          acc(i).merge(v, vIsSingleton, g)
+        acc
+      }, { case (comb1, comb2) =>
+        for (i <- comb1.indices)
+          comb1(i).merge(comb2(i))
+        comb1
+      })
+      .iterator
+      .zipWithIndex
+      .map { case (comb, i) => (i, comb) }
+      .toMap
+  }
+
+  /*
   def results(vds: VariantDataset): RDD[(Int, SampleQCCombiner)] = {
 
     /*
@@ -343,7 +363,7 @@ object SampleQC extends Command {
           acc
         }.iterator)
     }.foldByKey(new SampleQCCombiner)((comb1, comb2) => comb1.merge(comb2))
-  }
+  } */
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -355,24 +375,23 @@ object SampleQC extends Command {
     val r = results(vds)
 
     if (output != null) {
+      val sb = new StringBuilder()
       hadoopDelete(output, state.hadoopConf, recursive = true)
-      r.map { case (s, comb) =>
-        val sb = new StringBuilder()
-        sb.append(sampleIdsBc.value(s))
-        sb += '\t'
-        comb.emit(sb)
-        sb.result()
-      }.writeTable(output, Some("sampleID\t" + SampleQCCombiner.header))
+      writeTable(output, state.hadoopConf,
+        r.map { case (s, comb) =>
+          sb.clear()
+          sb.append(sampleIdsBc.value(s))
+          sb += '\t'
+          comb.emit(sb)
+          sb.result()
+        }, Some("sampleID\t" + SampleQCCombiner.header))
     }
-    val sampleQCAnnot = r
-      .mapValues(_.asAnnotation)
-      .collectAsMap()
 
     val (newSAS, insertQC) = vds.saSignature.insert(SampleQCCombiner.signature, "qc")
     val newSampleAnnotations = vds.sampleAnnotations
       .zipWithIndex
       .map { case (sa, s) =>
-        insertQC(sa, sampleQCAnnot.get(s))
+        insertQC(sa, r.get(s).map(_.asAnnotation))
       }
 
     state.copy(

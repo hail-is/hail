@@ -75,6 +75,9 @@ object ToplevelCommands {
   register(VariantQC)
   register(VEP)
   register(Write)
+
+  // example commands
+  register(example.CaseControlCount)
 }
 
 abstract class SuperCommand extends Command {

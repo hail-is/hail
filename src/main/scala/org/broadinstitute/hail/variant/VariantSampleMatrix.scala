@@ -27,30 +27,30 @@ object VariantSampleMatrix {
 
     val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
       sqlContext.sparkContext.hadoopConfiguration) { dis => {
-        try {
-          val serializer = SparkEnv.get.serializer.newInstance()
-          val ds = serializer.deserializeStream(dis)
+      try {
+        val serializer = SparkEnv.get.serializer.newInstance()
+        val ds = serializer.deserializeStream(dis)
 
-          val m = ds.readObject[Int]
-          if (m != magicNumber)
-            fatal("Invalid VDS: invalid magic number.\n  Recreate with current version of Hail.")
+        val m = ds.readObject[Int]
+        if (m != magicNumber)
+          fatal("Invalid VDS: invalid magic number.\n  Recreate with current version of Hail.")
 
-          val v = ds.readObject[Int]
-          if (v != fileVersion)
-            fatal("Old VDS version found.  Recreate with current version of Hail.")
+        val v = ds.readObject[Int]
+        if (v != fileVersion)
+          fatal("Old VDS version found.  Recreate with current version of Hail.")
 
-          val localSamples = ds.readObject[Array[Int]]
-          val metadata = ds.readObject[VariantMetadata]
+        val localSamples = ds.readObject[Array[Int]]
+        val metadata = ds.readObject[VariantMetadata]
 
-          ds.close()
+        ds.close()
 
-          (localSamples, metadata)
-        } catch {
-          case e: Exception =>
-            println(e)
-            fatal(s"Invalid VDS: ${e.getMessage}\n  Recreate with current version of Hail.")
-        }
+        (localSamples, metadata)
+      } catch {
+        case e: Exception =>
+          println(e)
+          fatal(s"Invalid VDS: ${e.getMessage}\n  Recreate with current version of Hail.")
       }
+    }
     }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
@@ -394,7 +394,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         }.fold(true)(_ && _)
   }
 
-  def mapAnnotationsWithAggregate[U](zeroValue: U)(
+  def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U,
     mapOp: (Annotation, U) => Annotation)
@@ -405,8 +405,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
 
-    copy(rdd = rdd
-      .map {
+    copy(vaSignature = newVAS,
+      rdd = rdd.map {
         case (v, va, gs) =>
           val serializer = SparkEnv.get.serializer.newInstance()
           val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
@@ -420,7 +420,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def annotateInvervals(iList: IntervalList, signature: expr.Type, path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
-    val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs)}
+    val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
@@ -437,11 +437,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertSA(signature, path)
 
-    copy(sampleAnnotations = localSamples.map { s =>
-      val id = sampleIds(s)
-      val sa = sampleAnnotations(s)
+    val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
+      val sa = sampleAnnotations(i)
       inserter(sa, annotations.get(id))
-    }, saSignature = newSignature)
+    }
+
+    copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
   }
 
   def queryVA(args: String*): Querier = queryVA(args.toList)

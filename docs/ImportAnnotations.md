@@ -133,12 +133,12 @@ ____
 <a name="VariantTSV"></a>
 ### Tab separated values (tsv[.gz])
 
-This file format requires either one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations.
+This file format requires either one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations.  Multiple files can be read in one command, but they must agree in their file format.
 
 **Command line arguments:**
 
 - `tsv` Invoke this functionality (`annotatevariants tsv <args>`)
-- `-i <path-to-tsv>, --input <path-to-tsv>` specify the file path **(Required)**
+- `<files...>` specify the file or files to be read **(Required)**
 - `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `va` **(Required)**
 - `-v <variantcols>, --vcolumns <variantcols>` Either one column name (if Chr:Pos:Ref:Alt), or four comma-separated column identifiers **(Optional with default "Chromosome, Position, Ref, Alt")**
 - `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
@@ -162,7 +162,7 @@ This file contains one field to identify the variant and two data columns: one w
 ```
 $ hail [read / import / previous commands] \
     annotatevariants tsv \
-        -i file:///user/me/consequences.tsv.gz \
+        file:///user/me/consequences.tsv.gz \
         -t "DNAseSensitivity: Double" \
         -r va.varianteffects \
         -v Variant
@@ -197,7 +197,7 @@ In this case, the variant is indicated by four columns, but the header does not 
 ```
 $ hail [read / import / previous commands] \
     annotatevariants tsv \
-        -i file:///user/me/ExAC_Counts.tsv.gz \
+        file:///user/me/ExAC_Counts.tsv.gz \
         -t "AC: Int" \
         -r va.exac \
         -v "Chr,Pos,Ref,Alt"
@@ -378,7 +378,7 @@ Hail can read vcf files to annotate a variant dataset.  Since Hail internally ca
 **Command line arguments:**
 
 - `vcf` Invoke this functionality (`annotatevariants vcf <args>`)
-- `-i <path-to-vcf>, --input <path-to-vcf>` specify the file path **(Required)**
+- `<files...>` specify the path to the file/files **(Required)**
 - `-r <root>, --root <root>` specify the annotation path in which to place the annotations read from the vcf, as a period-delimited path starting with `va` **(Required)**
 
 ____
@@ -409,7 +409,7 @@ The proper command line:
 ```
 $ hail [read / import / previous commands] \
     annotatevariants vcf \
-        -i /user/me/1kg.chr22.vcf.bgz \
+        /user/me/1kg.chr22.vcf.bgz \
         -r va.1kg \
 ```
 

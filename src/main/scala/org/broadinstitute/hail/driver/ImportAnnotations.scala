@@ -1,17 +1,19 @@
 package org.broadinstitute.hail.driver
 
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators._
 import org.broadinstitute.hail.variant._
-import org.kohsuke.args4j.{Option => Args4jOption}
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+
+import scala.collection.JavaConverters._
 
 object ImportAnnotations extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
-      usage = "Annotation file path")
-    var input: String = _
+    @Argument(usage = "<files...>")
+    var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Define types of fields in annotations files")
@@ -33,8 +35,11 @@ object ImportAnnotations extends Command {
   def description = "Import a TSV file containing variants / annotations into a sample-free VDS"
 
   def run(state: State, options: Options): State = {
+
+    val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
+
     val (rdd, signature) = VariantTSVAnnotator(state.sc,
-      options.input,
+      files,
       AnnotateVariantsTSV.parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
       options.missingIdentifier)
