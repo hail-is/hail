@@ -86,15 +86,15 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    val cov1 = cov.filterSamples(ped.phenotypedSamples)
+    val filteredCov = cov.filterSamples(ped.phenotypedSamples)
 
-    val sampleCovRow = cov1.covRowSample.zipWithIndex.toMap
+    val sampleCovRow = filteredCov.covRowSample.zipWithIndex.toMap
 
-    val n = cov1.covRowSample.size
-    val k = cov1.covName.size
+    val n = filteredCov.covRowSample.size
+    val k = filteredCov.covName.size
     val d = n - k - 2
-    if (d < 1)
-      throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
+
+    fatalIf(d < 1, s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
 
     info(s"Running linreg on $n samples and $k covariates...")
 
@@ -104,8 +104,8 @@ object LinearRegression {
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
     val samplePheno = ped.samplePheno
-    val yArray = (0 until n).flatMap(cr => samplePheno(cov1.covRowSample(cr)).map(_.toString.toDouble)).toArray
-    val covAndOnesVector: DenseMatrix[Double] = cov1.data match {
+    val yArray = (0 until n).flatMap(cr => samplePheno(filteredCov.covRowSample(cr)).map(_.toString.toDouble)).toArray
+    val covAndOnesVector: DenseMatrix[Double] = filteredCov.data match {
       case Some(d) => DenseMatrix.horzcat(d, DenseMatrix.ones[Double](n, 1))
       case None => DenseMatrix.ones[Double](n, 1)
     }

@@ -13,8 +13,8 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
   require(covName.areDistinct())
 
   //preserves increasing order of samples
-  def filterSamples(samplesToKeep: Int => Boolean): CovariateData = {
-    val filtCovRowSample = covRowSample.filter(samplesToKeep)
+  def filterSamples(keepSample: Int => Boolean): CovariateData = {
+    val filtCovRowSample = covRowSample.filter(keepSample)
     val nSamplesDiscarded = covRowSample.size - filtCovRowSample.size
 
     if (nSamplesDiscarded == 0)
@@ -22,12 +22,12 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
     else {
       warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} in .cov discarded: missing phenotype.")
 
-      CovariateData(filtCovRowSample, covName, data.flatMap(_.filterRows(row => samplesToKeep(covRowSample(row)))))
+      CovariateData(filtCovRowSample, covName, data.flatMap(_.filterRows(row => keepSample(covRowSample(row)))))
     }
   }
 
-  def filterCovariates(covsToKeep: String => Boolean): CovariateData =
-    CovariateData(covRowSample, covName.filter(covsToKeep), data.flatMap(_.filterCols(col => covsToKeep(covName(col)))))
+  def filterCovariates(keepCov: String => Boolean): CovariateData =
+    CovariateData(covRowSample, covName.filter(keepCov), data.flatMap(_.filterCols(col => keepCov(covName(col)))))
 
   def appendCovariates(that: CovariateData): CovariateData = {
     fatalIf(!(this.covRowSample sameElements that.covRowSample),

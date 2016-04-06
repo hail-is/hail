@@ -526,13 +526,16 @@ object RichDenseMatrixDouble {
   }
 }
 
+
+// Not supporting generic T because its difficult to do with ArrayBuilder and not needed yet. See:
+// http://stackoverflow.com/questions/16306408/boilerplate-free-scala-arraybuilder-specialization
 class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
-  def filterRows(rowsToKeep: Int => Boolean): Option[DenseMatrix[Double]] = {
-    val ab = new mutable.ArrayBuilder.ofDouble // How to allow generic type with ArrayBuilder?
+  def filterRows(keepRow: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
 
     var nRows = 0
     for (row <- 0 until m.rows)
-      if (rowsToKeep(row)) {
+      if (keepRow(row)) {
         nRows += 1
         for (col <- 0 until m.cols)
           ab += m(row, col)
@@ -545,12 +548,12 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       None
   }
 
-  def filterCols(colsToKeep: Int => Boolean): Option[DenseMatrix[Double]] = {
+  def filterCols(keepCol: Int => Boolean): Option[DenseMatrix[Double]] = {
     val ab = new mutable.ArrayBuilder.ofDouble
 
     var nCols = 0
     for (col <- 0 until m.cols)
-      if (colsToKeep(col)) {
+      if (keepCol(col)) {
         nCols += 1
         for (row <- 0 until m.rows)
           ab += m(row, col)
