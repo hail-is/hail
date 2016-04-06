@@ -35,7 +35,7 @@ object Parser extends JavaTokenParsers {
     () => f().asInstanceOf[T]
   }
 
-  def parseType(code: String): Type = {
+  def parseType(code: String): TypeWithSchema = {
     // println(s"code = $code")
     parseAll(type_expr, code) match {
       case Success(result, _) => result
@@ -224,8 +224,12 @@ object Parser extends JavaTokenParsers {
     struct_fields ^^ { fields => TStruct(fields) }
 
   def decorator: Parser[(String, String)] =
-    ("@" ~> (identifier <~ "=")) ~ ("\"" ~> "[^\"]*".r <~ "\"") ^^ { case name ~ desc =>
-    (name, desc)
+    ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>
+//    ("@" ~> (identifier <~ "=")) ~ stringLiteral("\"" ~> "[^\"]".r <~ "\"") ^^ { case name ~ desc =>
+    (unescapeString(name), {
+      val unescaped = unescapeString(desc)
+      unescaped.substring(1, unescaped.length - 1)
+    })
   }
 
   def struct_field: Parser[(String, TypeWithSchema, Map[String, String])] =

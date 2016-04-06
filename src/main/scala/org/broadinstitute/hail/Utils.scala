@@ -24,6 +24,7 @@ import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
+import org.apache.commons.lang.StringEscapeUtils
 
 import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
@@ -1027,10 +1028,14 @@ object Utils extends Logging {
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 
-  def backtick(str: String): String = {
-    if (str.matches("""\p{javaJavaIdentifierPart}+"""))
+  def prettyIdentifier(str: String): String = {
+    if (str.matches("""\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
-      s"`$str`"
+      s"`${escapeString(str)}`"
   }
+
+  def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
+
+  def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
 }

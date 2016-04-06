@@ -56,7 +56,7 @@ sealed abstract class Type extends Serializable {
   def typeCheck(a: Any): Boolean
 }
 
-sealed abstract class TypeWithSchema extends Type {
+abstract class TypeWithSchema extends Type {
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
       .flatMap { t =>
@@ -283,9 +283,9 @@ case class Field(name: String, `type`: TypeWithSchema,
       attrs.foreachBetween { attr =>
         sb.append(" " * (indent + 2))
         sb += '@'
-        sb.append(backtick(attr._1))
+        sb.append(prettyIdentifier(attr._1))
         sb.append("=\"")
-        sb.append(attr._2)
+        sb.append(escapeString(attr._2))
         sb += '"'
       }(() => sb += '\n')
     }
@@ -442,7 +442,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     if (arrayDepth > 0) {
       sb.append("Array[")
       sb += '\n'
-      sb.append(" " * (indent + 2))
+      sb.append(" " * (indent + 4))
       pretty(sb, indent + 4, arrayDepth - 1, printAttrs)
       sb += '\n'
       sb.append(" " * indent)

@@ -9,8 +9,8 @@ object ShowAnnotations extends Command {
     @Args4jOption(name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
 
-    @Args4jOption(name = "--info", usage = "Print attributes on all fields")
-    var info: Boolean = _
+    @Args4jOption(name = "--attributes", usage = "Print attributes on all fields")
+    var attributes: Boolean = _
   }
 
   def newOptions = new Options
@@ -30,14 +30,14 @@ object ShowAnnotations extends Command {
     val sb = new StringBuilder()
     sb.append("Sample annotations:\n")
     sb.append("sa: ")
-    vds.metadata.saSignature.pretty(sb, 0, 0, printAttrs = options.info)
+    vds.metadata.saSignature.pretty(sb, 0, 0, printAttrs = options.attributes)
 
     sb += '\n'
     sb += '\n'
 
     sb.append("Variant annotations:\n")
     sb.append("va: ")
-    vds.metadata.vaSignature.pretty(sb, 0, 0, printAttrs = options.info)
+    vds.metadata.vaSignature.pretty(sb, 0, 0, printAttrs = options.attributes)
     sb += '\n'
 
     val result = sb.result()
