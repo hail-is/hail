@@ -1,8 +1,9 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.FatalException
+import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.driver.{SampleQC, ShowAnnotations, SplitMulti, State}
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
 import org.scalatest.testng.TestNGSuite
@@ -10,7 +11,7 @@ import org.testng.annotations.Test
 
 import scala.collection.mutable.ArrayBuffer
 
-class ExprSuite extends TestNGSuite {
+class ExprSuite extends SparkSuite {
 
   @Test def exprTest() {
     val symTab = Map("i" ->(0, TInt),
@@ -126,5 +127,37 @@ class ExprSuite extends TestNGSuite {
     assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
     assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
     intercept[FatalException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
+  }
+
+
+  @Test def testTypePretty() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+
+    var state = State(sc, sqlContext, vds)
+    state = SplitMulti.run(state)
+    state = SampleQC.run(state)
+    val sb = new StringBuilder
+
+    val weirdSigToAdd = TArray(TStruct(("int1", TInt), ("array1", TArray(TArray(TStruct(
+      Array(Field("string1", TString, 0, Map("attr1" -> "I have newlines\nand\t\ttabs", "attr\t2" -> "just some \"quotes\" here")),
+        Field("string2", TString, 1))))))))
+    val newS = state.vds.vaSignature.insert(weirdSigToAdd, "test", "test2")._1
+    newS.pretty(sb, 0, 0, printAttrs = true)
+    val res = sb.result()
+    val parsed = Parser.parseType(res)
+
+    assert(parsed == newS)
+
+    sb.clear()
+    parsed.pretty(sb, 0, 0, printAttrs = false)
+    val res2 = sb.result()
+    val parsed2 = Parser.parseType(res)
+
+    sb.clear()
+    parsed2.pretty(sb, 0, 0, printAttrs = true)
+    val res3 = sb.result()
+    val parsed3 = Parser.parseType(res)
+
+    assert(parsed2 == parsed3)
   }
 }

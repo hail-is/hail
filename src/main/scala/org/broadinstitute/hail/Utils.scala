@@ -24,6 +24,7 @@ import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector, DenseMatrix}
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
+import org.apache.commons.lang.StringEscapeUtils
 
 import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
@@ -1092,4 +1093,15 @@ object Utils extends Logging {
   implicit def toRichAny(a: Any): RichAny = new RichAny(a)
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
+
+  def prettyIdentifier(str: String): String = {
+    if (str.matches("""\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
+      str
+    else
+      s"`${escapeString(str)}`"
+  }
+
+  def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
+
+  def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
 }

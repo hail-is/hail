@@ -53,6 +53,10 @@ trait Parsable {
 }
 
 sealed abstract class Type extends Serializable {
+  def typeCheck(a: Any): Boolean
+}
+
+abstract class TypeWithSchema extends Type {
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
       .flatMap { t =>
@@ -63,27 +67,27 @@ sealed abstract class Type extends Serializable {
       }
   }
 
-  def getOption(fields: String*): Option[Type] = getOption(fields.toList)
+  def getOption(fields: String*): Option[TypeWithSchema] = getOption(fields.toList)
 
-  def getOption(path: List[String]): Option[Type] = {
+  def getOption(path: List[String]): Option[TypeWithSchema] = {
     if (path.isEmpty)
       Some(this)
     else
       None
   }
 
-  def delete(fields: String*): (Type, Deleter) = delete(fields.toList)
+  def delete(fields: String*): (TypeWithSchema, Deleter) = delete(fields.toList)
 
-  def delete(path: List[String]): (Type, Deleter) = {
+  def delete(path: List[String]): (TypeWithSchema, Deleter) = {
     if (path.nonEmpty)
       throw new AnnotationPathException()
     else
       (TEmpty, a => Annotation.empty)
   }
 
-  def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
+  def insert(signature: TypeWithSchema, fields: String*): (TypeWithSchema, Inserter) = insert(signature, fields.toList)
 
-  def insert(signature: Type, path: List[String]): (Type, Inserter) = {
+  def insert(signature: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = {
     if (path.nonEmpty)
       TStruct.empty.insert(signature, path)
     else
@@ -99,14 +103,10 @@ sealed abstract class Type extends Serializable {
       a => Option(a)
   }
 
-  def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
-    sb.append(" " * indent)
-    sb.append(path.last)
-    sb.append(": ")
+  def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean = false) {
     sb.append("Array[" * arrayDepth)
     sb.append(toString)
     sb.append("]" * arrayDepth)
-    sb += '\n'
   }
 
   def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
@@ -114,12 +114,11 @@ sealed abstract class Type extends Serializable {
   def fieldOption(path: List[String]): Option[Field] =
     None
 
-  def typeCheck(a: Any): Boolean
-
   def schema: DataType
+
 }
 
-case object TEmpty extends Type {
+case object TEmpty extends TypeWithSchema {
   override def toString = "Empty"
 
   def typeCheck(a: Any): Boolean = a == null
@@ -129,7 +128,7 @@ case object TEmpty extends Type {
     BooleanType
 }
 
-case object TBoolean extends Type with Parsable {
+case object TBoolean extends TypeWithSchema with Parsable {
   override def toString = "Boolean"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
@@ -139,7 +138,7 @@ case object TBoolean extends Type with Parsable {
   def parse(s: String): Annotation = s.toBoolean
 }
 
-case object TChar extends Type {
+case object TChar extends TypeWithSchema {
   override def toString = "Char"
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
@@ -148,7 +147,7 @@ case object TChar extends Type {
   def schema = StringType
 }
 
-abstract class TNumeric extends Type
+abstract class TNumeric extends TypeWithSchema
 
 abstract class TIntegral extends TNumeric
 
@@ -192,7 +191,7 @@ case object TDouble extends TNumeric with Parsable {
   def parse(s: String): Annotation = s.toDouble
 }
 
-case object TString extends Type with Parsable {
+case object TString extends TypeWithSchema with Parsable {
   override def toString = "String"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
@@ -202,11 +201,11 @@ case object TString extends Type with Parsable {
   def parse(s: String): Annotation = s
 }
 
-case class TArray(elementType: Type) extends Type {
+case class TArray(elementType: TypeWithSchema) extends TypeWithSchema {
   override def toString = s"Array[$elementType]"
 
-  override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
-    elementType.pretty(sb, indent, path, arrayDepth + 1)
+  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+    elementType.pretty(sb, indent, arrayDepth + 1, printAttrs)
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
@@ -215,7 +214,7 @@ case class TArray(elementType: Type) extends Type {
   def schema = ArrayType(elementType.schema)
 }
 
-case class TSet(elementType: Type) extends Type {
+case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
   override def toString = s"Set[$elementType]"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[IndexedSeq[_]] &&
@@ -224,7 +223,7 @@ case class TSet(elementType: Type) extends Type {
   def schema = ArrayType(elementType.schema)
 }
 
-case object TSample extends Type {
+case object TSample extends TypeWithSchema {
   override def toString = "Sample"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Sample]
@@ -233,7 +232,7 @@ case object TSample extends Type {
     StructField("id", StringType, nullable = false)))
 }
 
-case object TGenotype extends Type {
+case object TGenotype extends TypeWithSchema {
   override def toString = "Genotype"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
@@ -241,7 +240,7 @@ case object TGenotype extends Type {
   def schema = Genotype.schema
 }
 
-case object TAltAllele extends Type {
+case object TAltAllele extends TypeWithSchema {
   override def toString = "AltAllele"
 
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
@@ -249,7 +248,7 @@ case object TAltAllele extends Type {
   def schema = AltAllele.schema
 }
 
-case object TVariant extends Type {
+case object TVariant extends TypeWithSchema {
   override def toString = "Variant"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
@@ -260,7 +259,7 @@ case object TVariant extends Type {
 object TStruct {
   def empty: TStruct = TStruct(Array.empty[Field])
 
-  def apply(args: (String, Type)*): TStruct =
+  def apply(args: (String, TypeWithSchema)*): TStruct =
     TStruct(args
       .iterator
       .zipWithIndex
@@ -268,13 +267,32 @@ object TStruct {
       .toArray)
 }
 
-case class Field(name: String, `type`: Type,
+case class Field(name: String, `type`: TypeWithSchema,
   index: Int,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
+
+  def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+    sb.append(" " * indent)
+    sb.append(name)
+    sb.append(": ")
+    `type`.pretty(sb, indent, arrayDepth, printAttrs)
+    if (printAttrs) {
+      if (attrs.nonEmpty)
+        sb += '\n'
+      attrs.foreachBetween { attr =>
+        sb.append(" " * (indent + 2))
+        sb += '@'
+        sb.append(prettyIdentifier(attr._1))
+        sb.append("=\"")
+        sb.append(escapeString(attr._2))
+        sb += '"'
+      }(() => sb += '\n')
+    }
+  }
 }
 
-case class TStruct(fields: IndexedSeq[Field]) extends Type {
+case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
@@ -282,7 +300,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   def size: Int = fields.length
 
-  override def getOption(path: List[String]): Option[Type] =
+  override def getOption(path: List[String]): Option[TypeWithSchema] =
     if (path.isEmpty)
       Some(this)
     else
@@ -317,7 +335,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  override def delete(p: List[String]): (Type, Deleter) = {
+  override def delete(p: List[String]): (TypeWithSchema, Deleter) = {
     if (p.isEmpty)
       (TEmpty, a => Annotation.empty)
     else {
@@ -328,7 +346,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       }
       val index = f.index
       val (newFieldType, d) = f.`type`.delete(p.tail)
-      val newType: Type =
+      val newType: TypeWithSchema =
         if (newFieldType == TEmpty)
           deleteKey(key, f.index)
         else
@@ -352,7 +370,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
+  override def insert(signature: TypeWithSchema, p: List[String]): (TypeWithSchema, Inserter) = {
     if (p.isEmpty)
       (signature, (a, toIns) => toIns.orNull)
     else {
@@ -385,7 +403,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  def updateKey(key: String, i: Int, sig: Type): Type = {
+  def updateKey(key: String, i: Int, sig: TypeWithSchema): TypeWithSchema = {
     assert(fieldIdx.contains(key))
 
     val newFields = Array.fill[Field](fields.length)(null)
@@ -395,7 +413,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     TStruct(newFields)
   }
 
-  def deleteKey(key: String, index: Int): Type = {
+  def deleteKey(key: String, index: Int): TypeWithSchema = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
       TEmpty
@@ -409,7 +427,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  def appendKey(key: String, sig: Type): TStruct = {
+  def appendKey(key: String, sig: TypeWithSchema): TStruct = {
     assert(!fieldIdx.contains(key))
     val newFields = Array.fill[Field](fields.length + 1)(null)
     for (i <- fields.indices)
@@ -420,26 +438,28 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def toString = "Struct"
 
-  override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
-    sb.append(" " * indent)
-    sb.append(path.last)
-    sb.append(": ")
-    path.foreachBetween { f => sb.append(f) } { () => sb += '.' }
-    for (i <- 0 until arrayDepth)
-      sb.append("[<index>]")
-    sb.append(".<identifier>\n")
-    for (f <- fields) {
-      f.`type`.pretty(sb, indent + 2, path :+ f.name, 0)
-      /*
-      if (f.attrs.nonEmpty) {
-        sb.append(" " * (indent + 2))
-        f.attrs.foreachBetween { case (k, v) =>
-          sb.append(k)
-          sb += '='
-          sb.append(v)
-        } { () => sb.append(", ") }
-      }
-    */
+  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+    if (arrayDepth > 0) {
+      sb.append("Array[")
+      sb += '\n'
+      sb.append(" " * (indent + 4))
+      pretty(sb, indent + 4, arrayDepth - 1, printAttrs)
+      sb += '\n'
+      sb.append(" " * indent)
+      sb += ']'
+    }
+    else {
+      sb.append("Struct {")
+      sb += '\n'
+      fields.foreachBetween(f => {
+        f.pretty(sb, indent + 4, 0, printAttrs)
+      })(() => {
+        sb += ','
+        sb += '\n'
+      })
+      sb += '\n'
+      sb.append(" " * indent)
+      sb += '}'
     }
   }
 
@@ -458,7 +478,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     StructType(fields
       .map { case f =>
         StructField(f.index.toString, f.`type`.schema) //FIXME hack
-//        StructField(f.name, f.`type`.schema)
+        //        StructField(f.name, f.`type`.schema)
       })
   }
 }

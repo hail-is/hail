@@ -2,12 +2,12 @@ package org.broadinstitute.hail.io.annotators
 
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.{Interval, IntervalList, Variant}
 
 object BedAnnotator {
   def apply(filename: String,
-    hConf: hadoop.conf.Configuration): (IntervalList, expr.Type) = {
+    hConf: hadoop.conf.Configuration): (IntervalList, TypeWithSchema) = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     readLines(filename, hConf) { lines =>
@@ -27,9 +27,9 @@ object BedAnnotator {
         .split("""\s+""")
 
       val (getString, signature) = if (next.length < 4)
-        (false, expr.TBoolean)
+        (false, TBoolean)
       else
-        (true, expr.TString)
+        (true, TString)
 
       val intervalList = IntervalList(
         dataLines
