@@ -63,6 +63,9 @@ object VEP extends Command {
     case (JArray(a), TArray(elementType)) =>
       a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
 
+    case (JArray(a), TSet(elementType)) =>
+      a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
+
     case _ =>
       warn(s"Can't convert json value $jv to signature $t for $parent.")
       null

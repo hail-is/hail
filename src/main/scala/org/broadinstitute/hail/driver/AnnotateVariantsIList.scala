@@ -17,22 +17,14 @@ object AnnotateVariantsIList extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatevariants/intervals"
+  def name = "annotatevariants intervals"
 
-  override def hidden = true
-
-  def description = "Annotate variants in current dataset"
+  def description = "Annotate variants with interval list"
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-
-    val cond = options.input
-
-    val conf = state.sc.hadoopConfiguration
-
-    val (iList, signature) = IntervalListAnnotator(cond, conf)
+    val (iList, signature) = IntervalListAnnotator(options.input, state.hadoopConf)
     val annotated = vds.annotateInvervals(iList, signature, AnnotateVariantsTSV.parseRoot(options.root))
-
     state.copy(vds = annotated)
   }
 }

@@ -4,6 +4,8 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.Utils._
+import org.json4s._
+
 import scala.collection.mutable
 
 object AltAlleleType extends Enumeration {
@@ -32,7 +34,7 @@ object AltAllele {
 
   def gen: Gen[AltAllele] =
     for (ref <- genDNAString;
-      alt <- genDNAString)
+         alt <- genDNAString)
       yield AltAllele(ref, alt)
 }
 
@@ -91,6 +93,11 @@ case class AltAllele(ref: String,
     require(isSNP)
     (ref, alt).zipped.dropWhile { case (a, b) => a == b }.head
   }
+
+  def toJSON: JValue = JObject(
+    ("ref", JString(ref)),
+    ("alt", JString(alt))
+  )
 }
 
 object Variant {
@@ -129,12 +136,12 @@ object Variant {
 
   def gen: Gen[Variant] =
     for (contig <- Gen.identifier;
-      start <- Gen.posInt;
-      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
-      alleles <- Gen.distinctBuildableOfN[Array[String], String](
-        nAlleles,
-        Gen.frequency((10, genDNAString),
-          (1, Gen.const("*")))) if alleles(0) != "*") yield {
+         start <- Gen.posInt;
+         nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
+         alleles <- Gen.distinctBuildableOfN[Array[String], String](
+           nAlleles,
+           Gen.frequency((10, genDNAString),
+             (1, Gen.const("*")))) if alleles(0) != "*") yield {
       val ref = alleles(0)
       Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
     }
@@ -244,4 +251,11 @@ case class Variant(contig: String,
       ref,
       altAlleles.map { a => Row.fromSeq(Array(a.ref, a.alt)) }))
   }
+
+  def toJSON: JValue = JObject(
+    ("contig", JString(contig)),
+    ("start", JInt(start)),
+    ("ref", JString(ref)),
+    ("altAlleles", JArray(altAlleles.map(_.toJSON).toList))
+  )
 }

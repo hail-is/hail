@@ -2,14 +2,13 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotation, Inserter}
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.Aggregators
+import org.broadinstitute.hail.expr.TypeWithSchema
 import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 object AnnotateSamplesExpr extends Command {
 
@@ -21,11 +20,9 @@ object AnnotateSamplesExpr extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatesamples/expr"
+  def name = "annotatesamples expr"
 
-  def description = "Annotate samples in current dataset"
-
-  override def hidden = true
+  def description = "Annotate samples programatically"
 
   override def supportsMultiallelic = true
 
@@ -46,21 +43,26 @@ object AnnotateSamplesExpr extends Command {
       "gs" ->(2, TAggregable(aggregationEC)))
 
     val ec = EvalContext(symTab)
-    val parsed = expr.Parser.parseAnnotationArgs(ec, cond)
+    val parsed = Parser.parseAnnotationArgs(ec, cond)
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "sa")
-        fatal(s"expect 'sa[.identifier]+', got ${ids.mkString(".")}")
-      (ids.tail, t)
+        fatal(s"Path must start with `sa.', got `${ids.mkString(".")}'")
+      val sig = t match {
+        case tws: TypeWithSchema => tws
+        case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
+      }
+      (ids.tail, sig)
     }
+    val computations = parsed.map(_._3)
+
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
+
       val (s, i) = v.insertSA(signature, ids)
       inserterBuilder += i
       v.copy(saSignature = s)
     }
-
-    val computations = parsed.map(_._3)
     val inserters = inserterBuilder.result()
     
     val a = ec.a
@@ -81,12 +83,12 @@ object AnnotateSamplesExpr extends Command {
       }
 
       val queries = computations.map(_ ())
+      var newSA = sa
       queries.indices.foreach { i =>
-        a(1) = inserters(i).apply(
-          a(1),
+        newSA = inserters(i)(newSA,
           Option(queries(i)))
       }
-      a(1): Annotation
+      newSA
     }
     val annotated = vdsAddedSigs.copy(sampleAnnotations = newAnnotations)
     state.copy(vds = annotated)

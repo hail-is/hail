@@ -11,6 +11,9 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
+import org.json4s._
+import org.json4s.native.JsonMethods._
+
 
 case class EvalContext(st: SymbolTable,
   a: ArrayBuffer[Any],
@@ -63,38 +66,15 @@ object DoubleNumericConversion extends NumericConversion[Double] {
   }
 }
 
-sealed abstract class Type extends Serializable {
-
-  def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
-    sb.append(" " * indent)
-    sb.append(path.last)
-    sb.append(": ")
-    sb.append("Array[" * arrayDepth)
-    sb.append(toString)
-    sb.append("]" * arrayDepth)
-    sb += '\n'
-  }
-
-  def prettyWithValues(sb: StringBuilder, a: Any, indent: Int, path: Vector[String], arrayDepth: Int) {
-    sb.append(" " * indent)
-    sb.append(path.last)
-    sb.append(": ")
-    sb.append("Array[" * arrayDepth)
-    sb.append(toString)
-    sb.append("]" * arrayDepth)
-    sb.append(" = ")
-    sb.tsvAppend(a)
-    sb += '\n'
-  }
-
-  def typeCheck(a: Any): Boolean
-
-
-  def parse(s: String): Annotation =
-    throw new UnsupportedOperationException(s"Cannot generate a parser for $toString")
+trait Parsable {
+  def parse(s: String): Annotation
 }
 
-sealed abstract class TypeWithSchema extends Type {
+sealed abstract class Type extends Serializable {
+  def typeCheck(a: Any): Boolean
+}
+
+abstract class TypeWithSchema extends Type {
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
       .flatMap { t =>
@@ -141,6 +121,21 @@ sealed abstract class TypeWithSchema extends Type {
       a => Option(a)
   }
 
+  def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean = false) {
+    sb.append("Array[" * arrayDepth)
+    sb.append(toString)
+    sb.append("]" * arrayDepth)
+  }
+
+  def makeJSON(a: Annotation): JValue = {
+    a match {
+      case null => JNull
+      case x => selfMakeJSON(a)
+    }
+  }
+
+  def selfMakeJSON(a: Annotation): JValue
+
   def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
 
   def fieldOption(path: List[String]): Option[Field] =
@@ -157,16 +152,22 @@ case object TEmpty extends TypeWithSchema {
   def schema =
   // placeholder
     BooleanType
+
+  def selfMakeJSON(a: Annotation): JValue = JNothing
+
+  override def makeJSON(a: Annotation): JValue = JNothing
 }
 
-case object TBoolean extends TypeWithSchema {
+case object TBoolean extends TypeWithSchema with Parsable {
   override def toString = "Boolean"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
 
   def schema = BooleanType
 
-  override def parse(s: String): Annotation = s.toBoolean
+  def parse(s: String): Annotation = s.toBoolean
+
+  def selfMakeJSON(a: Annotation): JValue = JBool(a.asInstanceOf[Boolean])
 }
 
 case object TChar extends TypeWithSchema {
@@ -176,58 +177,72 @@ case object TChar extends TypeWithSchema {
     && a.asInstanceOf[String].length == 1)
 
   def schema = StringType
+
+  def selfMakeJSON(a: Annotation): JValue = JString(a.asInstanceOf[String])
 }
 
 abstract class TNumeric extends TypeWithSchema
 
-case object TInt extends TNumeric {
+abstract class TIntegral extends TNumeric
+
+case object TInt extends TIntegral with Parsable {
   override def toString = "Int"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
   def schema = IntegerType
 
-  override def parse(s: String): Annotation = s.toInt
+  def parse(s: String): Annotation = s.toInt
+
+  def selfMakeJSON(a: Annotation): JValue = JInt(a.asInstanceOf[Int])
 }
 
-case object TLong extends TNumeric {
+case object TLong extends TIntegral with Parsable {
   override def toString = "Long"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 
   def schema = LongType
 
-  override def parse(s: String): Annotation = s.toLong
+  def parse(s: String): Annotation = s.toLong
+
+  def selfMakeJSON(a: Annotation): JValue = JLong(a.asInstanceOf[Long])
 }
 
-case object TFloat extends TNumeric {
+case object TFloat extends TNumeric with Parsable {
   override def toString = "Float"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 
   def schema = FloatType
 
-  override def parse(s: String): Annotation = s.toFloat
+  def parse(s: String): Annotation = s.toFloat
+
+  def selfMakeJSON(a: Annotation): JValue = JDouble(a.asInstanceOf[Float])
 }
 
-case object TDouble extends TNumeric {
+case object TDouble extends TNumeric with Parsable {
   override def toString = "Double"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
   def schema = DoubleType
 
-  override def parse(s: String): Annotation = s.toDouble
+  def parse(s: String): Annotation = s.toDouble
+
+  def selfMakeJSON(a: Annotation): JValue = JDouble(a.asInstanceOf[Double])
 }
 
-case object TString extends TypeWithSchema {
+case object TString extends TypeWithSchema with Parsable {
   override def toString = "String"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
   def schema = StringType
 
-  override def parse(s: String): Annotation = s
+  def parse(s: String): Annotation = s
+
+  def selfMakeJSON(a: Annotation): JValue = JString(a.asInstanceOf[String])
 }
 
 abstract class TIterable extends TypeWithSchema {
@@ -240,21 +255,21 @@ case class TAggregable(ec: EvalContext) extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Iterable[_]]
 }
 
-case class TArray(elementType: TypeWithSchema) extends TIterable {
+case class TArray(elementType: TypeWithSchema) extends TypeWithSchema {
   override def toString = s"Array[$elementType]"
 
-  override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
-    elementType.pretty(sb, indent, path, arrayDepth + 1)
+  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+    elementType.pretty(sb, indent, arrayDepth + 1, printAttrs)
   }
-
-  override def prettyWithValues(sb: StringBuilder, a: Any, indent: Int, path: Vector[String], arrayDepth: Int) {
-    elementType.prettyWithValues(sb, a, indent, path, arrayDepth + 1)
-  }
-
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
 
   def schema = ArrayType(elementType.schema)
+
+  def selfMakeJSON(a: Annotation): JValue = {
+    val arr = a.asInstanceOf[Seq[Any]]
+    JArray(arr.map(elementType.makeJSON).toList)
+  }
 }
 
 case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
@@ -264,6 +279,15 @@ case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
 
   def schema = ArrayType(elementType.schema)
+
+  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+    elementType.pretty(sb, indent, arrayDepth + 1, printAttrs)
+  }
+
+  def selfMakeJSON(a: Annotation): JValue = {
+    val arr = a.asInstanceOf[Seq[Any]]
+    JArray(arr.map(elementType.makeJSON).toList)
+  }
 }
 
 case object TSample extends TypeWithSchema {
@@ -273,6 +297,8 @@ case object TSample extends TypeWithSchema {
 
   def schema = StructType(Array(
     StructField("id", StringType, nullable = false)))
+
+  def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Sample].toJSON
 }
 
 case object TGenotype extends TypeWithSchema {
@@ -281,6 +307,8 @@ case object TGenotype extends TypeWithSchema {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
   def schema = Genotype.schema
+
+  def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Genotype].toJSON
 }
 
 case object TAltAllele extends TypeWithSchema {
@@ -289,6 +317,8 @@ case object TAltAllele extends TypeWithSchema {
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 
   def schema = AltAllele.schema
+
+  def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[AltAllele].toJSON
 }
 
 case object TVariant extends TypeWithSchema {
@@ -297,6 +327,8 @@ case object TVariant extends TypeWithSchema {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
   def schema = Variant.schema
+
+  def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Variant].toJSON
 }
 
 object TStruct {
@@ -314,6 +346,25 @@ case class Field(name: String, `type`: TypeWithSchema,
   index: Int,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
+
+  def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+    sb.append(" " * indent)
+    sb.append(name)
+    sb.append(": ")
+    `type`.pretty(sb, indent, arrayDepth, printAttrs)
+    if (printAttrs) {
+      if (attrs.nonEmpty)
+        sb += '\n'
+      attrs.foreachBetween { attr =>
+        sb.append(" " * (indent + 2))
+        sb += '@'
+        sb.append(prettyIdentifier(attr._1))
+        sb.append("=\"")
+        sb.append(escapeString(attr._2))
+        sb += '"'
+      }(() => sb += '\n')
+    }
+  }
 }
 
 case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
@@ -462,59 +513,30 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
 
   override def toString = "Struct"
 
-  override def pretty(sb: StringBuilder, indent: Int, path: Vector[String], arrayDepth: Int) {
-    sb.append(" " * indent)
-    sb.append(path.last)
-    sb.append(": ")
-    path.foreachBetween { f => sb.append(f) } { () => sb += '.' }
-    for (i <- 0 until arrayDepth)
-      sb.append("[<index>]")
-    sb.append(".<identifier>\n")
-    for (f <- fields) {
-      f.`type`.pretty(sb, indent + 2, path :+ f.name, 0)
-      /*
-      if (f.attrs.nonEmpty) {
-        sb.append(" " * (indent + 2))
-        f.attrs.foreachBetween { case (k, v) =>
-          sb.append(k)
-          sb += '='
-          sb.append(v)
-        } { () => sb.append(", ") }
-      }
-    */
+  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+    if (arrayDepth > 0) {
+      sb.append("Array[")
+      sb += '\n'
+      sb.append(" " * (indent + 4))
+      pretty(sb, indent + 4, arrayDepth - 1, printAttrs)
+      sb += '\n'
+      sb.append(" " * indent)
+      sb += ']'
+    }
+    else {
+      sb.append("Struct {")
+      sb += '\n'
+      fields.foreachBetween(f => {
+        f.pretty(sb, indent + 4, 0, printAttrs)
+      })(() => {
+        sb += ','
+        sb += '\n'
+      })
+      sb += '\n'
+      sb.append(" " * indent)
+      sb += '}'
     }
   }
-
-  override def prettyWithValues(sb: StringBuilder, a: Any, indent: Int, path: Vector[String], arrayDepth: Int) {
-    sb.append(" " * indent)
-    sb.append(path.last)
-    sb.append(": ")
-    path.foreachBetween { f => sb.append(f) } { () => sb += '.' }
-    for (i <- 0 until arrayDepth)
-      sb.append("[<index>]")
-    sb.append(".<identifier>\n")
-
-    val rowToPrint =
-      if (a == null)
-        Row.fromSeq(Array.fill[Any](fields.length)(null))
-      else
-        a.asInstanceOf[Row]
-
-    for (f <- fields) {
-      f.`type`.pretty(sb, rowToPrint.get(f.index), indent + 2, path :+ f.name, 0)
-      /*
-      if (f.attrs.nonEmpty) {
-        sb.append(" " * (indent + 2))
-        f.attrs.foreachBetween { case (k, v) =>
-          sb.append(k)
-          sb += '='
-          sb.append(v)
-        } { () => sb.append(", ") }
-      }
-    */
-    }
-  }
-
 
   override def typeCheck(a: Any): Boolean = a == null || {
     a.isInstanceOf[Row] &&
@@ -530,8 +552,17 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     assert(fields.length > 0)
     StructType(fields
       .map { case f =>
-        StructField(f.name, f.`type`.schema)
+        StructField(f.index.toString, f.`type`.schema) //FIXME hack
+        //        StructField(f.name, f.`type`.schema)
       })
+  }
+
+  def selfMakeJSON(a: Annotation): JValue = {
+    val row = a.asInstanceOf[Row]
+    JObject(
+      fields.map(f => (f.name, f.`type`.makeJSON(row.get(f.index))))
+        .toList
+    )
   }
 }
 
@@ -1523,8 +1554,19 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case ("+", TInt) => AST.evalComposeNumeric[Int, Int](ec, lhs, rhs)(_ + _)
     case ("-", TInt) => AST.evalComposeNumeric[Int, Int](ec, lhs, rhs)(_ - _)
     case ("*", TInt) => AST.evalComposeNumeric[Int, Int](ec, lhs, rhs)(_ * _)
-    case ("/", TInt) => AST.evalComposeNumeric[Int, Int](ec, lhs, rhs)(_ / _)
+    case ("/", TInt) => AST.evalComposeNumeric[Double, Double](ec, lhs, rhs)(_ / _)
     case ("%", TInt) => AST.evalComposeNumeric[Int, Int](ec, lhs, rhs)(_ % _)
+
+    case ("+", TLong) => AST.evalComposeNumeric[Long, Long](ec, lhs, rhs)(_ + _)
+    case ("-", TLong) => AST.evalComposeNumeric[Long, Long](ec, lhs, rhs)(_ - _)
+    case ("*", TLong) => AST.evalComposeNumeric[Long, Long](ec, lhs, rhs)(_ * _)
+    case ("/", TLong) => AST.evalComposeNumeric[Double, Double](ec, lhs, rhs)(_ / _)
+    case ("%", TLong) => AST.evalComposeNumeric[Long, Long](ec, lhs, rhs)(_ % _)
+
+    case ("+", TFloat) => AST.evalComposeNumeric[Float, Float](ec, lhs, rhs)(_ + _)
+    case ("-", TFloat) => AST.evalComposeNumeric[Float, Float](ec, lhs, rhs)(_ - _)
+    case ("*", TFloat) => AST.evalComposeNumeric[Float, Float](ec, lhs, rhs)(_ * _)
+    case ("/", TFloat) => AST.evalComposeNumeric[Float, Float](ec, lhs, rhs)(_ / _)
 
     case ("+", TDouble) => AST.evalComposeNumeric[Double, Double](ec, lhs, rhs)(_ + _)
     case ("-", TDouble) => AST.evalComposeNumeric[Double, Double](ec, lhs, rhs)(_ - _)
@@ -1537,10 +1579,11 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case (TString, "~", TString) => TBoolean
     case (TBoolean, "||", TBoolean) => TBoolean
     case (TBoolean, "&&", TBoolean) => TBoolean
+    case (lhsType: TIntegral, "%", rhsType: TIntegral) => AST.promoteNumeric(lhsType, rhsType)
     case (lhsType: TNumeric, "+", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
     case (lhsType: TNumeric, "-", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
     case (lhsType: TNumeric, "*", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
-    case (lhsType: TNumeric, "/", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
+    case (lhsType: TNumeric, "/", rhsType: TNumeric) => TDouble
 
     case (lhsType, _, rhsType) =>
       parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")

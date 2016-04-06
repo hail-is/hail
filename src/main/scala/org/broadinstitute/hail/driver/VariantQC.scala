@@ -286,14 +286,13 @@ object VariantQC extends Command {
       .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
         (comb1, comb2) => comb1.merge(comb2))
 
-
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
     val output = options.output
 
+    // don't recompute QC in case there are multiple downstream actions
     val r = results(vds).persist(StorageLevel.MEMORY_AND_DISK)
-
 
     if (output != null) {
       hadoopDelete(output, state.hadoopConf, recursive = true)
@@ -316,7 +315,11 @@ object VariantQC extends Command {
     state.copy(
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
-          it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
+          // if upstream operation is a recomputed shuffle, order of elements may disagree
+          val ia = it.toArray.sortWith { case ((v1, _, _), (v2, _, _)) => v1 < v2 }
+          val ja = jt.toArray.sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
+
+          ia.iterator.zip(ja.iterator).map { case ((v, va, gs), (v2, comb)) =>
             assert(v == v2)
             (v, insertQC(va, Some(comb.asAnnotation)), gs)
           }

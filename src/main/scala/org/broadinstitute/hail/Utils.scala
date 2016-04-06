@@ -6,9 +6,9 @@ import breeze.linalg.operators.{OpAdd, OpSub}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, NullWritable, Text}
+import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.AccumulableParam
+import org.apache.spark.{AccumulableParam, SparkContext}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -24,6 +24,9 @@ import scala.io.Source
 import scala.language.implicitConversions
 import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
+import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector, DenseMatrix}
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
+import org.apache.commons.lang.StringEscapeUtils
 
 import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
@@ -180,6 +183,17 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         seen += x
     true
   }
+
+  def duplicates(): Set[T] = {
+    val dups = mutable.HashSet[T]()
+    val seen = mutable.HashSet[T]()
+    for (x <- i)
+      if (seen(x))
+        dups += x
+      else
+        seen += x
+    dups.toSet
+  }
 }
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
@@ -262,6 +276,18 @@ class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
   def areDistinct() = a.toIterable.areDistinct()
+
+  def duplicates(): Set[T] = a.toIterable.duplicates()
+}
+
+class RichSparkContext(val sc: SparkContext) extends AnyVal {
+  def textFiles[T](files: Array[String], f: String => Unit = s => (),
+    nPartitions: Int = sc.defaultMinPartitions): RDD[String] = {
+    files.foreach(f)
+    sc.union(
+      files.map(file =>
+        sc.textFile(file, nPartitions)))
+  }
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
@@ -416,26 +442,6 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
       case _ => sb.append(a)
     }
   }
-
-  def prettyAppend(a: Any) {
-    case null | None => sb.append("NA")
-    case Some(x) => prettyAppend(x)
-    case v: Variant =>
-      sb.append(v.contig)
-      sb += ':'
-      sb.append(v.start)
-      sb += ':'
-      sb.append(v.ref)
-      sb += ':'
-      sb.append(v.altAlleles.map(_.alt).mkString(","))
-    case s: Sample =>
-      sb.append(s.id)
-    case s: Seq[_] =>
-      sb.append("Array(")
-      s.foreachBetween(value => sb.prettyAppend(value))(() => sb.append(','))
-      sb.append(")")
-    case _ => sb.append(a)
-  }
 }
 
 class RichIntPairTraversableOnce[V](val t: TraversableOnce[(Int, V)]) extends AnyVal {
@@ -513,10 +519,62 @@ class RichAny(val a: Any) extends AnyVal {
       None
 }
 
+object RichDenseMatrixDouble {
+  def horzcat(oms: Option[DenseMatrix[Double]]*): Option[DenseMatrix[Double]] = {
+    val ms = oms.flatMap(m => m)
+    if (ms.isEmpty)
+      None
+    else
+      Some(DenseMatrix.horzcat(ms: _*))
+  }
+}
+
+
+// Not supporting generic T because its difficult to do with ArrayBuilder and not needed yet. See:
+// http://stackoverflow.com/questions/16306408/boilerplate-free-scala-arraybuilder-specialization
+class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
+  def filterRows(keepRow: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nRows = 0
+    for (row <- 0 until m.rows)
+      if (keepRow(row)) {
+        nRows += 1
+        for (col <- 0 until m.cols)
+          ab += m(row, col)
+      }
+
+    if (nRows > 0)
+      Some(new DenseMatrix[Double](rows = nRows, cols = m.cols, data = ab.result(),
+        offset = 0, majorStride = m.cols, isTranspose = true))
+    else
+      None
+  }
+
+  def filterCols(keepCol: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nCols = 0
+    for (col <- 0 until m.cols)
+      if (keepCol(col)) {
+        nCols += 1
+        for (row <- 0 until m.rows)
+          ab += m(row, col)
+      }
+
+    if (nCols > 0)
+      Some(new DenseMatrix[Double](rows = m.rows, cols = nCols, data = ab.result()))
+    else
+      None
+  }
+}
+
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
+
+  implicit def toRichSC(sc: SparkContext): RichSparkContext = new RichSparkContext(sc)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
@@ -591,6 +649,9 @@ object Utils extends Logging {
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
+
+  implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble =
+    new RichDenseMatrixDouble(m)
 
   def plural(n: Int, sing: String, plur: String = null): String =
     if (n == 1)
@@ -684,6 +745,17 @@ object Utils extends Logging {
     getRandomName
   }
 
+  def hadoopGlobAll(filenames: Iterable[String], hConf: hadoop.conf.Configuration): Array[String] = {
+    filenames.iterator
+      .flatMap { arg =>
+        val fss = hadoopGlobAndSort(arg, hConf)
+        val files = fss.map(_.getPath.toString)
+        if (files.isEmpty)
+          warn(s"`$arg' refers to no files")
+        files
+      }.toArray
+  }
+
   def hadoopGlobAndSort(filename: String, hConf: hadoop.conf.Configuration): Array[FileStatus] = {
     val fs = hadoopFS(filename, hConf)
     val path = new hadoop.fs.Path(filename)
@@ -744,16 +816,14 @@ object Utils extends Logging {
   def hadoopStripCodec(s: String, conf: hadoop.conf.Configuration): String = {
     val path = new org.apache.hadoop.fs.Path(s)
 
-    val ext = Option(new CompressionCodecFactory(conf)
+    Option(new CompressionCodecFactory(conf)
       .getCodec(path))
-    val toStrip = ext.map(_.getDefaultExtension)
-    assert(toStrip.forall(s.endsWith))
-    val lengthToStrip = toStrip.map(_.length)
-      .getOrElse(0)
-
-    s.substring(0, s.length - lengthToStrip)
+      .map { case codec =>
+        val ext = codec.getDefaultExtension
+        assert(s.endsWith(ext))
+        s.dropRight(ext.length)
+      }.getOrElse(s)
   }
-
 
   def writeObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
@@ -853,7 +923,7 @@ object Utils extends Logging {
     readFile[T](filename, hConf) {
       is =>
         val lines = Source.fromInputStream(is)
-          .getLines
+          .getLines()
           .zipWithIndex
           .map {
             case (value, position) => Line(value, position, filename)
@@ -1025,4 +1095,15 @@ object Utils extends Logging {
   implicit def toRichAny(a: Any): RichAny = new RichAny(a)
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
+
+  def prettyIdentifier(str: String): String = {
+    if (str.matches("""\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
+      str
+    else
+      s"`${escapeString(str)}`"
+  }
+
+  def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
+
+  def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
 }

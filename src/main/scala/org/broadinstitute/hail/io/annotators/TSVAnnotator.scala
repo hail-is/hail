@@ -7,26 +7,6 @@ import org.broadinstitute.hail.expr._
 import scala.collection.mutable
 
 trait TSVAnnotator {
-  def parseStringType(s: String): TypeWithSchema = {
-    s match {
-      case "Float" => TFloat
-      case "Double" => TDouble
-      case "Int" => TInt
-      case "Long" => TLong
-      case "Boolean" => TBoolean
-      case "String" => TString
-      case _ => fatal(
-        s"""Unrecognized type "$s".  Hail supports parsing the following types in annotations:
-            |  - Float (4-byte floating point number)
-            |  - Double (8-byte floating point number)
-            |  - Int (4-byte integer)
-            |  - Long (8-byte integer)
-            |  - Boolean
-            |  - String
-            |
-             |  Note that the above types are case sensitive.""".stripMargin)
-    }
-  }
 
   def buildParsers(missing: String,
     namesAndTypes: Array[(String, Option[TypeWithSchema])]): Array[(mutable.ArrayBuilder[Annotation], String) => Unit] = {
@@ -35,17 +15,17 @@ trait TSVAnnotator {
         ot match {
           case Some(t) => (ab: mutable.ArrayBuilder[Annotation], s: String) => {
             if (s == missing) {
-              ab += null: Annotation
+              ab += Annotation.empty
               ()
-            }
-            else
+            } else {
               try {
-                ab += t.parse(s)
+                ab += t.asInstanceOf[Parsable].parse(s)
                 ()
               } catch {
                 case e: Exception =>
                   fatal(s"""${e.getClass.getName}: tried to convert "$s" to $t in column "$head" """)
               }
+            }
           }
           case None => (ab: mutable.ArrayBuilder[Annotation], s: String) => ()
         }

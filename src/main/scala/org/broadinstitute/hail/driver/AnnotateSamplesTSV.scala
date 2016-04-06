@@ -1,13 +1,9 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.{Annotation, Inserter}
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
-import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
-
-import scala.collection.mutable
 
 object AnnotateSamplesTSV extends Command {
 
@@ -35,17 +31,15 @@ object AnnotateSamplesTSV extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatesamples/tsv"
+  def name = "annotatesamples tsv"
 
-  def description = "Annotate samples in current dataset"
-
-  override def hidden = true
+  def description = "Annotate samples with TSV file"
 
   override def supportsMultiallelic = true
 
   def parseRoot(s: String): List[String] = {
-    val split = s.split("""\.""").toList
-    fatalIf(split.isEmpty || split.head != "sa", s"invalid root '$s': expect 'sa.<path[.path2...]>'")
+    val split = s.split("\\.").toList
+    fatalIf(split.isEmpty || split.head != "sa", s"Root must start with `sa.', got `$s'")
     split.tail
   }
 
@@ -55,8 +49,9 @@ object AnnotateSamplesTSV extends Command {
     val input = options.input
 
     val (m, signature) = SampleTSVAnnotator(input, options.sampleCol,
-      AnnotateVariantsTSV.parseTypeMap(options.types), options.missing,
-      vds.sparkContext.hadoopConfiguration)
+      Parser.parseAnnotationTypes(options.types),
+      options.missing,
+      state.hadoopConf)
     val annotated = vds.annotateSamples(m, signature, parseRoot(options.root))
     state.copy(vds = annotated)
   }

@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.vcf
 
+import htsjdk.variant.variantcontext.VariantContext
 import org.apache.spark.Accumulable
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.VCFReport
@@ -26,10 +27,10 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
   import HtsjdkRecordReader._
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    line: String,
+    vc: VariantContext,
     infoSignature: TStruct,
-    storeGQ: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
-    val vc = codec.decode(line)
+    storeGQ: Boolean,
+    skipGenotypes: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filters: mutable.WrappedArray[String] = {
@@ -69,6 +70,9 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       filters,
       pass,
       info)
+
+    if (skipGenotypes)
+      return (v, va, Iterable.empty)
 
     val gb = new GenotypeBuilder(v)
 
@@ -190,8 +194,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 }
 
 object HtsjdkRecordReader {
-  def apply(headerLines: Array[String]): HtsjdkRecordReader = {
-    val codec = new htsjdk.variant.vcf.VCFCodec()
+  def apply(headerLines: Array[String], codec: htsjdk.variant.vcf.VCFCodec): HtsjdkRecordReader = {
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)
   }

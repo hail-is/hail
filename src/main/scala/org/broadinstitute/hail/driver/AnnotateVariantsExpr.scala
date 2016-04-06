@@ -5,6 +5,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.Aggregators
+import org.broadinstitute.hail.expr.TypeWithSchema
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -19,11 +20,9 @@ object AnnotateVariantsExpr extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatevariants/expr"
+  def name = "annotatevariants expr"
 
-  override def hidden = true
-
-  def description = "Annotate variants in current dataset"
+  def description = "Annotate variants programatically"
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -46,23 +45,23 @@ object AnnotateVariantsExpr extends Command {
     val ec = EvalContext(symTab)
     val parsed = expr.Parser.parseAnnotationArgs(ec, cond)
 
-
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "va")
-        fatal(s"expect 'va[.identifier]+', got ${ids.mkString(".")}")
-      (ids.tail, t)
+        fatal(s"Path must start with `va.', got `${ids.mkString(".")}'")
+      val sig = t match {
+        case tws: TypeWithSchema => tws
+        case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
+      }
+      (ids.tail, sig)
     }
-
-    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-
     val computations = parsed.map(_._3)
 
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
       val (s, i) = v.insertVA(signature, ids)
       inserterBuilder += i
       v.copy(vaSignature = s)
     }
-
     val inserters = inserterBuilder.result()
 
     val a = ec.a
@@ -78,9 +77,9 @@ object AnnotateVariantsExpr extends Command {
       aggregateOption.foreach(f => f(v, va, gs))
 
       computations.indices.foreach { i =>
-        a(1) = inserters(i).apply(a(1), Option(computations(i)()))
+        a(1) = inserters(i)(a(1), Option(computations(i)()))
       }
-      a(1): Annotation
+      a(1)
     }
     state.copy(vds = annotated)
   }

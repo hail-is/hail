@@ -21,21 +21,19 @@ object IntervalListAnnotator {
       }
 
       val iList = IntervalList((Iterator(firstLine) ++ lines)
-        .map { l => l.transform(line => {
+        .map { l => l.transform { line =>
           if (getString) {
             val Array(contig, start, end, direction, target) = line.value.split("""\s+""")
             Interval(contig, start.toInt, end.toInt, Some(target))
-          }
-          else {
+          } else {
             line.value match {
               case IntervalList.intervalRegex(contig, start_str, end_str) =>
                 Interval(contig, start_str.toInt, end_str.toInt, Some(true))
               case _ => fatal("Inconsistent interval file")
             }
           }
-        })
         }
-        .toTraversable)
+        }.toTraversable)
 
       (iList, signature)
     }

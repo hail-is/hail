@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
+import org.json4s.jackson.JsonMethods._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ShowGlobalAnnotations extends Command {
@@ -25,9 +25,8 @@ object ShowGlobalAnnotations extends Command {
     if (vds == null)
       fatal("showannotations requires a non-null variant dataset, import or read one first")
 
-    val sb = new StringBuilder
-    vds.taSignature.prettyWithValues(sb, vds.globalAnnotation, 0, Vector("a"), 0)
-    println(sb.result())
+    val json = vds.taSignature.makeJSON(vds.globalAnnotation)
+    println(pretty(json))
 
     state
   }

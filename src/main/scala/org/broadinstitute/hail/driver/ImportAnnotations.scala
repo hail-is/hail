@@ -1,23 +1,19 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.spark.SparkEnv
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{StructField, StructType}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators._
-import org.broadinstitute.hail.methods.LoadVCF
-import org.broadinstitute.hail.variant.{GenotypeStream, GenotypeStreamBuilder, Variant, VariantDataset, VariantMetadata}
-import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.variant._
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+
+import scala.collection.JavaConverters._
 
 object ImportAnnotations extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
-      usage = "Annotation file path")
-    var input: String = _
+    @Argument(usage = "<files...>")
+    var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Define types of fields in annotations files")
@@ -25,7 +21,7 @@ object ImportAnnotations extends Command {
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = "Specify additional identifiers to be treated as missing")
-    var missingIdentifiers: String = "NA"
+    var missingIdentifier: String = "NA"
 
     @Args4jOption(required = false, name = "--vcolumns",
       usage = "Specify the column identifiers for chromosome, position, ref, and alt (in that order)")
@@ -36,29 +32,24 @@ object ImportAnnotations extends Command {
 
   def name = "importannotations"
 
-  def description = "Import a tsv file containing variants / annotations into a sample-free vds"
+  def description = "Import a TSV file containing variants / annotations into a sample-free VDS"
 
   def run(state: State, options: Options): State = {
-    val cond = options.input
+    val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
-    val conf = state.sc.hadoopConfiguration
-    val serializer = SparkEnv.get.serializer.newInstance()
+    val (rdd, signature) = VariantTSVAnnotator(state.sc,
+      files,
+      AnnotateVariantsTSV.parseColumns(options.vCols),
+      Parser.parseAnnotationTypes(options.types),
+      options.missingIdentifier)
 
-    val vds = hadoopStripCodec(options.input, conf) match {
-      case tsv if tsv.endsWith(".tsv") =>
-        val (rdd, signature) = VariantTSVAnnotator(state.sc, cond, AnnotateVariantsTSV.parseColumns(options.vCols),
-          AnnotateVariantsTSV.parseTypeMap(options.types), options.missingIdentifiers)
-        new VariantDataset(
-          VariantMetadata(IndexedSeq.empty[(String, String)], Array.empty[String], Annotation.emptyIndexedSeq(0),
-            expr.TEmpty, signature, Annotation.empty, expr.TEmpty, wasSplit = true),
-          Array.empty[Int],
-          rdd.map { case (v, va) => (v, va, new GenotypeStreamBuilder(v, true).result()) })
-      case _ =>
-        fatal(
-          """This module requires an input file in the following format:
-            |  .tsv (tab separated values with chr, pos, ref, and alt columns, or chr:pos:ref:alt column)""".stripMargin)
-    }
+    val vds = new VariantDataset(
+      VariantMetadata(IndexedSeq.empty, IndexedSeq.empty, Annotation.emptyIndexedSeq(0),
+        TEmpty, signature, Annotation.empty, TEmpty, wasSplit = true),
+      Array.empty[Int],
+      rdd.map { case (v, va) => (v, va, Iterable.empty) })
 
     state.copy(vds = vds)
   }
+
 }

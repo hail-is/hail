@@ -1,14 +1,17 @@
 package org.broadinstitute.hail.variant
 
 import java.util
+
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.{Gen, Arbitrary}
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
+
 import scala.language.implicitConversions
 import scala.collection.mutable
 import org.broadinstitute.hail.Utils._
+import org.json4s._
 
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
@@ -187,6 +190,14 @@ class Genotype(private val _gt: Int,
     val mincp = d.cumulativeProbability(minDepth)
     (2 * mincp - minp).min(1.0).max(0.0)
   }
+
+  def toJSON: JValue = JObject(
+    ("gt", gt.map(JInt(_)).getOrElse(JNull)),
+    ("ad", ad.map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("dp", dp.map(JInt(_)).getOrElse(JNull)),
+    ("gq", gq.map(JInt(_)).getOrElse(JNull)),
+    ("pl", pl.map(pls => JArray(pls.map(JInt(_)).toList)).getOrElse(JNull))
+  )
 }
 
 object Genotype {
@@ -424,18 +435,18 @@ object Genotype {
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
-        Gen.choose(0, m)));
-      dp <- Gen.option(Gen.choose(0, m));
-      gq <- Gen.option(Gen.choose(0, 10000));
-      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-        Gen.choose(0, m)))) yield {
+         ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
+           Gen.choose(0, m)));
+         dp <- Gen.option(Gen.choose(0, m));
+         gq <- Gen.option(Gen.choose(0, 10000));
+         pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
+           Gen.choose(0, m)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
       pl.foreach { pla =>
         val m = pla.min
-        var i =  0
+        var i = 0
         while (i < pla.length) {
           pla(i) -= m
           i += 1
@@ -450,12 +461,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- gen(v))
+         g <- gen(v))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-      g <- gen(v))
+         g <- gen(v))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
