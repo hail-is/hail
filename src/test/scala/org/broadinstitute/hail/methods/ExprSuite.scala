@@ -145,19 +145,19 @@ class ExprSuite extends SparkSuite {
         Field("string2", TString, 1))))))))
 
     val newS = state.vds.vaSignature.insert(weirdSigToAdd, "test", "test2")._1
-    newS.pretty(sb, 0, 0, printAttrs = true)
+    newS.pretty(sb, 0, printAttrs = true)
     val res = sb.result()
     val parsed = Parser.parseType(res)
 
     assert(parsed == newS)
 
     sb.clear()
-    parsed.pretty(sb, 0, 0, printAttrs = false)
+    parsed.pretty(sb, 0, printAttrs = true)
     val res2 = sb.result()
     val parsed2 = Parser.parseType(res)
 
     sb.clear()
-    parsed2.pretty(sb, 0, 0, printAttrs = true)
+    parsed2.pretty(sb, 0, printAttrs = true)
     val res3 = sb.result()
     val parsed3 = Parser.parseType(res)
 
