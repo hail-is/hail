@@ -10,6 +10,9 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
+import org.json4s._
+import org.json4s.native.JsonMethods._
+
 
 case class EvalContext(symTab: SymbolTable,
   a: ArrayBuffer[Any])
@@ -109,6 +112,15 @@ abstract class TypeWithSchema extends Type {
     sb.append("]" * arrayDepth)
   }
 
+  def makeJSON(a: Annotation): JValue = {
+    a match {
+      case null => JNull
+      case x => selfMakeJSON(a)
+    }
+  }
+
+  def selfMakeJSON(a: Annotation): JValue
+
   def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
 
   def fieldOption(path: List[String]): Option[Field] =
@@ -126,6 +138,10 @@ case object TEmpty extends TypeWithSchema {
   def schema =
   // placeholder
     BooleanType
+
+  def selfMakeJSON(a: Annotation): JValue = JNothing
+
+  override def makeJSON(a: Annotation): JValue = JNothing
 }
 
 case object TBoolean extends TypeWithSchema with Parsable {
@@ -136,6 +152,8 @@ case object TBoolean extends TypeWithSchema with Parsable {
   def schema = BooleanType
 
   def parse(s: String): Annotation = s.toBoolean
+
+  def selfMakeJSON(a: Annotation): JValue = JBool(a.asInstanceOf[Boolean])
 }
 
 case object TChar extends TypeWithSchema {
@@ -145,6 +163,8 @@ case object TChar extends TypeWithSchema {
     && a.asInstanceOf[String].length == 1)
 
   def schema = StringType
+
+  def selfMakeJSON(a: Annotation): JValue = JString(a.asInstanceOf[String])
 }
 
 abstract class TNumeric extends TypeWithSchema
@@ -159,6 +179,8 @@ case object TInt extends TIntegral with Parsable {
   def schema = IntegerType
 
   def parse(s: String): Annotation = s.toInt
+
+  def selfMakeJSON(a: Annotation): JValue = JInt(a.asInstanceOf[Int])
 }
 
 case object TLong extends TIntegral with Parsable {
@@ -169,6 +191,8 @@ case object TLong extends TIntegral with Parsable {
   def schema = LongType
 
   def parse(s: String): Annotation = s.toLong
+
+  def selfMakeJSON(a: Annotation): JValue = JLong(a.asInstanceOf[Long])
 }
 
 case object TFloat extends TNumeric with Parsable {
@@ -179,6 +203,8 @@ case object TFloat extends TNumeric with Parsable {
   def schema = FloatType
 
   def parse(s: String): Annotation = s.toFloat
+
+  def selfMakeJSON(a: Annotation): JValue = JDouble(a.asInstanceOf[Float])
 }
 
 case object TDouble extends TNumeric with Parsable {
@@ -189,6 +215,8 @@ case object TDouble extends TNumeric with Parsable {
   def schema = DoubleType
 
   def parse(s: String): Annotation = s.toDouble
+
+  def selfMakeJSON(a: Annotation): JValue = JDouble(a.asInstanceOf[Double])
 }
 
 case object TString extends TypeWithSchema with Parsable {
@@ -199,6 +227,8 @@ case object TString extends TypeWithSchema with Parsable {
   def schema = StringType
 
   def parse(s: String): Annotation = s
+
+  def selfMakeJSON(a: Annotation): JValue = JString(a.asInstanceOf[String])
 }
 
 case class TArray(elementType: TypeWithSchema) extends TypeWithSchema {
@@ -212,6 +242,11 @@ case class TArray(elementType: TypeWithSchema) extends TypeWithSchema {
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
 
   def schema = ArrayType(elementType.schema)
+
+  def selfMakeJSON(a: Annotation): JValue = {
+    val arr = a.asInstanceOf[Seq[Any]]
+    JArray(arr.map(elementType.makeJSON).toList)
+  }
 }
 
 case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
@@ -221,6 +256,15 @@ case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
 
   def schema = ArrayType(elementType.schema)
+
+  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+    elementType.pretty(sb, indent, arrayDepth + 1, printAttrs)
+  }
+
+  def selfMakeJSON(a: Annotation): JValue = {
+    val arr = a.asInstanceOf[Seq[Any]]
+    JArray(arr.map(elementType.makeJSON).toList)
+  }
 }
 
 case object TSample extends TypeWithSchema {
@@ -230,6 +274,8 @@ case object TSample extends TypeWithSchema {
 
   def schema = StructType(Array(
     StructField("id", StringType, nullable = false)))
+
+  def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Sample].toJSON
 }
 
 case object TGenotype extends TypeWithSchema {
@@ -238,6 +284,8 @@ case object TGenotype extends TypeWithSchema {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
   def schema = Genotype.schema
+
+  def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Genotype].toJSON
 }
 
 case object TAltAllele extends TypeWithSchema {
@@ -246,6 +294,8 @@ case object TAltAllele extends TypeWithSchema {
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 
   def schema = AltAllele.schema
+
+  def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[AltAllele].toJSON
 }
 
 case object TVariant extends TypeWithSchema {
@@ -254,6 +304,8 @@ case object TVariant extends TypeWithSchema {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
   def schema = Variant.schema
+
+  def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Variant].toJSON
 }
 
 object TStruct {
@@ -480,6 +532,14 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
         StructField(f.index.toString, f.`type`.schema) //FIXME hack
         //        StructField(f.name, f.`type`.schema)
       })
+  }
+
+  def selfMakeJSON(a: Annotation): JValue = {
+    val row = a.asInstanceOf[Row]
+    JObject(
+      fields.map(f => (f.name, f.`type`.makeJSON(row.get(f.index))))
+        .toList
+    )
   }
 }
 
