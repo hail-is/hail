@@ -14,8 +14,6 @@ object Role extends Enumeration {
   val Mom = Value("2")
 }
 
-import org.broadinstitute.hail.methods.Role.{Role, Kid, Dad, Mom}
-
 case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int],
   sex: Option[Sex], pheno: Option[Phenotype]) {
 
@@ -54,7 +52,9 @@ object Pedigree {
         .getLines()
         .filter(line => !line.isEmpty)
         .flatMap{ line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
-          val Array(fam, kid, dad, mom, sex, pheno) = line.split("\\s+")
+          val splitLine = line.split("\\s+")  // FIXME: fails on names with spaces, will fix in PR for adding .fam to annotations by giving delimiter option
+          fatalIf(splitLine.size != 6, s"Require 6 fields per line in .fam, but this line has ${splitLine.size}: $line")
+          val Array(fam, kid, dad, mom, sex, pheno) = splitLine
           sampleIndex.get(kid) match {
             case Some(s) =>
               if (sampleSet(s))

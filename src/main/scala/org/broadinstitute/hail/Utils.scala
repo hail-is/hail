@@ -6,7 +6,7 @@ import breeze.linalg.operators.{OpAdd, OpSub}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, NullWritable, Text}
+import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.{AccumulableParam, SparkContext}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
@@ -22,7 +22,7 @@ import org.broadinstitute.hail.variant.Variant
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
-import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector, DenseMatrix}
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 
 import scala.reflect.ClassTag
@@ -180,6 +180,17 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         seen += x
     true
   }
+
+  def duplicates(): Set[T] = {
+    val dups = mutable.HashSet[T]()
+    val seen = mutable.HashSet[T]()
+    for (x <- i)
+      if (seen(x))
+        dups += x
+      else
+        seen += x
+    dups.toSet
+  }
 }
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
@@ -262,6 +273,8 @@ class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
   def areDistinct() = a.toIterable.areDistinct()
+
+  def duplicates(): Set[T] = a.toIterable.duplicates()
 }
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
@@ -503,6 +516,56 @@ class RichAny(val a: Any) extends AnyVal {
       None
 }
 
+object RichDenseMatrixDouble {
+  def horzcat(oms: Option[DenseMatrix[Double]]*): Option[DenseMatrix[Double]] = {
+    val ms = oms.flatMap(m => m)
+    if (ms.isEmpty)
+      None
+    else
+      Some(DenseMatrix.horzcat(ms: _*))
+  }
+}
+
+
+// Not supporting generic T because its difficult to do with ArrayBuilder and not needed yet. See:
+// http://stackoverflow.com/questions/16306408/boilerplate-free-scala-arraybuilder-specialization
+class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
+  def filterRows(keepRow: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nRows = 0
+    for (row <- 0 until m.rows)
+      if (keepRow(row)) {
+        nRows += 1
+        for (col <- 0 until m.cols)
+          ab += m(row, col)
+      }
+
+    if (nRows > 0)
+      Some(new DenseMatrix[Double](rows = nRows, cols = m.cols, data = ab.result(),
+        offset = 0, majorStride = m.cols, isTranspose = true))
+    else
+      None
+  }
+
+  def filterCols(keepCol: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nCols = 0
+    for (col <- 0 until m.cols)
+      if (keepCol(col)) {
+        nCols += 1
+        for (row <- 0 until m.rows)
+          ab += m(row, col)
+      }
+
+    if (nCols > 0)
+      Some(new DenseMatrix[Double](rows = m.rows, cols = nCols, data = ab.result()))
+    else
+      None
+  }
+}
+
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -583,6 +646,9 @@ object Utils extends Logging {
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
+
+  implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble =
+    new RichDenseMatrixDouble(m)
 
   def plural(n: Int, sing: String, plur: String = null): String =
     if (n == 1)
@@ -854,7 +920,7 @@ object Utils extends Logging {
     readFile[T](filename, hConf) {
       is =>
         val lines = Source.fromInputStream(is)
-          .getLines
+          .getLines()
           .zipWithIndex
           .map {
             case (value, position) => Line(value, position, filename)
