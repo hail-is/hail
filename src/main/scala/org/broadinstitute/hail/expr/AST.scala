@@ -106,10 +106,8 @@ abstract class TypeWithSchema extends Type {
       a => Option(a)
   }
 
-  def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean = false) {
-    sb.append("Array[" * arrayDepth)
+  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean = false) {
     sb.append(toString)
-    sb.append("]" * arrayDepth)
   }
 
   def makeJSON(a: Annotation): JValue = {
@@ -234,8 +232,10 @@ case object TString extends TypeWithSchema with Parsable {
 case class TArray(elementType: TypeWithSchema) extends TypeWithSchema {
   override def toString = s"Array[$elementType]"
 
-  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
-    elementType.pretty(sb, indent, arrayDepth + 1, printAttrs)
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+    sb.append("Array[")
+    elementType.pretty(sb, indent, printAttrs)
+    sb.append("]")
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
@@ -257,8 +257,10 @@ case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
 
   def schema = ArrayType(elementType.schema)
 
-  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
-    elementType.pretty(sb, indent, arrayDepth + 1, printAttrs)
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+    sb.append("Set[")
+    elementType.pretty(sb, indent, printAttrs)
+    sb.append("]")
   }
 
   def selfMakeJSON(a: Annotation): JValue = {
@@ -324,11 +326,11 @@ case class Field(name: String, `type`: TypeWithSchema,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 
-  def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
+  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
     sb.append(" " * indent)
     sb.append(name)
     sb.append(": ")
-    `type`.pretty(sb, indent, arrayDepth, printAttrs)
+    `type`.pretty(sb, indent, printAttrs)
     if (printAttrs) {
       if (attrs.nonEmpty)
         sb += '\n'
@@ -490,29 +492,18 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
 
   override def toString = "Struct"
 
-  override def pretty(sb: StringBuilder, indent: Int, arrayDepth: Int, printAttrs: Boolean) {
-    if (arrayDepth > 0) {
-      sb.append("Array[")
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+    sb.append("Struct {")
+    sb += '\n'
+    fields.foreachBetween(f => {
+      f.pretty(sb, indent + 4, printAttrs)
+    })(() => {
+      sb += ','
       sb += '\n'
-      sb.append(" " * (indent + 4))
-      pretty(sb, indent + 4, arrayDepth - 1, printAttrs)
-      sb += '\n'
-      sb.append(" " * indent)
-      sb += ']'
-    }
-    else {
-      sb.append("Struct {")
-      sb += '\n'
-      fields.foreachBetween(f => {
-        f.pretty(sb, indent + 4, 0, printAttrs)
-      })(() => {
-        sb += ','
-        sb += '\n'
-      })
-      sb += '\n'
-      sb.append(" " * indent)
-      sb += '}'
-    }
+    })
+    sb += '\n'
+    sb.append(" " * indent)
+    sb += '}'
   }
 
   override def typeCheck(a: Any): Boolean = a == null || {
