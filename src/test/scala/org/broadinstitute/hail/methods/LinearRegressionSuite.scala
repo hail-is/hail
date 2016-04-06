@@ -33,9 +33,10 @@ class LinearRegressionSuite extends SparkSuite {
     x = c(0, 1, 0, 0, 0, 1)
     c1 = c(0, 2, 1, -2, -2, 4)
     c2 = c(-1, 3, 5, 0, -4, 3)
-    df = data.frame(y, x, c0, c1, c2)
+    df = data.frame(y, x, c1, c2)
     fit <- lm(y ~ x + c1 + c2, data=df)
-    summary(fit)
+    summary(fit)["coefficients"]
+
     */
 
     assert(D_==(statsOfVariant(v1).get.beta, -0.28589, .001))
