@@ -30,14 +30,14 @@ object ShowAnnotations extends Command {
     val sb = new StringBuilder()
     sb.append("Sample annotations:\n")
     sb.append("sa: ")
-    vds.metadata.saSignature.pretty(sb, 0, 0, printAttrs = options.attributes)
+    vds.metadata.saSignature.pretty(sb, 0, printAttrs = options.attributes)
 
     sb += '\n'
     sb += '\n'
 
     sb.append("Variant annotations:\n")
     sb.append("va: ")
-    vds.metadata.vaSignature.pretty(sb, 0, 0, printAttrs = options.attributes)
+    vds.metadata.vaSignature.pretty(sb, 0, printAttrs = options.attributes)
     sb += '\n'
 
     val result = sb.result()

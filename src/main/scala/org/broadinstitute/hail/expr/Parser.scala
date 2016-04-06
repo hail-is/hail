@@ -25,7 +25,6 @@ object Parser extends JavaTokenParsers {
       case Success(result, _) => result
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
-
     t.typecheck(symTab)
     if (expected != null
       && t.`type` != expected)
