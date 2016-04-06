@@ -418,13 +418,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def annotateInvervals(iList: IntervalList, signature: expr.TypeWithSchema, path: List[String]): VariantSampleMatrix[T] = {
+  def annotateInvervals(iList: IntervalList, signature: TypeWithSchema, path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: expr.TypeWithSchema,
+  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: TypeWithSchema,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
@@ -433,7 +433,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateSamples(annotations: Map[String, Annotation], signature: expr.TypeWithSchema,
+  def annotateSamples(annotations: Map[String, Annotation], signature: TypeWithSchema,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertSA(signature, path)
 
