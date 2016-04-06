@@ -12,7 +12,7 @@ object SampleFamAnnotator {
   val numericRegex = """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def apply(filename: String, delimiter: String, isQuantitative: Boolean, missing: String,
-    hConf: hadoop.conf.Configuration): (Map[String, Annotation], Type) = {
+    hConf: hadoop.conf.Configuration): (Map[String, Annotation], TypeWithSchema) = {
     readLines(filename, hConf) { lines =>
       fatalIf(lines.isEmpty, "Empty .fam file")
 
@@ -40,14 +40,14 @@ object SampleFamAnnotator {
             case "0" => null
             case "1" => true
             case "2" => false
-            case _ => line.fatal(s"Invalid sex: `$isMale'. Male is `1', female is `2', unkown is `0'")
+            case _ => fatal(s"Invalid sex: `$isMale'. Male is `1', female is `2', unknown is `0'")
           }
           val pheno1 =
             if (isQuantitative)
               pheno match {
                 case `missing` => null
                 case numericRegex() => pheno.toDouble
-                case _ => line.fatal(s"Invalid quantitative phenotype: `$pheno'. Value must be numeric or `$missing'")
+                case _ => fatal(s"Invalid quantitative phenotype: `$pheno'. Value must be numeric or `$missing'")
               }
             else
               pheno match {
@@ -56,7 +56,7 @@ object SampleFamAnnotator {
                 case "2" => true
                 case "0" => null
                 case "-9" => null
-                case numericRegex() => line.fatal(s"Invalid case-control phenotype: `$pheno'. Control is `1', case is `2', missing is `0', `-9', `$missing', or non-numeric.")
+                case numericRegex() => fatal(s"Invalid case-control phenotype: `$pheno'. Control is `1', case is `2', missing is `0', `-9', `$missing', or non-numeric.")
                 case _ => null
               }
 

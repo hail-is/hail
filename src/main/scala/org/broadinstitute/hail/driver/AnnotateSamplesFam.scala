@@ -16,15 +16,15 @@ object AnnotateSamplesFam extends Command {
     var isQuantitative: Boolean = false
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Field delimiter, default: `\\t'")
+      usage = "Field delimiter")
     var delimiter: String = "\t"
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
-      usage = "Annotation root, a period-delimited path starting with `sa', default: `sa.fam'")
+      usage = "Annotation root, a period-delimited path starting with `sa'")
     var root: String = "sa.fam"
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
-      usage = "Identifier to be treated as missing (in addition to `0', `-9', and non-numeric for case-control), default: `NA'")
+      usage = "Identifier to be treated as missing (for case-control, in addition to `0', `-9', and non-numeric)")
     var missing: String = "NA"
   }
 
