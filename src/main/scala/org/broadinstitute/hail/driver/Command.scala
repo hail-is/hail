@@ -67,6 +67,7 @@ object ToplevelCommands {
   register(MendelErrorsCommand)
   register(SplitMulti)
   register(PCA)
+  register(Persist)
   register(Read)
   register(RenameSamples)
   register(Repartition)
