@@ -12,6 +12,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
 import org.json4s._
+import org.json4s.native.JsonMethods._
 
 case class EvalContext(symTab: SymbolTable,
   a: ArrayBuffer[Any])
@@ -54,7 +55,11 @@ trait Parsable {
   def parse(s: String): Annotation
 }
 
-object BaseType {
+sealed abstract class BaseType extends Serializable {
+  def typeCheck(a: Any): Boolean
+}
+
+object Type {
   val genScalar = Gen.oneOf[Type](TEmpty, TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
     TVariant, TAltAllele, TGenotype)
 
@@ -76,10 +81,6 @@ object BaseType {
   def genArb: Gen[Type] = Gen.sized(genSized)
 
   implicit def arbType = Arbitrary(genArb)
-}
-
-sealed abstract class BaseType extends Serializable {
-  def typeCheck(a: Any): Boolean
 }
 
 abstract class Type extends BaseType {
@@ -149,6 +150,7 @@ abstract class Type extends BaseType {
 
   def schema: DataType
 
+  def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
 }
 
 case object TEmpty extends Type {
@@ -175,6 +177,8 @@ case object TBoolean extends Type with Parsable {
   def parse(s: String): Annotation = s.toBoolean
 
   def selfMakeJSON(a: Annotation): JValue = JBool(a.asInstanceOf[Boolean])
+
+  override def genValue: Gen[Annotation] = Gen.arbBoolean
 }
 
 case object TChar extends Type {
@@ -186,6 +190,10 @@ case object TChar extends Type {
   def schema = StringType
 
   def selfMakeJSON(a: Annotation): JValue = JString(a.asInstanceOf[String])
+
+  override def genValue: Gen[Annotation] = Gen.arbString
+    .filter(_.nonEmpty)
+    .map(s => s.substring(0, 1))
 }
 
 abstract class TNumeric extends Type
@@ -202,6 +210,8 @@ case object TInt extends TIntegral with Parsable {
   def parse(s: String): Annotation = s.toInt
 
   def selfMakeJSON(a: Annotation): JValue = JInt(a.asInstanceOf[Int])
+
+  override def genValue: Gen[Annotation] = Gen.arbInt
 }
 
 case object TLong extends TIntegral with Parsable {
@@ -214,6 +224,8 @@ case object TLong extends TIntegral with Parsable {
   def parse(s: String): Annotation = s.toLong
 
   def selfMakeJSON(a: Annotation): JValue = JLong(a.asInstanceOf[Long])
+
+  override def genValue: Gen[Annotation] = Gen.arbLong
 }
 
 case object TFloat extends TNumeric with Parsable {
@@ -226,6 +238,8 @@ case object TFloat extends TNumeric with Parsable {
   def parse(s: String): Annotation = s.toFloat
 
   def selfMakeJSON(a: Annotation): JValue = JDouble(a.asInstanceOf[Float])
+
+  override def genValue: Gen[Annotation] = Gen.arbDouble.map(_.toFloat)
 }
 
 case object TDouble extends TNumeric with Parsable {
@@ -238,6 +252,8 @@ case object TDouble extends TNumeric with Parsable {
   def parse(s: String): Annotation = s.toDouble
 
   def selfMakeJSON(a: Annotation): JValue = JDouble(a.asInstanceOf[Double])
+
+  override def genValue: Gen[Annotation] = Gen.arbDouble
 }
 
 case object TString extends Type with Parsable {
@@ -250,6 +266,8 @@ case object TString extends Type with Parsable {
   def parse(s: String): Annotation = s
 
   def selfMakeJSON(a: Annotation): JValue = JString(a.asInstanceOf[String])
+
+  override def genValue: Gen[Annotation] = Gen.arbString
 }
 
 case class TArray(elementType: Type) extends Type {
@@ -270,6 +288,9 @@ case class TArray(elementType: Type) extends Type {
     val arr = a.asInstanceOf[Seq[Any]]
     JArray(arr.map(elementType.makeJSON).toList)
   }
+
+  override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq[Annotation], Annotation](
+    elementType.genValue)
 }
 
 case class TSet(elementType: Type) extends Type {
@@ -290,6 +311,9 @@ case class TSet(elementType: Type) extends Type {
     val arr = a.asInstanceOf[Seq[Any]]
     JArray(arr.map(elementType.makeJSON).toList)
   }
+
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Set[Annotation], Annotation](
+    elementType.genValue)
 }
 
 case object TSample extends Type {
@@ -301,6 +325,8 @@ case object TSample extends Type {
     StructField("id", StringType, nullable = false)))
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Sample].toJSON
+
+  override def genValue: Gen[Annotation] = Gen.identifier
 }
 
 case object TGenotype extends Type {
@@ -311,6 +337,8 @@ case object TGenotype extends Type {
   def schema = Genotype.schema
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Genotype].toJSON
+
+  override def genValue: Gen[Annotation] = Genotype.genArb
 }
 
 case object TAltAllele extends Type {
@@ -321,6 +349,8 @@ case object TAltAllele extends Type {
   def schema = AltAllele.schema
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[AltAllele].toJSON
+
+  override def genValue: Gen[Annotation] = AltAllele.gen
 }
 
 case object TVariant extends Type {
@@ -331,6 +361,8 @@ case object TVariant extends Type {
   def schema = Variant.schema
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Variant].toJSON
+
+  override def genValue: Gen[Annotation] = Variant.gen
 }
 
 object TStruct {
@@ -364,7 +396,7 @@ case class Field(name: String, `type`: Type,
         sb.append("=\"")
         sb.append(escapeString(attr._2))
         sb += '"'
-      }(() => sb += '\n')
+      } (() => sb += '\n')
     }
   }
 }
@@ -540,7 +572,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   def schema = {
-    assert(fields.length > 0)
+    assert(fields.nonEmpty)
     StructType(fields
       .map { case f =>
         StructField(f.index.toString, f.`type`.schema) //FIXME hack
@@ -552,8 +584,13 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     val row = a.asInstanceOf[Row]
     JObject(
       fields.map(f => (f.name, f.`type`.makeJSON(row.get(f.index))))
-        .toList
-    )
+        .toList)
+  }
+
+  override def genValue: Gen[Annotation] = {
+    Gen.sequence[IndexedSeq[Annotation], Annotation](
+      fields.map(f => f.`type`.genValue))
+      .map(a => Annotation(a: _*))
   }
 }
 
