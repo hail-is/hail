@@ -30,7 +30,7 @@ object VEP extends Command {
 
   override def supportsMultiallelic = true
 
-  def jsonToAnnotation(jv: JValue, t: Type, parent: String): Any = (jv, t) match {
+  def jsonToAnnotation(jv: JValue, t: BaseType, parent: String): Any = (jv, t) match {
     case (JNull, _) => null
     case (JInt(x), TInt) => x.toInt
     case (JInt(x), TDouble) => x.toDouble

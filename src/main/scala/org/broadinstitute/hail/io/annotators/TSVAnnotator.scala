@@ -9,7 +9,7 @@ import scala.collection.mutable
 trait TSVAnnotator {
 
   def buildParsers(missing: String,
-    namesAndTypes: Array[(String, Option[TypeWithSchema])]): Array[(mutable.ArrayBuilder[Annotation], String) => Unit] = {
+    namesAndTypes: Array[(String, Option[Type])]): Array[(mutable.ArrayBuilder[Annotation], String) => Unit] = {
     namesAndTypes.map {
       case (head, ot) =>
         ot match {
