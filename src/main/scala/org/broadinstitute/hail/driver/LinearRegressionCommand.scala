@@ -7,7 +7,7 @@ object LinearRegressionCommand extends Command {
 
   def name = "linreg"
 
-  def description = "Compute beta, std error, t-stat, and p-val for each SNP with additional sample covariates"
+  def description = "Compute beta, se, t, p-val with sample covariates"
 
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Output root filename")
