@@ -4,6 +4,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 
 import scala.collection.mutable
@@ -12,7 +13,6 @@ import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
 import org.json4s._
 import org.json4s.native.JsonMethods._
-
 
 case class EvalContext(symTab: SymbolTable,
   a: ArrayBuffer[Any])
@@ -55,11 +55,35 @@ trait Parsable {
   def parse(s: String): Annotation
 }
 
-sealed abstract class Type extends Serializable {
+sealed abstract class BaseType extends Serializable {
   def typeCheck(a: Any): Boolean
 }
 
-abstract class TypeWithSchema extends Type {
+object Type {
+  val genScalar = Gen.oneOf[Type](TEmpty, TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
+    TVariant, TAltAllele, TGenotype)
+
+  def genSized(size: Int): Gen[Type] = {
+    if (size < 1)
+      Gen.const(TEmpty)
+    else if (size < 2)
+      genScalar
+    else
+      Gen.oneOfGen(genScalar,
+        genSized(size - 1).map(TArray),
+        Gen.buildableOf[Array[(String, Type)], (String, Type)](
+          Gen.zip(Gen.identifier,
+            genArb))
+          .filter(fields => fields.map(_._1).areDistinct())
+          .map(fields => TStruct(fields: _*)))
+  }
+
+  def genArb: Gen[Type] = Gen.sized(genSized)
+
+  implicit def arbType = Arbitrary(genArb)
+}
+
+abstract class Type extends BaseType {
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
       .flatMap { t =>
@@ -70,27 +94,27 @@ abstract class TypeWithSchema extends Type {
       }
   }
 
-  def getOption(fields: String*): Option[TypeWithSchema] = getOption(fields.toList)
+  def getOption(fields: String*): Option[Type] = getOption(fields.toList)
 
-  def getOption(path: List[String]): Option[TypeWithSchema] = {
+  def getOption(path: List[String]): Option[Type] = {
     if (path.isEmpty)
       Some(this)
     else
       None
   }
 
-  def delete(fields: String*): (TypeWithSchema, Deleter) = delete(fields.toList)
+  def delete(fields: String*): (Type, Deleter) = delete(fields.toList)
 
-  def delete(path: List[String]): (TypeWithSchema, Deleter) = {
+  def delete(path: List[String]): (Type, Deleter) = {
     if (path.nonEmpty)
       throw new AnnotationPathException()
     else
       (TEmpty, a => Annotation.empty)
   }
 
-  def insert(signature: TypeWithSchema, fields: String*): (TypeWithSchema, Inserter) = insert(signature, fields.toList)
+  def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 
-  def insert(signature: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = {
+  def insert(signature: Type, path: List[String]): (Type, Inserter) = {
     if (path.nonEmpty)
       TStruct.empty.insert(signature, path)
     else
@@ -126,9 +150,10 @@ abstract class TypeWithSchema extends Type {
 
   def schema: DataType
 
+  def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
 }
 
-case object TEmpty extends TypeWithSchema {
+case object TEmpty extends Type {
   override def toString = "Empty"
 
   def typeCheck(a: Any): Boolean = a == null
@@ -142,7 +167,7 @@ case object TEmpty extends TypeWithSchema {
   override def makeJSON(a: Annotation): JValue = JNothing
 }
 
-case object TBoolean extends TypeWithSchema with Parsable {
+case object TBoolean extends Type with Parsable {
   override def toString = "Boolean"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
@@ -152,9 +177,11 @@ case object TBoolean extends TypeWithSchema with Parsable {
   def parse(s: String): Annotation = s.toBoolean
 
   def selfMakeJSON(a: Annotation): JValue = JBool(a.asInstanceOf[Boolean])
+
+  override def genValue: Gen[Annotation] = Gen.arbBoolean
 }
 
-case object TChar extends TypeWithSchema {
+case object TChar extends Type {
   override def toString = "Char"
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
@@ -163,9 +190,13 @@ case object TChar extends TypeWithSchema {
   def schema = StringType
 
   def selfMakeJSON(a: Annotation): JValue = JString(a.asInstanceOf[String])
+
+  override def genValue: Gen[Annotation] = Gen.arbString
+    .filter(_.nonEmpty)
+    .map(s => s.substring(0, 1))
 }
 
-abstract class TNumeric extends TypeWithSchema
+abstract class TNumeric extends Type
 
 abstract class TIntegral extends TNumeric
 
@@ -179,6 +210,8 @@ case object TInt extends TIntegral with Parsable {
   def parse(s: String): Annotation = s.toInt
 
   def selfMakeJSON(a: Annotation): JValue = JInt(a.asInstanceOf[Int])
+
+  override def genValue: Gen[Annotation] = Gen.arbInt
 }
 
 case object TLong extends TIntegral with Parsable {
@@ -191,6 +224,8 @@ case object TLong extends TIntegral with Parsable {
   def parse(s: String): Annotation = s.toLong
 
   def selfMakeJSON(a: Annotation): JValue = JLong(a.asInstanceOf[Long])
+
+  override def genValue: Gen[Annotation] = Gen.arbLong
 }
 
 case object TFloat extends TNumeric with Parsable {
@@ -203,6 +238,8 @@ case object TFloat extends TNumeric with Parsable {
   def parse(s: String): Annotation = s.toFloat
 
   def selfMakeJSON(a: Annotation): JValue = JDouble(a.asInstanceOf[Float])
+
+  override def genValue: Gen[Annotation] = Gen.arbDouble.map(_.toFloat)
 }
 
 case object TDouble extends TNumeric with Parsable {
@@ -215,9 +252,11 @@ case object TDouble extends TNumeric with Parsable {
   def parse(s: String): Annotation = s.toDouble
 
   def selfMakeJSON(a: Annotation): JValue = JDouble(a.asInstanceOf[Double])
+
+  override def genValue: Gen[Annotation] = Gen.arbDouble
 }
 
-case object TString extends TypeWithSchema with Parsable {
+case object TString extends Type with Parsable {
   override def toString = "String"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
@@ -227,9 +266,11 @@ case object TString extends TypeWithSchema with Parsable {
   def parse(s: String): Annotation = s
 
   def selfMakeJSON(a: Annotation): JValue = JString(a.asInstanceOf[String])
+
+  override def genValue: Gen[Annotation] = Gen.arbString
 }
 
-case class TArray(elementType: TypeWithSchema) extends TypeWithSchema {
+case class TArray(elementType: Type) extends Type {
   override def toString = s"Array[$elementType]"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
@@ -247,9 +288,12 @@ case class TArray(elementType: TypeWithSchema) extends TypeWithSchema {
     val arr = a.asInstanceOf[Seq[Any]]
     JArray(arr.map(elementType.makeJSON).toList)
   }
+
+  override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq[Annotation], Annotation](
+    elementType.genValue)
 }
 
-case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
+case class TSet(elementType: Type) extends Type {
   override def toString = s"Set[$elementType]"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[IndexedSeq[_]] &&
@@ -267,9 +311,12 @@ case class TSet(elementType: TypeWithSchema) extends TypeWithSchema {
     val arr = a.asInstanceOf[Seq[Any]]
     JArray(arr.map(elementType.makeJSON).toList)
   }
+
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Set[Annotation], Annotation](
+    elementType.genValue)
 }
 
-case object TSample extends TypeWithSchema {
+case object TSample extends Type {
   override def toString = "Sample"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Sample]
@@ -278,9 +325,11 @@ case object TSample extends TypeWithSchema {
     StructField("id", StringType, nullable = false)))
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Sample].toJSON
+
+  override def genValue: Gen[Annotation] = Gen.identifier
 }
 
-case object TGenotype extends TypeWithSchema {
+case object TGenotype extends Type {
   override def toString = "Genotype"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
@@ -288,9 +337,11 @@ case object TGenotype extends TypeWithSchema {
   def schema = Genotype.schema
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Genotype].toJSON
+
+  override def genValue: Gen[Annotation] = Genotype.genArb
 }
 
-case object TAltAllele extends TypeWithSchema {
+case object TAltAllele extends Type {
   override def toString = "AltAllele"
 
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
@@ -298,9 +349,11 @@ case object TAltAllele extends TypeWithSchema {
   def schema = AltAllele.schema
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[AltAllele].toJSON
+
+  override def genValue: Gen[Annotation] = AltAllele.gen
 }
 
-case object TVariant extends TypeWithSchema {
+case object TVariant extends Type {
   override def toString = "Variant"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
@@ -308,12 +361,14 @@ case object TVariant extends TypeWithSchema {
   def schema = Variant.schema
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Variant].toJSON
+
+  override def genValue: Gen[Annotation] = Variant.gen
 }
 
 object TStruct {
   def empty: TStruct = TStruct(Array.empty[Field])
 
-  def apply(args: (String, TypeWithSchema)*): TStruct =
+  def apply(args: (String, Type)*): TStruct =
     TStruct(args
       .iterator
       .zipWithIndex
@@ -321,7 +376,7 @@ object TStruct {
       .toArray)
 }
 
-case class Field(name: String, `type`: TypeWithSchema,
+case class Field(name: String, `type`: Type,
   index: Int,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
@@ -341,12 +396,12 @@ case class Field(name: String, `type`: TypeWithSchema,
         sb.append("=\"")
         sb.append(escapeString(attr._2))
         sb += '"'
-      }(() => sb += '\n')
+      } (() => sb += '\n')
     }
   }
 }
 
-case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
+case class TStruct(fields: IndexedSeq[Field]) extends Type {
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
@@ -354,7 +409,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
 
   def size: Int = fields.length
 
-  override def getOption(path: List[String]): Option[TypeWithSchema] =
+  override def getOption(path: List[String]): Option[Type] =
     if (path.isEmpty)
       Some(this)
     else
@@ -389,7 +444,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     }
   }
 
-  override def delete(p: List[String]): (TypeWithSchema, Deleter) = {
+  override def delete(p: List[String]): (Type, Deleter) = {
     if (p.isEmpty)
       (TEmpty, a => Annotation.empty)
     else {
@@ -400,7 +455,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
       }
       val index = f.index
       val (newFieldType, d) = f.`type`.delete(p.tail)
-      val newType: TypeWithSchema =
+      val newType: Type =
         if (newFieldType == TEmpty)
           deleteKey(key, f.index)
         else
@@ -424,7 +479,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     }
   }
 
-  override def insert(signature: TypeWithSchema, p: List[String]): (TypeWithSchema, Inserter) = {
+  override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
     if (p.isEmpty)
       (signature, (a, toIns) => toIns.orNull)
     else {
@@ -457,7 +512,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     }
   }
 
-  def updateKey(key: String, i: Int, sig: TypeWithSchema): TypeWithSchema = {
+  def updateKey(key: String, i: Int, sig: Type): Type = {
     assert(fieldIdx.contains(key))
 
     val newFields = Array.fill[Field](fields.length)(null)
@@ -467,7 +522,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     TStruct(newFields)
   }
 
-  def deleteKey(key: String, index: Int): TypeWithSchema = {
+  def deleteKey(key: String, index: Int): Type = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
       TEmpty
@@ -481,7 +536,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     }
   }
 
-  def appendKey(key: String, sig: TypeWithSchema): TStruct = {
+  def appendKey(key: String, sig: Type): TStruct = {
     assert(!fieldIdx.contains(key))
     val newFields = Array.fill[Field](fields.length + 1)(null)
     for (i <- fields.indices)
@@ -517,7 +572,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
   }
 
   def schema = {
-    assert(fields.length > 0)
+    assert(fields.nonEmpty)
     StructType(fields
       .map { case f =>
         StructField(f.index.toString, f.`type`.schema) //FIXME hack
@@ -529,15 +584,20 @@ case class TStruct(fields: IndexedSeq[Field]) extends TypeWithSchema {
     val row = a.asInstanceOf[Row]
     JObject(
       fields.map(f => (f.name, f.`type`.makeJSON(row.get(f.index))))
-        .toList
-    )
+        .toList)
+  }
+
+  override def genValue: Gen[Annotation] = {
+    Gen.sequence[IndexedSeq[Annotation], Annotation](
+      fields.map(f => f.`type`.genValue))
+      .map(a => Annotation(a: _*))
   }
 }
 
 object AST extends Positional {
-  def promoteNumeric(t: TNumeric): Type = t
+  def promoteNumeric(t: TNumeric): BaseType = t
 
-  def promoteNumeric(lhs: TNumeric, rhs: TNumeric): Type =
+  def promoteNumeric(lhs: TNumeric, rhs: TNumeric): BaseType =
     if (lhs == TDouble || rhs == TDouble)
       TDouble
     else if (lhs == TFloat || rhs == TFloat)
@@ -646,7 +706,7 @@ object AST extends Positional {
 case class Positioned[T](x: T) extends Positional
 
 sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
-  var `type`: Type = null
+  var `type`: BaseType = null
 
   def this(posn: Position, subexpr1: AST) = this(posn, Array(subexpr1))
 
@@ -654,9 +714,9 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
 
   def eval(c: EvalContext): () => Any
 
-  def typecheckThis(typeSymTab: SymbolTable): Type = typecheckThis()
+  def typecheckThis(typeSymTab: SymbolTable): BaseType = typecheckThis()
 
-  def typecheckThis(): Type = throw new UnsupportedOperationException
+  def typecheckThis(): BaseType = throw new UnsupportedOperationException
 
   def typecheck(typeSymTab: SymbolTable) {
     subexprs.foreach(_.typecheck(typeSymTab))
@@ -666,17 +726,17 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   def parseError(msg: String): Nothing = ParserUtils.error(pos, msg)
 }
 
-case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
+case class Const(posn: Position, value: Any, t: BaseType) extends AST(posn) {
   def eval(c: EvalContext): () => Any = {
     val v = value
     () => v
   }
 
-  override def typecheckThis(): Type = t
+  override def typecheckThis(): BaseType = t
 }
 
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
-  override def typecheckThis(): Type = {
+  override def typecheckThis(): BaseType = {
     (lhs.`type`, rhs) match {
       case (TSample, "id") => TString
       case (TGenotype, "gt") => TInt
@@ -884,7 +944,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
-  def typecheck(): Type = parseError("non-function context")
+  def typecheck(): BaseType = parseError("non-function context")
 
   def eval(c: EvalContext): () => Any = throw new UnsupportedOperationException
 }
@@ -913,7 +973,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     }
   }
 
-  override def typecheckThis(): Type = {
+  override def typecheckThis(): BaseType = {
     (lhs.`type`, method, args.map(_.`type`)) match {
       case (TArray(elementType), "contains", Array(TString)) => TBoolean
       case (TArray(TString), "mkString", Array(TString)) => TString
@@ -1100,7 +1160,7 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case ("/", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
   }
 
-  override def typecheckThis(): Type = (lhs.`type`, operation, rhs.`type`) match {
+  override def typecheckThis(): BaseType = (lhs.`type`, operation, rhs.`type`) match {
     case (TString, "+", TString) => TString
     case (TString, "~", TString) => TBoolean
     case (TBoolean, "||", TBoolean) => TBoolean
@@ -1117,7 +1177,7 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
 }
 
 case class Comparison(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
-  var operandType: Type = null
+  var operandType: BaseType = null
 
   def eval(c: EvalContext): () => Any = ((operation, operandType): @unchecked) match {
     case ("==", _) => AST.evalCompose[Any, Any](c, lhs, rhs)(_ == _)
@@ -1144,7 +1204,7 @@ case class Comparison(posn: Position, lhs: AST, operation: String, rhs: AST) ext
     case (">=", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ >= _)
   }
 
-  override def typecheckThis(): Type = {
+  override def typecheckThis(): BaseType = {
     operandType = (lhs.`type`, operation, rhs.`type`) match {
       case (_, "==" | "!=", _) => null
       case (lhsType: TNumeric, "<=" | ">=" | "<" | ">", rhsType: TNumeric) =>
@@ -1168,7 +1228,7 @@ case class UnaryOp(posn: Position, operation: String, operand: AST) extends AST(
     case ("!", TBoolean) => AST.evalCompose[Boolean](c, operand)(!_)
   }
 
-  override def typecheckThis(): Type = (operation, operand.`type`) match {
+  override def typecheckThis(): BaseType = (operation, operand.`type`) match {
     case ("-", t: TNumeric) => AST.promoteNumeric(t)
     case ("!", TBoolean) => TBoolean
 
@@ -1178,7 +1238,7 @@ case class UnaryOp(posn: Position, operation: String, operand: AST) extends AST(
 }
 
 case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, idx)) {
-  override def typecheckThis(): Type = (f.`type`, idx.`type`) match {
+  override def typecheckThis(): BaseType = (f.`type`, idx.`type`) match {
     case (TArray(elementType), TInt) => elementType
     case (TString, TInt) => TChar
 
@@ -1203,7 +1263,7 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
     () => localA(i)
   }
 
-  override def typecheckThis(typeSymTab: SymbolTable): Type = typeSymTab.get(symbol) match {
+  override def typecheckThis(typeSymTab: SymbolTable): BaseType = typeSymTab.get(symbol) match {
     case Some((_, t)) => t
     case None =>
       parseError(s"symbol `$symbol' not found")
@@ -1212,7 +1272,7 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
-  override def typecheckThis(typeSymTab: SymbolTable): Type = {
+  override def typecheckThis(typeSymTab: SymbolTable): BaseType = {
     thenTree.typecheck(typeSymTab)
     elseTree.typecheck(typeSymTab)
     if (thenTree.`type` != elseTree.`type`)
