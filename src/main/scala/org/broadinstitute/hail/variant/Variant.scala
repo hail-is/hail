@@ -34,7 +34,7 @@ object AltAllele {
 
   def gen: Gen[AltAllele] =
     for (ref <- genDNAString;
-         alt <- genDNAString)
+      alt <- genDNAString if alt != ref)
       yield AltAllele(ref, alt)
 }
 
@@ -136,12 +136,12 @@ object Variant {
 
   def gen: Gen[Variant] =
     for (contig <- Gen.identifier;
-         start <- Gen.posInt;
-         nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
-         alleles <- Gen.distinctBuildableOfN[Array[String], String](
-           nAlleles,
-           Gen.frequency((10, genDNAString),
-             (1, Gen.const("*")))) if alleles(0) != "*") yield {
+      start <- Gen.posInt;
+      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
+      alleles <- Gen.distinctBuildableOfN[Array[String], String](
+        nAlleles,
+        Gen.frequency((10, genDNAString),
+          (1, Gen.const("*")))) if alleles(0) != "*") yield {
       val ref = alleles(0)
       Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
     }
