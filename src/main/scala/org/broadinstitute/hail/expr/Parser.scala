@@ -236,7 +236,7 @@ object Parser extends JavaTokenParsers {
       (name, t, decorators.toMap)
     }
 
-  def struct_fields: Parser[Array[Field]] = rep1sep(struct_field, ",") ^^ {
+  def struct_fields: Parser[Array[Field]] = repsep(struct_field, ",") ^^ {
     _.zipWithIndex.map {case ((id, t, attrs), index) => Field(id, t, index, attrs) }
       .toArray
   }

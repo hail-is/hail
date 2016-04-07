@@ -1068,8 +1068,11 @@ object Utils extends Logging {
 
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
-  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase).filter(s => !s.isEmpty)
-
+  // ignore size; atomic, like String
+  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+    .resize(12)
+    .filter(s => !s.isEmpty)
+  
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def richBoolean(b: Boolean): RichBoolean = new RichBoolean(b)

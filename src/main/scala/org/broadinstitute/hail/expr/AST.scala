@@ -4,6 +4,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 
 import scala.collection.mutable
@@ -53,6 +54,30 @@ object DoubleNumericConversion extends NumericConversion[Double] {
 
 trait Parsable {
   def parse(s: String): Annotation
+}
+
+object Type {
+  val genScalar = Gen.oneOf[TypeWithSchema](TEmpty, TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
+    TVariant, TAltAllele, TGenotype)
+
+  def genSized(size: Int): Gen[TypeWithSchema] = {
+    if (size < 1)
+      Gen.const(TEmpty)
+    else if (size < 2)
+      genScalar
+    else
+      Gen.oneOfGen(genScalar,
+        genSized(size - 1).map(TArray),
+        Gen.buildableOf[Array[(String, TypeWithSchema)], (String, TypeWithSchema)](
+          Gen.zip(Gen.identifier,
+            genArb))
+          .filter(fields => fields.map(_._1).areDistinct())
+          .map(fields => TStruct(fields: _*)))
+  }
+
+  def genArb: Gen[TypeWithSchema] = Gen.sized(genSized)
+
+  implicit def arbType = Arbitrary(genArb)
 }
 
 sealed abstract class Type extends Serializable {
