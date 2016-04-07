@@ -6,7 +6,7 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.{Interval, IntervalList, Variant}
 
 object IntervalListAnnotator {
-  def apply(filename: String, hConf: hadoop.conf.Configuration): (IntervalList, TypeWithSchema) = {
+  def apply(filename: String, hConf: hadoop.conf.Configuration): (IntervalList, Type) = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     readLines(filename, hConf) { lines =>

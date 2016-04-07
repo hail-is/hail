@@ -10,7 +10,7 @@ import scala.language.implicitConversions
 object ExportTSV {
 
   def parseColumnsFile(
-    symTab: Map[String, (Int, Type)],
+    symTab: Map[String, (Int, BaseType)],
     a: ArrayBuffer[Any],
     path: String,
     hConf: hadoop.conf.Configuration): (Option[String], Array[() => Any]) = {
