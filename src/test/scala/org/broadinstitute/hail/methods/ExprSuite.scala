@@ -130,7 +130,7 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testTypePretty() {
-    import BaseType._ // for arbType
+    import Type._ // for arbType
 
     val sb = new StringBuilder
     check(forAll { (t: Type) =>

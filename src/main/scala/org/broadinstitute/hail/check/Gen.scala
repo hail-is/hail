@@ -188,6 +188,10 @@ object Gen {
     p.rng.getRandomGenerator.nextInt(Int.MaxValue - 1) + 1
   }
 
+  def arbBoolean: Gen[Boolean] = Gen { p =>
+    p.rng.getRandomGenerator.nextBoolean()
+  }
+
   def arbInt: Gen[Int] = Gen { p => p.rng.getRandomGenerator.nextInt() }
 
   def arbLong: Gen[Long] = Gen { p => p.rng.getRandomGenerator.nextLong() }
@@ -212,7 +216,7 @@ object Gen {
 
 }
 
-class Gen[T](val gen: (Parameters) => T) extends AnyVal {
+class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
 
   def apply(p: Parameters): T = gen(p)
 
