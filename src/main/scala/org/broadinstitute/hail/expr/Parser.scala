@@ -19,7 +19,7 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse[T](symTab: Map[String, (Int, Type)], expected: Type, a: ArrayBuffer[Any], code: String): () => T = {
+  def parse[T](symTab: Map[String, (Int, BaseType)], expected: BaseType, a: ArrayBuffer[Any], code: String): () => T = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result
@@ -34,7 +34,7 @@ object Parser extends JavaTokenParsers {
     () => f().asInstanceOf[T]
   }
 
-  def parseType(code: String): TypeWithSchema = {
+  def parseType(code: String): Type = {
     // println(s"code = $code")
     parseAll(type_expr, code) match {
       case Success(result, _) => result
@@ -42,10 +42,10 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseAnnotationTypes(code: String): Map[String, TypeWithSchema] = {
+  def parseAnnotationTypes(code: String): Map[String, Type] = {
     // println(s"code = $code")
     if (code.isEmpty)
-      Map.empty[String, TypeWithSchema]
+      Map.empty[String, Type]
     else
       parseAll(struct_fields, code) match {
         case Success(result, _) => result.map(f => (f.name, f.`type`)).toMap
@@ -56,7 +56,7 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(symTab: Map[String, (Int, Type)],
+  def parseExportArgs(symTab: Map[String, (Int, BaseType)],
     a: ArrayBuffer[Any],
     code: String): (Option[String], Array[() => Any]) = {
     val (header, ts) = parseAll(export_args, code) match {
@@ -71,9 +71,9 @@ object Parser extends JavaTokenParsers {
     (header, fs)
   }
 
-  def parseAnnotationArgs(symTab: Map[String, (Int, Type)],
+  def parseAnnotationArgs(symTab: Map[String, (Int, BaseType)],
     a: ArrayBuffer[Any],
-    code: String): (Array[(List[String], Type, () => Any)]) = {
+    code: String): (Array[(List[String], BaseType, () => Any)]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
       case NoSuccess(msg, _) => fatal(msg)
@@ -231,7 +231,7 @@ object Parser extends JavaTokenParsers {
     })
   }
 
-  def struct_field: Parser[(String, TypeWithSchema, Map[String, String])] =
+  def struct_field: Parser[(String, Type, Map[String, String])] =
     (identifier <~ ":") ~ type_expr ~ rep(decorator) ^^ { case name ~ t ~ decorators =>
       (name, t, decorators.toMap)
     }
@@ -241,7 +241,7 @@ object Parser extends JavaTokenParsers {
       .toArray
   }
 
-  def type_expr: Parser[TypeWithSchema] =
+  def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TEmpty } |
       "Boolean" ^^ { _ => TBoolean } |
       "Char" ^^ { _ => TChar } |

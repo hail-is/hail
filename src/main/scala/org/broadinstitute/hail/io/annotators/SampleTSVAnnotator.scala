@@ -9,8 +9,8 @@ import org.broadinstitute.hail.expr._
 import scala.collection.mutable
 
 object SampleTSVAnnotator extends TSVAnnotator {
-  def apply(filename: String, sampleCol: String, declaredSig: Map[String, TypeWithSchema], missing: String,
-    hConf: hadoop.conf.Configuration): (Map[String, Annotation], TypeWithSchema) = {
+  def apply(filename: String, sampleCol: String, declaredSig: Map[String, Type], missing: String,
+    hConf: hadoop.conf.Configuration): (Map[String, Annotation], Type) = {
     readLines(filename, hConf) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
 
@@ -24,7 +24,7 @@ object SampleTSVAnnotator extends TSVAnnotator {
           warn(s"""found "$id" in type map but not in TSV header """)
       }
 
-      val orderedSignatures: Array[(String, Option[TypeWithSchema])] = split.map { s =>
+      val orderedSignatures: Array[(String, Option[Type])] = split.map { s =>
         if (s != sampleCol) {
           val t = declaredSig.getOrElse(s, TString)
           if (!t.isInstanceOf[Parsable])

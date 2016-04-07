@@ -10,7 +10,7 @@ import org.broadinstitute.hail.variant._
 import scala.collection.mutable.ArrayBuffer
 
 object LinRegStats {
-  def `type`: TypeWithSchema = TStruct(("nMissing", TInt), ("beta", TDouble),
+  def `type`: Type = TStruct(("nMissing", TInt), ("beta", TDouble),
     ("stderr", TDouble), ("tstat", TDouble), ("pval", TDouble))
 }
 

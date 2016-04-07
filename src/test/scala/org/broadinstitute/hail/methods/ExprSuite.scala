@@ -125,15 +125,15 @@ class ExprSuite extends SparkSuite {
     val s3 = "SIFT_Score: Double, Age: Int, SIFT2: BadType"
 
     assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
-    assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
+    assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, BaseType])
     intercept[FatalException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
   }
 
   @Test def testTypePretty() {
-    import Type._ // for arbType
+    import BaseType._ // for arbType
 
     val sb = new StringBuilder
-    check(forAll { (t: TypeWithSchema) =>
+    check(forAll { (t: Type) =>
       sb.clear()
       t.pretty(sb, 0, printAttrs = true)
       val res = sb.result()
