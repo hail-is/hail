@@ -14,7 +14,7 @@ object Role extends Enumeration {
   val Mom = Value("2")
 }
 
-case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int],
+case class Trio(kid: String, fam: Option[String], dad: Option[String], mom: Option[String],
   sex: Option[Sex], pheno: Option[Phenotype]) {
 
   def toCompleteTrio: Option[CompleteTrio] =
@@ -32,7 +32,7 @@ case class Trio(kid: Int, fam: Option[String], dad: Option[Int], mom: Option[Int
   def isComplete: Boolean = dad.isDefined && mom.isDefined
 }
 
-case class CompleteTrio(kid: Int, fam: Option[String], dad: Int, mom: Int, sex: Option[Sex], pheno: Option[Phenotype])
+case class CompleteTrio(kid: String, fam: Option[String], dad: String, mom: String, sex: Option[Sex], pheno: Option[Phenotype])
 
 object Pedigree {
 
@@ -40,13 +40,13 @@ object Pedigree {
     if (!filename.endsWith(".fam"))
       fatal("-f | --fam filename must end in .fam")
 
-    val sampleIndex: Map[String, Int] = sampleIds.zipWithIndex.toMap
-
     var nSamplesDiscarded = 0
+
+    val sampleSet = sampleIds.toSet
 
     // .fam samples not in sampleIds are discarded
     readFile(filename, hConf) { s =>
-      val sampleSet = collection.mutable.Set[Int]()
+      val readSampleSet = collection.mutable.Set[String]()
 
       val trios = Source.fromInputStream(s)
         .getLines()
@@ -55,20 +55,20 @@ object Pedigree {
           val splitLine = line.split("\\s+")  // FIXME: fails on names with spaces, will fix in PR for adding .fam to annotations by giving delimiter option
           fatalIf(splitLine.size != 6, s"Require 6 fields per line in .fam, but this line has ${splitLine.size}: $line")
           val Array(fam, kid, dad, mom, sex, pheno) = splitLine
-          sampleIndex.get(kid) match {
-            case Some(s) =>
-              if (sampleSet(s))
+          sampleSet(kid) match {
+            case true =>
+              if (readSampleSet(kid))
                 fatal(s".fam sample name is not unique: $kid")
               else
-                sampleSet += s
+                readSampleSet += kid
               Some(Trio(
-                s,
+                kid,
                 if (fam != "0") Some(fam) else None,
-                if (dad != "0") sampleIndex.get(dad) else None,
-                if (mom != "0") sampleIndex.get(mom) else None,
+                if (dad != "0") Some(dad) else None,
+                if (mom != "0") Some(mom) else None,
                 Sex.withNameOption(sex),
                 Phenotype.withNameOption(pheno)))
-            case None =>
+            case false =>
               nSamplesDiscarded += 1
               None
           }
@@ -82,7 +82,7 @@ object Pedigree {
   }
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
-  def nuclearFams(completeTrios: Array[CompleteTrio]): Map[(Int, Int), Array[Int]] =
+  def nuclearFams(completeTrios: Array[CompleteTrio]): Map[(String, String), Array[String]] =
     completeTrios.groupBy(t => (t.dad, t.mom)).mapValues(_.map(_.kid)).force
 }
 
@@ -90,9 +90,9 @@ case class Pedigree(trios: Array[Trio]) {
   
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
-  def samplePheno: Map[Int, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
+  def samplePheno: Map[String, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
 
-  def phenotypedSamples: Set[Int] = trios.filter(_.pheno.isDefined).map(_.kid).toSet
+  def phenotypedSamples: Set[String] = trios.filter(_.pheno.isDefined).map(_.kid).toSet
 
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_ (t)))
 
@@ -119,9 +119,9 @@ case class Pedigree(trios: Array[Trio]) {
 
   // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
   def write(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]) {
-    def sampleIdOrElse(s: Option[Int]) = if (s.isDefined) sampleIds(s.get) else "0"
+    def sampleIdOrElse(s: Option[String]) = s.getOrElse("0")
     def toLine(t: Trio): String =
-      t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + sampleIdOrElse(t.dad) + "\t" +
+      t.fam.getOrElse("0") + "\t" + t.kid + "\t" + sampleIdOrElse(t.dad) + "\t" +
         sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0")
     val lines = trios.map(toLine)
     writeTable(filename, hConf, lines)

@@ -28,11 +28,9 @@ object CaseControlCount extends Command {
     val (tmpVAS, insertCase) = vds.vaSignature.insert(TInt, "nCase")
     val (newVAS, insertControl) = tmpVAS.insert(TInt, "nControl")
 
-    val saBc = state.sc.broadcast(vds.sampleAnnotations)
-
     state.copy(vds =
-      vds.mapAnnotationsWithAggregate((0, 0), newVAS)({ case ((nCase, nControl), v, s, g) =>
-        val isCase = qCase(saBc.value(s))
+      vds.mapAnnotationsWithAggregate((0, 0), newVAS)({ case ((nCase, nControl), v, va, s, sa, g) =>
+        val isCase = qCase(sa)
         (g.nNonRefAlleles, isCase) match {
           case (Some(n), Some(true)) => (nCase + n, nControl)
           case (Some(n), Some(false)) => (nCase, nControl + n)

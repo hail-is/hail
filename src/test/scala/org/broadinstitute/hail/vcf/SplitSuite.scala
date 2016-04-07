@@ -18,7 +18,7 @@ class SplitSuite extends SparkSuite {
         var s = State(sc, sqlContext, vds)
         s = SplitMulti.run(s, Array[String]())
         val wasSplitQuerier = s.vds.vaSignature.query("wasSplit")
-        s.vds.mapWithAll((v: Variant, va: Annotation, _: Int, g: Genotype) =>
+        s.vds.mapWithAll((v: Variant, va: Annotation, _: String, _: Annotation, g: Genotype) =>
           !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get)
           .collect()
           .forall(identity)
@@ -52,18 +52,17 @@ class SplitSuite extends SparkSuite {
     val wasSplitQuerier = vds1.vaSignature.query("wasSplit")
 
     // test for wasSplit
-    vds1.mapWithAll((v, va, s, g) => (v.start, wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get))
+    vds1.mapWithAll((v, va, s, sa, g) => (v.start, wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get))
       .foreach { case (i, b) =>
         simpleAssert(b == (i != 1180))
       }
 
     // test for fakeRef
     assert(vds1.mapWithKeys((v, s, g) => ((v.start, v.alt, s), g.fakeRef)).filter(_._2).map(_._1.toString).collect.toSet
-      == Set("(2167,AAAAC,1)", "(2167,A,3)", "(2167,AAAACAAAC,6)", "(1183,C,3)", "(2167,A,6)", "(2167,AAAAC,2)",
-      "(2167,AAAAC,7)", "(2167,AAAACAAAC,7)", "(1783,TA,3)", "(2167,A,4)", "(2167,A,2)", "(1183,C,6)",
-      "(2167,AAAAC,6)", "(1183,C,7)", "(1783,TA,4)", "(2167,AAAACAAAC,4)", "(2167,AAAAC,4)", "(1783,T,2)",
-      "(2167,A,1)", "(2167,AAAAC,5)", "(2167,AAAACAAAC,3)", "(1783,T,4)", "(1783,TA,5)", "(1783,T,1)",
-      "(2167,AAAACAAAC,5)"))
-
+      == Set("(2167,AAAAC,HG00097)", "(2167,A,HG00100)", "(2167,AAAACAAAC,HG00103)", "(1183,C,HG00100)", "(2167,A,HG00103)", "(2167,AAAAC,HG00099)",
+      "(2167,AAAAC,HG00104)", "(2167,AAAACAAAC,HG00104)", "(1783,TA,HG00100)", "(2167,A,HG00101)", "(2167,A,HG00099)", "(1183,C,HG00103)",
+      "(2167,AAAAC,HG00103)", "(1183,C,HG00104)", "(1783,TA,HG00101)", "(2167,AAAACAAAC,HG00101)", "(2167,AAAAC,HG00101)", "(1783,T,HG00099)",
+      "(2167,A,HG00097)", "(2167,AAAAC,HG00102)", "(2167,AAAACAAAC,HG00100)", "(1783,T,HG00101)", "(1783,TA,HG00102)", "(1783,T,HG00097)",
+      "(2167,AAAACAAAC,HG00102)"))
   }
 }

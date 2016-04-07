@@ -17,7 +17,6 @@ object Count extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val nLocalSamples = vds.nLocalSamples
     val (nVariants, nCalled) =
       vds.rdd.map { case (v, va, gs) =>
         (1L, gs.count(_.isCalled).toLong)
@@ -25,13 +24,13 @@ object Count extends Command {
         (comb._1 + x._1, comb._2 + x._2)
       }
 
-    val nGenotypes = nVariants.toLong * nLocalSamples.toLong
+    val nGenotypes = nVariants.toLong * vds.nSamples
     val callRate = divOption(nCalled, nGenotypes)
 
     info(
       s"""count:
           |  nSamples = ${vds.nSamples}
-          |  nLocalSamples = $nLocalSamples
+          |  nLocalSamples = ${vds.nSamples}
           |  nVariants = $nVariants
           |  nCalled = $nCalled
           |  callRate = ${callRate.map(r => (r * 100).formatted("%.3f%%")).getOrElse("NA")}""".stripMargin)
