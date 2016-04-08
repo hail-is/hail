@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
-import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -19,18 +18,20 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse[T](symTab: Map[String, (Int, BaseType)], expected: BaseType, a: ArrayBuffer[Any], code: String): () => T = {
+  def parse[T](ec: EvalContext,
+    expected: Type, code: String): () => T = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
-    t.typecheck(symTab)
+
+    t.typecheck(ec)
     if (expected != null
       && t.`type` != expected)
       fatal(s"expression has wrong type: expected `$expected', got ${t.`type`}")
 
-    val f: () => Any = t.eval(EvalContext(symTab, a))
+    val f: () => Any = t.eval(ec)
     () => f().asInstanceOf[T]
   }
 
@@ -56,33 +57,40 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(symTab: Map[String, (Int, BaseType)],
-    a: ArrayBuffer[Any],
-    code: String): (Option[String], Array[() => Any]) = {
+  def parseExportArgs(ec: EvalContext, code: String): (Option[String], Array[() => Any]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[String], Array[AST])]
-      case NoSuccess(msg, _) => fatal(msg)
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    ts.foreach(_.typecheck(symTab))
+    ts.foreach(_.typecheck(ec))
     val fs = ts.map { t =>
-      t.eval(EvalContext(symTab, a))
+      t.eval(ec)
     }
     (header, fs)
   }
 
-  def parseAnnotationArgs(symTab: Map[String, (Int, BaseType)],
-    a: ArrayBuffer[Any],
-    code: String): (Array[(List[String], BaseType, () => Any)]) = {
+  def parseAnnotationArgs(ec: EvalContext, code: String): (Array[(List[String], Type, () => Any)]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
-      case NoSuccess(msg, _) => fatal(msg)
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+
+    def checkType(l: List[String], t: BaseType): Type = {
+      t match {
+        case tws: Type => tws
+        case _ => fatal(
+          s"""Annotations must be stored as types with schema.
+            |  Got invalid type `$t' from the result of `${l.mkString(".")}'""".stripMargin)
+      }
     }
 
     arr.map {
-      case (path, ast) =>
-        ast.typecheck(symTab)
-        (path.toList, ast.`type`, ast.eval(EvalContext(symTab, a)))
+      case (ids, ast) =>
+        ast.typecheck(ec)
+        val path = ids.toList
+        val t = checkType(path, ast.`type`)
+        (ids.toList, t, ast.eval(ec))
     }
   }
 

@@ -6,7 +6,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
@@ -138,6 +137,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
+  def globalSignature: Type = metadata.globalSignature
+
+  def globalAnnotation: Annotation = metadata.globalAnnotation
+
   def wasSplit: Boolean = metadata.wasSplit
 
   def filters: IndexedSeq[(String, String)] = metadata.filters
@@ -149,10 +152,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     saSignature: Type = saSignature,
     vaSignature: Type = vaSignature,
+    globalSignature: Type = globalSignature,
+    globalAnnotation: Annotation = globalAnnotation,
     wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
-      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature, vaSignature, wasSplit), localSamples, rdd)
+      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature,
+        vaSignature, globalAnnotation, globalSignature, wasSplit), localSamples, rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -239,8 +245,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     }
   }
 
-  def mapAnnotations(f: (Variant, Annotation) => Annotation): VariantSampleMatrix[T] =
-    copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va), gs) })
+  def mapAnnotations(f: (Variant, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[T] =
+    copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va, gs), gs) })
 
   def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     flatMapWithKeys((v, s, g) => f(g))
@@ -253,11 +259,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }
   }
 
-  def filterVariants(p: (Variant, Annotation) => Boolean): VariantSampleMatrix[T] =
-    copy(rdd = rdd.filter { case (v, va, gs) => p(v, va) })
+  def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
+    copy(rdd = rdd.filter { case (v, va, gs) => p(v, va, gs) })
 
   def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
-    filterVariants((v, va) => ilist.contains(v.contig, v.start))
+    filterVariants((v, va, gs) => ilist.contains(v.contig, v.start))
 
   // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (Int, Annotation) => Boolean): VariantSampleMatrix[T] = {
@@ -468,6 +474,17 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }")
     }
   }
+  def queryGlobal(args: String*): Querier = queryGlobal(args.toList)
+
+  def queryGlobal(path: List[String]): Querier = {
+    try {
+      globalSignature.query(path)
+    } catch {
+      case e: AnnotationPathException => fatal(s"Invalid sample annotations query: ${
+        path.::("a").mkString(".")
+      }")
+    }
+  }
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
@@ -477,6 +494,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def deleteSA(path: List[String]): (Type, Deleter) = saSignature.delete(path)
 
+  def deleteGlobal(args: String*): (Type, Deleter) = deleteGlobal(args.toList)
+
+  def deleteGlobal(path: List[String]): (Type, Deleter) = globalSignature.delete(path)
+
   def insertVA(sig: Type, args: String*): (Type, Inserter) = insertVA(sig, args.toList)
 
   def insertVA(sig: Type, path: List[String]): (Type, Inserter) = {
@@ -485,9 +506,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def insertSA(sig: Type, args: String*): (Type, Inserter) = insertSA(sig, args.toList)
 
-  def insertSA(sig: Type, path: List[String]): (Type, Inserter) = {
-    saSignature.insert(sig, path)
+  def insertSA(sig: Type, path: List[String]): (Type, Inserter) = saSignature.insert(sig, path)
+
+  def insertGlobal(sig: Type, args: String*): (Type, Inserter) = insertGlobal(sig, args.toList)
+
+  def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
+    globalSignature.insert(sig, path)
   }
+
 }
 
 // FIXME AnyVal Scala 2.11

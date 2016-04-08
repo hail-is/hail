@@ -109,6 +109,6 @@ Identifier | Type | Description
 `g.isCalledNonRef` | `Boolean` | true if either `g.isHet` or `g.isHomVar` is true
 `g.isCalled`       | `Boolean` | true if the genotype is not `./.`
 `g.isNotCalled`    | `Boolean` | true if the genotype is `./.`
-`g.nNonRef`        | `Int`     | the number of called alternate alleles
+`g.nNonRefAlleles`        | `Int`     | the number of called alternate alleles
 `g.pAB()`          | `Double`  | p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
  

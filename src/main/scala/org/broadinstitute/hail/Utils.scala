@@ -17,11 +17,13 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.utils.RichRow
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant.{Sample, Variant}
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
+import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector, DenseMatrix}
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.commons.lang.StringEscapeUtils
@@ -403,6 +405,8 @@ class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
 
 class RichOption[T](val o: Option[T]) extends AnyVal {
   def contains(v: T): Boolean = o.isDefined && o.get == v
+
+  override def toString: String = o.toString
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {

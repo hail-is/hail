@@ -2,9 +2,8 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotation, Inserter}
-import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.expr.Type
-import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods.Aggregators
 import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -30,15 +29,21 @@ object AnnotateSamplesExpr extends Command {
     val vds = state.vds
 
     val cond = options.condition
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)))
 
     val symTab = Map(
-      "s" ->(0, expr.TSample),
-      "sa" ->(1, vds.saSignature))
-    val a = new mutable.ArrayBuffer[Any](2)
-    for (_ <- symTab)
-      a += null
+      "s" ->(0, TSample),
+      "sa" ->(1, vds.saSignature),
+      "gs" ->(-1, TAggregable(aggregationEC)))
 
-    val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
+    val ec = EvalContext(symTab)
+    val parsed = Parser.parseAnnotationArgs(ec, cond)
+
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "sa")
         fatal(s"Path must start with `sa.', got `${ids.mkString(".")}'")
@@ -58,10 +63,17 @@ object AnnotateSamplesExpr extends Command {
       v.copy(saSignature = s)
     }
     val inserters = inserterBuilder.result()
+    
+    val a = ec.a
+    val aggregatorA = aggregationEC.a
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
       a(0) = Sample(vds.sampleIds(i))
       a(1) = sa
+
+      sampleAggregationOption.foreach(f => f.apply(i))
 
       val queries = computations.map(_ ())
       var newSA = sa

@@ -169,7 +169,7 @@ class FilterSuite extends SparkSuite {
     var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val (sigs, i) = vds.insertVA(TInt, "weird name \t test")
     vds = vds
-      .mapAnnotations((v, va) => i(va, Some(1000)))
+      .mapAnnotations((v, va, gs) => i(va, Some(1000)))
       .copy(vaSignature = sigs)
     val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     val s2 = FilterVariants.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))

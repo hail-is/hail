@@ -4,9 +4,10 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.variant.{Sample, VariantDataset}
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable.ArrayBuffer
 
+import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
 object FilterSamples extends Command {
@@ -39,7 +40,9 @@ object FilterSamples extends Command {
 
     val keep = options.keep
     val sas = vds.saSignature
-    val p = options.condition match {
+
+    val cond = options.condition
+    val p = cond match {
       case f if f.endsWith(".sample_list") =>
         val indexOfSample: Map[String, Int] = vds.sampleIds.zipWithIndex.toMap
         val samples = readFile(f, state.hadoopConf) { reader =>
@@ -51,17 +54,36 @@ object FilterSamples extends Command {
         }
         (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
+        val aggregationEC = EvalContext(Map(
+          "v" ->(0, TVariant),
+          "va" ->(1, vds.vaSignature),
+          "s" ->(2, TSample),
+          "sa" ->(3, sas),
+          "g" ->(4, TGenotype)))
         val symTab = Map(
-          "s" -> (0, TSample),
-          "sa" -> (1, sas))
-        val a = new ArrayBuffer[Any]()
-        for (_ <- symTab)
-          a += null
-        val f: () => Any = Parser.parse(symTab, TBoolean, a, c)
-        val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
+          "s" ->(0, TSample),
+          "sa" ->(1, sas),
+        "gs" -> (-1, TAggregable(aggregationEC)))
+        val ec = EvalContext(symTab)
+        val f: () => Any = Parser.parse(ec, TBoolean, cond)
+
+
+        val a = ec.a
+        val aggregatorA = aggregationEC.a
+        val aggregators = ec.aggregationFunctions
+
+        val doAggregates = aggregators.nonEmpty
+
+        val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
+
+
+        val sampleIds = state.vds.sampleIds
         (s: Int, sa: Annotation) => {
-          a(0) = sampleIdsBc.value(s)
+          a(0) = sampleIds(s)
           a(1) = sa
+
+          sampleAggregationOption.foreach(f => f.apply(s))
+
           Filter.keepThisAny(f(), keep)
         }
     }

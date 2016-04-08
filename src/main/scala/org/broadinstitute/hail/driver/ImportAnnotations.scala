@@ -35,7 +35,6 @@ object ImportAnnotations extends Command {
   def description = "Import a TSV file containing variants / annotations into a sample-free VDS"
 
   def run(state: State, options: Options): State = {
-
     val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
     val (rdd, signature) = VariantTSVAnnotator(state.sc,
@@ -46,7 +45,7 @@ object ImportAnnotations extends Command {
 
     val vds = new VariantDataset(
       VariantMetadata(IndexedSeq.empty, IndexedSeq.empty, Annotation.emptyIndexedSeq(0),
-        TEmpty, signature, wasSplit = true),
+        TEmpty, signature, Annotation.empty, TEmpty, wasSplit = true),
       Array.empty[Int],
       rdd.map { case (v, va) => (v, va, Iterable.empty) })
 

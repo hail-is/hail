@@ -39,22 +39,41 @@ object FilterVariants extends Command {
     val vas = vds.vaSignature
     val cond = options.condition
     val keep = options.keep
-    val p: (Variant, Annotation) => Boolean = cond match {
+    val p: (Variant, Annotation, Iterable[Genotype]) => Boolean = cond match {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
         val ilistBc = state.sc.broadcast(ilist)
-        (v: Variant, va: Annotation) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
+        (v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+          Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
       case c: String =>
+        val aggregationEC = EvalContext(Map(
+          "v" ->(0, TVariant),
+          "va" ->(1, vds.vaSignature),
+          "s" ->(2, TSample),
+          "sa" ->(3, vds.saSignature),
+          "g" ->(4, TGenotype)
+        ))
         val symTab = Map(
           "v" ->(0, TVariant),
-          "va" ->(1, vas))
-        val a = new ArrayBuffer[Any]()
-        for (_ <- symTab)
-          a += null
-        val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
-        (v: Variant, va: Annotation) => {
+          "va" ->(1, vds.vaSignature),
+          "gs" ->(-1, TAggregable(aggregationEC)))
+
+        val ec = EvalContext(symTab)
+        val f: () => Any = Parser.parse[Any](ec, TBoolean, cond)
+        val sampleInfoBc = vds.sparkContext.broadcast(
+          vds.localSamples.map(vds.sampleAnnotations)
+            .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
+        
+        val a = ec.a
+
+        val aggregatorOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
+
+        (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
           a(0) = v
           a(1) = va
+
+          aggregatorOption.foreach(f => f(v, va, gs))
+
           Filter.keepThisAny(f(), keep)
         }
     }

@@ -39,19 +39,21 @@ object FilterGenotypes extends Command {
 
     val keep = options.keep
 
+    val cond = options.condition
     val symTab = Map(
       "v" ->(0, TVariant),
       "va" ->(1, vas),
       "s" ->(2, TSample),
       "sa" ->(3, sas),
       "g" ->(4, TGenotype))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
-    val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
+
+    val ec = EvalContext(symTab)
+    val f: () => Any = Parser.parse[Any](ec, TBoolean, cond)
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
+
+    val a = ec.a
 
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(

@@ -2,9 +2,8 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.expr.Type
-import org.broadinstitute.hail.io.annotators._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods.Aggregators
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -28,14 +27,22 @@ object AnnotateVariantsExpr extends Command {
 
     val cond = options.condition
 
-    val symTab = Map(
-      "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.vaSignature))
-    val a = new mutable.ArrayBuffer[Any](2)
-    for (_ <- symTab)
-      a += null
 
-    val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)))
+    val symTab = Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "gs" ->(-1, TAggregable(aggregationEC)))
+
+
+    val ec = EvalContext(symTab)
+    val parsed = Parser.parseAnnotationArgs(ec, cond)
+
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "va")
         fatal(s"Path must start with `va.', got `${ids.mkString(".")}'")
@@ -55,17 +62,21 @@ object AnnotateVariantsExpr extends Command {
     }
     val inserters = inserterBuilder.result()
 
-    val annotated = vdsAddedSigs.mapAnnotations { case (v, va) =>
+    val a = ec.a
+
+    val aggregateOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
+
+    val annotated = vdsAddedSigs.mapAnnotations { case (v, va, gs) =>
       a(0) = v
       a(1) = va
 
-      var newVA = va
-      computations.indices.foreach { i =>
-        newVA = inserters(i)(newVA, Option(computations(i)()))
-      }
-      newVA
-    }
+      aggregateOption.foreach(f => f(v, va, gs))
 
+      computations.indices.foreach { i =>
+        a(1) = inserters(i)(a(1), Option(computations(i)()))
+      }
+      a(1)
+    }
     state.copy(vds = annotated)
   }
 

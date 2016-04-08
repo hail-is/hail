@@ -9,7 +9,7 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
 
-import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 class ExprSuite extends SparkSuite {
 
@@ -32,30 +32,32 @@ class ExprSuite extends SparkSuite {
       "t" ->(10, TBoolean),
       "f" ->(11, TBoolean),
       "mb" ->(12, TBoolean))
-    val a = new ArrayBuffer[Any]()
-    a += 5 // i
-    a += -7 // j
-    a += 3.14
-    a += 5.79e7
-    a += "12,34,56,78"
-    a += "this is a String, there are many like it, but this one is mine"
-    a += IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
-    a += null // m
-    a += (Array[Any](Annotation(23, "foo"),
+    val ec = EvalContext(symTab)
+
+    val a = ec.a
+    a(0) = 5 // i
+    a(1) = -7 // j
+    a(2) =  3.14
+    a(3) =  5.79e7
+    a(4) =  "12,34,56,78"
+    a(5) =  "this is a String, there are many like it, but this one is mine"
+    a(6) =  IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
+    a(7) =  null // m
+    a(8) =  (Array[Any](Annotation(23, "foo"),
       Annotation(-7, null)): IndexedSeq[Any])
-    a += Annotation(
+    a(9) = Annotation(
       Genotype(),
       Genotype(gt = Some(0)),
       Genotype(gt = Some(1)),
       Genotype(gt = Some(2)),
       Genotype(gt = Some(Genotype.gtIndex(3, 5))))
-    a += true
-    a += false
-    a += null // mb
+    a(10) = true
+    a(11) =false
+    a(12) = null // mb
     assert(a.length == 13)
 
     def eval[T](s: String): T = {
-      val f = Parser.parse[T](symTab, null, a, s)
+      val f = Parser.parse[T](ec, null, s)
       f()
     }
 
@@ -149,5 +151,11 @@ class ExprSuite extends SparkSuite {
       val json = t.makeJSON(a)
       a == VEP.jsonToAnnotation(json, t, "")
     })
+  }
+
+  @Test def testTypeRuntime() {
+
+    val t = TInt
+//    val clazz = implicitly[ClassTag[TNumeric]].runtimeClass
   }
 }
