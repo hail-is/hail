@@ -53,19 +53,5 @@ class LinearRegressionWithAnnotSuite extends SparkSuite {
     println(y)
     println(cov)
 
-    /*
-    s = CaseControlCount.run(s, Array[String]())
-
-    val qCase = s.vds.queryVA("nCase")
-    val qControl = s.vds.queryVA("nControl")
-
-    val r = s.vds.mapWithAll { case (v, va, s, g) =>
-      (v.start, (qCase(va).get.asInstanceOf[Int],
-        qControl(va).get.asInstanceOf[Int]))
-    }.collectAsMap()
-
-    assert(r == Map(1 ->(1, 0),
-      2 ->(0, 2)))
-    */
   }
 }
