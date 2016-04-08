@@ -1,7 +1,7 @@
 package org.broadinstitute.hail
 
 package object expr {
-  type SymbolTable = Map[String, (Int, Type)]
+  type SymbolTable = Map[String, (Int, BaseType)]
 
   type Aggregator = (() => Any, (Any) => Any, (Any, Any) => Any, Int)
 

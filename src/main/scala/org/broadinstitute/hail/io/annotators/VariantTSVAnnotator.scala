@@ -11,8 +11,8 @@ import org.broadinstitute.hail.variant.Variant
 import scala.collection.mutable
 
 object VariantTSVAnnotator extends TSVAnnotator {
-  def apply(sc: SparkContext, files: Array[String], vColumns: Array[String], declaredSig: Map[String, TypeWithSchema],
-    missing: String): (RDD[(Variant, Annotation)], TypeWithSchema) = {
+  def apply(sc: SparkContext, files: Array[String], vColumns: Array[String], declaredSig: Map[String, Type],
+    missing: String): (RDD[(Variant, Annotation)], Type) = {
 
     val (header, split) = readLines(files.head, sc.hadoopConfiguration) { lines =>
       fatalIf(lines.isEmpty, "empty TSV file")
@@ -43,8 +43,7 @@ object VariantTSVAnnotator extends TSVAnnotator {
       (false, variantIndex)
     }
 
-    val orderedSignatures: Array[(String, Option[TypeWithSchema])] = split.map { s =>
-
+    val orderedSignatures: Array[(String, Option[Type])] = split.map { s =>
       if (!vColumns.contains(s)) {
         val t = declaredSig.getOrElse(s, TString)
         if (!t.isInstanceOf[Parsable])

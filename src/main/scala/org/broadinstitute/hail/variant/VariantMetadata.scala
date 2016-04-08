@@ -14,7 +14,7 @@ object VariantMetadata {
     TEmpty)
 
   def apply(filters: IndexedSeq[(String, String)], sampleIds: Array[String],
-    sa: IndexedSeq[Annotation], sas: TypeWithSchema, vas: TypeWithSchema): VariantMetadata = {
+    sa: IndexedSeq[Annotation], sas: Type, vas: Type): VariantMetadata = {
     new VariantMetadata(filters, sampleIds, sa, sas, vas, Annotation.empty, TEmpty)
   }
 }
@@ -22,10 +22,10 @@ object VariantMetadata {
 case class VariantMetadata(filters: IndexedSeq[(String, String)],
   sampleIds: IndexedSeq[String],
   sampleAnnotations: IndexedSeq[Annotation],
-  saSignature: TypeWithSchema,
-  vaSignature: TypeWithSchema,
+  saSignature: Type,
+  vaSignature: Type,
   globalAnnotation: Annotation,
-  globalSignature: TypeWithSchema,
+  globalSignature: Type,
   wasSplit: Boolean = false) {
 
   def nSamples: Int = sampleIds.length

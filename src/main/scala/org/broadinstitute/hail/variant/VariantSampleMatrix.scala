@@ -131,13 +131,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def nLocalSamples: Int = localSamples.length
 
-  def vaSignature: TypeWithSchema = metadata.vaSignature
+  def vaSignature: Type = metadata.vaSignature
 
-  def saSignature: TypeWithSchema = metadata.saSignature
+  def saSignature: Type = metadata.saSignature
 
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
-  def globalSignature: TypeWithSchema = metadata.globalSignature
+  def globalSignature: Type = metadata.globalSignature
 
   def globalAnnotation: Annotation = metadata.globalAnnotation
 
@@ -150,9 +150,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     filters: IndexedSeq[(String, String)] = filters,
     sampleIds: IndexedSeq[String] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
-    saSignature: TypeWithSchema = saSignature,
-    vaSignature: TypeWithSchema = vaSignature,
-    globalSignature: TypeWithSchema = globalSignature,
+    saSignature: Type = saSignature,
+    vaSignature: Type = vaSignature,
+    globalSignature: Type = globalSignature,
     globalAnnotation: Annotation = globalAnnotation,
     wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
@@ -400,7 +400,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         }.fold(true)(_ && _)
   }
 
-  def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: TypeWithSchema)(
+  def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U,
     mapOp: (Annotation, U) => Annotation)
@@ -424,13 +424,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def annotateInvervals(iList: IntervalList, signature: TypeWithSchema, path: List[String]): VariantSampleMatrix[T] = {
+  def annotateInvervals(iList: IntervalList, signature: Type, path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: TypeWithSchema,
+  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: Type,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
@@ -439,7 +439,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateSamples(annotations: Map[String, Annotation], signature: TypeWithSchema,
+  def annotateSamples(annotations: Map[String, Annotation], signature: Type,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertSA(signature, path)
 
@@ -474,7 +474,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }")
     }
   }
-
   def queryGlobal(args: String*): Querier = queryGlobal(args.toList)
 
   def queryGlobal(path: List[String]): Querier = {
@@ -487,29 +486,31 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     }
   }
 
-  def deleteVA(args: String*): (TypeWithSchema, Deleter) = deleteVA(args.toList)
+  def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
-  def deleteVA(path: List[String]): (TypeWithSchema, Deleter) = vaSignature.delete(path)
+  def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
 
-  def deleteSA(args: String*): (TypeWithSchema, Deleter) = deleteSA(args.toList)
+  def deleteSA(args: String*): (Type, Deleter) = deleteSA(args.toList)
 
-  def deleteSA(path: List[String]): (TypeWithSchema, Deleter) = saSignature.delete(path)
+  def deleteSA(path: List[String]): (Type, Deleter) = saSignature.delete(path)
 
-  def deleteGlobal(args: String*): (TypeWithSchema, Deleter) = deleteGlobal(args.toList)
+  def deleteGlobal(args: String*): (Type, Deleter) = deleteGlobal(args.toList)
 
-  def deleteGlobal(path: List[String]): (TypeWithSchema, Deleter) = globalSignature.delete(path)
+  def deleteGlobal(path: List[String]): (Type, Deleter) = globalSignature.delete(path)
 
-  def insertVA(sig: TypeWithSchema, args: String*): (TypeWithSchema, Inserter) = insertVA(sig, args.toList)
+  def insertVA(sig: Type, args: String*): (Type, Inserter) = insertVA(sig, args.toList)
 
-  def insertVA(sig: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = vaSignature.insert(sig, path)
+  def insertVA(sig: Type, path: List[String]): (Type, Inserter) = {
+    vaSignature.insert(sig, path)
+  }
 
-  def insertSA(sig: TypeWithSchema, args: String*): (TypeWithSchema, Inserter) = insertSA(sig, args.toList)
+  def insertSA(sig: Type, args: String*): (Type, Inserter) = insertSA(sig, args.toList)
 
-  def insertSA(sig: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = saSignature.insert(sig, path)
+  def insertSA(sig: Type, path: List[String]): (Type, Inserter) = saSignature.insert(sig, path)
 
-  def insertGlobal(sig: TypeWithSchema, args: String*): (TypeWithSchema, Inserter) = insertGlobal(sig, args.toList)
+  def insertGlobal(sig: Type, args: String*): (Type, Inserter) = insertGlobal(sig, args.toList)
 
-  def insertGlobal(sig: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = {
+  def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
     globalSignature.insert(sig, path)
   }
 

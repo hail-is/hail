@@ -4,7 +4,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotation, Inserter}
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.Aggregators
-import org.broadinstitute.hail.expr.TypeWithSchema
 import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -49,7 +48,7 @@ object AnnotateSamplesExpr extends Command {
       if (ids.head != "sa")
         fatal(s"Path must start with `sa.', got `${ids.mkString(".")}'")
       val sig = t match {
-        case tws: TypeWithSchema => tws
+        case tws: Type => tws
         case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
       }
       (ids.tail, sig)

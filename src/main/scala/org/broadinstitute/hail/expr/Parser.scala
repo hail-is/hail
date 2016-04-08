@@ -35,7 +35,7 @@ object Parser extends JavaTokenParsers {
     () => f().asInstanceOf[T]
   }
 
-  def parseType(code: String): TypeWithSchema = {
+  def parseType(code: String): Type = {
     // println(s"code = $code")
     parseAll(type_expr, code) match {
       case Success(result, _) => result
@@ -43,10 +43,10 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseAnnotationTypes(code: String): Map[String, TypeWithSchema] = {
+  def parseAnnotationTypes(code: String): Map[String, Type] = {
     // println(s"code = $code")
     if (code.isEmpty)
-      Map.empty[String, TypeWithSchema]
+      Map.empty[String, Type]
     else
       parseAll(struct_fields, code) match {
         case Success(result, _) => result.map(f => (f.name, f.`type`)).toMap
@@ -57,8 +57,7 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(ec: EvalContext,
-    code: String): (Option[String], Array[() => Any]) = {
+  def parseExportArgs(ec: EvalContext, code: String): (Option[String], Array[() => Any]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[String], Array[AST])]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
@@ -71,15 +70,15 @@ object Parser extends JavaTokenParsers {
     (header, fs)
   }
 
-  def parseAnnotationArgs(ec: EvalContext, code: String): (Array[(List[String], TypeWithSchema, () => Any)]) = {
+  def parseAnnotationArgs(ec: EvalContext, code: String): (Array[(List[String], Type, () => Any)]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    def convertSchemable(l: List[String], t: Type): TypeWithSchema = {
+    def checkType(l: List[String], t: BaseType): Type = {
       t match {
-        case tws: TypeWithSchema => tws
+        case tws: Type => tws
         case _ => fatal(
           s"""Annotations must be stored as types with schema.
             |  Got invalid type `$t' from the result of `${l.mkString(".")}'""".stripMargin)
@@ -90,7 +89,7 @@ object Parser extends JavaTokenParsers {
       case (ids, ast) =>
         ast.typecheck(ec)
         val path = ids.toList
-        val t = convertSchemable(path, ast.`type`)
+        val t = checkType(path, ast.`type`)
         (ids.toList, t, ast.eval(ec))
     }
   }
@@ -240,17 +239,17 @@ object Parser extends JavaTokenParsers {
     })
   }
 
-  def struct_field: Parser[(String, TypeWithSchema, Map[String, String])] =
+  def struct_field: Parser[(String, Type, Map[String, String])] =
     (identifier <~ ":") ~ type_expr ~ rep(decorator) ^^ { case name ~ t ~ decorators =>
       (name, t, decorators.toMap)
     }
 
-  def struct_fields: Parser[Array[Field]] = rep1sep(struct_field, ",") ^^ {
+  def struct_fields: Parser[Array[Field]] = repsep(struct_field, ",") ^^ {
     _.zipWithIndex.map {case ((id, t, attrs), index) => Field(id, t, index, attrs) }
       .toArray
   }
 
-  def type_expr: Parser[TypeWithSchema] =
+  def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TEmpty } |
       "Boolean" ^^ { _ => TBoolean } |
       "Char" ^^ { _ => TChar } |
