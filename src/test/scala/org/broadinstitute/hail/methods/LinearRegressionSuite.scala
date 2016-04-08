@@ -9,6 +9,7 @@ import org.testng.annotations.Test
 //import scala.language.postfixOps
 
 class LinearRegressionSuite extends SparkSuite {
+  /*
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
     val ped = Pedigree.read("src/test/resources/linearRegression.fam", sc.hadoopConfiguration, vds.sampleIds)
@@ -85,4 +86,5 @@ class LinearRegressionSuite extends SparkSuite {
     //val result = "rm -rf /tmp/linearRegression" !;
     linReg.write("/tmp/linearRegression") //FIXME: How to test?
   }
+  */
 }

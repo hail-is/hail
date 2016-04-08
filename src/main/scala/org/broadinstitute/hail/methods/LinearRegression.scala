@@ -85,44 +85,43 @@ class LinRegBuilder extends Serializable {
 object LinearRegression {
   def name = "LinearRegression"
 
-  def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    val filteredCov = cov.filterSamples(ped.phenotypedSamples)
+  def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]]): LinearRegression = {
+    require(cov.forall(_.rows == y.size))
 
-    val sampleCovRow = filteredCov.covRowSample.zipWithIndex.toMap
-
-    val n = filteredCov.covRowSample.size
-    val k = filteredCov.covName.size
+    val n = y.size
+    val k = if (cov.isDefined) cov.get.cols else 0
     val d = n - k - 2
 
-    fatalIf(d < 1, s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
+    if (d < 1)
+      fatal(s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
 
     info(s"Running linreg on $n samples and $k covariates...")
 
-    val sc = vds.sparkContext
-    val sampleCovRowBc = sc.broadcast(sampleCovRow)
-    val samplesWithCovDataBc = sc.broadcast(sampleCovRow.keySet)
-    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
-
-    val samplePheno = ped.samplePheno
-    val yArray = (0 until n).flatMap(cr => samplePheno(filteredCov.covRowSample(cr)).map(_.toString.toDouble)).toArray
-    val covAndOnesVector: DenseMatrix[Double] = filteredCov.data match {
-      case Some(d) => DenseMatrix.horzcat(d, DenseMatrix.ones[Double](n, 1))
+    val covAndOnes: DenseMatrix[Double] = cov match {
+      case Some(dm) => DenseMatrix.horzcat(dm, DenseMatrix.ones[Double](n, 1))
       case None => DenseMatrix.ones[Double](n, 1)
     }
 
-    val y = DenseVector[Double](yArray)
-    val qt = qr.reduced.justQ(covAndOnesVector).t
+    val qt = qr.reduced.justQ(covAndOnes).t
     val qty = qt * y
 
+    val sc = vds.sparkContext
     val yBc = sc.broadcast(y)
     val qtBc = sc.broadcast(qt)
     val qtyBc = sc.broadcast(qty)
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
+    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
+
+    println(vds.localSamples.mkString(","))
+
+    // FIXME: remove once localSamples is gone
+    val remapSamplesBc = sc.broadcast(vds.localSamples.zipWithIndex.toMap)
+
+    println(remapSamplesBc.value)
 
     new LinearRegression(vds
-      .filterSamples { case (s, sa) => samplesWithCovDataBc.value.contains(s) }
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
-        (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
+        (lrb, v, s, g) => lrb.merge(remapSamplesBc.value(s), g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues { lrb =>
         lrb.stats(yBc.value, n).map { stats => {
