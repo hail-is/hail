@@ -74,21 +74,15 @@ object FilterSamples extends Command {
 
         val doAggregates = aggregators.nonEmpty
 
-        val sampleAggregations = Aggregators.buildSampleAggregations(vds, aggregationEC)
+        val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
 
         val sampleIds = state.vds.sampleIds
         (s: Int, sa: Annotation) => {
-          a(0) = Sample(sampleIds(s))
+          a(0) = sampleIds(s)
           a(1) = sa
 
-          sampleAggregations.foreach { arr =>
-            arr(s).iterator
-              .zip(aggregators.map(_._4).iterator)
-              .foreach { case (value, j) =>
-                aggregatorA(j) = value
-              }
-          }
+          sampleAggregationOption.foreach(f => f.apply(s))
 
           Filter.keepThisAny(f(), keep)
         }

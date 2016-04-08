@@ -24,8 +24,8 @@ case class VariantMetadata(filters: IndexedSeq[(String, String)],
   sampleAnnotations: IndexedSeq[Annotation],
   saSignature: TypeWithSchema,
   vaSignature: TypeWithSchema,
-  tAnnotation: Annotation,
-  taSignature: TypeWithSchema,
+  globalAnnotation: Annotation,
+  globalSignature: TypeWithSchema,
   wasSplit: Boolean = false) {
 
   def nSamples: Int = sampleIds.length

@@ -39,7 +39,7 @@ object AnnotateVariantsExpr extends Command {
     val symTab = Map(
       "v" ->(0, TVariant),
       "va" ->(1, vds.vaSignature),
-      "gs" ->(2, TAggregable(aggregationEC)))
+      "gs" ->(-1, TAggregable(aggregationEC)))
 
 
     val ec = EvalContext(symTab)
@@ -65,14 +65,12 @@ object AnnotateVariantsExpr extends Command {
     val inserters = inserterBuilder.result()
 
     val a = ec.a
-    val aggregatorA = aggregationEC.a
 
     val aggregateOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
     val annotated = vdsAddedSigs.mapAnnotations { case (v, va, gs) =>
       a(0) = v
       a(1) = va
-      a(2) = gs
 
       aggregateOption.foreach(f => f(v, va, gs))
 

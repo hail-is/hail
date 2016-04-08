@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.expr.EvalContext
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations.Annotation
 
@@ -45,14 +45,13 @@ object Aggregators {
     } else None
   }
 
-  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[Array[Array[Any]]] = {
-    val aggregators = ec.aggregationFunctions
+  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(Int) => Unit] = {
+    val aggregators = ec.aggregationFunctions.toArray
     val aggregatorA = ec.a
 
     if (aggregators.isEmpty)
       None
     else {
-      val aggregatorInternalArray = aggregators.toArray
       val sampleInfoBc = vds.sparkContext.broadcast(vds.localSamples
         .map(vds.sampleIds)
         .map(Sample)
@@ -62,7 +61,7 @@ object Aggregators {
       val combOps = aggregators.map(_._3)
       val endIndices = aggregators.map(_._4)
 
-      val arr = vds.rdd.treeAggregate(Array.fill[Array[Any]](vds.nLocalSamples)(aggregatorInternalArray.map(_._1())))({
+      val arr = vds.rdd.treeAggregate(Array.fill[Array[Any]](vds.nLocalSamples)(aggregators.map(_._1())))({
         case (arr, (v, va, gs)) =>
           gs.iterator
             .zipWithIndex
@@ -93,7 +92,14 @@ object Aggregators {
           }
           .toArray
       })
-      Some(arr)
+      val indices = aggregators.map(_._4)
+      Some((s: Int) => {
+        arr(s).iterator
+          .zip(indices.iterator)
+          .foreach { case (value, j) =>
+            aggregatorA(j) = value
+          }
+      })
     }
   }
 

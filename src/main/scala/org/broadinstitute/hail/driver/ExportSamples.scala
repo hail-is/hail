@@ -41,7 +41,7 @@ object ExportSamples extends Command {
     val symTab = Map(
       "s" ->(0, TSample),
       "sa" ->(1, sas),
-    "gs" ->(-1, TAggregable(aggregationEC)))
+      "gs" ->(-1, TAggregable(aggregationEC)))
 
     val ec = EvalContext(symTab)
 
@@ -55,7 +55,7 @@ object ExportSamples extends Command {
     val a = ec.a
     val aggregatorA = aggregationEC.a
 
-    val sampleAggregations = Aggregators.buildSampleAggregations(vds, aggregationEC)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
@@ -64,26 +64,17 @@ object ExportSamples extends Command {
       sb.clear()
       a(0) = vds.sampleIds(s)
       a(1) = vds.sampleAnnotations(s)
-      sampleAggregations.foreach { arr =>
-        arr(s).iterator
-          .zip(aggregationEC.aggregationFunctions.map(_._4).iterator)
-          .foreach { case (value, j) =>
-            aggregatorA(j) = value
-          }
-      }
+
+      sampleAggregationOption.foreach(f => f.apply(s))
 
       var first = true
-      fs.foreach { f =>
-        if (first)
-          first = false
-        else
-          sb += '\t'
-        sb.tsvAppend(f())
-      }
+      fs.iterator.foreachBetween(f => sb.tsvAppend(f()))(() => sb += '\t')
       sb.result()
     }
+
     writeTable(output, hConf, lines, header)
 
     state
   }
+
 }

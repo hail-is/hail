@@ -6,7 +6,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
@@ -138,9 +137,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
-  def taSignature: TypeWithSchema = metadata.taSignature
+  def globalSignature: TypeWithSchema = metadata.globalSignature
 
-  def globalAnnotation: Annotation = metadata.tAnnotation
+  def globalAnnotation: Annotation = metadata.globalAnnotation
 
   def wasSplit: Boolean = metadata.wasSplit
 
@@ -153,13 +152,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     saSignature: TypeWithSchema = saSignature,
     vaSignature: TypeWithSchema = vaSignature,
-    taSignature: TypeWithSchema = taSignature,
-    tAnnotation: Annotation = globalAnnotation,
+    globalSignature: TypeWithSchema = globalSignature,
+    globalAnnotation: Annotation = globalAnnotation,
     wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
       VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature,
-        vaSignature, tAnnotation, taSignature, wasSplit), localSamples, rdd)
+        vaSignature, globalAnnotation, globalSignature, wasSplit), localSamples, rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -476,11 +475,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     }
   }
 
-  def queryA(args: String*): Querier = queryA(args.toList)
+  def queryGlobal(args: String*): Querier = queryGlobal(args.toList)
 
-  def queryA(path: List[String]): Querier = {
+  def queryGlobal(path: List[String]): Querier = {
     try {
-      taSignature.query(path)
+      globalSignature.query(path)
     } catch {
       case e: AnnotationPathException => fatal(s"Invalid sample annotations query: ${
         path.::("a").mkString(".")
@@ -496,9 +495,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def deleteSA(path: List[String]): (TypeWithSchema, Deleter) = saSignature.delete(path)
 
-  def deleteTA(args: String*): (TypeWithSchema, Deleter) = deleteTA(args.toList)
+  def deleteGlobal(args: String*): (TypeWithSchema, Deleter) = deleteGlobal(args.toList)
 
-  def deleteTA(path: List[String]): (TypeWithSchema, Deleter) = taSignature.delete(path)
+  def deleteGlobal(path: List[String]): (TypeWithSchema, Deleter) = globalSignature.delete(path)
 
   def insertVA(sig: TypeWithSchema, args: String*): (TypeWithSchema, Inserter) = insertVA(sig, args.toList)
 
@@ -508,10 +507,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def insertSA(sig: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = saSignature.insert(sig, path)
 
-  def insertTA(sig: TypeWithSchema, args: String*): (TypeWithSchema, Inserter) = insertTA(sig, args.toList)
+  def insertGlobal(sig: TypeWithSchema, args: String*): (TypeWithSchema, Inserter) = insertGlobal(sig, args.toList)
 
-  def insertTA(sig: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = {
-    taSignature.insert(sig, path)
+  def insertGlobal(sig: TypeWithSchema, path: List[String]): (TypeWithSchema, Inserter) = {
+    globalSignature.insert(sig, path)
   }
 
 }

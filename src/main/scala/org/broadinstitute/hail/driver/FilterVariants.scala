@@ -56,7 +56,7 @@ object FilterVariants extends Command {
         val symTab = Map(
           "v" ->(0, TVariant),
           "va" ->(1, vds.vaSignature),
-          "gs" ->(2, TAggregable(aggregationEC)))
+          "gs" ->(-1, TAggregable(aggregationEC)))
 
         val ec = EvalContext(symTab)
         val f: () => Any = Parser.parse[Any](ec, TBoolean, cond)
@@ -65,14 +65,12 @@ object FilterVariants extends Command {
             .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
         
         val a = ec.a
-        val aggregatorA = aggregationEC.a
 
         val aggregatorOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
         (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
           a(0) = v
           a(1) = va
-          a(2) = gs
 
           aggregatorOption.foreach(f => f(v, va, gs))
 

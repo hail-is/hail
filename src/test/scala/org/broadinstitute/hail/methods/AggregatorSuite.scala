@@ -103,13 +103,4 @@ class AggregatorSuite extends SparkSuite {
 //
 //      }
   }
-
-  @Test def testMapReduce() {
-    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
-    var s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
-    s = SampleQC.run(s, Array.empty[String])
-    MapReduce.run(s, Array("-c", "a.field1 = 5, a.field2 = sas.stats(sa.qc.gqMean), " +
-      "a.field3 = sas.stats(gs.count(va.info.AC[0] == 1 && g.isHet)), a.field4 = vas.stats(gs.count(g.isHet))"))
-
-  }
 }

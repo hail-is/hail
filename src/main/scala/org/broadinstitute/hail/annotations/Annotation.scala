@@ -21,20 +21,7 @@ object Annotation {
             s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}"""
           }
             .mkString("\n")
-      case a => a.toString + ": " + a.getClass.getCanonicalName
-    }
-  }
-
-  def zipAnnotations(args: Array[Annotation]): Annotation = {
-    if (args.forall(_.isInstanceOf[Row])) {
-      val size = args.head.asInstanceOf[Row].size
-      val rows = args.map(_.asInstanceOf[Row]).toArray
-      val propagated = (0 until size).map { i => rows.map(_.get(i))}.toArray
-      Row.fromSeq(propagated.map(arr => zipAnnotations(arr)))
-  }
-    else {
-      args.toSet
-        .take(5)
+      case a => a.toString + ": " + a.getClass.getSimpleName
     }
   }
 

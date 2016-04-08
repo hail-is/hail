@@ -405,6 +405,8 @@ class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
 
 class RichOption[T](val o: Option[T]) extends AnyVal {
   def contains(v: T): Boolean = o.isDefined && o.get == v
+
+  override def toString: String = o.toString
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {

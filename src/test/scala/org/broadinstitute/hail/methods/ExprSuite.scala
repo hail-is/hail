@@ -6,10 +6,9 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 class ExprSuite extends SparkSuite {
 
@@ -177,5 +176,11 @@ class ExprSuite extends SparkSuite {
 
     val jsonReadBack = VEP.jsonToAnnotation(json, state.vds.vaSignature, "va")
     assert(va == jsonReadBack)
+  }
+
+  @Test def testTypeRuntime() {
+
+    val t = TInt
+//    val clazz = implicitly[ClassTag[TNumeric]].runtimeClass
   }
 }

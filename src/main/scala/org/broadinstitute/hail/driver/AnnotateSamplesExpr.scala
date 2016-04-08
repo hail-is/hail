@@ -40,7 +40,7 @@ object AnnotateSamplesExpr extends Command {
     val symTab = Map(
       "s" ->(0, TSample),
       "sa" ->(1, vds.saSignature),
-      "gs" ->(2, TAggregable(aggregationEC)))
+      "gs" ->(-1, TAggregable(aggregationEC)))
 
     val ec = EvalContext(symTab)
     val parsed = Parser.parseAnnotationArgs(ec, cond)
@@ -68,19 +68,13 @@ object AnnotateSamplesExpr extends Command {
     val a = ec.a
     val aggregatorA = aggregationEC.a
 
-    val aggregatorArray = Aggregators.buildSampleAggregations(vds, aggregationEC)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
       a(0) = Sample(vds.sampleIds(i))
       a(1) = sa
-      a(2) = 0 //FIXME placeholder?
 
-      aggregatorArray.foreach {arr =>
-        arr(i).iterator
-            .zip(aggregationEC.aggregationFunctions.map(_._4).iterator)
-          .foreach { case (value, j) =>
-            aggregatorA(j) = value }
-      }
+      sampleAggregationOption.foreach(f => f.apply(i))
 
       val queries = computations.map(_ ())
       var newSA = sa

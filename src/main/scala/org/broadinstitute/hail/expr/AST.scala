@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
@@ -204,7 +205,7 @@ case object TLong extends TIntegral with Parsable {
 
   def parse(s: String): Annotation = s.toLong
 
-  def selfMakeJSON(a: Annotation): JValue = JLong(a.asInstanceOf[Long])
+  def selfMakeJSON(a: Annotation): JValue = JInt(a.asInstanceOf[Long])
 }
 
 case object TFloat extends TNumeric with Parsable {
@@ -261,6 +262,7 @@ case class TArray(elementType: TypeWithSchema) extends TypeWithSchema {
     elementType.pretty(sb, indent, printAttrs)
     sb.append("]")
   }
+
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
 
@@ -774,7 +776,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
   def eval(ec: EvalContext): () => Any = ((lhs.`type`, rhs): @unchecked) match {
     case (TSample, "id") => lhs.eval(ec)
-
     case (TGenotype, "gt") =>
       AST.evalFlatCompose[Genotype](ec, lhs)(_.gt)
     case (TGenotype, "gtj") =>
@@ -922,151 +923,125 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   }
 
   override def typecheck(ec: EvalContext) {
-    (method, args) match {
-      case ("find", Array(Lambda(_, param, body))) =>
-        lhs.typecheck(ec)
-
-        val elementType = lhs.`type` match {
-          case arr: TArray => arr.elementType
-          case _ =>
-            parseError(s"no `$method' on non-array")
-        }
-
-        `type` = elementType
-
+    lhs.typecheck(ec)
+    (lhs.`type`, method, args) match {
+      case (arr: TArray, "find", Array(Lambda(_, param, body))) =>
         // index unused in typecheck
-        // FIXME I BROKE THIS
-        body.typecheck(ec.copy(st = ec.st + ((param, (-1, elementType)))))
+        body.typecheck(ec.copy(st = ec.st + ((param, (-1, arr.elementType)))))
         if (body.`type` != TBoolean)
           parseError(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
+        `type` = arr.elementType
 
-      case ("count", Array(rhs)) =>
-        lhs.typecheck(ec)
+      case (agg: TAggregable, "count", rhs) =>
+        rhs.foreach(_.typecheck(agg.ec))
+        val types = rhs.map(_.`type`)
+          .toSeq
 
-        val lhsType = lhs.`type` match {
-          case agg: TAggregable => agg
-          case _ => parseError(s"no `$method' on non-aggragable")
+        if (types != Seq(TBoolean)) {
+          //          val plural1 = if (expected.length > 1) "s" else ""
+          val plural = if (types.length != 1) "s" else ""
+          parseError(s"method `$method' expected 1 argument of type (Boolean), but got ${types.length} argument$plural${
+            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+            else "."
+          }")
         }
-        rhs.typecheck(lhsType.ec)
-
-        if (rhs.`type` != TBoolean)
-          parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
         `type` = TLong
 
-      case ("sum", Array(rhs)) =>
-        lhs.typecheck(ec)
-        val lhsType = lhs.`type` match {
-          case agg: TAggregable => agg
-          case _ => parseError(s"no `$method' on non-aggragable")
-        }
-        rhs.typecheck(lhsType.ec)
-        if (!rhs.`type`.isInstanceOf[TNumeric])
-          parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
-        `type` = (rhs.`type`: @unchecked) match {
-          case TDouble | TFloat => TDouble
-          case TInt | TLong => TLong
-        }
+      case (agg: TAggregable, "fraction", rhs) =>
+        rhs.foreach(_.typecheck(agg.ec))
+        val types = rhs.map(_.`type`)
+          .toSeq
 
-      case ("fraction", Array(rhs)) =>
-        lhs.typecheck(ec)
-        val lhsType = lhs.`type` match {
-          case agg: TAggregable => agg
-          case _ => parseError(s"no `$method' on non-aggragable")
+        if (types != Seq(TBoolean)) {
+          //          val plural1 = if (expected.length > 1) "s" else ""
+          val plural = if (types.length != 1) "s" else ""
+          parseError(s"method `$method' expected 1 argument of type (Boolean), but got ${types.length} argument$plural${
+            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+            else "."
+          }")
         }
-        rhs.typecheck(lhsType.ec)
-        if (rhs.`type` != TBoolean)
-          parseError(s"expected Boolean, got `${rhs.`type`}' in `$method' expression")
         `type` = TDouble
 
-      case ("stats", Array(rhs)) =>
-        lhs.typecheck(ec)
-        val lhsType = lhs.`type` match {
-          case agg: TAggregable => agg
-          case _ => parseError(s"no `$method' on non-aggragable")
-        }
-        rhs.typecheck(lhsType.ec)
-        val t = rhs.`type` match {
-          case tNum: TNumeric => tNum
-          case _ =>
-            parseError(s"expected Numeric, got `${rhs.`type`}' in `$method' expression")
-        }
+      case (agg: TAggregable, "stats", rhs) =>
+        rhs.foreach(_.typecheck(agg.ec))
+        val types = rhs.map(_.`type`)
+          .toSeq
 
-        val sumT = if (t == TInt || t == TLong)
+        if (types.length != 1 || !types.head.isInstanceOf[TNumeric]) {
+          val plural = if (types.length != 1) "s" else ""
+          parseError(s"method `$method' expected 1 argument of types (Numeric), but got ${types.length} argument$plural${
+            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+            else "."
+          }")
+        }
+        val t = types.head.asInstanceOf[TypeWithSchema]
+
+        val sumT = t match {
+        case tint: TIntegral => TLong
+        case _ => TDouble
+      }
+        `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t),
+          ("max", t), ("nNotMissing", TLong), ("sum", sumT))
+
+      case (agg: TAggregable, "statsif", rhs) =>
+        rhs.foreach(_.typecheck(agg.ec))
+        val types = rhs.map(_.`type`)
+          .toSeq
+
+        if (types.length != 2 || types.head != TBoolean || !types(1).isInstanceOf[TNumeric]) {
+          val plural = if (types.length != 1) "s" else ""
+          parseError(s"method `$method' expected 2 arguments of types (Boolean, Numeric), but got ${types.length} argument$plural${
+            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+            else "."
+          }")
+        }
+        val t = types(1).asInstanceOf[TypeWithSchema]
+
+        val sumT = if (t.isInstanceOf[TIntegral])
           TLong
         else
           TDouble
         `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t),
           ("max", t), ("nNotMissing", TLong), ("sum", sumT))
 
-      case ("statsif", Array(condition, computation)) =>
-        lhs.typecheck(ec)
-        val lhsType = lhs.`type` match {
-          case agg: TAggregable => agg
-          case _ => parseError(s"no `$method' on non-aggragable")
-        }
-        condition.typecheck(lhsType.ec)
-        computation.typecheck(lhsType.ec)
+      case (agg: TAggregable, "findmap", rhs) =>
+        rhs.foreach(_.typecheck(agg.ec))
+        val types = rhs.map(_.`type`)
+          .toSeq
 
-        val t1 = condition.`type`
-        val t2 = computation.`type` match {
-          case tNum: TNumeric => tNum
-          case invalid =>
-            parseError(s"expected Numeric, got `$invalid' in `$method' expression")
+        if (types.length != 2 || types.head != TBoolean) {
+          val plural = if (types.length != 1) "s" else ""
+          parseError(s"method `$method' expected 2 arguments of types (Boolean, Any), but got ${types.length} argument$plural${
+            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+            else "."
+          }")
         }
 
-        if (t1 != TBoolean)
-          parseError(s"expected Boolean, got `$t1' in `$method' predicate")
-        if (!t2.isInstanceOf[TNumeric])
-          parseError(s"expected Numeric, got `$t2' in `$method' expression")
-
-        val sumT = if (t2 == TInt || t2 == TLong)
-          TLong
-        else
-          TDouble
-        `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t2),
-          ("max", t2), ("nNotMissing", TLong), ("sum", sumT))
-
-      case ("findmap", Array(condition, computation)) =>
-        lhs.typecheck(ec)
-        val lhsType = lhs.`type` match {
-          case agg: TAggregable => agg
-          case _ => parseError(s"no `$method' on non-aggragable")
-        }
-        condition.typecheck(lhsType.ec)
-        computation.typecheck(lhsType.ec)
-
-        val t1 = condition.`type`
-        val t2 = computation.`type` match {
+        val t = types(1) match {
           case tws: TypeWithSchema => tws
-          case invalid =>
-            fatal(s"expected type with schema, got `$invalid' in `$method' map")
+          case _ => parseError(s"method `$method' expects a storable type as its map argument, but got `${types(1)}'")
         }
 
-        if (t1 != TBoolean)
-          parseError(s"expected Boolean, got `$t1' in `$method' predicate")
+        `type` = types(1)
 
-        `type` = t2
+      case (agg: TAggregable, "collect", rhs) =>
+        rhs.foreach(_.typecheck(agg.ec))
+        val types = rhs.map(_.`type`)
+          .toSeq
 
-      case ("collect", Array(condition, computation)) =>
-        lhs.typecheck(ec)
-        val lhsType = lhs.`type` match {
-          case agg: TAggregable => agg
-          case _ => parseError(s"no `$method' on non-aggragable")
+        if (types.length != 2 || types.head != TBoolean) {
+          val plural = if (types.length != 1) "s" else ""
+          parseError(s"method `$method' expected 2 arguments of types (Boolean, Any), but got ${types.length} argument$plural${
+            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+            else "."
+          }")
         }
-        condition.typecheck(lhsType.ec)
-        computation.typecheck(lhsType.ec)
-
-        val t1 = condition.`type`
-        val t2 = computation.`type` match {
+        val t = types(1) match {
           case tws: TypeWithSchema => tws
-          case invalid =>
-            fatal(s"expected type with schema, got `$invalid' in `$method' map")
+          case _ => parseError(s"method `$method' expects a standard type as its map argument, but got `${types(1)}'")
         }
 
-        if (t1 != TBoolean)
-          parseError(s"expected Boolean, got `$t1' in `$method' predicate")
-
-        `type` = TArray(t2)
+        `type` = TArray(t)
 
       case _ =>
         super.typecheck(ec)
@@ -1115,12 +1090,12 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         f(0)
       }
 
-    case (returnType, "count", Array(rhs)) =>
-      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
+    case (agg, "count", Array(predicate)) =>
+      val newContext = agg.asInstanceOf[TAggregable].ec
       val localA = newContext.a
       val localIdx = localA.length
       localA += null
-      val fn = rhs.eval(newContext)
+      val fn = predicate.eval(newContext)
       val localFunctions = newContext.aggregationFunctions
       val seqOp: (Any) => Any =
         (sum) => {
@@ -1129,43 +1104,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             1
           else
             0
-          sum.asInstanceOf[Int] + toAdd
+          sum.asInstanceOf[Long] + toAdd
         }
       val combOp: (Any, Any) => Any = _.asInstanceOf[Int] + _.asInstanceOf[Int]
-      localFunctions += ((() => 0, seqOp, combOp, localIdx))
+      localFunctions += ((() => 0L, seqOp, combOp, localIdx))
       AST.evalCompose[Any](ec, lhs) {
         case a =>
           localA(localIdx)
       }
 
-    case (returnType, "sum", Array(rhs)) =>
-      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
-      val localA = newContext.a
-      val localIdx = localA.length
-      localA += null
-      val fn = rhs.eval(newContext)
-      val localFunctions = newContext.aggregationFunctions
-      val t = rhs.`type`
-      val seqOp = (t: @unchecked) match {
-        case TInt => (sum: Any) => fn().asInstanceOf[Int] + sum.asInstanceOf[Long]
-        case TLong => (sum: Any) => fn().asInstanceOf[Long] + sum.asInstanceOf[Long]
-        case TDouble => (sum: Any) => fn().asInstanceOf[Double] + sum.asInstanceOf[Double]
-        case TFloat => (sum: Any) => fn().asInstanceOf[Float] + sum.asInstanceOf[Double]
-      }
-      val (zv, combOp) = (t: @unchecked) match {
-        case TInt | TLong => (() => 0L,
-          (a: Any, b: Any) => a.asInstanceOf[Long] + b.asInstanceOf[Long])
-        case TFloat | TDouble => (() => 0.0,
-          (a: Any, b: Any) => a.asInstanceOf[Double] + b.asInstanceOf[Double])
-      }
-      localFunctions += ((zv, seqOp, combOp, localIdx))
-      AST.evalCompose[Any](ec, lhs) {
-        case a =>
-          localA(localIdx)
-      }
-
-    case (returnType, "fraction", Array(rhs)) =>
-      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
+    case (agg, "fraction", Array(rhs)) =>
+      val newContext = agg.asInstanceOf[TAggregable].ec
       val localA = newContext.a
       val localIdx = localA.length
       localA += null
@@ -1195,52 +1144,32 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
 
-    case (returnType, "stats", Array(rhs)) =>
-      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
+    case (agg, "stats", Array(rhs)) =>
+      val newContext = agg.asInstanceOf[TAggregable].ec
       val localA = newContext.a
       val localIdx = localA.length
       localA += null
       val fn = rhs.eval(newContext)
       val localFunctions = newContext.aggregationFunctions
 
-      val seqOp = (rhs.`type`: @unchecked) match {
-        case TInt => (a: Any) => {
-          val query = fn()
-          val sc = a.asInstanceOf[StatCounter]
-          if (query != null)
-            sc.merge(query.asInstanceOf[Int])
-          else
-            sc
-        }
-        case TLong => (a: Any) => {
-          val query = fn()
-          val sc = a.asInstanceOf[StatCounter]
-          if (query != null)
-            sc.merge(query.asInstanceOf[Long])
-          else
-            sc
-        }
-        case TFloat => (a: Any) => {
-          val query = fn()
-          val sc = a.asInstanceOf[StatCounter]
-          if (query != null)
-            sc.merge(query.asInstanceOf[Float])
-          else
-            sc
-        }
-        case TDouble => (a: Any) => {
-          val query = fn()
-          val sc = a.asInstanceOf[StatCounter]
-          if (query != null)
-            sc.merge(query.asInstanceOf[Double])
-          else
-            sc
-        }
+      val localType = rhs.`type`.asInstanceOf[TNumeric]
+      val seqOp = (a: Any) => {
+        val query = fn()
+        val sc = a.asInstanceOf[StatCounter]
+        if (query != null)
+          localType match {
+            case TInt => sc.merge(query.asInstanceOf[Int])
+            case TLong => sc.merge(query.asInstanceOf[Long])
+            case TFloat => sc.merge(query.asInstanceOf[Float])
+            case TDouble => sc.merge(query.asInstanceOf[Double])
+          }
+        else
+          sc
       }
 
       val combOp = (a: Any, b: Any) => a.asInstanceOf[StatCounter].merge(b.asInstanceOf[StatCounter])
 
-      val recast: (Double) => Any = (rhs.`type`: @unchecked) match {
+      val recast: (Double) => Any = localType match {
         case TInt => (d: Double) => d.round.toInt
         case TLong => (d: Double) => d.round
         case TFloat => (d: Double) => d.toFloat
@@ -1248,7 +1177,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
       val recast2: (Double) => Any =
-        if (rhs.`type` == TInt || rhs.`type` == TLong)
+        if (rhs.`type`.isInstanceOf[TIntegral])
           (d: Double) => d.round
         else
           (d: Double) => d
@@ -1274,52 +1203,25 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val fn = computation.eval(newContext)
       val localFunctions = newContext.aggregationFunctions
 
-      val seqOp = (computation.`type`: @unchecked) match {
-        case TInt => (a: Any) => {
-          val sc = a.asInstanceOf[StatCounter]
-          if (conditionFn().asInstanceOf[Boolean]) {
-            val query = fn()
-            if (query != null)
-              sc.merge(query.asInstanceOf[Int])
-            else
-              sc
-          } else sc
-        }
-        case TLong => (a: Any) => {
-          val sc = a.asInstanceOf[StatCounter]
-          if (conditionFn().asInstanceOf[Boolean]) {
-            val query = fn()
-            if (query != null)
-              sc.merge(query.asInstanceOf[Long])
-            else
-              sc
-          } else sc
-        }
-        case TFloat => (a: Any) => {
-          val sc = a.asInstanceOf[StatCounter]
-          if (conditionFn().asInstanceOf[Boolean]) {
-            val query = fn()
-            if (query != null)
-              sc.merge(query.asInstanceOf[Float])
-            else
-              sc
-          } else sc
-        }
-        case TDouble => (a: Any) => {
-          val sc = a.asInstanceOf[StatCounter]
-          if (conditionFn().asInstanceOf[Boolean]) {
-            val query = fn()
-            if (query != null)
-              sc.merge(query.asInstanceOf[Double])
-            else
-              sc
-          } else sc
-        }
+      val localType = computation.`type`.asInstanceOf[TNumeric]
+      val seqOp = (a: Any) => {
+        val sc = a.asInstanceOf[StatCounter]
+        if (conditionFn().asInstanceOf[Boolean]) {
+          val query = fn()
+          if (query != null)
+            localType match {
+              case TInt => sc.merge(query.asInstanceOf[Int])
+              case TLong => sc.merge(query.asInstanceOf[Long])
+              case TFloat => sc.merge(query.asInstanceOf[Float])
+              case TDouble => sc.merge(query.asInstanceOf[Double])
+            }
+          else sc
+        } else sc
       }
 
       val combOp = (a: Any, b: Any) => a.asInstanceOf[StatCounter].merge(b.asInstanceOf[StatCounter])
 
-      val recast: (Double) => Any = (computation.`type`: @unchecked) match {
+      val recast: (Double) => Any = localType match {
         case TInt => (d: Double) => d.round.toInt
         case TLong => (d: Double) => d.round
         case TFloat => (d: Double) => d.toFloat
@@ -1327,7 +1229,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
       val recast2: (Double) => Any =
-        if (computation.`type` == TInt || computation.`type` == TLong)
+        if (localType.isInstanceOf[TIntegral])
           (d: Double) => d.round
         else
           (d: Double) => d
@@ -1451,6 +1353,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (TFloat, "max", Array(a)) => AST.evalComposeNumeric[Float, Float](ec, lhs, a)(_ max _)
     case (TDouble, "max", Array(a)) => AST.evalComposeNumeric[Double, Double](ec, lhs, a)(_ max _)
   }
+
 }
 
 case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extends AST(posn, bindings.map(_._2) :+ body) {

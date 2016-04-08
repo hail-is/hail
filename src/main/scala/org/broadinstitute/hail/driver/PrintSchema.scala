@@ -4,7 +4,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object ShowAnnotations extends Command {
+object PrintSchema extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(name = "-o", aliases = Array("--output"), usage = "Output file")
@@ -16,9 +16,9 @@ object ShowAnnotations extends Command {
 
   def newOptions = new Options
 
-  def name = "showannotations"
+  def name = "printschema"
 
-  def description = "Shows the signatures for all annotations currently stored in the dataset"
+  def description = "Shows the schema for global, sample, and variant annotations"
 
   override def supportsMultiallelic = true
 
@@ -26,17 +26,25 @@ object ShowAnnotations extends Command {
     val vds = state.vds
 
     if (vds == null)
-      fatal("showannotations requires a non-null variant dataset, import or read one first")
+      fatal("printschema requires a non-null variant dataset, import or read one first")
 
     val sb = new StringBuilder()
-    sb.append("Sample annotations:\n")
+
+    sb.append("Global annotation schema:\n")
+    sb.append("global: ")
+    vds.metadata.globalSignature.pretty(sb, 0, printAttrs = options.attributes)
+
+    sb += '\n'
+    sb += '\n'
+
+    sb.append("Sample annotation schema:\n")
     sb.append("sa: ")
     vds.metadata.saSignature.pretty(sb, 0, printAttrs = options.attributes)
 
     sb += '\n'
     sb += '\n'
 
-    sb.append("Variant annotations:\n")
+    sb.append("Variant annotation schema:\n")
     sb.append("va: ")
     vds.metadata.vaSignature.pretty(sb, 0, printAttrs = options.attributes)
     sb += '\n'
