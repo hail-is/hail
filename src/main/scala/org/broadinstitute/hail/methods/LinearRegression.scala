@@ -11,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
 
 object LinRegStats {
   def `type`: Type = TStruct(("nMissing", TInt), ("beta", TDouble),
-    ("stderr", TDouble), ("tstat", TDouble), ("pval", TDouble))
+    ("se", TDouble), ("tstat", TDouble), ("pval", TDouble))
 }
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double) {
@@ -112,12 +112,8 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    println(vds.localSamples.mkString(","))
-
     // FIXME: remove once localSamples is gone
     val remapSamplesBc = sc.broadcast(vds.localSamples.zipWithIndex.toMap)
-
-    println(remapSamplesBc.value)
 
     new LinearRegression(vds
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(

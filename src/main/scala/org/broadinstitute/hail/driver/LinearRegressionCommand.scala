@@ -30,21 +30,24 @@ object LinearRegressionCommand extends Command {
       state.vds.sampleAnnotations
         .map(
           state.vds.querySA(
-            path.split(".").toList.tail
+            path
+              .split("\\.")
+              .toList
+              .tail
             ))
     }
 
-    def makeDoubles(iseq: IndexedSeq[Option[Any]], mask: IndexedSeq[Boolean]): Array[Double] =
-      iseq.zipWithIndex.filter(x => mask(x._2)).map(_._1.get.asInstanceOf[Double]).toArray
+    def makeArrayDouble(sa: IndexedSeq[Option[Any]], mask: IndexedSeq[Boolean]): Array[Double] =
+      sa.zipWithIndex.filter(x => mask(x._2)).map(_._1.get.asInstanceOf[Double]).toArray
 
-    val yA = parseSA(options.ySA)
-    val covA = options.covSA.split(",").map(sa => parseSA(sa.trim()))
+    val ySA = parseSA(options.ySA)
+    val covSA = options.covSA.split(",").map(sa => parseSA(sa.trim()))
 
     // FIXME: could be function instead
-    val sampleMask = Range(0, state.vds.nSamples).map(s => yA(s).isDefined && covA.forall(_(s).isDefined))
+    val sampleMask = Range(0, state.vds.nSamples).map(s => ySA(s).isDefined && covSA.forall(_(s).isDefined))
 
-    val y = DenseVector(makeDoubles(yA, sampleMask))
-    val cov = Some(new DenseMatrix(yA.size, covA.size, Array.concat(covA.map(makeDoubles(_, sampleMask)): _*)))
+    val y = DenseVector(makeArrayDouble(ySA, sampleMask))
+    val cov = Some(new DenseMatrix(y.size, covSA.size, Array.concat(covSA.map(makeArrayDouble(_, sampleMask)): _*)))
 
     val filtVds = state.vds.filterSamples((s, sa) => sampleMask(s))
 
@@ -54,6 +57,7 @@ object LinearRegressionCommand extends Command {
       linreg.write(options.output)
 
     val (newVAS, inserter) = filtVds.insertVA(LinRegStats.`type`, "linreg")
+
     state.copy(
       vds = filtVds.copy(
         rdd = filtVds.rdd.zipPartitions(linreg.rdd) { case (it, jt) =>
@@ -61,7 +65,6 @@ object LinearRegressionCommand extends Command {
             assert(v == v2)
             (v, inserter(va, comb.map(_.toAnnotation)), gs)
           }
-
         }, vaSignature = newVAS))
   }
 
