@@ -9,7 +9,7 @@ import org.testng.annotations.Test
 
 class LinearRegressionSuite extends SparkSuite {
 
-  @Test def test() {
+  @Test def testWithTwoCov() {
     var s = State(sc, sqlContext)
 
     s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
@@ -50,7 +50,7 @@ class LinearRegressionSuite extends SparkSuite {
       .collect()
       .toMap
 
-    def assertDouble(q: Querier, v: Variant, value: Int) =
+    def assertInt(q: Querier, v: Variant, value: Int) =
       assert(D_==(q(annotationMap(v)).get.asInstanceOf[Int], value))
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
@@ -71,7 +71,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     */
 
-    assertDouble(qMissing, v1, 0)
+    assertInt(qMissing, v1, 0)
     assertDouble(qBeta, v1, -0.28589421)
     assertDouble(qSe, v1, 1.2739153)
     assertDouble(qTstat, v1, -0.22442167)
@@ -82,7 +82,7 @@ class LinearRegressionSuite extends SparkSuite {
     x = c(1, 2, 1, 2, 0, 0)
     */
 
-    assertDouble(qMissing, v2, 2)
+    assertInt(qMissing, v2, 2)
     assertDouble(qBeta, v2, -0.5417647)
     assertDouble(qSe, v2, 0.3350599)
     assertDouble(qTstat, v2, -1.616919)
@@ -95,7 +95,7 @@ class LinearRegressionSuite extends SparkSuite {
     assertEmpty(qBeta, v10)
   }
 
-  @Test def testNoCov() {
+  @Test def testWithNoCov() {
     var s = State(sc, sqlContext)
 
     s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
@@ -156,7 +156,7 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qBeta, v2, -0.250000)
     assertDouble(qSe, v2, 0.2602082)
     assertDouble(qTstat, v2, -0.9607689)
-    assertDouble(qPval, v2, -0.9607689)
+    assertDouble(qPval, v2, 0.391075888)
 
     assertEmpty(qBeta, v6)
     assertEmpty(qBeta, v7)

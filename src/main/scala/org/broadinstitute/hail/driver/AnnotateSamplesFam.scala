@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.io.annotators.{SampleFamAnnotator, SampleTSVAnnotator}
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.expr._
 
 object AnnotateSamplesFam extends Command {
 
@@ -47,7 +48,7 @@ object AnnotateSamplesFam extends Command {
     val isQuantitative = options.isQuantitative
 
     val (m, signature) = SampleFamAnnotator(input, delimiter, isQuantitative, options.missing, state.hadoopConf)
-    val annotated = vds.annotateSamples(m, signature, AnnotateSamplesTSV.parseRoot(options.root))
+    val annotated = vds.annotateSamples(m, signature, Parser.parseAnnotationRoot(options.root, "sa"))
     state.copy(vds = annotated)
   }
 }
