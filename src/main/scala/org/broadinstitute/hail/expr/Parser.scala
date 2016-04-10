@@ -101,12 +101,14 @@ object Parser extends JavaTokenParsers {
   }
 
   def parseAnnotationRootList(code: String, root: String): Seq[List[String]] = {
-    if (code.matches("""\s*"""))
-      Array.empty[List[String]]
-    val pathList = parseAll(annotationIdentifierList, code) match {
-      case Success(result, _) => result.asInstanceOf[Array[List[String]]]
-      case NoSuccess(msg, _) => fatal(msg)
-    }
+    val pathList =
+      if (code.matches("""\s*"""))
+        Array.empty[List[String]]
+      else
+        parseAll(annotationIdentifierList, code) match {
+          case Success(result, _) => result.asInstanceOf[Array[List[String]]]
+          case NoSuccess(msg, _) => fatal(msg)
+        }
 
     pathList.map { path =>
       if (path.isEmpty)
