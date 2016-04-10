@@ -196,8 +196,8 @@ class Genotype(private val _gt: Int,
     ("ad", ad.map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
     ("dp", dp.map(JInt(_)).getOrElse(JNull)),
     ("gq", gq.map(JInt(_)).getOrElse(JNull)),
-    ("pl", pl.map(pls => JArray(pls.map(JInt(_)).toList)).getOrElse(JNull))
-  )
+    ("pl", pl.map(pls => JArray(pls.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("fakeRef", JBool(fakeRef)))
 }
 
 object Genotype {
@@ -435,12 +435,12 @@ object Genotype {
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-         ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
-           Gen.choose(0, m)));
-         dp <- Gen.option(Gen.choose(0, m));
-         gq <- Gen.option(Gen.choose(0, 10000));
-         pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-           Gen.choose(0, m)))) yield {
+      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
+        Gen.choose(0, m)));
+      dp <- Gen.option(Gen.choose(0, m));
+      gq <- Gen.option(Gen.choose(0, 10000));
+      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
+        Gen.choose(0, m)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
@@ -461,12 +461,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-         g <- gen(v))
+      g <- gen(v))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-         g <- gen(v))
+      g <- gen(v))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)

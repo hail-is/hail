@@ -5,20 +5,33 @@ import org.broadinstitute.hail.driver.State
 import org.testng.annotations.Test
 import org.broadinstitute.hail.driver._
 
+import scala.io.Source
+
 class SampleQCSuite extends SparkSuite {
   @Test def testStoreAfterFilter() {
-    // test to show that code in SampleQC --store will fail if samples have been filtered when adding annotations
-    val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val tmpDir = "/tmp/"
-    val outFile = tmpDir + "testExportVcf.vcf"
+    var s = State(sc, sqlContext)
 
-    val vdsOrig = LoadVCF(sc, vcfFile)
-    var s = State(sc, sqlContext, vdsOrig)
+    s = ImportVCF.run(s, Array("src/test/resources/multipleChromosomes.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
+    s = FilterSamples.run(s, Array("--keep", "-c", """"HG" ~ s.id"""))
+    s = SampleQC.run(s, Array("-o", "/tmp/sampleqc.tsv"))
+    s = ExportSamples.run(s, Array("-o", "/tmp/exportsamples.tsv", "-c",
+      """sampleID = s.id,
+        |nNotCalled = sa.qc.nNotCalled,
+        |nHomRef = sa.qc.nHomRef,
+        |nHet = sa.qc.nHet,
+        |nHomVar = sa.qc.nHomVar""".stripMargin))
 
-    // Get QC metrics
-    s = SampleQC.run(s, Array.empty[String])
-    s = FilterSamples.run(s, Array("--remove", "-c","""s.id ~ "C1046::HG02024""""))
-    s = SampleQC.run(s, Array.empty[String])
+    val sampleQCLines = Source.fromFile("/tmp/sampleqc.tsv")
+      .getLines()
+        .map { line =>
+          val fields = line.split("\t")
+          Array(fields(0), fields(3), fields(4), fields(5), fields(6)).mkString("\t")
+        }
+      .toSet
+    val exportSamplesLines = Source.fromFile("/tmp/exportsamples.tsv")
+      .getLines().toSet
+
+    assert(exportSamplesLines == sampleQCLines)
   }
 }

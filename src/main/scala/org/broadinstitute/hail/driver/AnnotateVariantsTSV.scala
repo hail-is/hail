@@ -1,9 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators._
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+
 import scala.collection.JavaConverters._
 
 object AnnotateVariantsTSV extends Command {
@@ -45,12 +47,6 @@ object AnnotateVariantsTSV extends Command {
     split
   }
 
-  def parseRoot(s: String): List[String] = {
-    val split = s.split("\\.").toList
-    fatalIf(split.isEmpty || split.head != "va", s"Root must start with `va.', got `$s'")
-    split.tail
-  }
-
   def run(state: State, options: Options): State = {
 
     val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
@@ -60,7 +56,8 @@ object AnnotateVariantsTSV extends Command {
       parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
       options.missingIdentifier)
-    val annotated = vds.annotateVariants(rdd, signature, parseRoot(options.root))
+    val annotated = vds.annotateVariants(rdd, signature,
+      Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
 
     state.copy(vds = annotated)
   }

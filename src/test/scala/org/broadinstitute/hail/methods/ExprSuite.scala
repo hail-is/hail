@@ -130,7 +130,7 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testTypePretty() {
-    import BaseType._ // for arbType
+    import Type._ // for arbType
 
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
@@ -142,19 +142,12 @@ class ExprSuite extends SparkSuite {
       t == parsed
     })
   }
-
+  
   @Test def testJSON() {
-    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-
-    var state = State(sc, sqlContext, vds)
-    state = SplitMulti.run(state)
-    state = VariantQC.run(state)
-
-    val va = state.vds.variantsAndAnnotations.take(1).head._2
-
-    val json = state.vds.vaSignature.makeJSON(va)
-
-    val jsonReadBack = VEP.jsonToAnnotation(json, state.vds.vaSignature, "va")
-    assert(va == jsonReadBack)
+    check(forAll { (t: Type) =>
+      val a = t.genValue.sample()
+      val json = t.makeJSON(a)
+      a == VEP.jsonToAnnotation(json, t, "")
+    })
   }
 }
