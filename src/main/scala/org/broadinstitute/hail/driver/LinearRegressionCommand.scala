@@ -26,7 +26,7 @@ object LinearRegressionCommand extends Command {
   def run(state: State, options: Options): State = {
 
     // FIXME: catch input errors
-    def parseSA(path: String): IndexedSeq[Option[Any]] = {
+    def getSA(path: String): IndexedSeq[Option[Any]] = {
       state.vds.sampleAnnotations
         .map(
           state.vds.querySA(
@@ -37,14 +37,22 @@ object LinearRegressionCommand extends Command {
             ))
     }
 
+    def makeMask(nSamples: Int, sa: IndexedSeq[Option[Any]]*): IndexedSeq[Boolean] = {
+      require(sa.forall(_.size == nSamples))
+      Range(0, nSamples).map(s => sa.forall(_(s).isDefined))
+    }
+
     def makeArrayDouble(sa: IndexedSeq[Option[Any]], mask: IndexedSeq[Boolean]): Array[Double] =
-      sa.zipWithIndex.filter(x => mask(x._2)).map(_._1.get.asInstanceOf[Double]).toArray
+      sa.zipWithIndex
+        .filter(x => mask(x._2))
+        .map(_._1.get.asInstanceOf[Double])
+        .toArray
 
-    val ySA = parseSA(options.ySA)
-    val covSA = options.covSA.split(",").map(sa => parseSA(sa.trim()))
+    val n = state.vds.nSamples
+    val ySA = getSA(options.ySA)
+    val covSA = options.covSA.split(",").map(sa => getSA(sa.trim()))
 
-    // FIXME: could be function instead
-    val sampleMask = Range(0, state.vds.nSamples).map(s => ySA(s).isDefined && covSA.forall(_(s).isDefined))
+    val sampleMask = makeMask(n, covSA :+ ySA: _*)
 
     val y = DenseVector(makeArrayDouble(ySA, sampleMask))
     val cov = Some(new DenseMatrix(y.size, covSA.size, Array.concat(covSA.map(makeArrayDouble(_, sampleMask)): _*)))

@@ -8,8 +8,8 @@ import org.broadinstitute.hail.variant.Variant
 import org.testng.annotations.Test
 
 class LinearRegressionSuite extends SparkSuite {
-  @Test def test() {
 
+  @Test def test() {
     var s = State(sc, sqlContext)
 
     s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
