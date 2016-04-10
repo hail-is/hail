@@ -9,7 +9,7 @@ import scala.sys.process._
 object MendelErrorsCommand extends Command {
 
   def name = "mendelerrors"
-  def description = "Find Mendel errors; count per variant, indiv, fam"
+  def description = "Find Mendel errors; count per variant, individual, nuclear family"
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output root filename")
