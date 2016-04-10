@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import breeze.linalg.{DenseMatrix, DenseVector}
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression}
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -40,8 +41,8 @@ object LinearRegressionCommand extends Command {
 
     val vds = state.vds
 
-    val qY = vds.querySA(Parser.parseAnnotationRoot(options.ySA, "sa"))
-    val qCov = Parser.parseAnnotationRootList(options.covSA, "sa").map(vds.querySA)
+    val qY = vds.querySA(Parser.parseAnnotationRoot(options.ySA, Annotation.SAMPLE_HEAD))
+    val qCov = Parser.parseAnnotationRootList(options.covSA, Annotation.SAMPLE_HEAD).map(vds.querySA)
 
     val ySA = vds.sampleAnnotations.map(qY)
     val covSA = qCov.map(q => vds.sampleAnnotations.map(q))
