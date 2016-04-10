@@ -24,13 +24,12 @@ object Count extends Command {
         (comb._1 + x._1, comb._2 + x._2)
       }
 
-    val nGenotypes = nVariants.toLong * vds.nSamples
+    val nGenotypes = nVariants * vds.nSamples
     val callRate = divOption(nCalled, nGenotypes)
 
     info(
       s"""count:
           |  nSamples = ${vds.nSamples}
-          |  nLocalSamples = ${vds.nSamples}
           |  nVariants = $nVariants
           |  nCalled = $nCalled
           |  callRate = ${callRate.map(r => (r * 100).formatted("%.3f%%")).getOrElse("NA")}""".stripMargin)

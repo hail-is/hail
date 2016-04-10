@@ -2,9 +2,11 @@ package org.broadinstitute.hail.methods
 
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.{Sex, Phenotype}
-import org.broadinstitute.hail.variant.Phenotype.{Phenotype, Case, Control}
-import org.broadinstitute.hail.variant.Sex.{Sex, Male, Female}
+import org.broadinstitute.hail.variant.{Phenotype, Sex}
+import org.broadinstitute.hail.variant.Phenotype.{Case, Control, Phenotype}
+import org.broadinstitute.hail.variant.Sex.{Female, Male, Sex}
+
+import scala.collection.mutable
 import scala.io.Source
 
 object Role extends Enumeration {
@@ -46,31 +48,30 @@ object Pedigree {
 
     // .fam samples not in sampleIds are discarded
     readFile(filename, hConf) { s =>
-      val readSampleSet = collection.mutable.Set[String]()
+      val readSampleSet = mutable.Set[String]()
 
       val trios = Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty)
-        .flatMap{ line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
-          val splitLine = line.split("\\s+")  // FIXME: fails on names with spaces, will fix in PR for adding .fam to annotations by giving delimiter option
+        .flatMap { line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
+          val splitLine = line.split("\\s+") // FIXME: fails on names with spaces, will fix in PR for adding .fam to annotations by giving delimiter option
           fatalIf(splitLine.size != 6, s"Require 6 fields per line in .fam, but this line has ${splitLine.size}: $line")
           val Array(fam, kid, dad, mom, sex, pheno) = splitLine
-          sampleSet(kid) match {
-            case true =>
-              if (readSampleSet(kid))
-                fatal(s".fam sample name is not unique: $kid")
-              else
-                readSampleSet += kid
-              Some(Trio(
-                kid,
-                if (fam != "0") Some(fam) else None,
-                if (dad != "0") Some(dad) else None,
-                if (mom != "0") Some(mom) else None,
-                Sex.withNameOption(sex),
-                Phenotype.withNameOption(pheno)))
-            case false =>
-              nSamplesDiscarded += 1
-              None
+          if (sampleSet(kid)) {
+            if (readSampleSet(kid))
+              fatal(s".fam sample name is not unique: $kid")
+            else
+              readSampleSet += kid
+            Some(Trio(
+              kid,
+              if (fam != "0") Some(fam) else None,
+              if (dad != "0") Some(dad) else None,
+              if (mom != "0") Some(mom) else None,
+              Sex.withNameOption(sex),
+              Phenotype.withNameOption(pheno)))
+          } else {
+            nSamplesDiscarded += 1
+            None
           }
         }.toArray
 
@@ -87,7 +88,7 @@ object Pedigree {
 }
 
 case class Pedigree(trios: Array[Trio]) {
-  
+
   def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
   def samplePheno: Map[String, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
