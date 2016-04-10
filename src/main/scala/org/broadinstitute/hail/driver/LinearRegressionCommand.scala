@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.driver
 
 import breeze.linalg.{DenseMatrix, DenseVector}
-import org.broadinstitute.hail.methods.{CovariateData, LinRegStats, LinearRegression, Pedigree}
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object LinearRegressionCommand extends Command {
@@ -11,9 +12,6 @@ object LinearRegressionCommand extends Command {
   def description = "Compute beta, std error, t-stat, and p-val for each SNP with additional sample covariates"
 
   class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Output root filename")
-    var output: String = _
-
     @Args4jOption(required = true, name = "-y", aliases = Array("--y"), usage = "Response sample annotation")
     var ySA: String = _
 
@@ -24,56 +22,52 @@ object LinearRegressionCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-
-    // FIXME: catch input errors
-    def getSA(path: String): IndexedSeq[Option[Any]] = {
-      state.vds.sampleAnnotations
-        .map(
-          state.vds.querySA(
-            path
-              .split("\\.")
-              .toList
-              .tail
-            ))
-    }
-
-    def makeMask(nSamples: Int, sa: IndexedSeq[Option[Any]]*): IndexedSeq[Boolean] = {
+    def makeSampleMask(nSamples: Int, sa: IndexedSeq[Option[Any]]*): IndexedSeq[Boolean] = {
       require(sa.forall(_.size == nSamples))
       Range(0, nSamples).map(s => sa.forall(_(s).isDefined))
     }
 
-    def makeArrayDouble(sa: IndexedSeq[Option[Any]], mask: IndexedSeq[Boolean]): Array[Double] =
-      sa.zipWithIndex
-        .filter(x => mask(x._2))
-        .map(_._1.get.asInstanceOf[Double])
+    def makeArrayDouble(sa: IndexedSeq[Option[Any]], sampleMask: IndexedSeq[Boolean]): Array[Double] = {
+      sa.iterator.zipWithIndex
+        .filter(x => sampleMask(x._2))
+        .map(_._1)
+        .flatMap(_.map(_.asInstanceOf[Double]))
         .toArray
+    }
 
-    val n = state.vds.nSamples
-    val ySA = getSA(options.ySA)
-    val covSA = options.covSA.split(",").map(sa => getSA(sa.trim()))
+    val vds = state.vds
 
-    val sampleMask = makeMask(n, covSA :+ ySA: _*)
+    val qY = vds.querySA(Parser.parseAnnotationRoot(options.ySA, "sa"))
+    val qCov = Parser.parseAnnotationRootList(options.covSA, "sa").map(vds.querySA)
+
+    val ySA = vds.sampleAnnotations.map(qY)
+    val covSA = qCov.map(q => vds.sampleAnnotations.map(q))
+
+    val sampleMask = makeSampleMask(vds.nSamples, covSA :+ ySA: _*)
 
     val y = DenseVector(makeArrayDouble(ySA, sampleMask))
-    val cov = Some(new DenseMatrix(y.size, covSA.size, Array.concat(covSA.map(makeArrayDouble(_, sampleMask)): _*)))
+    val cov =
+      if (covSA.isEmpty)
+        None
+      else
+        Some(new DenseMatrix(
+          y.size,
+          covSA.size,
+          Array.concat(covSA.map(makeArrayDouble(_, sampleMask)): _*)))
 
-    val filtVds = state.vds.filterSamples((s, sa) => sampleMask(s))
+    val filtVds = vds.filterSamples((s, sa) => sampleMask(s))
 
     val linreg = LinearRegression(filtVds, y, cov)
-
-    if (options.output != null)
-      linreg.write(options.output)
 
     val (newVAS, inserter) = filtVds.insertVA(LinRegStats.`type`, "linreg")
 
     state.copy(
-      vds = filtVds.copy(
-        rdd = filtVds.rdd.zipPartitions(linreg.rdd) { case (it, jt) =>
+      vds = vds.copy(
+        rdd = vds.rdd.zipPartitions(linreg.rdd) { case (it, jt) =>
           it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
             assert(v == v2)
             (v, inserter(va, comb.map(_.toAnnotation)), gs)
           }
         }, vaSignature = newVAS))
   }
-
 }

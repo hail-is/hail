@@ -29,8 +29,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.pheno.Pheno",
-      "-c", "sa.cov.Cov1,sa.cov.Cov2",
-      "-o", "/tmp/linearRegression.linreg"))
+      "-c", "sa.cov.Cov1,sa.cov.Cov2"))
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
@@ -87,8 +86,15 @@ class LinearRegressionSuite extends SparkSuite {
     assertEmpty(qBeta, v9)
     assertEmpty(qBeta, v10)
 
-    //val result = "rm -rf /tmp/linearRegression" !;
-    //linreg.write("/tmp/linearRegression.linreg") //FIXME: How to test?
-
+    ExportVariants.run(s, Array("-o", "/tmp/linearRegression.tsv", "-c",
+      """Chrom=v.contig,
+        |Pos=v.start,
+        |Ref=v.ref,
+        |Alt=v.alt,
+        |Missing=va.linreg.nMissing,
+        |Beta=va.linreg.beta,
+        |StdErr=va.linreg.se,
+        |TStat=va.linreg.tstat,
+        |PVal=va.linreg.pval""".stripMargin))
   }
 }

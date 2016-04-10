@@ -10,8 +10,12 @@ import org.broadinstitute.hail.variant._
 import scala.collection.mutable.ArrayBuffer
 
 object LinRegStats {
-  def `type`: Type = TStruct(("nMissing", TInt), ("beta", TDouble),
-    ("se", TDouble), ("tstat", TDouble), ("pval", TDouble))
+  def `type`: Type = TStruct(
+    ("nMissing", TInt),
+    ("beta", TDouble),
+    ("se", TDouble),
+    ("tstat", TDouble),
+    ("pval", TDouble))
 }
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double) {
@@ -95,7 +99,7 @@ object LinearRegression {
     if (d < 1)
       fatal(s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg on $n samples and $k covariates...")
+    info(s"Running linreg on $n samples with $k sample covariates...")
 
     val covAndOnes: DenseMatrix[Double] = cov match {
       case Some(dm) => DenseMatrix.horzcat(dm, DenseMatrix.ones[Double](n, 1))
@@ -112,7 +116,7 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    // FIXME: remove once localSamples is gone
+    // FIXME: refactor once localSamples is gone
     val remapSamplesBc = sc.broadcast(vds.localSamples.zipWithIndex.toMap)
 
     new LinearRegression(vds
@@ -141,8 +145,8 @@ object LinearRegression {
   }
 }
 
-case class LinearRegression(rdd: RDD[(Variant, Option[LinRegStats])]) {
-  def write(filename: String) {
+case class LinearRegression(rdd: RDD[(Variant, Option[LinRegStats])])
+/*  def write(filename: String) {
     def toLine(v: Variant, olrs: Option[LinRegStats]) = olrs match {
       case Some(lrs) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + lrs.nMissing + "\t" + lrs.beta + "\t" + lrs.se + "\t" + lrs.t + "\t" + lrs.p
       case None => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\tNA\tNA\tNA\tNA\tNA"
@@ -150,4 +154,4 @@ case class LinearRegression(rdd: RDD[(Variant, Option[LinRegStats])]) {
     rdd.map((toLine _).tupled)
       .writeTable(filename, Some("CHR\tPOS\tREF\tALT\tMISS\tBETA\tSE\tT\tP"))
   }
-}
+*/
