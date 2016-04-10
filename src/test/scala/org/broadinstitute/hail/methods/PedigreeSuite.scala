@@ -13,10 +13,10 @@ class PedigreeSuite extends SparkSuite {
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap
-    assert(nuclearFams((sampleIndex("Dad1"), sampleIndex("Mom1"))).toSet ==
-      Set(sampleIndex("Son1"), sampleIndex("Dtr1")))
-    assert(nuclearFams((sampleIndex("Dad2"), sampleIndex("Mom2"))).toSet ==
-      Set(sampleIndex("Son2")))
+    assert(nuclearFams(("Dad1", "Mom1")).toSet ==
+      Set("Son1", "Dtr1"))
+    assert(nuclearFams(("Dad2", "Mom2")).toSet ==
+      Set("Son2"))
     assert(nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 11)
 
     assert(ped.nSatisfying(_.isMale) == 6 && ped.nSatisfying(_.isFemale) == 5)

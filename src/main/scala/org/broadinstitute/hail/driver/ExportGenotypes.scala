@@ -71,12 +71,12 @@ object ExportGenotypes extends Command {
     val lines = vds.mapPartitionsWithAll { it =>
       val sb = new StringBuilder()
       it
-        .filter { case (v, va, s, g) => filterF(g) }
-        .map { case (v, va, s, g) =>
+        .filter { case (v, va, s, sa, g) => filterF(g) }
+        .map { case (v, va, s, sa, g) =>
           a(0) = v
           a(1) = va
-          a(2) = sampleIdsBc.value(s)
-          a(3) = sampleAnnotationsBc.value(s)
+          a(2) = s
+          a(3) = sa
           a(4) = g
           sb.clear()
           var first = true

@@ -36,7 +36,7 @@ object ToplevelCommands {
   }
 
   def printCommands() {
-    val visibleCommands = commands.values.filterNot(_.hidden)
+    val visibleCommands = commands.values.filterNot(_.hidden).toArray.sortBy(_.name)
     val maxLen = visibleCommands.map(_.name.length).max
     visibleCommands
       .foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.length + 2))
@@ -121,7 +121,7 @@ abstract class SuperCommand extends Command {
 
     println("")
     println("Sub-commands:")
-    val visibleSubcommands = subcommands.values.filterNot(_.hidden)
+    val visibleSubcommands = subcommands.values.filterNot(_.hidden).toArray.sortBy(_.name)
     val maxLen = visibleSubcommands.map(_.name.length).max
     visibleSubcommands
       .foreach(sc => println("  " + sc.name + (" " * (maxLen - sc.name.length + 2))

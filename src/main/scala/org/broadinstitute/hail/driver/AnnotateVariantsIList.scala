@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.io.annotators._
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AnnotateVariantsIList extends Command {
@@ -24,7 +26,8 @@ object AnnotateVariantsIList extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val (iList, signature) = IntervalListAnnotator(options.input, state.hadoopConf)
-    val annotated = vds.annotateInvervals(iList, signature, AnnotateVariantsTSV.parseRoot(options.root))
+    val annotated = vds.annotateInvervals(iList, signature,
+      Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
     state.copy(vds = annotated)
   }
 }

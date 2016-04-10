@@ -4,6 +4,10 @@ import org.apache.spark.sql.Row
 
 object Annotation {
 
+  final val SAMPLE_HEAD = "sa"
+
+  final val VARIANT_HEAD = "va"
+
   def empty: Annotation = null
 
   def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(null)

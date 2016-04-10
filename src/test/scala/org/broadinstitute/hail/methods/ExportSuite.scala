@@ -72,7 +72,7 @@ class ExportSuite extends SparkSuite {
     s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
     s = FilterSamples.run(s, Array("--keep", "-c", """s.id == "C469::HG02026""""))
-    assert(s.vds.nLocalSamples == 1)
+    assert(s.vds.nSamples == 1)
 
     // verify exports localSamples
     s = ExportSamples.run(s, Array("-o", "/tmp/samples.tsv", "-c", "s.id"))

@@ -17,7 +17,7 @@ class CaseControlCountSuite extends SparkSuite {
     val qCase = s.vds.queryVA("nCase")
     val qControl = s.vds.queryVA("nControl")
 
-    val r = s.vds.mapWithAll { case (v, va, s, g) =>
+    val r = s.vds.mapWithAll { case (v, va, s, sa, g) =>
       (v.start, (qCase(va).get.asInstanceOf[Int],
         qControl(va).get.asInstanceOf[Int]))
     }.collectAsMap()

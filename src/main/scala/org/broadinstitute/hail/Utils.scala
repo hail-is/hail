@@ -100,6 +100,19 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
       }
     }
 
+  def lazyMapWith2[T2, T3, S](i2: Iterable[T2], i3: Iterable[T3], f: (T, T2, T3) => S): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
+        val it3: Iterator[T3] = i3.iterator
+
+        def hasNext: Boolean = it.hasNext && it2.hasNext && it3.hasNext
+
+        def next(): S = f(it.next(), it2.next(), it3.next())
+      }
+    }
+
   def lazyFilterWith[T2](i2: Iterable[T2], p: (T, T2) => Boolean): Iterable[T] =
     new Iterable[T] with Serializable {
       def iterator: Iterator[T] = new Iterator[T] {
@@ -886,33 +899,28 @@ object Utils extends Logging {
   }
 
   case class Line(value: String, position: Int, filename: String) {
-    def fatal(msg: String): Nothing = {
-      val lineToPrint =
-        if (value.length > 100)
-          value.take(100) + "..."
-        else
-          value
-      Utils.fatal(
-        s"""
-           |$msg at $filename:${position + 1}
-           |Offending line: "$lineToPrint""".stripMargin)
-    }
-
     def transform[T](f: Line => T): T = {
       try {
         f(this)
       } catch {
         case e: Exception =>
           val lineToPrint =
-            if (value.length > 100)
-              value.take(100) + "..."
+            if (value.length > 62)
+              value.take(59) + "..."
             else
               value
-          Utils.fatal(
+          val msg = if (e.isInstanceOf[FatalException])
+            e.getMessage
+          else
+            s"caught $e"
+          log.error(
             s"""
-               |${e.getClass.getName} at $filename:${position + 1}
-               |Offending line: $lineToPrint
-               |${e.getMessage}""".stripMargin)
+               |$filename:${position + 1}: $msg
+               |  offending line: $value""".stripMargin)
+          fatal(
+            s"""
+               |$filename:${position + 1}: $msg
+               |  offending line: $lineToPrint""".stripMargin)
       }
     }
   }
@@ -947,7 +955,7 @@ object Utils extends Logging {
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
-  def triangle(n: Int): Int = ((n * (n + 1)) / 2)
+  def triangle(n: Int): Int = (n * (n + 1)) / 2
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
@@ -1098,7 +1106,7 @@ object Utils extends Logging {
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 
   def prettyIdentifier(str: String): String = {
-    if (str.matches("""\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
+    if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
       s"`${escapeString(str)}`"

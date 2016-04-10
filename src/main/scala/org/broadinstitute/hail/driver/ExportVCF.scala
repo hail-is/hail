@@ -59,6 +59,8 @@ object ExportVCF extends Command {
       case None => a => None
     }
 
+    val hasSamples = vds.nSamples > 0
+
     def header: String = {
       val sb = new StringBuilder()
 
@@ -107,10 +109,9 @@ object ExportVCF extends Command {
       }
 
       sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
-      if (vds.nLocalSamples > 0)
+      if (hasSamples)
         sb.append("\tFORMAT")
-      val sampleIds: Array[String] = vds.localSamples.map(vds.sampleIds)
-      sampleIds.foreach { id =>
+      vds.sampleIds.foreach { id =>
         sb += '\t'
         sb.append(id)
       }
@@ -126,7 +127,6 @@ object ExportVCF extends Command {
     val filterQuery: Option[Querier] = vas.getOption("filters")
       .map(_ => vds.queryVA("filters"))
 
-    val hasGenotypes = vds.nLocalSamples > 0
     def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype]) {
 
       sb.append(v.contig)
@@ -187,7 +187,7 @@ object ExportVCF extends Command {
           sb += '.'
       }
 
-      if (hasGenotypes) {
+      if (hasSamples) {
         sb += '\t'
         sb.append("GT:AD:DP:GQ:PL")
         gs.foreach { g =>

@@ -6,14 +6,14 @@ import org.broadinstitute.hail.RichDenseMatrixDouble
 import org.broadinstitute.hail.Utils._
 import scala.io.Source
 
-case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: Option[DenseMatrix[Double]]) {
+case class CovariateData(covRowSample: Array[String], covName: Array[String], data: Option[DenseMatrix[Double]]) {
   require(data.isDefined || covRowSample.isEmpty || covName.isEmpty)
   require(data.forall(m => m.rows == covRowSample.size && m.cols == covName.size))
   require(covRowSample.areDistinct())
   require(covName.areDistinct())
 
   //preserves increasing order of samples
-  def filterSamples(keepSample: Int => Boolean): CovariateData = {
+  def filterSamples(keepSample: String => Boolean): CovariateData = {
     val filtCovRowSample = covRowSample.filter(keepSample)
     val nSamplesDiscarded = covRowSample.size - filtCovRowSample.size
 
@@ -59,20 +59,20 @@ object CovariateData {
 
       var nSamplesDiscarded = 0
 
-      val sampleIndex = sampleIds.zipWithIndex.toMap
+      val sampleSet = sampleIds.toSet
 
-      val sampleCovs = collection.mutable.Map[Int, Iterator[Double]]()
+      val sampleCovs = collection.mutable.Map[String, Iterator[Double]]()
 
       for (line <- lines) {
         val entries = line.split("\t").iterator
         val sample = entries.next()
-        sampleIndex.get(sample) match {
-          case Some(s) =>
-            if (sampleCovs.contains(s))
+        sampleSet(sample) match {
+          case true =>
+            if (sampleCovs.contains(sample))
               fatal(s".cov sample name is not unique: $sample")
             else
-              sampleCovs += s -> entries.map(_.toDouble)
-          case None => nSamplesDiscarded += 1
+              sampleCovs += sample -> entries.map(_.toDouble)
+          case false => nSamplesDiscarded += 1
         }
       }
 

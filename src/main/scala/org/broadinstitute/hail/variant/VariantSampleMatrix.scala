@@ -27,8 +27,7 @@ object VariantSampleMatrix {
     if (!strippedDirName.endsWith(".vds"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
-
-    val (localSamples, metadata) = readDataFile(strippedDirName + "/metadata.ser",
+    val metadata = readDataFile(strippedDirName + "/metadata.ser",
       sqlContext.sparkContext.hadoopConfiguration) { dis => {
       try {
         val serializer = SparkEnv.get.serializer.newInstance()
@@ -42,12 +41,11 @@ object VariantSampleMatrix {
         if (v != fileVersion)
           fatal("Old VDS version found.  Recreate with current version of Hail.")
 
-        val localSamples = ds.readObject[Array[Int]]
         val metadata = ds.readObject[VariantMetadata]
 
         ds.close()
 
-        (localSamples, metadata)
+        metadata
       } catch {
         case e: Exception =>
           println(e)
@@ -59,7 +57,6 @@ object VariantSampleMatrix {
     val df = sqlContext.read.parquet(strippedDirName + "/rdd.parquet")
 
     new VariantSampleMatrix[Genotype](metadata,
-      localSamples,
       df.rdd.map(row => {
         val v = row.getVariant(0)
         (v, row.get(1), row.getGenotypeStream(v, 2))
@@ -74,12 +71,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](nSamples, g(v)))
+         values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](g(v)))
+         values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -104,7 +101,7 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
   }
@@ -121,19 +118,14 @@ object VariantSampleMatrix {
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
-  val localSamples: Array[Int],
   val rdd: RDD[(Variant, Annotation, Iterable[T])])
   (implicit tct: ClassTag[T]) {
 
-  def this(metadata: VariantMetadata, rdd: RDD[(Variant, Annotation, Iterable[T])])
-    (implicit tct: ClassTag[T]) =
-    this(metadata, Array.range(0, metadata.nSamples), rdd)
-
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
 
-  def nSamples: Int = metadata.sampleIds.length
+  lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
-  def nLocalSamples: Int = localSamples.length
+  def nSamples: Int = metadata.sampleIds.length
 
   def vaSignature: Type = metadata.vaSignature
 
@@ -141,12 +133,15 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
+  def sampleIdsAndAnnotations: IndexedSeq[(String, Annotation)] = sampleIds.zip(sampleAnnotations)
+
+  lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
+
   def wasSplit: Boolean = metadata.wasSplit
 
   def filters: IndexedSeq[(String, String)] = metadata.filters
 
-  def copy[U](localSamples: Array[Int] = localSamples,
-    rdd: RDD[(Variant, Annotation, Iterable[U])] = rdd,
+  def copy[U](rdd: RDD[(Variant, Annotation, Iterable[U])] = rdd,
     filters: IndexedSeq[(String, String)] = filters,
     sampleIds: IndexedSeq[String] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
@@ -155,7 +150,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
-      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature, vaSignature, wasSplit), localSamples, rdd)
+      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature, vaSignature, wasSplit), rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -171,42 +166,47 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def nVariants: Long = variants.count()
 
-  def expand(): RDD[(Variant, Int, T)] =
-    mapWithKeys[(Variant, Int, T)]((v, s, g) => (v, s, g))
+  def expand(): RDD[(Variant, String, T)] =
+    mapWithKeys[(Variant, String, T)]((v, s, g) => (v, s, g))
 
-  def expandWithAnnotation(): RDD[(Variant, Annotation, Int, T)] =
-    mapWithAll[(Variant, Annotation, Int, T)]((v, va, s, g) => (v, va, s, g))
+  def expandWithAll(): RDD[(Variant, Annotation, String, Annotation, T)] =
+    mapWithAll[(Variant, Annotation, String, Annotation, T)]((v, va, s, sa, g) => (v, va, s, sa, g))
 
   def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
     copy(rdd = rdd.sample(withReplacement = false, fraction, 1))
 
   def mapValues[U](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
-    mapValuesWithAll((v, va, s, g) => f(g))
+    mapValuesWithAll((v, va, s, sa, g) => f(g))
   }
 
-  def mapValuesWithKeys[U](f: (Variant, Int, T) => U)
+  def mapValuesWithKeys[U](f: (Variant, String, T) => U)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
-    mapValuesWithAll((v, va, s, g) => f(v, s, g))
+    mapValuesWithAll((v, va, s, sa, g) => f(v, s, g))
   }
 
-  def mapValuesWithAll[U](f: (Variant, Annotation, Int, T) => U)
+  def mapValuesWithAll[U](f: (Variant, Annotation, String, Annotation, T) => U)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
     copy(rdd = rdd.map { case (v, va, gs) =>
-      (v, va,
-        localSamplesBc.value.toIterable.lazyMapWith(gs,
-          (s: Int, g: T) => f(v, va, s, g)))
+      (v, va, localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](localSampleAnnotationsBc.value, gs, {
+        case (s, sa, g) => f(v, va, s, sa, g)
+      }))
     })
   }
 
-  def mapValuesWithPartialApplication[U](f: (Variant, Annotation) => ((Int, T) => U))
+  def mapValuesWithPartialApplication[U](f: (Variant, Annotation) => ((String, Annotation) => U))
     (implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
     copy(rdd =
       rdd.mapPartitions[(Variant, Annotation, Iterable[U])] { it: Iterator[(Variant, Annotation, Iterable[T])] =>
         it.map { case (v, va, gs) =>
           val f2 = f(v, va)
-          (v, va, localSamplesBc.value.toIterable.lazyMapWith(gs, f2))
+          (v, va, localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](localSampleAnnotationsBc.value, gs, {
+            case (s, sa, g) => f2(s, sa)
+          }))
         }
       })
   }
@@ -214,30 +214,37 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def map[U](f: T => U)(implicit uct: ClassTag[U]): RDD[U] =
     mapWithKeys((v, s, g) => f(g))
 
-  def mapWithKeys[U](f: (Variant, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+  def mapWithKeys[U](f: (Variant, String, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
+    val localSampleIdsBc = sampleIdsBc
+
     rdd
       .flatMap { case (v, va, gs) =>
-        localSamplesBc.value.toIterable.lazyMapWith(gs,
-          (s: Int, g: T) => f(v, s, g))
+        localSampleIdsBc.value.lazyMapWith[T, U](gs,
+          (s, g) => f(v, s, g))
       }
   }
 
-  def mapWithAll[U](f: (Variant, Annotation, Int, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+  def mapWithAll[U](f: (Variant, Annotation, String, Annotation, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
     rdd
       .flatMap { case (v, va, gs) =>
-        localSamplesBc.value.toIterable.lazyMapWith(gs,
-          (s: Int, g: T) => f(v, va, s, g))
+        localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](localSampleAnnotationsBc.value, gs, {
+          case (s, sa, g) => f(v, va, s, sa, g)
+        })
       }
   }
 
-  def mapPartitionsWithAll[U](f: Iterator[(Variant, Annotation, Int, T)] => Iterator[U])(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+  def mapPartitionsWithAll[U](f: Iterator[(Variant, Annotation, String, Annotation, T)] => Iterator[U])
+    (implicit uct: ClassTag[U]): RDD[U] = {
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
     rdd.mapPartitions { it =>
       f(it.flatMap { case (v, va, gs) =>
-        localSamplesBc.value.iterator.zip(gs.iterator)
-          .map { case (s, g) => (v, va, s, g) }
+        localSampleIdsBc.value.lazyMapWith2[Annotation, T, (Variant, Annotation, String, Annotation, T)](
+          localSampleAnnotationsBc.value, gs, { case (s, sa, g) => (v, va, s, sa, g) })
       })
     }
   }
@@ -248,11 +255,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     flatMapWithKeys((v, s, g) => f(g))
 
-  def flatMapWithKeys[U](f: (Variant, Int, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+  def flatMapWithKeys[U](f: (Variant, String, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
+    val localSampleIdsBc = sampleIdsBc
+
     rdd
-      .flatMap { case (v, va, gs) => localSamplesBc.value.toIterable.lazyFlatMapWith(gs,
-        (s: Int, g: T) => f(v, s, g))
+      .flatMap { case (v, va, gs) => localSampleIdsBc.value.lazyFlatMapWith(gs,
+        (s: String, g: T) => f(v, s, g))
       }
   }
 
@@ -263,50 +271,55 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     filterVariants((v, va) => ilist.contains(v.contig, v.start))
 
   // FIXME see if we can remove broadcasts elsewhere in the code
-  def filterSamples(p: (Int, Annotation) => Boolean): VariantSampleMatrix[T] = {
-    val mask = localSamples.map((s) => p(s, sampleAnnotations(s)))
+  def filterSamples(p: (String, Annotation) => Boolean): VariantSampleMatrix[T] = {
+    val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }
     val maskBc = sparkContext.broadcast(mask)
     val localtct = tct
-    copy[T](localSamples = localSamples.zipWithIndex
+    copy[T](sampleIds = sampleIds.zipWithIndex
       .filter { case (s, i) => mask(i) }
       .map(_._1),
+      sampleAnnotations = sampleAnnotations.zipWithIndex
+        .filter { case (sa, i) => mask(i) }
+        .map(_._1),
       rdd = rdd.map { case (v, va, gs) =>
-        (v, va, gs.lazyFilterWith(maskBc.value.toIterable, (g: T, m: Boolean) => m))
+        (v, va, gs.lazyFilterWith(maskBc.value, (g: T, m: Boolean) => m))
       })
   }
 
   def aggregateBySample[U](zeroValue: U)(
     seqOp: (U, T) => U,
-    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Int, U)] =
+    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(String, U)] =
     aggregateBySampleWithKeys(zeroValue)((e, v, s, g) => seqOp(e, g), combOp)
 
   def aggregateBySampleWithKeys[U](zeroValue: U)(
-    seqOp: (U, Variant, Int, T) => U,
-    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Int, U)] = {
-    aggregateBySampleWithAll(zeroValue)((e, v, va, s, g) => seqOp(e, v, s, g), combOp)
+    seqOp: (U, Variant, String, T) => U,
+    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(String, U)] = {
+    aggregateBySampleWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, v, s, g), combOp)
   }
 
   def aggregateBySampleWithAll[U](zeroValue: U)(
-    seqOp: (U, Variant, Annotation, Int, T) => U,
-    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Int, U)] = {
-
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+    seqOp: (U, Variant, Annotation, String, Annotation, T) => U,
+    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(String, U)] = {
 
     val serializer = SparkEnv.get.serializer.newInstance()
     val zeroBuffer = serializer.serialize(zeroValue)
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
 
     rdd
       .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[T])]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
         def copyZeroValue() = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-        val arrayZeroValue = Array.fill[U](localSamplesBc.value.length)(copyZeroValue())
+        val arrayZeroValue = Array.fill[U](localSampleIdsBc.value.length)(copyZeroValue())
 
-        localSamplesBc.value.iterator
+        localSampleIdsBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs)) =>
-            for ((g, i) <- gs.iterator.zipWithIndex)
-              acc(i) = seqOp(acc(i), v, va, localSamplesBc.value(i), g)
+            for ((g, i) <- gs.iterator.zipWithIndex) {
+              acc(i) = seqOp(acc(i), v, va,
+                localSampleIdsBc.value(i), localSampleAnnotationsBc.value(i), g)
+            }
             acc
           }.iterator)
       }.foldByKey(zeroValue)(combOp)
@@ -315,33 +328,35 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def aggregateByVariant[U](zeroValue: U)(
     seqOp: (U, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Variant, U)] =
-    aggregateByVariantWithAll(zeroValue)((e, v, va, s, g) => seqOp(e, g), combOp)
+    aggregateByVariantWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, g), combOp)
 
   def aggregateByVariantWithKeys[U](zeroValue: U)(
-    seqOp: (U, Variant, Int, T) => U,
+    seqOp: (U, Variant, String, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Variant, U)] = {
-    aggregateByVariantWithAll(zeroValue)((e, v, va, s, g) => seqOp(e, v, s, g), combOp)
+    aggregateByVariantWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, v, s, g), combOp)
   }
 
   def aggregateByVariantWithAll[U](zeroValue: U)(
-    seqOp: (U, Variant, Annotation, Int, T) => U,
+    seqOp: (U, Variant, Annotation, String, Annotation, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Variant, U)] = {
-
-    val localSamplesBc = sparkContext.broadcast(localSamples)
 
     // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
     val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
 
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
     rdd
       .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[T])]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
         it.map { case (v, va, gs) =>
           val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-          (v, gs.iterator.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
-            seqOp(acc, v, va, localSamplesBc.value(i), g)
-          })
+          (v, gs.iterator.zipWithIndex.map { case (g, i) => (localSampleIdsBc.value(i), localSampleAnnotationsBc.value(i), g) }
+            .foldLeft(zeroValue) { case (acc, (s, sa, g)) =>
+              seqOp(acc, v, va, s, sa, g)
+            })
         }
       }
 
@@ -358,9 +373,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     */
   }
 
-  def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(Int, T)] = {
+  def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
 
-    val localSamplesBc = sparkContext.broadcast(localSamples)
     val localtct = tct
 
     val serializer = SparkEnv.get.serializer.newInstance()
@@ -368,12 +382,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
 
+    val localSampleIdsBc = sampleIdsBc
+
     rdd
       .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[T])]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
         def copyZeroValue() = serializer.deserialize[T](ByteBuffer.wrap(zeroArray))(localtct)
-        val arrayZeroValue = Array.fill[T](localSamplesBc.value.length)(copyZeroValue())
-        localSamplesBc.value.iterator
+        val arrayZeroValue = Array.fill[T](localSampleIdsBc.value.length)(copyZeroValue())
+        localSampleIdsBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs)) =>
             for ((g, i) <- gs.iterator.zipWithIndex)
               acc(i) = combOp(acc(i), g)
@@ -387,7 +403,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def same(that: VariantSampleMatrix[T]): Boolean = {
     metadata == that.metadata &&
-      localSamples.sameElements(that.localSamples) &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
         .map {
@@ -398,15 +413,18 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(
-    seqOp: (U, Variant, Int, T) => U,
+    seqOp: (U, Variant, Annotation, String, Annotation, T) => U,
     combOp: (U, U) => U,
     mapOp: (Annotation, U) => Annotation)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[T] = {
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+
     // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
     val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
+
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
 
     copy(vaSignature = newVAS,
       rdd = rdd.map {
@@ -414,9 +432,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
           val serializer = SparkEnv.get.serializer.newInstance()
           val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
 
-          (v, mapOp(va, gs.iterator.zipWithIndex.foldLeft(zeroValue) {
-            case (acc, (g, i)) =>
-              seqOp(acc, v, localSamplesBc.value(i), g)
+          (v, mapOp(va, gs.iterator
+            .zip(localSampleIdsBc.value.iterator
+              .zip(localSampleAnnotationsBc.value.iterator)).foldLeft(zeroValue) {
+            case (acc, (g, (s, sa))) =>
+              seqOp(acc, v, va, s, sa, g)
           }), gs)
       })
   }
@@ -438,6 +458,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def annotateSamples(annotations: Map[String, Annotation], signature: Type,
     path: List[String]): VariantSampleMatrix[T] = {
+
     val (newSignature, inserter) = insertSA(signature, path)
 
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
@@ -516,7 +537,6 @@ class RichVDS(vds: VariantDataset) {
         ss
           .writeObject(VariantSampleMatrix.magicNumber)
           .writeObject(VariantSampleMatrix.fileVersion)
-          .writeObject(vds.localSamples)
           .writeObject(vds.metadata)
         ss.close()
       }

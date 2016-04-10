@@ -152,20 +152,21 @@ class VSMSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
     val nSamples = vds.nSamples
-    assert(nSamples == vds.nLocalSamples)
 
     // FIXME ScalaCheck
+
+    val samples = vds.sampleIds
     for (n <- 0 until 20) {
-      val keep = mutable.Set.empty[Int]
+      val keep = mutable.Set.empty[String]
 
       // n == 0: none
       if (n == 1) {
         for (i <- 0 until nSamples)
-          keep += i
+          keep += samples(i)
       } else if (n > 1) {
         for (i <- 0 until nSamples) {
           if (Random.nextFloat() < 0.5)
-            keep += i
+            keep += samples(i)
         }
       }
 
@@ -173,10 +174,10 @@ class VSMSuite extends SparkSuite {
       val filtered = vds.filterSamples((s, sa) => localKeep(s))
 
       val filteredAsMap = filtered.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
-      filteredAsMap.foreach { case (k, g) => simpleAssert(vdsAsMap(k) == g) }
+      filteredAsMap.foreach { case (k, g) => assert(vdsAsMap(k) == g) }
 
-      simpleAssert(filtered.nSamples == nSamples)
-      simpleAssert(filtered.localSamples.toSet == keep)
+      assert(filtered.nSamples == keep.size)
+      assert(filtered.sampleIds.toSet == keep)
 
       val sampleKeys = filtered.mapWithKeys((v, s, g) => s).distinct.collect()
       assert(sampleKeys.toSet == keep)
