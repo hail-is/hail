@@ -334,7 +334,7 @@ object SampleQC extends Command {
       })
       .iterator
       .zipWithIndex
-      .map { case (comb, i) => (i, comb) }
+      .map { case (comb, i) => (vds.localSamples(i), comb) }
       .toMap
   }
 
