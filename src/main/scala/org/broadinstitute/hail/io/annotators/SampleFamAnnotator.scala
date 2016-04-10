@@ -12,7 +12,7 @@ object SampleFamAnnotator {
   val numericRegex = """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def apply(filename: String, delimiter: String, isQuantitative: Boolean, missing: String,
-    hConf: hadoop.conf.Configuration): (Map[String, Annotation], TypeWithSchema) = {
+    hConf: hadoop.conf.Configuration): (Map[String, Annotation], Type) = {
     readLines(filename, hConf) { lines =>
       fatalIf(lines.isEmpty, "Empty .fam file")
 
