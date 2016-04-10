@@ -2,11 +2,12 @@ package org.broadinstitute.hail.vcf
 
 import htsjdk.variant.variantcontext.VariantContext
 import org.apache.spark.Accumulable
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 

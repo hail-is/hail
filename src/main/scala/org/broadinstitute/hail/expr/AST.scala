@@ -1,20 +1,18 @@
 package org.broadinstitute.hail.expr
 
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.variant._
+import org.json4s._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
-import org.json4s._
-import org.json4s.native.JsonMethods._
 
 case class EvalContext(st: SymbolTable,
   a: ArrayBuffer[Any],

@@ -3,7 +3,7 @@ package org.broadinstitute.hail.io.annotators
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Interval, IntervalList, Variant}
+import org.broadinstitute.hail.variant.{Interval, IntervalList}
 
 object BedAnnotator {
   def apply(filename: String,

@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.{Annotation, Inserter}
+import org.broadinstitute.hail.annotations.Inserter
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.Aggregators
 import org.broadinstitute.hail.variant.Sample

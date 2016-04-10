@@ -1,15 +1,14 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
+import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
 
-import scala.reflect.ClassTag
 
 class ExprSuite extends SparkSuite {
 
@@ -153,9 +152,4 @@ class ExprSuite extends SparkSuite {
     })
   }
 
-  @Test def testTypeRuntime() {
-
-    val t = TInt
-//    val clazz = implicitly[ClassTag[TNumeric]].runtimeClass
-  }
 }

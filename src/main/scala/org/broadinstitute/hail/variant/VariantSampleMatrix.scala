@@ -1,16 +1,18 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
-import org.apache.spark.{SparkEnv, SparkContext}
+
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
+
 import scala.language.implicitConversions
-import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
-import org.apache.spark.sql.types.{StructType, StructField}
 
 object VariantSampleMatrix {
   final val magicNumber: Int = 0xe51e2c58

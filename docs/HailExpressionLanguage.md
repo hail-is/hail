@@ -3,6 +3,7 @@
 Several Hail commands provide the ability to perform a broad array of computations based on data structures exposed to the user.  
 
 **Supported comparisons and transformations:**
+
  - Conditionals: `if (p) a else b` -- The value of the conditional is the value of `a` or `b` depending on `p`.  If `p` is missing, the value of the conditional is missing.
  - Let: `let v1 = e1 and v2 = e2 and ... and vn = en in b` -- Bind variables `v1` through `vn` to result of evaluating the `ei`.  The value of the `let` is the value of `b`.  `v1` is visible in `e2` through `en`, etc.
  - Global comparisons: `a == b`, `a != b`
@@ -57,6 +58,94 @@ Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without e
  - Missingness propagates up.  If any element in an expression is missing, the expression will evaluate to missing.  
 
 ____
+
+## Aggregator functions
+
+Hail's expression language supports a small number of 'aggregation' functions, which compute across rows or columns of the dataset.  These functions allow a user to replicate nearly all the of the statistics generated in `sampleqc` or `variantqc`, as well as compute an unrestricted set of new metrics.  These are functions 
+
+**Current aggregation functions:**
+
+#### Count
+
+`count` counts the number of occurrences for which a boolean condition evaluates to `true`.  If the condition evaluates to missing, then it is not added to the count.  The result is an integer.
+
+```
+    <aggregable>.count( <Boolean expression> )
+```
+
+**Examples:**
+
+One can replicate `qc.nHet` for either samples or variants by counting:
+```
+    annotatesamples -c 'sa.nHet = gs.count(g.isHet)'
+    annotatevariants -c 'va.nHet = gs.count(g.isHet)'
+```
+
+One can also compute more complicated counts.  Here we compute the number of non-ref cases and controls per variant (Assuming that `sa.pheno.isCase` is a boolean sample annotation)
+```
+    annotatevariants -c 'va.caseCount = gs.count(sa.pheno.isCase && g.isCalledNonRef), va.controlCount = gs.count(!(sa.pheno.isCase) && g.isCalledNonRef)'
+```
+
+Here we count the number of singleton non-ref LOFs and the number of homozygous alternate LOFs per sample, assuming that one has previously annotated variant consequence into `va.consequence`:
+```
+    annotatevariants -c 'va.isSingleton = gs.count(g.isCalledNonRef) == 1' \
+    annotatesamples -c 'sa.singletonLOFs = gs.count(va.isSingleton && g.isCalledNonRef && va.consequence == "LOF"),
+                        sa.homVarLOFs = gs.count(g.isHomVar && va.consequence == "LOF")
+```
+
+This can also be used to calculate statistics from sample/variant annotations in `mapreduce`:
+```
+    annotatevariants -c 'va.isSingleton = gs.count(g.isCalledNonRef) == 1'
+    annotatesamples -c 'sa.callrate = gs.fraction(g.isNotCalled)'
+    mapreduce -c 'global.lowQualSamples = samples.count(sa.callrate < 0.95),
+                  global.totalNSingleton = variants.count(va.isSingleton)'
+```
+
+### Fraction
+
+`fraction` computes the ratio of the number of occurrences for which a boolean condition evaluates to `true`, divided by the total number of non-missing occurrences.
+The result is a floating-point value.
+```
+    <aggregable>.fraction( <Boolean expression> )
+```
+
+**Examples:**
+
+One can replicate call rate, or calculate missingness:
+```
+    filtervariants --keep -c 'gs.fraction(g.isNotCalled) > 0.90'
+    filtersamples --keep -c 'gs.fraction(g.isNotCalled) > 0.95'
+```
+
+One can also extend this thinking to compute the differential missingness at SNPs and indels:
+```
+    annotatesamples -c 'sa.SNPmissingness = gs.fraction(g.isNotCalled && v.alt.isSNP),
+                        sa.indelmissingness = gs.fraction(g.isNotCalled && v.alt.isIndel)
+```
+
+### Stats
+
+`stats` computes six useful statistics about a numeric expression.  The result is a group of { mean, standard deviation, min value, max value, number nonmissing, and sum }.
+```
+    <aggregable>.stats( <Numeric expression> )
+```
+
+One can replicate the calculations in `<va / sa>.qc.gqMean` and `<va / sa>.qc.gqStDev` with the command below.  After this command, `va.gqstats.mean` is equal to the result of running `variantqc` and querying `va.qc.gqMean`, and this equivalence holds for the other values.
+```
+    annotatevariants -c 'va.gqstats = gs.stats(g.gq)'
+    annotatesamples -c 'sa.gqstats = gs.stats(g.gq)'
+```
+
+
+`stats`
+
+`statsif`
+
+`findmap`
+
+`collect`
+
+
 
 ### Examples
 

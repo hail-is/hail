@@ -3,34 +3,31 @@ package org.broadinstitute.hail
 import java.io._
 
 import breeze.linalg.operators.{OpAdd, OpSub}
+import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import org.apache.commons.lang.StringEscapeUtils
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.{AccumulableParam, SparkContext}
+import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
+import org.apache.spark.{AccumulableParam, SparkContext}
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.io.compress.BGzipCodec
+import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import org.broadinstitute.hail.utils.RichRow
-import org.broadinstitute.hail.variant.{Sample, Variant}
+import org.broadinstitute.hail.variant.Variant
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
-import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
-import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
-import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector, DenseMatrix}
-import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
-import org.apache.commons.lang.StringEscapeUtils
-
 import scala.reflect.ClassTag
-import org.slf4j.{Logger, LoggerFactory}
-import Utils._
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0

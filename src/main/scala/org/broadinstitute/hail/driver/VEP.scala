@@ -1,19 +1,19 @@
 package org.broadinstitute.hail.driver
 
-import java.io.{FileInputStream, IOException, InputStream}
+import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
 import org.apache.spark.storage.StorageLevel
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.native.Serialization
+import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
-import org.kohsuke.args4j.{Option => Args4jOption}
 
 case class JSONExtractGenotype(
   gt: Option[Int],
@@ -61,7 +61,7 @@ object VEP extends Command {
       case (JInt(x), TInt) => x.toInt
       case (JInt(x), TDouble) => x.toDouble
       case (JInt(x), TString) => x.toString
-      case (JLong(x), TLong) => x
+      case (JInt(x), TLong) => x
       case (JDouble(x), TDouble) => x
       case (JDouble(x), TFloat) => x.toFloat
       case (JString(x), TString) => x
