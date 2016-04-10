@@ -394,7 +394,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         }.fold(true)(_ && _)
   }
 
-  def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(
+  def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: TypeWithSchema)(
     seqOp: (U, Variant, Int, T) => U,
     combOp: (U, U) => U,
     mapOp: (Annotation, U) => Annotation)

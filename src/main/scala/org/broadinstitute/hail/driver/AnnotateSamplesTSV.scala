@@ -25,7 +25,7 @@ object AnnotateSamplesTSV extends Command {
     var root: String = _
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
-      usage = "Specify identifiers to be treated as missing")
+      usage = "Specify identifier to be treated as missing")
     var missing: String = "NA"
   }
 
