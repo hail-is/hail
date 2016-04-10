@@ -110,6 +110,7 @@ object VEP extends Command {
   val vepSignature = TStruct(
     "assembly_name" -> TString,
     "allele_string" -> TString,
+    "ancestral" -> TString,
     "colocated_variants" -> TArray(TStruct(
       "aa_allele" -> TString,
       "aa_maf" -> TDouble,
@@ -154,6 +155,7 @@ object VEP extends Command {
       "somatic" -> TInt,
       "start" -> TInt,
       "strand" -> TInt)),
+    "context" -> TString,
     "end" -> TInt,
     "id" -> TString,
     "input" -> TString,
