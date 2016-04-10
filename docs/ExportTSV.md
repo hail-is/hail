@@ -39,7 +39,7 @@ $ cat exportVariants.columns
 VARIANT	v
 PASS	va.pass
 FILTERS	va.filters
-MISSINGNESS	1 - va.qc.callRate)
+MISSINGNESS	1 - va.qc.callRate
 ```
 
 ```
