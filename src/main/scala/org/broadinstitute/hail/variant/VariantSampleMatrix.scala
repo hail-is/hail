@@ -435,6 +435,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def annotateSamples(annotations: Map[String, Annotation], signature: Type,
     path: List[String]): VariantSampleMatrix[T] = {
+
     val (newSignature, inserter) = insertSA(signature, path)
 
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>

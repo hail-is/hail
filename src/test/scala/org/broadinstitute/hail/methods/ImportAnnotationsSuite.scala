@@ -34,10 +34,10 @@ class ImportAnnotationsSuite extends SparkSuite {
     }
 
     val anno1 = AnnotateSamples.run(state,
-      Array("tsv", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.phenotype", "-t", "qPhen:Int"))
+      Array("tsv", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.`my phenotype`", "-t", "qPhen:Int"))
 
-    val q1 = anno1.vds.querySA("phenotype", "Status")
-    val q2 = anno1.vds.querySA("phenotype", "qPhen")
+    val q1 = anno1.vds.querySA("my phenotype", "Status")
+    val q2 = anno1.vds.querySA("my phenotype", "qPhen")
 
     anno1.vds.metadata.sampleIds.zip(anno1.vds.metadata.sampleAnnotations)
       .forall {
