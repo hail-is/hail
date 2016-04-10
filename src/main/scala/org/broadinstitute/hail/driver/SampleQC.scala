@@ -319,22 +319,22 @@ object SampleQC extends Command {
 
   def description = "Compute per-sample QC metrics"
 
-  def results(vds: VariantDataset): Map[Int, SampleQCCombiner] = {
-    vds
-      .rdd
-      .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner))({ case (acc, (v, va, gs)) =>
-        val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
-        for ((g, i) <- gs.iterator.zipWithIndex)
-          acc(i).merge(v, vIsSingleton, g)
-        acc
-      }, { case (comb1, comb2) =>
-        for (i <- comb1.indices)
-          comb1(i).merge(comb2(i))
-        comb1
-      })
-      .iterator
-      .zipWithIndex
-      .map { case (comb, i) => (vds.localSamples(i), comb) }
+  def results(vds: VariantDataset): Map[String, SampleQCCombiner] = {
+    vds.sampleIds.iterator
+      .zip(
+        vds
+          .rdd
+          .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner))({ case (acc, (v, va, gs)) =>
+            val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
+            for ((g, i) <- gs.iterator.zipWithIndex)
+              acc(i).merge(v, vIsSingleton, g)
+            acc
+          }, { case (comb1, comb2) =>
+            for (i <- comb1.indices)
+              comb1(i).merge(comb2(i))
+            comb1
+          })
+          .iterator)
       .toMap
   }
 
@@ -370,8 +370,6 @@ object SampleQC extends Command {
 
     val output = options.output
 
-    val sampleIdsBc = state.sc.broadcast(vds.sampleIds)
-
     val r = results(vds)
 
     if (output != null) {
@@ -380,7 +378,7 @@ object SampleQC extends Command {
       writeTable(output, state.hadoopConf,
         r.map { case (s, comb) =>
           sb.clear()
-          sb.append(sampleIdsBc.value(s))
+          sb.append(s)
           sb += '\t'
           comb.emit(sb)
           sb.result()
@@ -388,9 +386,8 @@ object SampleQC extends Command {
     }
 
     val (newSAS, insertQC) = vds.saSignature.insert(SampleQCCombiner.signature, "qc")
-    val newSampleAnnotations = vds.sampleAnnotations
-      .zipWithIndex
-      .map { case (sa, s) =>
+    val newSampleAnnotations = vds.sampleIdsAndAnnotations
+      .map { case (s, sa) =>
         insertQC(sa, r.get(s).map(_.asAnnotation))
       }
 
