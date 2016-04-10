@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.driver
 
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -24,6 +26,7 @@ object AnnotateVariantsBed extends Command {
   def run(state: State, options: Options): State = {
     val (iList, signature) = BedAnnotator(options.input, state.hadoopConf)
     state.copy(
-      vds = state.vds.annotateInvervals(iList, signature, AnnotateVariantsTSV.parseRoot(options.root)))
+      vds = state.vds.annotateInvervals(iList, signature,
+        Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)))
   }
 }

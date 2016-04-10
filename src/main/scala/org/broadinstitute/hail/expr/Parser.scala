@@ -44,7 +44,7 @@ object Parser extends JavaTokenParsers {
 
   def parseAnnotationTypes(code: String): Map[String, Type] = {
     // println(s"code = $code")
-    if (code.isEmpty)
+    if (code.matches("""\s*"""))
       Map.empty[String, Type]
     else
       parseAll(struct_fields, code) match {
@@ -75,14 +75,46 @@ object Parser extends JavaTokenParsers {
     a: ArrayBuffer[Any],
     code: String): (Array[(List[String], BaseType, () => Any)]) = {
     val arr = parseAll(annotationExpressions, code) match {
-      case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
+      case Success(result, _) => result.asInstanceOf[Array[(List[String], AST)]]
       case NoSuccess(msg, _) => fatal(msg)
     }
 
     arr.map {
       case (path, ast) =>
         ast.typecheck(symTab)
-        (path.toList, ast.`type`, ast.eval(EvalContext(symTab, a)))
+        (path, ast.`type`, ast.eval(EvalContext(symTab, a)))
+    }
+  }
+
+  def parseAnnotationRoot(code: String, root: String): List[String] = {
+    val path = parseAll(annotationIdentifier, code) match {
+      case Success(result, _) => result.asInstanceOf[List[String]]
+      case NoSuccess(msg, _) => fatal(msg)
+    }
+
+    if (path.isEmpty)
+      fatal(s"expected an annotation path starting in `$root', but got an empty path")
+    else if (path.head != root)
+      fatal(s"expected an annotation path starting in `$root', but got a path starting in '${path.head}'")
+    else
+      path.tail
+  }
+
+  def parseAnnotationRootList(code: String, root: String): Seq[List[String]] = {
+    if (code.matches("""\s*"""))
+      Array.empty[List[String]]
+    val pathList = parseAll(annotationIdentifierList, code) match {
+      case Success(result, _) => result.asInstanceOf[Array[List[String]]]
+      case NoSuccess(msg, _) => fatal(msg)
+    }
+
+    pathList.map { path =>
+      if (path.isEmpty)
+        fatal(s"expected annotation paths starting in `$root', but got an empty path")
+      else if (path.head != root)
+        fatal(s"expected annotation paths starting in `$root', but got a path starting in '${path.head}'")
+      else
+        path.tail
     }
   }
 
@@ -153,17 +185,22 @@ object Parser extends JavaTokenParsers {
   def named_arg: Parser[(String, AST)] =
     tsvIdentifier ~ "=" ~ expr ^^ { case id ~ _ ~ expr => (id, expr) }
 
-  def annotationExpressions: Parser[Array[(Array[String], AST)]] =
+  def annotationExpressions: Parser[Array[(List[String], AST)]] =
     rep1sep(annotationExpression, ",") ^^ {
       _.toArray
     }
 
-  def annotationExpression: Parser[(Array[String], AST)] = annotationIdentifier ~ "=" ~ expr ^^ {
+  def annotationExpression: Parser[(List[String], AST)] = annotationIdentifier ~ "=" ~ expr ^^ {
     case id ~ eq ~ expr => (id, expr)
   }
 
-  def annotationIdentifier: Parser[Array[String]] =
+  def annotationIdentifier: Parser[List[String]] =
     rep1sep(identifier, ".") ^^ {
+      _.toList
+    }
+
+  def annotationIdentifierList: Parser[Array[List[String]]] =
+    rep1sep(annotationIdentifier, ",") ^^ {
       _.toArray
     }
 
@@ -224,12 +261,12 @@ object Parser extends JavaTokenParsers {
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>
-//    ("@" ~> (identifier <~ "=")) ~ stringLiteral("\"" ~> "[^\"]".r <~ "\"") ^^ { case name ~ desc =>
-    (unescapeString(name), {
-      val unescaped = unescapeString(desc)
-      unescaped.substring(1, unescaped.length - 1)
-    })
-  }
+      //    ("@" ~> (identifier <~ "=")) ~ stringLiteral("\"" ~> "[^\"]".r <~ "\"") ^^ { case name ~ desc =>
+      (unescapeString(name), {
+        val unescaped = unescapeString(desc)
+        unescaped.substring(1, unescaped.length - 1)
+      })
+    }
 
   def struct_field: Parser[(String, Type, Map[String, String])] =
     (identifier <~ ":") ~ type_expr ~ rep(decorator) ^^ { case name ~ t ~ decorators =>
@@ -237,7 +274,7 @@ object Parser extends JavaTokenParsers {
     }
 
   def struct_fields: Parser[Array[Field]] = repsep(struct_field, ",") ^^ {
-    _.zipWithIndex.map {case ((id, t, attrs), index) => Field(id, t, index, attrs) }
+    _.zipWithIndex.map { case ((id, t, attrs), index) => Field(id, t, index, attrs) }
       .toArray
   }
 
