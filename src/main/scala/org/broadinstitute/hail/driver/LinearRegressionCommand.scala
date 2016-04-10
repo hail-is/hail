@@ -16,7 +16,10 @@ object LinearRegressionCommand extends Command {
     var ySA: String = _
 
     @Args4jOption(required = false, name = "-c", aliases = Array("--covariates"), usage = "Covariate sample annotations, comma-separated")
-    var covSA: String = _
+    var covSA: String = ""
+
+    @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Path of output tsv")
+    var output: String = _
   }
 
   def newOptions = new Options
@@ -61,7 +64,7 @@ object LinearRegressionCommand extends Command {
 
     val (newVAS, inserter) = filtVds.insertVA(LinRegStats.`type`, "linreg")
 
-    state.copy(
+    val newState = state.copy(
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(linreg.rdd) { case (it, jt) =>
           it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
@@ -69,5 +72,19 @@ object LinearRegressionCommand extends Command {
             (v, inserter(va, comb.map(_.toAnnotation)), gs)
           }
         }, vaSignature = newVAS))
+
+    if (options.output != null)
+      ExportVariants.run(newState, Array("-o", options.output, "-c",
+        """Chrom=v.contig,
+          |Pos=v.start,
+          |Ref=v.ref,
+          |Alt=v.alt,
+          |Missing=va.linreg.nMissing,
+          |Beta=va.linreg.beta,
+          |StdErr=va.linreg.se,
+          |TStat=va.linreg.tstat,
+          |PVal=va.linreg.pval""".stripMargin))
+
+    newState
   }
 }
