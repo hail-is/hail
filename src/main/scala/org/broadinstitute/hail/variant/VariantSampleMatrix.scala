@@ -23,9 +23,12 @@ object VariantSampleMatrix {
   }
 
   def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
-    require(dirname.endsWith(".vds"))
+    val strippedDirName = dirname.replaceAll("""(/$)?""", "")
+    if (!strippedDirName.endsWith(".vds"))
+      fatal(s"input path ending in `.vds' required, found `$dirname'")
 
-    val (localSamples, metadata) = readDataFile(dirname + "/metadata.ser",
+
+    val (localSamples, metadata) = readDataFile(strippedDirName + "/metadata.ser",
       sqlContext.sparkContext.hadoopConfiguration) { dis => {
       try {
         val serializer = SparkEnv.get.serializer.newInstance()
@@ -53,7 +56,7 @@ object VariantSampleMatrix {
     }
     }
 
-    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
+    val df = sqlContext.read.parquet(strippedDirName + "/rdd.parquet")
 
     new VariantSampleMatrix[Genotype](metadata,
       localSamples,
@@ -500,11 +503,13 @@ class RichVDS(vds: VariantDataset) {
     ))
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
-    require(dirname.endsWith(".vds"))
+    val strippedDirName = dirname.replaceAll("""(/$)?""", "")
+    if (!strippedDirName.endsWith(".vds"))
+      fatal(s"output path ending in `.vds' required, found `$dirname'")
 
     val hConf = vds.sparkContext.hadoopConfiguration
-    hadoopMkdir(dirname, hConf)
-    writeDataFile(dirname + "/metadata.ser", hConf) {
+    hadoopMkdir(strippedDirName, hConf)
+    writeDataFile(strippedDirName + "/metadata.ser", hConf) {
       dos => {
         val serializer = SparkEnv.get.serializer.newInstance()
         val ss = serializer.serializeStream(dos)
@@ -523,7 +528,7 @@ class RichVDS(vds: VariantDataset) {
           Row.fromSeq(Array(v.toRow, va.asInstanceOf[Row], gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
-      .write.parquet(dirname + "/rdd.parquet")
+      .write.parquet(strippedDirName + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
 
