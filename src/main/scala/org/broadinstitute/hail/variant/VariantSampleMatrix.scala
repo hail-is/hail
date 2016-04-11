@@ -1,17 +1,21 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
-import org.apache.spark.{SparkEnv, SparkContext}
+
+import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
+
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
+
 import scala.reflect.ClassTag
-import org.apache.spark.sql.types.{StructType, StructField}
+import org.apache.spark.sql.types.{StructField, StructType}
+
+import scala.collection.mutable.ArrayBuffer
 
 object VariantSampleMatrix {
   final val magicNumber: Int = 0xe51e2c58
@@ -467,28 +471,36 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
   }
 
-  def queryVA(args: String*): Querier = queryVA(args.toList)
+  def queryVA(code: String): (BaseType, Querier) = {
 
-  def queryVA(path: List[String]): Querier = {
-    try {
-      vaSignature.query(path)
-    } catch {
-      case e: AnnotationPathException => fatal(s"Invalid variant annotations query: ${
-        path.::("va").mkString(".")
-      }")
+    val st = Map(Annotation.VARIANT_HEAD ->(0, vaSignature))
+    val a = new ArrayBuffer[Any]
+    a += null
+
+    val (t, f) = Parser.parse(code, st, a)
+
+    val f2: Annotation => Option[Any] = { annotation =>
+      a(0) = annotation
+      f()
     }
+
+    (t, f2)
   }
 
-  def querySA(args: String*): Querier = querySA(args.toList)
+  def querySA(code: String): (BaseType, Querier) = {
 
-  def querySA(path: List[String]): Querier = {
-    try {
-      saSignature.query(path)
-    } catch {
-      case e: AnnotationPathException => fatal(s"Invalid sample annotations query: ${
-        path.::("sa").mkString(".")
-      }")
+    val st = Map(Annotation.SAMPLE_HEAD ->(0, saSignature))
+    val a = new ArrayBuffer[Any]
+    a += null
+
+    val (t, f) = Parser.parse(code, st, a)
+
+    val f2: Annotation => Option[Any] = { annotation =>
+      a(0) = annotation
+      f()
     }
+
+    (t, f2)
   }
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)

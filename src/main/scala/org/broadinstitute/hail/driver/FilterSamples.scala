@@ -56,11 +56,11 @@ object FilterSamples extends Command {
         val a = new ArrayBuffer[Any]()
         for (_ <- symTab)
           a += null
-        val f: () => Any = Parser.parse(symTab, TBoolean, a, c)
+        val f: () => Option[Boolean] = Parser.parse[Boolean](c, symTab, a, TBoolean)
         (s: String, sa: Annotation) => {
           a(0) = s
           a(1) = sa
-          Filter.keepThisAny(f(), keep)
+          Filter.keepThis(f(), keep)
         }
     }
 

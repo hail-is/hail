@@ -22,7 +22,7 @@ object CaseControlCount extends Command {
     val vds = state.vds
 
     // query sa.case, must be boolean
-    val qCase = vds.querySA("case")
+    val qCase = vds.querySA("sa.case")._2
 
     // insert nCase, then nControl
     val (tmpVAS, insertCase) = vds.vaSignature.insert(TInt, "nCase")

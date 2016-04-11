@@ -145,7 +145,7 @@ class FilterSuite extends SparkSuite {
     val keepOneSample = FilterSamples.run(s, Array("--keep", "-c", "s.id == \"C1046::HG02024\""))
     val qc = VariantQC.run(keepOneSample, Array.empty[String])
 
-    val q = qc.vds.queryVA("qc", "rHetHomVar")
+    val q = qc.vds.queryVA("va.qc.rHetHomVar")._2
     val missingVariants = qc.vds.variantsAndAnnotations
       .collect()
       .filter { case (v, va) =>

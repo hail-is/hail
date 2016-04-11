@@ -55,7 +55,7 @@ object ExportGenotypes extends Command {
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, sc.hadoopConfiguration)
     else
-      Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(cond, symTab, a)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 

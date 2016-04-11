@@ -38,8 +38,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     val anno1 = AnnotateSamples.run(state,
       Array("tsv", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.`my phenotype`", "-t", "qPhen:Int"))
 
-    val q1 = anno1.vds.querySA("my phenotype", "Status")
-    val q2 = anno1.vds.querySA("my phenotype", "qPhen")
+    val q1 = anno1.vds.querySA("sa.`my phenotype`.Status")._2
+    val q2 = anno1.vds.querySA("sa.`my phenotype`.qPhen")._2
 
     anno1.vds.metadata.sampleIds.zip(anno1.vds.metadata.sampleAnnotations)
       .forall {
@@ -56,8 +56,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     List("0", "0.0", ".0", "-01", "1e5", "1e10", "1.1e10", ".1E-10").foreach(assertNumeric)
     List("", "a", "1.", ".1.", "1e", "e", "E0", "1e1.", "1e.1", "1e1.1").foreach(assertNonNumeric)
 
-    def qMap(query: List[String], s: State): Map[String, Option[Any]] = {
-      val q = s.vds.querySA(query)
+    def qMap(query: String, s: State): Map[String, Option[Any]] = {
+      val q = s.vds.querySA(query)._2
       s.vds.sampleIds
         .zip(s.vds.sampleAnnotations)
         .map { case (id, sa) => (id, q(sa)) }
@@ -69,7 +69,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
 
     s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamCaseControl.fam"))
-    val m = qMap(List("fam"), s)
+    val m = qMap("sa.fam", s)
 
     assert(m("A").contains(Annotation("Newton", "C", "D", true, false)))
     assert(m("B").contains(Annotation("Turing", "C", "D", false, true)))
@@ -84,7 +84,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
 
     s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamQPheno.fam", "-q"))
-    val m1 = qMap(List("fam"), s)
+    val m1 = qMap("sa.fam", s)
 
     assert(m1("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
     assert(m1("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
@@ -96,7 +96,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     s = AnnotateSamples.run(s,
       Array("fam", "-i", "src/test/resources/importFamQPheno.space.m9.fam", "-q", "-d", "\\s+", "-m", "-9", "-r", "sa.ped"))
-    val m2 = qMap(List("ped"), s)
+    val m2 = qMap("sa.ped", s)
 
     assert(m2("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
     assert(m2("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
@@ -128,7 +128,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     val anno1 = AnnotateVariants.run(state,
       Array("tsv", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
-    val q1 = anno1.vds.queryVA("stuff")
+    val q1 = anno1.vds.queryVA("va.stuff")._2
     anno1.vds.rdd
       .collect()
       .foreach {
@@ -164,7 +164,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .collect()
       .toMap
 
-    val q = anno1.vds.queryVA("other")
+    val q = anno1.vds.queryVA("va.other")._2
 
     anno1.vds.rdd.collect()
       .foreach {
@@ -181,9 +181,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     val bed2r = AnnotateVariants.run(state, Array("bed", "-i", "src/test/resources/example2.bed", "-r", "va.test"))
     val bed3r = AnnotateVariants.run(state, Array("bed", "-i", "src/test/resources/example3.bed", "-r", "va.test"))
 
-    val q1 = bed1r.vds.queryVA("test")
-    val q2 = bed2r.vds.queryVA("test")
-    val q3 = bed3r.vds.queryVA("test")
+    val q1 = bed1r.vds.queryVA("va.test")._2
+    val q2 = bed2r.vds.queryVA("va.test")._2
+    val q3 = bed3r.vds.queryVA("va.test")._2
 
     bed1r.vds.variantsAndAnnotations
       .collect()
@@ -250,7 +250,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     val vds2 = vds.filterSamples({case (s, sa) => scala.util.Random.nextFloat > 0.5})
       .annotateSamples(annoMap, TInt, List("test"))
 
-    val q = vds2.querySA("test")
+    val q = vds2.querySA("sa.test")._2
 
     vds2.sampleIds
       .zipWithIndex

@@ -48,7 +48,7 @@ object FilterGenotypes extends Command {
     val a = new ArrayBuffer[Any]()
     for (_ <- symTab)
       a += null
-    val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
+    val f: () => Option[Boolean] = Parser.parse[Boolean](options.condition, symTab, a, TBoolean)
 
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
@@ -58,7 +58,7 @@ object FilterGenotypes extends Command {
         a(2) = s
         a(3) = sa
         a(4) = g
-        if (Filter.keepThisAny(f(), keep))
+        if (Filter.keepThis(f(), keep))
           g
         else
           noCall

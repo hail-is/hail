@@ -19,19 +19,25 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse[T](symTab: Map[String, (Int, BaseType)], expected: BaseType, a: ArrayBuffer[Any], code: String): () => T = {
+  def parse(code: String, symTab: Map[String, (Int, BaseType)], a: ArrayBuffer[Any]): (BaseType, () => Option[Any]) = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
     t.typecheck(symTab)
-    if (expected != null
-      && t.`type` != expected)
-      fatal(s"expression has wrong type: expected `$expected', got ${t.`type`}")
 
     val f: () => Any = t.eval(EvalContext(symTab, a))
-    () => f().asInstanceOf[T]
+    (t.`type`, () => Option(f()))
+  }
+
+  def parse[T](code: String, symTab: Map[String, (Int, BaseType)], a: ArrayBuffer[Any], expected: Type): () => Option[T] = {
+    val (t, f) = parse(code, symTab, a)
+    if (expected != null
+      && t != expected)
+      fatal(s"expression has wrong type: expected `$expected', got $t")
+
+    () => f().map(_.asInstanceOf[T])
   }
 
   def parseType(code: String): Type = {
@@ -56,33 +62,37 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(symTab: Map[String, (Int, BaseType)],
-    a: ArrayBuffer[Any],
-    code: String): (Option[String], Array[() => Any]) = {
+  def parseExportArgs(code: String, symTab: Map[String, (Int, BaseType)],
+    a: ArrayBuffer[Any]): (Option[String], Array[() => Option[Any]]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[String], Array[AST])]
       case NoSuccess(msg, _) => fatal(msg)
     }
 
+    val ec = EvalContext(symTab, a)
     ts.foreach(_.typecheck(symTab))
     val fs = ts.map { t =>
-      t.eval(EvalContext(symTab, a))
+      t.eval(ec)
+    }.map { f =>
+      () => Option(f())
     }
+
     (header, fs)
   }
 
-  def parseAnnotationArgs(symTab: Map[String, (Int, BaseType)],
-    a: ArrayBuffer[Any],
-    code: String): (Array[(List[String], BaseType, () => Any)]) = {
+  def parseAnnotationArgs(code: String, symTab: Map[String, (Int, BaseType)],
+    a: ArrayBuffer[Any]): (Array[(List[String], BaseType, () => Option[Any])]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(List[String], AST)]]
       case NoSuccess(msg, _) => fatal(msg)
     }
 
+    val ec = EvalContext(symTab, a)
     arr.map {
       case (path, ast) =>
         ast.typecheck(symTab)
-        (path, ast.`type`, ast.eval(EvalContext(symTab, a)))
+        val f = ast.eval(ec)
+        (path, ast.`type`, () => Option(f()))
     }
   }
 

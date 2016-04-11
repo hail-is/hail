@@ -161,7 +161,7 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds.vaSignature.schema ==
       StructType(Array(StructField("0", IntegerType))))
 
-    val q1 = vds.queryVA("I1")
+    val q1 = vds.queryVA("va.I1")._2
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => q1(va) == Some(5) })
@@ -177,7 +177,7 @@ class AnnotationsSuite extends SparkSuite {
         StructField("0", IntegerType),
         StructField("1", StringType))))
 
-    val q2 = vds.queryVA("S1")
+    val q2 = vds.queryVA("va.S1")._2
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => q2(va) == Some("test") })
@@ -197,9 +197,9 @@ class AnnotationsSuite extends SparkSuite {
         )), nullable = true),
         StructField("1", StringType))))
 
-    val q3 = vds.queryVA("I1")
-    val q4 = vds.queryVA("I1", "I2")
-    val q5 = vds.queryVA("I1", "I3")
+    val q3 = vds.queryVA("va.I1")._2
+    val q4 = vds.queryVA("va.I1.I2")._2
+    val q5 = vds.queryVA("va.I1.I3")._2
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) =>
@@ -224,7 +224,7 @@ class AnnotationsSuite extends SparkSuite {
               StructField("0", StructType(Array(
                 StructField("0", StringType))))))))))))))))
 
-    val q6 = vds.queryVA("a", "b", "c", "d", "e")
+    val q6 = vds.queryVA("va.a.b.c.d.e")._2
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => q6(va) == Some("dummy") })
@@ -246,7 +246,7 @@ class AnnotationsSuite extends SparkSuite {
               StructField("0", StructType(Array(
                 StructField("0", StringType)))),
               StructField("1", StringType)))))))))))))
-    val q7 = vds.queryVA("a", "b", "c", "f")
+    val q7 = vds.queryVA("va.a.b.c.f")._2
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => q7(va) == Some("dummy2") })
@@ -268,7 +268,7 @@ class AnnotationsSuite extends SparkSuite {
               StructField("0", StringType),
               StructField("1", StringType)))))))))))))
 
-    val q8 = vds.queryVA("a", "b", "c", "d")
+    val q8 = vds.queryVA("va.a.b.c.d")._2
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => q8(va) == Some("dummy3") })
@@ -289,7 +289,7 @@ class AnnotationsSuite extends SparkSuite {
               StructField("0", StringType),
               StructField("1", StringType))))))),
           StructField("1", StringType)))))))
-    val q9 = vds.queryVA("a", "c")
+    val q9 = vds.queryVA("va.a.c")._2
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => q9(va) == Some(toAdd7) })
@@ -304,7 +304,7 @@ class AnnotationsSuite extends SparkSuite {
         StructField("1", StringType),
         StructField("2", StructType(Array(
           StructField("0", StringType)))))))
-    val q10 = vds.queryVA("a")
+    val q10 = vds.queryVA("va.a")._2
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => q10(va) == Some(Annotation(toAdd7)) })
