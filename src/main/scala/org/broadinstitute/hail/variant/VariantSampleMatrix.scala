@@ -30,21 +30,18 @@ object VariantSampleMatrix {
 
     val vaSignature = readFile(dirname + "/va.schema", hConf) { dis =>
       val schema = Source.fromInputStream(dis)
-        .getLines()
         .mkString
       Parser.parseType(schema)
     }
 
     val saSignature = readFile(dirname + "/sa.schema", hConf) { dis =>
       val schema = Source.fromInputStream(dis)
-        .getLines()
         .mkString
       Parser.parseType(schema)
     }
 
     val globalSignature = readFile(dirname + "/global.schema", hConf) { dis =>
       val schema = Source.fromInputStream(dis)
-        .getLines()
         .mkString
       Parser.parseType(schema)
     }
