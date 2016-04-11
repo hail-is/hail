@@ -47,7 +47,6 @@ object ImportAnnotations extends Command {
     val vds = new VariantDataset(
       VariantMetadata(IndexedSeq.empty, IndexedSeq.empty, Annotation.emptyIndexedSeq(0),
         TEmpty, signature, wasSplit = true),
-      Array.empty[Int],
       rdd.map { case (v, va) => (v, va, Iterable.empty) })
 
     state.copy(vds = vds)

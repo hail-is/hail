@@ -30,7 +30,7 @@ object GQByDPBins {
   }
 
   // ((sample, bin), %GQ)
-  def apply(vds: VariantDataset): Map[(Int, Int), Double] = {
+  def apply(vds: VariantDataset): Map[(String, Int), Double] = {
     vds
     .flatMapWithKeys((v, s, g) => {
       val bin = g.dp.flatMap(dpBin)

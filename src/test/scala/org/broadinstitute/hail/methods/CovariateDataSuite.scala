@@ -15,24 +15,24 @@ class CovariateDataSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/covariateData.vcf")
     val cov = CovariateData.read("src/test/resources/covariateData.cov", sc.hadoopConfiguration, vds.sampleIds)
 
-    val covRowSample = Array(0,1,2,4,5,6,7)
+    val covRowSample = Array("A", "B", "C", "D", "E", "F", "X")
     val covName = Array("Cov1", "Cov2")
     val data = Some(DenseMatrix.create[Double](7, 2,
       Array(0.0, 2.0, 1.0, -2.0, -2.0, 4.0, 0.0,
            -1.0, 3.0, 5.0,  0.0, -4.0, 3.0, 0.0)))
     assertCov(cov, CovariateData(covRowSample, covName, data))
 
-    val covS = cov.filterSamples(Set(0,4,5))
+    val covS = cov.filterSamples(Set("A", "D", "E"))
     val dataS = Some(DenseMatrix.create[Double](3, 2, Array(0.0, -2.0, -2.0,
                                                            -1.0,  0.0, -4.0)))
-    assertCov(covS, CovariateData(Array(0,4,5), covName, dataS))
+    assertCov(covS, CovariateData(Array("A", "D", "E"), covName, dataS))
 
     val cov1 = cov.filterCovariates(Set("Cov1"))
     val data1 = Some(DenseMatrix.create[Double](7, 1, Array(0.0, 2.0, 1.0, -2.0, -2.0, 4.0, 0.0)))
     assertCov(cov1, CovariateData(covRowSample, Array("Cov1"), data1))
 
-    val covNoSamples = cov.filterSamples(Set[Int]())
-    assertCov(covNoSamples, CovariateData(Array[Int](), covName, None))
+    val covNoSamples = cov.filterSamples(Set[String]())
+    assertCov(covNoSamples, CovariateData(Array[String](), covName, None))
 
     val covNoCovs = cov.filterCovariates(Set[String]())
     assertCov(covNoCovs, CovariateData(covRowSample, Array[String](), None))

@@ -100,6 +100,19 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
       }
     }
 
+  def lazyMapWith2[T2, T3, S](i2: Iterable[T2], i3: Iterable[T3], f: (T, T2, T3) => S): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
+        val it3: Iterator[T3] = i3.iterator
+
+        def hasNext: Boolean = it.hasNext && it2.hasNext && it3.hasNext
+
+        def next(): S = f(it.next(), it2.next(), it3.next())
+      }
+    }
+
   def lazyFilterWith[T2](i2: Iterable[T2], p: (T, T2) => Boolean): Iterable[T] =
     new Iterable[T] with Serializable {
       def iterator: Iterator[T] = new Iterator[T] {

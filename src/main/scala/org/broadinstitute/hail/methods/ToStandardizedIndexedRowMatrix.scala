@@ -9,7 +9,7 @@ object ToStandardizedIndexedRowMatrix {
   def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {
     val variants = vds.variants.collect()
     val nVariants = variants.length
-    val nSamples = vds.nLocalSamples
+    val nSamples = vds.nSamples
     val variantIdxBroadcast = vds.sparkContext.broadcast(variants.index)
 
     val standardized = vds

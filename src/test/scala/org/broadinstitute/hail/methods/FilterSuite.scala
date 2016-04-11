@@ -19,7 +19,7 @@ class FilterSuite extends SparkSuite {
     state = SplitMulti.run(state, Array.empty[String])
 
     assert(FilterSamples.run(state, Array("--keep", "-c", "\"^HG\" ~ s.id"))
-      .vds.nLocalSamples == 63)
+      .vds.nSamples == 63)
 
     assert(FilterVariants.run(state, Array("--remove", "-c", "v.start >= 14066228"))
       .vds.nVariants == 173)
@@ -48,13 +48,13 @@ class FilterSuite extends SparkSuite {
     val stateWithSampleQC = SampleQC.run(state, Array.empty[String])
 
     assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.nCalled == 337"))
-      .vds.nLocalSamples == 17)
+      .vds.nSamples == 17)
 
     assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.dpMean > 60"))
-      .vds.nLocalSamples == 7)
+      .vds.nSamples == 7)
 
     assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "if (\"^C1048\" ~ s.id) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3"))
-      .vds.nLocalSamples == 14)
+      .vds.nSamples == 14)
 
     val stateWithVariantQC = VariantQC.run(state, Array.empty[String])
 
@@ -122,9 +122,9 @@ class FilterSuite extends SparkSuite {
     var state = State(sc, sqlContext, vds)
     state = SplitMulti.run(state, Array.empty[String])
 
-    assert(FilterSamples.run(state, Array("--keep", "-c", "src/test/resources/filter.sample_list")).vds.nLocalSamples == 3)
+    assert(FilterSamples.run(state, Array("--keep", "-c", "src/test/resources/filter.sample_list")).vds.nSamples == 3)
 
-    assert(FilterSamples.run(state, Array("--remove", "-c", "src/test/resources/filter.sample_list")).vds.nLocalSamples == 5)
+    assert(FilterSamples.run(state, Array("--remove", "-c", "src/test/resources/filter.sample_list")).vds.nSamples == 5)
 
     assert(FilterVariants.run(state, Array("--keep", "-c", "src/test/resources/filter.interval_list")).vds.nVariants == 6)
 
