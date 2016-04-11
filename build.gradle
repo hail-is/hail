@@ -62,6 +62,8 @@ dependencies {
     compile 'org.json4s:json4s-ast_2.10:3.3.0'
     // compile 'org.json4s:json4s-jackson_2.11:3.3.0'
 
+    compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
+
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 }
