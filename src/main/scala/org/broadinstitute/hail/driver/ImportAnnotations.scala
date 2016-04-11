@@ -45,7 +45,7 @@ object ImportAnnotations extends Command {
       options.missingIdentifier)
 
     val vds = new VariantDataset(
-      VariantMetadata(IndexedSeq.empty, IndexedSeq.empty, Annotation.emptyIndexedSeq(0),
+      VariantMetadata(IndexedSeq.empty, Annotation.emptyIndexedSeq(0),
         TEmpty, signature, wasSplit = true),
       rdd.map { case (v, va) => (v, va, Iterable.empty) })
 

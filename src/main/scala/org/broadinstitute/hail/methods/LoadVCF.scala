@@ -163,12 +163,12 @@ object LoadVCF {
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
-    val filters: IndexedSeq[(String, String)] = header
+    val filters: Map[String, String] = header
       .getFilterLines
       .toList
       // (filter, description)
       .map(line => (line.getID, ""))
-      .toArray[(String, String)]
+      .toMap
 
     val infoSignature = TStruct(header
       .getInfoHeaderLines
@@ -177,11 +177,13 @@ object LoadVCF {
       .toArray)
 
     val variantAnnotationSignatures = TStruct(
-      "rsid" -> TString,
-      "qual" -> TDouble,
-      "filters" -> TSet(TString),
-      "pass" -> TBoolean,
-      "info" -> infoSignature)
+      Array(
+        Field("rsid", TString, 0),
+        Field("qual", TDouble, 1),
+        Field("filters", TSet(TString), 2, filters),
+        Field("pass", TBoolean, 3),
+        Field("info", infoSignature, 4)
+      ))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -235,7 +237,7 @@ object LoadVCF {
         }
     })
 
-    VariantSampleMatrix(VariantMetadata(filters, sampleIds,
+    VariantSampleMatrix(VariantMetadata(sampleIds,
       Annotation.emptyIndexedSeq(sampleIds.length),
       TEmpty,
       variantAnnotationSignatures), genotypes)

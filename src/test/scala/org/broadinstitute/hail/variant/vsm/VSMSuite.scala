@@ -23,7 +23,6 @@ class VSMSuite extends SparkSuite {
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
     val mdata3 = new VariantMetadata(
-      IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
       TStruct(
@@ -32,7 +31,6 @@ class VSMSuite extends SparkSuite {
         "thing2" -> TString),
       TEmpty)
     val mdata4 = new VariantMetadata(
-      IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
       TStruct(
