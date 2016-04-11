@@ -12,7 +12,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
 import org.json4s._
-import org.json4s.native.JsonMethods._
+import org.json4s.jackson.JsonMethods._
 
 case class EvalContext(symTab: SymbolTable,
   a: ArrayBuffer[Any])
@@ -223,7 +223,7 @@ case object TLong extends TIntegral with Parsable {
 
   def parse(s: String): Annotation = s.toLong
 
-  def selfMakeJSON(a: Annotation): JValue = JLong(a.asInstanceOf[Long])
+  def selfMakeJSON(a: Annotation): JValue = JInt(a.asInstanceOf[Long])
 
   override def genValue: Gen[Annotation] = Gen.arbLong
 }
