@@ -414,7 +414,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       Some(this)
     else
       selfField(path.head).map(_.`type`).flatMap(t => t.getOption(path.tail))
-
+  
   override def fieldOption(path: List[String]): Option[Field] =
     if (path.isEmpty)
       None
