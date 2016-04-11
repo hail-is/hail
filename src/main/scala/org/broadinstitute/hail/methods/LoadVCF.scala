@@ -239,8 +239,10 @@ object LoadVCF {
 
     VariantSampleMatrix(VariantMetadata(sampleIds,
       Annotation.emptyIndexedSeq(sampleIds.length),
+      Annotation.empty,
       TEmpty,
-      variantAnnotationSignatures), genotypes)
+      variantAnnotationSignatures,
+      TEmpty), genotypes)
   }
 
 }

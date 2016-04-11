@@ -43,6 +43,13 @@ object VariantSampleMatrix {
       Parser.parseType(schema)
     }
 
+    val globalSignature = readFile(strippedDirName + "/global.schema", hConf) { dis =>
+      val schema = Source.fromInputStream(dis)
+        .getLines()
+        .mkString
+      Parser.parseType(schema)
+    }
+
     val metadata = readDataFile(strippedDirName + "/metadata.ser", hConf) { dis => {
       try {
         val serializer = SparkEnv.get.serializer.newInstance()
@@ -58,11 +65,13 @@ object VariantSampleMatrix {
 
         val sampleIds = ds.readObject[IndexedSeq[String]]
         val sampleAnnotations = ds.readObject[IndexedSeq[Annotation]]
+        val globalAnnotation = ds.readObject[Annotation]
         val wasSplit = ds.readObject[Boolean]
 
         ds.close()
 
-        VariantMetadata(sampleIds, sampleAnnotations, saSignature, vaSignature, wasSplit)
+        VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
+          saSignature, vaSignature, globalSignature, wasSplit)
       } catch {
         case e: Exception =>
           println(e)
@@ -148,9 +157,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def saSignature: Type = metadata.saSignature
 
+  def globalSignature: Type = metadata.globalSignature
+
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
   def sampleIdsAndAnnotations: IndexedSeq[(String, Annotation)] = sampleIds.zip(sampleAnnotations)
+
+  def globalAnnotation: Annotation = metadata.globalAnnotation
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
 
@@ -159,12 +172,15 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def copy[U](rdd: RDD[(Variant, Annotation, Iterable[U])] = rdd,
     sampleIds: IndexedSeq[String] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
+    globalAnnotation: Annotation = globalAnnotation,
     saSignature: Type = saSignature,
     vaSignature: Type = vaSignature,
+    globalSignature: Type = globalSignature,
     wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
-      VariantMetadata(sampleIds, sampleAnnotations, saSignature, vaSignature, wasSplit), rdd)
+      VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
+        saSignature, vaSignature, globalSignature, wasSplit), rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -557,6 +573,12 @@ class RichVDS(vds: VariantDataset) {
       out.write(sb.result())
     }
 
+    sb.clear()
+    writeTextFile(strippedDirName + "/global.schema", hConf) { out =>
+      vds.globalSignature.pretty(sb, 0, printAttrs = true)
+      out.write(sb.result())
+    }
+
     writeDataFile(strippedDirName + "/metadata.ser", hConf) {
       dos => {
         val serializer = SparkEnv.get.serializer.newInstance()
@@ -566,6 +588,7 @@ class RichVDS(vds: VariantDataset) {
           .writeObject(VariantSampleMatrix.fileVersion)
           .writeObject(vds.sampleIds)
           .writeObject(vds.sampleAnnotations)
+          .writeObject(vds.globalAnnotation)
           .writeObject(vds.wasSplit)
         ss.close()
       }
