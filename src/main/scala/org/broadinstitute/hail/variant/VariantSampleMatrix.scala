@@ -23,34 +23,33 @@ object VariantSampleMatrix {
   }
 
   def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
-    val strippedDirName = dirname.replaceAll("""(/$)?""", "")
-    if (!strippedDirName.endsWith(".vds"))
+    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
     val hConf = sqlContext.sparkContext.hadoopConfiguration
 
-    val vaSignature = readFile(strippedDirName + "/va.schema", hConf) { dis =>
+    val vaSignature = readFile(dirname + "/va.schema", hConf) { dis =>
       val schema = Source.fromInputStream(dis)
         .getLines()
         .mkString
       Parser.parseType(schema)
     }
 
-    val saSignature = readFile(strippedDirName + "/sa.schema", hConf) { dis =>
+    val saSignature = readFile(dirname + "/sa.schema", hConf) { dis =>
       val schema = Source.fromInputStream(dis)
         .getLines()
         .mkString
       Parser.parseType(schema)
     }
 
-    val globalSignature = readFile(strippedDirName + "/global.schema", hConf) { dis =>
+    val globalSignature = readFile(dirname + "/global.schema", hConf) { dis =>
       val schema = Source.fromInputStream(dis)
         .getLines()
         .mkString
       Parser.parseType(schema)
     }
 
-    val metadata = readDataFile(strippedDirName + "/metadata.ser", hConf) { dis => {
+    val metadata = readDataFile(dirname + "/metadata.ser", hConf) { dis => {
       try {
         val serializer = SparkEnv.get.serializer.newInstance()
         val ds = serializer.deserializeStream(dis)
@@ -80,7 +79,7 @@ object VariantSampleMatrix {
     }
     }
 
-    val df = sqlContext.read.parquet(strippedDirName + "/rdd.parquet")
+    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
     new VariantSampleMatrix[Genotype](metadata,
       df.rdd.map(row => {
@@ -554,32 +553,31 @@ class RichVDS(vds: VariantDataset) {
     ))
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
-    val strippedDirName = dirname.replaceAll("""(/$)?""", "")
-    if (!strippedDirName.endsWith(".vds"))
+    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
     val hConf = vds.sparkContext.hadoopConfiguration
-    hadoopMkdir(strippedDirName, hConf)
+    hadoopMkdir(dirname, hConf)
 
     val sb = new StringBuilder
-    writeTextFile(strippedDirName + "/sa.schema", hConf) { out =>
+    writeTextFile(dirname + "/sa.schema", hConf) { out =>
       vds.saSignature.pretty(sb, 0, printAttrs = true)
       out.write(sb.result())
     }
 
     sb.clear()
-    writeTextFile(strippedDirName + "/va.schema", hConf) { out =>
+    writeTextFile(dirname + "/va.schema", hConf) { out =>
       vds.vaSignature.pretty(sb, 0, printAttrs = true)
       out.write(sb.result())
     }
 
     sb.clear()
-    writeTextFile(strippedDirName + "/global.schema", hConf) { out =>
+    writeTextFile(dirname + "/global.schema", hConf) { out =>
       vds.globalSignature.pretty(sb, 0, printAttrs = true)
       out.write(sb.result())
     }
 
-    writeDataFile(strippedDirName + "/metadata.ser", hConf) {
+    writeDataFile(dirname + "/metadata.ser", hConf) {
       dos => {
         val serializer = SparkEnv.get.serializer.newInstance()
         val ss = serializer.serializeStream(dos)
@@ -600,7 +598,7 @@ class RichVDS(vds: VariantDataset) {
           Row.fromSeq(Array(v.toRow, va.asInstanceOf[Row], gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
-      .write.parquet(strippedDirName + "/rdd.parquet")
+      .write.parquet(dirname + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
 
