@@ -44,7 +44,7 @@ dependencies {
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':1.5.0') {
         exclude module: 'hadoop-client'
     }
-    compile ('org.apache.hadoop:hadoop-client:2.7.1') {
+    compile('org.apache.hadoop:hadoop-client:2.7.1') {
         exclude module: 'servlet-api'
     }
     // compile 'org.apache.spark:spark-core_' + scalaMajorVersion + ':1.5.0'
@@ -111,6 +111,9 @@ shadowJar {
         include(dependency('org.json4s:json4s-core_2.10:.*'))
         include(dependency('org.json4s:json4s-native_2.10:.*'))
         include(dependency('org.json4s:json4s-ast_2.10:.*'))
+
+        include(dependency('org.apache.solr:solr-solrj:.*'))
+        include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
     }
 }
 
@@ -132,6 +135,10 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.testng:testng:.*'))
         include(dependency('com.beust:jcommander:.*'))
         include(dependency('org.scalatest:scalatest_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.apache.solr:solr-solrj:.*'))
+        include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
+
     }
 }
 
