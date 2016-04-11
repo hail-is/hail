@@ -16,11 +16,11 @@ object CassandraStuff {
 
   private var refcount: Int = 0
 
-  def getSession: Session = {
+  def getSession(address: String): Session = {
     this.synchronized {
       if (cluster == null)
         cluster = Cluster.builder()
-          .addContactPoint("127.0.0.1")
+          .addContactPoint(address)
           .build()
 
       if (session == null)
@@ -54,6 +54,10 @@ object ExportVariantsCass extends Command {
       usage = "comma-separated list of fields/computations to be exported")
     var condition: String = _
 
+    @Args4jOption(required = true, name = "-a", aliases = Array("--address"),
+      usage = "Cassandra contact point to connect to")
+    var address: String = _
+
     @Args4jOption(required = true, name = "-t", aliases = Array("--table"),
       usage = "Cassandra table to export to")
     var table: String = _
@@ -83,6 +87,7 @@ object ExportVariantsCass extends Command {
       fatal("column names required in condition")
 
     val columns = header.get.split("\t")
+    val address = options.address
 
     val query =
       s"""
@@ -93,7 +98,7 @@ object ExportVariantsCass extends Command {
 
     vds.variantsAndAnnotations
       .foreachPartition { it =>
-        val session = CassandraStuff.getSession
+        val session = CassandraStuff.getSession(address)
 
         val statement = session.prepare(query)
         val ab = mutable.ArrayBuilder.make[AnyRef]
