@@ -99,7 +99,7 @@ class AnnotationsSuite extends SparkSuite {
     val filtQuery = vas.query("filters")
     assert(vas.fieldOption("filters").exists(f =>
       f.`type` == TSet(TString)
-        && f.attrs == Map.empty))
+        && f.attrs.nonEmpty))
     assert(filtQuery(variantAnnotationMap(firstVariant))
       .contains(Array("PASS"): mutable.WrappedArray[String]))
     assert(filtQuery(variantAnnotationMap(anotherVariant))

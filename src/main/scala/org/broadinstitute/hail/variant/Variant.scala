@@ -20,7 +20,7 @@ object CopyState extends Enumeration {
 }
 
 object AltAllele {
-  def schema: StructType = StructType(Array(
+  val schema: StructType = StructType(Array(
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
 
@@ -148,7 +148,7 @@ object Variant {
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
 
-  def schema: StructType =
+  val schema: StructType =
     StructType(Array(
       StructField("contig", StringType, nullable = false),
       StructField("start", IntegerType, nullable = false),

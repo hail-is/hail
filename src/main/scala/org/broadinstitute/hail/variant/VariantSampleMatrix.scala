@@ -6,11 +6,11 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
 import scala.language.implicitConversions
 import org.broadinstitute.hail.annotations._
 import scala.reflect.ClassTag
+import scala.io.Source
 import org.apache.spark.sql.types.{StructType, StructField}
 
 object VariantSampleMatrix {
@@ -23,10 +23,30 @@ object VariantSampleMatrix {
   }
 
   def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
-    require(dirname.endsWith(".vds"))
+    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
+      fatal(s"input path ending in `.vds' required, found `$dirname'")
 
-    val metadata = readDataFile(dirname + "/metadata.ser",
-      sqlContext.sparkContext.hadoopConfiguration) { dis => {
+    val hConf = sqlContext.sparkContext.hadoopConfiguration
+
+    val vaSignature = readFile(dirname + "/va.schema", hConf) { dis =>
+      val schema = Source.fromInputStream(dis)
+        .mkString
+      Parser.parseType(schema)
+    }
+
+    val saSignature = readFile(dirname + "/sa.schema", hConf) { dis =>
+      val schema = Source.fromInputStream(dis)
+        .mkString
+      Parser.parseType(schema)
+    }
+
+    val globalSignature = readFile(dirname + "/global.schema", hConf) { dis =>
+      val schema = Source.fromInputStream(dis)
+        .mkString
+      Parser.parseType(schema)
+    }
+
+    val metadata = readDataFile(dirname + "/metadata.ser", hConf) { dis => {
       try {
         val serializer = SparkEnv.get.serializer.newInstance()
         val ds = serializer.deserializeStream(dis)
@@ -39,11 +59,15 @@ object VariantSampleMatrix {
         if (v != fileVersion)
           fatal("Old VDS version found.  Recreate with current version of Hail.")
 
-        val metadata = ds.readObject[VariantMetadata]
+        val sampleIds = ds.readObject[IndexedSeq[String]]
+        val sampleAnnotations = ds.readObject[IndexedSeq[Annotation]]
+        val globalAnnotation = ds.readObject[Annotation]
+        val wasSplit = ds.readObject[Boolean]
 
         ds.close()
 
-        metadata
+        VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
+          saSignature, vaSignature, globalSignature, wasSplit)
       } catch {
         case e: Exception =>
           println(e)
@@ -129,26 +153,30 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def saSignature: Type = metadata.saSignature
 
+  def globalSignature: Type = metadata.globalSignature
+
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
   def sampleIdsAndAnnotations: IndexedSeq[(String, Annotation)] = sampleIds.zip(sampleAnnotations)
+
+  def globalAnnotation: Annotation = metadata.globalAnnotation
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
 
   def wasSplit: Boolean = metadata.wasSplit
 
-  def filters: IndexedSeq[(String, String)] = metadata.filters
-
   def copy[U](rdd: RDD[(Variant, Annotation, Iterable[U])] = rdd,
-    filters: IndexedSeq[(String, String)] = filters,
     sampleIds: IndexedSeq[String] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
+    globalAnnotation: Annotation = globalAnnotation,
     saSignature: Type = saSignature,
     vaSignature: Type = vaSignature,
+    globalSignature: Type = globalSignature,
     wasSplit: Boolean = wasSplit)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
-      VariantMetadata(filters, sampleIds, sampleAnnotations, saSignature, vaSignature, wasSplit), rdd)
+      VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
+        saSignature, vaSignature, globalSignature, wasSplit), rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -522,10 +550,30 @@ class RichVDS(vds: VariantDataset) {
     ))
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
-    require(dirname.endsWith(".vds"))
+    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
+      fatal(s"output path ending in `.vds' required, found `$dirname'")
 
     val hConf = vds.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
+
+    val sb = new StringBuilder
+    writeTextFile(dirname + "/sa.schema", hConf) { out =>
+      vds.saSignature.pretty(sb, 0, printAttrs = true)
+      out.write(sb.result())
+    }
+
+    sb.clear()
+    writeTextFile(dirname + "/va.schema", hConf) { out =>
+      vds.vaSignature.pretty(sb, 0, printAttrs = true)
+      out.write(sb.result())
+    }
+
+    sb.clear()
+    writeTextFile(dirname + "/global.schema", hConf) { out =>
+      vds.globalSignature.pretty(sb, 0, printAttrs = true)
+      out.write(sb.result())
+    }
+
     writeDataFile(dirname + "/metadata.ser", hConf) {
       dos => {
         val serializer = SparkEnv.get.serializer.newInstance()
@@ -533,7 +581,10 @@ class RichVDS(vds: VariantDataset) {
         ss
           .writeObject(VariantSampleMatrix.magicNumber)
           .writeObject(VariantSampleMatrix.fileVersion)
-          .writeObject(vds.metadata)
+          .writeObject(vds.sampleIds)
+          .writeObject(vds.sampleAnnotations)
+          .writeObject(vds.globalAnnotation)
+          .writeObject(vds.wasSplit)
         ss.close()
       }
     }

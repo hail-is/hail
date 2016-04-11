@@ -383,7 +383,7 @@ case class Field(name: String, `type`: Type,
 
   def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
     sb.append(" " * indent)
-    sb.append(name)
+    sb.append(prettyIdentifier(name))
     sb.append(": ")
     `type`.pretty(sb, indent, printAttrs)
     if (printAttrs) {

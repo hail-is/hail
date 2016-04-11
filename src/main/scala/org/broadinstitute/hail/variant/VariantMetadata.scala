@@ -5,23 +5,32 @@ import org.broadinstitute.hail.expr._
 
 object VariantMetadata {
 
-  def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(Array.empty[(String, String)],
+  def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(
     sampleIds,
     Annotation.emptyIndexedSeq(sampleIds.length),
+    Annotation.empty,
+    TEmpty,
     TEmpty,
     TEmpty)
 
-  def apply(filters: IndexedSeq[(String, String)], sampleIds: Array[String],
-    sa: IndexedSeq[Annotation], sas: Type, vas: Type): VariantMetadata = {
-    new VariantMetadata(filters, sampleIds, sa, sas, vas)
+  def apply(
+    sampleIds: Array[String],
+    sa: IndexedSeq[Annotation],
+    globalAnnotation: Annotation,
+    sas: Type,
+    vas: Type,
+    globalSignature: Type): VariantMetadata = {
+    new VariantMetadata(sampleIds, sa, globalAnnotation, sas, vas, globalSignature)
   }
 }
 
-case class VariantMetadata(filters: IndexedSeq[(String, String)],
+case class VariantMetadata(
   sampleIds: IndexedSeq[String],
   sampleAnnotations: IndexedSeq[Annotation],
+  globalAnnotation: Annotation,
   saSignature: Type,
   vaSignature: Type,
+  globalSignature: Type,
   wasSplit: Boolean = false) {
 
   def nSamples: Int = sampleIds.length
