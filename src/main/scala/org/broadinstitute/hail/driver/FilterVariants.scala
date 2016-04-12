@@ -51,11 +51,11 @@ object FilterVariants extends Command {
         val a = new ArrayBuffer[Any]()
         for (_ <- symTab)
           a += null
-        val f: () => Any = Parser.parse[Any](symTab, TBoolean, a, options.condition)
+        val f: () => Option[Boolean] = Parser.parse[Boolean](cond, symTab, a, TBoolean)
         (v: Variant, va: Annotation) => {
           a(0) = v
           a(1) = va
-          Filter.keepThisAny(f(), keep)
+          Filter.keepThis(f(), keep)
         }
     }
 

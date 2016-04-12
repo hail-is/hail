@@ -45,7 +45,7 @@ object ExportVariants extends Command {
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)
     else
-      Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(cond, symTab, a)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
@@ -54,16 +54,9 @@ object ExportVariants extends Command {
         val sb = new StringBuilder()
         it.map { case (v, va) =>
           sb.clear()
-          var first = true
-          fs.foreach { f =>
-            a(0) = v
-            a(1) = va
-            if (first)
-              first = false
-            else
-              sb += '\t'
-            sb.tsvAppend(f())
-          }
+          a(0) = v
+          a(1) = va
+          fs.iterator.foreachBetween { f => sb.tsvAppend(f()) }(() => sb.append("\t"))
           sb.result()
         }
       }.writeTable(output, header)

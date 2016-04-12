@@ -38,8 +38,8 @@ object PCA extends Command {
 
     writeTextFile(options.output, state.hadoopConf) { s =>
       s.write("sample\t" + (1 to options.k).map("PC" + _).mkString("\t") + "\n")
-      for ((ls, i) <- vds.localSamples.zipWithIndex) {
-        s.write(vds.sampleIds(ls))
+      for ((id, i) <- vds.sampleIds.zipWithIndex) {
+        s.write(id)
         for (j <- 0 until options.k)
           s.write("\t" + scores(i, j))
         s.write("\n")

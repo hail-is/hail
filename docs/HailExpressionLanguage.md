@@ -10,7 +10,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
 Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without evaluating `b`.  If `a` is missing, `b` is evaluated and the comparison returns `true` if `b` is true, otherwise missing.
  - Missingness:
    - isMissing: `a.isMissing` -- returns true if `a` is missing
-   - isNotMissing: `a.isNotMissing` -- returns true if `a` is defined
+   - isDefined: `a.isDefined` -- returns true if `a` is defined
    - orElse: `a.OrElse(x)` -- return `a` if `a` is defined, otherwise `x`.  `x` is only evaluated if `a` is NA.
  - Numerical comparisons: `<`, `<=`, `>`, `>=`
  - Numerical conversions: 

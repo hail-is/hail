@@ -119,10 +119,10 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val qBeta = s.vds.queryVA("linreg", "beta")
-    val qSe = s.vds.queryVA("linreg", "se")
-    val qTstat = s.vds.queryVA("linreg", "tstat")
-    val qPval = s.vds.queryVA("linreg", "pval")
+    val qBeta = s.vds.queryVA("linreg", "beta")._2
+    val qSe = s.vds.queryVA("linreg", "se")._2
+    val qTstat = s.vds.queryVA("linreg", "tstat")._2
+    val qPval = s.vds.queryVA("linreg", "pval")._2
 
     val annotationMap = s.vds.variantsAndAnnotations
       .collect()

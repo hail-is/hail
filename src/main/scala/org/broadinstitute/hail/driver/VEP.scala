@@ -9,8 +9,8 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._
-import org.json4s.native.JsonMethods._
-import org.json4s.native.Serialization
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
 
 import scala.collection.mutable
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -59,9 +59,9 @@ object VEP extends Command {
       case (JNull, _) => null
       case (JNothing, TEmpty) => null
       case (JInt(x), TInt) => x.toInt
+      case (JInt(x), TLong) => x.toLong
       case (JInt(x), TDouble) => x.toDouble
       case (JInt(x), TString) => x.toString
-      case (JLong(x), TLong) => x
       case (JDouble(x), TDouble) => x
       case (JDouble(x), TFloat) => x.toFloat
       case (JString(x), TString) => x

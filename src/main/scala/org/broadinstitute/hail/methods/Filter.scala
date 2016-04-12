@@ -1,12 +1,7 @@
 package org.broadinstitute.hail.methods
 
 object Filter {
-  // FIXME
-  def keepThisAny(a: Any, keep: Boolean): Boolean =
-    if (a == null)
-      false
-    else
-      keepThis(a.asInstanceOf[Boolean], keep)
+  def keepThis(a: Option[Boolean], keep: Boolean): Boolean = a.map(x => keepThis(x, keep)).getOrElse(false)
 
   def keepThis(b: Boolean, keep: Boolean): Boolean =
     if (keep)

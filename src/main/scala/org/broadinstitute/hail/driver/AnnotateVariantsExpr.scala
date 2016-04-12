@@ -35,7 +35,7 @@ object AnnotateVariantsExpr extends Command {
     for (_ <- symTab)
       a += null
 
-    val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
+    val parsed = expr.Parser.parseAnnotationArgs(cond, symTab, a)
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "va")
         fatal(s"Path must start with `va.', got `${ids.mkString(".")}'")
@@ -61,7 +61,7 @@ object AnnotateVariantsExpr extends Command {
 
       var newVA = va
       computations.indices.foreach { i =>
-        newVA = inserters(i)(newVA, Option(computations(i)()))
+        newVA = inserters(i)(newVA, computations(i)())
       }
       newVA
     }
