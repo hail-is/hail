@@ -56,9 +56,7 @@ object ExportVariants extends Command {
           sb.clear()
           a(0) = v
           a(1) = va
-          println("here")
-          println("f0 is " + fs(0)())
-          fs.iterator.foreachBetween { f => sb.tsvAppend(f())}(() => sb.append("\t"))
+          fs.iterator.foreachBetween { f => sb.tsvAppend(f()) }(() => sb.append("\t"))
           sb.result()
         }
       }.writeTable(output, header)

@@ -33,8 +33,7 @@ object Parser extends JavaTokenParsers {
 
   def parse[T](code: String, symTab: Map[String, (Int, BaseType)], a: ArrayBuffer[Any], expected: Type): () => Option[T] = {
     val (t, f) = parse(code, symTab, a)
-    if (expected != null
-      && t != expected)
+    if (t != expected)
       fatal(s"expression has wrong type: expected `$expected', got $t")
 
     () => f().map(_.asInstanceOf[T])
