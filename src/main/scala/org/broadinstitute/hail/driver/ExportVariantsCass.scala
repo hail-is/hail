@@ -82,7 +82,7 @@ object ExportVariantsCass extends Command {
     for (_ <- symTab)
       a += null
 
-    val (header, fs) = Parser.parseExportArgs(symTab, a, cond)
+    val (header, fs) = Parser.parseExportArgs(cond, symTab, a)
     if (header.isEmpty)
       fatal("column names required in condition")
 

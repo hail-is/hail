@@ -42,7 +42,7 @@ object ExportSamples extends Command {
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)
     else
-      Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(cond, symTab, a)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 

@@ -14,8 +14,8 @@ class CaseControlCountSuite extends SparkSuite {
       "--types", "case: Boolean"))
     s = CaseControlCount.run(s, Array[String]())
 
-    val qCase = s.vds.queryVA("nCase")
-    val qControl = s.vds.queryVA("nControl")
+    val qCase = s.vds.queryVA("va.nCase")._2
+    val qControl = s.vds.queryVA("va.nControl")._2
 
     val r = s.vds.mapWithAll { case (v, va, s, sa, g) =>
       (v.start, (qCase(va).get.asInstanceOf[Int],
