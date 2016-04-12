@@ -59,13 +59,21 @@ class ExprSuite extends SparkSuite {
       f().map(_.asInstanceOf[T])
     }
 
+    assert(eval[Boolean]("!gs.het.isHomRef").contains(true))
+
     assert(eval[Boolean]("(1 / 2) == 0.5").contains(true))
     assert(eval[Boolean]("(1.0 / 2.0) == 0.5").contains(true))
     assert(eval[Boolean]("(1 / 2.0) == 0.5").contains(true))
     assert(eval[Boolean]("(1.0 / 2) == 0.5").contains(true))
+
     assert(eval[Boolean]("gs.noCall.gt.isMissing").contains(true))
+    assert(eval[Boolean]("gs.noCall.gt").isEmpty)
+
     assert(eval[Boolean]("gs.noCall.gtj.isMissing").contains(true))
+    assert(eval[Boolean]("gs.noCall.gtj").isEmpty)
+
     assert(eval[Boolean]("gs.noCall.gtk.isMissing").contains(true))
+    assert(eval[Boolean]("gs.noCall.gtk").isEmpty)
 
     assert(eval[Int]("let a = i and b = j in a + b").contains(-2))
     assert(eval[Int]("let a = i and b = a + j in b").contains(-2))
@@ -91,19 +99,24 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("i.isMissing").contains(false))
     assert(eval[Boolean]("i.isNotMissing").contains(true))
+    assert(eval[Boolean]("i").nonEmpty)
 
     assert(eval[Boolean]("m.isMissing").contains(true))
     assert(eval[Boolean]("m.isNotMissing").contains(false))
+    assert(eval[Boolean]("m").isEmpty)
 
     assert(eval[Boolean]("a[1].isMissing").contains(false))
     assert(eval[Boolean]("a[1].isNotMissing").contains(true))
+    assert(eval[Boolean]("a[1]").nonEmpty)
 
     assert(eval[Boolean]("a[2].isMissing").contains(true))
     assert(eval[Boolean]("a[2].isNotMissing").contains(false))
+    assert(eval[Boolean]("a[2]").isEmpty)
 
     assert(eval[Int]("as.length").contains(2))
     assert(eval[Int]("as[0].a").contains(23))
     assert(eval[Boolean]("as[1].b.isMissing").contains(true))
+    assert(eval[Boolean]("as[1].b").isEmpty)
 
     assert(eval[Int]("i").contains(5))
     assert(eval[Int]("j").contains(-7))

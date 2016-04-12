@@ -177,7 +177,7 @@ object Parser extends JavaTokenParsers {
     }
 
   def tilde_expr: Parser[AST] =
-    dot_expr ~ rep(withPos("~") ~ dot_expr) ^^ { case lhs ~ lst =>
+    unary_expr ~ rep(withPos("~") ~ unary_expr) ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
     }
 
@@ -226,8 +226,15 @@ object Parser extends JavaTokenParsers {
       _.toArray
     }
 
+  def unary_expr: Parser[AST] =
+    rep(withPos("-" | "!")) ~ dot_expr ^^ { case lst ~ rhs =>
+      lst.foldRight(rhs) { case (op, acc) =>
+        UnaryOp(op.pos, op.x, acc)
+      }
+    }
+
   def dot_expr: Parser[AST] =
-    unary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
+    primary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
       | (withPos(".") ~ identifier)
       | withPos("[") ~ expr ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
@@ -235,13 +242,6 @@ object Parser extends JavaTokenParsers {
         case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" => ApplyMethod(dot.pos, acc, sym, args)
         case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexArray(lbracket.pos, acc, idx)
       }
-      }
-    }
-
-  def unary_expr: Parser[AST] =
-    rep(withPos("-" | "!")) ~ primary_expr ^^ { case lst ~ rhs =>
-      lst.foldRight(rhs) { case (op, acc) =>
-        UnaryOp(op.pos, op.x, acc)
       }
     }
 
