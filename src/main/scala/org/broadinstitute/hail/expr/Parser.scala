@@ -263,6 +263,10 @@ object Parser extends JavaTokenParsers {
       } |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
+      (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")")  ^^ {
+        case id ~ lparen ~ args =>
+          Apply(lparen.pos, id.x, args)
+      } |
       guard(not("if" | "else")) ~> withPos(identifier) ^^ (r => SymRef(r.pos, r.x)) |
       "{" ~> expr <~ "}" |
       "(" ~> expr <~ ")"

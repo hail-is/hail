@@ -70,10 +70,10 @@ class FilterSuite extends SparkSuite {
     assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar >= 0"))
       .vds.nVariants == 117)
 
-    assert(FilterVariants.run(stateWithVariantQC, Array("--remove", "-c", "va.qc.rHetHomVar.isMissing"))
+    assert(FilterVariants.run(stateWithVariantQC, Array("--remove", "-c", "isMissing(va.qc.rHetHomVar)"))
       .vds.nVariants == 117)
 
-    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar.isNotMissing"))
+    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "isDefined(va.qc.rHetHomVar)"))
       .vds.nVariants == 117)
 
     val highGQ = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
@@ -156,7 +156,7 @@ class FilterSuite extends SparkSuite {
     // ensure that we're not checking empty vs empty
     assert(missingVariants.size > 0)
 
-    val missingVariantsFilter = FilterVariants.run(qc, Array("--keep", "-c", "va.qc.rHetHomVar.isMissing"))
+    val missingVariantsFilter = FilterVariants.run(qc, Array("--keep", "-c", "isMissing(va.qc.rHetHomVar)"))
       .vds
       .variantsAndAnnotations
       .collect()

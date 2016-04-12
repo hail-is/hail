@@ -66,13 +66,13 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("(1 / 2.0) == 0.5").contains(true))
     assert(eval[Boolean]("(1.0 / 2) == 0.5").contains(true))
 
-    assert(eval[Boolean]("gs.noCall.gt.isMissing").contains(true))
+    assert(eval[Boolean]("isMissing(gs.noCall.gt)").contains(true))
     assert(eval[Boolean]("gs.noCall.gt").isEmpty)
 
-    assert(eval[Boolean]("gs.noCall.gtj.isMissing").contains(true))
+    assert(eval[Boolean]("isMissing(gs.noCall.gtj)").contains(true))
     assert(eval[Boolean]("gs.noCall.gtj").isEmpty)
 
-    assert(eval[Boolean]("gs.noCall.gtk.isMissing").contains(true))
+    assert(eval[Boolean]("isMissing(gs.noCall.gtk)").contains(true))
     assert(eval[Boolean]("gs.noCall.gtk").isEmpty)
 
     assert(eval[Int]("let a = i and b = j in a + b").contains(-2))
@@ -82,8 +82,8 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("mb || true").contains(true))
     assert(eval[Boolean]("true || mb").contains(true))
-    assert(eval[Boolean]("(false || mb).isMissing").contains(true))
-    assert(eval[Boolean]("(mb || false).isMissing").contains(true))
+    assert(eval[Boolean]("isMissing(false || mb)").contains(true))
+    assert(eval[Boolean]("isMissing(mb || false)").contains(true))
 
     assert(eval[Int]("gs.homRef.gtj").contains(0)
       && eval[Int]("gs.homRef.gtk").contains(0))
@@ -97,25 +97,26 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("i.orElse(3)").contains(5))
     assert(eval[Int]("m.orElse(3)").contains(3))
 
-    assert(eval[Boolean]("i.isMissing").contains(false))
-    assert(eval[Boolean]("i.isNotMissing").contains(true))
+    assert(eval[Boolean]("isMissing(i)").contains(false))
+    assert(eval[Boolean]("isDefined(i)").contains(true))
+    assert(eval[Boolean]("isDefined(i)").contains(true))
     assert(eval[Boolean]("i").nonEmpty)
 
-    assert(eval[Boolean]("m.isMissing").contains(true))
-    assert(eval[Boolean]("m.isNotMissing").contains(false))
+    assert(eval[Boolean]("isMissing(m)").contains(true))
+    assert(eval[Boolean]("isDefined(m)").contains(false))
     assert(eval[Boolean]("m").isEmpty)
 
-    assert(eval[Boolean]("a[1].isMissing").contains(false))
-    assert(eval[Boolean]("a[1].isNotMissing").contains(true))
+    assert(eval[Boolean]("isMissing(a[1])").contains(false))
+    assert(eval[Boolean]("isDefined(a[1])").contains(true))
     assert(eval[Boolean]("a[1]").nonEmpty)
 
-    assert(eval[Boolean]("a[2].isMissing").contains(true))
-    assert(eval[Boolean]("a[2].isNotMissing").contains(false))
+    assert(eval[Boolean]("isMissing(a[2])").contains(true))
+    assert(eval[Boolean]("isDefined(a[2])").contains(false))
     assert(eval[Boolean]("a[2]").isEmpty)
 
     assert(eval[Int]("as.length").contains(2))
     assert(eval[Int]("as[0].a").contains(23))
-    assert(eval[Boolean]("as[1].b.isMissing").contains(true))
+    assert(eval[Boolean]("isMissing(as[1].b)").contains(true))
     assert(eval[Boolean]("as[1].b").isEmpty)
 
     assert(eval[Int]("i").contains(5))
