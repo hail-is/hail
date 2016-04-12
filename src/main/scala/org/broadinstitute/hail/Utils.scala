@@ -729,6 +729,10 @@ object Utils extends Logging {
       is
   }
 
+  def hadoopExists(hConf: hadoop.conf.Configuration, files: String*): Boolean = {
+    files.forall(filename => hadoopFS(filename, hConf).exists(new hadoop.fs.Path(filename)))
+  }
+
   def hadoopMkdir(dirname: String, hConf: hadoop.conf.Configuration) {
     hadoopFS(dirname, hConf).mkdirs(new hadoop.fs.Path(dirname))
   }

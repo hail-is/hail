@@ -28,6 +28,21 @@ object VariantSampleMatrix {
 
     val hConf = sqlContext.sparkContext.hadoopConfiguration
 
+    val vaSchema = dirname + "/va.schema"
+    val saSchema = dirname + "/sa.schema"
+    val globalSchema = dirname + "/global.schema"
+    val pqtSuccess = dirname + "/rdd.parquet/_SUCCESS"
+    val metadataFile = dirname + "/metadata.ser"
+
+    if (!hadoopExists(hConf, pqtSuccess))
+      fatal("corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
+
+    if (!hadoopExists(hConf, metadataFile))
+      fatal("corrupt VDS: no metadata.ser file.  Recreate VDS.")
+
+    if (!hadoopExists(hConf, vaSchema, saSchema, globalSchema))
+      fatal("corrupt VDS: one or more .schema files missing.  Recreate VDS.")
+
     val vaSignature = readFile(dirname + "/va.schema", hConf) { dis =>
       val schema = Source.fromInputStream(dis)
         .mkString
