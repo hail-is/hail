@@ -119,12 +119,12 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    // FIXME: refactor once localSamples is gone
-    val remapSamplesBc = sc.broadcast(vds.localSamples.zipWithIndex.toMap)
+    // FIXME: now row and sample index are the same!
+    val sampleIndexBc = sc.broadcast(vds.sampleIds.zipWithIndex.toMap)
 
     new LinearRegression(vds
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
-        (lrb, v, s, g) => lrb.merge(remapSamplesBc.value(s), g, yBc.value),
+        (lrb, v, s, g) => lrb.merge(sampleIndexBc.value(s), g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues { lrb =>
         lrb.stats(yBc.value, n).map { stats => {

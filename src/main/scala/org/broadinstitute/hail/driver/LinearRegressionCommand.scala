@@ -41,8 +41,12 @@ object LinearRegressionCommand extends Command {
 
     val vds = state.vds
 
-    val qY = vds.querySA(Parser.parseAnnotationRoot(options.ySA, Annotation.SAMPLE_HEAD))
-    val qCov = Parser.parseAnnotationRootList(options.covSA, Annotation.SAMPLE_HEAD).map(vds.querySA)
+    // val yCode = Parser.parseAnnotationRoot(options.ySA, Annotation.SAMPLE_HEAD)
+    // FIXME: create version that provides list of codes
+    // val covCode = Parser.parseAnnotationRootList(options.covSA, Annotation.SAMPLE_HEAD)
+
+    val qY = vds.querySA(options.ySA)._2
+    val qCov = options.covSA.split(",").map(vds.querySA).map(_._2)
 
     val ySA = vds.sampleAnnotations.map(qY)
     val covSA = qCov.map(q => vds.sampleAnnotations.map(q))
@@ -59,7 +63,9 @@ object LinearRegressionCommand extends Command {
           covSA.size,
           Array.concat(covSA.map(makeArrayDouble(_, sampleMask)): _*)))
 
-    val filtVds = vds.filterSamples((s, sa) => sampleMask(s))
+    val sampleIndex = vds.sampleIds.zipWithIndex.toMap
+
+    val filtVds = vds.filterSamples((s, sa) => sampleMask(sampleIndex(s)))
 
     val linreg = LinearRegression(filtVds, y, cov)
 
