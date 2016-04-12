@@ -137,7 +137,6 @@ class ExprSuite extends SparkSuite {
       sb.clear()
       t.pretty(sb, 0, printAttrs = true)
       val res = sb.result()
-      println(res)
       val parsed = Parser.parseType(res)
       t == parsed
     })

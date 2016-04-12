@@ -75,9 +75,12 @@ object ExportVCF extends Command {
           |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
       sb += '\n'
 
-      vds.filters.map { case (key, desc) =>
-        sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
-      }
+      vds.vaSignature.fieldOption("filters")
+        .foreach { f =>
+          f.attrs.foreach { case (key, desc) =>
+            sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
+          }
+        }
 
       infoSignature.foreach(_.fields.foreach { f =>
         sb.append("##INFO=<ID=")
@@ -134,7 +137,7 @@ object ExportVCF extends Command {
       sb.append(v.start)
       sb += '\t'
 
-      sb.append(idQuery.flatMap(_(a))
+      sb.append(idQuery.flatMap(_ (a))
         .getOrElse("."))
 
       sb += '\t'
@@ -144,13 +147,13 @@ object ExportVCF extends Command {
         sb.append(aa.alt))(() => sb += ',')
       sb += '\t'
 
-      sb.append(qualQuery.flatMap(_(a))
+      sb.append(qualQuery.flatMap(_ (a))
         .map(_.asInstanceOf[Double].formatted("%.2f"))
         .getOrElse("."))
 
       sb += '\t'
 
-      filterQuery.flatMap(_(a))
+      filterQuery.flatMap(_ (a))
         .map(_.asInstanceOf[IndexedSeq[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
