@@ -91,6 +91,11 @@ object Gen {
     }
   }
 
+  def subset[T](s: Set[T]): Gen[Set[T]] = Gen.parameterized { p =>
+    Gen.choose(0.0, 1.0).map(cutoff =>
+      s.filter(_ => p.rng.getRandomGenerator.nextDouble <= cutoff))
+  }
+
   def sequence[C, T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
       val b = cbf()

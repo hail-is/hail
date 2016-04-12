@@ -17,10 +17,13 @@ Command line arguments:
  - Hail expects a .interval_list file to contain either three or five fields per line in the following formats: `contig:start-end` or `contig  start  end  direction  target` (TSV).  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the `.interval_list` file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  
  - _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
 
-2. `filtersamples` -- ".sample_list" file
+2. `filtervariants` -- ".variant_list" file
+ - Hail expects a .variant_list file to contain a variant per in line following format: `contig:pos:ref:alt1,alt2,...,altN`.  Variants in the dataset will be kept / excluded based on the presence of the `--keep` and `--remove` flags.
+
+3. `filtersamples` -- ".sample_list" file
  - Hail expects a .sample_list file to contain a newline-delimited list of sample ids.  The `--keep` and `--remove` command-line flags will determine whether the list of samples is excluded or kept.  This file can contain sample IDs not present in the VDS.  
 
-3. `filtergenotypes` -- no inclusion/exclusion files supported
+4. `filtergenotypes` -- no inclusion/exclusion files supported
 
 ## Using expressions
 

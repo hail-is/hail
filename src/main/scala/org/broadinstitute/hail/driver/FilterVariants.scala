@@ -18,7 +18,7 @@ object FilterVariants extends Command {
     var remove: Boolean = false
 
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
-      usage = "Filter condition: expression or .interval_list file")
+      usage = "Filter condition: expression, .interval_list or .variant_list file")
     var condition: String = _
   }
 
@@ -44,6 +44,23 @@ object FilterVariants extends Command {
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
         val ilistBc = state.sc.broadcast(ilist)
         (v: Variant, va: Annotation) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
+
+      case f if f.endsWith(".variant_list") =>
+        val variants = readLines(f, state.hadoopConf)(_.map(_.transform { line =>
+          val fields = line.value.split(":")
+          if (fields.length != 4)
+            fatal("invalid variant")
+          val ref = fields(2)
+          Variant(fields(0),
+            fields(1).toInt,
+            ref,
+            fields(3).split(",").map(alt => AltAllele(ref, alt)))
+        }).toSet)
+
+        val variantsBc = state.sc.broadcast(variants)
+
+        (v: Variant, _: Annotation) => Filter.keepThis(variants.contains(v), keep)
+
       case c: String =>
         val symTab = Map(
           "v" ->(0, TVariant),
