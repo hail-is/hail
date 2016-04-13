@@ -1,10 +1,12 @@
 package org.broadinstitute.hail.driver
 
 import breeze.linalg.{DenseMatrix, DenseVector}
-import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression}
 import org.kohsuke.args4j.{Option => Args4jOption}
+
+import scala.collection.mutable.ArrayBuffer
 
 object LinearRegressionCommand extends Command {
 
@@ -26,42 +28,80 @@ object LinearRegressionCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    def makeSampleMask(nSamples: Int, sa: IndexedSeq[Option[Any]]*): IndexedSeq[Boolean] = {
-      require(sa.forall(_.size == nSamples))
-      Range(0, nSamples).map(s => sa.forall(_(s).isDefined))
-    }
 
-    def makeArrayDouble(sa: IndexedSeq[Option[Any]], sampleMask: IndexedSeq[Boolean]): Array[Double] = {
-      sa.iterator.zipWithIndex
-        .filter(x => sampleMask(x._2))
+    def maskSeq[T](xs: IndexedSeq[T], sampleMask: IndexedSeq[Boolean]): IndexedSeq[T] =
+      xs.zip(sampleMask)
+        .filter(_._2)
         .map(_._1)
-        .flatMap(_.map(_.asInstanceOf[Double]))
-        .toArray
+
+    def toDouble(t: BaseType): Any => Double = (t: @unchecked) match {
+      case TInt => _.asInstanceOf[Int].toDouble
+      case TLong => _.asInstanceOf[Long].toDouble
+      case TFloat => _.asInstanceOf[Float].toDouble
+      case TDouble => _.asInstanceOf[Double]
+      case TBoolean => _.asInstanceOf[Boolean].toDouble
+      case _ => fatal(s"??? expected Numeric or Boolean, got `$t'")
     }
 
     val vds = state.vds
 
-    // val yCode = Parser.parseAnnotationRoot(options.ySA, Annotation.SAMPLE_HEAD)
-    // FIXME: create version that provides list of codes
-    // val covCode = Parser.parseAnnotationRootList(options.covSA, Annotation.SAMPLE_HEAD)
+    val symTab = Map(
+      "s" -> (0, TSample),
+      "sa" -> (1, vds.saSignature))
 
-    val qY = vds.querySA(options.ySA)._2
-    val qCov = options.covSA.split(",").map(vds.querySA).map(_._2)
+    val sb = new StringBuilder
+    vds.saSignature.pretty(sb, 0, true)
 
-    val ySA = vds.sampleAnnotations.map(qY)
-    val covSA = qCov.map(q => vds.sampleAnnotations.map(q))
+    val a = new ArrayBuffer[Any]()
+    for (_ <- symTab)
+      a += null
 
-    val sampleMask = makeSampleMask(vds.nSamples, covSA :+ ySA: _*)
+    val yE = Parser.parse(options.ySA, symTab, a)
+    val yToDouble = toDouble(yE._1)
+    val ySA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
+      a(0) = s
+      a(1) = sa
+      yE._2().map(yToDouble)
+    }
+    val yMask = ySA.map(_.isDefined)
 
-    val y = DenseVector(makeArrayDouble(ySA, sampleMask))
+    val covE = Parser.parseExprs(options.covSA, symTab, a)
+    val covToDouble = covE.map(x => toDouble(x._1))
+    val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
+      a(0) = s
+      a(1) = sa
+      (covE.map(_._2()), covToDouble).zipped.map( _.map(_))
+    }
+    val covMask = covSA.map(_.forall(_.isDefined))
+
+    val sampleMask = (yMask, covMask).zipped.map(_ && _)
+
+    val y = DenseVector(ySA
+        .zip(sampleMask)
+        .filter(_._2)
+        .flatMap(_._1)
+        .toArray)
+
+    println(y)
+
+    val covArrays = covSA
+      .zip(sampleMask)
+      .filter(_._2)
+      .map(_._1.map(_.get))
+
+    covArrays.foreach(a => println(a.mkString(",")))
+
     val cov =
-      if (covSA.isEmpty)
+      if (covArrays(0).isEmpty)
         None
       else
         Some(new DenseMatrix(
-          y.size,
-          covSA.size,
-          Array.concat(covSA.map(makeArrayDouble(_, sampleMask)): _*)))
+          rows = covArrays.size,
+          cols = covArrays(0).size,
+          data = Array.concat(covArrays: _*),
+          offset = 0,
+          majorStride = covArrays(0).size,
+          isTranspose = true))
 
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap
 
