@@ -7,6 +7,7 @@ import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.annotations._
 import scala.collection.mutable
 
