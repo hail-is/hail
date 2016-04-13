@@ -59,8 +59,8 @@ object FilterVariants extends Command {
 
         val variantsBc = state.sc.broadcast(variants)
 
-        (v: Variant, _: Annotation) => Filter.keepThis(variants.contains(v), keep)
-
+        (v: Variant, _: Annotation) => Filter.keepThis(variantsBc.value.contains(v), keep)
+        
       case c: String =>
         val symTab = Map(
           "v" ->(0, TVariant),
