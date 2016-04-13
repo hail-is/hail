@@ -1,12 +1,12 @@
 package org.broadinstitute.hail.io
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark.{RangePartitioner, SparkContext}
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.{RangePartitioner, SparkContext}
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant._
 
 
 object GenLoader {

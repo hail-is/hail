@@ -15,7 +15,7 @@ object IndexBGEN extends Command {
   def description = "Create an index for one or more BGEN files.  `importbgen' cannot run without these indexes."
 
   class Options extends BaseOptions {
-    @Argument(usage = "<file>")
+    @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
 
