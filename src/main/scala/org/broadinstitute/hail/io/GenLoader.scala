@@ -12,11 +12,11 @@ import org.broadinstitute.hail.expr._
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantSampleMatrix[Genotype] = {
     val hConf = sc.hadoopConfiguration
-    val sampleIds = BgenLoader.parseSampleFile(sampleFile, hConf)
+    val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
     val nSamples = sampleIds.length
     val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions)).map{case line => readGenLine(line, nSamples)}
-    val signatures = TStruct("rsid" -> TString, "varid" -> TString)
-    VariantSampleMatrix(metadata = VariantMetadata(sampleIds).copy(vaSignature = signatures), rdd = rdd)
+    val signatures = TStruct("rsid" -> TString, "lid" -> TString)
+    VariantSampleMatrix(metadata = VariantMetadata(sampleIds).copy(vaSignature = signatures, wasSplit = true), rdd = rdd)
   }
 
   def convertPPsToInt(prob: Double): Int = {
@@ -36,16 +36,71 @@ object GenLoader {
     if (dosages.length != (3 * nSamples))
       fatal("Number of dosages does not match number of samples")
 
-    val genotypeStream: Iterable[Genotype] = {
-      for (i <- dosages.indices by 3) yield {
+    var plAA = -1
+    var plAB = -1
+    var plBB = -1
+    val plArray = new Array[Int](3)
+      val b = new GenotypeStreamBuilder(variant)
+      val genoBuilder = new GenotypeBuilder(variant)
+
+      for (i <- dosages.indices by 3) {
         val ints = convertPPsToInt(Array(dosages(i), dosages(i + 1), dosages(i + 2)))
-        val pls = BgenLoader.phredScalePPs(ints(0), ints(1), ints(2))
-        val gt = BgenLoader.parseGenotype(pls)
-        val pls2 = if (gt == -1) null else pls
-        Genotype(gt = Option(gt), pl = Option(pls2))
+
+          val pAA = (dosages(i) * 32768).round.toInt
+          val pAB = (dosages(i + 1) * 32768).round.toInt
+          val pBB = (dosages(i + 2) * 32768).round.toInt
+
+          if (pAA == 32768) {
+            plAA = 0
+            plAB = 51
+            plBB = 51
+          } else if (pAB == 32768) {
+            plAA = 51
+            plAB = 0
+            plBB = 51
+          } else if (pBB == 32768) {
+            plAA = 51
+            plAB = 51
+            plBB = 0
+          } else {
+            val dAA = if (pAA == 0) 51 else BgenLoader.phredConversionTable(pAA)
+            val dAB = if (pAB == 0) 51 else BgenLoader.phredConversionTable(pAB)
+            val dBB = if (pBB == 0) 51 else BgenLoader.phredConversionTable(pBB)
+
+            val minValue = math.min(math.min(dAA, dAB), dBB)
+
+            plAA = (dAA - minValue + .5).toInt
+            plAB = (dAB - minValue + .5).toInt
+            plBB = (dBB - minValue + .5).toInt
+          }
+
+          assert(plAA == 0 || plAB == 0 || plBB == 0)
+
+          val gt = if (plAA == 0 && plAB == 0
+            || plAA == 0 && plBB == 0
+            || plAB == 0 && plBB == 0)
+            -1
+          else {
+            if (plAA == 0)
+              0
+            else if (plAB == 0)
+              1
+            else
+              2
+          }
+
+        genoBuilder.clear()
+        if (gt >= 0) {
+          genoBuilder.setGT(gt)
+          plArray(0) = plAA
+          plArray(1) = plAB
+          plArray(2) = plBB
+          genoBuilder.setPL(plArray)
+        }
+        b.write(genoBuilder)
+
       }
-    }
-    (variant, annotations, genotypeStream)
+    (variant, annotations, b.result())
   }
 }
 

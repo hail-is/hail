@@ -266,7 +266,7 @@ object Main {
     if (secretAccessKey != null) {
       hadoopConf.set("fs.s3a.secret.key", secretAccessKey)
       hadoopConf.set("fs.s3n.secret.key", secretAccessKey)
-    }
+    }`
 
     // FIXME separate entrypoints
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath

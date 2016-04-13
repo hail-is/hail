@@ -54,7 +54,6 @@ object ImportBGEN extends Command {
 
     sc.hadoopConfiguration.setBoolean("compressGS", !options.noCompress)
 
-
     val results = inputs.map(f => (f, BgenLoader.load(sc, f, Option(options.nPartitions))))
 
     val unequalSamples = results.filter(_._2._1 != nSamples).map(x => (x._1, x._2._1))
@@ -68,8 +67,6 @@ object ImportBGEN extends Command {
            |  ${noVariants.mkString("\n  ")})""".stripMargin)
 
     val nVariants = results.map(x => x._2._2).sum
-
-
 
     info(s"Number of BGEN files parsed: ${results.length}")
     info(s"Number of variants in all BGEN files: $nVariants")

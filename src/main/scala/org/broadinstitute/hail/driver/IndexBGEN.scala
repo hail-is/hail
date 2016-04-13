@@ -13,12 +13,9 @@ import scala.collection.JavaConverters._
 object IndexBGEN extends Command {
   def name = "indexbgen"
 
-  def description = "Make an index for BGEN file. Must be done before running importbgen"
+  def description = "Create an index for one or more BGEN files.  `importbgen' cannot run without these indexes."
 
   class Options extends BaseOptions {
-    @Args4jOption(name = "-s", aliases = Array("--samplefile"), usage = "Sample file for BGEN files")
-    var sampleFile: String = null
-
     @Argument(usage = "<file>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
@@ -59,11 +56,13 @@ object IndexBGEN extends Command {
       }
     }
 
-    val serializedHConf = state.sc.broadcast(new SerializableHadoopConfiguration(state.hadoopConf))
+    val sHC = new SerializableHadoopConfiguration(state.hadoopConf)
 
     state.sc.parallelize(inputs).foreach { in =>
-        BgenLoader.index(serializedHConf.value.value, in)
+        BgenLoader.index(sHC.value, in)
     }
+
+    info(s"Number of BGEN files indexed: ${inputs.length}")
 
     state
   }

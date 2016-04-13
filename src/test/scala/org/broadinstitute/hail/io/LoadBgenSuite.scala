@@ -49,19 +49,18 @@ class LoadBgenSuite extends SparkSuite {
     val bgenFull = bgenVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((bgenQuery(va).get,bgenSampleIds(i)),gt)}
     val genFull = genVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((genQuery(va).get,genSampleIds(i)),gt)}
 
+    println(bgenVDS.metadata)
+    println(genVDS.metadata)
+
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)
     assert(bgenVariantsAnnotations.collect() sameElements genVariantsAnnotations.collect())
     genFull.fullOuterJoin(bgenFull)
       .collect()
       .foreach{case ((v,i),(gt1,gt2)) =>
-        println("variant = " + v)
-        println("sample = " + i)
-
-        println("genGT = " + gt1)
-        println("bgenGT = " + gt2)
         assert(gt1 == gt2)}
   }
+
 
 
   object Spec extends Properties("ImportBGEN") {
@@ -79,8 +78,10 @@ class LoadBgenSuite extends SparkSuite {
         val bgenFile = fileRoot + ".bgen"
         val qcToolLogFile = fileRoot + ".qctool.log"
         val qcToolPath = "qctool"
+//        val qcToolPath = "/Users/tpoterba/Downloads/qctool_v1.4-osx/qctool"
 
-        hadoopDelete(fileRoot + "*", sc.hadoopConfiguration, true)
+//        hadoopGlobAll(fileRoot + "*", sc.hadoopConfiguration).foreach(hadoopDelete(_, sc.hadoopConfiguration, true))
+//        hadoopDelete(fileRoot + "*", sc.hadoopConfiguration, true)
         hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, true)
         hadoopDelete(genFile, sc.hadoopConfiguration, true)
         hadoopDelete(sampleFile, sc.hadoopConfiguration, true)
@@ -124,12 +125,11 @@ class LoadBgenSuite extends SparkSuite {
 
           val result = originalFull.fullOuterJoin(importedFull).map{ case ((v, i), (gt1, gt2)) =>
             val gt1x = gt1 match {
-              case Some(x) => {
-                var newPl = x.pl.getOrElse(Array(0,0,0)).map{i => math.min(i, 48)}
-                val newGt = BgenLoader.parseGenotype(newPl)
+              case Some(x) =>
+                var newPl = x.pl.getOrElse(Array(0,0,0)).map{i => math.min(i, 51)}
+                val newGt = BgenUtils.parseGenotype(newPl)
                 newPl = if (newGt == -1) null else newPl
                 Some(x.copy(gt = Option(newGt), ad = None, dp = None, gq = None, pl = Option(newPl)))
-              }
               case None => None
             }
             gt1x == gt2
@@ -140,7 +140,26 @@ class LoadBgenSuite extends SparkSuite {
       }
   }
 
-  @Test def testBgenImportRandom() {
+  @Test(priority = -1) def testBgenImportRandom() {
     Spec.check()
+  }
+}
+
+object BgenUtils {
+  def parseGenotype(pls: Array[Int]): Int = {
+    if (pls(0) == 0 && pls(1) == 0
+      || pls(0) == 0 && pls(2) == 0
+      || pls(1) == 0 && pls(2) == 0)
+      -1
+    else {
+      if (pls(0) == 0)
+        0
+      else if (pls(1) == 0)
+        1
+      else if (pls(2) == 0)
+        2
+      else
+        -1
+    }
   }
 }

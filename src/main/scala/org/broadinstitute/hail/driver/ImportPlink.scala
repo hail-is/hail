@@ -22,6 +22,9 @@ object ImportPlink extends Command {
     @Args4jOption(name = "--fam", usage = "Plink .fam file", forbids = Array("--bfile"), depends = Array("--bim","--bed"))
     var fam: String = _
 
+    @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
+    var noCompress: Boolean = false
+
     @Args4jOption(name = "-n", aliases = Array("--npartition"), usage = "Number of partitions")
     var nPartitions: java.lang.Integer = _
   }
@@ -30,6 +33,8 @@ object ImportPlink extends Command {
 
   def run(state: State, options: Options): State = {
     val nPartitionOption = Option(options.nPartitions).map(_.toInt)
+
+    state.hadoopConf.setBoolean("compressGS", !options.noCompress)
 
     if (options.bfile == null && (options.bed == null || options.bim == null || options.fam == null))
       fatal("invalid input: require either --bed/--bim/--fam arguments or --bfile argument")
