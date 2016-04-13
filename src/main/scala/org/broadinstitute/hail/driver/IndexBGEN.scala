@@ -2,11 +2,10 @@ package org.broadinstitute.hail.driver
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import org.apache.spark.SparkEnv
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.io.BgenLoader
 import org.apache.hadoop
-import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+import org.kohsuke.args4j.Argument
 
 import scala.collection.JavaConverters._
 
