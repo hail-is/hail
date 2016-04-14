@@ -23,17 +23,17 @@ Five variant annotations are then added with root `va.linreg` as shown in the ta
 
 Adding `-o myStudy.linreg` to the command above will cause Hail to immediately output a TSV file `myStudy.linreg` with the default format given by the columns below.
 
-Annotation | Column Name | Value
----|---|---
-v.contig | Chrom | chromosome
-v.pos | Pos | position
-v.ref | Ref | reference allele
-v.alt | Alt | alternate allele
-va.linreg.nMissing | Missing | count of missing genotypes
-va.linreg.beta | Beta | fit genotype coefficient, `b1` above
-va.linreg.se | StdErr | standard error of beta
-va.linreg.tstat | TStat | t-statistic, equal to beta / se
-va.linreg.pval | PVal | p-value
+Annotation | Column | Type | Value
+---|---|---|---
+v.contig | Chrom | String | chromosome
+v.pos | Pos | Int| position
+v.ref | Ref | String | reference allele
+v.alt | Alt | String | alternate allele
+va.linreg.nMissing | Missing | Int | count of missing genotypes
+va.linreg.beta | Beta | Double | fit genotype coefficient, `b1` above
+va.linreg.se | StdErr | Double | standard error of beta
+va.linreg.tstat | TStat | Double | t-statistic, equal to beta / se
+va.linreg.pval | PVal | Double | p-value
 
 Phenotype and covariate sample annotations may also be specified using [programmatic expressions](https://github.com/broadinstitute/hail/blob/master/docs/ProgrammaticAnnotation.md) without identifiers, such as `if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)`.
 
