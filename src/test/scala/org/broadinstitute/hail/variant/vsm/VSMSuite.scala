@@ -140,7 +140,7 @@ class VSMSuite extends SparkSuite {
     }
   }
 
-  @Test(priority = 1) def testReadWrite() {
+  @Test def testReadWrite() {
     val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
       hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
       vsm.write(sqlContext, "/tmp/foo.vds")
@@ -151,7 +151,7 @@ class VSMSuite extends SparkSuite {
     p.check
   }
 
-  @Test(priority = 1) def testFilterSamples() {
+  @Test def testFilterSamples() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
     val nSamples = vds.nSamples
