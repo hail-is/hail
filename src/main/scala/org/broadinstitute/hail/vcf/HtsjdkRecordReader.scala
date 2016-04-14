@@ -2,11 +2,12 @@ package org.broadinstitute.hail.vcf
 
 import htsjdk.variant.variantcontext.VariantContext
 import org.apache.spark.Accumulable
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
@@ -30,7 +31,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     vc: VariantContext,
     infoSignature: TStruct,
     storeGQ: Boolean,
-    skipGenotypes: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
+    skipGenotypes: Boolean,
+    compress: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filters: mutable.WrappedArray[String] = {
@@ -78,7 +80,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
     // FIXME compress
     val noCall = Genotype()
-    val gsb = new GenotypeStreamBuilder(v, true)
+    val gsb = new GenotypeStreamBuilder(v, compress)
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala

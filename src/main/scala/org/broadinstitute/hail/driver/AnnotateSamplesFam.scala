@@ -43,7 +43,8 @@ object AnnotateSamplesFam extends Command {
 
     val input = options.input
 
-    fatalIf(!input.endsWith(".fam"), "input file must end in .fam")
+    if (!input.endsWith(".fam"))
+      fatal("input file must end in .fam")
 
     val delimiter = options.delimiter
     val isQuantitative = options.isQuantitative

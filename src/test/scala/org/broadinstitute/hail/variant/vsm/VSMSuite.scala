@@ -1,17 +1,18 @@
 package org.broadinstitute.hail.variant.vsm
 
-import org.broadinstitute.hail.expr._
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import scala.collection.mutable
-import scala.util.Random
-import scala.language.postfixOps
-import org.broadinstitute.hail.methods.LoadVCF
-import org.testng.annotations.Test
-import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods.LoadVCF
+import org.broadinstitute.hail.variant._
+import org.testng.annotations.Test
+
+import scala.collection.mutable
+import scala.language.postfixOps
+import scala.util.Random
 
 class VSMSuite extends SparkSuite {
 
@@ -139,7 +140,7 @@ class VSMSuite extends SparkSuite {
     }
   }
 
-  @Test def testReadWrite() {
+  @Test(priority = 1) def testReadWrite() {
     val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
       hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
       vsm.write(sqlContext, "/tmp/foo.vds")
@@ -150,7 +151,7 @@ class VSMSuite extends SparkSuite {
     p.check
   }
 
-  @Test def testFilterSamples() {
+  @Test(priority = 1) def testFilterSamples() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
     val nSamples = vds.nSamples

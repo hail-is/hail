@@ -6,12 +6,12 @@ import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.{Arbitrary, Gen}
-
-import scala.language.implicitConversions
-import scala.collection.mutable
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
+
+import scala.collection.mutable
+import scala.language.implicitConversions
 
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
@@ -190,6 +190,8 @@ class Genotype(private val _gt: Int,
     val mincp = d.cumulativeProbability(minDepth)
     (2 * mincp - minp).min(1.0).max(0.0)
   }
+
+  def fractionReadsAlt(): Option[Double] = ad.map { arr => arr(0).toDouble / arr.sum }
 
   def toJSON: JValue = JObject(
     ("gt", gt.map(JInt(_)).getOrElse(JNull)),

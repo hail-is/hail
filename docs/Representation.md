@@ -1,3 +1,4 @@
+
 # Representation of sequence data in Hail
 
 ```
@@ -111,4 +112,5 @@ Identifier | Type | Description
 `g.isNotCalled`    | `Boolean` | true if the genotype is `./.`
 `g.nNonRef`        | `Int`     | the number of called alternate alleles
 `g.pAB()`          | `Double`  | p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
+`g.fractionReadsAlt` | `Double` | the ratio of ref reads to the sum of all informative reads
  

@@ -10,15 +10,17 @@ import scala.collection.mutable
 
 object SampleTSVAnnotator extends TSVAnnotator {
   def apply(filename: String, sampleCol: String, declaredSig: Map[String, Type], missing: String,
-    hConf: hadoop.conf.Configuration): (Map[String, Annotation], Type) = {
+    hConf: hadoop.conf.Configuration, delimiter: String): (Map[String, Annotation], Type) = {
     readLines(filename, hConf) { lines =>
-      fatalIf(lines.isEmpty, "empty TSV file")
+      if (lines.isEmpty)
+        fatal("empty TSV file")
 
       val header = lines.next().value
-      val split = header.split("\t")
+      val split = header.split(delimiter)
 
       val sampleIndex = split.indexOf(sampleCol)
-      fatalIf(sampleIndex < 0, s"Could not find designated sample column id '$sampleCol")
+      if (sampleIndex < 0)
+        fatal(s"Could not find designated sample column id '$sampleCol")
       declaredSig.foreach { case (id, t) =>
         if (!split.contains(id))
           warn(s"""found "$id" in type map but not in TSV header """)
@@ -45,7 +47,9 @@ object SampleTSVAnnotator extends TSVAnnotator {
       val ab = mutable.ArrayBuilder.make[Any]
       val m = lines.map {
         _.transform { l =>
-          val lineSplit = l.value.split("\t")
+          val lineSplit = l.value.split(delimiter)
+          if (lineSplit.length != split.length)
+            fatal(s"expected ${split.length} fields, but got ${lineSplit.length}")
           val sample = lineSplit(sampleIndex)
           ab.clear()
           lineSplit.iterator.zip(functions.iterator)

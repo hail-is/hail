@@ -2,21 +2,19 @@ package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
 
-import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 
-import scala.language.implicitConversions
-import org.broadinstitute.hail.annotations._
-
-import scala.reflect.ClassTag
-
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
-import org.apache.spark.sql.types.{StructType, StructField}
+import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 object VariantSampleMatrix {
   final val magicNumber: Int = 0xe51e2c58
@@ -39,11 +37,40 @@ object VariantSampleMatrix {
     val pqtSuccess = dirname + "/rdd.parquet/_SUCCESS"
     val metadataFile = dirname + "/metadata.ser"
 
-    if (!hadoopExists(hConf, pqtSuccess))
-      fatal("corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
-
     if (!hadoopExists(hConf, metadataFile))
       fatal("corrupt VDS: no metadata.ser file.  Recreate VDS.")
+
+    val (sampleIds, sampleAnnotations, globalAnnotation, wasSplit) =
+      readDataFile(dirname + "/metadata.ser", hConf) { dis =>
+        try {
+          val serializer = SparkEnv.get.serializer.newInstance()
+          val ds = serializer.deserializeStream(dis)
+
+          val m = ds.readObject[Int]
+          if (m != magicNumber)
+            fatal("Invalid VDS: invalid magic number")
+
+          val v = ds.readObject[Int]
+          if (v != fileVersion)
+            fatal("Old VDS version found")
+
+          val sampleIds = ds.readObject[IndexedSeq[String]]
+          val sampleAnnotations = ds.readObject[IndexedSeq[Annotation]]
+          val globalAnnotation = ds.readObject[Annotation]
+          val wasSplit = ds.readObject[Boolean]
+
+          ds.close()
+          (sampleIds, sampleAnnotations, globalAnnotation, wasSplit)
+
+        } catch {
+          case e: Exception =>
+            println(e)
+            fatal(s"Invalid VDS: ${e.getMessage}\n  Recreate with current version of Hail.")
+        }
+      }
+
+    if (!hadoopExists(hConf, pqtSuccess))
+      fatal("corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
 
     if (!hadoopExists(hConf, vaSchema, saSchema, globalSchema))
       fatal("corrupt VDS: one or more .schema files missing.  Recreate VDS.")
@@ -66,35 +93,10 @@ object VariantSampleMatrix {
       Parser.parseType(schema)
     }
 
-    val metadata = readDataFile(dirname + "/metadata.ser", hConf) { dis => {
-      try {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        val ds = serializer.deserializeStream(dis)
 
-        val m = ds.readObject[Int]
-        if (m != magicNumber)
-          fatal("Invalid VDS: invalid magic number.\n  Recreate with current version of Hail.")
+    val metadata = VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
+      saSignature, vaSignature, globalSignature, wasSplit)
 
-        val v = ds.readObject[Int]
-        if (v != fileVersion)
-          fatal("Old VDS version found.  Recreate with current version of Hail.")
-
-        val sampleIds = ds.readObject[IndexedSeq[String]]
-        val sampleAnnotations = ds.readObject[IndexedSeq[Annotation]]
-        val globalAnnotation = ds.readObject[Annotation]
-        val wasSplit = ds.readObject[Boolean]
-
-        ds.close()
-
-        VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
-          saSignature, vaSignature, globalSignature, wasSplit)
-      } catch {
-        case e: Exception =>
-          println(e)
-          fatal(s"Invalid VDS: ${e.getMessage}\n  Recreate with current version of Hail.")
-      }
-    }
-    }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
@@ -623,7 +625,9 @@ class RichVDS(vds: VariantDataset) {
           Row.fromSeq(Array(v.toRow, va.asInstanceOf[Row], gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
-      .write.parquet(dirname + "/rdd.parquet")
+      .write
+      .mode("overwrite")
+      .parquet(dirname + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
 

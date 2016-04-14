@@ -9,12 +9,14 @@ import scala.collection.mutable
 
 object SampleFamAnnotator {
   //Matches decimal numbers, including scientific notation
-  val numericRegex = """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
+  val numericRegex =
+    """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def apply(filename: String, delimiter: String, isQuantitative: Boolean, missing: String,
     hConf: hadoop.conf.Configuration): (Map[String, Annotation], Type) = {
     readLines(filename, hConf) { lines =>
-      fatalIf(lines.isEmpty, "Empty .fam file")
+      if (lines.isEmpty)
+        fatal("Empty .fam file")
 
       val phenoSig = if (isQuantitative) ("qPheno", TDouble) else ("isCase", TBoolean)
 
@@ -25,7 +27,8 @@ object SampleFamAnnotator {
       val m = lines.map {
         _.transform { line =>
           val split = line.value.split(delimiter)
-          fatalIf(split.length != 6, s"Malformed .fam file: expected 6 fields in line ${line.position}, got ${split.length}")
+          if (split.length != 6)
+            fatal(s"Malformed .fam file: expected 6 fields in line ${line.position}, got ${split.length}")
           val Array(fam, kid, dad, mom, isMale, pheno) = split
 
           if (kidSet(kid))

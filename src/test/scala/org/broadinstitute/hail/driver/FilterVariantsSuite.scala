@@ -2,12 +2,12 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.{Gen, Prop}
 import org.testng.annotations.Test
 
 class FilterVariantsSuite extends SparkSuite {
-  @Test def test() {
+  @Test(priority = 1) def test() {
     var s = State(sc, sqlContext)
 
     s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))

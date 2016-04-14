@@ -2,9 +2,9 @@ package org.broadinstitute.hail.methods
 
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.{Phenotype, Sex}
 import org.broadinstitute.hail.variant.Phenotype.{Case, Control, Phenotype}
 import org.broadinstitute.hail.variant.Sex.{Female, Male, Sex}
+import org.broadinstitute.hail.variant.{Phenotype, Sex}
 
 import scala.collection.mutable
 import scala.io.Source
@@ -55,7 +55,8 @@ object Pedigree {
         .filter(line => !line.isEmpty)
         .flatMap { line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
           val splitLine = line.split("\\s+") // FIXME: fails on names with spaces, will fix in PR for adding .fam to annotations by giving delimiter option
-          fatalIf(splitLine.size != 6, s"Require 6 fields per line in .fam, but this line has ${splitLine.size}: $line")
+          if (splitLine.size != 6)
+            fatal(s"Require 6 fields per line in .fam, but this line has ${splitLine.size}: $line")
           val Array(fam, kid, dad, mom, sex, pheno) = splitLine
           if (sampleSet(kid)) {
             if (readSampleSet(kid))

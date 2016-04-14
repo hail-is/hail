@@ -12,12 +12,13 @@ import scala.collection.mutable
 
 object VariantTSVAnnotator extends TSVAnnotator {
   def apply(sc: SparkContext, files: Array[String], vColumns: Array[String], declaredSig: Map[String, Type],
-    missing: String): (RDD[(Variant, Annotation)], Type) = {
+    missing: String, delimiter: String): (RDD[(Variant, Annotation)], Type) = {
 
     val (header, split) = readLines(files.head, sc.hadoopConfiguration) { lines =>
-      fatalIf(lines.isEmpty, "empty TSV file")
+      if(lines.isEmpty)
+        fatal("empty TSV file")
       val h = lines.next().value
-      (h, h.split("\t"))
+      (h, h.split(delimiter))
     }
 
     declaredSig.foreach { case (id, _) =>
@@ -29,12 +30,12 @@ object VariantTSVAnnotator extends TSVAnnotator {
       // format CHR:POS:REF:ALT
       val variantIndex = vColumns.map(s => split.indexOf(s))
       variantIndex.foreach { i =>
-        fatalIf(i < 0, s"Could not find designated CHR:POS:REF:ALT column identifier `${vColumns.head}'")
+        if(i < 0)
+        fatal(s"Could not find designated CHR:POS:REF:ALT column identifier `${vColumns.head}'")
       }
       (true, variantIndex)
     } else {
       // format CHR  POS  REF  ALT
-      // lengths not equal to 1 or 4 are checked in AnnotateVariants.parseColumns
       val variantIndex = vColumns.map(s => split.indexOf(s))
       if (variantIndex(0) < 0 || variantIndex(1) < 0 || variantIndex(2) < 0 || variantIndex(2) < 0) {
         val notFound = vColumns.flatMap(i => if (split.indexOf(i) < 0) Some(i) else None)
@@ -61,29 +62,33 @@ object VariantTSVAnnotator extends TSVAnnotator {
 
     val functions = buildParsers(missing, orderedSignatures)
 
-    val f: (mutable.ArrayBuilder[Annotation], String) => (Variant, Annotation) = {
-      (ab, line) =>
-        val lineSplit = line.split("\t")
-        val variant = {
-          if (shortForm) {
-            // chr:pos:ref:alt
-            val Array(chr, pos, ref, alt) = lineSplit(vColIndices.head).split(":")
-            Variant(chr, pos.toInt, ref, alt)
-          } else {
-            // long form
-            Variant(lineSplit(vColIndices(0)), lineSplit(vColIndices(1)).toInt,
-              lineSplit(vColIndices(2)), lineSplit(vColIndices(3)))
+    val f: (mutable.ArrayBuilder[Annotation], Line) => (Variant, Annotation) = {
+      (ab, l) =>
+        l.transform { line =>
+          val lineSplit = line.value.split(delimiter)
+          if (lineSplit.length != split.length)
+            fatal(s"Expected ${header.length} fields, but got ${lineSplit.length}")
+          val variant = {
+            if (shortForm) {
+              // chr:pos:ref:alt
+              val Array(chr, pos, ref, alt) = lineSplit(vColIndices.head).split(":")
+              Variant(chr, pos.toInt, ref, alt)
+            } else {
+              // long form
+              Variant(lineSplit(vColIndices(0)), lineSplit(vColIndices(1)).toInt,
+                lineSplit(vColIndices(2)), lineSplit(vColIndices(3)))
+            }
           }
+          ab.clear()
+          lineSplit.iterator.zip(functions.iterator)
+            .foreach { case (field, fn) => fn(ab, field) }
+          val res = ab.result()
+          (variant, Row.fromSeq(res))
         }
-        ab.clear()
-        lineSplit.iterator.zip(functions.iterator)
-          .foreach { case (field, fn) => fn(ab, field) }
-        val res = ab.result()
-        (variant, Row.fromSeq(res))
     }
 
     val rdd = sc.textFiles(files)
-        .filter(_ != header)
+        .filter(_.value != header)
         .mapPartitions {
           iter =>
             val ab = mutable.ArrayBuilder.make[Any]
