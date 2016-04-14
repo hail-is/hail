@@ -17,7 +17,11 @@ fits a model of the form
 
 `height = b0 + b1 * x + b2 * age + b3 * isMale + e`
 
-where the genotype `x` is coded as 0 (HomRef), 1 (Het), and 2 (HomVar), the Boolean covariate isMale is coded as 0 (false) and 1 (true), and `e` is normal noise. Five variant annotations are then added with root `va.linreg` as shown in the table. Adding `-o myStudy.linreg` will additionally save a TSV file `myStudy.linreg` with a row for each variant and the following columns.
+where the genotype `x` is coded as 0 for HomRef, 1 for Het, and 2 for HomVar, the Boolean covariate isMale is coded as 1 for true (male) and 0 for false (female), and `e` is normal noise.
+
+Five variant annotations are then added with root `va.linreg` as shown in the table. These annotations can then be accessed by other methods, including exporting to TSV with other variant annotations.
+
+Adding `-o myStudy.linreg` to the command above will cause Hail to immediately output a TSV file `myStudy.linreg` with the default format given by the columns below.
 
 Annotation | Column Name | Value
 ---|---|---
