@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import breeze.linalg.{DenseMatrix, DenseVector}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression}
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -21,6 +22,9 @@ object LinearRegressionCommand extends Command {
     @Args4jOption(required = false, name = "-c", aliases = Array("--covariates"), usage = "Covariate sample annotations, comma-separated")
     var covSA: String = ""
 
+    @Args4jOption(required = false, name = "-r", aliases = Array("--root"), usage = "Variant annotation root, a period-delimited path starting with `va'")
+    var root: String = "va.linreg"
+
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Path of output tsv")
     var output: String = _
   }
@@ -28,8 +32,9 @@ object LinearRegressionCommand extends Command {
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-
     val vds = state.vds
+
+    val pathVA = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
 
     val symTab = Map(
       "s" -> (0, TSample),
@@ -60,7 +65,7 @@ object LinearRegressionCommand extends Command {
     }
 
     val covQ = Parser.parseExprs(options.covSA, symTab, a)
-    val covToDouble = (covQ.map(_._1), Parser.parseCodes(options.covSA)).zipped.map(toDouble)
+    val covToDouble = (covQ.map(_._1), options.covSA.split(",").map(_.trim)).zipped.map(toDouble)
     val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
       a(1) = sa
@@ -95,7 +100,7 @@ object LinearRegressionCommand extends Command {
 
     val linreg = LinearRegression(vdsFilt, y, cov)
 
-    val (newVAS, inserter) = vdsFilt.insertVA(LinRegStats.`type`, "linreg")
+    val (newVAS, inserter) = vdsFilt.insertVA(LinRegStats.`type`, pathVA)
 
     val newState = state.copy(
       vds = vds.copy(
@@ -108,15 +113,15 @@ object LinearRegressionCommand extends Command {
 
     if (options.output != null)
       ExportVariants.run(newState, Array("-o", options.output, "-c",
-        """Chrom=v.contig,
+        s"""Chrom=v.contig,
           |Pos=v.start,
           |Ref=v.ref,
           |Alt=v.alt,
-          |Missing=va.linreg.nMissing,
-          |Beta=va.linreg.beta,
-          |StdErr=va.linreg.se,
-          |TStat=va.linreg.tstat,
-          |PVal=va.linreg.pval""".stripMargin))
+          |Missing=${options.root}.nMissing,
+          |Beta=${options.root}.beta,
+          |StdErr=${options.root}.se,
+          |TStat=${options.root}.tstat,
+          |PVal=${options.root}.pval""".stripMargin))
 
     newState
   }

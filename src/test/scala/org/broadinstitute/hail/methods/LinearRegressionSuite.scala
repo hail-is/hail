@@ -30,7 +30,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.pheno.Pheno",
-      "-c", "sa.cov.Cov1,sa.cov.Cov2",
+      "-c", "sa.cov.Cov1, sa.cov.Cov2 + 1 - 1",
       "-o", "/tmp/linearRegression.tsv"))
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)

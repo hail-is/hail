@@ -1,40 +1,34 @@
 # Linear Regression
 
-The `linreg` command computes, for each variant, the linear function of best fit from sample genotype and covariates to
-case-control status, outputing the p-value of the t-test for the genotype coefficient.
+The `linreg` command computes, for each variant, the p-value of the t-test for the genotype coefficient of the linear function of best fit from sample genotype and covariates to
+quantitative phenotype or case-control status.
 
 Command line options:
- - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
- - `-c | --cov <filename>` -- a .cov file, see below
- - `-o | --output <filename>` -- an output TSV file
+ - `-y | --y <filename>` -- a sample annotation of numeric or Boolean type
+ - `-c | --covariates <filename>` -- a comma-separated list of sample annotations of numeric or Boolean type (optional)
+ - `-r | --root <root>` -- variant annotation path for linreg output, starting with `va` (optional, default is `va.linreg`)
+ - `-o | --output <filename>` --  filename for default output TSV file (optional)
 
-The command
+Assuming there are sample annotations `sa.pheno.height`, `sa.cov.age`, and `sa.cov.isMale`, the command
 ```
-linreg -f myStudy.fam -c myStudy.cov -o myStudy.linreg
+linreg -y sa.pheno.height -c sa.cov.age,sa.cov.isMale
 ```
-outputs a TSV file `myStudy.linreg` with a row for each variant and the following columns.
+adds the five variant annotations shown below with root `va.linreg`. Adding `-o myStudy.linreg` will additionally save a TSV file `myStudy.linreg` with a row for each variant and the following columns.
 
-Column | Value
----|---
-CHR | chromosome
-POS | position
-REF | reference allele
-ALT | alternate allele
-MISS | count of missing genotypes
-BETA | genotype coefficient
-SE | standard error
-T | t-statistic
-P | p-value
+Annotation | Column Name | Value
+---|---|---
+v.contig | Chrom | chromosome
+v.pos | Pos | position
+v.ref | Ref | reference allele
+v.alt | Alt | alternate allele
+va.linreg.nMissing | Missing | count of missing genotypes
+va.linreg.beta | Beta | genotype coefficient
+va.linreg.se | StdErr | standard error
+va.linreg.tstat | TStat | t-statistic
+va.linreg.pval | PVal | p-value
 
-A `.cov` file is a TSV file of sample covariate data. The first column records the sample ID. Here is an example with two samples:
+Phenotype and covariate sample annotations may also be specified using [programmatic expressions](https://github.com/broadinstitute/hail/blob/master/docs/ProgrammaticAnnotation.md) without identifiers, such as `if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)`.
 
-```
-IID   AGE   SEX   PC1   PC2
-Ann   10    2     1.2   6.7
-Bob   12    1     -0.2  2.8
-```
+The samples included in the regression are those in the variant data set with phenotype and all covariates defined. For each variant, missing genotypes are imputed as the mean of called genotypes. Cases are coded as 1 and controls are coded as 0. For Boolean types, true is coded as 1 and false as 0.
 
-
-Samples are included in the regression if and only if they are in the variant data set, the .cov file, and the .fam file with a defined phenotype. For each variant, missing genotypes are imputed as the mean of called genotypes.
-
-The standard least-squares linear regression model is derived in Section 3.2 of [The Elements of Statistical Learning, 2nd Edition](https://web.stanford.edu/~hastie/local.ftp/Springer/OLD/ESLII_print4.pdf). See equation 3.12 for the t-statistic which follows the t-distribution with n - k - 2 degrees of freedom, under the null hypothesis of no effect, with n samples and k covariates in addition to genotype.
+The standard least-squares linear regression model is derived in Section 3.2 of [The Elements of Statistical Learning, 2nd Edition](https://web.stanford.edu/~hastie/local.ftp/Springer/OLD/ESLII_print4.pdf). See equation 3.12 for the t-statistic which follows the t-distribution with n - k - 2 degrees of freedom, under the null hypothesis of no effect, with n samples and k covariates in addition to genotype and intercept.
