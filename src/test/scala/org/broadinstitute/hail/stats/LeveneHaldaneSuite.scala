@@ -19,7 +19,9 @@ class LeveneHaldaneSuite extends TestNGSuite {
     }
   }
 
-  val examples = List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431), (1526, 430), (10000,1500))
+  //  val examples = List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431), (1526, 430), (10000,1500))
+  // The above is commented out because ain't nobody got time for that.
+  val examples = List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431), (1526, 430))
 
   @Test def pmfTest() {
 

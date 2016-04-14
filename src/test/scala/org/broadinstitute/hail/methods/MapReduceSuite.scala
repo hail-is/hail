@@ -22,16 +22,16 @@ class MapReduceSuite extends SparkSuite {
 
 
     val vds = s.vds
-    val qSingleton = vds.querySA("qc", "nSingleton")
-    val qSingletonGlobal = vds.queryGlobal("singStats")
+    val qSingleton = vds.querySA("sa.qc.nSingleton")._2
+    val qSingletonGlobal = vds.queryGlobal("global.singStats")._2
 
     val sCount = vds.sampleAnnotations.count(sa => {
       qSingleton(sa).exists(_.asInstanceOf[Int] > 2)
     })
 
-    assert(qSingletonGlobal(vds.globalAnnotation).contains(sCount))
+    assert(qSingletonGlobal.contains(sCount))
 
-    val qMaf = vds.queryVA("qc", "MAF")
+    val qMaf = vds.queryVA("va.qc.MAF")._2
     val mafSC = vds.variantsAndAnnotations.map(_._2)
         .aggregate(new StatCounter())({case (statC, va) =>
         val maf = qMaf(va)
@@ -39,12 +39,12 @@ class MapReduceSuite extends SparkSuite {
         statC
         }, { case (sc1, sc2) => sc1.merge(sc2)})
 
-    assert(vds.queryGlobal("mafDist")(vds.globalAnnotation)
+    assert(vds.queryGlobal("global.mafDist")._2
       .contains(Annotation(mafSC.mean, mafSC.stdev, mafSC.min, mafSC.max, mafSC.count, mafSC.sum)))
 
-    assert(vds.queryGlobal("anotherAnnotation", "sumOver2")(vds.globalAnnotation).contains(mafSC.sum / 2))
+    assert(vds.queryGlobal("global.anotherAnnotation.sumOver2")._2.contains(mafSC.sum / 2))
 
-    val qMac = vds.queryVA("qc", "MAC")
+    val qMac = vds.queryVA("va.qc.MAC")._2
     val macSC = vds.variantsAndAnnotations.map(_._2)
       .aggregate(new StatCounter())({case (statC, va) =>
         val mac = qMac(va)
@@ -52,11 +52,11 @@ class MapReduceSuite extends SparkSuite {
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2)})
 
-    assert(vds.queryGlobal("macDist")(vds.globalAnnotation)
+    assert(vds.queryGlobal("global.macDist")._2
       .contains(Annotation(macSC.mean, macSC.stdev, macSC.min.toInt,
         macSC.max.toInt, macSC.count, macSC.sum.round.toInt)))
 
-    val qCR = vds.querySA("qc", "callRate")
+    val qCR = vds.querySA("sa.qc.callRate")._2
     val crSC = vds.sampleAnnotations
       .aggregate(new StatCounter())({case (statC, sa) =>
         val cr = qCR(sa)
@@ -64,7 +64,7 @@ class MapReduceSuite extends SparkSuite {
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2)})
 
-    assert(vds.queryGlobal("CRStats")(vds.globalAnnotation)
+    assert(vds.queryGlobal("CRStats")._2
       .contains(Annotation(crSC.mean, crSC.stdev, crSC.min,
         crSC.max, crSC.count, crSC.sum)))
 

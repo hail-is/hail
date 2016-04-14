@@ -48,22 +48,25 @@ object FilterGenotypes extends Command {
       "g" ->(4, TGenotype))
 
     val ec = EvalContext(symTab)
-    val f: () => Any = Parser.parse[Any](ec, TBoolean, cond)
+    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
-    val sampleIdsBc = sc.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
+    val sampleIdsBc = vds.sampleIdsBc
+    val sampleAnnotationsBc = vds.sampleAnnotationsBc
 
     val a = ec.a
 
+
+    (vds.sampleIds, vds.sampleAnnotations).zipped.map((_, _))
+
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
-      (v: Variant, va: Annotation, s: Int, g: Genotype) => {
+      (v: Variant, va: Annotation, s: String, sa: Annotation, g: Genotype) => {
         a(0) = v
         a(1) = va
-        a(2) = sampleIdsBc.value(s)
-        a(3) = sampleAnnotationsBc.value(s)
+        a(2) = s
+        a(3) = sa
         a(4) = g
-        if (Filter.keepThisAny(f(), keep))
+        if (Filter.keepThis(f(), keep))
           g
         else
           noCall

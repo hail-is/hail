@@ -35,7 +35,8 @@ class LinearRegressionSuite extends SparkSuite {
     c2 = c(-1, 3, 5, 0, -4, 3)
     df = data.frame(y, x, c1, c2)
     fit <- lm(y ~ x + c1 + c2, data=df)
-    summary(fit)
+    summary(fit)["coefficients"]
+
     */
 
     assert(D_==(statsOfVariant(v1).get.beta, -0.28589421))
@@ -64,10 +65,10 @@ class LinearRegressionSuite extends SparkSuite {
       Array("-f", "src/test/resources/linearRegression.fam",
       "-c", "src/test/resources/linearRegression.cov"))
 
-    val query1 = s.vds.queryVA("linreg", "beta")
-    val query2 = s.vds.queryVA("linreg", "stderr")
-    val query3 = s.vds.queryVA("linreg", "tstat")
-    val query4 = s.vds.queryVA("linreg", "pval")
+    val query1 = s.vds.queryVA("va.linreg.beta")._2
+    val query2 = s.vds.queryVA("va.linreg.stderr")._2
+    val query3 = s.vds.queryVA("va.linreg.tstat")._2
+    val query4 = s.vds.queryVA("va.linreg.pval")._2
 
     val annotationMap = s.vds.variantsAndAnnotations
     .collect()

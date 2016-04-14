@@ -49,10 +49,9 @@ object FilterSamples extends Command {
           Source.fromInputStream(reader)
             .getLines()
             .filter(line => !line.isEmpty)
-            .flatMap(indexOfSample.get)
             .toSet
         }
-        (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
+        (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val aggregationEC = EvalContext(Map(
           "v" ->(0, TVariant),
@@ -65,7 +64,7 @@ object FilterSamples extends Command {
           "sa" ->(1, sas),
         "gs" -> (-1, TAggregable(aggregationEC)))
         val ec = EvalContext(symTab)
-        val f: () => Any = Parser.parse(ec, TBoolean, cond)
+        val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
 
         val a = ec.a
@@ -78,13 +77,13 @@ object FilterSamples extends Command {
 
 
         val sampleIds = state.vds.sampleIds
-        (s: Int, sa: Annotation) => {
-          a(0) = sampleIds(s)
+        (s: String, sa: Annotation) => {
+          a(0) = s
           a(1) = sa
 
           sampleAggregationOption.foreach(f => f.apply(s))
 
-          Filter.keepThisAny(f(), keep)
+          Filter.keepThis(f(), keep)
         }
     }
 

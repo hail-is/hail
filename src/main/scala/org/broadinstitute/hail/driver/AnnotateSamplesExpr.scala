@@ -42,7 +42,7 @@ object AnnotateSamplesExpr extends Command {
       "gs" ->(-1, TAggregable(aggregationEC)))
 
     val ec = EvalContext(symTab)
-    val parsed = Parser.parseAnnotationArgs(ec, cond)
+    val parsed = Parser.parseAnnotationArgs(cond, ec)
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "sa")
@@ -69,17 +69,16 @@ object AnnotateSamplesExpr extends Command {
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
-    val newAnnotations = vdsAddedSigs.sampleAnnotations.zipWithIndex.map { case (sa, i) =>
-      a(0) = Sample(vds.sampleIds(i))
+    val newAnnotations = vdsAddedSigs.sampleIdsAndAnnotations.map { case (s, sa) =>
+      a(0) = s
       a(1) = sa
 
-      sampleAggregationOption.foreach(f => f.apply(i))
+      sampleAggregationOption.foreach(f => f.apply(s))
 
       val queries = computations.map(_ ())
       var newSA = sa
       queries.indices.foreach { i =>
-        newSA = inserters(i)(newSA,
-          Option(queries(i)))
+        newSA = inserters(i)(newSA, queries(i))
       }
       newSA
     }

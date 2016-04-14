@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.LoadVCF
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.annotations.Annotation
 import scala.collection.JavaConverters._
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
@@ -36,7 +37,7 @@ object AnnotateVariantsVCF extends Command with VCFImporter {
     val otherVdsSplit = SplitMulti.run(state.copy(vds = otherVds)).vds
 
     val annotated = vds.annotateVariants(otherVdsSplit.variantsAndAnnotations, otherVdsSplit.vaSignature,
-      AnnotateVariantsTSV.parseRoot(options.root))
+      Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
     state.copy(vds = annotated)
   }
 }

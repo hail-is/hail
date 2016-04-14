@@ -16,20 +16,20 @@ class AggregatorSuite extends SparkSuite {
         "va.test.MAF = gs.stats(g.nNonRefAlleles).sum.toDouble / gs.count(g.isCalled) / 2.0, " +
         "va.test.gqstats = gs.stats(g.gq), va.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
 
-    val qCallRate = s.vds.queryVA("test", "callrate")
-    val qCallRateQC = s.vds.queryVA("qc", "callRate")
-    val qMAC = s.vds.queryVA("test", "MAC")
-    val qMACQC = s.vds.queryVA("qc", "MAC")
-    val qMAF = s.vds.queryVA("test", "MAF")
-    val qMAFQC = s.vds.queryVA("qc", "MAF")
-    val gqStatsMean = s.vds.queryVA("test", "gqstats", "mean")
-    val gqStatsMeanQC = s.vds.queryVA("qc", "gqMean")
-    val gqStatsStDev = s.vds.queryVA("test", "gqstats", "stdev")
-    val gqStatsStDevQC = s.vds.queryVA("qc", "gqStDev")
-    val gqStatsHetMean = s.vds.queryVA("test", "gqhetstats", "mean")
-    val gqStatsHetMeanQC = s.vds.queryVA("qc", "gqMeanHet")
-    val gqStatsHetStDev = s.vds.queryVA("test", "gqhetstats", "stdev")
-    val gqStatsHetStDevQC = s.vds.queryVA("qc", "gqStDevHet")
+    val qCallRate = s.vds.queryVA("va.test.callrate")._2
+    val qCallRateQC = s.vds.queryVA("va.qc.callRate")._2
+    val qMAC = s.vds.queryVA("va.test.MAC")._2
+    val qMACQC = s.vds.queryVA("va.qc.MAC")._2
+    val qMAF = s.vds.queryVA("va.test.MAF")._2
+    val qMAFQC = s.vds.queryVA("va.qc.MAF")._2
+    val gqStatsMean = s.vds.queryVA("va.test.gqstats.mean")._2
+    val gqStatsMeanQC = s.vds.queryVA("va.qc.gqMean")._2
+    val gqStatsStDev = s.vds.queryVA("va.test.gqstats.stdev")._2
+    val gqStatsStDevQC = s.vds.queryVA("va.qc.gqStDev")._2
+    val gqStatsHetMean = s.vds.queryVA("va.test.gqhetstats.mean")._2
+    val gqStatsHetMeanQC = s.vds.queryVA("va.qc.gqMeanHet")._2
+    val gqStatsHetStDev = s.vds.queryVA("va.test.gqhetstats.stdev")._2
+    val gqStatsHetStDevQC = s.vds.queryVA("va.qc.gqStDevHet")._2
 
     s.vds.rdd.collect()
       .foreach {
@@ -62,16 +62,16 @@ class AggregatorSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.callrate = gs.fraction(g.isCalled), sa.test.gqstats = " +
       "gs.stats(g.gq), sa.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
 
-    val qCallRate = s.vds.querySA("test", "callrate")
-    val qCallRateQC = s.vds.querySA("qc", "callRate")
-    val gqStatsMean = s.vds.querySA("test", "gqstats", "mean")
-    val gqStatsMeanQC = s.vds.querySA("qc", "gqMean")
-    val gqStatsStDev = s.vds.querySA("test", "gqstats", "stdev")
-    val gqStatsStDevQC = s.vds.querySA("qc", "gqStDev")
-    val gqStatsHetMean = s.vds.querySA("test", "gqhetstats", "mean")
-    val gqStatsHetMeanQC = s.vds.querySA("qc", "gqMeanHet")
-    val gqStatsHetStDev = s.vds.querySA("test", "gqhetstats", "stdev")
-    val gqStatsHetStDevQC = s.vds.querySA("qc", "gqStDevHet")
+    val qCallRate = s.vds.querySA("sa.test.callrate")._2
+    val qCallRateQC = s.vds.querySA("sa.qc.callRate")._2
+    val gqStatsMean = s.vds.querySA("sa.test.gqstats.mean")._2
+    val gqStatsMeanQC = s.vds.querySA("sa.qc.gqMean")._2
+    val gqStatsStDev = s.vds.querySA("sa.test.gqstats.stdev")._2
+    val gqStatsStDevQC = s.vds.querySA("sa.qc.gqStDev")._2
+    val gqStatsHetMean = s.vds.querySA("sa.test.gqhetstats.mean")._2
+    val gqStatsHetMeanQC = s.vds.querySA("sa.qc.gqMeanHet")._2
+    val gqStatsHetStDev = s.vds.querySA("sa.test.gqhetstats.stdev")._2
+    val gqStatsHetStDevQC = s.vds.querySA("sa.qc.gqStDevHet")._2
 
     s.vds.sampleAnnotations
       .foreach {

@@ -6,5 +6,6 @@ object AnnotateSamples extends SuperCommand {
   def description = "Annotate samples in current dataset"
 
   register(AnnotateSamplesExpr)
+  register(AnnotateSamplesFam)
   register(AnnotateSamplesTSV)
 }

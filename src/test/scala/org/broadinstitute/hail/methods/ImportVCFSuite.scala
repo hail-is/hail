@@ -52,10 +52,10 @@ class ImportVCFSuite extends SparkSuite {
       g.gq.map { gqx => ((v.start, s), gqx) }
     }.collectAsMap()
     val expectedGQs = Map(
-      (16050612, 0) -> 27,
-      (16050612, 1) -> 15,
-      (16051453, 0) -> 37,
-      (16051453, 1) -> 52)
+      (16050612, "S") -> 27,
+      (16050612, "T") -> 15,
+      (16051453, "S") -> 37,
+      (16051453, "T") -> 52)
     assert(gqs == expectedGQs)
 
     s = SplitMulti.run(s, Array("--propagate-gq"))

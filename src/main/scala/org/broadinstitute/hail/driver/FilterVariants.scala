@@ -18,7 +18,7 @@ object FilterVariants extends Command {
     var remove: Boolean = false
 
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
-      usage = "Filter condition: expression or .interval_list file")
+      usage = "Filter condition: expression, .interval_list or .variant_list file")
     var condition: String = _
   }
 
@@ -43,8 +43,25 @@ object FilterVariants extends Command {
       case f if f.endsWith(".interval_list") =>
         val ilist = IntervalList.read(options.condition, state.hadoopConf)
         val ilistBc = state.sc.broadcast(ilist)
-        (v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+        (v: Variant, _: Annotation, _: Iterable[Genotype]) =>
           Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
+
+      case f if f.endsWith(".variant_list") =>
+        val variants = readLines(f, state.hadoopConf)(_.map(_.transform { line =>
+          val fields = line.value.split(":")
+          if (fields.length != 4)
+            fatal("invalid variant")
+          val ref = fields(2)
+          Variant(fields(0),
+            fields(1).toInt,
+            ref,
+            fields(3).split(",").map(alt => AltAllele(ref, alt)))
+        }).toSet)
+
+        val variantsBc = state.sc.broadcast(variants)
+
+        (v: Variant, _: Annotation, _: Iterable[Genotype]) => Filter.keepThis(variants.contains(v), keep)
+
       case c: String =>
         val aggregationEC = EvalContext(Map(
           "v" ->(0, TVariant),
@@ -59,11 +76,8 @@ object FilterVariants extends Command {
           "gs" ->(-1, TAggregable(aggregationEC)))
 
         val ec = EvalContext(symTab)
-        val f: () => Any = Parser.parse[Any](ec, TBoolean, cond)
-        val sampleInfoBc = vds.sparkContext.broadcast(
-          vds.localSamples.map(vds.sampleAnnotations)
-            .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
-        
+        val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+
         val a = ec.a
 
         val aggregatorOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
@@ -74,7 +88,7 @@ object FilterVariants extends Command {
 
           aggregatorOption.foreach(f => f(v, va, gs))
 
-          Filter.keepThisAny(f(), keep)
+          Filter.keepThis(f(), keep)
         }
     }
 

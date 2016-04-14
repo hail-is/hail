@@ -35,10 +35,10 @@ object GQByDP extends Command {
 
       s.write("\n")
 
-      for (i <- vds.sampleIds.indices) {
-        s.write(vds.sampleIds(i))
+      for (sample <- vds.sampleIds) {
+        s.write(sample)
         for (b <- 0 until GQByDPBins.nBins) {
-          gqbydp.get((i, b)) match {
+          gqbydp.get((sample, b)) match {
             case Some(percentGQ) => s.write("\t" + percentGQ)
             case None => s.write("\tNA")
           }

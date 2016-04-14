@@ -1,5 +1,7 @@
 package org.broadinstitute.hail
 
+import org.broadinstitute.hail.expr._
+
 package object annotations {
 
   class AnnotationPathException(msg: String = "") extends Exception(msg)

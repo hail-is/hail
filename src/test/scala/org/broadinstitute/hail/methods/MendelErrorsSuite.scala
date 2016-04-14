@@ -14,12 +14,12 @@ class MendelErrorsSuite extends SparkSuite {
     val nPerIndiv = men.nErrorPerIndiv.collectAsMap()
     val nPerVariant = men.nErrorPerVariant.collectAsMap()
 
-    val son = vds.sampleIds.indexOf("Son1")
-    val dtr = vds.sampleIds.indexOf("Dtr1")
-    val dad = vds.sampleIds.indexOf("Dad1")
-    val mom = vds.sampleIds.indexOf("Mom1")
-    val dad2 = vds.sampleIds.indexOf("Dad2")
-    val mom2 = vds.sampleIds.indexOf("Mom2")
+    val son = "Son1"
+    val dtr = "Dtr1"
+    val dad = "Dad1"
+    val mom = "Mom1"
+    val dad2 = "Dad2"
+    val mom2 = "Mom2"
 
     val variant1 = Variant("1", 1, "C", "CT")
     val variant2 = Variant("1", 2, "C", "T")
@@ -59,6 +59,6 @@ class MendelErrorsSuite extends SparkSuite {
     val ped2 = Pedigree.read("src/test/resources/mendelWithMissingSex.fam", sc.hadoopConfiguration, vds.sampleIds)
     val men2 = MendelErrors(vds, ped2.completeTrios)
 
-    assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == 2).collect().toSet)
+    assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == "Dtr1").collect().toSet)
   }
 }

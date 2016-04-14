@@ -49,7 +49,7 @@ object ExportSamples extends Command {
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
     else
-      Parser.parseExportArgs(ec, cond)
+      Parser.parseExportArgs(cond, ec)
 
 
     val a = ec.a
@@ -60,10 +60,10 @@ object ExportSamples extends Command {
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     val sb = new StringBuilder()
-    val lines = for (s <- vds.localSamples) yield {
+    val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
       sb.clear()
-      a(0) = vds.sampleIds(s)
-      a(1) = vds.sampleAnnotations(s)
+      a(0) = s
+      a(1) = sa
 
       sampleAggregationOption.foreach(f => f.apply(s))
 

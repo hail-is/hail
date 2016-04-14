@@ -44,7 +44,7 @@ object MapReduce extends Command {
 
 
     val ec = EvalContext(symTab)
-    val parsed = expr.Parser.parseAnnotationArgs(ec, cond)
+    val parsed = expr.Parser.parseAnnotationArgs(cond, ec)
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "global")
@@ -76,9 +76,7 @@ object MapReduce extends Command {
       val seqOps = vAgg.map(_._2)
       val combOps = vAgg.map(_._3)
       val indices = vAgg.map(_._4)
-      val sampleInfoBc = vds.sparkContext.broadcast(
-        vds.localSamples.map(vds.sampleAnnotations)
-          .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
+
       val result = vds.variantsAndAnnotations
         .treeAggregate(zVals)({ case (arr, (v, va)) =>
           vArray(0) = v
@@ -112,10 +110,7 @@ object MapReduce extends Command {
       val seqOps = sAgg.map(_._2)
       val combOps = sAgg.map(_._3)
       val indices = sAgg.map(_._4)
-      val sampleInfoBc = vds.sparkContext.broadcast(
-        vds.localSamples.map(vds.sampleAnnotations)
-          .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
-      val result = vds.localSamples.map(i => (vds.sampleIds(i), vds.sampleAnnotations(i)))
+      val result = vds.sampleIdsAndAnnotations
           .aggregate(zVals)({ case (arr, (s, sa)) =>
           sArray(0) = s
           sArray(1) = sa

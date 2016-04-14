@@ -7,6 +7,12 @@ import scala.collection.mutable
 
 object Annotation {
 
+  final val SAMPLE_HEAD = "sa"
+
+  final val VARIANT_HEAD = "va"
+
+  final val GLOBAL_HEAD = "global"
+
   def empty: Annotation = null
 
   def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(null)

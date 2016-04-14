@@ -9,9 +9,9 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._
-import org.json4s.native.JsonMethods._
-import org.json4s.native.Serialization
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
 
 import scala.collection.mutable
 
@@ -59,9 +59,9 @@ object VEP extends Command {
       case (JNull, _) => null
       case (JNothing, TEmpty) => null
       case (JInt(x), TInt) => x.toInt
+      case (JInt(x), TLong) => x.toLong
       case (JInt(x), TDouble) => x.toDouble
       case (JInt(x), TString) => x.toString
-      case (JInt(x), TLong) => x
       case (JDouble(x), TDouble) => x
       case (JDouble(x), TFloat) => x.toFloat
       case (JString(x), TString) => x
@@ -110,6 +110,7 @@ object VEP extends Command {
   val vepSignature = TStruct(
     "assembly_name" -> TString,
     "allele_string" -> TString,
+    "ancestral" -> TString,
     "colocated_variants" -> TArray(TStruct(
       "aa_allele" -> TString,
       "aa_maf" -> TDouble,
@@ -154,6 +155,7 @@ object VEP extends Command {
       "somatic" -> TInt,
       "start" -> TInt,
       "strand" -> TInt)),
+    "context" -> TString,
     "end" -> TInt,
     "id" -> TString,
     "input" -> TString,

@@ -61,30 +61,19 @@ class VariantQCCombiner extends Serializable {
     (g.gt: @unchecked) match {
       case Some(0) =>
         nHomRef += 1
-        g.dp.foreach { v =>
-          dpHomRefSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHomRefSC.merge(v)
-        }
       case Some(1) =>
         nHet += 1
-        g.dp.foreach { v =>
-          dpHetSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHetSC.merge(v)
-        }
       case Some(2) =>
         nHomVar += 1
-        g.dp.foreach { v =>
-          dpHomVarSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHomVarSC.merge(v)
-        }
       case None =>
         nNotCalled += 1
+    }
+
+    g.dp.foreach { v =>
+      dpSC.merge(v)
+    }
+    g.gq.foreach { v =>
+      gqSC.merge(v)
     }
 
     this

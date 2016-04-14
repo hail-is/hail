@@ -11,19 +11,18 @@ object Aggregators {
     val aggregatorA = ec.a
 
     if (aggregators.nonEmpty) {
-      val sampleInfoBc = vds.sparkContext.broadcast(
-        vds.localSamples.map(vds.sampleAnnotations)
-          .zip(vds.localSamples.map(vds.sampleIds).map(Sample)))
+
+      val localSamplesBc = vds.sampleIdsBc
+      val localAnnotationsBc = vds.sampleAnnotationsBc
 
       val seqOps = aggregators.map(_._2)
       val combOps = aggregators.map(_._3)
       val endIndices = aggregators.map(_._4)
       val f = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
         val aggregations = aggregators.map(_._1())
-        gs.iterator
-          .zip(sampleInfoBc.value.iterator)
+        (gs, localSamplesBc.value, localAnnotationsBc.value).zipped
           .foreach {
-            case (g, (sa, s)) =>
+            case (g, s, sa) =>
               aggregatorA(0) = v
               aggregatorA(1) = va
               aggregatorA(2) = s
@@ -45,31 +44,30 @@ object Aggregators {
     } else None
   }
 
-  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(Int) => Unit] = {
+  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(String) => Unit] = {
     val aggregators = ec.aggregationFunctions.toArray
     val aggregatorA = ec.a
 
     if (aggregators.isEmpty)
       None
     else {
-      val sampleInfoBc = vds.sparkContext.broadcast(vds.localSamples
-        .map(vds.sampleIds)
-        .map(Sample)
-        .zip(vds.localSamples.map(vds.sampleAnnotations)))
+
+      val localSamplesBc = vds.sampleIdsBc
+      val localAnnotationsBc = vds.sampleAnnotationsBc
 
       val seqOps = aggregators.map(_._2)
       val combOps = aggregators.map(_._3)
       val endIndices = aggregators.map(_._4)
 
-      val arr = vds.rdd.treeAggregate(Array.fill[Array[Any]](vds.nLocalSamples)(aggregators.map(_._1())))({
+      val functionMap = vds.sampleIds.zip(vds.rdd.treeAggregate(Array.fill[Array[Any]](vds.nSamples)(aggregators.map(_._1())))({
         case (arr, (v, va, gs)) =>
           gs.iterator
             .zipWithIndex
             .foreach { case (g, i) =>
               aggregatorA(0) = v
               aggregatorA(1) = va
-              aggregatorA(2) = sampleInfoBc.value(i)._1
-              aggregatorA(3) = sampleInfoBc.value(i)._2
+              aggregatorA(2) = localSamplesBc.value(i)
+              aggregatorA(3) = localAnnotationsBc.value(i)
               aggregatorA(4) = g
 
               seqOps.iterator
@@ -91,10 +89,11 @@ object Aggregators {
               .toArray
           }
           .toArray
-      })
+      })).toMap
+
       val indices = aggregators.map(_._4)
-      Some((s: Int) => {
-        arr(s).iterator
+      Some((s: String) => {
+        functionMap(s).iterator
           .zip(indices.iterator)
           .foreach { case (value, j) =>
             aggregatorA(j) = value

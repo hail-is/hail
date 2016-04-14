@@ -52,7 +52,7 @@ object ExportVariants extends Command {
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
     else
-      Parser.parseExportArgs(ec, cond)
+      Parser.parseExportArgs(cond, ec)
 
     val a = ec.a
 
@@ -67,16 +67,9 @@ object ExportVariants extends Command {
 
           variantAggregations.foreach { f => f(v, va, gs)}
           sb.clear()
-          var first = true
-          fs.foreach { f =>
-            a(0) = v
-            a(1) = va
-            if (first)
-              first = false
-            else
-              sb += '\t'
-            sb.tsvAppend(f())
-          }
+          a(0) = v
+          a(1) = va
+          fs.iterator.foreachBetween { f => sb.tsvAppend(f()) }(() => sb.append("\t"))
           sb.result()
         }
       }.writeTable(output, header)

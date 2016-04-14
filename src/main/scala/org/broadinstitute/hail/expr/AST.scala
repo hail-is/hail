@@ -13,6 +13,8 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 case class EvalContext(st: SymbolTable,
   a: ArrayBuffer[Any],
@@ -404,7 +406,7 @@ case class Field(name: String, `type`: Type,
 
   def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
     sb.append(" " * indent)
-    sb.append(name)
+    sb.append(prettyIdentifier(name))
     sb.append(": ")
     `type`.pretty(sb, indent, printAttrs)
     if (printAttrs) {
@@ -417,7 +419,7 @@ case class Field(name: String, `type`: Type,
         sb.append("=\"")
         sb.append(escapeString(attr._2))
         sb += '"'
-      } (() => sb += '\n')
+      }(() => sb += '\n')
     }
   }
 }
@@ -822,9 +824,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TSet(_), "size") => TInt
       case (TSet(_), "isEmpty") => TBoolean
 
-      case (_, "isMissing") => TBoolean
-      case (_, "isNotMissing") => TBoolean
-
       case (t, _) =>
         parseError(s"`$t' has no field `$rhs'")
     }
@@ -935,13 +934,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TString, "toFloat") => AST.evalCompose[String](ec, lhs)(_.toFloat)
     case (TString, "toDouble") => AST.evalCompose[String](ec, lhs)(_.toDouble)
 
-    case (_, "isMissing") =>
-      val f = lhs.eval(ec)
-      () => f() == null
-    case (_, "isNotMissing") =>
-      val f = lhs.eval(ec)
-      () => f() != null
-
     case (TInt, "abs") => AST.evalCompose[Int](ec, lhs)(_.abs)
     case (TLong, "abs") => AST.evalCompose[Long](ec, lhs)(_.abs)
     case (TFloat, "abs") => AST.evalCompose[Float](ec, lhs)(_.abs)
@@ -967,6 +959,24 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
   def typecheck(): BaseType = parseError("non-function context")
 
   def eval(ec: EvalContext): () => Any = throw new UnsupportedOperationException
+}
+
+case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
+  override def typecheckThis(): BaseType = {
+    (fn, args) match {
+      case ("isMissing", Array(a)) => TBoolean
+      case ("isDefined", Array(a)) => TBoolean
+    }
+  }
+
+  def eval(c: EvalContext): () => Any = ((fn, args): @unchecked) match {
+    case ("isMissing", Array(a)) =>
+      val f = a.eval(c)
+      () => f() == null
+    case ("isDefined", Array(a)) =>
+      val f = a.eval(c)
+      () => f() != null
+  }
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {

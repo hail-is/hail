@@ -41,7 +41,7 @@ object AnnotateVariantsExpr extends Command {
 
 
     val ec = EvalContext(symTab)
-    val parsed = Parser.parseAnnotationArgs(ec, cond)
+    val parsed = Parser.parseAnnotationArgs(cond, ec)
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "va")
@@ -72,10 +72,11 @@ object AnnotateVariantsExpr extends Command {
 
       aggregateOption.foreach(f => f(v, va, gs))
 
+      var newVA = va
       computations.indices.foreach { i =>
-        a(1) = inserters(i)(a(1), Option(computations(i)()))
+        newVA = inserters(i)(newVA, computations(i)())
       }
-      a(1)
+      newVA
     }
     state.copy(vds = annotated)
   }
