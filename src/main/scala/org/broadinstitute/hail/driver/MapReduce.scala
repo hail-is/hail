@@ -4,8 +4,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.methods.Aggregators
-import org.broadinstitute.hail.variant.{Genotype, Sample, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -79,9 +77,7 @@ object MapReduce extends Command {
 
       val result = vds.variantsAndAnnotations
         .treeAggregate(zVals)({ case (arr, (v, va)) =>
-          vArray(0) = v
-          vArray(1) = va
-
+          aggECV.setContext(v, va)
           for (i <- arr.indices) {
             val seqOp = seqOps(i)
             arr(i) = seqOp(arr(i))
@@ -94,7 +90,7 @@ object MapReduce extends Command {
           }
           arr1
         })
-//
+      //
       result.iterator
         .zip(indices.iterator)
         .foreach { case (res, index) =>
@@ -111,9 +107,8 @@ object MapReduce extends Command {
       val combOps = sAgg.map(_._3)
       val indices = sAgg.map(_._4)
       val result = vds.sampleIdsAndAnnotations
-          .aggregate(zVals)({ case (arr, (s, sa)) =>
-          sArray(0) = s
-          sArray(1) = sa
+        .aggregate(zVals)({ case (arr, (s, sa)) =>
+          aggECS.setContext(s, sa)
 
           for (i <- arr.indices) {
             val seqOp = seqOps(i)
@@ -139,7 +134,7 @@ object MapReduce extends Command {
 
     val ga = inserters
       .zip(parsed.map(_._3()))
-      .foldLeft(vds.globalAnnotation){ case (a, (ins, res)) =>
+      .foldLeft(vds.globalAnnotation) { case (a, (ins, res)) =>
         ins(a, res)
       }
 

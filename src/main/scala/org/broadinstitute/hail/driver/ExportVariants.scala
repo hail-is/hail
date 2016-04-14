@@ -4,9 +4,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable.ArrayBuffer
-
-import scala.io.Source
 
 object ExportVariants extends Command {
 
@@ -54,8 +51,6 @@ object ExportVariants extends Command {
     else
       Parser.parseExportArgs(cond, ec)
 
-    val a = ec.a
-
     val variantAggregations = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
@@ -67,8 +62,9 @@ object ExportVariants extends Command {
 
           variantAggregations.foreach { f => f(v, va, gs)}
           sb.clear()
-          a(0) = v
-          a(1) = va
+
+          ec.setContext(v, va)
+
           fs.iterator.foreachBetween { f => sb.tsvAppend(f()) }(() => sb.append("\t"))
           sb.result()
         }

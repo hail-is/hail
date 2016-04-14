@@ -4,7 +4,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable.ArrayBuffer
 
 object ExportSamples extends Command {
 
@@ -51,8 +50,6 @@ object ExportSamples extends Command {
     else
       Parser.parseExportArgs(cond, ec)
 
-
-    val a = ec.a
     val aggregatorA = aggregationEC.a
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
@@ -62,8 +59,8 @@ object ExportSamples extends Command {
     val sb = new StringBuilder()
     val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
       sb.clear()
-      a(0) = s
-      a(1) = sa
+
+      ec.setContext(s, sa)
 
       sampleAggregationOption.foreach(f => f.apply(s))
 

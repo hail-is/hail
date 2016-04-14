@@ -1,12 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable.ArrayBuffer
 
 object FilterVariants extends Command {
 
@@ -78,13 +77,10 @@ object FilterVariants extends Command {
         val ec = EvalContext(symTab)
         val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
-        val a = ec.a
-
         val aggregatorOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
         (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
-          a(0) = v
-          a(1) = va
+          ec.setContext(v, va)
 
           aggregatorOption.foreach(f => f(v, va, gs))
 

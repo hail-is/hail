@@ -4,7 +4,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Inserter
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.Aggregators
-import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -64,14 +63,13 @@ object AnnotateSamplesExpr extends Command {
     }
     val inserters = inserterBuilder.result()
     
-    val a = ec.a
     val aggregatorA = aggregationEC.a
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     val newAnnotations = vdsAddedSigs.sampleIdsAndAnnotations.map { case (s, sa) =>
-      a(0) = s
-      a(1) = sa
+
+      ec.setContext(s, sa)
 
       sampleAggregationOption.foreach(f => f.apply(s))
 

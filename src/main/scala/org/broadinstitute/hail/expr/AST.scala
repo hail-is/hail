@@ -13,12 +13,13 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
 
-case class EvalContext(st: SymbolTable,
-  a: ArrayBuffer[Any],
-  aggregationFunctions: ArrayBuffer[Aggregator])
+case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
+
+  def setContext(args: Any*) {
+    args.zipWithIndex.foreach { case (arg, i) => a(i) = arg }
+  }
+}
 
 object EvalContext {
   def apply(symTab: SymbolTable): EvalContext = {
@@ -1043,9 +1044,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         val t = types.head.asInstanceOf[Type]
 
         val sumT = t match {
-        case tint: TIntegral => TLong
-        case _ => TDouble
-      }
+          case tint: TIntegral => TLong
+          case _ => TDouble
+        }
         `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t),
           ("max", t), ("nNotMissing", TLong), ("sum", sumT))
 

@@ -62,13 +62,10 @@ object AnnotateVariantsExpr extends Command {
     }
     val inserters = inserterBuilder.result()
 
-    val a = ec.a
-
     val aggregateOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
     val annotated = vdsAddedSigs.mapAnnotations { case (v, va, gs) =>
-      a(0) = v
-      a(1) = va
+      ec.setContext(v, va)
 
       aggregateOption.foreach(f => f(v, va, gs))
 

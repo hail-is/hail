@@ -1,13 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.variant.{Sample, VariantDataset}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
 object FilterSamples extends Command {
@@ -67,7 +65,6 @@ object FilterSamples extends Command {
         val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
 
-        val a = ec.a
         val aggregatorA = aggregationEC.a
         val aggregators = ec.aggregationFunctions
 
@@ -78,8 +75,7 @@ object FilterSamples extends Command {
 
         val sampleIds = state.vds.sampleIds
         (s: String, sa: Annotation) => {
-          a(0) = s
-          a(1) = sa
+          ec.setContext(s, sa)
 
           sampleAggregationOption.foreach(f => f.apply(s))
 
