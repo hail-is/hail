@@ -5,10 +5,10 @@ import java.util.zip.Inflater
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
-import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
+
 import scala.collection.mutable
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Variant](job, split) {
@@ -21,6 +21,8 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
   val ab = new mutable.ArrayBuilder.ofByte
   val plArray = new Array[Int](3)
+
+  println(s"split goes from ${split.getStart} to ${split.getStart + split.getLength}")
 
   seekToFirstBlock(split.getStart)
 
@@ -83,20 +85,20 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
         if (pAA == 32768) {
           plAA = 0
-          plAB = 51
-          plBB = 51
+          plAB = BgenLoader.MAX_PL
+          plBB = BgenLoader.MAX_PL
         } else if (pAB == 32768) {
-          plAA = 51
+          plAA = BgenLoader.MAX_PL
           plAB = 0
-          plBB = 51
+          plBB = BgenLoader.MAX_PL
         } else if (pBB == 32768) {
-          plAA = 51
-          plAB = 51
+          plAA = BgenLoader.MAX_PL
+          plAB = BgenLoader.MAX_PL
           plBB = 0
         } else {
-          val dAA = if (pAA == 0) 51 else BgenLoader.phredConversionTable(pAA)
-          val dAB = if (pAB == 0) 51 else BgenLoader.phredConversionTable(pAB)
-          val dBB = if (pBB == 0) 51 else BgenLoader.phredConversionTable(pBB)
+          val dAA = if (pAA == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAA)
+          val dAB = if (pAB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAB)
+          val dBB = if (pBB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pBB)
 
           val minValue = math.min(math.min(dAA, dAB), dBB)
 

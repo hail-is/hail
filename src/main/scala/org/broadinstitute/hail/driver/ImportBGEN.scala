@@ -54,19 +54,21 @@ object ImportBGEN extends Command {
 
     sc.hadoopConfiguration.setBoolean("compressGS", !options.noCompress)
 
-    val results = inputs.map(f => (f, BgenLoader.load(sc, f, Option(options.nPartitions))))
+    val results = inputs.map(f => BgenLoader.load(sc, f, Option(options.nPartitions)))
 
-    val unequalSamples = results.filter(_._2._1 != nSamples).map(x => (x._1, x._2._1))
+    val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.length > 0)
-      fatal(s"""The following BGEN files did not contain the expected number of samples $nSamples:
-           |  ${unequalSamples.map(x => s"""(${x._2} ${x._1}""").mkString("\n  ")}""".stripMargin)
+      fatal(
+        s"""The following BGEN files did not contain the expected number of samples $nSamples:
+            |  ${unequalSamples.map(x => s"""(${x._2} ${x._1}""").mkString("\n  ")}""".stripMargin)
 
-    val noVariants = results.filter(_._2._2 == 0).map(x => x._1)
+    val noVariants = results.filter(_.nVariants == 0).map(_.file)
     if (noVariants.length > 0)
-      fatal(s"""The following BGEN files did not contain at least 1 variant:
-           |  ${noVariants.mkString("\n  ")})""".stripMargin)
+      fatal(
+        s"""The following BGEN files did not contain at least 1 variant:
+            |  ${noVariants.mkString("\n  ")})""".stripMargin)
 
-    val nVariants = results.map(x => x._2._2).sum
+    val nVariants = results.map(_.nVariants).sum
 
     info(s"Number of BGEN files parsed: ${results.length}")
     info(s"Number of variants in all BGEN files: $nVariants")
@@ -74,7 +76,7 @@ object ImportBGEN extends Command {
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    val rdd = sc.union(results.map(_._2._3))
+    val rdd = sc.union(results.map(_.rdd))
     val vds = VariantSampleMatrix(VariantMetadata(samples), rdd).copy(vaSignature = signature, wasSplit = true)
 
     state.copy(vds = vds)

@@ -1,15 +1,16 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.check.Gen._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.PlinkLoader
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
-import org.broadinstitute.hail.check.Properties
-import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.Gen._
-import sys.process._
+
 import scala.language.postfixOps
+import scala.sys.process._
 
 class ImportPlinkSuite extends SparkSuite {
 

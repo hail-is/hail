@@ -15,7 +15,7 @@ object GenLoader {
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
     val nSamples = sampleIds.length
     val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions)).map{case line => readGenLine(line, nSamples)}
-    val signatures = TStruct("rsid" -> TString, "lid" -> TString)
+    val signatures = TStruct("rsid" -> TString, "varid" -> TString)
     VariantSampleMatrix(metadata = VariantMetadata(sampleIds).copy(vaSignature = signatures, wasSplit = true), rdd = rdd)
   }
 
@@ -52,20 +52,20 @@ object GenLoader {
 
           if (pAA == 32768) {
             plAA = 0
-            plAB = 51
-            plBB = 51
+            plAB = BgenLoader.MAX_PL
+            plBB = BgenLoader.MAX_PL
           } else if (pAB == 32768) {
-            plAA = 51
+            plAA = BgenLoader.MAX_PL
             plAB = 0
-            plBB = 51
+            plBB = BgenLoader.MAX_PL
           } else if (pBB == 32768) {
-            plAA = 51
-            plAB = 51
+            plAA = BgenLoader.MAX_PL
+            plAB = BgenLoader.MAX_PL
             plBB = 0
           } else {
-            val dAA = if (pAA == 0) 51 else BgenLoader.phredConversionTable(pAA)
-            val dAB = if (pAB == 0) 51 else BgenLoader.phredConversionTable(pAB)
-            val dBB = if (pBB == 0) 51 else BgenLoader.phredConversionTable(pBB)
+            val dAA = if (pAA == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAA)
+            val dAB = if (pAB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAB)
+            val dBB = if (pBB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pBB)
 
             val minValue = math.min(math.min(dAA, dAB), dBB)
 

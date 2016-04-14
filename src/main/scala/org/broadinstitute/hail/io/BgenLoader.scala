@@ -1,27 +1,31 @@
 package org.broadinstitute.hail.io
 
-import org.broadinstitute.hail.annotations._
-import org.apache.hadoop.fs._
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.variant._
 
 import scala.io.Source
 
 case class BgenState(compressed: Boolean, nSamples: Int, nVariants: Int,
   headerLength: Int, dataStart: Int, hasIds: Boolean)
 
-object BgenLoader {
-  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => if (i == 0) 48 else -10 * math.log10(i) }.toArray
+case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, Annotation, Iterable[Genotype])])
 
-  def load(sc: SparkContext, file: String, nPartitions: Option[Int] = None): (Int, Int, RDD[(Variant, Annotation, Iterable[Genotype])]) = {
+object BgenLoader {
+  final val MAX_PL = 51
+
+  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => if (i == 0) MAX_PL else -10 * math.log10(i) }
+    .toArray
+
+  def load(sc: SparkContext, file: String, nPartitions: Option[Int] = None): BgenResult = {
 
     val bState = readState(sc.hadoopConfiguration, file)
 
-    (bState.nSamples, bState.nVariants, sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
+    BgenResult(file, bState.nSamples, bState.nVariants,
+      sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
       .map { case (lw, pl) => (pl.getKey, pl.getAnnotation, pl.getGS) })
   }
@@ -40,7 +44,7 @@ object BgenLoader {
       val reader = new HadoopFSDataBinaryReader(is)
       reader.seek(0)
 
-      for (i <- 1 until bState.nVariants + 1) {
+      for (i <- 1 until bState.nVariants) {
         reader.seek(position)
 
         val nRow = reader.readInt()

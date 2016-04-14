@@ -2,13 +2,15 @@ package org.broadinstitute.hail.driver
 
 import java.io.File
 import java.util.Properties
+
 import org.apache.log4j.{LogManager, PropertyConfigurator}
-import org.apache.spark.sql.SQLContext
 import org.apache.spark._
+import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.VCFReport
-import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
+import org.kohsuke.args4j.{CmdLineException, CmdLineParser, Option => Args4jOption}
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -266,7 +268,7 @@ object Main {
     if (secretAccessKey != null) {
       hadoopConf.set("fs.s3a.secret.key", secretAccessKey)
       hadoopConf.set("fs.s3n.secret.key", secretAccessKey)
-    }`
+    }
 
     // FIXME separate entrypoints
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath

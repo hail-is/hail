@@ -1,16 +1,17 @@
 package org.broadinstitute.hail.io
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.check.Gen._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
-import org.broadinstitute.hail.check.Properties
-import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.Gen._
+
 import scala.io.Source
-import sys.process._
 import scala.language.postfixOps
+import scala.sys.process._
 
 class LoadBgenSuite extends SparkSuite {
 
@@ -33,7 +34,7 @@ class LoadBgenSuite extends SparkSuite {
     val nVariants = getNumberOfLinesInFile(gen)
 
     var s = State(sc, sqlContext, null)
-    s = IndexBGEN.run(s, Array("-s", sampleFile, bgen))
+    s = IndexBGEN.run(s, Array(bgen))
     s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", "10", bgen))
     assert(s.vds.nSamples == nSamples && s.vds.nVariants == nVariants)
 
@@ -75,10 +76,7 @@ class LoadBgenSuite extends SparkSuite {
         val bgenFile = fileRoot + ".bgen"
         val qcToolLogFile = fileRoot + ".qctool.log"
         val qcToolPath = "qctool"
-//        val qcToolPath = "/Users/tpoterba/Downloads/qctool_v1.4-osx/qctool"
 
-//        hadoopGlobAll(fileRoot + "*", sc.hadoopConfiguration).foreach(hadoopDelete(_, sc.hadoopConfiguration, true))
-//        hadoopDelete(fileRoot + "*", sc.hadoopConfiguration, true)
         hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, true)
         hadoopDelete(genFile, sc.hadoopConfiguration, true)
         hadoopDelete(sampleFile, sc.hadoopConfiguration, true)
@@ -95,7 +93,7 @@ class LoadBgenSuite extends SparkSuite {
 
         if (vds.nVariants == 0)
           try {
-            s = IndexBGEN.run(s, Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
+            s = IndexBGEN.run(s, Array("-n", nPartitions.toString, bgenFile))
             s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
             false
           } catch {
@@ -103,7 +101,7 @@ class LoadBgenSuite extends SparkSuite {
             case _: Throwable => false
           }
         else {
-          var q = IndexBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, bgenFile))
+          var q = IndexBGEN.run(State(sc, sqlContext, null), Array(bgenFile))
           q = ImportBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
           val importedVds = q.vds
 
@@ -123,7 +121,7 @@ class LoadBgenSuite extends SparkSuite {
           val result = originalFull.fullOuterJoin(importedFull).map{ case ((v, i), (gt1, gt2)) =>
             val gt1x = gt1 match {
               case Some(x) =>
-                var newPl = x.pl.getOrElse(Array(0,0,0)).map{i => math.min(i, 51)}
+                var newPl = x.pl.getOrElse(Array(0,0,0)).map{i => math.min(i, BgenLoader.MAX_PL   )}
                 val newGt = BgenUtils.parseGenotype(newPl)
                 newPl = if (newGt == -1) null else newPl
                 Some(x.copy(gt = Option(newGt), ad = None, dp = None, gq = None, pl = Option(newPl)))
@@ -137,7 +135,7 @@ class LoadBgenSuite extends SparkSuite {
       }
   }
 
-  @Test(priority = -1) def testBgenImportRandom() {
+  @Test def testBgenImportRandom() {
     Spec.check()
   }
 }
