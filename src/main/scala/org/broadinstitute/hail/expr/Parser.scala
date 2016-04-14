@@ -79,7 +79,7 @@ object Parser extends JavaTokenParsers {
 
   def parseAnnotationArgs(code: String, ec: EvalContext): (Array[(List[String], Type, () => Option[Any])]) = {
     val arr = parseAll(annotationExpressions, code) match {
-      case Success(result, _) => result.asInstanceOf[Array[(Array[String], AST)]]
+      case Success(result, _) => result.asInstanceOf[Array[(List[String], AST)]]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
@@ -91,13 +91,13 @@ object Parser extends JavaTokenParsers {
               |  Got invalid type `$t' from the result of `${l.mkString(".")}'""".stripMargin)
       }
     }
+
     arr.map {
-      case (ids, ast) =>
+      case (path, ast) =>
         ast.typecheck(ec)
-        val path = ids.toList
         val t = checkType(path, ast.`type`)
         val f = ast.eval(ec)
-        (ids.toList, t, () => Option(f()))
+        (path, t, () => Option(f()))
     }
   }
 

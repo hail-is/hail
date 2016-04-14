@@ -64,7 +64,7 @@ class MapReduceSuite extends SparkSuite {
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2)})
 
-    assert(vds.queryGlobal("CRStats")._2
+    assert(vds.queryGlobal("global.CRStats")._2
       .contains(Annotation(crSC.mean, crSC.stdev, crSC.min,
         crSC.max, crSC.count, crSC.sum)))
 

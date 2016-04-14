@@ -113,13 +113,14 @@ class SampleQCCombiner extends Serializable {
         throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
 
-    g.dp.foreach { v =>
-      gqSC.merge(v)
+    if (g.isCalled) {
+      g.dp.foreach { v =>
+        dpSC.merge(v)
+      }
+      g.gq.foreach { v =>
+        gqSC.merge(v)
+      }
     }
-    g.gq.foreach { v =>
-      gqSC.merge(v)
-    }
-
     this
   }
 

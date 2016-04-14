@@ -69,11 +69,13 @@ class VariantQCCombiner extends Serializable {
         nNotCalled += 1
     }
 
-    g.dp.foreach { v =>
-      dpSC.merge(v)
-    }
-    g.gq.foreach { v =>
-      gqSC.merge(v)
+    if (g.isCalled) {
+      g.dp.foreach { v =>
+        dpSC.merge(v)
+      }
+      g.gq.foreach { v =>
+        gqSC.merge(v)
+      }
     }
 
     this

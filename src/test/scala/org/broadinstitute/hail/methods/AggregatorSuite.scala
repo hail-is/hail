@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.Utils._
@@ -27,9 +28,7 @@ class AggregatorSuite extends SparkSuite {
     val gqStatsStDev = s.vds.queryVA("va.test.gqstats.stdev")._2
     val gqStatsStDevQC = s.vds.queryVA("va.qc.gqStDev")._2
     val gqStatsHetMean = s.vds.queryVA("va.test.gqhetstats.mean")._2
-    val gqStatsHetMeanQC = s.vds.queryVA("va.qc.gqMeanHet")._2
     val gqStatsHetStDev = s.vds.queryVA("va.test.gqhetstats.stdev")._2
-    val gqStatsHetStDevQC = s.vds.queryVA("va.qc.gqStDevHet")._2
 
     s.vds.rdd.collect()
       .foreach {
@@ -43,10 +42,17 @@ class AggregatorSuite extends SparkSuite {
           assert(gqStatsStDev(va).zip(gqStatsStDevQC(va)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
-          assert(gqStatsHetMean(va).zip(gqStatsHetMeanQC(va)).forall {
+
+          val gqSC = gs.aggregate(new StatCounter())({ case (s, g) =>
+            if (g.isHet)
+              g.gq.foreach(x => s.merge(x))
+            s
+          }, { case (s1, s2) => s1.merge(s2) })
+
+          assert(gqStatsHetMean(va).zip(Option(gqSC.mean)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
-          assert(gqStatsHetStDev(va).zip(gqStatsHetStDevQC(va)).forall {
+          assert(gqStatsHetStDev(va).zip(Option(gqSC.stdev)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
 
@@ -69,13 +75,19 @@ class AggregatorSuite extends SparkSuite {
     val gqStatsStDev = s.vds.querySA("sa.test.gqstats.stdev")._2
     val gqStatsStDevQC = s.vds.querySA("sa.qc.gqStDev")._2
     val gqStatsHetMean = s.vds.querySA("sa.test.gqhetstats.mean")._2
-    val gqStatsHetMeanQC = s.vds.querySA("sa.qc.gqMeanHet")._2
     val gqStatsHetStDev = s.vds.querySA("sa.test.gqhetstats.stdev")._2
-    val gqStatsHetStDevQC = s.vds.querySA("sa.qc.gqStDevHet")._2
 
-    s.vds.sampleAnnotations
+
+    val gqHetMap = s.vds.aggregateBySample(new StatCounter())({ case (s, g) =>
+      if (g.isHet)
+        g.gq.foreach(x => s.merge(x))
+      s
+    }, { case (s1, s2) => s1.merge(s2) })
+      .collect().toMap
+
+    s.vds.sampleIdsAndAnnotations
       .foreach {
-        sa =>
+        case (s, sa) =>
           assert(qCallRate(sa) == qCallRateQC(sa))
           assert(gqStatsMean(sa).zip(gqStatsMeanQC(sa)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
@@ -83,24 +95,12 @@ class AggregatorSuite extends SparkSuite {
           assert(gqStatsStDev(sa).zip(gqStatsStDevQC(sa)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
-          assert(gqStatsHetMean(sa).zip(gqStatsHetMeanQC(sa)).forall {
+          assert(gqStatsHetMean(sa).zip(gqHetMap.get(s).map(_.mean)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
-          assert(gqStatsHetStDev(sa).zip(gqStatsHetStDevQC(sa)).forall {
+          assert(gqStatsHetStDev(sa).zip(gqHetMap.get(s).map(_.stdev)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
       }
-
-//    s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.findmapped = gs.findmap(v.start == 16052684, g), " +
-//      "sa.test.collected = gs.collect(g.isHet, g)"))
-//    val qfm = s.vds.querySA("test", "findmapped")
-//    val qcol = s.vds.querySA("test", "collected")
-//    s.vds.sampleAnnotations
-//      .foreach {
-//        sa =>
-//          println(qfm(sa))
-//          println(qcol(sa))
-//
-//      }
   }
 }

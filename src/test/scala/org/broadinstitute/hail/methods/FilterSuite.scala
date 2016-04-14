@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.SparkSuite
@@ -8,6 +9,7 @@ import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils._
+
 import scala.collection.mutable.ArrayBuffer
 
 class FilterSuite extends SparkSuite {

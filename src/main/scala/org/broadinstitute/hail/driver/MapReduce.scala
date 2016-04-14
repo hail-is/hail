@@ -140,7 +140,7 @@ object MapReduce extends Command {
     val ga = inserters
       .zip(parsed.map(_._3()))
       .foldLeft(vds.globalAnnotation){ case (a, (ins, res)) =>
-        ins(a, Option(res))
+        ins(a, res)
       }
 
     state.copy(
