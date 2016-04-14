@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.TestUtils._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Querier
 import org.broadinstitute.hail.driver._
@@ -105,7 +106,7 @@ class LinearRegressionSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("tsv",
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
-      "--types", "Pheno: Double",
+      "--types", "Pheno: Int",
       "--missing", "0"))
 
     s = LinearRegressionCommand.run(s, Array(
@@ -179,8 +180,6 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = AnnotateSamplesFam.run(s, Array(
       "-i", "src/test/resources/linearRegression.fam"))
-
-    ShowAnnotations.run(s)
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.fam.isCase",
@@ -267,8 +266,6 @@ class LinearRegressionSuite extends SparkSuite {
       "-q",
       "-m", "0"))
 
-    ShowAnnotations.run(s)
-
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.fam.qPheno",
       "-c", "sa.cov.Cov1,sa.cov.Cov2",
@@ -337,4 +334,55 @@ class LinearRegressionSuite extends SparkSuite {
     assertEmpty(qBeta, v10)
   }
 
+  @Test def testNonNumericPheno() {
+    var s = State(sc, sqlContext)
+
+    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+
+    s = SplitMulti.run(s)
+
+    s = AnnotateSamples.run(s, Array("tsv",
+      "-i", "src/test/resources/linearRegression.cov",
+      "--root", "sa.cov",
+      "--types", "Cov1: Double, Cov2: Double"))
+
+    s = AnnotateSamples.run(s, Array("tsv",
+      "-i", "src/test/resources/linearRegression.pheno",
+      "--root", "sa.pheno",
+      "--types", "Pheno: String",
+      "--missing", "0"))
+
+    interceptFatal("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
+      LinearRegressionCommand.run(s, Array(
+        "-y", "sa.pheno.Pheno",
+        "-c", "sa.cov.Cov1,sa.cov.Cov2",
+        "-o", "/tmp/linearRegression.tsv"))
+    }
+  }
+
+  @Test def testNonNumericCov() {
+    var s = State(sc, sqlContext)
+
+    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+
+    s = SplitMulti.run(s)
+
+    s = AnnotateSamples.run(s, Array("tsv",
+      "-i", "src/test/resources/linearRegression.cov",
+      "--root", "sa.cov",
+      "--types", "Cov1: Double, Cov2: String"))
+
+    s = AnnotateSamples.run(s, Array("tsv",
+      "-i", "src/test/resources/linearRegression.pheno",
+      "--root", "sa.pheno",
+      "--types", "Pheno: Double",
+      "--missing", "0"))
+
+    interceptFatal("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
+      LinearRegressionCommand.run(s, Array(
+        "-y", "sa.pheno.Pheno",
+        "-c", "sa.cov.Cov1,sa.cov.Cov2",
+        "-o", "/tmp/linearRegression.tsv"))
+    }
+  }
 }

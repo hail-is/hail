@@ -29,20 +29,6 @@ object LinearRegressionCommand extends Command {
 
   def run(state: State, options: Options): State = {
 
-    def maskSeq[T](xs: IndexedSeq[T], sampleMask: IndexedSeq[Boolean]): IndexedSeq[T] =
-      xs.zip(sampleMask)
-        .filter(_._2)
-        .map(_._1)
-
-    def toDouble(t: BaseType): Any => Double = (t: @unchecked) match {
-      case TInt => _.asInstanceOf[Int].toDouble
-      case TLong => _.asInstanceOf[Long].toDouble
-      case TFloat => _.asInstanceOf[Float].toDouble
-      case TDouble => _.asInstanceOf[Double]
-      case TBoolean => _.asInstanceOf[Boolean].toDouble
-      case _ => fatal(s"??? expected Numeric or Boolean, got `$t'")
-    }
-
     val vds = state.vds
 
     val symTab = Map(
@@ -56,60 +42,60 @@ object LinearRegressionCommand extends Command {
     for (_ <- symTab)
       a += null
 
-    val yE = Parser.parse(options.ySA, symTab, a)
-    val yToDouble = toDouble(yE._1)
+    def toDouble(t: BaseType, code: String): Any => Double = (t: @unchecked) match {
+      case TInt => _.asInstanceOf[Int].toDouble
+      case TLong => _.asInstanceOf[Long].toDouble
+      case TFloat => _.asInstanceOf[Float].toDouble
+      case TDouble => _.asInstanceOf[Double]
+      case TBoolean => _.asInstanceOf[Boolean].toDouble
+      case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
+    }
+
+    val yQ = Parser.parse(options.ySA, symTab, a)
+    val yToDouble = toDouble(yQ._1, options.ySA)
     val ySA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
       a(1) = sa
-      yE._2().map(yToDouble)
+      yQ._2().map(yToDouble)
     }
-    val yMask = ySA.map(_.isDefined)
 
-    val covE = Parser.parseExprs(options.covSA, symTab, a)
-    val covToDouble = covE.map(x => toDouble(x._1))
+    val covQ = Parser.parseExprs(options.covSA, symTab, a)
+    val covToDouble = (covQ.map(_._1), Parser.parseCodes(options.covSA)).zipped.map(toDouble)
     val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
       a(1) = sa
-      (covE.map(_._2()), covToDouble).zipped.map( _.map(_))
+      (covQ.map(_._2()), covToDouble).zipped.map(_.map(_))
     }
-    val covMask = covSA.map(_.forall(_.isDefined))
 
-    val sampleMask = (yMask, covMask).zipped.map(_ && _)
+    val (yFilt, covFilt, sampleIdsFilt) =
+      (ySA, covSA, vds.sampleIds)
+        .zipped
+        .filter( (y, c, s) => y.isDefined && c.forall(_.isDefined))
 
-    val y = DenseVector(ySA
-        .zip(sampleMask)
-        .filter(_._2)
-        .flatMap(_._1)
-        .toArray)
+    val yArray = yFilt.map(_.get).toArray
+    val y = DenseVector(yArray)
 
-    println(y)
-
-    val covArrays = covSA
-      .zip(sampleMask)
-      .filter(_._2)
-      .map(_._1.map(_.get))
-
-    covArrays.foreach(a => println(a.mkString(",")))
-
+    val covArrays = covFilt.map(_.map(_.get))
+    val n = covArrays.size
+    val k = covArrays(0).size
     val cov =
-      if (covArrays(0).isEmpty)
+      if (k == 0)
         None
       else
         Some(new DenseMatrix(
-          rows = covArrays.size,
-          cols = covArrays(0).size,
+          rows = n,
+          cols = k,
           data = Array.concat(covArrays: _*),
           offset = 0,
-          majorStride = covArrays(0).size,
+          majorStride = k,
           isTranspose = true))
 
-    val sampleIndex = vds.sampleIds.zipWithIndex.toMap
+    val sampleIdsFiltSet = sampleIdsFilt.toSet
+    val vdsFilt = vds.filterSamples((s, sa) => sampleIdsFiltSet(s))
 
-    val filtVds = vds.filterSamples((s, sa) => sampleMask(sampleIndex(s)))
+    val linreg = LinearRegression(vdsFilt, y, cov)
 
-    val linreg = LinearRegression(filtVds, y, cov)
-
-    val (newVAS, inserter) = filtVds.insertVA(LinRegStats.`type`, "linreg")
+    val (newVAS, inserter) = vdsFilt.insertVA(LinRegStats.`type`, "linreg")
 
     val newState = state.copy(
       vds = vds.copy(

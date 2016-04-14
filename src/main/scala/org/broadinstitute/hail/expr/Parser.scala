@@ -39,6 +39,16 @@ object Parser extends JavaTokenParsers {
     () => f().map(_.asInstanceOf[T])
   }
 
+  def parseCodes(code: String): Array[String] = {
+    if (code.matches("""\s*"""))
+      Array[String]()
+    else
+      parseAll(annotationIdentifierArray, code) match {
+        case Success(result, _) => result.map(_.mkString("."))
+        case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+      }
+  }
+
   def parseType(code: String): Type = {
     // println(s"code = $code")
     parseAll(type_expr, code) match {
@@ -119,6 +129,7 @@ object Parser extends JavaTokenParsers {
         case Success(result, _) => result.asInstanceOf[Array[AST]]
         case NoSuccess(msg, _) => fatal(msg)
       }
+
       val ec = EvalContext(symTab, a)
 
       asts.map { ast =>

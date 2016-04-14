@@ -119,7 +119,7 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    // FIXME: now row and sample index are the same!
+    // FIXME: worth making a version of aggregateByVariantWithKeys using sample index rather than sample name?
     val sampleIndexBc = sc.broadcast(vds.sampleIds.zipWithIndex.toMap)
 
     new LinearRegression(vds
