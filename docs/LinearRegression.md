@@ -4,7 +4,7 @@ The `linreg` command computes, for each variant, the p-value of the t-test for t
 quantitative phenotype or case-control status.
 
 Command line options:
- - `-y | --y <filename>` -- a sample annotation of numeric or Boolean type
+ - `-y | --y <filename>` -- a sample annotation of numeric or Boolean type designating the response variable, i.e. phenotype
  - `-c | --covariates <filename>` -- a comma-separated list of sample annotations of numeric or Boolean type (optional)
  - `-r | --root <root>` -- variant annotation path for linreg output, starting with `va` (optional, default is `va.linreg`)
  - `-o | --output <filename>` --  filename for default output TSV file (optional)
