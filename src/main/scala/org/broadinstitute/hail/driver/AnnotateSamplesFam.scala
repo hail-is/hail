@@ -17,13 +17,13 @@ object AnnotateSamplesFam extends Command {
       usage = "Quantitative phenotype flag")
     var isQuantitative: Boolean = false
 
-    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Field delimiter")
-    var delimiter: String = "\t"
-
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
       usage = "Annotation root, a period-delimited path starting with `sa'")
     var root: String = "sa.fam"
+
+    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
+      usage = "Field delimiter")
+    var delimiter: String = "\t"
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = "Identifier to be treated as missing (for case-control, in addition to `0', `-9', and non-numeric)")
@@ -43,7 +43,8 @@ object AnnotateSamplesFam extends Command {
 
     val input = options.input
 
-    fatalIf(!input.endsWith(".fam"), "input file must end in .fam")
+    if (!input.endsWith(".fam"))
+      fatal("input file must end in .fam")
 
     val delimiter = options.delimiter
     val isQuantitative = options.isQuantitative
