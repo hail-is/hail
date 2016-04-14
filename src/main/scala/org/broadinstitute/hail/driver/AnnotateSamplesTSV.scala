@@ -30,7 +30,7 @@ object AnnotateSamplesTSV extends Command {
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
       usage = "Specify the column delimiter")
-    var delimiter: String = "\t"
+    var delimiter: String = "\\t"
   }
 
   def newOptions = new Options

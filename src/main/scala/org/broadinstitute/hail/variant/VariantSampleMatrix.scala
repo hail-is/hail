@@ -625,9 +625,7 @@ class RichVDS(vds: VariantDataset) {
           Row.fromSeq(Array(v.toRow, va.asInstanceOf[Row], gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
-      .write
-      .mode("overwrite")
-      .parquet(dirname + "/rdd.parquet")
+      .write.parquet(dirname + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
 

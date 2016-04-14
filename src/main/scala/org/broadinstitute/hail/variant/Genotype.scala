@@ -191,7 +191,7 @@ class Genotype(private val _gt: Int,
     (2 * mincp - minp).min(1.0).max(0.0)
   }
 
-  def fractionReadsAlt(): Option[Double] = ad.map { arr => arr(0).toDouble / arr.sum }
+  def fractionReadsRef(): Option[Double] = ad.map { arr => arr(0).toDouble / arr.sum }
 
   def toJSON: JValue = JObject(
     ("gt", gt.map(JInt(_)).getOrElse(JNull)),

@@ -10,10 +10,12 @@ import scala.collection.mutable
 
 object SampleTSVAnnotator extends TSVAnnotator {
   def apply(filename: String, sampleCol: String, declaredSig: Map[String, Type], missing: String,
-    hConf: hadoop.conf.Configuration, delimiter: String): (Map[String, Annotation], Type) = {
+    hConf: hadoop.conf.Configuration, delim: String): (Map[String, Annotation], Type) = {
     readLines(filename, hConf) { lines =>
       if (lines.isEmpty)
         fatal("empty TSV file")
+
+      val delimiter = unescapeString(delim)
 
       val header = lines.next().value
       val split = header.split(delimiter)

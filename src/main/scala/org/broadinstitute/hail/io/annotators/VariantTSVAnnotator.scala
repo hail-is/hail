@@ -12,7 +12,9 @@ import scala.collection.mutable
 
 object VariantTSVAnnotator extends TSVAnnotator {
   def apply(sc: SparkContext, files: Array[String], vColumns: Array[String], declaredSig: Map[String, Type],
-    missing: String, delimiter: String): (RDD[(Variant, Annotation)], Type) = {
+    missing: String, delim: String): (RDD[(Variant, Annotation)], Type) = {
+
+    val delimiter = unescapeString(delim)
 
     val (header, split) = readLines(files.head, sc.hadoopConfiguration) { lines =>
       if(lines.isEmpty)

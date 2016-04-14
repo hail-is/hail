@@ -756,7 +756,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TGenotype, "isNotCalled") => TBoolean
       case (TGenotype, "nNonRefAlleles") => TInt
       case (TGenotype, "pAB") => TDouble
-      case (TGenotype, "fractionReadsAlt") => TDouble
+      case (TGenotype, "fractionReadsRef") => TDouble
 
       case (TVariant, "contig") => TString
       case (TVariant, "start") => TInt
@@ -844,8 +844,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](c, lhs)(_.nNonRefAlleles)
     case (TGenotype, "pAB") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.pAB())
-    case (TGenotype, "fractionReadsAlt") =>
-      AST.evalFlatCompose[Genotype](c, lhs)(_.fractionReadsAlt())
+    case (TGenotype, "fractionReadsRef") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.fractionReadsRef())
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](c, lhs)(_.contig)
