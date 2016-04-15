@@ -13,9 +13,9 @@ class IndexBTreeSuite extends SparkSuite {
 
   object Spec extends Properties("BTree") {
 
-    val arraySizeGenerator = for (depth: Int <- choose(2,3);
+    val arraySizeGenerator = for (depth: Int <- frequency[Int]((4,const(1)),(5,const(2)),(1,const(3)));
                               arraySize: Int <- choose(math.max(1, math.pow(10, (depth - 1) * math.log10(1024)).toInt),
-                                math.min(3000000,math.pow(10, depth * math.log10(1024)).toInt))) yield (depth, arraySize)
+                                math.min(1100000,math.pow(10, depth * math.log10(1024)).toInt))) yield (depth, arraySize)
 
     def fillRandomArray(arraySize: Int): Array[Long] = {
       val randArray = new Array[Long](arraySize)
@@ -29,35 +29,8 @@ class IndexBTreeSuite extends SparkSuite {
       randArray
     }
 
-    property("guess correct depth from index size") =
-      forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
-        val arrayRandomStarts = fillRandomArray(arraySize)
-        IndexBTree.write(arrayRandomStarts, "/tmp/testBtree.idx", sc.hadoopConfiguration)
-        val estimatedDepth = IndexBTree.calcDepth("/tmp/testBtree.idx", sc.hadoopConfiguration)
-        if (estimatedDepth == depth)
-          true
-        else
-          false
-      }
-
-    property("index is correct size after write") =
-      forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
-        val arrayRandomStarts = fillRandomArray(arraySize)
-        IndexBTree.write(arrayRandomStarts, "/tmp/testBtree.idx", sc.hadoopConfiguration)
-        val indexSize = hadoopGetFileSize("/tmp/testBtree.idx", sc.hadoopConfiguration)
-        val depth = math.max(1,(math.log10(arrayRandomStarts.length) / math.log10(1024)).ceil.toInt)
-        val padding = if (arraySize <= 1024) 1024 - arraySize else arraySize % 1024
-        val numEntries = arraySize + padding + (1 until depth).map{math.pow(1024,_).toInt}.sum
-
-        if (indexSize == (numEntries * 8))
-          true
-        else
-          false
-      }
-
     property("query gives same answer as array") =
       forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
-
         val arrayRandomStarts = fillRandomArray(arraySize)
         val maxLong = arrayRandomStarts.takeRight(1)(0)
         val index = "/tmp/testBtree.idx"
@@ -65,12 +38,26 @@ class IndexBTreeSuite extends SparkSuite {
         hadoopDelete(index, sc.hadoopConfiguration, true)
         IndexBTree.write(arrayRandomStarts, index, sc.hadoopConfiguration)
 
-        if (arrayRandomStarts.length < 100)
+        val indexSize = hadoopGetFileSize(index, sc.hadoopConfiguration)
+        val padding = if (arraySize <= 1024) 1024 - arraySize else arraySize % 1024
+        val numEntries = arraySize + padding + (1 until depth).map{math.pow(1024,_).toInt}.sum
+
+        // make sure index size is correct
+        val indexCorrectSize = if (indexSize == (numEntries * 8)) true else false
+
+        // make sure depth is correct
+        val estimatedDepth = IndexBTree.calcDepth(index, sc.hadoopConfiguration)
+        val depthCorrect = if (estimatedDepth == depth) true else false
+
+        // make sure query is correct
+        val queryCorrect = if (arrayRandomStarts.length < 100)
           arrayRandomStarts.forall{case (l) => IndexBTree.queryIndex(l-1, maxLong + 5, index, sc.hadoopConfiguration) == l}
         else {
           val randomIndices = Array(0) ++ Array.fill(100)(choose(0,arraySize - 1).sample())
           randomIndices.map(arrayRandomStarts).forall { case (l) => IndexBTree.queryIndex(l-1,maxLong + 5, index, sc.hadoopConfiguration) == l }
         }
+
+        depthCorrect && indexCorrectSize && queryCorrect
       }
   }
 

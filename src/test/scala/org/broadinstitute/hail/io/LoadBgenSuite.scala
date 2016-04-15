@@ -61,7 +61,7 @@ class LoadBgenSuite extends SparkSuite {
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
-                       nPartitions: Int <- choose(1, 20)) yield (vds, nPartitions)
+                       nPartitions: Int <- choose(1, 10)) yield (vds, nPartitions)
 
     property("import generates same output as export") =
       forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
