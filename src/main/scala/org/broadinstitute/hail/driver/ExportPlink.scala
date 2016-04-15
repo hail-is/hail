@@ -52,8 +52,7 @@ object ExportPlink extends Command {
     sortedPlinkRDD.unpersist()
 
     val famRows = vds
-      .localSamples.iterator
-      .map(vds.sampleIds)
+      .sampleIds
       .map(ExportBedBimFam.makeFamRow)
 
     writeTextFile(options.output + ".fam", state.hadoopConf)(oos =>

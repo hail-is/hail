@@ -82,6 +82,8 @@ class Properties(val name: String) extends Prop {
 }
 
 object Prop {
+  def check(p: Prop) { p.check() }
+
   def forAll[T1](g1: Gen[T1])(p: (T1) => Boolean): Prop =
     new GenProp1(g1, p)
 

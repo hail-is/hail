@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.io.annotators._
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AnnotateVariantsVDS extends Command {
@@ -30,11 +31,11 @@ object AnnotateVariantsVDS extends Command {
 
     val readOtherVds = Read.run(state, Array("-i", filepath)).vds
 
-    fatalIf(!readOtherVds.wasSplit, "cannot annotate from a multiallelic VDS, run `splitmulti' on that VDS first.")
+    if (!readOtherVds.wasSplit)
+      fatal("cannot annotate from a multiallelic VDS, run `splitmulti' on that VDS first.")
 
-    val (rdd, signature) =(readOtherVds.variantsAndAnnotations, readOtherVds.vaSignature)
     val annotated = vds.annotateVariants(readOtherVds.variantsAndAnnotations,
-      readOtherVds.vaSignature, AnnotateVariantsTSV.parseRoot(options.root))
+      readOtherVds.vaSignature, Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
     state.copy(vds = annotated)
   }
 }

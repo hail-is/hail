@@ -1,17 +1,18 @@
 package org.broadinstitute.hail.variant.vsm
 
-import org.broadinstitute.hail.expr._
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.LoadVCF
 import org.broadinstitute.hail.variant._
-import scala.collection.mutable
-import scala.util.Random
-import scala.language.postfixOps
 import org.testng.annotations.Test
-import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.annotations._
+
+import scala.collection.mutable
+import scala.language.postfixOps
+import scala.util.Random
 
 class VSMSuite extends SparkSuite {
 
@@ -23,23 +24,25 @@ class VSMSuite extends SparkSuite {
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
     val mdata2 = VariantMetadata(Array("S1", "S2"))
     val mdata3 = new VariantMetadata(
-      IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
+      Annotation.empty,
       TStruct(
         "inner" -> TStruct(
           "thing1" -> TString),
         "thing2" -> TString),
+      TEmpty,
       TEmpty)
     val mdata4 = new VariantMetadata(
-      IndexedSeq.empty[(String, String)],
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
+      Annotation.empty,
       TStruct(
         "inner" -> TStruct(
           "thing1" -> TString),
         "thing2" -> TString,
         "dummy" -> TString),
+      TEmpty,
       TEmpty)
 
     assert(mdata1 != mdata2)
@@ -152,20 +155,21 @@ class VSMSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
     val nSamples = vds.nSamples
-    assert(nSamples == vds.nLocalSamples)
 
     // FIXME ScalaCheck
+
+    val samples = vds.sampleIds
     for (n <- 0 until 20) {
-      val keep = mutable.Set.empty[Int]
+      val keep = mutable.Set.empty[String]
 
       // n == 0: none
       if (n == 1) {
         for (i <- 0 until nSamples)
-          keep += i
+          keep += samples(i)
       } else if (n > 1) {
         for (i <- 0 until nSamples) {
           if (Random.nextFloat() < 0.5)
-            keep += i
+            keep += samples(i)
         }
       }
 
@@ -173,10 +177,10 @@ class VSMSuite extends SparkSuite {
       val filtered = vds.filterSamples((s, sa) => localKeep(s))
 
       val filteredAsMap = filtered.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
-      filteredAsMap.foreach { case (k, g) => simpleAssert(vdsAsMap(k) == g) }
+      filteredAsMap.foreach { case (k, g) => assert(vdsAsMap(k) == g) }
 
-      simpleAssert(filtered.nSamples == nSamples)
-      simpleAssert(filtered.localSamples.toSet == keep)
+      assert(filtered.nSamples == keep.size)
+      assert(filtered.sampleIds.toSet == keep)
 
       val sampleKeys = filtered.mapWithKeys((v, s, g) => s).distinct.collect()
       assert(sampleKeys.toSet == keep)

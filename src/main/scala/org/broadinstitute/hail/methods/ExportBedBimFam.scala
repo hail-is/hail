@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.variant._
+
 import scala.collection.mutable
 
 object ExportBedBimFam {
@@ -36,6 +37,6 @@ object ExportBedBimFam {
   }
 
   def makeFamRow(s: String): String = {
-    s"""0 $s 0 0 0 -9"""
+    s"0\t$s\t0\t0\t0\t-9"
   }
 }

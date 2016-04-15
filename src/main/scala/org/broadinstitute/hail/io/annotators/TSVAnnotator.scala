@@ -15,7 +15,7 @@ trait TSVAnnotator {
         ot match {
           case Some(t) => (ab: mutable.ArrayBuilder[Annotation], s: String) => {
             if (s == missing) {
-              ab += null: Annotation
+              ab += Annotation.empty
               ()
             } else {
               try {

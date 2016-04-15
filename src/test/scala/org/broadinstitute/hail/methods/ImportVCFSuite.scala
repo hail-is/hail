@@ -7,6 +7,7 @@ import org.broadinstitute.hail.expr.TStruct
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
+
   @Test def testInfo() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/infochar.vcf"))
@@ -34,6 +35,15 @@ class ImportVCFSuite extends SparkSuite {
     assert(LoadVCF.lineRef("\t\t\tabcd") == "abcd")
   }
 
+  @Test def symbolicOrSV() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/symbolicVariant.vcf"))
+    val n = s.vds.nVariants
+
+    assert(n == 1)
+    assert(VCFReport.accumulators.head._2.value(VCFReport.SymbolicOrSV) == 2)
+  }
+
   @Test def testStoreGQ() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("--store-gq", "src/test/resources/store_gq.vcf"))
@@ -42,10 +52,10 @@ class ImportVCFSuite extends SparkSuite {
       g.gq.map { gqx => ((v.start, s), gqx) }
     }.collectAsMap()
     val expectedGQs = Map(
-      (16050612, 0) -> 27,
-      (16050612, 1) -> 15,
-      (16051453, 0) -> 37,
-      (16051453, 1) -> 52)
+      (16050612, "S") -> 27,
+      (16050612, "T") -> 15,
+      (16051453, "S") -> 37,
+      (16051453, "T") -> 52)
     assert(gqs == expectedGQs)
 
     s = SplitMulti.run(s, Array("--propagate-gq"))

@@ -7,7 +7,7 @@ object LinearRegressionCommand extends Command {
 
   def name = "linreg"
 
-  def description = "Compute beta, std error, t-stat, and p-val for each SNP with additional sample covariates"
+  def description = "Compute beta, se, t, p-value with sample covariates"
 
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Output root filename")
@@ -27,7 +27,7 @@ object LinearRegressionCommand extends Command {
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds)
     val cov = CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds)
 
-    val linreg = LinearRegression(vds, ped, cov.filterSamples(ped.phenotypedSamples))
+    val linreg = LinearRegression(vds, ped, cov)
 
     if (options.output != null)
       linreg.write(options.output)

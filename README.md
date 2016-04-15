@@ -17,6 +17,7 @@
 10. [Exporting to TSV](docs/ExportTSV.md)
 11. [Exporting to VCF](docs/ExportVCF.md)
 12. [Exporting to Plink](docs/ExportPlink.md)
+13. [Persist](docs/Persist.md)
 
 ## Tools
 

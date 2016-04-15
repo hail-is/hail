@@ -1,14 +1,16 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.TestUtils._
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr.TInt
+import org.broadinstitute.hail.io.annotators.SampleFamAnnotator
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
 import scala.io.Source
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr.TInt
 
 class ImportAnnotationsSuite extends SparkSuite {
 
@@ -34,17 +36,75 @@ class ImportAnnotationsSuite extends SparkSuite {
     }
 
     val anno1 = AnnotateSamples.run(state,
-      Array("tsv", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.phenotype", "-t", "qPhen:Int"))
+      Array("tsv", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.`my phenotype`", "-t", "qPhen:Int"))
 
-    val q1 = anno1.vds.querySA("phenotype", "Status")
-    val q2 = anno1.vds.querySA("phenotype", "qPhen")
+    val q1 = anno1.vds.querySA("sa.`my phenotype`.Status")._2
+    val q2 = anno1.vds.querySA("sa.`my phenotype`.qPhen")._2
 
     anno1.vds.metadata.sampleIds.zip(anno1.vds.metadata.sampleAnnotations)
       .forall {
         case (id, sa) =>
           !fileMap.contains(id) ||
-            ((Some(fileMap(id)._1) == q1(sa)) && (Some(fileMap(id)._2) == q2(sa)))
+            (q1(sa).contains(fileMap(id)._1) && q2(sa).contains(fileMap(id)._2))
       }
+  }
+
+  @Test def testSampleFamAnnotator() {
+    def assertNumeric(s: String) = assert(SampleFamAnnotator.numericRegex.findFirstIn(s).isDefined)
+    def assertNonNumeric(s: String) = assert(SampleFamAnnotator.numericRegex.findFirstIn(s).isEmpty)
+
+    List("0", "0.0", ".0", "-01", "1e5", "1e10", "1.1e10", ".1E-10").foreach(assertNumeric)
+    List("", "a", "1.", ".1.", "1e", "e", "E0", "1e1.", "1e.1", "1e1.1").foreach(assertNonNumeric)
+
+    def qMap(query: String, s: State): Map[String, Option[Any]] = {
+      val q = s.vds.querySA(query)._2
+      s.vds.sampleIds
+        .zip(s.vds.sampleAnnotations)
+        .map { case (id, sa) => (id, q(sa)) }
+        .toMap
+    }
+
+    val vds = LoadVCF(sc, "src/test/resources/importFam.vcf")
+    var s = State(sc, sqlContext, vds)
+
+
+    s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamCaseControl.fam"))
+    val m = qMap("sa.fam", s)
+
+    assert(m("A").contains(Annotation("Newton", "C", "D", true, false)))
+    assert(m("B").contains(Annotation("Turing", "C", "D", false, true)))
+    assert(m("C").contains(Annotation(null, null, null, null, null)))
+    assert(m("D").contains(Annotation(null, null, null, null, null)))
+    assert(m("E").contains(Annotation(null, null, null, null, null)))
+    assert(m("F").isEmpty)
+
+    interceptFatal("non-numeric") {
+      AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamCaseControlNumericException.fam"))
+    }
+
+
+    s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamQPheno.fam", "-q"))
+    val m1 = qMap("sa.fam", s)
+
+    assert(m1("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
+    assert(m1("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
+    assert(m1("C").contains(Annotation(null, null, null, null, 0.0)))
+    assert(m1("D").contains(Annotation(null, null, null, null, -9.0)))
+    assert(m1("E").contains(Annotation(null, null, null, null, null)))
+    assert(m1("F").isEmpty)
+
+
+    s = AnnotateSamples.run(s,
+      Array("fam", "-i", "src/test/resources/importFamQPheno.space.m9.fam", "-q", "-d", "\\\\s+", "-m", "-9", "-r", "sa.ped"))
+    val m2 = qMap("sa.ped", s)
+
+    assert(m2("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
+    assert(m2("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
+    assert(m2("C").contains(Annotation(null, null, null, null, 0.0)))
+    assert(m2("D").contains(Annotation(null, null, null, null, null)))
+    assert(m2("E").contains(Annotation(null, null, null, null, 3.0)))
+    assert(m2("F").isEmpty)
+
   }
 
   @Test def testVariantTSVAnnotator() {
@@ -68,13 +128,13 @@ class ImportAnnotationsSuite extends SparkSuite {
     val anno1 = AnnotateVariants.run(state,
       Array("tsv", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
-    val q1 = anno1.vds.queryVA("stuff")
+    val q1 = anno1.vds.queryVA("va.stuff")._2
     anno1.vds.rdd
       .collect()
       .foreach {
         case (v, va, gs) =>
           val (rand1, rand2, gene) = fileMap(v)
-          assert(q1(va) == Some(Annotation(rand1.getOrElse(null), rand2.getOrElse(null), gene.getOrElse(null))))
+          assert(q1(va).contains(Annotation(rand1.getOrElse(null), rand2.getOrElse(null), gene.getOrElse(null))))
       }
 
     val anno1alternate = AnnotateVariants.run(state,
@@ -104,7 +164,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .collect()
       .toMap
 
-    val q = anno1.vds.queryVA("other")
+    val q = anno1.vds.queryVA("va.other")._2
 
     anno1.vds.rdd.collect()
       .foreach {
@@ -121,9 +181,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     val bed2r = AnnotateVariants.run(state, Array("bed", "-i", "src/test/resources/example2.bed", "-r", "va.test"))
     val bed3r = AnnotateVariants.run(state, Array("bed", "-i", "src/test/resources/example3.bed", "-r", "va.test"))
 
-    val q1 = bed1r.vds.queryVA("test")
-    val q2 = bed2r.vds.queryVA("test")
-    val q3 = bed3r.vds.queryVA("test")
+    val q1 = bed1r.vds.queryVA("va.test")._2
+    val q2 = bed2r.vds.queryVA("va.test")._2
+    val q3 = bed3r.vds.queryVA("va.test")._2
 
     bed1r.vds.variantsAndAnnotations
       .collect()
@@ -131,16 +191,16 @@ class ImportAnnotationsSuite extends SparkSuite {
         case (v, va) =>
           assert(v.start <= 14000000 ||
             v.start >= 17000000 ||
-            q1(va) == None)
+            q1(va).isEmpty)
       }
 
     bed2r.vds.variantsAndAnnotations
       .collect()
       .foreach {
         case (v, va) =>
-          (v.start <= 14000000 && (q2(va) == Some("gene1"))) ||
-            (v.start >= 17000000 && (q2(va) == Some("gene2"))) ||
-            (q2(va) == None)
+          (v.start <= 14000000 && q2(va).contains("gene1")) ||
+            (v.start >= 17000000 && q2(va).contains("gene2")) ||
+            (q2(va).isEmpty)
       }
 
     assert(bed3r.vds.same(bed2r.vds))
@@ -190,7 +250,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     val vds2 = vds.filterSamples({case (s, sa) => scala.util.Random.nextFloat > 0.5})
       .annotateSamples(annoMap, TInt, List("test"))
 
-    val q = vds2.querySA("test")
+    val q = vds2.querySA("sa.test")._2
 
     vds2.sampleIds
       .zipWithIndex

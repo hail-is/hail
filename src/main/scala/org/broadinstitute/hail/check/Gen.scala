@@ -5,15 +5,31 @@ import scala.collection.mutable
 import org.apache.commons.math3.random._
 
 object Parameters {
-  val default = new Parameters(new RandomDataGenerator(), 100)
+  val default = Parameters(new RandomDataGenerator(), 100)
 }
 
-class Parameters(val rng: RandomDataGenerator, val size: Int) {
-  def frequency(pass: Int, outOf: Int): Boolean =
+case class Parameters(rng: RandomDataGenerator, size: Int) {
+  def frequency(pass: Int, outOf: Int): Boolean = {
+    assert(outOf > 0)
     rng.getRandomGenerator.nextInt(outOf) < pass
+  }
 }
 
 object Gen {
+  // utility
+  def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
+    if (parts == 0)
+      return Array()
+
+    val a = new Array[Int](parts)
+    for (_ <- 0 until size) {
+      val i = rng.getRandomGenerator.nextInt(parts)
+      a(i) += 1
+    }
+    assert(a.sum == size)
+    a
+  }
+
   val printableChars = (0 to 127).map(_.toChar).filter(!_.isControl).toArray
   val identifierLeadingChars = (0 to 127).map(_.toChar)
     .filter(c => c == '_' || c.isLetter)
@@ -24,25 +40,39 @@ object Gen {
 
   def const[T](x: T): Gen[T] = Gen { (p: Parameters) => x }
 
-  def oneOfSeq[T](xs: Seq[T]): Gen[T] = Gen { (p: Parameters) =>
-    xs(p.rng.getRandomGenerator.nextInt(xs.length))
+  def oneOfSeq[T](xs: Seq[T]): Gen[T] = {
+    assert(xs.nonEmpty)
+    Gen { (p: Parameters) =>
+      xs(p.rng.getRandomGenerator.nextInt(xs.length))
+    }
   }
 
-  def oneOfGen[T](gs: Gen[T]*): Gen[T] = Gen { (p: Parameters) =>
-    gs(p.rng.getRandomGenerator.nextInt(gs.length))(p)
+  def oneOfGen[T](gs: Gen[T]*): Gen[T] = {
+    assert(gs.nonEmpty)
+    Gen { (p: Parameters) =>
+      gs(p.rng.getRandomGenerator.nextInt(gs.length))(p)
+    }
   }
 
   def oneOf[T](xs: T*): Gen[T] = oneOfSeq(xs)
 
-  def choose(min: Int, max: Int): Gen[Int] = Gen { (p: Parameters) => p.rng.nextInt(min, max) }
+  def choose(min: Int, max: Int): Gen[Int] = {
+    assert(max >= min)
+    Gen { (p: Parameters) => p.rng.nextInt(min, max) }
+  }
 
-  def choose(min: Long, max: Long): Gen[Long] = Gen { (p: Parameters) => p.rng.nextLong(min, max) }
+  def choose(min: Long, max: Long): Gen[Long] = {
+    assert(max >= min)
+    Gen { (p: Parameters) => p.rng.nextLong(min, max) }
+  }
 
   def choose(min: Double, max: Double): Gen[Double] = Gen { (p: Parameters) =>
     p.rng.nextUniform(min, max, true)
   }
 
   def frequency[T](wxs: (Int, Gen[T])*): Gen[T] = {
+    assert(wxs.nonEmpty)
+
     val running = new Array[Int](wxs.length)
     running(0) = 0
     for (i <- 1 until wxs.length)
@@ -61,6 +91,11 @@ object Gen {
     }
   }
 
+  def subset[T](s: Set[T]): Gen[Set[T]] = Gen.parameterized { p =>
+    Gen.choose(0.0, 1.0).map(cutoff =>
+      s.filter(_ => p.rng.getRandomGenerator.nextDouble <= cutoff))
+  }
+
   def sequence[C, T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
       val b = cbf()
@@ -70,44 +105,61 @@ object Gen {
 
   def buildableOf[C, T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
-      val s: Int = p.rng.getRandomGenerator.nextInt(p.size)
       val b = cbf()
-      for (_ <- 0 until s)
-        b += g(p)
-      b.result()
+      if (p.size == 0)
+        b.result()
+      else {
+        val s = p.rng.getRandomGenerator.nextInt(p.size)
+        val part = partition(p.rng, p.size, s)
+        for (i <- 0 until s)
+          b += g(p.copy(size = part(i)))
+        b.result()
+      }
     }
 
   def distinctBuildableOf[C, T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
-      val s: Int = p.rng.getRandomGenerator.nextInt(p.size)
-      val t: mutable.Set[T] = mutable.Set.empty[T]
-      for (_ <- 0 until s)
-        t += g(p)
       val b = cbf()
-      b ++= t
-      b.result()
+      if (p.size == 0)
+        b.result()
+      else {
+        val s = p.rng.getRandomGenerator.nextInt(p.size)
+        val part = partition(p.rng, p.size, s)
+        val t = mutable.Set.empty[T]
+        for (i <- 0 until s)
+          t += g(p.copy(size = part(i)))
+        b ++= t
+        b.result()
+      }
     }
 
   def buildableOfN[C, T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
+      val part = partition(p.rng, p.size, n)
       val b = cbf()
-      for (_ <- 0 until n)
-        b += g(p)
+      for (i <- 0 until n)
+        b += g(p.copy(size = part(i)))
       b.result()
     }
 
   def distinctBuildableOfN[C, T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
+      val part = partition(p.rng, p.size, n)
       val t: mutable.Set[T] = mutable.Set.empty[T]
-      while (t.size < n)
-        t += g(p)
+      var i = 0
+      while (i < n) {
+        t += g(p.copy(size = part(i)))
+        i = t.size
+      }
       val b = cbf()
       b ++= t
       b.result()
     }
 
-  def randomOneOf[T](rng: RandomDataGenerator, is: IndexedSeq[T]): T =
+  def randomOneOf[T](rng: RandomDataGenerator, is: IndexedSeq[T]): T = {
+    assert(is.nonEmpty)
     is(rng.getRandomGenerator.nextInt(is.length))
+  }
 
   def identifier: Gen[String] = Gen { (p: Parameters) =>
     val s = 1 + p.rng.getRandomGenerator.nextInt(11)
@@ -141,6 +193,10 @@ object Gen {
     p.rng.getRandomGenerator.nextInt(Int.MaxValue - 1) + 1
   }
 
+  def arbBoolean: Gen[Boolean] = Gen { p =>
+    p.rng.getRandomGenerator.nextBoolean()
+  }
+
   def arbInt: Gen[Int] = Gen { p => p.rng.getRandomGenerator.nextInt() }
 
   def arbLong: Gen[Long] = Gen { p => p.rng.getRandomGenerator.nextLong() }
@@ -158,9 +214,14 @@ object Gen {
   def zip[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3]): Gen[(T1, T2, T3)] = Gen { (p: Parameters) =>
     (g1(p), g2(p), g3(p))
   }
+
+  def parameterized[T](f: (Parameters => Gen[T])) = Gen { p => f(p)(p) }
+
+  def sized[T](f: (Int) => Gen[T]): Gen[T] = Gen { (p: Parameters) => f(p.size)(p) }
+
 }
 
-class Gen[T](val gen: (Parameters) => T) extends AnyVal {
+class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
 
   def apply(p: Parameters): T = gen(p)
 
@@ -170,6 +231,10 @@ class Gen[T](val gen: (Parameters) => T) extends AnyVal {
 
   def flatMap[U](f: (T) => Gen[U]): Gen[U] = Gen { p =>
     f(apply(p))(p)
+  }
+
+  def resize(newSize: Int): Gen[T] = Gen { (p: Parameters) =>
+    apply(p.copy(size = newSize))
   }
 
   // FIXME should be non-strict
@@ -182,7 +247,4 @@ class Gen[T](val gen: (Parameters) => T) extends AnyVal {
 
   def filter(f: (T) => Boolean): Gen[T] = withFilter(f)
 
-  def parameterized(f: (Parameters => Gen[T])) = Gen { p => f(p)(p) }
-
-  def sized(f: (Int) => Gen[T]): Gen[T] = Gen { (p: Parameters) => f(p.size)(p) }
 }

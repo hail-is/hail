@@ -6,6 +6,9 @@ object Arbitrary {
   def apply[T](arbitrary: Gen[T]): Arbitrary[T] =
     new Arbitrary(arbitrary)
 
+  implicit def arbBoolean: Arbitrary[Boolean] = new Arbitrary(
+    Gen.oneOf(true, false))
+
   implicit def arbInt: Arbitrary[Int] = new Arbitrary(
     Gen.oneOfGen(Gen.oneOf(Int.MinValue, -1, 0, 1, Int.MaxValue),
       Gen.choose(-100, 100),

@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -25,8 +25,12 @@ object AnnotateSamplesTSV extends Command {
     var root: String = _
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
-      usage = "Specify identifiers to be treated as missing")
+      usage = "Specify identifier to be treated as missing")
     var missing: String = "NA"
+
+    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
+      usage = "Field delimiter regex")
+    var delimiter: String = "\\t"
   }
 
   def newOptions = new Options
@@ -37,12 +41,6 @@ object AnnotateSamplesTSV extends Command {
 
   override def supportsMultiallelic = true
 
-  def parseRoot(s: String): List[String] = {
-    val split = s.split("\\.").toList
-    fatalIf(split.isEmpty || split.head != "sa", s"Root must start with `sa.', got `$s'")
-    split.tail
-  }
-
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -51,8 +49,9 @@ object AnnotateSamplesTSV extends Command {
     val (m, signature) = SampleTSVAnnotator(input, options.sampleCol,
       Parser.parseAnnotationTypes(options.types),
       options.missing,
-      state.hadoopConf)
-    val annotated = vds.annotateSamples(m, signature, parseRoot(options.root))
+      state.hadoopConf, options.delimiter)
+    val annotated = vds.annotateSamples(m, signature,
+      Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
     state.copy(vds = annotated)
   }
 }

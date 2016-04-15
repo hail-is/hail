@@ -1,16 +1,38 @@
 package org.broadinstitute.hail.driver
 
-import java.io.{IOException, FileInputStream, InputStream}
+import java.io.{FileInputStream, IOException, InputStream}
 import java.util.Properties
+
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._
-import org.json4s.native.JsonMethods._
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
+
 import scala.collection.mutable
 import org.kohsuke.args4j.{Option => Args4jOption}
+
+case class JSONExtractGenotype(
+  gt: Option[Int],
+  ad: Option[Array[Int]],
+  dp: Option[Int],
+  gq: Option[Int],
+  pl: Option[Array[Int]],
+  fakeRef: Boolean) {
+  def toGenotype =
+    Genotype(gt, ad, dp, gq, pl, fakeRef)
+}
+
+case class JSONExtractVariant(contig: String,
+  start: Int,
+  ref: String,
+  altAlleles: List[AltAllele]) {
+  def toVariant =
+    Variant(contig, start, ref, altAlleles.toArray)
+}
 
 object VEP extends Command {
 
@@ -30,47 +52,65 @@ object VEP extends Command {
 
   override def supportsMultiallelic = true
 
-  def jsonToAnnotation(jv: JValue, t: Type, parent: String): Any = (jv, t) match {
-    case (JNull, _) => null
-    case (JInt(x), TInt) => x.toInt
-    case (JInt(x), TDouble) => x.toDouble
-    case (JInt(x), TString) => x.toString
-    case (JLong(x), TLong) => x
-    case (JDouble(x), TDouble) => x
-    case (JString(x), TString) => x
-    case (JString(x), TDouble) =>
-      if (x.startsWith("-:"))
-        x.drop(2).toDouble
-      else
-        x.toDouble
-    case (JBool(x), TBoolean) => x
+  def jsonToAnnotation(jv: JValue, t: BaseType, parent: String): Any = {
+    implicit val formats = Serialization.formats(NoTypeHints)
 
-    case (JObject(jfields), t: TStruct) =>
-      val a = Array.fill[Any](t.size)(null)
+    (jv, t) match {
+      case (JNull, _) => null
+      case (JNothing, TEmpty) => null
+      case (JInt(x), TInt) => x.toInt
+      case (JInt(x), TLong) => x.toLong
+      case (JInt(x), TDouble) => x.toDouble
+      case (JInt(x), TString) => x.toString
+      case (JDouble(x), TDouble) => x
+      case (JDouble(x), TFloat) => x.toFloat
+      case (JString(x), TString) => x
+      case (JString(x), TChar) => x
+      case (JString(x), TDouble) =>
+        if (x.startsWith("-:"))
+          x.drop(2).toDouble
+        else
+          x.toDouble
+      case (JBool(x), TBoolean) => x
 
-      for ((name, jv2) <- jfields) {
-        t.selfField(name) match {
-          case Some (f) =>
-            a(f.index) = jsonToAnnotation(jv2, f.`type`, parent + "." + name)
+      case (JObject(jfields), t: TStruct) =>
+        val a = Array.fill[Any](t.size)(null)
 
-          case None =>
-            warn(s"Signature for $parent has no field $name")
+        for ((name, jv2) <- jfields) {
+          t.selfField(name) match {
+            case Some(f) =>
+              a(f.index) = jsonToAnnotation(jv2, f.`type`, parent + "." + name)
+
+            case None =>
+              warn(s"Signature for $parent has no field $name")
+          }
         }
-      }
 
-      Annotation(a: _*)
+        Annotation(a: _*)
 
-    case (JArray(a), TArray(elementType)) =>
-      a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
+      case (_, TAltAllele) =>
+        jv.extract[AltAllele]
+      case (_, TVariant) =>
+        jv.extract[JSONExtractVariant].toVariant
+      case (_, TGenotype) =>
+        jv.extract[JSONExtractGenotype].toGenotype
 
-    case _ =>
-      warn(s"Can't convert json value $jv to signature $t for $parent.")
-      null
+      case (JArray(a), TArray(elementType)) =>
+        a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
+
+      case (JArray(a), TSet(elementType)) =>
+        a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
+
+      case _ =>
+        warn(s"Can't convert json value $jv to signature $t for $parent.")
+        null
+    }
   }
 
   val vepSignature = TStruct(
     "assembly_name" -> TString,
     "allele_string" -> TString,
+    "ancestral" -> TString,
     "colocated_variants" -> TArray(TStruct(
       "aa_allele" -> TString,
       "aa_maf" -> TDouble,
@@ -115,6 +155,7 @@ object VEP extends Command {
       "somatic" -> TInt,
       "start" -> TInt,
       "strand" -> TInt)),
+    "context" -> TString,
     "end" -> TInt,
     "id" -> TString,
     "input" -> TString,

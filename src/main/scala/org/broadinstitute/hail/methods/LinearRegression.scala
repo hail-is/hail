@@ -7,6 +7,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
+
 import scala.collection.mutable.ArrayBuffer
 
 object LinRegStats {
@@ -86,16 +87,16 @@ object LinearRegression {
   def name = "LinearRegression"
 
   def apply(vds: VariantDataset, ped: Pedigree, cov: CovariateData): LinearRegression = {
-    // LinearRegressionCommand uses cov.filterSamples(ped.phenotypedSamples) in call
-    require(cov.covRowSample.forall(ped.phenotypedSamples))
+    val filteredCov = cov.filterSamples(ped.phenotypedSamples)
 
-    val sampleCovRow = cov.covRowSample.zipWithIndex.toMap
+    val sampleCovRow = filteredCov.covRowSample.zipWithIndex.toMap
 
-    val n = cov.data.rows
-    val k = cov.data.cols
+    val n = filteredCov.covRowSample.size
+    val k = filteredCov.covName.size
     val d = n - k - 2
+
     if (d < 1)
-      throw new IllegalArgumentException(s"$n samples and $k covariates implies $d degrees of freedom.")
+      fatal(s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
 
     info(s"Running linreg on $n samples and $k covariates...")
 
@@ -105,8 +106,12 @@ object LinearRegression {
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
     val samplePheno = ped.samplePheno
-    val yArray = (0 until n).flatMap(cr => samplePheno(cov.covRowSample(cr)).map(_.toString.toDouble)).toArray
-    val covAndOnesVector = DenseMatrix.horzcat(cov.data, DenseMatrix.ones[Double](n, 1))
+    val yArray = (0 until n).flatMap(cr => samplePheno(filteredCov.covRowSample(cr)).map(_.toString.toDouble)).toArray
+    val covAndOnesVector: DenseMatrix[Double] = filteredCov.data match {
+      case Some(d) => DenseMatrix.horzcat(d, DenseMatrix.ones[Double](n, 1))
+      case None => DenseMatrix.ones[Double](n, 1)
+    }
+
     val y = DenseVector[Double](yArray)
     val qt = qr.reduced.justQ(covAndOnesVector).t
     val qty = qt * y
@@ -119,8 +124,8 @@ object LinearRegression {
     new LinearRegression(vds
       .filterSamples { case (s, sa) => samplesWithCovDataBc.value.contains(s) }
       .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
-        (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
-        (lrb1, lrb2) => lrb1.merge(lrb2))
+      (lrb, v, s, g) => lrb.merge(sampleCovRowBc.value(s), g, yBc.value),
+      (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues { lrb =>
         lrb.stats(yBc.value, n).map { stats => {
           val (x, xx, xy, nMissing) = stats
@@ -136,7 +141,8 @@ object LinearRegression {
           val t = b / se
           val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-          LinRegStats(nMissing, b, se, t, p) }
+          LinRegStats(nMissing, b, se, t, p)
+        }
         }
       }
     )

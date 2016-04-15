@@ -16,7 +16,7 @@ class ImportPlinkSuite extends SparkSuite {
 
   object Spec extends Properties("ImportPlink") {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
-    nPartitions: Int <- choose(1,PlinkLoader.expectedBedSize(vds.nSamples,vds.nVariants).toInt.min(50))) yield (vds, nPartitions)
+    nPartitions: Int <- choose(1,PlinkLoader.expectedBedSize(vds.nSamples,vds.nVariants).toInt.min(10))) yield (vds, nPartitions)
 
     property("import generates same output as export") =
       forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>

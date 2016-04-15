@@ -21,11 +21,12 @@ object VCFReport {
   val ADODDPPMismatch = 4
   val GQPLMismatch = 5
   val GQMissingPL = 6
-  val RefNonACGT = 7
+  val RefNonACGTN = 7
+  val SymbolicOrSV = 8
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
-  def isVariant(id: Int): Boolean = id == RefNonACGT
+  def isVariant(id: Int): Boolean = id == RefNonACGTN || id == SymbolicOrSV
 
   def isGenotype(id: Int): Boolean = !isVariant(id)
 
@@ -37,7 +38,8 @@ object VCFReport {
       case ADODDPPMismatch => "DP != sum(AD) + OD"
       case GQPLMismatch => "GQ != difference of two smallest PL entries"
       case GQMissingPL => "GQ present but PL missing"
-      case RefNonACGT => "REF contains non-ACGT"
+      case RefNonACGTN => "REF contains non-ACGT"
+      case SymbolicOrSV => "Variant is symbolic or structural indel"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -163,12 +165,12 @@ object LoadVCF {
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
-    val filters: IndexedSeq[(String, String)] = header
+    val filters: Map[String, String] = header
       .getFilterLines
       .toList
       // (filter, description)
       .map(line => (line.getID, ""))
-      .toArray[(String, String)]
+      .toMap
 
     val infoSignature = TStruct(header
       .getInfoHeaderLines
@@ -177,11 +179,13 @@ object LoadVCF {
       .toArray)
 
     val variantAnnotationSignatures = TStruct(
-      "rsid" -> TString,
-      "qual" -> TDouble,
-      "filters" -> TSet(TString),
-      "pass" -> TBoolean,
-      "info" -> infoSignature)
+      Array(
+        Field("rsid", TString, 0),
+        Field("qual", TDouble, 1),
+        Field("filters", TSet(TString), 2, filters),
+        Field("pass", TBoolean, 3),
+        Field("info", infoSignature, 4)
+      ))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -209,31 +213,38 @@ object LoadVCF {
 
       sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
         .mapPartitions { lines =>
-          val reader = vcf.HtsjdkRecordReader(headerLinesBc.value)
-          lines.filterNot(line =>
-            line.isEmpty || line(0) == '#' || {
-              val containsNonACGT = !lineRef(line).forall(c =>
-                c == 'A' || c == 'C' || c == 'G' || c == 'T')
-              if (containsNonACGT)
-                reportAcc += VCFReport.RefNonACGT
-              containsNonACGT
-            })
-            .map { line =>
-              try {
-                reader.readRecord(reportAcc, line, infoSignatureBc.value, storeGQ, skipGenotypes)
-              } catch {
-                case e: TribbleException =>
-                  log.error(s"${e.getMessage}\n  line: $line", e)
-                  throw new PropagatedTribbleException(e.getMessage)
+          val codec = new htsjdk.variant.vcf.VCFCodec()
+          val reader = vcf.HtsjdkRecordReader(headerLinesBc.value, codec)
+          lines.flatMap { line =>
+            try {
+              if (line.isEmpty || line(0) == '#')
+                None
+              else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
+                reportAcc += VCFReport.RefNonACGTN
+                None
+              } else {
+                val vc = codec.decode(line)
+                if (vc.isSymbolicOrSV) {
+                  reportAcc += VCFReport.SymbolicOrSV
+                  None
+                } else
+                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes, compress))
               }
+            } catch {
+              case e: TribbleException =>
+                log.error(s"${e.getMessage}\n  line: $line", e)
+                throw new PropagatedTribbleException(e.getMessage)
             }
+          }
         }
     })
 
-    VariantSampleMatrix(VariantMetadata(filters, sampleIds,
+    VariantSampleMatrix(VariantMetadata(sampleIds,
       Annotation.emptyIndexedSeq(sampleIds.length),
+      Annotation.empty,
       TEmpty,
-      variantAnnotationSignatures), genotypes)
+      variantAnnotationSignatures,
+      TEmpty), genotypes)
   }
 
 }

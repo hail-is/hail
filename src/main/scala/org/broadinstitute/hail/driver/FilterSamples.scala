@@ -46,10 +46,9 @@ object FilterSamples extends Command {
           Source.fromInputStream(reader)
             .getLines()
             .filter(line => !line.isEmpty)
-            .flatMap(indexOfSample.get)
             .toSet
         }
-        (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
+        (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val symTab = Map(
           "s" -> (0, TSample),
@@ -57,12 +56,11 @@ object FilterSamples extends Command {
         val a = new ArrayBuffer[Any]()
         for (_ <- symTab)
           a += null
-        val f: () => Any = Parser.parse(symTab, TBoolean, a, c)
-        val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-        (s: Int, sa: Annotation) => {
-          a(0) = sampleIdsBc.value(s)
+        val f: () => Option[Boolean] = Parser.parse[Boolean](c, symTab, a, TBoolean)
+        (s: String, sa: Annotation) => {
+          a(0) = s
           a(1) = sa
-          Filter.keepThisAny(f(), keep)
+          Filter.keepThis(f(), keep)
         }
     }
 

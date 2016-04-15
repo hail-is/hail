@@ -91,10 +91,12 @@ object PlinkLoader {
       case (lw, pl) => (variants(pl.getKey), Annotation.empty, pl.getGS)
     }
 
-    VariantSampleMatrix(VariantMetadata(Array.empty[(String, String)],
+    VariantSampleMatrix(VariantMetadata(
       sampleInfo.sampleIds,
       sampleInfo.annotations,
+      TEmpty,
       sampleInfo.signatures,
+      TEmpty,
       TEmpty), variantRDD)
   }
 

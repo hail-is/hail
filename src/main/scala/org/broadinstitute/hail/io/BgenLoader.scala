@@ -71,7 +71,7 @@ object BgenLoader {
 
   }
 
-  def readSamples(hConf: org.apache.hadoop.conf.Configuration, file: String): IndexedSeq[String] = {
+  def readSamples(hConf: org.apache.hadoop.conf.Configuration, file: String): Array[String] = {
     val bState = readState(hConf, file)
     if (!bState.hasIds)
       fatal(s"BGEN file `$file' contains no sample ID block, coimport a `.sample' file")
@@ -91,11 +91,11 @@ object BgenLoader {
 
       (0 until nSamples).map { i =>
         reader.readLengthAndString(2)
-      }
+      }.toArray
     }
   }
 
-  def readSampleFile(hConf: org.apache.hadoop.conf.Configuration, file: String): IndexedSeq[String] = {
+  def readSampleFile(hConf: org.apache.hadoop.conf.Configuration, file: String): Array[String] = {
     readFile(file, hConf) { s =>
       Source.fromInputStream(s)
         .getLines()
@@ -105,7 +105,7 @@ object BgenLoader {
           val arr = line.split("\\s+")
           arr(0)
         }
-        .toIndexedSeq
+        .toArray
     }
   }
 

@@ -2,12 +2,12 @@ package org.broadinstitute.hail.io.annotators
 
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.variant.{Interval, IntervalList, Variant}
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant.{Interval, IntervalList}
 
 object BedAnnotator {
   def apply(filename: String,
-    hConf: hadoop.conf.Configuration): (IntervalList, expr.Type) = {
+    hConf: hadoop.conf.Configuration): (IntervalList, Type) = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     readLines(filename, hConf) { lines =>
@@ -17,19 +17,21 @@ object BedAnnotator {
           line.value.startsWith("track") ||
           line.value.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
 
-      fatalIf(remainder.isEmpty, "bed file contains no interval lines")
+      if (remainder.isEmpty)
+        fatal("bed file contains no interval lines")
 
       val dataLines = remainder.toArray
-      fatalIf(dataLines.isEmpty, "bed file contains no data lines")
+      if (dataLines.isEmpty)
+        fatal("bed file contains no data lines")
       val next = dataLines
         .head
         .value
         .split("""\s+""")
 
       val (getString, signature) = if (next.length < 4)
-        (false, expr.TBoolean)
+        (false, TBoolean)
       else
-        (true, expr.TString)
+        (true, TString)
 
       val intervalList = IntervalList(
         dataLines

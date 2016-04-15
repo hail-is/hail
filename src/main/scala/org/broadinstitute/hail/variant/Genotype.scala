@@ -1,14 +1,17 @@
 package org.broadinstitute.hail.variant
 
 import java.util
+
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.{Gen, Arbitrary}
-import scala.language.implicitConversions
-import scala.collection.mutable
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.json4s._
+
+import scala.collection.mutable
+import scala.language.implicitConversions
 
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
@@ -187,6 +190,16 @@ class Genotype(private val _gt: Int,
     val mincp = d.cumulativeProbability(minDepth)
     (2 * mincp - minp).min(1.0).max(0.0)
   }
+
+  def fractionReadsRef(): Option[Double] = ad.map { arr => arr(0).toDouble / arr.sum }
+
+  def toJSON: JValue = JObject(
+    ("gt", gt.map(JInt(_)).getOrElse(JNull)),
+    ("ad", ad.map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("dp", dp.map(JInt(_)).getOrElse(JNull)),
+    ("gq", gq.map(JInt(_)).getOrElse(JNull)),
+    ("pl", pl.map(pls => JArray(pls.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("fakeRef", JBool(fakeRef)))
 }
 
 object Genotype {
@@ -435,7 +448,7 @@ object Genotype {
       }
       pl.foreach { pla =>
         val m = pla.min
-        var i =  0
+        var i = 0
         while (i < pla.length) {
           pla(i) -= m
           i += 1

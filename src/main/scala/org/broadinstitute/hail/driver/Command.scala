@@ -36,7 +36,7 @@ object ToplevelCommands {
   }
 
   def printCommands() {
-    val visibleCommands = commands.values.filterNot(_.hidden)
+    val visibleCommands = commands.values.filterNot(_.hidden).toArray.sortBy(_.name)
     val maxLen = visibleCommands.map(_.name.length).max
     visibleCommands
       .foreach(cmd => println("  " + cmd.name + (" " * (maxLen - cmd.name.length + 2))
@@ -53,6 +53,8 @@ object ToplevelCommands {
   register(ExportGenotypes)
   register(ExportSamples)
   register(ExportVariants)
+  register(ExportVariantsCass)
+  register(ExportVariantsSolr)
   register(ExportVCF)
   register(FilterGenotypes)
   register(FamSummary)
@@ -70,6 +72,7 @@ object ToplevelCommands {
   register(MendelErrorsCommand)
   register(SplitMulti)
   register(PCA)
+  register(Persist)
   register(Read)
   register(RenameSamples)
   register(Repartition)
@@ -105,11 +108,12 @@ abstract class SuperCommand extends Command {
   override def supportsMultiallelic = true
 
   override def lookup(args: Array[String]): (Command, Array[String]) = {
-    if (args.isEmpty
-      || args.head(0) == '-')
+    val subArgs = args.dropWhile(_ == "-h")
+
+    if (subArgs.isEmpty)
       return (this, args)
 
-    val subcommandName = args.head
+    val subcommandName = subArgs.head
     subcommands.get(subcommandName) match {
       case Some(sc) => sc.lookup(args.tail)
       case None =>
@@ -122,7 +126,7 @@ abstract class SuperCommand extends Command {
 
     println("")
     println("Sub-commands:")
-    val visibleSubcommands = subcommands.values.filterNot(_.hidden)
+    val visibleSubcommands = subcommands.values.filterNot(_.hidden).toArray.sortBy(_.name)
     val maxLen = visibleSubcommands.map(_.name.length).max
     visibleSubcommands
       .foreach(sc => println("  " + sc.name + (" " * (maxLen - sc.name.length + 2))
@@ -131,7 +135,17 @@ abstract class SuperCommand extends Command {
 
   override def parseArgs(args: Array[String]): Options = {
     val options = newOptions
-    options.arguments = new java.util.ArrayList[String](args.toList.asJava)
+    if (args(0) ==  "-h")
+      options.printUsage = true
+
+    val subArgs = args.dropWhile(_ == "-h")
+    options.arguments = new java.util.ArrayList[String](subArgs.toList.asJava)
+
+    if (options.printUsage) {
+      printUsage()
+      sys.exit(0)
+    }
+
     options
   }
 

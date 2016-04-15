@@ -42,13 +42,11 @@ class LoadBgenSuite extends SparkSuite {
     val bgenVDS = s.vds
     val genVariantsAnnotations = genVDS.variantsAndAnnotations
     val bgenVariantsAnnotations = bgenVDS.variantsAndAnnotations
-    val bgenSampleIds = s.vds.sampleIds
-    val genSampleIds = genVDS.sampleIds
 
     val bgenQuery = bgenVDS.vaSignature.query("varid")
     val genQuery = genVDS.vaSignature.query("varid")
-    val bgenFull = bgenVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((bgenQuery(va).get,bgenSampleIds(i)),gt)}
-    val genFull = genVDS.expandWithAnnotation().map{case (v, va, i, gt) => ((genQuery(va).get,genSampleIds(i)),gt)}
+    val bgenFull = bgenVDS.expandWithAll().map{case (v, va, s, sa, gt) => ((bgenQuery(va).get,s),gt)}
+    val genFull = genVDS.expandWithAll().map{case (v, va, s, sa, gt) => ((genQuery(va).get,s),gt)}
 
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)
@@ -112,11 +110,8 @@ class LoadBgenSuite extends SparkSuite {
           val importedVariants = importedVds.variants
           val origVariants = origVds.variants
 
-          val importedSampleIds = importedVds.sampleIds
-          val originalSampleIds = origVds.sampleIds
-
-          val importedFull = importedVds.expandWithAnnotation().map{case (v, va, i, gt) => ((v, importedSampleIds(i)), gt)}
-          val originalFull = origVds.expandWithAnnotation().map{case (v, va, i, gt) => ((v, originalSampleIds(i)), gt)}
+          val importedFull = importedVds.expandWithAll().map{case (v, va, s, sa, gt) => ((v, s), gt)}
+          val originalFull = origVds.expandWithAll().map{case (v, va, s, sa, gt) => ((v, s), gt)}
 
           val result = originalFull.fullOuterJoin(importedFull).map{ case ((v, i), (gt1, gt2)) =>
             val gt1x = gt1 match {

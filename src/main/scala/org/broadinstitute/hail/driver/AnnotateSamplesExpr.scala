@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotation, Inserter}
 import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr.Type
 import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
 import org.broadinstitute.hail.variant.Sample
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -37,16 +38,21 @@ object AnnotateSamplesExpr extends Command {
     for (_ <- symTab)
       a += null
 
-    val parsed = expr.Parser.parseAnnotationArgs(symTab, a, cond)
+    val parsed = expr.Parser.parseAnnotationArgs(cond, symTab, a)
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "sa")
         fatal(s"Path must start with `sa.', got `${ids.mkString(".")}'")
-      (ids.tail, t)
+      val sig = t match {
+        case tws: Type => tws
+        case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
+      }
+      (ids.tail, sig)
     }
     val computations = parsed.map(_._3)
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
+
       val (s, i) = v.insertSA(signature, ids)
       inserterBuilder += i
       v.copy(saSignature = s)
@@ -60,8 +66,7 @@ object AnnotateSamplesExpr extends Command {
       val queries = computations.map(_ ())
       var newSA = sa
       queries.indices.foreach { i =>
-        newSA = inserters(i)(newSA,
-          Option(queries(i)))
+        newSA = inserters(i)(newSA, queries(i))
       }
       newSA
     }
