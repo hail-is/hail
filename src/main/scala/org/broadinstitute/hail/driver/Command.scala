@@ -63,6 +63,7 @@ object ToplevelCommands {
   register(GQByDP)
   register(GQHist)
   register(ImportBGEN)
+  register(ImportPlink)
   register(ImportVCF)
   register(IndexBGEN)
   register(LinearRegressionCommand)

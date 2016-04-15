@@ -22,23 +22,28 @@ object ImportPlink extends Command {
     @Args4jOption(name = "--fam", usage = "Plink .fam file", forbids = Array("--bfile"), depends = Array("--bim","--bed"))
     var fam: String = _
 
+    @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
+    var noCompress: Boolean = false
+
     @Args4jOption(name = "-n", aliases = Array("--npartition"), usage = "Number of partitions")
-    var nPartitions: Int = 0
+    var nPartitions: java.lang.Integer = _
   }
 
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
-    val nPartitions = if (options.nPartitions > 0) Some(options.nPartitions) else None
+    val nPartitionOption = Option(options.nPartitions).map(_.toInt)
+
+    state.hadoopConf.setBoolean("compressGS", !options.noCompress)
 
     if (options.bfile == null && (options.bed == null || options.bim == null || options.fam == null))
-      fatal("Invalid input...")
+      fatal("invalid input: require either --bed/--bim/--fam arguments or --bfile argument")
 
     if (options.bfile != null) {
-      state.copy(vds = PlinkLoader(options.bfile + ".bed", options.bfile + ".bim", options.bfile + ".fam", state.sc, nPartitions))
-    }
-    else {
-      state.copy(vds = PlinkLoader(options.bed, options.bim, options.fam, state.sc, nPartitions))
-    }
+      if (options.bim != null || options.bed != null || options.fam != null)
+        warn("received --bfile argument, ignoring unexpected --bed/--bim/--fam arguments")
+      state.copy(vds = PlinkLoader(options.bfile + ".bed", options.bfile + ".bim", options.bfile + ".fam", state.sc, nPartitionOption))
+    } else
+      state.copy(vds = PlinkLoader(options.bed, options.bim, options.fam, state.sc, nPartitionOption))
   }
 }

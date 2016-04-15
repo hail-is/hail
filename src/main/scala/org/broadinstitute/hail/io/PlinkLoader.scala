@@ -4,11 +4,11 @@ import java.io._
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
+import org.apache.spark.SparkContext
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
-import org.apache.spark.{SparkContext}
 
 import scala.io.Source
 
@@ -41,7 +41,6 @@ class VariantParser(bimPath: String, hConf: Configuration)
   def eval(): Array[Variant] = variants match {
     case null | None =>
       val v = parseBim()
-      println("number of variants is " + v.length)
       variants = Some(v)
       v
     case Some(v) => v
@@ -73,8 +72,6 @@ object PlinkLoader {
     if (sampleIds.toSet.size != nSamples)
       fatal("Duplicate ids present in .fam file")
 
-    println("Number of samples is " + nSamples)
-
     SampleInfo(sampleIds, sampleAnnotations, signatures)
   }
 
@@ -86,7 +83,6 @@ object PlinkLoader {
     val nSamples = sampleInfo.sampleIds.length
 
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
-    // FIXME what about withScope and assertNotStopped()?
 
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[ParsedLine[Int]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
@@ -113,7 +109,9 @@ object PlinkLoader {
     if (nVariants <= 0)
       fatal(".bim file does not contain any variants")
 
-    //check magic numbers in bed file
+    info(s"Found $nSamples samples in fam file.")
+    info(s"Found $nVariants variants in bim file.")
+
     readFile(bedPath, sc.hadoopConfiguration) {dis =>
       val b1 = dis.read()
       val b2 = dis.read()

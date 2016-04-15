@@ -1,16 +1,17 @@
 package org.broadinstitute.hail.io
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.check.Gen._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
-import org.broadinstitute.hail.check.Properties
-import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.Gen._
+
 import scala.io.Source
-import sys.process._
 import scala.language.postfixOps
+import scala.sys.process._
 
 class LoadBgenSuite extends SparkSuite {
 
@@ -33,7 +34,7 @@ class LoadBgenSuite extends SparkSuite {
     val nVariants = getNumberOfLinesInFile(gen)
 
     var s = State(sc, sqlContext, null)
-    s = IndexBGEN.run(s, Array("-s", sampleFile, bgen))
+    s = IndexBGEN.run(s, Array(bgen))
     s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", "10", bgen))
     assert(s.vds.nSamples == nSamples && s.vds.nVariants == nVariants)
 
@@ -52,8 +53,12 @@ class LoadBgenSuite extends SparkSuite {
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)
     assert(bgenVariantsAnnotations.collect() sameElements genVariantsAnnotations.collect())
-    assert(genFull.fullOuterJoin(bgenFull).map{case ((v,i),(gt1,gt2)) => gt1 == gt2}.fold(true)(_ && _))
+    genFull.fullOuterJoin(bgenFull)
+      .collect()
+      .foreach{case ((v,i),(gt1,gt2)) =>
+        assert(gt1 == gt2)}
   }
+
 
 
   object Spec extends Properties("ImportBGEN") {
@@ -72,7 +77,6 @@ class LoadBgenSuite extends SparkSuite {
         val qcToolLogFile = fileRoot + ".qctool.log"
         val qcToolPath = "qctool"
 
-        hadoopDelete(fileRoot + "*", sc.hadoopConfiguration, true)
         hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, true)
         hadoopDelete(genFile, sc.hadoopConfiguration, true)
         hadoopDelete(sampleFile, sc.hadoopConfiguration, true)
@@ -89,7 +93,7 @@ class LoadBgenSuite extends SparkSuite {
 
         if (vds.nVariants == 0)
           try {
-            s = IndexBGEN.run(s, Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
+            s = IndexBGEN.run(s, Array("-n", nPartitions.toString, bgenFile))
             s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
             false
           } catch {
@@ -97,7 +101,7 @@ class LoadBgenSuite extends SparkSuite {
             case _: Throwable => false
           }
         else {
-          var q = IndexBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, bgenFile))
+          var q = IndexBGEN.run(State(sc, sqlContext, null), Array(bgenFile))
           q = ImportBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
           val importedVds = q.vds
 
@@ -116,12 +120,11 @@ class LoadBgenSuite extends SparkSuite {
 
           val result = originalFull.fullOuterJoin(importedFull).map{ case ((v, i), (gt1, gt2)) =>
             val gt1x = gt1 match {
-              case Some(x) => {
-                var newPl = x.pl.getOrElse(Array(0,0,0)).map{i => math.min(i, 48)}
-                val newGt = BgenLoader.parseGenotype(newPl)
+              case Some(x) =>
+                var newPl = x.pl.getOrElse(Array(0,0,0)).map{i => math.min(i, BgenLoader.MAX_PL   )}
+                val newGt = BgenUtils.parseGenotype(newPl)
                 newPl = if (newGt == -1) null else newPl
                 Some(x.copy(gt = Option(newGt), ad = None, dp = None, gq = None, pl = Option(newPl)))
-              }
               case None => None
             }
             gt1x == gt2
@@ -134,5 +137,24 @@ class LoadBgenSuite extends SparkSuite {
 
   @Test def testBgenImportRandom() {
     Spec.check()
+  }
+}
+
+object BgenUtils {
+  def parseGenotype(pls: Array[Int]): Int = {
+    if (pls(0) == 0 && pls(1) == 0
+      || pls(0) == 0 && pls(2) == 0
+      || pls(1) == 0 && pls(2) == 0)
+      -1
+    else {
+      if (pls(0) == 0)
+        0
+      else if (pls(1) == 0)
+        1
+      else if (pls(2) == 0)
+        2
+      else
+        -1
+    }
   }
 }

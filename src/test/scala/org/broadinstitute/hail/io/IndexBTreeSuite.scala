@@ -1,12 +1,13 @@
 package org.broadinstitute.hail.io
 
-import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.broadinstitute.hail.Utils._
-import org.testng.annotations.Test
-import scala.language.implicitConversions
-import org.broadinstitute.hail.check.Properties
-import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Gen._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.testng.annotations.Test
+
+import scala.language.implicitConversions
 
 class IndexBTreeSuite extends SparkSuite {
 

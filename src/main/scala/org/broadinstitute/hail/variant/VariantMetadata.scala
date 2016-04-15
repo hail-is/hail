@@ -5,7 +5,7 @@ import org.broadinstitute.hail.expr._
 
 object VariantMetadata {
 
-  def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(Array.empty[(String, String)],
+  def apply(sampleIds: IndexedSeq[String]): VariantMetadata = new VariantMetadata(Array.empty[(String, String)],
     sampleIds,
     Annotation.emptyIndexedSeq(sampleIds.length),
     TEmpty,

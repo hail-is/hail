@@ -1,20 +1,21 @@
 package org.broadinstitute.hail.driver
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.io.BgenLoader
-import org.kohsuke.args4j.{Option => Args4jOption, Argument}
+import org.apache.hadoop
+import org.kohsuke.args4j.Argument
+
 import scala.collection.JavaConverters._
 
 object IndexBGEN extends Command {
   def name = "indexbgen"
 
-  def description = "Make an index for BGEN file. Must be done before running importbgen"
+  def description = "Create an index for one or more BGEN files.  `importbgen' cannot run without these indexes."
 
   class Options extends BaseOptions {
-    @Args4jOption(name = "-s", aliases = Array("--samplefile"), usage = "Sample file for BGEN files")
-    var sampleFile: String = null
-
-    @Argument(usage = "<file>")
+    @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
 
@@ -37,13 +38,31 @@ object IndexBGEN extends Command {
 
     inputs.foreach { input =>
       if (!input.endsWith(".bgen")) {
-        fatal("unknown input file type")
+        fatal(s"unknown input file: $input")
       }
     }
 
-    inputs.foreach{i => BgenLoader.createIndex(i, Option(options.sampleFile), state.sc)}
 
-    //FIXME to be an array
+    class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
+      private def writeObject(out: ObjectOutputStream) {
+        out.defaultWriteObject()
+        value.write(out)
+      }
+
+      private def readObject(in: ObjectInputStream) {
+        value = new hadoop.conf.Configuration(false)
+        value.readFields(in)
+      }
+    }
+
+    val sHC = new SerializableHadoopConfiguration(state.hadoopConf)
+
+    state.sc.parallelize(inputs).foreach { in =>
+        BgenLoader.index(sHC.value, in)
+    }
+
+    info(s"Number of BGEN files indexed: ${inputs.length}")
+
     state
   }
 }
