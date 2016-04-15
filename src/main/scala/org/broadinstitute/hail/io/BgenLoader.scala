@@ -44,7 +44,7 @@ object BgenLoader {
       val reader = new HadoopFSDataBinaryReader(is)
       reader.seek(0)
 
-      for (i <- 1 until bState.nVariants) {
+      for (i <- 1 until bState.nVariants + 1) {
         reader.seek(position)
 
         val nRow = reader.readInt()

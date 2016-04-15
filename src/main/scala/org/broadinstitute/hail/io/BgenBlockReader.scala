@@ -22,14 +22,12 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val ab = new mutable.ArrayBuilder.ofByte
   val plArray = new Array[Int](3)
 
-  println(s"split goes from ${split.getStart} to ${split.getStart + split.getLength}")
-
   seekToFirstBlock(split.getStart)
 
   override def seekToFirstBlock(start: Long) {
     require(start >= 0 && start < fileSize)
     pos = IndexBTree.queryIndex(start, fileSize, indexArrayPath, job)
-    if (pos < 0 || pos >= fileSize)
+    if (pos < 0 || pos > fileSize)
       fatal(s"incorrect seek position `$pos', the file is $fileSize bytes")
     else
       bfis.seek(pos)
