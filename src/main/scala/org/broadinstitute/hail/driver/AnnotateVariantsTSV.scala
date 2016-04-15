@@ -28,7 +28,7 @@ object AnnotateVariantsTSV extends Command {
     var vCols: String = "Chromosome,Position,Ref,Alt"
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Specify the column delimiter regex")
+      usage = "Field delimiter regex")
     var delimiter: String = "\\t"
 
     @Argument(usage = "<files...>")

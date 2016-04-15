@@ -29,7 +29,7 @@ object AnnotateSamplesTSV extends Command {
     var missing: String = "NA"
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Specify the column delimiter")
+      usage = "Field delimiter regex")
     var delimiter: String = "\\t"
   }
 

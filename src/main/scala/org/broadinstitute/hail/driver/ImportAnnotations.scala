@@ -28,8 +28,8 @@ object ImportAnnotations extends Command {
     var vCols: String = "Chromosome, Position, Ref, Alt"
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Specify the column delimiter")
-    var delimiter: String = "\t"
+      usage = "Field delimiter regex")
+    var delimiter: String = "\\t"
   }
 
   def newOptions = new Options

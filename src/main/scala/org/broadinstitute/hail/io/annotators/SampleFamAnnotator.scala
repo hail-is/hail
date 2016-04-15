@@ -12,11 +12,13 @@ object SampleFamAnnotator {
   val numericRegex =
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
-  def apply(filename: String, delimiter: String, isQuantitative: Boolean, missing: String,
+  def apply(filename: String, delim: String, isQuantitative: Boolean, missing: String,
     hConf: hadoop.conf.Configuration): (Map[String, Annotation], Type) = {
     readLines(filename, hConf) { lines =>
       if (lines.isEmpty)
         fatal("Empty .fam file")
+
+      val delimiter = unescapeString(delim)
 
       val phenoSig = if (isQuantitative) ("qPheno", TDouble) else ("isCase", TBoolean)
 
@@ -28,7 +30,7 @@ object SampleFamAnnotator {
         _.transform { line =>
           val split = line.value.split(delimiter)
           if (split.length != 6)
-            fatal(s"Malformed .fam file: expected 6 fields in line ${line.position}, got ${split.length}")
+            fatal(s"Malformed .fam file: expected 6 fields, got ${split.length}")
           val Array(fam, kid, dad, mom, isMale, pheno) = split
 
           if (kidSet(kid))
