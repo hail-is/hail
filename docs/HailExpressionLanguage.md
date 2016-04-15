@@ -59,19 +59,22 @@ Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without e
 
 ____
 
+<a name="aggregables"></a>
 ## Aggregator functions
 
-Hail's expression language supports a small number of 'aggregation' functions, which compute across rows or columns of the dataset.  These functions allow a user to replicate nearly all the of the statistics generated in `sampleqc` or `variantqc`, as well as compute an unrestricted set of new metrics.  These are functions 
+Hail's expression language exposes a number of 'aggregation' functions, which compute across rows or columns of the dataset.  These functions allow a user to replicate nearly all the of the statistics generated in `sampleqc` or `variantqc`, as well as compute an unrestricted set of new metrics.
 
-**Current aggregation functions:**
+These functions can be used in modules that expose `gs` as a genotype row or column aggregable, or in `annotateglobal` to 
 
-#### Count
-
-`count` counts the number of occurrences for which a boolean condition evaluates to `true`.  If the condition evaluates to missing, then it is not added to the count.  The result is an integer.
+### Count
 
 ```
     <aggregable>.count( <Boolean expression> )
 ```
+
+`count` counts the number of occurrences for which a boolean condition evaluates to `true`.  If the condition evaluates to missing, then it is not added to the count.  
+
+The result of `count` is a `Long` (integer).
 
 **Examples:**
 
@@ -93,21 +96,25 @@ Here we count the number of singleton non-ref LOFs and the number of homozygous 
                         sa.homVarLOFs = gs.count(g.isHomVar && va.consequence == "LOF")
 ```
 
-This can also be used to calculate statistics from sample/variant annotations in `mapreduce`:
+This can also be used to calculate statistics from sample/variant annotations in `annotateglobal`:
 ```
     annotatevariants -c 'va.isSingleton = gs.count(g.isCalledNonRef) == 1'
     annotatesamples -c 'sa.callrate = gs.fraction(g.isNotCalled)'
-    mapreduce -c 'global.lowQualSamples = samples.count(sa.callrate < 0.95),
+    annotateglobal -c 'global.lowQualSamples = samples.count(sa.callrate < 0.95),
                   global.totalNSingleton = variants.count(va.isSingleton)'
 ```
 
+____
+
 ### Fraction
 
-`fraction` computes the ratio of the number of occurrences for which a boolean condition evaluates to `true`, divided by the total number of non-missing occurrences.
-The result is a floating-point value.
 ```
     <aggregable>.fraction( <Boolean expression> )
 ```
+
+`fraction` computes the ratio of the number of occurrences for which a boolean condition evaluates to `true`, divided by the total number of non-missing occurrences.
+
+The result of `fraction` is a `Double` (floating-point)
 
 **Examples:**
 
@@ -125,10 +132,15 @@ One can also extend this thinking to compute the differential missingness at SNP
 
 ### Stats
 
-`stats` computes six useful statistics about a numeric expression.  The result is a group of { mean, standard deviation, min value, max value, number nonmissing, and sum }.
 ```
     <aggregable>.stats( <Numeric expression> )
 ```
+
+`stats` computes six useful statistics about a numeric expression.  
+
+The result of `stats` is a group of { mean, standard deviation, min value, max value, number nonmissing, and sum }.
+
+**Examples:**
 
 One can replicate the calculations in `<va / sa>.qc.gqMean` and `<va / sa>.qc.gqStDev` with the command below.  After this command, `va.gqstats.mean` is equal to the result of running `variantqc` and querying `va.qc.gqMean`, and this equivalence holds for the other values.
 ```
@@ -136,10 +148,40 @@ One can replicate the calculations in `<va / sa>.qc.gqMean` and `<va / sa>.qc.gq
     annotatesamples -c 'sa.gqstats = gs.stats(g.gq)'
 ```
 
+One can use `stats` to compute statistics on annotations as well:
+```
+    sampleqc
+    annotateglobal -c 'global.singletonStats = samples.stats(sa.qc.nSingleton)' 
+```
 
-`stats`
+### Stats If
 
-`statsif`
+```
+    <aggregable>.statsif( <Boolean expression> , <Numeric expression> )
+```
+
+`statsif` is two conceptual operations: a filter followed by a `stats`.  The six statistics will only be computed for elements where the boolean expression evaluates to `true` (not `false` or `NA`).  This function allows one to easily compute statistics on a subset of the data.
+
+**Examples:**
+
+Compute gq/dp statistics stratified by genotype call:
+```
+    annotatevariants -c '
+        va.homrefGQ = gs.statsif(g.isHomRef, g.gq),
+        va.hetGQ = gs.statsif(g.isHet, g.gq),
+        va.homvarGQ = gs.statsif(g.isHomVar, g.gq),
+        va.homrefDP = gs.statsif(g.isHomRef, g.dp),
+        va.hetDP = gs.statsif(g.isHet, g.dp),
+        va.homvarDP = gs.statsif(g.isHomVar, g.dp)'
+```
+
+Compute statistics on number of singletons stratified by case/control:
+```
+    sampleqc
+    annotateglobal -c 'global.caseSingletons = samples.statsif(sa.fam.isCase, sa.qc.nSingleton),
+        global.controlSingletons = samples.statsif(!sa.fam.isCase, sa.qc.nSingleton)'
+
+```
 
 `findmap`
 

@@ -8,7 +8,7 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
 
-object MapReduce extends Command {
+object AnnotateGlobal extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
@@ -18,7 +18,7 @@ object MapReduce extends Command {
 
   def newOptions = new Options
 
-  def name = "mapreduce"
+  def name = "annotateglobal"
 
   def description = "Annotate global table"
 

@@ -2,23 +2,23 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 
 
-class MapReduceSuite extends SparkSuite {
+class AnnotateGlobalSuite extends SparkSuite {
   @Test def testVariants(): Unit = {
 
     var s = SplitMulti.run(State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sample2.vcf")), Array.empty[String])
     s = VariantQC.run(s, Array.empty[String])
     s = SampleQC.run(s, Array.empty[String])
 
-    s = MapReduce.run(s, Array("-c", "global.mafDist = variants.stats(va.qc.MAF), global.singStats = samples.count(sa.qc.nSingleton > 2)"))
-    s = MapReduce.run(s, Array("-c", "global.anotherAnnotation.sumOver2 = global.mafDist.sum / 2"))
-    s = MapReduce.run(s, Array("-c", "global.macDist = variants.stats(va.qc.MAC)"))
-    s = MapReduce.run(s, Array("-c", "global.CRStats = samples.stats(sa.qc.callRate)"))
+    s = AnnotateGlobal.run(s, Array("-c", "global.mafDist = variants.stats(va.qc.MAF), global.singStats = samples.count(sa.qc.nSingleton > 2)"))
+    s = AnnotateGlobal.run(s, Array("-c", "global.anotherAnnotation.sumOver2 = global.mafDist.sum / 2"))
+    s = AnnotateGlobal.run(s, Array("-c", "global.macDist = variants.stats(va.qc.MAC)"))
+    s = AnnotateGlobal.run(s, Array("-c", "global.CRStats = samples.stats(sa.qc.callRate)"))
 
 
     val vds = s.vds
