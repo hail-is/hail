@@ -18,8 +18,8 @@ object AnnotateSamplesFam extends Command {
     var isQuantitative: Boolean = false
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Field delimiter")
-    var delimiter: String = "\t"
+      usage = "Field delimiter regex")
+    var delimiter: String = "\\t"
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
       usage = "Annotation root, a period-delimited path starting with `sa'")
@@ -43,7 +43,8 @@ object AnnotateSamplesFam extends Command {
 
     val input = options.input
 
-    fatalIf(!input.endsWith(".fam"), "input file must end in .fam")
+    if (!input.endsWith(".fam"))
+      fatal("input file must end in .fam")
 
     val delimiter = options.delimiter
     val isQuantitative = options.isQuantitative

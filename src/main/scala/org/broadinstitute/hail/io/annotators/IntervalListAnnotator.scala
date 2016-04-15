@@ -3,7 +3,7 @@ package org.broadinstitute.hail.io.annotators
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Interval, IntervalList, Variant}
+import org.broadinstitute.hail.variant.{Interval, IntervalList}
 
 object IntervalListAnnotator {
   def apply(filename: String, hConf: hadoop.conf.Configuration): (IntervalList, Type) = {
@@ -11,7 +11,8 @@ object IntervalListAnnotator {
 
     readLines(filename, hConf) { lines =>
 
-      fatalIf(lines.isEmpty, "empty interval file")
+      if (lines.isEmpty)
+      fatal("empty interval file")
 
       val firstLine = lines.next()
       val (getString, signature) = firstLine.value match {

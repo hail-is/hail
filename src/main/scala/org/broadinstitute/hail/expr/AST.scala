@@ -1,18 +1,17 @@
 package org.broadinstitute.hail.expr
 
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
+import org.json4s._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
 
 case class EvalContext(symTab: SymbolTable,
   a: ArrayBuffer[Any])
@@ -757,6 +756,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TGenotype, "isNotCalled") => TBoolean
       case (TGenotype, "nNonRefAlleles") => TInt
       case (TGenotype, "pAB") => TDouble
+      case (TGenotype, "fractionReadsRef") => TDouble
 
       case (TVariant, "contig") => TString
       case (TVariant, "start") => TInt
@@ -844,6 +844,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](c, lhs)(_.nNonRefAlleles)
     case (TGenotype, "pAB") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.pAB())
+    case (TGenotype, "fractionReadsRef") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.fractionReadsRef())
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](c, lhs)(_.contig)

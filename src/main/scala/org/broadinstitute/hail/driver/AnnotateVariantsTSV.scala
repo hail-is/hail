@@ -27,6 +27,10 @@ object AnnotateVariantsTSV extends Command {
       usage = "Specify the column identifiers for chromosome, position, ref, and alt (in that order)")
     var vCols: String = "Chromosome,Position,Ref,Alt"
 
+    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
+      usage = "Field delimiter regex")
+    var delimiter: String = "\\t"
+
     @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
 
@@ -40,10 +44,11 @@ object AnnotateVariantsTSV extends Command {
 
   def parseColumns(s: String): Array[String] = {
     val split = s.split(",").map(_.trim)
-    fatalIf(split.length != 4 && split.length != 1,
-      s"""Cannot read chr, pos, ref, alt columns from `$s':
-          |  enter four comma-separated column identifiers for separate chr/pos/ref/alt columns, or
-          |  one column identifier for a single chr:pos:ref:alt column.""".stripMargin)
+    if (split.length != 4 && split.length != 1)
+      fatal(
+        s"""Cannot read chr, pos, ref, alt columns from `$s':
+            |  enter four comma-separated column identifiers for separate chr/pos/ref/alt columns, or
+            |  one column identifier for a single chr:pos:ref:alt column.""".stripMargin)
     split
   }
 
@@ -55,7 +60,7 @@ object AnnotateVariantsTSV extends Command {
     val (rdd, signature) = VariantTSVAnnotator(vds.sparkContext, files,
       parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
-      options.missingIdentifier)
+      options.missingIdentifier, options.delimiter)
     val annotated = vds.annotateVariants(rdd, signature,
       Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
 
