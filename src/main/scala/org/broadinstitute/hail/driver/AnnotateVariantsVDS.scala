@@ -29,7 +29,7 @@ object AnnotateVariantsVDS extends Command {
 
     val filepath = options.input
 
-    val readOtherVds = Read.run(state, Array("-i", filepath)).vds
+    val readOtherVds = Read.run(state, Array("--skip-genotypes", "-i", filepath)).vds
 
     if (!readOtherVds.wasSplit)
       fatal("cannot annotate from a multiallelic VDS, run `splitmulti' on that VDS first.")
