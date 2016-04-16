@@ -850,6 +850,9 @@ object Utils extends Logging {
     }
   }
 
+  def hadoopFileStatus(filename: String, hConf: hadoop.conf.Configuration): FileStatus =
+    hadoopFS(filename, hConf).getFileStatus(new hadoop.fs.Path(filename))
+
   def readObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
@@ -1084,7 +1087,7 @@ object Utils extends Logging {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
     .resize(12)
     .filter(s => !s.isEmpty)
-  
+
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def richBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
