@@ -46,8 +46,7 @@ object GRM extends Command {
     val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
 
     val nSamples = vds.nSamples
-    val nVariants = vds.nVariants
-    val grm = mat.rows.mapPartitions { it =>
+    val (nVariants, grm) = mat.rows.mapPartitions { it =>
       val b = new mutable.ArrayBuilder.ofDouble
       var i = 0
       it.foreach { r =>
@@ -55,13 +54,13 @@ object GRM extends Command {
         b ++= r.vector.toArray
       }
       if (i == 0)
-        Iterator(DenseMatrix.zeros[Double](nSamples, nSamples))
+        Iterator((0, DenseMatrix.zeros[Double](nSamples, nSamples)))
       else {
         val m = new DenseMatrix(nSamples, i, b.result())
-        Iterator(m * m.t)
+        Iterator((i, m * m.t))
       }
-    }.treeAggregate[DenseMatrix[Double]](DenseMatrix.zeros[Double](nSamples, nSamples))(
-      { case (m1, m2) => m1 + m2 }, { case (m1, m2) => m1 + m2 })
+    }.treeAggregate[(Long, DenseMatrix[Double])]((0, DenseMatrix.zeros[Double](nSamples, nSamples)))(
+      { case ((i1, m1), (i2, m2)) => (i1 + i2, m1 + m2) }, { case ((i1, m1), (i2, m2)) => (i1 + i2, m1 + m2) })
 
     if (options.idFile != null) {
       writeTextFile(options.idFile, state.hadoopConf) { s =>
