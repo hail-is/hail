@@ -25,7 +25,7 @@ object VariantSampleMatrix {
     new VariantSampleMatrix(metadata, rdd)
   }
 
-  def read(sqlContext: SQLContext, dirname: String): VariantDataset = {
+  def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
@@ -100,11 +100,19 @@ object VariantSampleMatrix {
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
-    new VariantSampleMatrix[Genotype](metadata,
-      df.rdd.map(row => {
-        val v = row.getVariant(0)
-        (v, row.get(1), row.getGenotypeStream(v, 2))
-      }))
+    if (skipGenotypes)
+      new VariantSampleMatrix[Genotype](
+        metadata.copy(sampleIds = IndexedSeq.empty[String],
+          sampleAnnotations = IndexedSeq.empty[Annotation]),
+        df.select("variant", "annotations")
+          .map(row => (row.getVariant(0), row.get(1), Iterable.empty[Genotype])))
+    else
+      new VariantSampleMatrix(
+        metadata,
+        df.rdd.map { row =>
+          val v = row.getVariant(0)
+          (v, row.get(1), row.getGenotypeStream(v, 2))
+        })
   }
 
   def genValues[T](nSamples: Int, g: Gen[T]): Gen[Iterable[T]] =
@@ -115,12 +123,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         values <- genValues[T](nSamples, g(v)))
+      values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         values <- genValues[T](g(v)))
+      values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -145,9 +153,11 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
-    samplesVariantsGen.flatMap { case (sampleIds, variants) => gen(sc, sampleIds, variants, g) }
+    samplesVariantsGen.flatMap {
+      case (sampleIds, variants) => gen(sc, sampleIds, variants, g)
+    }
   }
 
   def gen[T](sc: SparkContext, sampleIds: Array[String], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
@@ -317,6 +327,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
     filterVariants((v, va) => ilist.contains(v.contig, v.start))
+
+  def dropSamples(): VariantSampleMatrix[T] =
+    copy(sampleIds = IndexedSeq.empty[String],
+      sampleAnnotations = IndexedSeq.empty[Annotation],
+      rdd = rdd.map { case (v, va, gs) =>
+        (v, va, Iterable.empty[T])
+      })
 
   // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (String, Annotation) => Boolean): VariantSampleMatrix[T] = {

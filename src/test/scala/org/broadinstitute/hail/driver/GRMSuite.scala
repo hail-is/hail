@@ -122,7 +122,10 @@ class GRMSuite extends SparkSuite {
   def runInTmp(cmd: String) {
     val pb = new java.lang.ProcessBuilder(cmd.split("\\s+"): _*)
     pb.directory(new File("/tmp"))
-    pb.inheritIO()
+
+    // comment in to see plink output
+    // pb.inheritIO()
+
     val p = pb.start()
     p.waitFor()
     assert(p.exitValue() == 0)

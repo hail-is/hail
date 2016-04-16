@@ -12,6 +12,10 @@ object Read extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"), usage = "Input .vds file")
     var input: String = _
+
+    @Args4jOption(name = "--skip-genotypes", usage = "Don't load genotypes")
+    var skipGenotypes: Boolean = false
+
   }
 
   def newOptions = new Options
@@ -19,7 +23,7 @@ object Read extends Command {
   def run(state: State, options: Options): State = {
     val input = options.input
 
-    val newVDS = VariantSampleMatrix.read(state.sqlContext, input)
+    val newVDS = VariantSampleMatrix.read(state.sqlContext, input, options.skipGenotypes)
     state.copy(vds = newVDS)
   }
 }

@@ -37,4 +37,13 @@ class FilterVariantsSuite extends SparkSuite {
           && tVariants.intersect(subset).isEmpty)
     })
   }
+
+  @Test def testFilterAll() {
+    var s = State(sc, sqlContext)
+
+    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
+    s = FilterVariants.run(s, Array("--remove", "--all"))
+
+    assert(s.vds.nVariants == 0)
+  }
 }
