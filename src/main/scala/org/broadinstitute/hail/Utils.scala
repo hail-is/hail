@@ -3,32 +3,31 @@ package org.broadinstitute.hail
 import java.io._
 
 import breeze.linalg.operators.{OpAdd, OpSub}
+import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import org.apache.commons.lang.StringEscapeUtils
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.{AccumulableParam, SparkContext}
+import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
+import org.apache.spark.{AccumulableParam, SparkContext}
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.io.compress.BGzipCodec
+import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
-import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector, DenseMatrix}
-import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
-import org.apache.commons.lang.StringEscapeUtils
-
 import scala.reflect.ClassTag
-import org.slf4j.{Logger, LoggerFactory}
-import Utils._
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0
@@ -293,11 +292,11 @@ class RichArray[T](a: Array[T]) {
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFiles[T](files: Array[String], f: String => Unit = s => (),
-    nPartitions: Int = sc.defaultMinPartitions): RDD[String] = {
+    nPartitions: Int = sc.defaultMinPartitions): RDD[Line] = {
     files.foreach(f)
     sc.union(
       files.map(file =>
-        sc.textFile(file, nPartitions)))
+        sc.textFile(file, nPartitions).map(l => Line(l, None, file))))
   }
 }
 
@@ -691,11 +690,6 @@ object Utils extends Logging {
     System.err.println("hail: error: " + msg)
   }
 
-  def fatalIf(b: Boolean, msg: String): Unit = {
-    if (b)
-      fatal(msg)
-  }
-
   def fatal(msg: String): Nothing = {
     throw new FatalException(msg)
   }
@@ -854,6 +848,9 @@ object Utils extends Logging {
     }
   }
 
+  def hadoopFileStatus(filename: String, hConf: hadoop.conf.Configuration): FileStatus =
+    hadoopFS(filename, hConf).getFileStatus(new hadoop.fs.Path(filename))
+
   def readObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
@@ -906,7 +903,7 @@ object Utils extends Logging {
     }
   }
 
-  case class Line(value: String, position: Int, filename: String) {
+  case class Line(value: String, position: Option[Int], filename: String) {
     def transform[T](f: Line => T): T = {
       try {
         f(this)
@@ -923,11 +920,11 @@ object Utils extends Logging {
             s"caught $e"
           log.error(
             s"""
-               |$filename:${position + 1}: $msg
+               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
                |  offending line: $value""".stripMargin)
           fatal(
             s"""
-               |$filename:${position + 1}: $msg
+               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
                |  offending line: $lineToPrint""".stripMargin)
       }
     }
@@ -940,7 +937,7 @@ object Utils extends Logging {
           .getLines()
           .zipWithIndex
           .map {
-            case (value, position) => Line(value, position, filename)
+            case (value, position) => Line(value, Some(position), filename)
           }
         reader(lines)
     }
@@ -1088,7 +1085,7 @@ object Utils extends Logging {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
     .resize(12)
     .filter(s => !s.isEmpty)
-  
+
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def richBoolean(b: Boolean): RichBoolean = new RichBoolean(b)

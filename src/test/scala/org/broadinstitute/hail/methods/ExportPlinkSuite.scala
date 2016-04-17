@@ -8,7 +8,6 @@ import scala.io.Source
 import sys.process._
 import scala.language._
 
-
 class ExportPlinkSuite extends SparkSuite {
 
   def rewriteBimIDs(file: String) {

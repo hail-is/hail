@@ -27,6 +27,10 @@ object AnnotateSamplesTSV extends Command {
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = "Specify identifier to be treated as missing")
     var missing: String = "NA"
+
+    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
+      usage = "Field delimiter regex")
+    var delimiter: String = "\\t"
   }
 
   def newOptions = new Options
@@ -45,7 +49,7 @@ object AnnotateSamplesTSV extends Command {
     val (m, signature) = SampleTSVAnnotator(input, options.sampleCol,
       Parser.parseAnnotationTypes(options.types),
       options.missing,
-      state.hadoopConf)
+      state.hadoopConf, options.delimiter)
     val annotated = vds.annotateSamples(m, signature,
       Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
     state.copy(vds = annotated)
