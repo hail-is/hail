@@ -13,7 +13,7 @@ object AnnotateSamplesFam extends Command {
       usage = ".fam file path")
     var input: String = _
 
-    @Args4jOption(required = false, name = "-q", aliases = Array("--quantpheno"),
+    @Args4jOption(required = false, name = "-q", aliases = Array("--quantitative"),
       usage = "Quantitative phenotype flag")
     var isQuantitative: Boolean = false
 
