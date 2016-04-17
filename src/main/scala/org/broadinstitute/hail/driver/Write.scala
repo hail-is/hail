@@ -8,8 +8,8 @@ object Write extends Command {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
 
-    @Args4jOption(required = false, name = "--compress", usage = "compress genotype streams using LZ4")
-    var compress: Boolean = true
+    @Args4jOption(required = false, name = "--no-compress", usage = "Don't compress genotype streams")
+    var noCompress: Boolean = false
   }
   def newOptions = new Options
 
@@ -19,7 +19,7 @@ object Write extends Command {
 
   def run(state: State, options: Options): State = {
     hadoopDelete(options.output, state.hadoopConf, true)
-    state.vds.write(state.sqlContext, options.output, compress = options.compress)
+    state.vds.write(state.sqlContext, options.output, compress = !options.noCompress)
     state
   }
 }
