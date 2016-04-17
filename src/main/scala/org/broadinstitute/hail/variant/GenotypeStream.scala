@@ -100,6 +100,7 @@ object GenotypeStream {
 
 class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
   extends mutable.Builder[Genotype, GenotypeStream] {
+
   val b = new mutable.ArrayBuilder.ofByte
 
   override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
