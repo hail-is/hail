@@ -23,7 +23,7 @@ object AnnotateSamplesFam extends Command {
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
       usage = "Field delimiter")
-    var delimiter: String = "\t"
+    var delimiter: String = """\t"""
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = "Identifier to be treated as missing (for case-control, in addition to `0', `-9', and non-numeric)")
