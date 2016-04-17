@@ -12,7 +12,7 @@ object Repartition extends Command {
   override def supportsMultiallelic = true
 
   def name = "repartition"
-  def description = "Repartition the current dataset"
+  def description = "Repartition the current variant data set"
 
   def run(state: State, options: Options): State = {
     state.copy(vds = state.vds.repartition(options.k))

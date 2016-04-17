@@ -27,7 +27,7 @@ class SparkSuite extends TestNGSuite {
     conf.set("spark.sql.parquet.compression.codec", "uncompressed")
 
     // FIXME KryoSerializer causes jacoco to throw IllegalClassFormatException exception
-    // conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     sc = new SparkContext(conf)
     sqlContext = new org.apache.spark.sql.SQLContext(sc)

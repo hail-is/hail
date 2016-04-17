@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 class PipelineSuite extends SparkSuite {
   @Test def defaultPipeline() {
     var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
     s = Write.run(s, Array("-o", "/tmp/sample.vds"))
     s = Read.run(s, Array("-i", "/tmp/sample.vds"))
