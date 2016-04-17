@@ -31,7 +31,8 @@ class ExprSuite extends SparkSuite {
         ("hetNonRef35", TGenotype))),
       "t" ->(10, TBoolean),
       "f" ->(11, TBoolean),
-      "mb" ->(12, TBoolean))
+      "mb" ->(12, TBoolean),
+      "is" ->(13, TString))
     val a = new ArrayBuffer[Any]()
     a += 5 // i
     a += -7 // j
@@ -52,12 +53,15 @@ class ExprSuite extends SparkSuite {
     a += true
     a += false
     a += null // mb
-    assert(a.length == 13)
+    a += "-37" // is
+    assert(a.length == 14)
 
     def eval[T](s: String): Option[T] = {
       val f = Parser.parse(s, symTab, a)._2
       f().map(_.asInstanceOf[T])
     }
+
+    assert(eval[Int]("is.toInt").contains(-37))
 
     assert(eval[Boolean]("!gs.het.isHomRef").contains(true))
 
@@ -144,7 +148,8 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testTypePretty() {
-    import Type._ // for arbType
+    import Type._
+    // for arbType
 
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
@@ -155,7 +160,7 @@ class ExprSuite extends SparkSuite {
       t == parsed
     })
   }
-  
+
   @Test def testJSON() {
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()

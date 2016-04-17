@@ -793,6 +793,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TNumeric, "toLong") => TLong
       case (t: TNumeric, "toFloat") => TFloat
       case (t: TNumeric, "toDouble") => TDouble
+      case (TString, "toInt") => TInt
+      case (TString, "toLong") => TLong
+      case (TString, "toFloat") => TFloat
+      case (TString, "toDouble") => TDouble
       case (t: TNumeric, "abs") => t
       case (t: TNumeric, "signum") => TInt
       case (TString, "length") => TInt
