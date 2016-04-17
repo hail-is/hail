@@ -1,18 +1,17 @@
 package org.broadinstitute.hail.expr
 
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.Utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
+import org.json4s._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
-import org.json4s._
-import org.json4s.native.JsonMethods._
 
 case class EvalContext(symTab: SymbolTable,
   a: ArrayBuffer[Any])
@@ -223,7 +222,7 @@ case object TLong extends TIntegral with Parsable {
 
   def parse(s: String): Annotation = s.toLong
 
-  def selfMakeJSON(a: Annotation): JValue = JLong(a.asInstanceOf[Long])
+  def selfMakeJSON(a: Annotation): JValue = JInt(a.asInstanceOf[Long])
 
   override def genValue: Gen[Annotation] = Gen.arbLong
 }
@@ -383,7 +382,7 @@ case class Field(name: String, `type`: Type,
 
   def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
     sb.append(" " * indent)
-    sb.append(name)
+    sb.append(prettyIdentifier(name))
     sb.append(": ")
     `type`.pretty(sb, indent, printAttrs)
     if (printAttrs) {
@@ -396,7 +395,7 @@ case class Field(name: String, `type`: Type,
         sb.append("=\"")
         sb.append(escapeString(attr._2))
         sb += '"'
-      } (() => sb += '\n')
+      }(() => sb += '\n')
     }
   }
 }
@@ -757,6 +756,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TGenotype, "isNotCalled") => TBoolean
       case (TGenotype, "nNonRefAlleles") => TInt
       case (TGenotype, "pAB") => TDouble
+      case (TGenotype, "fractionReadsRef") => TDouble
 
       case (TVariant, "contig") => TString
       case (TVariant, "start") => TInt
@@ -793,6 +793,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TNumeric, "toLong") => TLong
       case (t: TNumeric, "toFloat") => TFloat
       case (t: TNumeric, "toDouble") => TDouble
+      case (TString, "toInt") => TInt
+      case (TString, "toLong") => TLong
+      case (TString, "toFloat") => TFloat
+      case (TString, "toDouble") => TDouble
       case (t: TNumeric, "abs") => t
       case (t: TNumeric, "signum") => TInt
       case (TString, "length") => TInt
@@ -800,9 +804,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TArray(_), "isEmpty") => TBoolean
       case (TSet(_), "size") => TInt
       case (TSet(_), "isEmpty") => TBoolean
-
-      case (_, "isMissing") => TBoolean
-      case (_, "isNotMissing") => TBoolean
 
       case (t, _) =>
         parseError(s"`$t' has no field `$rhs'")
@@ -847,6 +848,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](c, lhs)(_.nNonRefAlleles)
     case (TGenotype, "pAB") =>
       AST.evalFlatCompose[Genotype](c, lhs)(_.pAB())
+    case (TGenotype, "fractionReadsRef") =>
+      AST.evalFlatCompose[Genotype](c, lhs)(_.fractionReadsRef())
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](c, lhs)(_.contig)
@@ -915,13 +918,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TString, "toFloat") => AST.evalCompose[String](c, lhs)(_.toFloat)
     case (TString, "toDouble") => AST.evalCompose[String](c, lhs)(_.toDouble)
 
-    case (_, "isMissing") =>
-      val f = lhs.eval(c)
-      () => f() == null
-    case (_, "isNotMissing") =>
-      val f = lhs.eval(c)
-      () => f() != null
-
     case (TInt, "abs") => AST.evalCompose[Int](c, lhs)(_.abs)
     case (TLong, "abs") => AST.evalCompose[Long](c, lhs)(_.abs)
     case (TFloat, "abs") => AST.evalCompose[Float](c, lhs)(_.abs)
@@ -947,6 +943,24 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
   def typecheck(): BaseType = parseError("non-function context")
 
   def eval(c: EvalContext): () => Any = throw new UnsupportedOperationException
+}
+
+case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
+  override def typecheckThis(): BaseType = {
+    (fn, args) match {
+      case ("isMissing", Array(a)) => TBoolean
+      case ("isDefined", Array(a)) => TBoolean
+    }
+  }
+
+  def eval(c: EvalContext): () => Any = ((fn, args): @unchecked) match {
+    case ("isMissing", Array(a)) =>
+      val f = a.eval(c)
+      () => f() == null
+    case ("isDefined", Array(a)) =>
+      val f = a.eval(c)
+      () => f() != null
+  }
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {

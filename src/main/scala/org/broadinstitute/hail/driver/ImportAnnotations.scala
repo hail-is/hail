@@ -26,6 +26,10 @@ object ImportAnnotations extends Command {
     @Args4jOption(required = false, name = "--vcolumns",
       usage = "Specify the column identifiers for chromosome, position, ref, and alt (in that order)")
     var vCols: String = "Chromosome, Position, Ref, Alt"
+
+    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
+      usage = "Field delimiter regex")
+    var delimiter: String = "\\t"
   }
 
   def newOptions = new Options
@@ -42,12 +46,11 @@ object ImportAnnotations extends Command {
       files,
       AnnotateVariantsTSV.parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
-      options.missingIdentifier)
+      options.missingIdentifier, options.delimiter)
 
     val vds = new VariantDataset(
-      VariantMetadata(IndexedSeq.empty, IndexedSeq.empty, Annotation.emptyIndexedSeq(0),
-        TEmpty, signature, wasSplit = true),
-      Array.empty[Int],
+      VariantMetadata(IndexedSeq.empty, Annotation.emptyIndexedSeq(0), Annotation.empty,
+        TEmpty, signature, TEmpty, wasSplit = true),
       rdd.map { case (v, va) => (v, va, Iterable.empty) })
 
     state.copy(vds = vds)

@@ -65,10 +65,10 @@ class LinearRegressionSuite extends SparkSuite {
       Array("-f", "src/test/resources/linearRegression.fam",
       "-c", "src/test/resources/linearRegression.cov"))
 
-    val query1 = s.vds.queryVA("linreg", "beta")
-    val query2 = s.vds.queryVA("linreg", "stderr")
-    val query3 = s.vds.queryVA("linreg", "tstat")
-    val query4 = s.vds.queryVA("linreg", "pval")
+    val query1 = s.vds.queryVA("va.linreg.beta")._2
+    val query2 = s.vds.queryVA("va.linreg.stderr")._2
+    val query3 = s.vds.queryVA("va.linreg.tstat")._2
+    val query4 = s.vds.queryVA("va.linreg.pval")._2
 
     val annotationMap = s.vds.variantsAndAnnotations
     .collect()

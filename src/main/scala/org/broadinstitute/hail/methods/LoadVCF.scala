@@ -2,16 +2,17 @@ package org.broadinstitute.hail.methods
 
 import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.vcf.BufferedLineIterator
-import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
-import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{expr, PropagatedTribbleException, vcf}
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.vcf.BufferedLineIterator
+import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable
+import scala.io.Source
 
 object VCFReport {
   val GTPLMismatch = 1
@@ -163,12 +164,12 @@ object LoadVCF {
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
-    val filters: IndexedSeq[(String, String)] = header
+    val filters: Map[String, String] = header
       .getFilterLines
       .toList
       // (filter, description)
       .map(line => (line.getID, ""))
-      .toArray[(String, String)]
+      .toMap
 
     val infoSignature = TStruct(header
       .getInfoHeaderLines
@@ -177,11 +178,13 @@ object LoadVCF {
       .toArray)
 
     val variantAnnotationSignatures = TStruct(
-      "rsid" -> TString,
-      "qual" -> TDouble,
-      "filters" -> TSet(TString),
-      "pass" -> TBoolean,
-      "info" -> infoSignature)
+      Array(
+        Field("rsid", TString, 0),
+        Field("qual", TDouble, 1),
+        Field("filters", TSet(TString), 2, filters),
+        Field("pass", TBoolean, 3),
+        Field("info", infoSignature, 4)
+      ))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -224,7 +227,7 @@ object LoadVCF {
                   reportAcc += VCFReport.SymbolicOrSV
                   None
                 } else
-                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes))
+                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes, compress))
               }
             } catch {
               case e: TribbleException =>
@@ -235,10 +238,12 @@ object LoadVCF {
         }
     })
 
-    VariantSampleMatrix(VariantMetadata(filters, sampleIds,
+    VariantSampleMatrix(VariantMetadata(sampleIds,
       Annotation.emptyIndexedSeq(sampleIds.length),
+      Annotation.empty,
       TEmpty,
-      variantAnnotationSignatures), genotypes)
+      variantAnnotationSignatures,
+      TEmpty), genotypes)
   }
 
 }

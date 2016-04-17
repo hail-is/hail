@@ -1,19 +1,20 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.hadoop
 import breeze.linalg._
+import org.apache.hadoop
 import org.broadinstitute.hail.RichDenseMatrixDouble
 import org.broadinstitute.hail.Utils._
+
 import scala.io.Source
 
-case class CovariateData(covRowSample: Array[Int], covName: Array[String], data: Option[DenseMatrix[Double]]) {
+case class CovariateData(covRowSample: Array[String], covName: Array[String], data: Option[DenseMatrix[Double]]) {
   require(data.isDefined || covRowSample.isEmpty || covName.isEmpty)
   require(data.forall(m => m.rows == covRowSample.size && m.cols == covName.size))
   require(covRowSample.areDistinct())
   require(covName.areDistinct())
 
   //preserves increasing order of samples
-  def filterSamples(keepSample: Int => Boolean): CovariateData = {
+  def filterSamples(keepSample: String => Boolean): CovariateData = {
     val filtCovRowSample = covRowSample.filter(keepSample)
     val nSamplesDiscarded = covRowSample.size - filtCovRowSample.size
 
@@ -30,13 +31,13 @@ case class CovariateData(covRowSample: Array[Int], covName: Array[String], data:
     CovariateData(covRowSample, covName.filter(keepCov), data.flatMap(_.filterCols(col => keepCov(covName(col)))))
 
   def appendCovariates(that: CovariateData): CovariateData = {
-    fatalIf(!(this.covRowSample sameElements that.covRowSample),
-      "Cannot append covariates: samples (rows) are not aligned.")
+    if (!(this.covRowSample sameElements that.covRowSample))
+      fatal("Cannot append covariates: samples (rows) are not aligned.")
 
     val newCovName = this.covName ++ that.covName
 
-    fatalIf(!newCovName.areDistinct(),
-      s"Cannot append covariates: covariate names overlap for ${newCovName.duplicates()}")
+    if (!newCovName.areDistinct())
+      fatal(s"Cannot append covariates: covariate names overlap for ${newCovName.duplicates()}")
 
     CovariateData(covRowSample, newCovName, RichDenseMatrixDouble.horzcat(this.data, that.data))
   }
@@ -59,20 +60,20 @@ object CovariateData {
 
       var nSamplesDiscarded = 0
 
-      val sampleIndex = sampleIds.zipWithIndex.toMap
+      val sampleSet = sampleIds.toSet
 
-      val sampleCovs = collection.mutable.Map[Int, Iterator[Double]]()
+      val sampleCovs = collection.mutable.Map[String, Iterator[Double]]()
 
       for (line <- lines) {
         val entries = line.split("\t").iterator
         val sample = entries.next()
-        sampleIndex.get(sample) match {
-          case Some(s) =>
-            if (sampleCovs.contains(s))
+        sampleSet(sample) match {
+          case true =>
+            if (sampleCovs.contains(sample))
               fatal(s".cov sample name is not unique: $sample")
             else
-              sampleCovs += s -> entries.map(_.toDouble)
-          case None => nSamplesDiscarded += 1
+              sampleCovs += sample -> entries.map(_.toDouble)
+          case false => nSamplesDiscarded += 1
         }
       }
 

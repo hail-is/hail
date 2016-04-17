@@ -25,7 +25,9 @@ class gqDpStatsSuite extends SparkSuite {
     val dpVds = TestRDDBuilder.buildRDD(8, 4, sc, dpArray=Some(arr), gqArray=None)
     val dpVariantR = VariantQC.results(dpVds)
     val dpSampleR = SampleQC.results(dpVds)
-    
+
+    val samplePositionMap = dpVds.sampleIds.zipWithIndex.toMap
+
     dpVariantR.collect().foreach {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].apply,
@@ -41,8 +43,8 @@ class gqDpStatsSuite extends SparkSuite {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        simpleAssert(D_==(a.dpSC.mean, sampleMeans(s)))
-        simpleAssert(D_==(a.dpSC.stdev, sampleDevs(s)))
+        simpleAssert(D_==(a.dpSC.mean, sampleMeans(samplePositionMap(s))))
+        simpleAssert(D_==(a.dpSC.stdev, sampleDevs(samplePositionMap(s))))
     }
 
     // now test GQ
@@ -63,8 +65,8 @@ class gqDpStatsSuite extends SparkSuite {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        simpleAssert(D_==(a.gqSC.mean, sampleMeans(s)))
-        simpleAssert(D_==(a.gqSC.stdev, sampleDevs(s)))
+        simpleAssert(D_==(a.gqSC.mean, sampleMeans(samplePositionMap(s))))
+        simpleAssert(D_==(a.gqSC.stdev, sampleDevs(samplePositionMap(s))))
     }
   }
 }

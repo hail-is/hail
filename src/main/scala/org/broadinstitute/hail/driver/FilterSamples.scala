@@ -12,15 +12,19 @@ import scala.io.Source
 object FilterSamples extends Command {
 
   class Options extends BaseOptions {
+    @Args4jOption(required = false, name = "--all", usage = "Filter all samples")
+    var all: Boolean = false
+
+    @Args4jOption(required = false, name = "-c", aliases = Array("--condition"),
+      usage = "Filter condition: expression or .sample_list file (one sample name per line)")
+    var condition: String = _
+
     @Args4jOption(required = false, name = "--keep", usage = "Keep only listed samples in current dataset")
     var keep: Boolean = false
 
     @Args4jOption(required = false, name = "--remove", usage = "Remove listed samples from current dataset")
     var remove: Boolean = false
 
-    @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
-      usage = "Filter condition: expression or .sample_list file (one sample name per line)")
-    var condition: String = _
   }
 
   def newOptions = new Options
@@ -34,8 +38,21 @@ object FilterSamples extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    if (!options.keep && !options.remove)
-      fatal(name + ": one of `--keep' or `--remove' required")
+    if ((options.keep && options.remove)
+      || (!options.keep && !options.remove))
+      fatal("one `--keep' or `--remove' required, but not both")
+
+    if ((options.all && options.condition != null)
+      || (!options.all && options.condition == null))
+      fatal("one `--all' or `-c' required, but not both")
+
+    if (options.all) {
+      if (options.keep)
+        return state
+      else
+        return state.copy(
+          vds = state.vds.dropSamples())
+    }
 
     val keep = options.keep
     val sas = vds.saSignature
@@ -46,10 +63,9 @@ object FilterSamples extends Command {
           Source.fromInputStream(reader)
             .getLines()
             .filter(line => !line.isEmpty)
-            .flatMap(indexOfSample.get)
             .toSet
         }
-        (s: Int, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
+        (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
       case c: String =>
         val symTab = Map(
           "s" -> (0, TSample),
@@ -57,12 +73,11 @@ object FilterSamples extends Command {
         val a = new ArrayBuffer[Any]()
         for (_ <- symTab)
           a += null
-        val f: () => Any = Parser.parse(symTab, TBoolean, a, c)
-        val sampleIdsBc = state.sc.broadcast(state.vds.sampleIds)
-        (s: Int, sa: Annotation) => {
-          a(0) = sampleIdsBc.value(s)
+        val f: () => Option[Boolean] = Parser.parse[Boolean](c, symTab, a, TBoolean)
+        (s: String, sa: Annotation) => {
+          a(0) = s
           a(1) = sa
-          Filter.keepThisAny(f(), keep)
+          Filter.keepThis(f(), keep)
         }
     }
 
