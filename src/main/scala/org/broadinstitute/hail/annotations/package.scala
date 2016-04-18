@@ -13,4 +13,6 @@ package object annotations {
   type Querier = (Annotation) => Option[Any]
 
   type Inserter = (Annotation, Option[Any]) => Annotation
+
+  type Assigner = (Annotation, Option[Any]) => Annotation
 }
