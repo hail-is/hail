@@ -2,7 +2,6 @@ package org.broadinstitute.hail.variant
 
 import breeze.linalg.DenseVector
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.Annotations
 import org.broadinstitute.hail.driver.{WriteHcs, AddHcs, SplitMulti, State}
 import org.broadinstitute.hail.methods._
 import org.testng.annotations.Test
@@ -89,7 +88,7 @@ class HardCallSetSuite extends SparkSuite {
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
     val variantFilter = Set(v1, v2, v6, v7, v8, v9, v10)
-    val sampleFilter = Set("A","B","C","D","E","F").map(vds.sampleIds.zipWithIndex.toMap)
+    val sampleFilter = Set("A","B","C","D","E","F")
 
     val filtVds = vds
       .filterVariants((v, va) => variantFilter(v))
@@ -101,7 +100,7 @@ class HardCallSetSuite extends SparkSuite {
     assert(hcs.nSparseVariants == 2)
     assert(hcs.nDenseVariants == 5)
     assert(hcs.nSamples == 6)
-    assert(hcs.localSamples sameElements filtVds.localSamples)
+    assert(hcs.sampleIds == filtVds.sampleIds)
     assert(hcs.sampleIds == filtVds.sampleIds)
 
     assert(hcs.df.groupBy("contig", "block").count().first().getLong(2) == 7)

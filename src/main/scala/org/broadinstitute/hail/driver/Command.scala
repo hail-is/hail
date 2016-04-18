@@ -84,6 +84,13 @@ object ToplevelCommands {
   register(VEP)
   register(Write)
 
+  register(AddHcs)
+  register(CacheHcs)
+  register(CapVariantsPerBlockHcs)
+  register(ReadHcs)
+  register(RepartitionHcs)
+  register(WriteHcs)
+
   // example commands
   register(example.CaseControlCount)
 }

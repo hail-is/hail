@@ -15,8 +15,8 @@ import org.http4s.server._
 import scala.concurrent.ExecutionContext
 
 import org.json4s._
-import org.json4s.native.Serialization
-import org.json4s.native.Serialization.{read, write}
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization.{read, write}
 
 case class VariantFilter(operand: String,
   operator: String,
@@ -86,7 +86,7 @@ case class GetStatsResult(is_error: Boolean,
 
 class RESTFailure(message: String) extends Exception(message)
 
-class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, cov: CovariateData) {
+class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, covMap: Map[String, Array[Double]]) {
 
   def getStats(req: GetStatsRequest): GetStatsResult = {
     req.md_version.foreach { md_version =>
@@ -99,11 +99,11 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
 
     val y: DenseVector[Double] = {
       val pheno = req.phenotype.getOrElse("T2D")
-      cov.covName.indexOf(pheno) match {
-        case -1 => throw new RESTFailure(s"$pheno is not a valid phenotype name")
-        case i => cov.data.get(::, i)
-        }
+      covMap.get(pheno) match {
+        case Some(a) => DenseVector(a)
+        case None => throw new RESTFailure(s"$pheno is not a valid phenotype name")
       }
+    }
 
     /* GRCh37, http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/data/
     val chromEnd: Map[String, Int] = Map(
@@ -143,7 +143,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
           case "phenotype" =>
             c.name match {
               case Some(name) =>
-                if (cov.covName.contains(name))
+                if (covMap.keySet(name))
                   phenoCovs += name
                 else
                   throw new RESTFailure(s"${c.name} is not a valid covariate name")
@@ -162,10 +162,13 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
         }
     }
 
-    var cov2 = cov.filterCovariates(phenoCovs.toSet)
+    val covArray = phenoCovs.toArray.flatMap(s => covMap(s)) ++ variantCovs.toArray.flatMap(hcs.variantGts)
 
-    if (variantCovs.nonEmpty)
-      cov2 = cov2.appendCovariates(hcs.variantCovData(variantCovs.toArray))
+    val cov: Option[DenseMatrix[Double]] =
+      if (covArray.nonEmpty)
+        Some(new DenseMatrix[Double](hcs.nSamples, covArray.size, covArray))
+    else
+        None
 
     val maxWidthForHcs = 600000
     val maxWidthForHcs1Mb = 10000000
@@ -228,7 +231,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     chromFilters.foreach(f => df = f.filterDf(df, blockWidth))
     posFilters.foreach(f => df = f.filterDf(df, blockWidth))
 
-    val stats = LinearRegression(hcsToUse.copy(df = df), y, cov2)
+    val stats = LinearRegression(hcsToUse.copy(df = df), y, cov)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
       .collect()
