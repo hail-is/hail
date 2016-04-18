@@ -47,7 +47,10 @@ class SplitSuite extends SparkSuite {
     // test splitting and downcoding
     vds1.mapWithKeys((v, s, g) => ((v, s), g.copy(fakeRef = false)))
       .join(vds2.mapWithKeys((v, s, g) => ((v, s), g)))
-      .foreach { case (k, (g1, g2)) => simpleAssert(g1 == g2) }
+      .foreach { case (k, (g1, g2)) =>
+        if (g1 != g2)
+          println(s"$g1, $g2")
+        simpleAssert(g1 == g2) }
 
     val wasSplitQuerier = vds1.vaSignature.query("wasSplit")
 
