@@ -40,7 +40,6 @@ compileScala {
 
 dependencies {
     compile 'org.scala-lang:scala-library:' + scalaVersion
-    compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
     // compile 'org.apache.hadoop:hadoop-aws:2.7.1'
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':1.5.0') {
@@ -74,11 +73,10 @@ dependencies {
     compile 'org.http4s:http4s-blaze-server_' + scalaMajorVersion + ':0.12.3'
     compile 'org.json4s:json4s-core_' + scalaMajorVersion + ':3.3.0'
     compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.3.0'
+    compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
+    //compile 'org.json4s:json4s-jackson_2.10:3.2.10'
     compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
-    // compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
-
-    compile 'org.json4s:json4s-jackson_2.10:3.2.10'
-    compile 'org.json4s:json4s-ast_2.10:3.2.10'
+    // compile 'org.json4s:json4s-ast_2.10:3.2.10'
 
     compile 'org.apache.solr:solr-solrj:5.5.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'

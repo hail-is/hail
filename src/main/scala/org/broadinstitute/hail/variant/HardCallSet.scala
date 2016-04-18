@@ -1,13 +1,13 @@
 package org.broadinstitute.hail.variant
 
 import breeze.linalg._
-import org.apache.spark.{RangePartitioner, SparkContext}
+import org.apache.spark.{RangePartitioner, SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.RichRow._
-import org.broadinstitute.hail.methods.CovariateData
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.utils.RichRow
 
 import scala.collection.mutable
 
@@ -15,14 +15,13 @@ object HardCallSet {
   def apply(sqlContext: SQLContext, vds: VariantDataset, sparseCutoff: Double = .15, blockWidth: Int = 1000000): HardCallSet = {
     import sqlContext.implicits._
 
-    val n = vds.nLocalSamples
+    val n = vds.nSamples
 
     new HardCallSet(
       vds.rdd.map { case (v, va, gs) =>
         (v.start, v.ref, v.alt, CallStream(gs, n, sparseCutoff), "chr" + v.contig, v.start / blockWidth)
       }.toDF("start", "ref", "alt", "callStream", "contig", "block"),
-      vds.localSamples,
-      vds.metadata.sampleIds,
+      vds.sampleIds,
       sparseCutoff,
       blockWidth)
   }
@@ -30,17 +29,32 @@ object HardCallSet {
   def read(sqlContext: SQLContext, dirname: String): HardCallSet = {
     require(dirname.endsWith(".hcs"))
 
-    val (localSamples, sampleIds, sparseCutoff, blockWidth) = readDataFile(dirname + "/sampleInfo.ser",
-      sqlContext.sparkContext.hadoopConfiguration) {
-      ds =>
-        ds.readObject[(Array[Int], IndexedSeq[String], Double, Int)]
-    }
+    val (sampleIds, sparseCutoff, blockWidth) = readDataFile(dirname + "/hcsInfo.ser",
+      sqlContext.sparkContext.hadoopConfiguration) { dis =>
+        try {
+          val serializer = SparkEnv.get.serializer.newInstance()
+          val ds = serializer.deserializeStream(dis)
+
+          val m = ds.readObject[Int]
+
+          val sampleIds = ds.readObject[IndexedSeq[String]]
+          val sparseCutoff = ds.readObject[Double]
+          val blockWidth = ds.readObject[Int]
+
+          ds.close()
+          (sampleIds, sparseCutoff, blockWidth)
+
+        } catch {
+          case e: Exception =>
+            println(e)
+            fatal(s"Invalid HCS: ${e.getMessage}\n  Recreate with current version of Hail.")
+        }
+      }
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
     df.printSchema()
 
     new HardCallSet(df,
-      localSamples,
       sampleIds,
       sparseCutoff,
       blockWidth)
@@ -48,13 +62,12 @@ object HardCallSet {
 }
 
 case class HardCallSet(df: DataFrame,
-  localSamples: Array[Int],
   sampleIds: IndexedSeq[String],
   sparseCutoff: Double,
   blockWidth: Int) {
 
   def rdd: RDD[(Variant, CallStream)] = {
-    import RichRow._
+    //import RichRow._
     df.rdd.map(r =>
       (Variant(r.getString(4).drop(3), // chr
         r.getInt(0),
@@ -69,9 +82,16 @@ case class HardCallSet(df: DataFrame,
 
     val hConf = rdd.sparkContext.hadoopConfiguration
     hadoopMkdir(dirname, hConf)
-    writeDataFile(dirname + "/sampleInfo.ser", hConf) {
-      ss =>
-        ss.writeObject((localSamples, sampleIds, sparseCutoff, blockWidth))
+    writeDataFile(dirname + "/hcsInfo.ser", hConf) {
+      dos => {
+        val serializer = SparkEnv.get.serializer.newInstance()
+        val ss = serializer.serializeStream(dos)
+        ss
+          .writeObject(sampleIds)
+          .writeObject(sparseCutoff)
+          .writeObject(blockWidth)
+        ss.close()
+      }
     }
 
     df.write
@@ -82,11 +102,10 @@ case class HardCallSet(df: DataFrame,
   def sparkContext: SparkContext = rdd.sparkContext
 
   def copy(df: DataFrame,
-    localSamples: Array[Int] = localSamples,
     sampleIds: IndexedSeq[String] = sampleIds,
     sparseCutoff: Double = sparseCutoff,
     blockWidth: Int = blockWidth): HardCallSet =
-    new HardCallSet(df, localSamples, sampleIds, sparseCutoff, blockWidth)
+    new HardCallSet(df, sampleIds, sparseCutoff, blockWidth)
 
   def cache(): HardCallSet = copy(df = df.cache())
 
@@ -111,7 +130,7 @@ case class HardCallSet(df: DataFrame,
     copy(rdd = rdd.filter { case (v, cs) => p(v) })
   */
 
-  def nSamples = localSamples.size
+  def nSamples = sampleIds.size
 
   def nVariants: Long = rdd.count()
 
@@ -119,6 +138,7 @@ case class HardCallSet(df: DataFrame,
 
   def nDenseVariants: Long = rdd.filter { case (v, cs) => !cs.isSparse }.count()
 
+  /*
   def variantCovData(variants: Array[Variant]): CovariateData = {
 
     def variantGtVector(v: Variant): breeze.linalg.Vector[Double] = {
@@ -153,6 +173,7 @@ case class HardCallSet(df: DataFrame,
     else
       CovariateData(covRowSample, Array[String](), None)
   }
+*/
 
   def capNVariantsPerBlock(maxPerBlock: Int, newBlockWidth: Int = blockWidth): HardCallSet = {
     import df.sqlContext.implicits._
@@ -165,7 +186,6 @@ case class HardCallSet(df: DataFrame,
       .map(r => (r.getInt(0), r.getString(1), r.getString(2), r.getCallStream(3), r.getString(4), r.getInt(0) / newBlockWidth))
 
     new HardCallSet(filtRdd.toDF("start", "ref", "alt", "callStream", "contig", "block"),
-      localSamples,
       sampleIds,
       sparseCutoff,
       newBlockWidth)

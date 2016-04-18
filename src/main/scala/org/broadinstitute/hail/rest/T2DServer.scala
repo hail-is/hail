@@ -2,7 +2,6 @@ package org.broadinstitute.hail.rest
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver.{State, Command}
-import org.broadinstitute.hail.methods.CovariateData
 import org.broadinstitute.hail.variant.HardCallSet
 import org.http4s.server.blaze.BlazeBuilder
 import org.kohsuke.args4j.{Option => Args4jOption}

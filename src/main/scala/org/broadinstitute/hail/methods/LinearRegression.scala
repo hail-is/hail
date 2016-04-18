@@ -92,7 +92,11 @@ class LinRegBuilder extends Serializable {
 object LinearRegression {
   def name = "LinearRegression"
 
-  def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]]): LinearRegression = {
+  def apply(
+    vds: VariantDataset,
+    y: DenseVector[Double],
+    cov: Option[DenseMatrix[Double]]): LinearRegression = {
+
     require(cov.forall(_.rows == y.size))
 
     val n = y.size
@@ -142,6 +146,64 @@ object LinearRegression {
           val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
           LinRegStats(nMissing, b, se, t, p) }
+        }
+      }
+    )
+  }
+
+  def apply(
+    hcs: HardCallSet,
+    y: DenseVector[Double],
+    cov: Option[DenseMatrix[Double]]): LinearRegression = {
+
+    require(cov.forall(_.rows == y.size))
+
+    val n = y.size
+    val k = if (cov.isDefined) cov.get.cols else 0
+    val d = n - k - 2
+
+    if (d < 1)
+      fatal(s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
+
+    info(s"Running linreg on $n samples with $k sample covariates...")
+
+    val covAndOnes: DenseMatrix[Double] = cov match {
+      case Some(dm) => DenseMatrix.horzcat(dm, DenseMatrix.ones[Double](n, 1))
+      case None => DenseMatrix.ones[Double](n, 1)
+    }
+
+    val qt = qr.reduced.justQ(covAndOnes).t
+    val qty = qt * y
+
+    val sc = hcs.sparkContext
+    val yBc = sc.broadcast(y)
+    val qtBc = sc.broadcast(qt)
+    val qtyBc = sc.broadcast(qty)
+    val yypBc = sc.broadcast((y dot y) - (qty dot qty))
+    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
+
+    new LinearRegression(hcs
+      .rdd
+      .mapValues { cs =>
+        val GtVectorAndStats(x, xx, nMissing) = cs.hardStats(n)
+
+        // FIXME: make condition more robust to rounding errors?
+        // all HomRef | all Het | all HomVar
+        if (xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n)
+          None
+        else {
+          val qtx = qtBc.value * x
+          val qty = qtyBc.value
+          val xxp: Double = xx - (qtx dot qtx)
+          val xyp: Double = (x dot yBc.value) - (qtx dot qty)
+          val yyp: Double = yypBc.value
+
+          val b: Double = xyp / xxp
+          val se = math.sqrt((yyp / xxp - b * b) / d)
+          val t = b / se
+          val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+
+          Some(LinRegStats(nMissing, b, se, t, p))
         }
       }
     )

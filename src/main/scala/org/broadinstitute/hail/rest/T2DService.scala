@@ -2,7 +2,7 @@ package org.broadinstitute.hail.rest
 
 import collection.mutable
 import org.apache.spark.sql.DataFrame
-import org.broadinstitute.hail.methods.{CovariateData, LinearRegressionOnHcs}
+import org.broadinstitute.hail.methods.LinearRegression
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
 import breeze.linalg.{DenseMatrix, DenseVector}
@@ -228,7 +228,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     chromFilters.foreach(f => df = f.filterDf(df, blockWidth))
     posFilters.foreach(f => df = f.filterDf(df, blockWidth))
 
-    val stats = LinearRegressionOnHcs(hcsToUse.copy(df = df), y, cov2)
+    val stats = LinearRegression(hcsToUse.copy(df = df), y, cov2)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
       .collect()
