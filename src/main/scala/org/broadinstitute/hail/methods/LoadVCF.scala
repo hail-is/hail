@@ -22,11 +22,11 @@ object VCFReport {
   val GQPLMismatch = 5
   val GQMissingPL = 6
   val RefNonACGTN = 7
-  val SymbolicOrSV = 8
+  val Symbolic = 8
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
-  def isVariant(id: Int): Boolean = id == RefNonACGTN || id == SymbolicOrSV
+  def isVariant(id: Int): Boolean = id == RefNonACGTN || id == Symbolic
 
   def isGenotype(id: Int): Boolean = !isVariant(id)
 
@@ -39,7 +39,7 @@ object VCFReport {
       case GQPLMismatch => "GQ != difference of two smallest PL entries"
       case GQMissingPL => "GQ present but PL missing"
       case RefNonACGTN => "REF contains non-ACGT"
-      case SymbolicOrSV => "Variant is symbolic or structural indel"
+      case Symbolic => "Variant is symbolic"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -223,8 +223,8 @@ object LoadVCF {
                 None
               } else {
                 val vc = codec.decode(line)
-                if (vc.isSymbolicOrSV) {
-                  reportAcc += VCFReport.SymbolicOrSV
+                if (vc.isSymbolic) {
+                  reportAcc += VCFReport.Symbolic
                   None
                 } else
                   Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes, compress))
