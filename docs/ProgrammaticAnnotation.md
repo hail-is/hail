@@ -5,6 +5,45 @@ Hail supports programmatic annotation, which is the computation of new annotatio
 **Command line arguments:**
  - `-c <condition>, --condition <condition>` annotation statement(s), see below
 
+**Usage:**
+
+```
+    $ hail <read/import> annotatesamples expr -c 'expression'
+```
+
+```
+    $ hail <read/import> annotatevariants expr -c 'expression'
+```
+
+```
+    $ hail <read/import> annotateglobal -c 'expression'
+```
+
+## Namespace
+
+**`annotatevariants`:**
+
+Identifier | Description
+:-: | ---
+`v` | Variant
+`va` | Variant annotations
+`gs` | Genotype row [aggregable](HailExpressionLanguage.md#aggregables))
+
+**`annotatesamples`:**
+Identifier | Description
+:-: | ---
+`s` | Sample
+`sa` | Sample annotations
+`gs` | Genotype column [aggregable](HailExpressionLanguage.md#aggregables))
+
+**`annotateglobal`:**
+
+Identifier | Description
+:-: | ---
+`v` | Variant
+`va` | Variant annotations
+
+
 ## Command syntax
  
 In both `annotatesamples` and `annotatevariants`,  the syntax for creating programmatic annotations is the same.  These commands are composed of one or more annotation statements of the following structure:

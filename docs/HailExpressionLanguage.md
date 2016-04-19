@@ -64,7 +64,37 @@ ____
 
 Hail's expression language exposes a number of 'aggregation' functions, which compute across rows or columns of the dataset.  These functions allow a user to replicate nearly all the of the statistics generated in `sampleqc` or `variantqc`, as well as compute an unrestricted set of new metrics.
 
-These functions can be used in modules that expose `gs` as a genotype row or column aggregable, or in `annotateglobal` to 
+These functions can be used in modules that expose `gs` as a genotype row or column aggregable, or in `annotateglobal` to aggregate over `samples` or `variants`.  
+
+____
+
+**Namespace of `gs`:**
+
+Identifier | Description
+:-: | ---
+`v` | Variant
+`va` | Variant annotations
+`s` | Sample
+`sa` | Sample annotations
+`g` | Genotype
+
+____
+
+**Namespace of `samples` in `annotateglobal`:**
+
+Identifier | Description
+:-: | ---
+`s` | Sample
+`sa` | Sample annotations
+
+____
+
+**Namespace of `variants` in `annotateglobal`:**
+
+Identifier | Description
+:-: | ---
+`v` | Variant
+`va` | Variant annotations
 
 ### Count
 

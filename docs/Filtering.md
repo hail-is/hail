@@ -33,9 +33,11 @@ Hail provides powerful utility in filtering by allowing users to write their own
  - `filtersamples`: 
    - `s` (sample)
    - `sa` (sample annotation)
+   - `gs` (genotype column [aggregable](HailExpressionLanguage.md#aggregables))
  - `filtervariants`:
    - `v` (variant)
    - `va` (variant annotation)
+   - `gs` (genotype row [aggregable](HailExpressionLanguage.md#aggregables))
  - `filtergenotypes`:
    - `g` (genotype)
    - `s` (sample)

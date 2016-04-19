@@ -22,6 +22,9 @@
            |__________________________|
                 Sample annotations
            
+                     ____
+                    |    | Global annotations
+                    |____|           
 ```
 
 The above cartoon depicts the rough organization of the data stored in Hail.  The majority of the data is genotype information, which can be thought of as a matrix with columns keyed by [**sample**](#sample) objects, and rows keyed by [**variant**](#variant) objects.  Each cell of the matrix is a [**genotype**](#genotype) object.
