@@ -1071,45 +1071,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t),
           ("max", t), ("nNotMissing", TLong), ("sum", sumT))
 
-      case (agg: TAggregable, "findmap", rhs) =>
-        rhs.foreach(_.typecheck(agg.ec))
-        val types = rhs.map(_.`type`)
-          .toSeq
-
-        if (types.length != 2 || types.head != TBoolean) {
-          val plural = if (types.length != 1) "s" else ""
-          parseError(s"method `$method' expected 2 arguments of types (Boolean, Any), but got ${types.length} argument$plural${
-            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
-            else "."
-          }")
-        }
-
-        val t = types(1) match {
-          case tws: Type => tws
-          case _ => parseError(s"method `$method' expects a storable type as its map argument, but got `${types(1)}'")
-        }
-
-        `type` = types(1)
-
-      case (agg: TAggregable, "collect", rhs) =>
-        rhs.foreach(_.typecheck(agg.ec))
-        val types = rhs.map(_.`type`)
-          .toSeq
-
-        if (types.length != 2 || types.head != TBoolean) {
-          val plural = if (types.length != 1) "s" else ""
-          parseError(s"method `$method' expected 2 arguments of types (Boolean, Any), but got ${types.length} argument$plural${
-            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
-            else "."
-          }")
-        }
-        val t = types(1) match {
-          case tws: Type => tws
-          case _ => parseError(s"method `$method' expects a standard type as its map argument, but got `${types(1)}'")
-        }
-
-        `type` = TArray(t)
-
       case _ =>
         super.typecheck(ec)
     }
@@ -1312,82 +1273,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       localFunctions += ((() => new StatCounter, seqOp, combOp, localIdx))
       AST.evalCompose[Any](ec, lhs) { case a => getOp(localA(localIdx)) }
-
-    case (returnType, "findmap", Array(condition, computation)) =>
-      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
-      val localIdx = newContext.a.length
-      val localA = newContext.a
-      localA += null
-      val conditionFn = condition.eval(newContext)
-      val fn = computation.eval(newContext)
-      val localFunctions = newContext.aggregationFunctions
-      val seqOp: (Any) => Any =
-        (value) => {
-          if (value != null)
-            value
-          else {
-            val cond = conditionFn().asInstanceOf[Boolean]
-            if (cond) {
-              val comp = fn()
-              if (comp != null)
-                comp
-              else
-                null
-            }
-            else
-              null
-          }
-        }
-      val combOp: (Any, Any) => Any = (a, b) => {
-        if (a != null)
-          a
-        else if (b != null)
-          b
-        else
-          null
-      }
-
-      localFunctions += ((() => null, seqOp, combOp, localIdx))
-      AST.evalCompose[Any](ec, lhs) {
-        case a =>
-          localA(localIdx)
-      }
-
-    case (returnType, "collect", Array(condition, computation)) =>
-      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
-      val localIdx = newContext.a.length
-      val localA = newContext.a
-      localA += null
-      val conditionFn = condition.eval(newContext)
-      val fn = computation.eval(newContext)
-      val localFunctions = newContext.aggregationFunctions
-      val seqOp: (Any) => Any =
-        (arr) => {
-          val ab = arr.asInstanceOf[ArrayBuffer[Any]]
-          if (conditionFn().asInstanceOf[Boolean]) {
-            val comp = fn()
-            if (comp != null && ab.length < 1000)
-              ab += comp
-          }
-          ab
-        }
-      val combOp: (Any, Any) => Any = (a, b) => {
-        val ab1 = a.asInstanceOf[ArrayBuffer[Any]]
-        val ab2 = b.asInstanceOf[ArrayBuffer[Any]]
-
-        ab2.foreach { elem =>
-          if (ab1.length < 1000)
-            ab1 += elem
-        }
-
-        ab1
-      }
-
-      localFunctions += ((() => new ArrayBuffer[Any], seqOp, combOp, localIdx))
-      AST.evalCompose[Any](ec, lhs) {
-        case a =>
-          localA(localIdx).asInstanceOf[ArrayBuffer[Any]].toIndexedSeq
-      }
 
     case (_, "orElse", Array(a)) =>
       val f1 = lhs.eval(ec)

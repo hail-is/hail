@@ -183,12 +183,6 @@ Compute statistics on number of singletons stratified by case/control:
 
 ```
 
-`findmap`
-
-`collect`
-
-
-
 ### Examples
 
 #### Filtering
