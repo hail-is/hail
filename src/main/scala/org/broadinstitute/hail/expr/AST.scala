@@ -6,7 +6,7 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
-import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 import org.json4s._
 
 import scala.collection.mutable
@@ -136,6 +136,15 @@ abstract class Type extends BaseType {
       TStruct.empty.insert(signature, path)
     else
       (signature, (a, toIns) => toIns.orNull)
+  }
+
+  def assign(fields: String*): (Type, Assigner) = assign(fields.toList)
+
+  def assign(path: List[String]): (Type, Assigner) = {
+    if (path.nonEmpty)
+      throw new AnnotationPathException()
+
+    (this, (a, toAssign) => toAssign.orNull)
   }
 
   def query(fields: String*): Querier = query(fields.toList)
@@ -536,6 +545,30 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
+  override def assign(path: List[String]): (Type, Assigner) = {
+    if (path.isEmpty)
+      (this, (a, toAssign) => toAssign.orNull)
+    else {
+      val key = path.head
+      val localSize = fields.size
+      selfField(key) match {
+        case Some(f) =>
+          val (assignType, subAssigner) = f.`type`.assign(path.tail)
+          val i = f.index
+          (assignType, { (a, toAssign) =>
+            val r = if (a != null)
+              a.asInstanceOf[Row]
+            else
+              Row.fromSeq(Array.fill[Any](localSize)(null))
+            r(i) = subAssigner(r(i), toAssign)
+            r
+          })
+        case None =>
+          throw new AnnotationPathException()
+      }
+    }
+  }
+
   def updateKey(key: String, i: Int, sig: Type): Type = {
     assert(fieldIdx.contains(key))
 
@@ -781,6 +814,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TGenotype, "isNotCalled") => TBoolean
       case (TGenotype, "nNonRefAlleles") => TInt
       case (TGenotype, "pAB") => TDouble
+      case (TGenotype, "fractionReadsRef") => TDouble
 
       case (TVariant, "contig") => TString
       case (TVariant, "start") => TInt
@@ -817,6 +851,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TNumeric, "toLong") => TLong
       case (t: TNumeric, "toFloat") => TFloat
       case (t: TNumeric, "toDouble") => TDouble
+      case (TString, "toInt") => TInt
+      case (TString, "toLong") => TLong
+      case (TString, "toFloat") => TFloat
+      case (TString, "toDouble") => TDouble
       case (t: TNumeric, "abs") => t
       case (t: TNumeric, "signum") => TInt
       case (TString, "length") => TInt
@@ -867,6 +905,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](ec, lhs)(_.nNonRefAlleles)
     case (TGenotype, "pAB") =>
       AST.evalFlatCompose[Genotype](ec, lhs)(_.pAB())
+    case (TGenotype, "fractionReadsRef") =>
+      AST.evalFlatCompose[Genotype](ec, lhs)(_.fractionReadsRef())
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](ec, lhs)(_.contig)
@@ -1354,10 +1394,9 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
       s.r.findFirstIn(t).isDefined
     }
 
-    case ("||", TBoolean) => {
+    case ("||", TBoolean) =>
       val f1 = lhs.eval(ec)
       val f2 = rhs.eval(ec)
-
       () => {
         val x1 = f1()
         if (x1 != null) {
@@ -1374,9 +1413,8 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
             null
         }
       }
-    }
 
-    case ("&&", TBoolean) => {
+    case ("&&", TBoolean) =>
       val f1 = lhs.eval(ec)
       val f2 = rhs.eval(ec)
       () => {
@@ -1395,7 +1433,6 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
             null
         }
       }
-    }
 
     case ("+", TInt) => AST.evalComposeNumeric[Int, Int](ec, lhs, rhs)(_ + _)
     case ("-", TInt) => AST.evalComposeNumeric[Int, Int](ec, lhs, rhs)(_ - _)

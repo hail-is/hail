@@ -31,7 +31,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     vc: VariantContext,
     infoSignature: TStruct,
     storeGQ: Boolean,
-    skipGenotypes: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
+    skipGenotypes: Boolean,
+    compress: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filters: mutable.WrappedArray[String] = {
@@ -79,7 +80,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
     // FIXME compress
     val noCall = Genotype()
-    val gsb = new GenotypeStreamBuilder(v, true)
+    val gsb = new GenotypeStreamBuilder(v, compress)
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala

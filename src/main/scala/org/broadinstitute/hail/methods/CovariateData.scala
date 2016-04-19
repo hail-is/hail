@@ -1,9 +1,10 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.hadoop
 import breeze.linalg._
+import org.apache.hadoop
 import org.broadinstitute.hail.RichDenseMatrixDouble
 import org.broadinstitute.hail.Utils._
+
 import scala.io.Source
 
 case class CovariateData(covRowSample: Array[String], covName: Array[String], data: Option[DenseMatrix[Double]]) {
@@ -30,13 +31,13 @@ case class CovariateData(covRowSample: Array[String], covName: Array[String], da
     CovariateData(covRowSample, covName.filter(keepCov), data.flatMap(_.filterCols(col => keepCov(covName(col)))))
 
   def appendCovariates(that: CovariateData): CovariateData = {
-    fatalIf(!(this.covRowSample sameElements that.covRowSample),
-      "Cannot append covariates: samples (rows) are not aligned.")
+    if (!(this.covRowSample sameElements that.covRowSample))
+      fatal("Cannot append covariates: samples (rows) are not aligned.")
 
     val newCovName = this.covName ++ that.covName
 
-    fatalIf(!newCovName.areDistinct(),
-      s"Cannot append covariates: covariate names overlap for ${newCovName.duplicates()}")
+    if (!newCovName.areDistinct())
+      fatal(s"Cannot append covariates: covariate names overlap for ${newCovName.duplicates()}")
 
     CovariateData(covRowSample, newCovName, RichDenseMatrixDouble.horzcat(this.data, that.data))
   }

@@ -16,6 +16,10 @@ object SplitMulti extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "--propagate-gq", usage = "Propagate GQ instead of computing from PL")
     var propagateGQ: Boolean = false
+
+    @Args4jOption(required = false, name = "--no-compress", usage = "Don't compress genotype streams")
+    var noCompress: Boolean = false
+
   }
 
   def newOptions = new Options
@@ -57,6 +61,7 @@ object SplitMulti extends Command {
     va: Annotation,
     it: Iterable[Genotype],
     propagateGQ: Boolean,
+    compress: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, Annotation, Iterable[Genotype])] = {
     if (v.isBiallelic)
       return Iterator((v, insertSplitAnnots(va, 0, false), it))
@@ -70,7 +75,7 @@ object SplitMulti extends Command {
       }.toArray
 
     val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv) }
-    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv, true) }
+    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv, compress) }
 
     for (g <- it) {
 
@@ -127,16 +132,19 @@ object SplitMulti extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val localPropagateGQ = options.propagateGQ
+    val propagateGQ = options.propagateGQ
+    val noCompress = options.noCompress
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
     val newVDS = state.vds.copy[Genotype](
       wasSplit = true,
       vaSignature = vas3,
       rdd = vds.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
-        split(v, va, it, localPropagateGQ, { (va, index, wasSplit) =>
-          insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
-        })
+        split(v, va, it,
+          propagateGQ = propagateGQ,
+          compress = !noCompress, { (va, index, wasSplit) =>
+            insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+          })
       })
     state.copy(vds = newVDS)
   }

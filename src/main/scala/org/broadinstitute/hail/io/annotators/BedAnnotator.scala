@@ -17,10 +17,12 @@ object BedAnnotator {
           line.value.startsWith("track") ||
           line.value.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
 
-      fatalIf(remainder.isEmpty, "bed file contains no interval lines")
+      if (remainder.isEmpty)
+        fatal("bed file contains no interval lines")
 
       val dataLines = remainder.toArray
-      fatalIf(dataLines.isEmpty, "bed file contains no data lines")
+      if (dataLines.isEmpty)
+        fatal("bed file contains no data lines")
       val next = dataLines
         .head
         .value

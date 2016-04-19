@@ -292,11 +292,11 @@ class RichArray[T](a: Array[T]) {
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFiles[T](files: Array[String], f: String => Unit = s => (),
-    nPartitions: Int = sc.defaultMinPartitions): RDD[String] = {
+    nPartitions: Int = sc.defaultMinPartitions): RDD[Line] = {
     files.foreach(f)
     sc.union(
       files.map(file =>
-        sc.textFile(file, nPartitions)))
+        sc.textFile(file, nPartitions).map(l => Line(l, None, file))))
   }
 }
 
@@ -688,11 +688,6 @@ object Utils extends Logging {
     System.err.println("hail: error: " + msg)
   }
 
-  def fatalIf(b: Boolean, msg: String): Unit = {
-    if (b)
-      fatal(msg)
-  }
-
   def fatal(msg: String): Nothing = {
     throw new FatalException(msg)
   }
@@ -851,6 +846,9 @@ object Utils extends Logging {
     }
   }
 
+  def hadoopFileStatus(filename: String, hConf: hadoop.conf.Configuration): FileStatus =
+    hadoopFS(filename, hConf).getFileStatus(new hadoop.fs.Path(filename))
+
   def readObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
     val ois = new ObjectInputStream(hadoopOpen(filename, hConf))
@@ -903,7 +901,7 @@ object Utils extends Logging {
     }
   }
 
-  case class Line(value: String, position: Int, filename: String) {
+  case class Line(value: String, position: Option[Int], filename: String) {
     def transform[T](f: Line => T): T = {
       try {
         f(this)
@@ -920,11 +918,11 @@ object Utils extends Logging {
             s"caught $e"
           log.error(
             s"""
-               |$filename:${position + 1}: $msg
+               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
                |  offending line: $value""".stripMargin)
           fatal(
             s"""
-               |$filename:${position + 1}: $msg
+               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
                |  offending line: $lineToPrint""".stripMargin)
       }
     }
@@ -937,7 +935,7 @@ object Utils extends Logging {
           .getLines()
           .zipWithIndex
           .map {
-            case (value, position) => Line(value, position, filename)
+            case (value, position) => Line(value, Some(position), filename)
           }
         reader(lines)
     }
@@ -1085,7 +1083,7 @@ object Utils extends Logging {
   def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
     .resize(12)
     .filter(s => !s.isEmpty)
-  
+
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def richBoolean(b: Boolean): RichBoolean = new RichBoolean(b)

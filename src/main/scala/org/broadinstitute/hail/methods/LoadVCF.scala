@@ -2,16 +2,17 @@ package org.broadinstitute.hail.methods
 
 import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.vcf.BufferedLineIterator
-import scala.io.Source
 import org.apache.spark.{Accumulable, SparkContext}
-import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{expr, PropagatedTribbleException, vcf}
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.vcf.BufferedLineIterator
+import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable
+import scala.io.Source
 
 object VCFReport {
   val GTPLMismatch = 1
@@ -21,11 +22,11 @@ object VCFReport {
   val GQPLMismatch = 5
   val GQMissingPL = 6
   val RefNonACGTN = 7
-  val SymbolicOrSV = 8
+  val Symbolic = 8
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
-  def isVariant(id: Int): Boolean = id == RefNonACGTN || id == SymbolicOrSV
+  def isVariant(id: Int): Boolean = id == RefNonACGTN || id == Symbolic
 
   def isGenotype(id: Int): Boolean = !isVariant(id)
 
@@ -38,7 +39,7 @@ object VCFReport {
       case GQPLMismatch => "GQ != difference of two smallest PL entries"
       case GQMissingPL => "GQ present but PL missing"
       case RefNonACGTN => "REF contains non-ACGT"
-      case SymbolicOrSV => "Variant is symbolic or structural indel"
+      case Symbolic => "Variant is symbolic"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -222,11 +223,11 @@ object LoadVCF {
                 None
               } else {
                 val vc = codec.decode(line)
-                if (vc.isSymbolicOrSV) {
-                  reportAcc += VCFReport.SymbolicOrSV
+                if (vc.isSymbolic) {
+                  reportAcc += VCFReport.Symbolic
                   None
                 } else
-                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes))
+                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes, compress))
               }
             } catch {
               case e: TribbleException =>

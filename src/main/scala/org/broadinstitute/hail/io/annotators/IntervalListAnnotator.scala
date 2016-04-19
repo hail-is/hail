@@ -11,7 +11,8 @@ object IntervalListAnnotator {
 
     readLines(filename, hConf) { lines =>
 
-      fatalIf(lines.isEmpty, "empty interval file")
+      if (lines.isEmpty)
+      fatal("empty interval file")
 
       val firstLine = lines.next()
       val (getString, signature) = firstLine.value match {

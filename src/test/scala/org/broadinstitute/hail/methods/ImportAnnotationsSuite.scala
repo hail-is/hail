@@ -1,16 +1,16 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.TestUtils._
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr.TInt
 import org.broadinstitute.hail.io.annotators.SampleFamAnnotator
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
 import scala.io.Source
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.TestUtils._
-import org.broadinstitute.hail.expr.TInt
 
 class ImportAnnotationsSuite extends SparkSuite {
 
@@ -95,7 +95,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
 
     s = AnnotateSamples.run(s,
-      Array("fam", "-i", "src/test/resources/importFamQPheno.space.m9.fam", "-q", "-d", "\\s+", "-m", "-9", "-r", "sa.ped"))
+      Array("fam", "-i", "src/test/resources/importFamQPheno.space.m9.fam", "-q", "-d", "\\\\s+", "-m", "-9", "-r", "sa.ped"))
     val m2 = qMap("sa.ped", s)
 
     assert(m2("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
