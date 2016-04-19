@@ -60,8 +60,8 @@ object SplitMulti extends Command {
   def split(v: Variant,
     va: Annotation,
     it: Iterable[Genotype],
-    compress: Boolean,
     propagateGQ: Boolean,
+    compress: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, Annotation, Iterable[Genotype])] = {
     if (v.isBiallelic)
       return Iterator((v, insertSplitAnnots(va, 0, false), it))
@@ -132,17 +132,19 @@ object SplitMulti extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val localPropagateGQ = options.propagateGQ
-    val localNoCompress = options.noCompress
+    val propagateGQ = options.propagateGQ
+    val noCompress = options.noCompress
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
     val newVDS = state.vds.copy[Genotype](
       wasSplit = true,
       vaSignature = vas3,
       rdd = vds.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
-        split(v, va, it, localPropagateGQ, !localNoCompress, { (va, index, wasSplit) =>
-          insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
-        })
+        split(v, va, it,
+          propagateGQ = propagateGQ,
+          compress = !noCompress, { (va, index, wasSplit) =>
+            insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+          })
       })
     state.copy(vds = newVDS)
   }
