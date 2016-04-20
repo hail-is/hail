@@ -161,13 +161,14 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
             throw new RESTFailure(s"$other is not a supported covariate type.")
         }
     }
-
+    
+    val nCov = phenoCovs.size + variantCovs.size
     val covArray = phenoCovs.toArray.flatMap(s => covMap(s)) ++ variantCovs.toArray.flatMap(hcs.variantGts)
 
     val cov: Option[DenseMatrix[Double]] =
-      if (covArray.nonEmpty)
-        Some(new DenseMatrix[Double](hcs.nSamples, covArray.size, covArray))
-    else
+      if (nCov > 0)
+        Some(new DenseMatrix[Double](hcs.nSamples, nCov, covArray))
+      else
         None
 
     val maxWidthForHcs = 600000
