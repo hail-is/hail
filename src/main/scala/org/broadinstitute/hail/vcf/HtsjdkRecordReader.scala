@@ -119,10 +119,11 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         else
           Genotype.gtIndex(j, i)
 
-        if (g.hasPL && pl(gt) != 0) {
-          reportAcc += VCFReport.GTPLMismatch
-          filter = true
-        }
+//  FIXME: hack for importing GoT2D
+//        if (g.hasPL && pl(gt) != 0) {
+//          reportAcc += VCFReport.GTPLMismatch
+//          filter = true
+//        }
 
         if (gt != -1)
           gb.setGT(gt)
