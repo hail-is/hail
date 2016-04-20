@@ -7,7 +7,6 @@ Command line options:
  - `-y | --y <filename>` -- a sample annotation of numeric or Boolean type designating the response variable, i.e. phenotype
  - `-c | --covariates <filename>` -- a comma-separated list of sample annotations of numeric or Boolean type (optional)
  - `-r | --root <root>` -- variant annotation path for linreg output, starting with `va` (optional, default is `va.linreg`)
- - `-o | --output <filename>` --  filename for default output TSV file (optional)
 
 Assuming there are sample annotations `sa.pheno.height`, `sa.cov.age`, and `sa.cov.isMale`, the command
 ```
@@ -21,19 +20,17 @@ where the genotype `x` is coded as 0 for HomRef, 1 for Het, and 2 for HomVar, th
 
 Five variant annotations are then added with root `va.linreg` as shown in the table. These annotations can then be accessed by other methods, including exporting to TSV with other variant annotations.
 
-Adding `-o myStudy.linreg` to the command above will cause Hail to immediately output a TSV file `myStudy.linreg` with the default format given by the columns below.
-
-Annotation | Column | Type | Value
----|---|---|---
-v.contig | Chrom | String | chromosome
-v.pos | Pos | Int| position
-v.ref | Ref | String | reference allele
-v.alt | Alt | String | alternate allele
-va.linreg.nMissing | Missing | Int | count of missing genotypes
-va.linreg.beta | Beta | Double | fit genotype coefficient, `b1` above
-va.linreg.se | StdErr | Double | standard error of beta
-va.linreg.tstat | TStat | Double | t-statistic, equal to beta / se
-va.linreg.pval | PVal | Double | p-value
+Annotation | Type | Value
+---|---|---
+v.contig | String | chromosome
+v.pos | Int| position
+v.ref | String | reference allele
+v.alt | String | alternate allele
+va.linreg.nMissing | Int | count of missing (imputed) genotypes
+va.linreg.beta | Double | fit genotype coefficient, `b1` above
+va.linreg.se | Double | standard error of beta
+va.linreg.tstat | Double | t-statistic, equal to beta / se
+va.linreg.pval | Double | p-value
 
 Phenotype and covariate sample annotations may also be specified using [programmatic expressions](https://github.com/broadinstitute/hail/blob/master/docs/ProgrammaticAnnotation.md) without identifiers, such as `if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)`.
 

@@ -43,7 +43,7 @@ class ImportVCFSuite extends SparkSuite {
     val n = s.vds.nVariants
 
     assert(n == 1)
-    assert(VCFReport.accumulators.head._2.value(VCFReport.SymbolicOrSV) == 2)
+    assert(VCFReport.accumulators.head._2.value(VCFReport.Symbolic) == 2)
   }
 
   @Test def testStoreGQ() {
