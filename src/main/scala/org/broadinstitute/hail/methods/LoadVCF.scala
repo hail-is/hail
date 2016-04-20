@@ -1,14 +1,13 @@
 package org.broadinstitute.hail.methods
 
-import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.vcf
 import org.broadinstitute.hail.vcf.BufferedLineIterator
-import org.broadinstitute.hail.{PropagatedTribbleException, vcf}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -211,29 +210,26 @@ object LoadVCF {
       VCFReport.accumulators ::=(file, reportAcc)
 
       sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
+        .map(x => Line(x, None, file))
         .mapPartitions { lines =>
           val codec = new htsjdk.variant.vcf.VCFCodec()
           val reader = vcf.HtsjdkRecordReader(headerLinesBc.value, codec)
-          lines.flatMap { line =>
-            try {
-              if (line.isEmpty || line(0) == '#')
+          lines.flatMap { l => l.transform { line =>
+            val lineValue = line.value
+            if (lineValue.isEmpty || lineValue(0) == '#')
+              None
+            else if (!lineRef(lineValue).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
+              reportAcc += VCFReport.RefNonACGTN
+              None
+            } else {
+              val vc = codec.decode(lineValue)
+              if (vc.isSymbolic) {
+                reportAcc += VCFReport.Symbolic
                 None
-              else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
-                reportAcc += VCFReport.RefNonACGTN
-                None
-              } else {
-                val vc = codec.decode(line)
-                if (vc.isSymbolic) {
-                  reportAcc += VCFReport.Symbolic
-                  None
-                } else
-                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes, compress))
-              }
-            } catch {
-              case e: TribbleException =>
-                log.error(s"${e.getMessage}\n  line: $line", e)
-                throw new PropagatedTribbleException(e.getMessage)
+              } else
+                Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes, compress))
             }
+          }
           }
         }
     })
