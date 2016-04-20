@@ -1,11 +1,13 @@
 package org.broadinstitute.hail.driver
 
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
+
 import scala.collection.mutable.ArrayBuffer
 
 object FilterVariants extends Command {
@@ -63,20 +65,38 @@ object FilterVariants extends Command {
         (v: Variant, va: Annotation) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
 
       case f if f.endsWith(".variant_list") =>
-        val variants = readLines(f, state.hadoopConf)(_.map(_.transform { line =>
-          val fields = line.value.split(":")
-          if (fields.length != 4)
-            fatal("invalid variant")
-          val ref = fields(2)
-          Variant(fields(0),
-            fields(1).toInt,
-            ref,
-            fields(3).split(",").map(alt => AltAllele(ref, alt)))
-        }).toSet)
+        val variants: RDD[(Variant, Unit)] =
+          vds.sparkContext.textFile(f)
+            .map { line =>
+              val fields = line.split(":")
+              if (fields.length != 4)
+                fatal("invalid variant")
+              val ref = fields(2)
+              (Variant(fields(0),
+                fields(1).toInt,
+                ref,
+                fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
+            }
 
-        val variantsBc = state.sc.broadcast(variants)
-
-        (v: Variant, _: Annotation) => Filter.keepThis(variantsBc.value.contains(v), keep)
+        return state.copy(
+          vds = vds.copy(
+            rdd =
+              if (options.keep)
+                vds.rdd
+                  .map { case (v, va, gs) => (v, (va, gs)) }
+                  .join(variants)
+                  .map { case (v, ((va, gs), _)) => (v, va, gs) }
+              else
+                vds.rdd
+                  .map { case (v, va, gs) => (v, (va, gs)) }
+                  .leftOuterJoin(variants)
+                  .flatMap {
+                    case (v, ((va, gs), Some(_))) =>
+                      None
+                    case (v, ((va, gs), None)) =>
+                      Some((v, va, gs))
+                  }
+          ))
 
       case c: String =>
         val symTab = Map(
