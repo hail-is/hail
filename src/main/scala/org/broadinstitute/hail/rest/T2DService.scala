@@ -161,7 +161,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
             throw new RESTFailure(s"$other is not a supported covariate type.")
         }
     }
-    
+
     val nCov = phenoCovs.size + variantCovs.size
     val covArray = phenoCovs.toArray.flatMap(s => covMap(s)) ++ variantCovs.toArray.flatMap(hcs.variantGts)
 
@@ -237,13 +237,11 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
       .collect()
 
-    /*
-    val stats: Array[Stat] =
-      if (width <= 600000)
-        statsRDD.collect()
-      else
-        statsRDD.take(limit)
-    */
+//    val stats: Array[Stat] =
+//      if (width <= 600000)
+//        statsRDD.collect()
+//      else
+//        statsRDD.take(limit)
 
     if (req.count.getOrElse(false))
       GetStatsResult(is_error = false, None, req.passback, None, Some(stats.length))
