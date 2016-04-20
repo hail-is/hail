@@ -62,6 +62,7 @@ object ToplevelCommands {
   register(FilterSamples)
   register(GenDataset)
   register(Grep)
+  register(GRM)
   register(GQByDP)
   register(GQHist)
   register(ImportBGEN)

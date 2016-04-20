@@ -120,6 +120,15 @@ abstract class Type extends BaseType {
       (signature, (a, toIns) => toIns.orNull)
   }
 
+  def assign(fields: String*): (Type, Assigner) = assign(fields.toList)
+
+  def assign(path: List[String]): (Type, Assigner) = {
+    if (path.nonEmpty)
+      throw new AnnotationPathException()
+
+    (this, (a, toAssign) => toAssign.orNull)
+  }
+
   def query(fields: String*): Querier = query(fields.toList)
 
   def query(path: List[String]): Querier = {
@@ -511,6 +520,30 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
+  override def assign(path: List[String]): (Type, Assigner) = {
+    if (path.isEmpty)
+      (this, (a, toAssign) => toAssign.orNull)
+    else {
+      val key = path.head
+      val localSize = fields.size
+      selfField(key) match {
+        case Some(f) =>
+          val (assignType, subAssigner) = f.`type`.assign(path.tail)
+          val i = f.index
+          (assignType, { (a, toAssign) =>
+            val r = if (a != null)
+              a.asInstanceOf[Row]
+            else
+              Row.fromSeq(Array.fill[Any](localSize)(null))
+            r(i) = subAssigner(r(i), toAssign)
+            r
+          })
+        case None =>
+          throw new AnnotationPathException()
+      }
+    }
+  }
+
   def updateKey(key: String, i: Int, sig: Type): Type = {
     assert(fieldIdx.contains(key))
 
@@ -793,6 +826,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TNumeric, "toLong") => TLong
       case (t: TNumeric, "toFloat") => TFloat
       case (t: TNumeric, "toDouble") => TDouble
+      case (TString, "toInt") => TInt
+      case (TString, "toLong") => TLong
+      case (TString, "toFloat") => TFloat
+      case (TString, "toDouble") => TDouble
       case (t: TNumeric, "abs") => t
       case (t: TNumeric, "signum") => TInt
       case (TString, "length") => TInt
@@ -1104,7 +1141,7 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
       s.r.findFirstIn(t).isDefined
     }
 
-    case ("||", TBoolean) => {
+    case ("||", TBoolean) =>
       val f1 = lhs.eval(c)
       val f2 = rhs.eval(c)
 
@@ -1124,9 +1161,8 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
             null
         }
       }
-    }
 
-    case ("&&", TBoolean) => {
+    case ("&&", TBoolean) =>
       val f1 = lhs.eval(c)
       val f2 = rhs.eval(c)
       () => {
@@ -1145,7 +1181,6 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
             null
         }
       }
-    }
 
     case ("+", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ + _)
     case ("-", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ - _)

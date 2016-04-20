@@ -31,7 +31,8 @@ class ExprSuite extends SparkSuite {
         ("hetNonRef35", TGenotype))),
       "t" ->(10, TBoolean),
       "f" ->(11, TBoolean),
-      "mb" ->(12, TBoolean))
+      "mb" ->(12, TBoolean),
+      "is" ->(13, TString))
     val a = new ArrayBuffer[Any]()
     a += 5 // i
     a += -7 // j
@@ -52,12 +53,15 @@ class ExprSuite extends SparkSuite {
     a += true
     a += false
     a += null // mb
-    assert(a.length == 13)
+    a += "-37" // is
+    assert(a.length == 14)
 
     def eval[T](s: String): Option[T] = {
       val f = Parser.parse(s, symTab, a)._2
       f().map(_.asInstanceOf[T])
     }
+
+    assert(eval[Int]("is.toInt").contains(-37))
 
     assert(eval[Boolean]("!gs.het.isHomRef").contains(true))
 
@@ -133,6 +137,32 @@ class ExprSuite extends SparkSuite {
     // assert(eval[Boolean]("i.max(d) == 5"))
   }
 
+  @Test def testAssign() {
+    val t1 = TEmpty
+
+    val (t2, insb) = t1.insert(TInt, "a", "b")
+    val (t3, insc) = t2.insert(TDouble, "a", "c")
+
+    val (tb, assb) = t3.assign("a", "b")
+    assert(tb == TInt)
+
+    val (tc, assc) = t3.assign("a", "c")
+    assert(tc == TDouble)
+
+    val qc = t3.query("a", "c")
+
+    val v1 = Annotation.empty
+    val v2 = insb(v1, Some(5))
+    val v3 = insc(v2, Some(7.2))
+
+    assert(qc(assc(v3, Some(-3.2))).contains(-3.2))
+    assert(qc(assc(v3, None)).isEmpty)
+
+    val v5 = assc(Annotation.empty, Some(6.7))
+
+    assert(qc(v5).contains(6.7))
+  }
+
   @Test def testParseTypes() {
     val s1 = "SIFT_Score: Double, Age: Int"
     val s2 = ""
@@ -144,7 +174,8 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testTypePretty() {
-    import Type._ // for arbType
+    import Type._
+    // for arbType
 
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
@@ -155,7 +186,7 @@ class ExprSuite extends SparkSuite {
       t == parsed
     })
   }
-  
+
   @Test def testJSON() {
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()

@@ -70,7 +70,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       assert(bytes.length == nRow * 6)
 
       val bar = new ByteArrayReader(bytes)
-      val b = new GenotypeStreamBuilder(variant, ab, compress = compressGS)
+      val b = new GenotypeStreamBuilder(variant, compress = compressGS)
 
       val genoBuilder = new GenotypeBuilder(variant)
 

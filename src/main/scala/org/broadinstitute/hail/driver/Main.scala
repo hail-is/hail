@@ -251,11 +251,6 @@ object Main {
 
     val hadoopConf = sc.hadoopConfiguration
 
-    // FIXME: when writing to S3, edit configuration files
-    hadoopConf.set(
-      "spark.sql.parquet.output.committer.class",
-      "org.apache.spark.sql.parquet.DirectParquetOutputCommitter")
-
     hadoopConf.set("io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
 
