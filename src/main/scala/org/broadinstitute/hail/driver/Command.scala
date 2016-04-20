@@ -6,9 +6,12 @@ import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option => Args4jOption}
 import org.broadinstitute.hail.variant.{HardCallSet, VariantDataset}
 import org.broadinstitute.hail.FatalException
-import org.kohsuke.args4j.{Option => Args4jOption, CmdLineException, CmdLineParser}
+import org.kohsuke.args4j.{CmdLineException, CmdLineParser, Option => Args4jOption}
+
 import scala.collection.JavaConverters._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.rest.T2DServer
+
 import scala.collection.mutable
 
 case class State(sc: SparkContext,
@@ -83,6 +86,8 @@ object ToplevelCommands {
   register(VariantQC)
   register(VEP)
   register(Write)
+
+  register(T2DServer)
 
   register(AddHcs)
   register(CacheHcs)

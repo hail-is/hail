@@ -6,7 +6,7 @@ import org.broadinstitute.hail.Utils._
 object RepartitionHcs extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-n", aliases = Array("--partitions"), usage = "Number of partitions")
-    var k: Integer = _
+    var n: Integer = _
   }
   def newOptions = new Options
 
@@ -15,10 +15,10 @@ object RepartitionHcs extends Command {
 
   def run(state: State, options: Options): State = {
 
-    if (options.k != null) {
-      if (options.k < 1)
+    if (options.n != null) {
+      if (options.n < 1)
         fatal("Number of partitions must be positive.")
-      state.copy(hcs = state.hcs.rangePartition(options.k))
+      state.copy(hcs = state.hcs.rangePartition(options.n))
     } else
       state.copy(hcs = state.hcs.rangePartition())
   }

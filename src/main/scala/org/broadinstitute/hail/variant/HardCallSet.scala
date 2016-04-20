@@ -35,8 +35,6 @@ object HardCallSet {
           val serializer = SparkEnv.get.serializer.newInstance()
           val ds = serializer.deserializeStream(dis)
 
-          val m = ds.readObject[Int]
-
           val sampleIds = ds.readObject[IndexedSeq[String]]
           val sparseCutoff = ds.readObject[Double]
           val blockWidth = ds.readObject[Int]
