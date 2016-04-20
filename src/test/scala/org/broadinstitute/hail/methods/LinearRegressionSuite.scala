@@ -30,8 +30,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.pheno.Pheno",
-      "-c", "sa.cov.Cov1, sa.cov.Cov2 + 1 - 1",
-      "-o", "/tmp/linearRegression.tsv"))
+      "-c", "sa.cov.Cov1, sa.cov.Cov2 + 1 - 1"))
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
@@ -183,8 +182,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.fam.isCase",
-      "-c", "sa.cov.Cov1,sa.cov.Cov2",
-      "-o", "/tmp/linearRegression.tsv"))
+      "-c", "sa.cov.Cov1,sa.cov.Cov2"))
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
@@ -268,8 +266,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.fam.qPheno",
-      "-c", "sa.cov.Cov1,sa.cov.Cov2",
-      "-o", "/tmp/linearRegression.tsv"))
+      "-c", "sa.cov.Cov1,sa.cov.Cov2"))
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
@@ -355,8 +352,7 @@ class LinearRegressionSuite extends SparkSuite {
     interceptFatal("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
       LinearRegressionCommand.run(s, Array(
         "-y", "sa.pheno.Pheno",
-        "-c", "sa.cov.Cov1,sa.cov.Cov2",
-        "-o", "/tmp/linearRegression.tsv"))
+        "-c", "sa.cov.Cov1,sa.cov.Cov2"))
     }
   }
 
@@ -381,8 +377,7 @@ class LinearRegressionSuite extends SparkSuite {
     interceptFatal("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
       LinearRegressionCommand.run(s, Array(
         "-y", "sa.pheno.Pheno",
-        "-c", "sa.cov.Cov1,sa.cov.Cov2",
-        "-o", "/tmp/linearRegression.tsv"))
+        "-c", "sa.cov.Cov1,sa.cov.Cov2"))
     }
   }
 }
