@@ -24,9 +24,6 @@ object LinearRegressionCommand extends Command {
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"), usage = "Variant annotation root, a period-delimited path starting with `va'")
     var root: String = "va.linreg"
-
-    @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Path of output tsv")
-    var output: String = _
   }
 
   def newOptions = new Options
@@ -56,73 +53,61 @@ object LinearRegressionCommand extends Command {
       case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
     }
 
-    val yQ = Parser.parse(options.ySA, symTab, a)
-    val yToDouble = toDouble(yQ._1, options.ySA)
+    val (yT, yQ) = Parser.parse(options.ySA, symTab, a)
+    val yToDouble = toDouble(yT, options.ySA)
     val ySA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
       a(1) = sa
-      yQ._2().map(yToDouble)
+      yQ().map(yToDouble)
     }
 
-    val covQ = Parser.parseExprs(options.covSA, symTab, a)
-    val covToDouble = (covQ.map(_._1), options.covSA.split(",").map(_.trim)).zipped.map(toDouble)
+    val (covT, covQ) = Parser.parseExprs(options.covSA, symTab, a).unzip
+    val covToDouble = (covT, options.covSA.split(",").map(_.trim)).zipped.map(toDouble)
     val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
       a(1) = sa
-      (covQ.map(_._2()), covToDouble).zipped.map(_.map(_))
+      (covQ.map(_()), covToDouble).zipped.map(_.map(_))
     }
 
-    val (yFilt, covFilt, sampleIdsFilt) =
+    val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (ySA, covSA, vds.sampleIds)
         .zipped
         .filter( (y, c, s) => y.isDefined && c.forall(_.isDefined))
 
-    val yArray = yFilt.map(_.get).toArray
+    val yArray = yForCompleteSamples.map(_.get).toArray
     val y = DenseVector(yArray)
 
-    val covArrays = covFilt.map(_.map(_.get))
-    val n = covArrays.size
-    val k = covArrays(0).size
+    val covArray = covForCompleteSamples.flatMap(_.map(_.get)).toArray
+    val k = covT.size
     val cov =
       if (k == 0)
         None
       else
         Some(new DenseMatrix(
-          rows = n,
+          rows = completeSamples.size,
           cols = k,
-          data = Array.concat(covArrays: _*),
+          data = covArray,
           offset = 0,
           majorStride = k,
           isTranspose = true))
 
-    val sampleIdsFiltSet = sampleIdsFilt.toSet
-    val vdsFilt = vds.filterSamples((s, sa) => sampleIdsFiltSet(s))
+    val isCompleteSample = completeSamples.toSet
+    val vdsForCompleteSamples = vds.filterSamples((s, sa) => isCompleteSample(s))
 
-    val linreg = LinearRegression(vdsFilt, y, cov)
+    val linreg = LinearRegression(vdsForCompleteSamples, y, cov)
 
-    val (newVAS, inserter) = vdsFilt.insertVA(LinRegStats.`type`, pathVA)
+    val (newVAS, inserter) = vdsForCompleteSamples.insertVA(LinRegStats.`type`, pathVA)
 
-    val newState = state.copy(
+    state.copy(
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(linreg.rdd) { case (it, jt) =>
           it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
             assert(v == v2)
             (v, inserter(va, comb.map(_.toAnnotation)), gs)
           }
-        }, vaSignature = newVAS))
-
-    if (options.output != null)
-      ExportVariants.run(newState, Array("-o", options.output, "-c",
-        s"""Chrom=v.contig,
-          |Pos=v.start,
-          |Ref=v.ref,
-          |Alt=v.alt,
-          |Missing=${options.root}.nMissing,
-          |Beta=${options.root}.beta,
-          |StdErr=${options.root}.se,
-          |TStat=${options.root}.tstat,
-          |PVal=${options.root}.pval""".stripMargin))
-
-    newState
+        },
+        vaSignature = newVAS
+      )
+    )
   }
 }
