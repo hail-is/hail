@@ -14,7 +14,7 @@ import scala.io.Source
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
 object PlinkLoader {
-  def expectedBedSize(nSamples:Int, nVariants:Long) : Long = 3 + nVariants * (nSamples + 3 / 4)
+  def expectedBedSize(nSamples:Int, nVariants:Long) : Long = 3 + nVariants * ((nSamples + 3) / 4)
 
   private def parseBim(bimPath: String, hConf: Configuration): Array[Variant] = {
     readFile(bimPath, hConf) { s =>

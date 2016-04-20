@@ -14,7 +14,6 @@ import scala.collection.mutable
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Variant](job, split) {
   val file = split.getPath
-  //val fileSize = hadoopGetFileSize(file.toString, job)
   val bState = BgenLoader.readState(bfis)
   val indexPath = file + ".idx"
   val btree = new IndexBTree(indexPath, job)
