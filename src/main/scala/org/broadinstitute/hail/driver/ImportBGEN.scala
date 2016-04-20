@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._

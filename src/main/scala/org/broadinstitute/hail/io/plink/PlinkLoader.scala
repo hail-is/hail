@@ -1,6 +1,4 @@
-package org.broadinstitute.hail.io
-
-import java.io._
+package org.broadinstitute.hail.io.plink
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
@@ -9,17 +7,16 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.io._
 
 import scala.io.Source
 
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
+object PlinkLoader {
+  def expectedBedSize(nSamples:Int, nVariants:Long) : Long = 3 + nVariants * (nSamples + 3 / 4)
 
-class VariantParser(bimPath: String, hConf: Configuration)
-  extends Serializable {
-  @transient var variants: Option[Array[Variant]] = None
-
-  def parseBim(): Array[Variant] = {
+  private def parseBim(bimPath: String, hConf: Configuration): Array[Variant] = {
     readFile(bimPath, hConf) { s =>
       Source.fromInputStream(s)
         .getLines()
@@ -31,24 +28,6 @@ class VariantParser(bimPath: String, hConf: Configuration)
         .toArray
     }
   }
-
-
-  def check() {
-    require(variants.isEmpty)
-    variants = Some(parseBim())
-  }
-
-  def eval(): Array[Variant] = variants match {
-    case null | None =>
-      val v = parseBim()
-      variants = Some(v)
-      v
-    case Some(v) => v
-  }
-}
-
-object PlinkLoader {
-  def expectedBedSize(nSamples:Int, nVariants:Long) : Long = 3 + nVariants*((nSamples / 4.0) + 0.75).toInt
 
   private def parseFam(famPath: String, hConf: Configuration): SampleInfo = {
     val sampleArray = readFile(famPath, hConf) { s =>
@@ -81,14 +60,14 @@ object PlinkLoader {
     sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
 
     val nSamples = sampleInfo.sampleIds.length
-
+    val variantsBc = sc.broadcast(variants)
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
 
-    val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[ParsedLine[Int]],
+    val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[VariantRecord[Int]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val variantRDD = rdd.map {
-      case (lw, pl) => (variants(pl.getKey), Annotation.empty, pl.getGS)
+      case (lw, pl) => (variantsBc.value(pl.getKey), Annotation.empty, pl.getGS)
     }
 
     VariantSampleMatrix(VariantMetadata(
@@ -106,7 +85,7 @@ object PlinkLoader {
     if (nSamples <= 0)
       fatal(".fam file does not contain any samples")
 
-    val variants = new VariantParser(bimPath, sc.hadoopConfiguration).eval()
+    val variants = parseBim(bimPath, sc.hadoopConfiguration)
     val nVariants = variants.length
     if (nVariants <= 0)
       fatal(".bim file does not contain any variants")

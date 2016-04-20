@@ -1,4 +1,4 @@
-package org.broadinstitute.hail.io
+package org.broadinstitute.hail.io.bgen
 
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.SparkContext
@@ -6,6 +6,7 @@ import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.io._
 
 import scala.io.Source
 
@@ -15,17 +16,16 @@ case class BgenState(compressed: Boolean, nSamples: Int, nVariants: Int,
 case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, Annotation, Iterable[Genotype])])
 
 object BgenLoader {
-  final val MAX_PL = 51
+  final val MAX_PL = 51 //difference between the expected minimum value [-10*log10(0.25)] and the expected maximum value [-10*log10(32768)]
 
-  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => if (i == 0) MAX_PL else -10 * math.log10(i) }
-    .toArray
+  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
 
   def load(sc: SparkContext, file: String, nPartitions: Option[Int] = None): BgenResult = {
 
     val bState = readState(sc.hadoopConfiguration, file)
 
     BgenResult(file, bState.nSamples, bState.nVariants,
-      sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[ParsedLine[Variant]],
+      sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[VariantRecord[Variant]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
       .map { case (lw, pl) => (pl.getKey, pl.getAnnotation, pl.getGS) })
   }

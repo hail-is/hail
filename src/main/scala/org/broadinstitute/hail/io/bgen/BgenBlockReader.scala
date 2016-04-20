@@ -1,4 +1,4 @@
-package org.broadinstitute.hail.io
+package org.broadinstitute.hail.io.bgen
 
 import java.util.zip.Inflater
 
@@ -7,33 +7,36 @@ import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
 
 import scala.collection.mutable
 
 class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Variant](job, split) {
   val file = split.getPath
-  val fileSize = hadoopGetFileSize(file.toString, job)
+  //val fileSize = hadoopGetFileSize(file.toString, job)
   val bState = BgenLoader.readState(bfis)
-  val indexArrayPath = file + ".idx"
+  val indexPath = file + ".idx"
+  val btree = new IndexBTree(indexPath, job)
 
   val compressGS = job.getBoolean("compressGS", false)
 
   val ab = new mutable.ArrayBuilder.ofByte
   val plArray = new Array[Int](3)
 
-  seekToFirstBlock(split.getStart)
+  seekToFirstBlockInSplit(split.getStart)
 
-  override def seekToFirstBlock(start: Long) {
-    require(start >= 0 && start < fileSize)
-    pos = IndexBTree.queryIndex(start, fileSize, indexArrayPath, job)
-    if (pos < 0 || pos > fileSize)
-      fatal(s"incorrect seek position `$pos', the file is $fileSize bytes")
-    else
-      bfis.seek(pos)
+  def seekToFirstBlockInSplit(start: Long) {
+    pos = btree.queryIndex(start) match {
+      case Some(x) => x
+      case None => end
+    }
+
+    btree.close()
+    bfis.seek(pos)
   }
 
-  def next(key: LongWritable, value: ParsedLine[Variant]): Boolean = {
+  def next(key: LongWritable, value: VariantRecord[Variant]): Boolean = {
     if (pos >= end)
       false
     else {
@@ -60,8 +63,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
             inflater.inflate(expansion)
           }
           expansion
-        }
-        else
+        } else
           bfis.readBytes(nRow * 6)
       }
 
@@ -71,9 +73,6 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       val b = new GenotypeStreamBuilder(variant, ab, compress = compressGS)
 
       val genoBuilder = new GenotypeBuilder(variant)
-      var plAA = -1
-      var plAB = -1
-      var plBB = -1
 
       for (i <- 0 until bState.nSamples) {
 
@@ -81,29 +80,15 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         val pAB = bar.readShort()
         val pBB = bar.readShort()
 
-        if (pAA == 32768) {
-          plAA = 0
-          plAB = BgenLoader.MAX_PL
-          plBB = BgenLoader.MAX_PL
-        } else if (pAB == 32768) {
-          plAA = BgenLoader.MAX_PL
-          plAB = 0
-          plBB = BgenLoader.MAX_PL
-        } else if (pBB == 32768) {
-          plAA = BgenLoader.MAX_PL
-          plAB = BgenLoader.MAX_PL
-          plBB = 0
-        } else {
-          val dAA = if (pAA == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAA)
-          val dAB = if (pAB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pAB)
-          val dBB = if (pBB == 0) BgenLoader.MAX_PL else BgenLoader.phredConversionTable(pBB)
+        val dAA = BgenLoader.phredConversionTable(pAA)
+        val dAB = BgenLoader.phredConversionTable(pAB)
+        val dBB = BgenLoader.phredConversionTable(pBB)
 
-          val minValue = math.min(math.min(dAA, dAB), dBB)
+        val minValue = math.min(math.min(dAA, dAB), dBB)
 
-          plAA = (dAA - minValue + .5).toInt
-          plAB = (dAB - minValue + .5).toInt
-          plBB = (dBB - minValue + .5).toInt
-        }
+        val plAA = (dAA - minValue + .5).toInt
+        val plAB = (dAB - minValue + .5).toInt
+        val plBB = (dBB - minValue + .5).toInt
 
         assert(plAA == 0 || plAB == 0 || plBB == 0)
 
@@ -138,6 +123,4 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       true
     }
   }
-
-  def createValue(): ParsedLine[Variant] = new BgenParsedLine
 }

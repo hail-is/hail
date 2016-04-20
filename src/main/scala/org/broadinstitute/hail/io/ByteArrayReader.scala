@@ -12,8 +12,7 @@ class ByteArrayReader(arr: Array[Byte]) extends AbstractBinaryReader {
       val b = arr(position)
       position += 1
       b
-    }
-    else
+    } else
       -1
   }
 

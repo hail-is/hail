@@ -3,8 +3,8 @@ package org.broadinstitute.hail.driver
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.io.BgenLoader
 import org.apache.hadoop
+import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.kohsuke.args4j.Argument
 
 import scala.collection.JavaConverters._
@@ -23,15 +23,7 @@ object IndexBGEN extends Command {
 
   def run(state: State, options: Options): State = {
 
-    val inputs = options.arguments.asScala
-      .iterator
-      .flatMap { arg =>
-        val fss = hadoopGlobAndSort(arg, state.hadoopConf)
-        val files = fss.map(_.getPath.toString)
-        if (files.isEmpty)
-          warn(s"`$arg' refers to no files")
-        files
-      }.toArray
+    val inputs = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
     if (inputs.isEmpty)
       fatal("arguments refer to no files")

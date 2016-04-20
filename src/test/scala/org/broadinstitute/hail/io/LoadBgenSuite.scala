@@ -5,6 +5,7 @@ import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
@@ -45,28 +46,32 @@ class LoadBgenSuite extends SparkSuite {
 
     val bgenQuery = bgenVDS.vaSignature.query("varid")
     val genQuery = genVDS.vaSignature.query("varid")
-    val bgenFull = bgenVDS.expandWithAll().map{case (v, va, s, sa, gt) => ((bgenQuery(va).get,s),gt)}
-    val genFull = genVDS.expandWithAll().map{case (v, va, s, sa, gt) => ((genQuery(va).get,s),gt)}
+    val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((bgenQuery(va).get, s), gt) }
+    val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((genQuery(va).get, s), gt) }
 
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)
     assert(bgenVariantsAnnotations.collect() sameElements genVariantsAnnotations.collect())
     genFull.fullOuterJoin(bgenFull)
       .collect()
-      .foreach{case ((v,i),(gt1,gt2)) =>
-        assert(gt1 == gt2)}
+      .foreach { case ((v, i), (gt1, gt2)) =>
+        assert(gt1 == gt2)
+      }
   }
-
 
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
                        nPartitions: Int <- choose(1, 10)) yield (vds, nPartitions)
 
+    writeTextFile("/tmp/sample_rename.txt", sc.hadoopConfiguration) { case w =>
+      w.write("NA\tfdsdakfasdkfla")
+    }
+
     property("import generates same output as export") =
       forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
 
-        val vdsRemapped = vds.copy(rdd = vds.rdd.map{case (v, va, gs) => (v.copy(contig="01"), va, gs)})
+        val vdsRemapped = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "01"), va, gs) })
 
         val fileRoot = "/tmp/testGenWriter"
         val sampleFile = fileRoot + ".sample"
@@ -76,12 +81,14 @@ class LoadBgenSuite extends SparkSuite {
         val qcToolPath = "qctool"
 
         hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, true)
+        hadoopDelete(bgenFile, sc.hadoopConfiguration, true)
         hadoopDelete(genFile, sc.hadoopConfiguration, true)
         hadoopDelete(sampleFile, sc.hadoopConfiguration, true)
         hadoopDelete(qcToolLogFile, sc.hadoopConfiguration, true)
 
         var s = State(sc, sqlContext, vdsRemapped)
         s = SplitMulti.run(s, Array[String]())
+        s = RenameSamples.run(s, Array("-i", "/tmp/sample_rename.txt"))
 
         val origVds = s.vds
 
@@ -95,7 +102,7 @@ class LoadBgenSuite extends SparkSuite {
             s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
             false
           } catch {
-            case e:FatalException => true
+            case e: FatalException => true
             case _: Throwable => false
           }
         else {
@@ -110,19 +117,37 @@ class LoadBgenSuite extends SparkSuite {
           val importedVariants = importedVds.variants
           val origVariants = origVds.variants
 
-          val importedFull = importedVds.expandWithAll().map{case (v, va, s, sa, gt) => ((v, s), gt)}
-          val originalFull = origVds.expandWithAll().map{case (v, va, s, sa, gt) => ((v, s), gt)}
+          val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
+          val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
 
-          val result = originalFull.fullOuterJoin(importedFull).map{ case ((v, i), (gt1, gt2)) =>
+          val result = originalFull.fullOuterJoin(importedFull).map { case ((v, i), (gt1, gt2)) =>
             val gt1x = gt1 match {
               case Some(x) =>
-                var newPl = x.pl.getOrElse(Array(0,0,0)).map{i => math.min(i, BgenLoader.MAX_PL   )}
+                var newPl = x.pl.getOrElse(Array(0, 0, 0)).map { i => math.min(i, BgenLoader.MAX_PL) }
                 val newGt = BgenUtils.parseGenotype(newPl)
                 newPl = if (newGt == -1) null else newPl
                 Some(x.copy(gt = Option(newGt), ad = None, dp = None, gq = None, pl = Option(newPl)))
               case None => None
             }
-            gt1x == gt2
+
+            if (gt1x == gt2)
+              true
+            else {
+              if (gt1x.isDefined && gt2.isDefined)
+                gt1x.get.pl.getOrElse(Array(BgenLoader.MAX_PL, BgenLoader.MAX_PL, BgenLoader.MAX_PL))
+                  .zip(gt2.get.pl.getOrElse(Array(BgenLoader.MAX_PL, BgenLoader.MAX_PL, BgenLoader.MAX_PL)))
+                  .forall { case (pl1, pl2) =>
+                    if (math.abs(pl1 - pl2) <= 2) {
+                      true
+                    } else {
+                      println(s"$v $i $gt1x $gt2")
+                      false
+                    }
+                  } else {
+                println(s"$v $i $gt1x $gt2")
+                false
+              }
+            }
           }.fold(true)(_ && _)
 
           result

@@ -1,8 +1,9 @@
-package org.broadinstitute.hail.io
+package org.broadinstitute.hail.io.plink
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
+import org.broadinstitute.hail.io.{IndexedBinaryBlockReader, VariantRecord}
 import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
 
 import scala.collection.mutable
@@ -15,15 +16,17 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   var variantIndex = 0
   val nSamples = job.getInt("nSamples", 0)
   val compressGS = job.getBoolean("compressGS", false)
-  val blockLength = ((nSamples / 4.00) + .75).toInt
+  val blockLength = (nSamples + 3) / 4
 
   val ab = new mutable.ArrayBuilder.ofByte
 
-  seekToFirstBlock(split.getStart)
+  seekToFirstBlockInSplit(split.getStart)
 
-  def seekToFirstBlock(start: Long) {
+  def seekToFirstBlockInSplit(start: Long) {
     if (start > 2)
       variantIndex = ((start - 3) / blockLength).toInt
+    else
+      variantIndex = 0
 
     require(variantIndex >= 0)
 
@@ -36,7 +39,7 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
     bfis.seek(variantIndex * blockLength + 3)
   }
 
-  def next(key: LongWritable, value: ParsedLine[Int]): Boolean = {
+  def next(key: LongWritable, value: VariantRecord[Int]): Boolean = {
     if (pos >= end)
       false
     else {
@@ -65,9 +68,5 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
 
       true
     }
-  }
-
-  def createValue(): PlinkParsedLine = {
-    new PlinkParsedLine
   }
 }

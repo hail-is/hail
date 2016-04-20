@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.io.PlinkLoader
+import org.broadinstitute.hail.io.plink.PlinkLoader
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ImportPlink extends Command {
@@ -41,7 +41,7 @@ object ImportPlink extends Command {
 
     if (options.bfile != null) {
       if (options.bim != null || options.bed != null || options.fam != null)
-        warn("received --bfile argument, ignoring unexpected --bed/--bim/--fam arguments")
+        fatal("received --bfile argument, ignoring unexpected --bed/--bim/--fam arguments")
       state.copy(vds = PlinkLoader(options.bfile + ".bed", options.bfile + ".bim", options.bfile + ".fam", state.sc, nPartitionOption))
     } else
       state.copy(vds = PlinkLoader(options.bed, options.bim, options.fam, state.sc, nPartitionOption))

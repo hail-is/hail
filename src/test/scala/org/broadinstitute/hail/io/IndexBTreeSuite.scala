@@ -37,26 +37,31 @@ class IndexBTreeSuite extends SparkSuite {
 
         hadoopDelete(index, sc.hadoopConfiguration, true)
         IndexBTree.write(arrayRandomStarts, index, sc.hadoopConfiguration)
+        val btree = new IndexBTree(index, sc.hadoopConfiguration)
 
         val indexSize = hadoopGetFileSize(index, sc.hadoopConfiguration)
-        val padding = if (arraySize <= 1024) 1024 - arraySize else arraySize % 1024
+        val padding = 1024 - (arraySize % 1024)
         val numEntries = arraySize + padding + (1 until depth).map{math.pow(1024,_).toInt}.sum
 
         // make sure index size is correct
         val indexCorrectSize = if (indexSize == (numEntries * 8)) true else false
 
         // make sure depth is correct
-        val estimatedDepth = IndexBTree.calcDepth(index, sc.hadoopConfiguration)
+        val estimatedDepth = btree.calcDepth()
         val depthCorrect = if (estimatedDepth == depth) true else false
 
         // make sure query is correct
         val queryCorrect = if (arrayRandomStarts.length < 100)
-          arrayRandomStarts.forall{case (l) => IndexBTree.queryIndex(l-1, maxLong + 5, index, sc.hadoopConfiguration) == l}
+          arrayRandomStarts.forall{case (l) => btree.queryIndex(l-1).contains(l)}
         else {
           val randomIndices = Array(0) ++ Array.fill(100)(choose(0,arraySize - 1).sample())
-          randomIndices.map(arrayRandomStarts).forall { case (l) => IndexBTree.queryIndex(l-1,maxLong + 5, index, sc.hadoopConfiguration) == l }
+          randomIndices.map(arrayRandomStarts).forall { case (l) => btree.queryIndex(l-1).contains(l)}
         }
 
+        if (!depthCorrect || !indexCorrectSize || !queryCorrect)
+          println(s"depth=$depthCorrect indexCorrect=$indexCorrectSize queryCorrect=$queryCorrect")
+
+        btree.close()
         depthCorrect && indexCorrectSize && queryCorrect
       }
   }
@@ -73,27 +78,24 @@ class IndexBTreeSuite extends SparkSuite {
 
     hadoopDelete(idxFile, sc.hadoopConfiguration, true)
     IndexBTree.write(index, idxFile, hConf)
+    val btree = new IndexBTree(idxFile, sc.hadoopConfiguration)
 
-    intercept[FatalException]{
-      IndexBTree.queryIndex(-5, fileSize, idxFile, hConf)
+
+    intercept[IllegalArgumentException]{
+      btree.queryIndex(-5)
     }
 
-    intercept[FatalException]{
-      IndexBTree.queryIndex(100, fileSize, idxFile, hConf)
-    }
-
-    assert(IndexBTree.queryIndex(0, fileSize, idxFile, hConf) == 24)
-    assert(IndexBTree.queryIndex(10, fileSize, idxFile, hConf) == 24)
-    assert(IndexBTree.queryIndex(20, fileSize, idxFile, hConf) == 24)
-    assert(IndexBTree.queryIndex(24, fileSize, idxFile, hConf) == 24)
-    assert(IndexBTree.queryIndex(25, fileSize, idxFile, hConf) == -1)
-    assert(IndexBTree.queryIndex(fileSize - 1, fileSize, idxFile, hConf) == -1)
+    assert(btree.queryIndex(0).contains(24))
+    assert(btree.queryIndex(10).contains(24))
+    assert(btree.queryIndex(20).contains(24))
+    assert(btree.queryIndex(24).contains(24))
+    assert(btree.queryIndex(25).isEmpty)
+    assert(btree.queryIndex(fileSize - 1).isEmpty)
   }
 
   @Test def zeroVariants() {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
-      val fileSize = 30 //made-up value greater than index
       val idxFile = "/tmp/testBtree_0variant.idx"
       hadoopDelete(idxFile, sc.hadoopConfiguration, true)
       IndexBTree.write(index, idxFile, sc.hadoopConfiguration)

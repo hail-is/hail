@@ -28,13 +28,6 @@ abstract class AbstractBinaryReader {
     arr
   }
 
-  def readLongBE(): Long =
-    ((read() & 0xff) << 56) | ((read() & 0xff) << 48) | ((read() & 0xff) << 40) | ((read() & 0xff) << 32) |
-      ((read() & 0xff) << 24) | ((read() & 0xff) << 16) | ((read() & 0xff) << 8) | (read() & 0xff)
-
-  def readIntBE(): Int =
-    ((read() & 0xff) << 24) | ((read() & 0xff) << 16) | ((read() & 0xff) << 8) | (read() & 0xff)
-
   def readLong(): Long =
     (read() & 0xff) | ((read() & 0xff) << 8) | ((read() & 0xff) << 16) | ((read() & 0xff) << 24) |
       ((read() & 0xff) << 32) | ((read() & 0xff) << 40) | ((read() & 0xff) << 48) | ((read() & 0xff) << 56)
@@ -51,11 +44,11 @@ abstract class AbstractBinaryReader {
     val result = readBytes(byteArray, 0, length)
     if (result < 0)
       throw new EOFException()
-    new String(byteArray, "UTF-8") //FIXME figure out what BGENs are actually encoding
+
+    new String(byteArray, "iso-8859-1") //FIXME figure out what BGENs are actually encoding; UTF-8 also works
   }
 
   def readLengthAndString(lengthBytes: Int): String = {
-    // need LengthBytes to be Short or Int compatible
     require(lengthBytes == 2 || lengthBytes == 4)
 
     val length = if (lengthBytes == 2) readShort() else readInt()

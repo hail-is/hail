@@ -5,98 +5,61 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred._
-import org.apache.hadoop.mapred.LineRecordReader
-import org.broadinstitute.hail.variant.{Variant, Genotype}
-import scala.collection.mutable.ArrayBuffer
+import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.annotations._
 
-/*case class BlockIndex(start: Long, length: Int, variantIndex: Int) {
-  override def toString: String = s"start=$start, length=$length, index=$variantIndex"
-}*/
-
-abstract class ParsedLine[K] extends Serializable {
-  def setGS(gs: Iterable[Genotype])
-  def getGS: Iterable[Genotype]
-  def setAnnotation(ann: Annotation)
-  def getAnnotation: Annotation
-  def setKey(k: K)
-  def getKey: K
-}
-
-class BgenParsedLine extends ParsedLine[Variant] {
+class VariantRecord[K] extends Serializable {
   var gs: Iterable[Genotype] = null
-  var variant: Variant = null
   var ann: Annotation = Annotation.empty
+  var key: K = _
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
   }
+
   def getGS: Iterable[Genotype] = gs
 
   def setAnnotation(ann: Annotation) {
     this.ann = ann
   }
+
   def getAnnotation: Annotation = ann
 
-  def setKey(k: Variant) {
-    variant = k
+  def setKey(k: K) {
+    this.key = k
   }
-  def getKey: Variant = variant
-}
 
-class PlinkParsedLine extends ParsedLine[Int] {
-  var gs: Iterable[Genotype] = null
-  var pos: Int = -1
-  var ann: Annotation = Annotation.empty
-
-  def setGS(gs: Iterable[Genotype]) {
-    this.gs = gs
-  }
-  def getGS: Iterable[Genotype] = gs
-
-  def setAnnotation(ann: Annotation) {
-    this.ann = ann
-  }
-  def getAnnotation: Annotation = ann
-
-  def setKey(k: Int) {
-    pos = k
-  }
-  def getKey: Int = pos
+  def getKey: K = key
 }
 
 abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
-  extends RecordReader[LongWritable, ParsedLine[K]] {
+  extends RecordReader[LongWritable, VariantRecord[K]] {
 
   val LOG: Log = LogFactory.getLog(classOf[IndexedBinaryBlockReader[K]].getName)
   val partitionStart: Long = split.getStart
   var pos: Long = partitionStart
   val end: Long = partitionStart + split.getLength
-  val bfis = openFile
+  val bfis = openFile()
 
-  def openFile: HadoopFSDataBinaryReader = {
+  def openFile(): HadoopFSDataBinaryReader = {
     val file: Path = split.getPath
     val fs: FileSystem = file.getFileSystem(job)
     new HadoopFSDataBinaryReader(fs.open(file))
   }
 
-  def seekToFirstBlock(start: Long): Unit
-
-  def next(key: LongWritable, value: ParsedLine[K]): Boolean
+  def seekToFirstBlockInSplit(start: Long): Unit
 
   def createKey(): LongWritable = new LongWritable()
 
-  def createValue(): ParsedLine[K]
+  def createValue(): VariantRecord[K] = new VariantRecord[K]
 
   def getPos: Long = pos
 
   def getProgress: Float = {
-    if (partitionStart == end) {
+    if (partitionStart == end)
       0.0f
-    }
-    else {
+    else
       Math.min(1.0f, (pos - partitionStart) / (end - partitionStart).toFloat)
-    }
   }
 
   def close() = bfis.close()

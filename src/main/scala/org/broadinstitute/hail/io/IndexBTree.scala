@@ -7,6 +7,8 @@ import org.broadinstitute.hail.Utils._
 
 object IndexBTree {
 
+  def calcDepth(arr: Array[Long]) = math.max(1,(math.log10(arr.length) / math.log10(1024)).ceil.toInt) //max necessary for array of length 1 becomes depth=0
+
   def write(arr: Array[Long], fileName: String, hConf: Configuration) {
     require(arr.length > 0)
 
@@ -29,8 +31,8 @@ object IndexBTree {
       layers.append(arr)
 
       // Pad last layer so last block is 1024 elements (1024*8 bytes)
-      val paddingRequired = if (arr.length < 1024) 1024 - arr.length else arr.length % 1024
-      layers.append((0 until paddingRequired).map{j => -1L})
+      val paddingRequired = 1024 - (arr.length % 1024)
+      layers.append((0 until paddingRequired).map{_ => -1L})
 
       val bytes = layers.flatten.flatMap(l => Array[Byte](
         (l >>> 56).toByte,
@@ -42,17 +44,19 @@ object IndexBTree {
         (l >>> 8).toByte,
         (l >>> 0).toByte)).toArray
 
-      //fs.write(bytes)
       w.write(bytes)
     }
   }
+}
 
-  def calcDepth(arr: Array[Long]) = math.max(1,(math.log10(arr.length) / math.log10(1024)).ceil.toInt) //max necessary for array of length 1 becomes depth=0
+class IndexBTree(indexFileName: String, hConf: Configuration) {
+  val maxDepth = calcDepth()
+  private val fs = hadoopFS(indexFileName, hConf).open(new Path(indexFileName))
 
-  def calcDepth(position: Long) = math.max(1,(math.log10(position) / math.log10(1024)).ceil.toInt)
+  def close() = fs.close()
 
-  def calcDepth(fileName: String, hConf: Configuration): Int = {
-    val numBtreeElements = hadoopGetFileSize(fileName, hConf) / 8
+  def calcDepth(): Int = {
+    val numBtreeElements = hadoopGetFileSize(indexFileName, hConf) / 8
     var depth = 1
     while (numBtreeElements > math.pow(1024,depth).toInt) {
       depth += 1
@@ -64,74 +68,57 @@ object IndexBTree {
     if (depth == 1)
       0
     else
-    (1 until depth).map(math.pow(1024,_).toLong * 8).sum
+      (1 until depth).map(math.pow(1024,_).toLong * 8).sum
   }
 
   private def getOffset(depth: Int, blockIndex: Long): Long = {
     getOffset(depth) + blockIndex * 8 * 1024
   }
 
-  private def getRowPosition(idxPos: Long, depth: Int): Long = (idxPos - getOffset(depth)) / 8
+  private def traverseTree(query: Long, startIndex: Long, currentDepth: Int): Long = {
 
-  private def searchInternalBlock(query: Long, startIndex: Long, indexFileSize: Long, fs: FSDataInputStream): Long = {
-    def read(prevItem: Long, position: Long): Long = {
-      val currItem = fs.readLong()
-      if (query >= prevItem && (query < currItem || currItem == -1L))
-        position
-      else if (position >= (startIndex + 1024 * 8))
-        fatal("did not find query in internal block")
+    def searchBlock(): Long = {
+      def read(prevValue: Long, prevPos: Long): Long = {
+        val currValue = fs.readLong()
+
+        if (currentDepth != maxDepth && query >= prevValue && (query < currValue || currValue == -1L))
+          prevPos
+        else if (currentDepth == maxDepth && query <= currValue || currValue == -1L)
+          currValue
+        else if (prevPos >= (startIndex + 1024*8))
+          fatal("did not find query in block")
+        else
+          read(currValue, prevPos + 8)
+      }
+
+      fs.seek(startIndex)
+      val firstValue = fs.readLong()
+      if (currentDepth != maxDepth && query >= 0L && query <= firstValue)
+        startIndex
+      else if (currentDepth == maxDepth && query >= 0L && query <= firstValue)
+        firstValue
       else
-        read(currItem, position + 8)
+        read(firstValue, startIndex)
     }
 
-    fs.seek(startIndex)
-
-    val firstItem = fs.readLong()
-    if (query >= 0L && query <= firstItem)
-      startIndex
-    else
-      read(firstItem, startIndex)
-  }
-
-  private def searchOuterBlock(query: Long, startIndex: Long, indexFileSize: Long, fs: FSDataInputStream): Long = {
-    def read(localIndex: Long): Long = {
-      val currItem = fs.readLong()
-      if (query <= currItem || currItem == -1L)
-        currItem
-      else if (localIndex - startIndex >= 1024)
-        fatal("did not find query in outer block")
-      else
-        read(localIndex + 1)
-    }
-
-    fs.seek(startIndex)
-    read(startIndex)
-  }
-
-  private def traverseTree(query: Long, startIndex: Long, currentDepth: Int, maxDepth: Int, indexFileSize: Long, fs: FSDataInputStream): Long = {
-    if (currentDepth == maxDepth) {
-      searchOuterBlock(query, startIndex, indexFileSize, fs)
-    }
+    if (currentDepth == maxDepth)
+      searchBlock()
     else {
-      val matchPosition = searchInternalBlock(query, startIndex, indexFileSize, fs)
-      val blockIndex = getRowPosition(matchPosition, currentDepth)
+      val matchPosition = searchBlock()
+      val blockIndex = (matchPosition - getOffset(currentDepth)) / 8
       val newStart = getOffset(currentDepth + 1, blockIndex)
-      traverseTree(query, newStart, currentDepth + 1, maxDepth, indexFileSize, fs)
+      traverseTree(query, newStart, currentDepth + 1)
     }
   }
 
-  def queryIndex(query: Long, originalFileSize: Long, indexFileName: String, hConf: Configuration): Long = {
-    val maxDepth = calcDepth(indexFileName, hConf)
-    val indexSize = hadoopGetFileSize(indexFileName, hConf)
+  def queryIndex(query: Long): Option[Long] = {
+    require( query >= 0 )
 
-    if (query < 0)
-      fatal("Query cannot be negative")
-    if (query >= originalFileSize)
-      fatal("Query cannot be larger than file size")
+    val result = traverseTree(query, 0L, 1)
 
-    readFile(indexFileName, hConf) { s =>
-      val fs = new FSDataInputStream(s)
-      traverseTree(query, 0L, 1, maxDepth, indexSize, fs)
-    }
+    if (result != -1L)
+      Option(result)
+    else
+      None
   }
 }
