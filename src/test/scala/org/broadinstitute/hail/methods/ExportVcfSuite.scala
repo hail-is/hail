@@ -1,9 +1,12 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr.TStruct
 import org.testng.annotations.Test
+
 import scala.io.Source
 
 class ExportVcfSuite extends SparkSuite {
@@ -25,6 +28,7 @@ class ExportVcfSuite extends SparkSuite {
   @Test def testSameAsOrigNoCompression() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val outFile = "/tmp/testExportVcf.vcf"
+    val outFile2 = "/tmp/testExportVcf2.vcf"
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State(sc, sqlContext, vdsOrig)
@@ -34,6 +38,16 @@ class ExportVcfSuite extends SparkSuite {
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
     assert(vdsOrig.eraseSplit.same(vdsNew.eraseSplit))
+
+    val infoSize = vdsNew.vaSignature.getAsOption[TStruct]("info").get.size
+    val toAdd = Some(Annotation.fromSeq((0 until infoSize).map(x => null)))
+    val inserter = vdsNew.insertVA(null, "info")._2
+
+    val vdsNewMissingInfo = vdsNew.mapAnnotations((v, va) => inserter(va, toAdd))
+
+    ExportVCF.run(stateOrig.copy(vds = vdsNewMissingInfo), Array("-o", outFile2))
+
+    assert(LoadVCF(sc, outFile2).eraseSplit.same(vdsNewMissingInfo.eraseSplit))
   }
 
   @Test def testSorted() {

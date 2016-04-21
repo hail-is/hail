@@ -24,6 +24,21 @@ object ExportPlink extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
+    val spaceRegex = """\s+""".r
+    val badSampleIds = vds.sampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
+    if (badSampleIds.nonEmpty) {
+      val msg =
+        s"""Found ${badSampleIds.length} sample IDs with whitespace.  Please run `renamesamples' to fix this problem before exporting to plink format.""".stripMargin
+      if (badSampleIds.length < 10) {
+        error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.mkString("  \n")}")
+        log.error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.mkString("  \n")}")
+        fatal(msg)
+      } else {
+        log.error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.mkString("  \n")}")
+        fatal(msg + s"\n  Bad sample IDs written to Hail log.")
+      }
+    }
+
     val bedHeader = Array[Byte](108, 27, 1)
 
     val plinkVariantRDD = vds

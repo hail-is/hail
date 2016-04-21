@@ -467,12 +467,21 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     rdd.map { case (v, va, gs) => (v, gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g))) }
 
   def same(that: VariantSampleMatrix[T]): Boolean = {
-    metadata == that.metadata &&
+    val metadataSame = metadata == that.metadata
+    if (!metadataSame)
+      println("metadata were not the same")
+    metadataSame &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
         .map {
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
-            it1.sameElements(it2) && va1 == va2
+            val variantsSame = va1 == va2
+            if (!variantsSame)
+              println(s"variants $va1, $va2 were not the same")
+            val genotypesSame = it1.sameElements(it2)
+            if (!genotypesSame)
+              println(s"genotypes not the same at variant $va1, $va2")
+            variantsSame && genotypesSame
           case _ => false
         }.fold(true)(_ && _)
   }
