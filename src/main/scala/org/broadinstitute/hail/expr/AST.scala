@@ -835,8 +835,18 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TString, "length") => TInt
       case (TArray(_), "length") => TInt
       case (TArray(_), "isEmpty") => TBoolean
+      case (t: TArray, "sum" | "min" | "max") =>
+        if (t.elementType.isInstanceOf[TNumeric])
+          t.elementType
+        else
+          parseError(s"cannot compute `$rhs' from an array of type `$t'")
       case (TSet(_), "size") => TInt
       case (TSet(_), "isEmpty") => TBoolean
+      case (t: TSet, "sum" | "min" | "max") =>
+        if (t.elementType.isInstanceOf[TNumeric])
+          t.elementType
+        else
+          parseError(s"cannot compute `$rhs' from a set of type `$t'")
 
       case (t, _) =>
         parseError(s"`$t' has no field `$rhs'")
@@ -965,9 +975,52 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
     case (TArray(_), "length") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.length)
     case (TArray(_), "isEmpty") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.isEmpty)
+    case (TArray(t: Type), "sum") =>
+      t match {
+        case TInt => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
+        case TLong => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Long]).sum)
+        case TFloat => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Float]).sum)
+        case TDouble => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Double]).sum)
+      }
+    case (TArray(t: Type), "min") =>
+      t match {
+        case TInt => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Int]).min)
+        case TLong => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Long]).min)
+        case TFloat => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Float]).min)
+        case TDouble => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Double]).min)
+      }
+    case (TArray(t: Type), "max") =>
+      t match {
+        case TInt => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Int]).max)
+        case TLong => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Long]).max)
+        case TFloat => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Float]).max)
+        case TDouble => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Double]).max)
+      }
 
     case (TSet(_), "size") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.size)
     case (TSet(_), "isEmpty") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.isEmpty)
+
+    case (TSet(t: Type), "sum") =>
+      t match {
+        case TInt => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Int]).sum)
+        case TLong => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Long]).sum)
+        case TFloat => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Float]).sum)
+        case TDouble => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Double]).sum)
+      }
+    case (TSet(t: Type), "min") =>
+      t match {
+        case TInt => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Int]).min)
+        case TLong => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Long]).min)
+        case TFloat => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Float]).min)
+        case TDouble => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Double]).min)
+      }
+    case (TSet(t: Type), "max") =>
+      t match {
+        case TInt => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Int]).max)
+        case TLong => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Long]).max)
+        case TFloat => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Float]).max)
+        case TDouble => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(_ != null).map(_.asInstanceOf[Double]).max)
+      }
   }
 
 }
@@ -1003,12 +1056,63 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         lhs.typecheck(symTab)
 
         val elementType = lhs.`type` match {
-          case TArray(elementType) => elementType
+          case TArray(t) => t
           case _ =>
-            fatal("no `$method' on non-array")
+            parseError("no `$method' on non-array")
         }
 
         `type` = elementType
+
+        // index unused in typecheck
+        body.typecheck(symTab + (param ->(-1, elementType)))
+        if (body.`type` != TBoolean)
+          fatal(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
+
+      case ("map", Array(Lambda(_, param, body))) =>
+        lhs.typecheck(symTab)
+
+        val elementType = lhs.`type` match {
+          case TArray(t) => t
+          case _ =>
+            parseError("no `$method' on non-array")
+        }
+
+        body.typecheck(symTab + (param ->(-1, elementType)))
+
+        val bt = body.`type` match {
+          case t: Type => t
+          case error => parseError(s"cannot map an array to type `${body.`type`}'")
+        }
+
+        `type` = TArray(bt)
+
+
+      case ("filter", Array(Lambda(_, param, body))) =>
+        lhs.typecheck(symTab)
+
+        val elementType = lhs.`type` match {
+          case TArray(t) => t
+          case _ =>
+            parseError("no `$method' on non-array")
+        }
+
+        `type` = lhs.`type`
+
+        // index unused in typecheck
+        body.typecheck(symTab + (param ->(-1, elementType)))
+        if (body.`type` != TBoolean)
+          fatal(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
+
+      case ("forall" | "exists", Array(Lambda(_, param, body))) =>
+        lhs.typecheck(symTab)
+
+        val elementType = lhs.`type` match {
+          case TArray(t) => t
+          case _ =>
+            parseError("no `$method' on non-array")
+        }
+
+        `type` = TBoolean
 
         // index unused in typecheck
         body.typecheck(symTab + (param ->(-1, elementType)))
@@ -1061,6 +1165,61 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           } else
             null
         f(0)
+      }
+
+    case (returnType, "map", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[IndexedSeq[_]](c, lhs) { case is =>
+        is.map { elt =>
+          localA(localIdx) = elt
+          bodyFn()
+        }
+      }
+
+    case (returnType, "filter", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[IndexedSeq[_]](c, lhs) { case is =>
+        is.filter { elt =>
+          localA(localIdx) = elt
+          val r = bodyFn()
+          r.asInstanceOf[Boolean]
+        }
+      }
+
+    case (returnType, "forall", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[IndexedSeq[_]](c, lhs) { case is =>
+        is.forall { elt =>
+          localA(localIdx) = elt
+          val r = bodyFn()
+          r.asInstanceOf[Boolean]
+        }
+      }
+
+    case (returnType, "exists", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[IndexedSeq[_]](c, lhs) { case is =>
+        is.exists { elt =>
+          localA(localIdx) = elt
+          val r = bodyFn()
+          r.asInstanceOf[Boolean]
+        }
       }
 
     case (_, "orElse", Array(a)) =>
@@ -1135,13 +1294,14 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 }
 
 case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
-  def eval(c: EvalContext): () => Any = ((operation, `type`): @unchecked) match {
-    case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
-    case ("~", TBoolean) => AST.evalCompose[String, String](c, lhs, rhs) { (s, t) =>
+  def eval(c: EvalContext): () => Any = ((lhs.`type`, operation, `type`): @unchecked) match {
+    case (TString, "+", _) => AST.evalCompose[Any, Any](c, lhs, rhs)(_.toString + _.toString)
+    case (_, "+", TString) => AST.evalCompose[Any, Any](c, lhs, rhs)(_.toString + _.toString)
+    case (_, "~", TBoolean) => AST.evalCompose[String, String](c, lhs, rhs) { (s, t) =>
       s.r.findFirstIn(t).isDefined
     }
 
-    case ("||", TBoolean) =>
+    case (_, "||", TBoolean) =>
       val f1 = lhs.eval(c)
       val f2 = rhs.eval(c)
 
@@ -1162,7 +1322,7 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
         }
       }
 
-    case ("&&", TBoolean) =>
+    case (_, "&&", TBoolean) =>
       val f1 = lhs.eval(c)
       val f2 = rhs.eval(c)
       () => {
@@ -1182,31 +1342,32 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
         }
       }
 
-    case ("+", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ + _)
-    case ("-", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ - _)
-    case ("*", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ * _)
-    case ("/", TInt) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
-    case ("%", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ % _)
+    case (_, "+", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ + _)
+    case (_, "-", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ - _)
+    case (_, "*", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ * _)
+    case (_, "/", TInt) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
+    case (_, "%", TInt) => AST.evalComposeNumeric[Int, Int](c, lhs, rhs)(_ % _)
 
-    case ("+", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ + _)
-    case ("-", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ - _)
-    case ("*", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ * _)
-    case ("/", TLong) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
-    case ("%", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ % _)
+    case (_, "+", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ + _)
+    case (_, "-", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ - _)
+    case (_, "*", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ * _)
+    case (_, "/", TLong) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
+    case (_, "%", TLong) => AST.evalComposeNumeric[Long, Long](c, lhs, rhs)(_ % _)
 
-    case ("+", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ + _)
-    case ("-", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ - _)
-    case ("*", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ * _)
-    case ("/", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ / _)
+    case (_, "+", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ + _)
+    case (_, "-", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ - _)
+    case (_, "*", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ * _)
+    case (_, "/", TFloat) => AST.evalComposeNumeric[Float, Float](c, lhs, rhs)(_ / _)
 
-    case ("+", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ + _)
-    case ("-", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ - _)
-    case ("*", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ * _)
-    case ("/", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
+    case (_, "+", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ + _)
+    case (_, "-", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ - _)
+    case (_, "*", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ * _)
+    case (_, "/", TDouble) => AST.evalComposeNumeric[Double, Double](c, lhs, rhs)(_ / _)
   }
 
   override def typecheckThis(): BaseType = (lhs.`type`, operation, rhs.`type`) match {
-    case (TString, "+", TString) => TString
+    case (_, "+", TString) => TString
+    case (TString, "+", _) => TString
     case (TString, "~", TString) => TBoolean
     case (TBoolean, "||", TBoolean) => TBoolean
     case (TBoolean, "&&", TBoolean) => TBoolean
