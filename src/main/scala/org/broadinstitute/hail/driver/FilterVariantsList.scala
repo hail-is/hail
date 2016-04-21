@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.driver
 
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.methods._
@@ -38,21 +39,37 @@ object FilterVariantsList extends Command {
 
     val keep = options.keep
 
-    val variants = readLines(options.input, state.hadoopConf)(_.map(_.transform { line =>
-      val fields = line.value.split(":")
-      if (fields.length != 4)
-        fatal("invalid variant")
-      val ref = fields(2)
-      Variant(fields(0),
-        fields(1).toInt,
-        ref,
-        fields(3).split(",").map(alt => AltAllele(ref, alt)))
-    }).toSet)
+    val variants: RDD[(Variant, Unit)] =
+      vds.sparkContext.textFile(options.input)
+        .map { line =>
+          val fields = line.split(":")
+          if (fields.length != 4)
+            fatal("invalid variant")
+          val ref = fields(2)
+          (Variant(fields(0),
+            fields(1).toInt,
+            ref,
+            fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
+        }
 
-    val variantsBc = state.sc.broadcast(variants)
-
-    val p = (v: Variant, _: Annotation) => Filter.keepThis(variantsBc.value.contains(v), keep)
-
-    state.copy(vds = vds.filterVariants(p))
+    state.copy(
+      vds = vds.copy(
+        rdd =
+          if (keep)
+            vds.rdd
+              .map { case (v, va, gs) => (v, (va, gs)) }
+              .join(variants)
+              .map { case (v, ((va, gs), _)) => (v, va, gs) }
+          else
+            vds.rdd
+              .map { case (v, va, gs) => (v, (va, gs)) }
+              .leftOuterJoin(variants)
+              .flatMap {
+                case (v, ((va, gs), Some(_))) =>
+                  None
+                case (v, ((va, gs), None)) =>
+                  Some((v, va, gs))
+              }
+      ))
   }
 }
