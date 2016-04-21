@@ -35,13 +35,11 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     compress: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
-    val filters: mutable.WrappedArray[String] = {
+    val filters: Set[String] = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
-        Array("PASS")
-      else {
-        val arr = vc.getFilters.asScala.toArray
-        arr
-      }
+        Set("PASS")
+      else
+        vc.getFilters.asScala.toSet
     }
     val rsid = vc.getID
 
@@ -64,6 +62,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
                   |  caught $e""".stripMargin)
         }
       }: _*)
+
     assert(infoSignature.typeCheck(info))
 
     val va = Annotation(

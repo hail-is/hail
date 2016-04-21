@@ -1,12 +1,12 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
+import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
 
 import scala.collection.mutable.ArrayBuffer
@@ -138,7 +138,7 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testAssign() {
-    val t1 = TEmpty
+    val t1 = TStruct.empty
 
     val (t2, insb) = t1.insert(TInt, "a", "b")
     val (t3, insc) = t2.insert(TDouble, "a", "c")
@@ -192,6 +192,13 @@ class ExprSuite extends SparkSuite {
       val a = t.genValue.sample()
       val json = t.makeJSON(a)
       a == VEP.jsonToAnnotation(json, t, "")
+    })
+  }
+
+  @Test def testReadWrite() {
+    check(forAll { (t: Type) =>
+    val a = t.genValue.sample()
+      t.makeReadable(t.makeWritable(a)) == a
     })
   }
 }

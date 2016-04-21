@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
+
 import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
@@ -294,7 +295,7 @@ object Parser extends JavaTokenParsers {
   }
 
   def type_expr: Parser[Type] =
-    "Empty" ^^ { _ => TEmpty } |
+    "Empty" ^^ { _ => TStruct.empty } |
       "Boolean" ^^ { _ => TBoolean } |
       "Char" ^^ { _ => TChar } |
       "Int" ^^ { _ => TInt } |

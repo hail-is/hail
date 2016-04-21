@@ -1,19 +1,19 @@
 package org.broadinstitute.hail.driver
 
-import java.io.{FileInputStream, IOException, InputStream}
+import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
 import org.apache.spark.storage.StorageLevel
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
+import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
-import org.kohsuke.args4j.{Option => Args4jOption}
 
 case class JSONExtractGenotype(
   gt: Option[Int],
@@ -56,8 +56,7 @@ object VEP extends Command {
     implicit val formats = Serialization.formats(NoTypeHints)
 
     (jv, t) match {
-      case (JNull, _) => null
-      case (JNothing, TEmpty) => null
+      case (JNull | JNothing, _) => null
       case (JInt(x), TInt) => x.toInt
       case (JInt(x), TLong) => x.toLong
       case (JInt(x), TDouble) => x.toDouble
@@ -99,7 +98,7 @@ object VEP extends Command {
         a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
 
       case (JArray(a), TSet(elementType)) =>
-        a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
+        a.iterator.map(jv2 => jsonToAnnotation(jv2, elementType, parent + ".<array>")).toSet[Any]
 
       case _ =>
         warn(s"Can't convert json value $jv to signature $t for $parent.")

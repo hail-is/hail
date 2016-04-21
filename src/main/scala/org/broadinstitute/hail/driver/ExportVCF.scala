@@ -1,14 +1,16 @@
 package org.broadinstitute.hail.driver
 
+import java.time._
+
 import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
-import java.time._
+
 import scala.io.Source
 
 object ExportVCF extends Command {
@@ -154,7 +156,7 @@ object ExportVCF extends Command {
       sb += '\t'
 
       filterQuery.flatMap(_ (a))
-        .map(_.asInstanceOf[IndexedSeq[String]]) match {
+        .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween { s =>

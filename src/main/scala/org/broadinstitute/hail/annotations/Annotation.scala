@@ -10,17 +10,17 @@ object Annotation {
 
   def empty: Annotation = null
 
-  def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(null)
+  def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(Annotation.empty)
 
   def printAnnotation(a: Any, nSpace: Int = 0): String = {
     val spaces = " " * nSpace
     a match {
-      case null => "NULL"
+      case null => "Null"
       case r: Row =>
         "Row:\n" +
           r.toSeq.zipWithIndex.map { case (elem, index) =>
             s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}: ${if (elem != null)
-              elem.getClass.getCanonicalName
+              elem.getClass.getName
             else
               "Null"}"""
           }
@@ -30,4 +30,6 @@ object Annotation {
   }
 
   def apply(args: Any*): Annotation = Row.fromSeq(args)
+
+  def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)
 }
