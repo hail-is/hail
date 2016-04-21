@@ -3,7 +3,6 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.{FatalException, SparkSuite}
@@ -191,7 +190,7 @@ class ExprSuite extends SparkSuite {
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()
       val json = t.makeJSON(a)
-      a == VEP.jsonToAnnotation(json, t, "")
+      a == Annotation.fromJson(json, t, "")
     })
   }
 
