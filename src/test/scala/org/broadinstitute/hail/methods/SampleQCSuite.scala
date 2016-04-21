@@ -1,9 +1,8 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.State
+import org.broadinstitute.hail.driver.{State, _}
 import org.testng.annotations.Test
-import org.broadinstitute.hail.driver._
 
 import scala.io.Source
 
@@ -13,7 +12,7 @@ class SampleQCSuite extends SparkSuite {
 
     s = ImportVCF.run(s, Array("src/test/resources/multipleChromosomes.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
-    s = FilterSamples.run(s, Array("--keep", "-c", """"HG" ~ s.id"""))
+    s = FilterSamplesExpr.run(s, Array("--keep", "-c", """"HG" ~ s.id"""))
     s = SampleQC.run(s, Array("-o", "/tmp/sampleqc.tsv"))
     s = ExportSamples.run(s, Array("-o", "/tmp/exportsamples.tsv", "-c",
       """sampleID = s.id,

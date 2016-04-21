@@ -3,17 +3,17 @@ package org.broadinstitute.hail.variant.vsm
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
-import scala.language.postfixOps
 import org.broadinstitute.hail.methods.LoadVCF
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
+
 import scala.collection.mutable
 import scala.language.postfixOps
 import scala.util.Random
-import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.driver._
 
 class VSMSuite extends SparkSuite {
 
@@ -202,7 +202,7 @@ class VSMSuite extends SparkSuite {
     s = Write.run(s, Array("-o", "/tmp/sample.vds"))
 
     s = Read.run(s, Array("--skip-genotypes", "-i", "/tmp/sample.vds"))
-    s = FilterVariants.run(s, Array("--keep", "-c", "va.info.AF[0] < 0.01"))
+    s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.info.AF[0] < 0.01"))
 
     assert(s.vds.nVariants == 234)
   }
@@ -216,7 +216,7 @@ class VSMSuite extends SparkSuite {
     s = Read.run(s, Array("--skip-genotypes", "-i", "/tmp/sample.vds"))
 
     var s2 = Read.run(s, Array("-i", "/tmp/sample.vds"))
-    s2 = FilterSamples.run(s, Array("--remove", "--all"))
+    s2 = FilterSamplesAll.run(s)
 
     assert(s.vds.same(s2.vds))
   }

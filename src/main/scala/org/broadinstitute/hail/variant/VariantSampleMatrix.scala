@@ -31,6 +31,9 @@ object VariantSampleMatrix {
 
     val hConf = sqlContext.sparkContext.hadoopConfiguration
 
+    if (!hadoopExists(hConf, dirname))
+      fatal(s"no vds file found at `$dirname'")
+
     val vaSchema = dirname + "/va.schema"
     val saSchema = dirname + "/sa.schema"
     val globalSchema = dirname + "/global.schema"

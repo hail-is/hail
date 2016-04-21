@@ -22,7 +22,7 @@ class FilterVariantsSuite extends SparkSuite {
         }
       }
 
-      val t = FilterVariants.run(s, Array(
+      val t = FilterVariantsExpr.run(s, Array(
         if (keep)
           "--keep"
         else
@@ -42,7 +42,7 @@ class FilterVariantsSuite extends SparkSuite {
     var s = State(sc, sqlContext)
 
     s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
-    s = FilterVariants.run(s, Array("--remove", "--all"))
+    s = FilterVariantsAll.run(s)
 
     assert(s.vds.nVariants == 0)
   }
