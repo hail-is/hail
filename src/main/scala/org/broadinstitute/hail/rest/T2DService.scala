@@ -97,6 +97,12 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     if (req.api_version != 1)
       throw new RESTFailure(s"Unsupported API version `${req.api_version}'. Supported API versions: 1.")
 
+    val MaxWidthForHcs = 600000
+    val MaxWidthForHcs1Mb = 10000000
+    val HardLimit = 100000 // max is around 16k for T2D
+
+    val limit = req.limit.getOrElse(HardLimit)
+
     val y: DenseVector[Double] = {
       val pheno = req.phenotype.getOrElse("T2D")
       covMap.get(pheno) match {
@@ -105,36 +111,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
       }
     }
 
-    /* GRCh37, http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/data/
-    val chromEnd: Map[String, Int] = Map(
-       "1" -> 249250621,
-       "2" -> 243199373,
-       "3" -> 198022430,
-       "4" -> 191154276,
-       "5" -> 180915260,
-       "6" -> 171115067,
-       "7" -> 159138663,
-       "8" -> 146364022,
-       "9" -> 141213431,
-      "10" -> 135534747,
-      "11" -> 135006516,
-      "12" -> 133851895,
-      "13" -> 115169878,
-      "14" -> 107349540,
-      "15" -> 102531392,
-      "16" ->  90354753,
-      "17" ->  81195210,
-      "18" ->  78077248,
-      "19" ->  59128983,
-      "20" ->  63025520,
-      "21" ->  48129895,
-      "22" ->  51304566,
-       "X" -> 155270560,
-       "Y" ->  59373566)
-    */
-
     val phenoCovs = mutable.Set[String]()
-
     val variantCovs = new mutable.ArrayBuffer[Variant]()
 
     req.covariates.foreach { covariates =>
@@ -164,18 +141,11 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
 
     val nCov = phenoCovs.size + variantCovs.size
     val covArray = phenoCovs.toArray.flatMap(s => covMap(s)) ++ variantCovs.toArray.flatMap(hcs.variantGts)
-
     val cov: Option[DenseMatrix[Double]] =
       if (nCov > 0)
         Some(new DenseMatrix[Double](hcs.nSamples, nCov, covArray))
       else
         None
-
-    val maxWidthForHcs = 600000
-    val maxWidthForHcs1Mb = 10000000
-
-    //    val HARDLIMIT = 100000
-    //    val limit = req.limit.map(_.min(HARDLIMIT)).getOrElse(HARDLIMIT)
 
     var minPos = 0
     var maxPos = 1000000000
@@ -215,13 +185,10 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
 
     assert(maxPos >= minPos)
 
-//    if (width > MAXWIDTH)
-//      posFilters += VariantFilter("pos", "lte", (minPos + MAXWIDTH).toString, "integer")
-
     val hcsToUse =
-      if (width <= maxWidthForHcs)
+      if (width <= MaxWidthForHcs)
         hcs
-      else if (width <= maxWidthForHcs1Mb)
+      else if (width <= MaxWidthForHcs1Mb)
         hcs1Mb
       else
         hcs10Mb
@@ -232,16 +199,34 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     chromFilters.foreach(f => df = f.filterDf(df, blockWidth))
     posFilters.foreach(f => df = f.filterDf(df, blockWidth))
 
-    val stats = LinearRegression(hcsToUse.copy(df = df), y, cov)
+    var stats = LinearRegression(hcsToUse.copy(df = df), y, cov)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
       .collect()
 
-//    val stats: Array[Stat] =
-//      if (width <= 600000)
-//        statsRDD.collect()
-//      else
-//        statsRDD.take(limit)
+    // FIXME: test timing with .take(limit) to avoid copying below
+
+    if (stats.length > limit)
+      stats = stats.take(limit)
+
+    // test that sort terms are distinct.
+    // if seq ends in contig or in (contig, pos), ignore them
+    // don't sort multiple times
+
+    req.sort_by match {
+      case Some(fields) =>
+        fields.reverse.foreach { f =>
+          stats = f match {
+            case "contig" => stats.sortBy(_.chrom)
+            case "pos" => stats.sortBy(_.pos)
+            case "ref" => stats.sortBy(_.ref)
+            case "alt" => stats.sortBy(_.alt)
+            case "p-value" => stats.sortBy(_.`p-value`.getOrElse(2d))
+            case _ => throw new RESTFailure(s"Valid sort_by arguments are `contig', `pos', `ref', `alt', and `p-value': got $f")
+          }
+        }
+      case None =>
+    }
 
     if (req.count.getOrElse(false))
       GetStatsResult(is_error = false, None, req.passback, None, Some(stats.length))
