@@ -28,31 +28,31 @@ class ExportPlinkSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     vds.rdd.count
-    ExportPlink.run(state, Array("-o", "/tmp/hailOut"))
+    ExportPlink.run(state, Array("-o", "file:///tmp/hailOut"))
 
     // use plink to convert sample.vcf to a bed/bim/fam file
     s"plink --vcf src/test/resources/sample.vcf --make-bed --out /tmp/plinkOut --const-fid --keep-allele-order" !
 
-    rewriteBimIDs("/tmp/hailOut.bim")
-    rewriteBimIDs("/tmp/plinkOut.bim")
+    rewriteBimIDs("file:///tmp/hailOut.bim")
+    rewriteBimIDs("file:///tmp/plinkOut.bim")
 
     // use plink to assert that the concordance rate is 1
     val exitCode = s"plink --bfile /tmp/plinkOut --bmerge /tmp/hailOut --merge-mode 6 --out /tmp/plinkHailMerge" !
 
-    hadoopDelete("/tmp/plinkOut.bed", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/plinkOut.bim", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/plinkOut.fam", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete("file:///tmp/plinkOut.bed", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete("file:///tmp/plinkOut.bim", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete("file:///tmp/plinkOut.fam", sc.hadoopConfiguration, recursive = true)
 
-    hadoopDelete("/tmp/hailOut.bed", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/hailOut.bim", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/hailOut.fam", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete("file:///tmp/hailOut.bed", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete("file:///tmp/hailOut.bim", sc.hadoopConfiguration, recursive = true)
+    hadoopDelete("file:///tmp/hailOut.fam", sc.hadoopConfiguration, recursive = true)
 
     // assert that plink exited successfully
     assert(exitCode == 0)
 
     // assert that the .diff file is empty of non-header columns
     assert(
-      readFile("/tmp/plinkHailMerge.diff", sc.hadoopConfiguration) { is =>
+      readFile("file:///tmp/plinkHailMerge.diff", sc.hadoopConfiguration) { is =>
         Source.fromInputStream(is)
           .getLines()
           .toIndexedSeq
