@@ -1174,7 +1174,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             0
           sum.asInstanceOf[Long] + toAdd
         }
-      val combOp: (Any, Any) => Any = _.asInstanceOf[Int] + _.asInstanceOf[Int]
+      val combOp: (Any, Any) => Any = _.asInstanceOf[Long] + _.asInstanceOf[Long]
       localFunctions += ((() => 0L, seqOp, combOp, localIdx))
       AST.evalCompose[Any](ec, lhs) {
         case a =>

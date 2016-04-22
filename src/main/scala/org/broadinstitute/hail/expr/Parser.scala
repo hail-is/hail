@@ -115,8 +115,7 @@ object Parser extends JavaTokenParsers {
       path.tail
   }
 
-  def parseExprs(code: String, symTab: Map[String, (Int, BaseType)],
-    a: ArrayBuffer[Any]): (Array[(BaseType, () => Option[Any])]) = {
+  def parseExprs(code: String, ec: EvalContext): (Array[(BaseType, () => Option[Any])]) = {
 
     if (code.matches("""\s*"""))
       Array.empty[(BaseType, () => Option[Any])]
@@ -126,10 +125,8 @@ object Parser extends JavaTokenParsers {
         case NoSuccess(msg, _) => fatal(msg)
       }
 
-      val ec = EvalContext(symTab, a)
-
       asts.map { ast =>
-        ast.typecheck(symTab)
+        ast.typecheck(ec)
         val f = ast.eval(ec)
         (ast.`type`, () => Option(f()))
       }

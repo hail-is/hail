@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.variant
 
+import java.nio.ByteBuffer
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -9,7 +11,6 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 
-import java.nio.ByteBuffer
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -661,7 +662,7 @@ class RichVDS(vds: VariantDataset) {
     val rowRDD = vds.rdd
       .map {
         case (v, va, gs) =>
-          Row.fromSeq(Array(v.toRow, va.asInstanceOf[Row], gs.toGenotypeStream(v, compress).toRow))
+          Row.fromSeq(Array(v.toRow, va, gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")

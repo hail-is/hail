@@ -1,10 +1,8 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.json4s.jackson.JsonMethods._
-import org.json4s._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ShowGlobalAnnotations extends Command {
@@ -29,11 +27,14 @@ object ShowGlobalAnnotations extends Command {
       fatal("showannotations requires a non-null variant dataset, import or read one first")
 
     val json = vds.globalSignature.makeJSON(vds.globalAnnotation)
-    val result = "Global annotations: `global' = " + pretty(render(json))
+    val result = if (vds.globalSignature == TEmpty)
+      "Global annotations: `global' = Empty"
+    else
+      "Global annotations: `global' = " + pretty(render(json))
 
     options.output match {
       case null => println(result)
-      case path => writeTextFile(path, state.hadoopConf){out => out.write(result)}
+      case path => writeTextFile(path, state.hadoopConf) { out => out.write(result) }
     }
 
     state
