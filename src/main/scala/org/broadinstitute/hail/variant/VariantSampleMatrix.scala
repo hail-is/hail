@@ -108,7 +108,7 @@ object VariantSampleMatrix {
           sampleAnnotations = IndexedSeq.empty[Annotation]),
         df.select("variant", "annotations")
           .map(row => (row.getVariant(0),
-            if (vaRequiresConversion) vaSignature.makeReadable(row.get(1)) else row.get(1),
+            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
             Iterable.empty[Genotype])))
     else
       new VariantSampleMatrix(
@@ -117,7 +117,7 @@ object VariantSampleMatrix {
           val v = row.getVariant(0)
 
           (v,
-            if (vaRequiresConversion) vaSignature.makeReadable(row.get(1)) else row.get(1),
+            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
             row.getGenotypeStream(v, 2))
         })
   }
@@ -653,7 +653,7 @@ class RichVDS(vds: VariantDataset) {
       .map {
         case (v, va, gs) =>
           Row.fromSeq(Array(v.toRow,
-            if (vaRequiresConversion) vaSignature.makeWritable(va) else va,
+            if (vaRequiresConversion) vaSignature.makeSparkWritable(va) else va,
             gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())

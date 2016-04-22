@@ -70,7 +70,7 @@ object Type {
     else
       Gen.oneOfGen(genScalar,
         genSized(size - 1).map(TArray),
-        //        genSized(size - 1).map(TSet),
+        // FIXME: genSized(size - 1).map(TSet),
         Gen.buildableOf[Array[(String, Type)], (String, Type)](
           Gen.zip(Gen.identifier,
             genArb))
@@ -161,9 +161,9 @@ abstract class Type extends BaseType {
 
   def requiresConversion: Boolean = false
 
-  def makeWritable(a: Annotation): Annotation = a
+  def makeSparkWritable(a: Annotation): Annotation = a
 
-  def makeReadable(a: Annotation): Annotation = a
+  def makeSparkReadable(a: Annotation): Annotation = a
 
   def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
 }
@@ -292,16 +292,21 @@ case class TArray(elementType: Type) extends Type {
 
   override def requiresConversion: Boolean = elementType.requiresConversion
 
-  override def makeWritable(a: Annotation): Annotation = Option(a).map { x =>
-    val values = x.asInstanceOf[IndexedSeq[Annotation]]
-    values.map(elementType.makeWritable)
-  }.orNull
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val values = a.asInstanceOf[IndexedSeq[Annotation]]
+      values.map(elementType.makeSparkWritable)
+    }
 
-  override def makeReadable(a: Annotation): Annotation = Option(a).map { x =>
-    val values = x.asInstanceOf[IndexedSeq[Annotation]]
-    values.map(elementType.makeReadable)
-  }.orNull
-
+  override def makeSparkReadable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val values = a.asInstanceOf[IndexedSeq[Annotation]]
+      values.map(elementType.makeSparkReadable)
+    }
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq[Annotation], Annotation](
     elementType.genValue)
@@ -310,12 +315,8 @@ case class TArray(elementType: Type) extends Type {
 case class TSet(elementType: Type) extends Type {
   override def toString = s"Set[$elementType]"
 
-  def typeCheck(a: Any): Boolean = {
-    val b = a == null || a.isInstanceOf[Set[_]] &&
-      a.asInstanceOf[Set[_]].forall(elementType.typeCheck)
-    println(s"checking set for $a, got $b")
-    b
-  }
+  def typeCheck(a: Any): Boolean =
+    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck))
 
   def schema = ArrayType(elementType.schema)
 
@@ -332,15 +333,21 @@ case class TSet(elementType: Type) extends Type {
 
   override def requiresConversion: Boolean = true
 
-  override def makeWritable(a: Annotation): Annotation = Option(a).map { x =>
-    val values = x.asInstanceOf[Set[Annotation]]
-    values.toSeq.map(elementType.makeWritable)
-  }.orNull
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val values = a.asInstanceOf[Set[Annotation]]
+      values.toSeq.map(elementType.makeSparkWritable)
+    }
 
-  override def makeReadable(a: Annotation): Annotation = Option(a).map { x =>
-    val values = x.asInstanceOf[Seq[Annotation]]
-    values.map(elementType.makeReadable).toSet
-  }.orNull
+  override def makeSparkReadable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val values = a.asInstanceOf[Seq[Annotation]]
+      values.map(elementType.makeSparkWritable).toSet
+    }
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set[Annotation], Annotation](
     elementType.genValue)
@@ -369,21 +376,26 @@ case object TGenotype extends Type {
 
   override def requiresConversion: Boolean = true
 
-  override def makeWritable(a: Annotation): Annotation = Option(a).map { x =>
-    val g = x.asInstanceOf[Genotype]
-    Annotation(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.pl.map(_.toSeq).orNull, g.fakeRef)
-  }.orNull
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val g = a.asInstanceOf[Genotype]
+      Annotation(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.pl.map(_.toSeq).orNull, g.fakeRef)
+    }
 
-  override def makeReadable(a: Annotation): Genotype = Option(a).map { x =>
-    val r = x.asInstanceOf[Row]
-    Genotype(Option(r.get(0)).map(_.asInstanceOf[Int]),
-      Option(r.get(1)).map(_.asInstanceOf[Seq[Int]].toArray),
-      Option(r.get(2)).map(_.asInstanceOf[Int]),
-      Option(r.get(3)).map(_.asInstanceOf[Int]),
-      Option(r.get(4)).map(_.asInstanceOf[Seq[Int]].toArray),
-      r.get(5).asInstanceOf[Boolean]
-    )
-  }.orNull
+  override def makeSparkReadable(a: Annotation): Genotype =
+    if (a == null)
+      null
+    else {
+      val r = a.asInstanceOf[Row]
+      Genotype(Option(r.get(0)).map(_.asInstanceOf[Int]),
+        Option(r.get(1)).map(_.asInstanceOf[Seq[Int]].toArray),
+        Option(r.get(2)).map(_.asInstanceOf[Int]),
+        Option(r.get(3)).map(_.asInstanceOf[Int]),
+        Option(r.get(4)).map(_.asInstanceOf[Seq[Int]].toArray),
+        r.get(5).asInstanceOf[Boolean])
+    }
 
   override def genValue: Gen[Annotation] = Genotype.genArb
 }
@@ -399,15 +411,21 @@ case object TAltAllele extends Type {
 
   override def requiresConversion: Boolean = true
 
-  override def makeWritable(a: Annotation): Annotation = Option(a).map { x =>
-    val aa = x.asInstanceOf[AltAllele]
-    Annotation(aa.ref, aa.alt)
-  }.orNull
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val aa = a.asInstanceOf[AltAllele]
+      Annotation(aa.ref, aa.alt)
+    }
 
-  override def makeReadable(a: Annotation): AltAllele = Option(a).map { x =>
-    val r = x.asInstanceOf[Row]
-    AltAllele(r.getAs[String](0), r.getAs[String](1))
-  }.orNull
+  override def makeSparkReadable(a: Annotation): AltAllele =
+    if (a == null)
+      null
+    else {
+      val r = a.asInstanceOf[Row]
+      AltAllele(r.getAs[String](0), r.getAs[String](1))
+    }
 
   override def genValue: Gen[Annotation] = AltAllele.gen
 }
@@ -423,16 +441,22 @@ case object TVariant extends Type {
 
   override def requiresConversion: Boolean = true
 
-  override def makeWritable(a: Annotation): Annotation = Option(a).map { x =>
-    val v = x.asInstanceOf[Variant]
-    Annotation(v.contig, v.start, v.ref, v.altAlleles.map(TAltAllele.makeWritable))
-  }.orNull
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val v = a.asInstanceOf[Variant]
+      Annotation(v.contig, v.start, v.ref, v.altAlleles.map(TAltAllele.makeSparkWritable))
+    }
 
-  override def makeReadable(a: Annotation): Annotation = Option(a).map { x =>
-    val r = x.asInstanceOf[Row]
-    Variant(r.getAs[String](0), r.getAs[Int](1), r.getAs[String](2),
-      r.getAs[Seq[Row]](3).map(TAltAllele.makeReadable).toArray)
-  }.orNull
+  override def makeSparkReadable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val r = a.asInstanceOf[Row]
+      Variant(r.getAs[String](0), r.getAs[Int](1), r.getAs[String](2),
+        r.getAs[Seq[Row]](3).map(TAltAllele.makeSparkReadable).toArray)
+    }
 
   override def genValue: Gen[Annotation] = Variant.gen
 }
@@ -664,12 +688,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   override def typeCheck(a: Any): Boolean =
     a == null ||
       a.isInstanceOf[Row] &&
-        a.asInstanceOf[Row].toSeq.zip(fields).forall { case (v, f) =>
-          val b = f.`type`.typeCheck(v)
-          if (!b)
-            println(s"v=$v, f=$f")
-          b
-        }
+        a.asInstanceOf[Row].toSeq.zip(fields).forall { case (v, f) => f.`type`.typeCheck(v) }
 
   def schema = {
     if (fields.isEmpty)
@@ -691,27 +710,25 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def requiresConversion: Boolean = fields.exists(_.`type`.requiresConversion)
 
-  override def makeWritable(a: Annotation): Annotation =
-    if (size == 0)
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (size == 0 || a == null)
       null
-    else
-      Option(a).map { x =>
-        val r = a.asInstanceOf[Row]
-        Annotation.fromSeq(r.toSeq.iterator.zip(fields.map(_.`type`).iterator).map {
-          case (value, t) => t.makeWritable(value)
-        }.toSeq)
-      }.orNull
+    else {
+      val r = a.asInstanceOf[Row]
+      Annotation.fromSeq(r.toSeq.iterator.zip(fields.map(_.`type`).iterator).map {
+        case (value, t) => t.makeSparkWritable(value)
+      }.toSeq)
+    }
 
-  override def makeReadable(a: Annotation): Annotation =
-    if (size == 0)
+  override def makeSparkReadable(a: Annotation): Annotation =
+    if (size == 0 || a == null)
       Annotation.empty
-    else
-      Option(a).map { x =>
-        val r = a.asInstanceOf[Row]
-        Annotation.fromSeq(r.toSeq.iterator.zip(fields.map(_.`type`).iterator).map {
-          case (value, t) => t.makeReadable(value)
-        }.toSeq)
-      }.orNull
+    else {
+      val r = a.asInstanceOf[Row]
+      Annotation.fromSeq(r.toSeq.iterator.zip(fields.map(_.`type`).iterator).map {
+        case (value, t) => t.makeSparkReadable(value)
+      }.toSeq)
+    }
 
   override def genValue: Gen[Annotation] = {
     if (size == 0)

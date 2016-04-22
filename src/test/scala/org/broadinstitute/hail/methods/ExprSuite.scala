@@ -197,7 +197,7 @@ class ExprSuite extends SparkSuite {
   @Test def testReadWrite() {
     check(forAll { (t: Type) =>
     val a = t.genValue.sample()
-      t.makeReadable(t.makeWritable(a)) == a
+      t.makeSparkReadable(t.makeSparkWritable(a)) == a
     })
   }
 }
