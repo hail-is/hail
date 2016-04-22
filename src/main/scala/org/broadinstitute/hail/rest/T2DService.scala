@@ -209,27 +209,29 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     if (stats.length > limit)
       stats = stats.take(limit)
 
-    // test that sort terms are distinct.
-    // if seq ends in contig or in (contig, pos), ignore them
-    // don't sort multiple times
+    req.sort_by.foreach { a =>
+      var fields = a.distinct.sortBy(a.indexOf(_))
 
-    req.sort_by match {
-      case Some(fields) =>
-        fields.reverse.foreach { f =>
-          stats = f match {
-            case "contig" => stats.sortBy(_.chrom)
-            case "pos" => stats.sortBy(_.pos)
-            case "ref" => stats.sortBy(_.ref)
-            case "alt" => stats.sortBy(_.alt)
-            case "p-value" => stats.sortBy(_.`p-value`.getOrElse(2d))
-            case _ => throw new RESTFailure(s"Valid sort_by arguments are `contig', `pos', `ref', `alt', and `p-value': got $f")
-          }
+      if (fields.startsWith("contig")) {
+        fields = fields.tail
+        if (fields.startsWith("pos"))
+          fields = fields.tail
+      }
+
+      fields.reverse.foreach { f =>
+        stats = f match {
+          case "contig" => stats.sortBy(_.chrom)
+          case "pos" => stats.sortBy(_.pos)
+          case "ref" => stats.sortBy(_.ref)
+          case "alt" => stats.sortBy(_.alt)
+          case "p-value" => stats.sortBy(_.`p-value`.getOrElse(2d))
+          case _ => throw new RESTFailure(s"Valid sort_by arguments are `contig', `pos', `ref', `alt', and `p-value': got $f")
         }
-      case None =>
+      }
     }
-
+    
     if (req.count.getOrElse(false))
-      GetStatsResult(is_error = false, None, req.passback, None, Some(stats.length))
+      GetStatsResult(is_error = false, None, req.passback, None, Some(stats.size))
     else
       GetStatsResult(is_error = false, None, req.passback, Some(stats), None)
   }
