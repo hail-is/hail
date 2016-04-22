@@ -71,8 +71,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamCaseControl.fam"))
     val m = qMap("sa.fam", s)
 
-    assert(m("A").contains(Annotation("Newton", "C", "D", true, false)))
-    assert(m("B").contains(Annotation("Turing", "C", "D", false, true)))
+    assert(m("A").contains(Annotation("Newton", "C", "D", false, false)))
+    assert(m("B").contains(Annotation("Turing", "C", "D", true, true)))
     assert(m("C").contains(Annotation(null, null, null, null, null)))
     assert(m("D").contains(Annotation(null, null, null, null, null)))
     assert(m("E").contains(Annotation(null, null, null, null, null)))
@@ -86,8 +86,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamQPheno.fam", "-q"))
     val m1 = qMap("sa.fam", s)
 
-    assert(m1("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
-    assert(m1("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
+    assert(m1("A").contains(Annotation("Newton", "C", "D", false, 1.0)))
+    assert(m1("B").contains(Annotation("Turing", "C", "D", true, 2.0)))
     assert(m1("C").contains(Annotation(null, null, null, null, 0.0)))
     assert(m1("D").contains(Annotation(null, null, null, null, -9.0)))
     assert(m1("E").contains(Annotation(null, null, null, null, null)))
@@ -98,8 +98,8 @@ class ImportAnnotationsSuite extends SparkSuite {
       Array("fam", "-i", "src/test/resources/importFamQPheno.space.m9.fam", "-q", "-d", "\\\\s+", "-m", "-9", "-r", "sa.ped"))
     val m2 = qMap("sa.ped", s)
 
-    assert(m2("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
-    assert(m2("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
+    assert(m2("A").contains(Annotation("Newton", "C", "D", false, 1.0)))
+    assert(m2("B").contains(Annotation("Turing", "C", "D", true, 2.0)))
     assert(m2("C").contains(Annotation(null, null, null, null, 0.0)))
     assert(m2("D").contains(Annotation(null, null, null, null, null)))
     assert(m2("E").contains(Annotation(null, null, null, null, 3.0)))
