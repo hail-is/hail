@@ -44,7 +44,7 @@ object LinearRegressionCommand extends Command {
     for (_ <- symTab)
       a += null
 
-    def toDouble(t: BaseType, code: String): Any => Double = (t: @unchecked) match {
+    def toDouble(t: BaseType, code: String): Any => Double = t match {
       case TInt => _.asInstanceOf[Int].toDouble
       case TLong => _.asInstanceOf[Long].toDouble
       case TFloat => _.asInstanceOf[Float].toDouble
@@ -91,8 +91,8 @@ object LinearRegressionCommand extends Command {
           majorStride = k,
           isTranspose = true))
 
-    val isCompleteSample = completeSamples.toSet
-    val vdsForCompleteSamples = vds.filterSamples((s, sa) => isCompleteSample(s))
+    val completeSampleSet = completeSamples.toSet
+    val vdsForCompleteSamples = vds.filterSamples((s, sa) => completeSampleSet(s))
 
     val linreg = LinearRegression(vdsForCompleteSamples, y, cov)
 
