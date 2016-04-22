@@ -21,8 +21,10 @@ class PipelineSuite extends SparkSuite {
 
     s = PCA.run(s, Array("-o", "/tmp/pca.tsv"))
 
+    /*
     s = LinearRegressionCommand.run(s, Array("-c", "/tmp/pca.tsv",
       "-f", "src/test/resources/sample.fam",
       "-o", "/tmp/linreg.tsv"))
+    */
   }
 }

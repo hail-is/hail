@@ -121,7 +121,7 @@ ____
 ## Annotating Variants
 
 Hail currently supports annotating variants from seven sources:
- - [tsv files](#VariantTSV)
+ - [TSV files](#VariantTSV)
  - [interval list files](#IntervalList)
  - [UCSC bed files](#UCSCBed)
  - [VCFs (info field, filters, qual)](#VCF)
