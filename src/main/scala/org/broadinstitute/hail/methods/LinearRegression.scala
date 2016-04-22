@@ -77,7 +77,10 @@ class LinRegBuilder extends Serializable {
       val rowsXArray = rowsX.result()
       val valsXArray = valsX.result()
       val meanX = sumX.toDouble / nPresent
-      missingRowsArray.foreach(row => valsXArray(row) = meanX)
+
+      //missingRowsArray.foreach(row => valsXArray(rowsXArray.indexOf(row)) = meanX)
+      val rowIndex = rowsXArray.zipWithIndex.toMap
+      missingRowsArray.foreach(row => valsXArray(rowIndex(row)) = meanX)
 
       // rowsXArray is sorted, as expected by SparseVector constructor
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
