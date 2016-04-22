@@ -655,7 +655,7 @@ class RichVDS(vds: VariantDataset) {
         vaSignature = newSignatures2,
         rdd = vds1.rdd.map {
           case (v, va, gs) =>
-            (v, f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
+            (v, f2(f1(va)), gs.lazyMap{ case g: Genotype => g.copy(flags = Genotype.flagUnsetFakeRef(g.flags))})
         })
     } else
       vds

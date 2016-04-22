@@ -44,7 +44,6 @@ object GenLoader {
     val genoBuilder = new GenotypeBuilder(variant)
 
     for (i <- dosages.indices by 3) {
-      val ints = convertPPsToInt(Array(dosages(i), dosages(i + 1), dosages(i + 2)))
 
       val pAA = (dosages(i) * 32768).round.toInt
       val pAB = (dosages(i + 1) * 32768).round.toInt

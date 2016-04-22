@@ -21,9 +21,9 @@ case class JSONExtractGenotype(
   dp: Option[Int],
   gq: Option[Int],
   pl: Option[Array[Int]],
-  fakeRef: Boolean) {
+  flags: Int) {
   def toGenotype =
-    Genotype(gt, ad, dp, gq, pl, fakeRef)
+    Genotype(gt, ad, dp, gq, pl, flags)
 }
 
 case class JSONExtractVariant(contig: String,

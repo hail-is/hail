@@ -143,7 +143,8 @@ class LoadBgenSuite extends SparkSuite {
                       println(s"$v $i $gt1x $gt2")
                       false
                     }
-                  } else {
+                  }
+              else {
                 println(s"$v $i $gt1x $gt2")
                 false
               }
