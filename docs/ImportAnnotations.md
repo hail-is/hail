@@ -19,7 +19,8 @@ Read on and see examples for more information.
 
 Hail currently supports annotating samples from:
  - [tsv files](#SampleTSV)
- - [programmatic commands](#SampleProg).
+ - [programmatic commands](#SampleProg)
+ - [Plink .fam files](#Fam)
 
 ____
 
@@ -31,12 +32,12 @@ This file format requires one column containing sample IDs, and each other colum
 **Command line arguments:**
 
 - `tsv` Invoke this functionality (`annotatesamples tsv <args>`)
-- `-i <path-to-tsv>, --input <path-to-tsv>` specify the file path **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `sa` **(Required)**
-- `-s <id>, --sampleheader <id>` specify the name of the column containing sample IDs **(Optional with default "Sample")**
-- `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
-- `-m <missings>, --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")** 
- 
+- `-i | --input <path-to-tsv>` specify the file path **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `sa` **(Required)**
+- `-s | --sampleheader <id>` specify the name of the column containing sample IDs **(Optional with default "Sample")**
+- `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)**
+- `-m | --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
+
 ____
 
 **Example 1:**
@@ -61,18 +62,18 @@ $ hail [read / import / previous commands] \
         -t "Phenotype1: Double, Age: Int" \
         -r sa.phenotypes
 ```
-   
+
    This will read the tsv and produce annotations of the following schema:
-   
+
 ```
-Sample annotations:  
+Sample annotations:
 sa: sa.<identifier>
     phenotypes: sa.phenotypes.<identifier>
         Phenotype1: Double
         Phenotype2: String
         Age: Int
 ```
-   
+
 ____
 
 **Example 2:**
@@ -101,8 +102,9 @@ $ hail [read / import, previous commands] \
         -r sa.group1.batch
 ```
 
+
 ____
-   
+
 <a name="SampleProg"></a>
 ### Programmatic Annotation
 
@@ -111,10 +113,48 @@ Programmatic annotation means computing new annotations from the existing expose
 **Command line arguments:**
 
  - `expr` Invoke this functionality (`annotatesamples expr <args>`)
- - `-c <condition>, --condition <condition>` 
- 
+ - `-c | --condition <condition>`
+
  For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
- 
+
+____
+
+<a name="Fam"></a>
+### Plink .fam files
+
+For convenience, Hail provides a simple command to import sample annotations from [Plink .fam files](https://www.cog-genomics.org/plink2/formats#fam).
+
+ - `fam` Invoke this functionality (`annotatesamples fam <args>`)
+ - `-i | --input <filename>` path of .fam file
+ - `-q | --quantitative` flag to indicate quantitative phenotype (optional, default is case-control)
+ - `-r | --root <root>` a period-delimited annotation path starting with `sa` (optional, default is `sa.fam`)
+ - `-d | --delimiter <delimiter>` field delimiter in .fam file (optional, default is `\t`)
+ - `-m | --missing <filename>` identifier to be treated as missing (optional, default is `NA`)
+
+The command
+
+`annotatesamples fam -i myStudy.fam`
+
+will add sample annotations for family ID, paternal ID, maternal ID, sex, and case-control phenotype, whereas
+
+`annotatesamples fam -i myStudy.fam -q`
+
+will interpret the phenotype as quantitative instead. The annotation names, types, and missing values are shown below, assuming the default root `sa.fam`
+
+Field | Annotation | Type | Missing
+---|---|---|---
+Family ID | `sa.fam.famID` | String | `0`
+Sample ID | `s` | String |
+Paternal ID | `sa.fam.patID` | String | `0`
+Maternal ID | `sa.fam.matID` | String | `0`
+Sex | `sa.fam.isMale` | Boolean | `0`
+Case-control phenotype | `sa.fam.isCase` | Boolean | `0`, `-9`, non-numeric, and -m arg if given
+Quantitative phenotype | `sa.fam.qPheno` |Double |  either `NA` or -m arg if given
+
+In Hail, unlike Plink, the user must be explicit about whether the phenotype is case-control or quantitative. Importing a quantitive phenotype without the `-q` flag will return an error (unless all values happen to be `0`, `1`, `2`, and `-9`).
+
+If the .fam file is delimited by whitespace other than tabs (e.g., spaces), use delimiter parameter `\s*`.
+
 ____
 
 <a name="AnnoVar"></a>
@@ -139,10 +179,10 @@ This file format requires either one column of the format "Chr:Pos:Ref:Alt", or 
 
 - `tsv` Invoke this functionality (`annotatevariants tsv <args>`)
 - `<files...>` specify the file or files to be read **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `va` **(Required)**
-- `-v <variantcols>, --vcolumns <variantcols>` Either one column name (if Chr:Pos:Ref:Alt), or four comma-separated column identifiers **(Optional with default "Chromosome, Position, Ref, Alt")**
-- `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
-- `-m <missings>, --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")** 
+- `-r | --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `va` **(Required)**
+- `-v | --vcolumns <variantcols>` Either one column name (if Chr:Pos:Ref:Alt), or four comma-separated column identifiers **(Optional with default "Chromosome, Position, Ref, Alt")**
+- `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)**
+- `-m | --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
 
 ____
 
@@ -171,7 +211,7 @@ $ hail [read / import / previous commands] \
 This invocation will annotate variants with the following schema:
 
 ```
-Variant annotations:  
+Variant annotations:
 va: va.<identifier>
     <probably lots of other stuff here>
     varianteffects: va.varianteffects.<identifier>
@@ -206,7 +246,7 @@ $ hail [read / import / previous commands] \
 And the schema:
 
 ```
-Variant annotations:  
+Variant annotations:
 va: va.<identifier>
     <probably lots of other stuff here>
     exac: va.exac.<identifier>
@@ -223,11 +263,11 @@ Interval list files annotate variants in certain regions of the genome.  Dependi
 **Command line arguments:**
 
 - `intervals` Invoke this functionality (`annotatevariants intervals <args>`)
-- `-i <path-to-interval-list>, --input <path-to-interval-list>` specify the file path **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the field read from the interval list, as a period-delimited path starting with `va` **(Required)**
+- `-i | --input <path-to-interval-list>` specify the file path **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the field read from the interval list, as a period-delimited path starting with `va` **(Required)**
 
 There are two formats for interval list files.  The first appears as `chromosome:start-end` as below.  This format will annotate variants with a **boolean**, which is `true` if that variant is found in any interval specified in the file and `false` otherwise.
-    
+
 ```
 $ cat exons.interval_list
 1:5122980-5123054
@@ -262,7 +302,7 @@ $ hail [read / import / previous commands] \
 This command will produce a schema like:
 
 ```
-Variant annotations:  
+Variant annotations:
 va: va.<identifier>
     <probably lots of other stuff here>
     inExon: Boolean
@@ -285,7 +325,7 @@ This mode produces a string annotation:
 
 
 ```
-Variant annotations:  
+Variant annotations:
 va: va.<identifier>
     <probably lots of other stuff here>
     gene: String
@@ -297,13 +337,13 @@ ____
 ### UCSC Bed files (.bed[.gz])
 
 
-UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQformat.html#format1) function similarly to .interval_list files, with a slightly different format.  Like interval list files, bed files can produce either a string or boolean annotation, depending on the presence of the 4th column (the target).  
+UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQformat.html#format1) function similarly to .interval_list files, with a slightly different format.  Like interval list files, bed files can produce either a string or boolean annotation, depending on the presence of the 4th column (the target).
 
 **Command line arguments:**
 
 - `bed` Invoke this functionality (`annotatevariants bed <args>`)
-- `-i <path-to-bed>, --input <path-to-bed>` specify the file path **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the field read from the bed, as a period-delimited path starting with `va` **(Required)**
+- `-i | --input <path-to-bed>` specify the file path **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the field read from the bed, as a period-delimited path starting with `va` **(Required)**
 
 UCSC bed files can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (`chrom`, `chromStart`, and `chromEnd`).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a boolean annotation based on whether that variant was a member of any interval.
 
@@ -330,7 +370,7 @@ $ hail [read / import / previous commands] \
 This file format produces a boolean annotation:
 
 ```
-Variant annotations:  
+Variant annotations:
 va: va.<identifier>
     <probably lots of other stuff here>
     cnvRegion: Boolean
@@ -362,7 +402,7 @@ $ hail [read / import / previous commands] \
 The schema will reflect that this annotation is read as a string.
 
 ```
-Variant annotations:  
+Variant annotations:
 va: va.<identifier>
     <probably lots of other stuff here>
     cnvRegion: String
@@ -379,7 +419,7 @@ Hail can read vcf files to annotate a variant dataset.  Since Hail internally ca
 
 - `vcf` Invoke this functionality (`annotatevariants vcf <args>`)
 - `<files...>` specify the path to the file/files **(Required)**
-- `-r <root>, --root <root>` specify the annotation path in which to place the annotations read from the vcf, as a period-delimited path starting with `va` **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the annotations read from the vcf, as a period-delimited path starting with `va` **(Required)**
 
 ____
 
@@ -417,7 +457,7 @@ The schema will include all the standard VCF annotations, as well as the info fi
 
 ```
 Variant annotations:
-va: va.<identifier>   
+va: va.<identifier>
     <probably lots of other stuff here>
     1kg: va.1kg.<identifier>
         pass: Boolean
@@ -478,7 +518,7 @@ The schema produced will look like this:
 
 ```
 Variant annotations:
-va: va.<identifier>   
+va: va.<identifier>
     <probably lots of other stuff here>
     other: va.other.<identifier>
         rsid: String
@@ -491,7 +531,7 @@ va: va.<identifier>
 ```
 
 ____
-   
+
 <a name="VariantProg"></a>
 ### Programmatic Annotation
 
@@ -500,6 +540,6 @@ Programmatic annotation means computing new annotations from the existing expose
 **Command line arguments:**
 
 - `expr` Invoke this functionality (`annotatevariants expr <args>`)
-`-c <condition>, --condition <condition>` 
+`-c | --condition <condition>`
 
 For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
