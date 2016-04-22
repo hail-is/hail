@@ -200,7 +200,7 @@ class ImportAnnotationsSuite extends SparkSuite {
         case (v, va) =>
           (v.start <= 14000000 && q2(va).contains("gene1")) ||
             (v.start >= 17000000 && q2(va).contains("gene2")) ||
-            (q2(va).isEmpty)
+            q2(va).isEmpty
       }
 
     assert(bed3r.vds.same(bed2r.vds))
