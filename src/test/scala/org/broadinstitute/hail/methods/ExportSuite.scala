@@ -13,7 +13,10 @@ class ExportSuite extends SparkSuite {
     var state = State(sc, sqlContext, vds)
     state = SplitMulti.run(state, Array.empty[String])
 
-    SampleQC.run(state, Array("-o", "/tmp/sampleQC.tsv"))
+    val sampleQCFile = tmpDir.createTempFile("sampleqc", ".tsv")
+    val exportSamplesFile = tmpDir.createTempFile("exportsamples", ".tsv")
+
+    SampleQC.run(state, Array("-o", sampleQCFile))
     val postSampleQC = SampleQC.run(state, Array.empty[String])
 
     val sb = new StringBuilder()
@@ -24,7 +27,7 @@ class ExportSuite extends SparkSuite {
     sb.tsvAppend(5.124)
     assert(sb.result() == "5.1240e+00")
 
-    ExportSamples.run(postSampleQC, Array("-o", "/tmp/exportSamples.tsv", "-c",
+    ExportSamples.run(postSampleQC, Array("-o", exportSamplesFile, "-c",
       "sampleID=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
         "nHet=sa.qc.nHet,nHomVar=sa.qc.nHomVar,nSNP=sa.qc.nSNP,nInsertion=sa.qc.nInsertion," +
         "nDeletion=sa.qc.nDeletion,nSingleton=sa.qc.nSingleton,nTransition=sa.qc.nTransition," +
@@ -36,18 +39,20 @@ class ExportSuite extends SparkSuite {
         "rTiTv=sa.qc.rTiTv,rHetHomVar=sa.qc.rHetHomVar," +
         "rDeletionInsertion=sa.qc.rDeletionInsertion"))
 
-
-    val sQcOutput = Source.fromFile("/tmp/sampleQC.tsv")
+    val sQcOutput = Source.fromFile(sampleQCFile)
       .getLines().toSet
-    val sExportOutput = Source.fromFile("/tmp/exportSamples.tsv")
+    val sExportOutput = Source.fromFile(exportSamplesFile)
       .getLines().toSet
 
     assert(sQcOutput == sExportOutput)
 
-    VariantQC.run(state, Array("-o", "/tmp/variantQC.tsv"))
+    val variantQCFile = tmpDir.createTempFile("variantqc", ".tsv")
+    val exportVariantsFile = tmpDir.createTempFile("exportvariants", ".tsv")
+
+    VariantQC.run(state, Array("-o", variantQCFile))
     val postVariantQC = VariantQC.run(state, Array.empty[String])
 
-    ExportVariants.run(postVariantQC, Array("-o", "/tmp/exportVariants.tsv", "-c",
+    ExportVariants.run(postVariantQC, Array("-o", exportVariantsFile, "-c",
       "Chrom=v.contig,Pos=v.start,Ref=v.ref,Alt=v.alt,callRate=va.qc.callRate,MAC=va.qc.MAC,MAF=va.qc.MAF," +
         "nCalled=va.qc.nCalled,nNotCalled=va.qc.nNotCalled," +
         "nHomRef=va.qc.nHomRef,nHet=va.qc.nHet,nHomVar=va.qc.nHomVar,dpMean=va.qc.dpMean,dpStDev=va.qc.dpStDev," +
@@ -59,9 +64,9 @@ class ExportSuite extends SparkSuite {
         "rHeterozygosity=va.qc.rHeterozygosity,rHetHomVar=va.qc.rHetHomVar,rExpectedHetFrequency=va.qc.rExpectedHetFrequency," +
         "pHWE=va.qc.pHWE"))
 
-    val vQcOutput = Source.fromFile("/tmp/variantQC.tsv")
+    val vQcOutput = Source.fromFile(variantQCFile)
       .getLines().toSet
-    val vExportOutput = Source.fromFile("/tmp/exportVariants.tsv")
+    val vExportOutput = Source.fromFile(exportVariantsFile)
       .getLines().toSet
 
     assert(vQcOutput == vExportOutput)
@@ -75,30 +80,36 @@ class ExportSuite extends SparkSuite {
     assert(s.vds.nSamples == 1)
 
     // verify exports localSamples
-    s = ExportSamples.run(s, Array("-o", "/tmp/samples.tsv", "-c", "s.id"))
-    assert(sc.textFile("/tmp/samples.tsv").count() == 1)
+    val f = tmpDir.createTempFile("samples", ".tsv")
+    s = ExportSamples.run(s, Array("-o", f, "-c", "s.id"))
+    assert(sc.textFile(f).count() == 1)
   }
 
   @Test def testAllowedNames() {
     var s = State(sc, sqlContext)
+
+    val f = tmpDir.createTempFile("samples", ".tsv")
+    val f2 = tmpDir.createTempFile("samples", ".tsv")
+    val f3 = tmpDir.createTempFile("samples", ".tsv")
+
     s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
-    s = ExportSamples.run(s, Array("-o", "/tmp/samples.tsv", "-c", "S.A.M.P.L.E.ID = s.id"))
-    s = ExportSamples.run(s, Array("-o", "/tmp/samples2.tsv", "-c",
+    s = ExportSamples.run(s, Array("-o", f, "-c", "S.A.M.P.L.E.ID = s.id"))
+    s = ExportSamples.run(s, Array("-o", f2, "-c",
       "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS**** = s.id, ANOTHERTHING=s.id"))
-    s = ExportSamples.run(s, Array("-o", "/tmp/samples3.tsv", "-c",
+    s = ExportSamples.run(s, Array("-o", f3, "-c",
       "`I have some spaces and tabs\there` = s.id,`more weird stuff here`=s.id"))
-    readFile("/tmp/samples.tsv", sc.hadoopConfiguration){reader =>
+    readFile(f, sc.hadoopConfiguration) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
       assert(lines.next == "S.A.M.P.L.E.ID")
     }
-    readFile("/tmp/samples2.tsv", sc.hadoopConfiguration){reader =>
+    readFile(f2, sc.hadoopConfiguration) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
       assert(lines.next == "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS****\tANOTHERTHING")
     }
-    readFile("/tmp/samples3.tsv", sc.hadoopConfiguration){reader =>
+    readFile(f3, sc.hadoopConfiguration) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
       assert(lines.next == "I have some spaces and tabs\there\tmore weird stuff here")
@@ -111,7 +122,8 @@ class ExportSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
     s = SampleQC.run(s, Array.empty[String])
 
-      // this should run without errors
-    s = ExportSamples.run(s, Array("-o", "/tmp/samples3.tsv", "-c", "computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)"))
+    // this should run without errors
+    val f = tmpDir.createTempFile("samples", ".tsv")
+    s = ExportSamples.run(s, Array("-o", f, "-c", "computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)"))
   }
 }

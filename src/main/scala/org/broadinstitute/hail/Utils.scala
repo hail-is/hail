@@ -1,6 +1,7 @@
 package org.broadinstitute.hail
 
 import java.io._
+import java.net.URI
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
@@ -28,6 +29,7 @@ import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.util.Random
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0
@@ -583,6 +585,51 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   }
 }
 
+object TempDir {
+  def apply(tmpdir: String, hConf: hadoop.conf.Configuration): TempDir = {
+    while (true) {
+      try {
+        val dirname = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
+
+        hadoopMkdir(dirname, hConf)
+
+        val fs = hadoopFS(tmpdir, hConf)
+        fs.deleteOnExit(new hadoop.fs.Path(dirname))
+
+        return new TempDir(dirname)
+      } catch {
+        case e: IOException =>
+          // try again
+      }
+    }
+
+    // can't happen
+    null
+  }
+}
+
+class TempDir(val dirname: String) {
+  var counter: Int = 0
+
+  def relFile(relPath: String) = dirname + "/" + relPath
+  def relPath(relPath: String) =
+    new URI(relFile(relPath)).getPath
+
+  def createTempFile(prefix: String = "", extension: String = ""): String = {
+    val i = counter
+    counter += 1
+
+    val sb = new StringBuilder
+    sb.append(prefix)
+    if (prefix != "")
+      sb += '.'
+    sb.append("%05d".format(i))
+    sb.append(extension)
+
+    relFile(sb.result())
+  }
+}
+
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -1120,4 +1167,6 @@ object Utils extends Logging {
   def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
 
   def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
+
+  def uriPath(uri: String): String = new URI(uri).getPath
 }
