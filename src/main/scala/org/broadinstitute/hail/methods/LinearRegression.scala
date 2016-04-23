@@ -25,11 +25,11 @@ case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Do
 class LinRegBuilder extends Serializable {
   private val rowsX = new mutable.ArrayBuilder.ofInt()
   private val valsX = new mutable.ArrayBuilder.ofDouble()
+  private var sparseLength = 0 // length of rowsX and valsX (ArrayBuilder has no length), used to track missingRowIndices
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0
   private val missingRowIndices = new mutable.ArrayBuilder.ofInt()
-  private var sparseLength = 0
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.gt match {
@@ -37,21 +37,21 @@ class LinRegBuilder extends Serializable {
       case Some(1) =>
         rowsX += row
         valsX += 1d
+        sparseLength += 1
         sumX += 1
         sumXX += 1
         sumXY += y(row)
-        sparseLength += 1
       case Some(2) =>
         rowsX += row
         valsX += 2d
+        sparseLength += 1
         sumX += 2
         sumXX += 4
         sumXY += 2 * y(row)
-        sparseLength += 1
       case None =>
+        missingRowIndices += sparseLength
         rowsX += row
         valsX += 0d // placeholder for meanX
-        missingRowIndices += sparseLength
         sparseLength += 1
       case _ => throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
@@ -87,7 +87,7 @@ class LinRegBuilder extends Serializable {
 
       missingRowIndicesArray.foreach(valsXArray(_) = meanX)
 
-      // since merge is not called, rowsXArray is sorted, as expected by SparseVector constructor
+      // since combOp merge is not called, rowsXArray is sorted, as expected by SparseVector constructor
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * missingRowIndicesArray.map(i => y(rowsXArray(i))).sum
