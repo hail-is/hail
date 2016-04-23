@@ -1,10 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.expr.{TInt, TBoolean}
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr.{TBoolean, TInt, TStruct}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.Utils._
 
 object SplitMulti extends Command {
   def name = "splitmulti"
@@ -129,6 +129,14 @@ object SplitMulti extends Command {
       }
   }
 
+  val infoNumbersToConvert = Set("A", "R", "G")
+
+  def splitNumber(str: String): String =
+    if (infoNumbersToConvert(str))
+      "."
+    else str
+
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -136,9 +144,22 @@ object SplitMulti extends Command {
     val noCompress = options.noCompress
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
+
+    val vas4 = vas3.getAsOption[TStruct]("info").map { s =>
+      val updatedInfoSignature = TStruct(s.fields.map { f =>
+        val numberOption = f.attrs.get("Number").map(splitNumber)
+        numberOption match {
+          case Some(n) => f.copy(attrs = f.attrs + ("Number" -> n))
+          case None => f
+        }
+      })
+      val (newSignature, _) = vas3.insert(updatedInfoSignature, "info")
+      newSignature
+    }.getOrElse(vas3)
+
     val newVDS = state.vds.copy[Genotype](
       wasSplit = true,
-      vaSignature = vas3,
+      vaSignature = vas4,
       rdd = vds.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
         split(v, va, it,
           propagateGQ = propagateGQ,

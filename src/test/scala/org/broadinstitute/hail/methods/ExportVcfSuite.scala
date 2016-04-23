@@ -42,8 +42,8 @@ class ExportVcfSuite extends SparkSuite {
     assert(vdsOrig.eraseSplit.same(vdsNew.eraseSplit))
 
     val infoSize = vdsNew.vaSignature.getAsOption[TStruct]("info").get.size
-    val toAdd = Some(Annotation.fromSeq((0 until infoSize).map(x => null)))
-    val inserter = vdsNew.insertVA(null, "info")._2
+    val toAdd = Some(Annotation.fromSeq(Array.fill[Any](infoSize)(null)))
+    val (_, inserter) = vdsNew.insertVA(null, "info")
 
     val vdsNewMissingInfo = vdsNew.mapAnnotations((v, va) => inserter(va, toAdd))
 
