@@ -90,7 +90,7 @@ class LinRegBuilder extends Serializable {
       // since combOp merge is not called, rowsXArray is sorted, as expected by SparseVector constructor
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
       val xx = sumXX + meanX * meanX * nMissing
-      val xy = sumXY + meanX * missingRowIndicesArray.map(i => y(rowsXArray(i))).sum
+      val xy = sumXY + meanX * missingRowIndicesArray.foldLeft(0d)((sum, i) => sum + y(rowsXArray(i)))
 
       Some((x, xx, xy, nMissing))
     }
@@ -108,9 +108,9 @@ object LinearRegression {
     val d = n - k - 2
 
     if (d < 1)
-      fatal(s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${plural(k, "covariate")} with intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg on $n samples with $k sample covariates...")
+    info(s"Running linreg on $n samples with $k sample ${plural(k, "covariate")}...")
 
     val covAndOnes: DenseMatrix[Double] = cov match {
       case Some(dm) => DenseMatrix.horzcat(dm, DenseMatrix.ones[Double](n, 1))
