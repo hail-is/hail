@@ -28,7 +28,8 @@ class LinRegBuilder extends Serializable {
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0
-  private val missingRows = new mutable.ArrayBuilder.ofInt()
+  private val missingRowIndices = new mutable.ArrayBuilder.ofInt()
+  private var sparseLength = 0
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.gt match {
@@ -39,35 +40,41 @@ class LinRegBuilder extends Serializable {
         sumX += 1
         sumXX += 1
         sumXY += y(row)
+        sparseLength += 1
       case Some(2) =>
         rowsX += row
         valsX += 2d
         sumX += 2
         sumXX += 4
         sumXY += 2 * y(row)
+        sparseLength += 1
       case None =>
         rowsX += row
         valsX += 0d // placeholder for meanX
-        missingRows += row
+        missingRowIndices += sparseLength
+        sparseLength += 1
       case _ => throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
+
     this
   }
 
+  // this merge is never called since variants are atomic
   def merge(that: LinRegBuilder): LinRegBuilder = {
     rowsX ++= that.rowsX.result()
     valsX ++= that.valsX.result()
     sumX += that.sumX
     sumXX += that.sumXX
     sumXY += that.sumXY
-    missingRows ++= that.missingRows.result()
+    missingRowIndices ++= that.missingRowIndices.result().map(_ + sparseLength)
+    sparseLength += that.sparseLength
 
     this
   }
 
   def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double, Int)] = {
-    val missingRowsArray = missingRows.result()
-    val nMissing = missingRowsArray.size
+    val missingRowIndicesArray = missingRowIndices.result()
+    val nMissing = missingRowIndicesArray.size
     val nPresent = n - nMissing
 
     // all HomRef | all Het | all HomVar
@@ -78,14 +85,12 @@ class LinRegBuilder extends Serializable {
       val valsXArray = valsX.result()
       val meanX = sumX.toDouble / nPresent
 
-      //missingRowsArray.foreach(row => valsXArray(rowsXArray.indexOf(row)) = meanX)
-      val rowIndex = rowsXArray.zipWithIndex.toMap
-      missingRowsArray.foreach(row => valsXArray(rowIndex(row)) = meanX)
+      missingRowIndicesArray.foreach(valsXArray(_) = meanX)
 
-      // rowsXArray is sorted, as expected by SparseVector constructor
+      // since merge is not called, rowsXArray is sorted, as expected by SparseVector constructor
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
       val xx = sumXX + meanX * meanX * nMissing
-      val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
+      val xy = sumXY + meanX * missingRowIndicesArray.map(i => y(rowsXArray(i))).sum
 
       Some((x, xx, xy, nMissing))
     }
