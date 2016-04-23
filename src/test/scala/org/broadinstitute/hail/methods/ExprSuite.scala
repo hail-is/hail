@@ -151,6 +151,10 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
 
+    assert(eval[String]("""str(i)""").contains("5"))
+
+    assert(eval[String](""" 5 + "5" """) == eval[String](""" "5" + 5 """))
+
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
   }
