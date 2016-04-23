@@ -29,6 +29,7 @@ class LinRegBuilder extends Serializable {
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0
+  private var sumYMissing = 0.0 // sum of y over missing genotypes
   private val missingRowIndices = new mutable.ArrayBuilder.ofInt()
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
@@ -53,6 +54,7 @@ class LinRegBuilder extends Serializable {
         rowsX += row
         valsX += 0d // placeholder for meanX
         sparseLength += 1
+        sumYMissing += y(row)
       case _ => throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
 
@@ -66,6 +68,7 @@ class LinRegBuilder extends Serializable {
     sumX += that.sumX
     sumXX += that.sumXX
     sumXY += that.sumXY
+    sumYMissing += that.sumYMissing
     missingRowIndices ++= that.missingRowIndices.result().map(_ + sparseLength)
     sparseLength += that.sparseLength
 
@@ -90,7 +93,7 @@ class LinRegBuilder extends Serializable {
       // since combOp merge is not called, rowsXArray is sorted, as expected by SparseVector constructor
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
       val xx = sumXX + meanX * meanX * nMissing
-      val xy = sumXY + meanX * missingRowIndicesArray.foldLeft(0d)((sum, i) => sum + y(rowsXArray(i)))
+      val xy = sumXY + meanX * sumYMissing
 
       Some((x, xx, xy, nMissing))
     }
