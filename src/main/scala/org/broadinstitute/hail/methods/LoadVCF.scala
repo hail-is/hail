@@ -171,20 +171,24 @@ object LoadVCF {
       .map(line => (line.getID, ""))
       .toMap
 
-    val infoSignature = TStruct(header
-      .getInfoHeaderLines
+    val infoHeader = header.getInfoHeaderLines
+
+    val infoSignature = if (infoHeader.size > 0)
+      Some(TStruct(infoHeader
       .zipWithIndex
       .map { case (line, i) => infoField(line, i) }
-      .toArray)
+      .toArray))
+    else None
+
 
     val variantAnnotationSignatures = TStruct(
       Array(
-        Field("rsid", TString, 0),
-        Field("qual", TDouble, 1),
-        Field("filters", TSet(TString), 2, filters),
-        Field("pass", TBoolean, 3),
-        Field("info", infoSignature, 4)
-      ))
+        Some(Field("rsid", TString, 0)),
+        Some(Field("qual", TDouble, 1)),
+        Some(Field("filters", TSet(TString), 2, filters)),
+        Some(Field("pass", TBoolean, 3)),
+        infoSignature.map(sig => Field("info", sig, 4))
+      ).flatMap(x => x))
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')
@@ -197,7 +201,7 @@ object LoadVCF {
           .split("\t")
           .drop(9)
 
-    val infoSignatureBc = sc.broadcast(infoSignature)
+    val infoSignatureBc = infoSignature.map(sig => sc.broadcast(sig))
 
     val headerLinesBc = sc.broadcast(headerLines)
 
@@ -227,7 +231,7 @@ object LoadVCF {
                   reportAcc += VCFReport.Symbolic
                   None
                 } else
-                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.value, storeGQ, skipGenotypes, compress))
+                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value), storeGQ, skipGenotypes, compress))
               }
             } catch {
               case e: TribbleException =>

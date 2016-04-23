@@ -2,8 +2,8 @@ package org.broadinstitute.hail.variant
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
 
 import scala.collection.mutable
@@ -138,7 +138,7 @@ object Variant {
     // FIXME temporary to make plink happy, see: https://github.com/broadinstitute/hail/issues/229
     for (contig <- Gen.oneOfSeq((1 to 22).map(_.toString));
       start <- Gen.posInt;
-      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
+      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10)));
       alleles <- Gen.distinctBuildableOfN[Array[String], String](
         nAlleles,
         Gen.frequency((10, genDNAString),

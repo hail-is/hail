@@ -3,8 +3,10 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
+import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -84,5 +86,19 @@ class ExportVcfSuite extends SparkSuite {
     val sortedCoordinates = coordinates.sortWith { case (c1, c2) => c1.compare(c2) < 0 }
 
     assert(sortedCoordinates.sameElements(coordinates))
+  }
+
+  @Test def testReadWrite() {
+    val s = State(sc, sqlContext, null)
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
+      hadoopDelete("/tmp/foo.vcf", sc.hadoopConfiguration, recursive = true)
+      ExportVCF.run(s.copy(vds = vsm), Array("-o", "/tmp/foo.vcf"))
+      val vsm2 = ImportVCF.run(s, Array("/tmp/foo.vcf")).vds
+      ExportVCF.run(s.copy(vds = vsm2), Array("-o", "/tmp/foo2.vcf"))
+      val vsm3 = ImportVCF.run(s, Array("/tmp/foo2.vcf")).vds
+      vsm2.same(vsm3)
+    }
+
+      p.check
   }
 }

@@ -32,6 +32,13 @@ object ExportVCF extends Command {
 
   override def supportsMultiallelic = true
 
+  val numbersToConvert = Set("A", "R", "G")
+
+  def splitNumber(str: String, wasSplit: Boolean): String =
+    if (wasSplit && numbersToConvert(str))
+      "."
+    else str
+
   def infoNumber(t: BaseType): String = t match {
     case TBoolean => "0"
     case TArray(elementType) => "."
@@ -88,7 +95,7 @@ object ExportVCF extends Command {
         sb.append("##INFO=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
-        sb.append(f.attr("Number").getOrElse(infoNumber(f.`type`)))
+        sb.append(f.attr("Number").map(n => splitNumber(n, vds.wasSplit)).getOrElse(infoNumber(f.`type`)))
         sb.append(",Type=")
         sb.append(infoType(f.`type`))
         f.attr("Description") match {
