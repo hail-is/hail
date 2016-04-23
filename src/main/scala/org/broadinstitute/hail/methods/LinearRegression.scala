@@ -23,14 +23,14 @@ case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Do
 }
 
 class LinRegBuilder extends Serializable {
+  private val missingRowIndices = new mutable.ArrayBuilder.ofInt()
   private val rowsX = new mutable.ArrayBuilder.ofInt()
   private val valsX = new mutable.ArrayBuilder.ofDouble()
   private var sparseLength = 0 // length of rowsX and valsX (ArrayBuilder has no length), used to track missingRowIndices
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0
-  private var sumYMissing = 0.0 // sum of y over missing genotypes
-  private val missingRowIndices = new mutable.ArrayBuilder.ofInt()
+  private var sumYMissing = 0.0
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.gt match {
@@ -63,14 +63,14 @@ class LinRegBuilder extends Serializable {
 
   // this merge is never called since variants are atomic
   def merge(that: LinRegBuilder): LinRegBuilder = {
+    missingRowIndices ++= that.missingRowIndices.result().map(_ + sparseLength)
     rowsX ++= that.rowsX.result()
     valsX ++= that.valsX.result()
+    sparseLength += that.sparseLength
     sumX += that.sumX
     sumXX += that.sumXX
     sumXY += that.sumXY
     sumYMissing += that.sumYMissing
-    missingRowIndices ++= that.missingRowIndices.result().map(_ + sparseLength)
-    sparseLength += that.sparseLength
 
     this
   }
