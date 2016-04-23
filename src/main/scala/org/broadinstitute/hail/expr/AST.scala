@@ -7,6 +7,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -930,12 +931,12 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TAltAllele, "isTransition") => TBoolean
       case (TAltAllele, "isTransversion") => TBoolean
 
-      case (t: TStruct, _) => {
+      case (t: TStruct, _) =>
         t.selfField(rhs) match {
           case Some(f) => f.`type`
           case None => parseError(s"`$t' has no field `$rhs")
         }
-      }
+
       case (t: TNumeric, "toInt") => TInt
       case (t: TNumeric, "toLong") => TLong
       case (t: TNumeric, "toFloat") => TFloat
@@ -949,8 +950,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TString, "length") => TInt
       case (TArray(_), "length") => TInt
       case (TArray(_), "isEmpty") => TBoolean
+      case (TArray(elementType: TNumeric), "sum" | "min" | "max") => elementType
       case (TSet(_), "size") => TInt
       case (TSet(_), "isEmpty") => TBoolean
+      case (TSet(elementType: TNumeric), "sum" | "min" | "max") => elementType
 
       case (t, _) =>
         parseError(s"`$t' has no field `$rhs'")
@@ -1080,10 +1083,63 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TArray(_), "length") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.length)
     case (TArray(_), "isEmpty") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.isEmpty)
 
+    case (TArray(TInt), "sum") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
+    case (TArray(TLong), "sum") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).sum)
+    case (TArray(TFloat), "sum") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).sum)
+    case (TArray(TDouble), "sum") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).sum)
+
+    case (TArray(TInt), "min") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).min)
+    case (TArray(TLong), "min") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).min)
+    case (TArray(TFloat), "min") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).min)
+    case (TArray(TDouble), "min") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).min)
+
+    case (TArray(TInt), "max") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).max)
+    case (TArray(TLong), "max") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).max)
+    case (TArray(TFloat), "max") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
+    case (TArray(TDouble), "max") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
+
     case (TSet(_), "size") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.size)
     case (TSet(_), "isEmpty") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.isEmpty)
-  }
 
+    case (TSet(TInt), "sum") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
+    case (TSet(TLong), "sum") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).sum)
+    case (TSet(TFloat), "sum") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).sum)
+    case (TSet(TDouble), "sum") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).sum)
+
+    case (TSet(TInt), "min") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).min)
+    case (TSet(TLong), "min") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).min)
+    case (TSet(TFloat), "min") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).min)
+    case (TSet(TDouble), "min") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).min)
+
+    case (TSet(TInt), "max") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).max)
+    case (TSet(TLong), "max") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).max)
+    case (TSet(TFloat), "max") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
+    case (TSet(TDouble), "max") =>
+      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
+  }
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
@@ -1096,7 +1152,16 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   override def typecheckThis(): BaseType = {
     (fn, args) match {
       case ("isMissing", Array(a)) => TBoolean
+
       case ("isDefined", Array(a)) => TBoolean
+
+      case ("str", Array(a)) =>
+        if (!a.`type`.isInstanceOf[Type])
+          parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
+        TString
+
+      case ("isDefined" | "isMissing" | "str", _) => parseError(s"`$fn' takes one argument")
+      case _ => parseError(s"unknown function `$fn'")
     }
   }
 
@@ -1107,6 +1172,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("isDefined", Array(a)) =>
       val f = a.eval(c)
       () => f() != null
+    case ("str", Array(a)) =>
+      val t = a.`type`.asInstanceOf[Type]
+      val f = a.eval(c)
+      t match {
+        case TArray(_) | TSet(_) | TStruct(_) => () => compact(t.makeJSON(f()))
+        case _ => () => f().toString
+      }
   }
 }
 
@@ -1117,12 +1189,63 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         lhs.typecheck(symTab)
 
         val elementType = lhs.`type` match {
-          case TArray(elementType) => elementType
+          case TArray(t) => t
           case _ =>
-            fatal("no `$method' on non-array")
+            parseError("no `$method' on non-array")
         }
 
         `type` = elementType
+
+        // index unused in typecheck
+        body.typecheck(symTab + (param ->(-1, elementType)))
+        if (body.`type` != TBoolean)
+          fatal(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
+
+      case ("map", Array(Lambda(_, param, body))) =>
+        lhs.typecheck(symTab)
+
+        val elementType = lhs.`type` match {
+          case TArray(t) => t
+          case _ =>
+            parseError("no `$method' on non-array")
+        }
+
+        body.typecheck(symTab + (param ->(-1, elementType)))
+
+        val bt = body.`type` match {
+          case t: Type => t
+          case error => parseError(s"cannot map an array to type `${body.`type`}'")
+        }
+
+        `type` = TArray(bt)
+
+
+      case ("filter", Array(Lambda(_, param, body))) =>
+        lhs.typecheck(symTab)
+
+        val elementType = lhs.`type` match {
+          case TArray(t) => t
+          case _ =>
+            parseError("no `$method' on non-array")
+        }
+
+        `type` = lhs.`type`
+
+        // index unused in typecheck
+        body.typecheck(symTab + (param ->(-1, elementType)))
+        if (body.`type` != TBoolean)
+          fatal(s"expected Boolean, got `${body.`type`}' in first argument to `$method'")
+
+      case ("forall" | "exists", Array(Lambda(_, param, body))) =>
+        lhs.typecheck(symTab)
+
+        val elementType = lhs.`type` match {
+          case TArray(t) => t
+          case _ =>
+            parseError("no `$method' on non-array")
+        }
+
+        `type` = TBoolean
 
         // index unused in typecheck
         body.typecheck(symTab + (param ->(-1, elementType)))
@@ -1175,6 +1298,61 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           } else
             null
         f(0)
+      }
+
+    case (returnType, "map", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[IndexedSeq[_]](c, lhs) { case is =>
+        is.map { elt =>
+          localA(localIdx) = elt
+          bodyFn()
+        }
+      }
+
+    case (returnType, "filter", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[IndexedSeq[_]](c, lhs) { case is =>
+        is.filter { elt =>
+          localA(localIdx) = elt
+          val r = bodyFn()
+          r.asInstanceOf[Boolean]
+        }
+      }
+
+    case (returnType, "forall", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[IndexedSeq[_]](c, lhs) { case is =>
+        is.forall { elt =>
+          localA(localIdx) = elt
+          val r = bodyFn()
+          r.asInstanceOf[Boolean]
+        }
+      }
+
+    case (returnType, "exists", Array(Lambda(_, param, body))) =>
+      val localIdx = c.a.length
+      c.a += null
+      val bodyFn = body.eval(c.copy(
+        symTab = c.symTab + (param ->(localIdx, returnType))))
+      val localA = c.a
+      AST.evalCompose[IndexedSeq[_]](c, lhs) { case is =>
+        is.exists { elt =>
+          localA(localIdx) = elt
+          val r = bodyFn()
+          r.asInstanceOf[Boolean]
+        }
       }
 
     case (_, "orElse", Array(a)) =>
@@ -1250,7 +1428,7 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
 case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) extends AST(posn, lhs, rhs) {
   def eval(c: EvalContext): () => Any = ((operation, `type`): @unchecked) match {
-    case ("+", TString) => AST.evalCompose[String, String](c, lhs, rhs)(_ + _)
+    case ("+", TString) => AST.evalCompose[Any, Any](c, lhs, rhs)(_.toString + _.toString)
     case ("~", TBoolean) => AST.evalCompose[String, String](c, lhs, rhs) { (s, t) =>
       s.r.findFirstIn(t).isDefined
     }
@@ -1320,7 +1498,8 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
   }
 
   override def typecheckThis(): BaseType = (lhs.`type`, operation, rhs.`type`) match {
-    case (TString, "+", TString) => TString
+    case (_, "+", TString) => TString
+    case (TString, "+", _) => TString
     case (TString, "~", TString) => TBoolean
     case (TBoolean, "||", TBoolean) => TBoolean
     case (TBoolean, "&&", TBoolean) => TBoolean

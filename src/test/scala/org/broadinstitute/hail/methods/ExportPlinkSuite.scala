@@ -1,9 +1,12 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.SparkSuite
+import java.net.URI
+
+import org.broadinstitute.hail.{SparkSuite, TempDir}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.Utils._
 import org.testng.annotations.Test
+
 import scala.io.Source
 import sys.process._
 import scala.language._
@@ -25,34 +28,37 @@ class ExportPlinkSuite extends SparkSuite {
 
   @Test def testBiallelic() {
 
+    val localTmpDir = TempDir("file:///tmp", hadoopConf)
+
+    val hailFile = localTmpDir.createTempFile("hail")
+    val hailPath = uriPath(hailFile)
+
+    val bFile = localTmpDir.createTempFile("plink")
+    val bPath = uriPath(bFile)
+
+    val mergeFile = localTmpDir.createTempFile("merge")
+    val mergePath = uriPath(mergeFile)
+
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     vds.rdd.count
-    ExportPlink.run(state, Array("-o", "/tmp/hailOut"))
+    ExportPlink.run(state, Array("-o", hailFile))
 
     // use plink to convert sample.vcf to a bed/bim/fam file
-    s"plink --vcf src/test/resources/sample.vcf --make-bed --out /tmp/plinkOut --const-fid --keep-allele-order" !
+    s"plink --vcf src/test/resources/sample.vcf --make-bed --out $bPath --const-fid --keep-allele-order" !
 
-    rewriteBimIDs("/tmp/hailOut.bim")
-    rewriteBimIDs("/tmp/plinkOut.bim")
+    rewriteBimIDs(hailFile + ".bim")
+    rewriteBimIDs(bFile + ".bim")
 
     // use plink to assert that the concordance rate is 1
-    val exitCode = s"plink --bfile /tmp/plinkOut --bmerge /tmp/hailOut --merge-mode 6 --out /tmp/plinkHailMerge" !
-
-    hadoopDelete("/tmp/plinkOut.bed", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/plinkOut.bim", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/plinkOut.fam", sc.hadoopConfiguration, recursive = true)
-
-    hadoopDelete("/tmp/hailOut.bed", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/hailOut.bim", sc.hadoopConfiguration, recursive = true)
-    hadoopDelete("/tmp/hailOut.fam", sc.hadoopConfiguration, recursive = true)
+    val exitCode = s"plink --bfile $bPath --bmerge $hailPath --merge-mode 6 --out $mergePath" !
 
     // assert that plink exited successfully
     assert(exitCode == 0)
 
     // assert that the .diff file is empty of non-header columns
     assert(
-      readFile("/tmp/plinkHailMerge.diff", sc.hadoopConfiguration) { is =>
+      readFile(mergeFile + ".diff", sc.hadoopConfiguration) { is =>
         Source.fromInputStream(is)
           .getLines()
           .toIndexedSeq

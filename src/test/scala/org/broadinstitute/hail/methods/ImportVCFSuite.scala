@@ -60,7 +60,8 @@ class ImportVCFSuite extends SparkSuite {
 
     s = SplitMulti.run(s, Array("--propagate-gq"))
 
-    ExportVCF.run(s, Array("-o", "/tmp/foo.vcf"))
+    val f = tmpDir.createTempFile(extension = ".vcf")
+    ExportVCF.run(s, Array("-o", f))
 
     var s2 = State(sc, sqlContext)
     s2 = ImportVCF.run(s, Array("--store-gq", "src/test/resources/store_gq_split.vcf"))

@@ -132,6 +132,28 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
 
+    assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
+      .contains("HELLO=-7, asdasd9"))
+
+    assert(eval[IndexedSeq[_]](""" a.filter(x => x < 4)   """)
+      .contains(IndexedSeq(1,2,3,3,-1)))
+
+    assert(eval[IndexedSeq[_]](""" a.filter(x => x < 4).map(x => x * 100)   """)
+      .contains(IndexedSeq(1,2,3,3,-1).map(_ * 100)))
+
+    assert(eval[Boolean](""" a.filter(x => x < 4).map(x => x * 100).exists(x => x == -100)   """)
+      .contains(true))
+
+    assert(eval[Int]("""a.min""").contains(-1))
+
+    assert(eval[Int]("""a.max""").contains(8))
+
+    assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
+
+    assert(eval[String]("""str(i)""").contains("5"))
+
+    assert(eval[String](""" 5 + "5" """) == eval[String](""" "5" + 5 """))
+
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
   }
