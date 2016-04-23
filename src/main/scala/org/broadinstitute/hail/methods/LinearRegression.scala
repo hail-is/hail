@@ -91,6 +91,8 @@ class LinRegBuilder extends Serializable {
       missingRowIndicesArray.foreach(valsXArray(_) = meanX)
 
       // since combOp merge is not called, rowsXArray is sorted, as expected by SparseVector constructor
+      assert((0 until rowsXArray.size - 1).forall(i => rowsXArray(i) < rowsXArray(i + 1)))
+
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * sumYMissing
