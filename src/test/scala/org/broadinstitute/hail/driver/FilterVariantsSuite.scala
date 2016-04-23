@@ -14,8 +14,9 @@ class FilterVariantsSuite extends SparkSuite {
 
     val variants = s.vds.variants.collect().toSet
 
+    val f = tmpDir.createTempFile("test", extension = ".variant_list")
     Prop.check(forAll(Gen.subset(variants), Gen.arbBoolean) { case (subset, keep) =>
-      writeTextFile("/tmp/test.variant_list", s.hadoopConf) { s =>
+      writeTextFile(f, s.hadoopConf) { s =>
         for (v <- subset) {
           s.write(v.toString)
           s.write("\n")
@@ -27,7 +28,7 @@ class FilterVariantsSuite extends SparkSuite {
           "--keep"
         else
           "--remove",
-        "-c", "/tmp/test.variant_list"))
+        "-c", f))
 
       val tVariants = t.vds.variants.collect().toSet
       if (keep)
