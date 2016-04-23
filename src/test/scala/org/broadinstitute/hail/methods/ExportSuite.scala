@@ -39,10 +39,14 @@ class ExportSuite extends SparkSuite {
         "rTiTv=sa.qc.rTiTv,rHetHomVar=sa.qc.rHetHomVar," +
         "rDeletionInsertion=sa.qc.rDeletionInsertion"))
 
-    val sQcOutput = Source.fromFile(sampleQCFile)
-      .getLines().toSet
-    val sExportOutput = Source.fromFile(exportSamplesFile)
-      .getLines().toSet
+    val sQcOutput = readFile(sampleQCFile, hadoopConf) { s =>
+      Source.fromInputStream(s)
+        .getLines().toSet
+    }
+    val sExportOutput = readFile(exportSamplesFile, hadoopConf) { s =>
+      Source.fromInputStream(s)
+        .getLines().toSet
+    }
 
     assert(sQcOutput == sExportOutput)
 
@@ -64,10 +68,14 @@ class ExportSuite extends SparkSuite {
         "rHeterozygosity=va.qc.rHeterozygosity,rHetHomVar=va.qc.rHetHomVar,rExpectedHetFrequency=va.qc.rExpectedHetFrequency," +
         "pHWE=va.qc.pHWE"))
 
-    val vQcOutput = Source.fromFile(variantQCFile)
-      .getLines().toSet
-    val vExportOutput = Source.fromFile(exportVariantsFile)
-      .getLines().toSet
+    val vQcOutput = readFile(variantQCFile, hadoopConf) { s =>
+      Source.fromInputStream(s)
+        .getLines().toSet
+    }
+    val vExportOutput = readFile(exportVariantsFile, hadoopConf) { s =>
+      Source.fromInputStream(s)
+        .getLines().toSet
+    }
 
     assert(vQcOutput == vExportOutput)
   }
