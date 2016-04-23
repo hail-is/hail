@@ -1,40 +1,39 @@
 # Linear Regression
 
-The `linreg` command computes, for each variant, the linear function of best fit from sample genotype and covariates to
-case-control status, outputing the p-value of the t-test for the genotype coefficient.
+The `linreg` command computes, for each variant, the p-value of the t-test for the genotype coefficient of the linear function of best fit from sample genotype and covariates to
+quantitative phenotype or case-control status.
 
 Command line options:
- - `-f | --fam <filename>` -- a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam)
- - `-c | --cov <filename>` -- a .cov file, see below
- - `-o | --output <filename>` -- an output TSV file
+ - `-y | --y <filename>` -- a sample annotation of numeric or Boolean type designating the response variable, i.e. phenotype
+ - `-c | --covariates <filename>` -- a comma-separated list of sample annotations of numeric or Boolean type (optional)
+ - `-r | --root <root>` -- variant annotation path for linreg output, starting with `va` (optional, default is `va.linreg`)
 
-The command
+Assuming there are sample annotations `sa.pheno.height`, `sa.cov.age`, and `sa.cov.isMale`, the command
 ```
-linreg -f myStudy.fam -c myStudy.cov -o myStudy.linreg
+linreg -y sa.pheno.height -c sa.cov.age,sa.cov.isMale
 ```
-outputs a TSV file `myStudy.linreg` with a row for each variant and the following columns.
+fits a model of the form
 
-Column | Value
----|---
-CHR | chromosome
-POS | position
-REF | reference allele
-ALT | alternate allele
-MISS | count of missing genotypes
-BETA | genotype coefficient
-SE | standard error
-T | t-statistic
-P | p-value
+`height = b0 + b1 * x + b2 * age + b3 * isMale + e`
 
-A `.cov` file is a TSV file of sample covariate data. The first column records the sample ID. Here is an example with two samples:
+where the genotype `x` is coded as 0 for HomRef, 1 for Het, and 2 for HomVar, the Boolean covariate isMale is coded as 1 for true (male) and 0 for false (female), and `e` is normal noise.
 
-```
-IID   AGE   SEX   PC1   PC2
-Ann   10    2     1.2   6.7
-Bob   12    1     -0.2  2.8
-```
+Five variant annotations are then added with root `va.linreg` as shown in the table. These annotations can then be accessed by other methods, including exporting to TSV with other variant annotations.
 
+Annotation | Type | Value
+---|---|---
+v.contig | String | chromosome
+v.pos | Int| position
+v.ref | String | reference allele
+v.alt | String | alternate allele
+va.linreg.nMissing | Int | count of missing (imputed) genotypes
+va.linreg.beta | Double | fit genotype coefficient, `b1` above
+va.linreg.se | Double | standard error of beta
+va.linreg.tstat | Double | t-statistic, equal to beta / se
+va.linreg.pval | Double | p-value
 
-Samples are included in the regression if and only if they are in the variant data set, the .cov file, and the .fam file with a defined phenotype. For each variant, missing genotypes are imputed as the mean of called genotypes.
+Phenotype and covariate sample annotations may also be specified using [programmatic expressions](https://github.com/broadinstitute/hail/blob/master/docs/ProgrammaticAnnotation.md) without identifiers, such as `if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)`.
 
-The standard least-squares linear regression model is derived in Section 3.2 of [The Elements of Statistical Learning, 2nd Edition](https://web.stanford.edu/~hastie/local.ftp/Springer/OLD/ESLII_print4.pdf). See equation 3.12 for the t-statistic which follows the t-distribution with n - k - 2 degrees of freedom, under the null hypothesis of no effect, with n samples and k covariates in addition to genotype.
+The samples included in the regression are those in the variant data set with phenotype and all covariates defined. For each variant, missing genotypes are imputed as the mean of called genotypes. For Boolean types, true is coded as 1 and false as 0. In particular, for the sample annotation `sa.fam.isCase` added by importing a `.fam` file with case-control phenotype, case is 1 and control is 0.
+
+The standard least-squares linear regression model is derived in Section 3.2 of [The Elements of Statistical Learning, 2nd Edition](https://web.stanford.edu/~hastie/local.ftp/Springer/OLD/ESLII_print4.pdf). See equation 3.12 for the t-statistic which follows the t-distribution with n - k - 2 degrees of freedom, under the null hypothesis of no effect, with n samples and k covariates in addition to genotype and intercept.

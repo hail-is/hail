@@ -1,9 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import java.io.{DataInputStream, File}
+import java.net.URI
 
 import breeze.linalg.DenseMatrix
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{SparkSuite, TempDir}
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.Utils._
@@ -119,19 +120,18 @@ class GRMSuite extends SparkSuite {
     true
   }
 
-  def runInTmp(cmd: String) {
-    val pb = new java.lang.ProcessBuilder(cmd.split("\\s+"): _*)
-    pb.directory(new File("/tmp"))
-
-    // comment in to see plink output
-    // pb.inheritIO()
-
-    val p = pb.start()
-    p.waitFor()
-    assert(p.exitValue() == 0)
-  }
-
   @Test def test() {
+
+    val localTmpDir = TempDir("file:///tmp", hadoopConf)
+
+    val bFile = localTmpDir.createTempFile("plink")
+    val bPath = uriPath(bFile)
+
+    val relFile = tmpDir.createTempFile("test", ".rel")
+    val relIDFile = tmpDir.createTempFile("test", ".rel.id")
+    val grmFile = tmpDir.createTempFile("test", ".grm")
+    val grmBinFile = tmpDir.createTempFile("test", ".grm.bin")
+    val grmNBinFile = tmpDir.createTempFile("test", ".grm.N.bin")
 
     Prop.check(forAll(VariantSampleMatrix.gen[Genotype](sc, (v: Variant) => Genotype.gen(v).filter(_.isCalled))
       // plink fails with fewer than 2 samples, no variants
@@ -148,46 +148,46 @@ class GRMSuite extends SparkSuite {
         val nVariants = s.vds.nVariants.toInt
         assert(nVariants > 0)
 
-        ExportPlink.run(s, Array("-o", "/tmp/plink"))
+        ExportPlink.run(s, Array("-o", bFile))
 
         format match {
           case "rel" =>
-            runInTmp("plink --bfile /tmp/plink --make-rel")
+            s"plink --bfile $bPath --make-rel --out $bPath" !
 
-            assert(loadIDFile("/tmp/plink.rel.id").toIndexedSeq
+            assert(loadIDFile(bFile + ".rel.id").toIndexedSeq
               == vsm.sampleIds)
 
-            GRM.run(s, Array("--id-file", "/tmp/test.rel.id", "-f", "rel", "-o", "/tmp/test.rel"))
+            GRM.run(s, Array("--id-file", relIDFile, "-f", "rel", "-o", relFile))
 
-            assert(loadIDFile("/tmp/test.rel.id").toIndexedSeq
+            assert(loadIDFile(relIDFile).toIndexedSeq
               == vsm.sampleIds)
 
-            compare(loadRel(nSamples, "/tmp/plink.rel"),
-              loadRel(nSamples, "/tmp/test.rel"))
+            compare(loadRel(nSamples, bFile + ".rel"),
+              loadRel(nSamples, relFile))
 
           case "gcta-grm" =>
-            runInTmp("plink --bfile /tmp/plink --make-grm-gz")
+            s"plink --bfile $bPath --make-grm-gz --out $bPath" !
 
-            assert(loadIDFile("/tmp/plink.grm.id").toIndexedSeq
+            assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
               == vsm.sampleIds)
 
-            GRM.run(s, Array("-f", "gcta-grm", "-o", "/tmp/test.grm"))
+            GRM.run(s, Array("-f", "gcta-grm", "-o", grmFile))
 
-            compare(loadGRM(nSamples, nVariants, "/tmp/plink.grm.gz"),
-              loadGRM(nSamples, nVariants, "/tmp/test.grm"))
+            compare(loadGRM(nSamples, nVariants, bFile + ".grm.gz"),
+              loadGRM(nSamples, nVariants, grmFile))
 
           case "gcta-grm-bin" =>
-            runInTmp("plink --bfile /tmp/plink --make-grm-bin")
+            s"plink --bfile $bPath --make-grm-bin --out $bPath" !
 
-            assert(loadIDFile("/tmp/plink.grm.id").toIndexedSeq
+            assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
               == vsm.sampleIds)
 
-            GRM.run(s, Array("-f", "gcta-grm-bin", "-o", "/tmp/test.grm.bin", "--N-file", "/tmp/test.grm.N.bin"))
+            GRM.run(s, Array("-f", "gcta-grm-bin", "-o", grmBinFile, "--N-file", grmNBinFile))
 
-            (compare(loadBin(nSamples, "/tmp/plink.grm.bin"),
-              loadBin(nSamples, "/tmp/test.grm.bin"))
-              && compare(loadBin(nSamples, "/tmp/plink.grm.N.bin"),
-              loadBin(nSamples, "/tmp/test.grm.N.bin")))
+            (compare(loadBin(nSamples, bFile + ".grm.bin"),
+              loadBin(nSamples, grmBinFile))
+              && compare(loadBin(nSamples, bFile + ".grm.N.bin"),
+              loadBin(nSamples, grmNBinFile)))
         }
     })
   }

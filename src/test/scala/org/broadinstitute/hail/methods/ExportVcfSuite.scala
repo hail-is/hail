@@ -15,7 +15,7 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val outFile = "/tmp/testExportVcf.vcf.bgz"
+    val outFile = tmpDir.createTempFile("export", ".vcf")
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State(sc, sqlContext, vdsOrig)
@@ -29,8 +29,8 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testSameAsOrigNoCompression() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val outFile = "/tmp/testExportVcf.vcf"
-    val outFile2 = "/tmp/testExportVcf2.vcf"
+    val outFile = tmpDir.createTempFile("export", ".vcf")
+    val outFile2 = tmpDir.createTempFile("export2", ".vcf")
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State(sc, sqlContext, vdsOrig)
@@ -54,7 +54,7 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testSorted() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val outFile = "/tmp/testSortVcf.vcf.bgz"
+    val outFile = tmpDir.createTempFile("sort", ".vcf.bgz")
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State(sc, sqlContext, vdsOrig)
