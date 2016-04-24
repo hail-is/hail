@@ -29,15 +29,9 @@ object ExportPlink extends Command {
     if (badSampleIds.nonEmpty) {
       val msg =
         s"""Found ${badSampleIds.length} sample IDs with whitespace.  Please run `renamesamples' to fix this problem before exporting to plink format.""".stripMargin
-      if (badSampleIds.length <= 10) {
-        error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.mkString("  \n")}")
-        log.error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.mkString("  \n")}")
-        fatal(msg)
-      } else {
-        error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.take(10).mkString("  \n")}\n  ...")
-        log.error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.mkString("  \n")}")
-        fatal(msg + s"\n  Full list of invalid sample IDs written to Hail log.")
-      }
+      log.error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.mkString("  \n")}")
+      fatal(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.take(10).mkString("  \n")}${
+        if (badSampleIds.length > 10) "\n  ...\n  See hail.log for full list of IDs" else ""}")
     }
 
     val bedHeader = Array[Byte](108, 27, 1)

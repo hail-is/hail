@@ -126,12 +126,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](nSamples, g(v)))
+         values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](g(v)))
+         values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -156,7 +156,7 @@ object VariantSampleMatrix {
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap {
       case (sampleIds, variants) => gen(sc, sampleIds, variants, g)
@@ -478,14 +478,18 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
         .map {
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
-            val variantsSame = va1 == va2
-            if (!variantsSame)
-              println(s"variants $va1, $va2 were not the same")
-            val genotypesSame = it1.sameElements(it2)
-            if (!genotypesSame)
-              println(s"genotypes not the same at variant $va1, $va2")
-            variantsSame && genotypesSame
-          case _ => false
+            val annotationsSame = va1 == va2
+            if (!annotationsSame)
+              println(s"annotations $va1, $va2 were not the same")
+            val genotypesSame = (it1, it2).zipped.forall { case (g1, g2) =>
+              if (g1 != g2)
+                println(s"genotypes $g1, $g2 were not the same")
+              g1 == g2
+            }
+            annotationsSame && genotypesSame
+          case (v, _) =>
+            println(s"Found unmatched variant $v")
+            false
         }.fold(true)(_ && _)
   }
 
