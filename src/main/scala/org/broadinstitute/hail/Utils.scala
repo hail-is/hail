@@ -293,9 +293,9 @@ class RichArray[T](a: Array[T]) {
 }
 
 class RichOrderedArray[T : Ordering](a: Array[T]) {
-  def isIncreasing: Boolean = a.toSeq.isIncreasing()
+  def isIncreasing: Boolean = a.toSeq.isIncreasing
 
-  def isSorted: Boolean = a.toSeq.isSorted()
+  def isSorted: Boolean = a.toSeq.isSorted
 }
 
 class RichOrderedSeq[T : Ordering](s: Seq[T]) {
