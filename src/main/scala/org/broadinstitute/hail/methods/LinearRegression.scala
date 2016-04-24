@@ -61,7 +61,7 @@ class LinRegBuilder extends Serializable {
     this
   }
 
-  // this merge is never called since variants are atomic
+  // variant is atomic => combOp merge not called
   def merge(that: LinRegBuilder): LinRegBuilder = {
     missingRowIndices ++= that.missingRowIndices.result().map(_ + sparseLength)
     rowsX ++= that.rowsX.result()
@@ -90,8 +90,8 @@ class LinRegBuilder extends Serializable {
 
       missingRowIndicesArray.foreach(valsXArray(_) = meanX)
 
-      // since combOp merge is not called, rowsXArray is sorted, as expected by SparseVector constructor
-      assert((0 until rowsXArray.size - 1).forall(i => rowsXArray(i) < rowsXArray(i + 1)))
+      // variant is atomic => combOp merge not called => rowsXArray is sorted (as expected by SparseVector constructor)
+      assert(rowsXArray.isIncreasing)
 
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
       val xx = sumXX + meanX * meanX * nMissing
