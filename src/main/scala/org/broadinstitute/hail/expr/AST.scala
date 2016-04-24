@@ -596,7 +596,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val localSize = fields.size
 
       val inserter: Inserter = (a, toIns) => {
-        val r = if (localSize == 0)
+        val r = if (a == null || localSize == 0)
           Row.fromSeq(Array.fill[Any](localSize)(null))
         else
           a.asInstanceOf[Row]
@@ -1114,31 +1114,31 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TSet(_), "isEmpty") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.isEmpty)
 
     case (TSet(TInt), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
     case (TSet(TLong), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).sum)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).sum)
     case (TSet(TFloat), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).sum)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).sum)
     case (TSet(TDouble), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).sum)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).sum)
 
     case (TSet(TInt), "min") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).min)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).min)
     case (TSet(TLong), "min") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).min)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).min)
     case (TSet(TFloat), "min") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).min)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).min)
     case (TSet(TDouble), "min") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).min)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).min)
 
     case (TSet(TInt), "max") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).max)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).max)
     case (TSet(TLong), "max") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).max)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).max)
     case (TSet(TFloat), "max") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
     case (TSet(TDouble), "max") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
   }
 }
 

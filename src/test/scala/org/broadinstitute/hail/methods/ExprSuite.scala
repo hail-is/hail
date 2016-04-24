@@ -31,7 +31,8 @@ class ExprSuite extends SparkSuite {
       "t" ->(10, TBoolean),
       "f" ->(11, TBoolean),
       "mb" ->(12, TBoolean),
-      "is" ->(13, TString))
+      "is" ->(13, TString),
+      "iset" ->(14, TSet(TInt)))
     val a = new ArrayBuffer[Any]()
     a += 5 // i
     a += -7 // j
@@ -53,7 +54,8 @@ class ExprSuite extends SparkSuite {
     a += false
     a += null // mb
     a += "-37" // is
-    assert(a.length == 14)
+    a += Set(0,1,2)
+    assert(a.length == 15)
 
     def eval[T](s: String): Option[T] = {
       val f = Parser.parse(s, symTab, a)._2
@@ -145,14 +147,13 @@ class ExprSuite extends SparkSuite {
       .contains(true))
 
     assert(eval[Int]("""a.min""").contains(-1))
-
     assert(eval[Int]("""a.max""").contains(8))
-
     assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
-
     assert(eval[String]("""str(i)""").contains("5"))
-
     assert(eval[String](""" 5 + "5" """) == eval[String](""" "5" + 5 """))
+    assert(eval[Int]("""iset.min""").contains(0))
+    assert(eval[Int]("""iset.max""").contains(2))
+    assert(eval[Int]("""iset.sum""").contains(3))
 
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
