@@ -7,11 +7,22 @@ import org.apache.spark.{SparkContext, SparkConf}
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{BeforeClass, AfterClass}
+import org.apache.hadoop
 
 class SparkSuite extends TestNGSuite {
   var sc: SparkContext = null
   var sqlContext: SQLContext = null
   val noArgs: Array[String] = Array.empty[String]
+
+  def hadoopConf: hadoop.conf.Configuration =
+    sc.hadoopConfiguration
+
+  var _tmpDir: TempDir = null
+  def tmpDir: TempDir = {
+    if (_tmpDir == null)
+      _tmpDir = TempDir("/tmp", hadoopConf)
+    _tmpDir
+  }
 
   @BeforeClass
   def startSpark() {

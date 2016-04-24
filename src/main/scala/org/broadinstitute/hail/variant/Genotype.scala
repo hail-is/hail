@@ -118,51 +118,25 @@ class Genotype(private val _gt: Int,
 
   def pl: Option[Array[Int]] = Option(_pl)
 
-  def isHomRef: Boolean = _gt == 0
+  def isHomRef: Boolean = Genotype.isHomRef(_gt)
 
-  def isHet: Boolean = _gt > 0 && {
-    val p = Genotype.gtPair(_gt)
-    p.j != p.k
-  }
+  def isHet: Boolean =  Genotype.isHet(_gt)
 
-  def isHomVar: Boolean = _gt > 0 && {
-    val p = Genotype.gtPair(_gt)
-    p.j == p.k
-  }
+  def isHomVar: Boolean = Genotype.isHomVar(_gt)
 
-  def isCalledNonRef: Boolean = _gt > 0
+  def isCalledNonRef: Boolean = Genotype.isCalledNonRef(_gt)
 
-  def isHetNonRef: Boolean = _gt > 0 && {
-    val p = Genotype.gtPair(_gt)
-    p.j > 0 && p.j != p.k
-  }
+  def isHetNonRef: Boolean = Genotype.isHetNonRef(_gt)
 
-  def isHetRef: Boolean = _gt > 0 && {
-    val p = Genotype.gtPair(_gt)
-    p.j == 0 && p.k > 0
-  }
+  def isHetRef: Boolean = Genotype.isHetRef(_gt)
 
-  def isNotCalled: Boolean = _gt == -1
+  def isNotCalled: Boolean = Genotype.isNotCalled(_gt)
 
-  def isCalled: Boolean = _gt >= 0
+  def isCalled: Boolean = Genotype.isCalled(_gt)
 
-  def gtType: GenotypeType =
-    if (isHomRef)
-      GenotypeType.HomRef
-    else if (isHet)
-      GenotypeType.Het
-    else if (isHomVar)
-      GenotypeType.HomVar
-    else {
-      assert(isNotCalled)
-      GenotypeType.NoCall
-    }
+  def gtType: GenotypeType = Genotype.gtType(_gt)
 
-  def nNonRefAlleles: Option[Int] =
-    if (_gt >= 0)
-      Some(Genotype.gtPair(_gt).nNonRefAlleles)
-    else
-      None
+  def nNonRefAlleles: Option[Int] = Genotype.nNonRefAlleles(_gt)
 
   override def toString: String = {
     val b = new StringBuilder
@@ -312,6 +286,53 @@ object Genotype {
     assert(m == 0)
     m2
   }
+
+
+  def isHomRef(gt: Int): Boolean = gt == 0
+
+  def isHet(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j != p.k
+  }
+
+  def isHomVar(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j == p.k
+  }
+
+  def isCalledNonRef(gt: Int): Boolean = gt > 0
+
+  def isHetNonRef(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j > 0 && p.j != p.k
+  }
+
+  def isHetRef(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j == 0 && p.k > 0
+  }
+
+  def isNotCalled(gt: Int): Boolean = gt == -1
+
+  def isCalled(gt: Int): Boolean = gt >= 0
+
+  def gtType(gt: Int): GenotypeType =
+    if (isHomRef(gt))
+      GenotypeType.HomRef
+    else if (isHet(gt))
+      GenotypeType.Het
+    else if (isHomVar(gt))
+      GenotypeType.HomVar
+    else {
+      assert(isNotCalled(gt))
+      GenotypeType.NoCall
+    }
+
+  def nNonRefAlleles(gt: Int): Option[Int] =
+    if (gt >= 0)
+      Some(Genotype.gtPair(gt).nNonRefAlleles)
+    else
+      None
 
   val smallGTPair = Array(GTPair(0, 0), GTPair(0, 1), GTPair(1, 1),
     GTPair(0, 2), GTPair(1, 2), GTPair(2, 2),
