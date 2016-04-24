@@ -5,10 +5,29 @@ Hail includes three filtering modules:
  - `filtersamples`
  - `filtergenotypes`
 
+
+The `filtervariants` module contains the following submodules:
+
+- `intervals`: filter by an interval list [(skip to)](#vIntervals)
+- `list`: filter by a variant list [(skip to)](#vList)
+- `expr`: filter by Hail expressions [(skip to)](#vExpr)
+- `all`: drop all variants [(skip to)](#vAll)
+
+The `filtersamples` module contains the following submodules:
+
+- `list`: filter by a sample list [(skip to)](#sList)
+- `expr`: filter by Hail expressions [(skip to)](#sExpr)
+- `all`: drop all samples [(skip to)](#sAll)
+
+The `filtergenotypes` module filters solely on Hail expressions. [(skip to)](#genotypes)
+
 ____
 
 ### Submodules of `filtervariants`:
 
+____
+
+<a name="vIntervals"></a>
 #### `filtervariants intervals`
 
 Usage:
@@ -16,8 +35,7 @@ Usage:
  - `-i | --input <file>` -- path to interval list file
  - `--keep/--remove` -- keep or remove variants within an interval from the file
 
-Hail expects an interval file to contain either three or five fields per line in the following formats: `contig:start-end` or `contig  start  end  direction  target` (tab-separated).  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the interval file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  
- - _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
+Hail expects an interval file to contain either three or five fields per line in the following formats: `contig:start-end` or `contig  start  end  direction  target` (tab-separated).  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the interval file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
 
 ```
 $ hail read -i file.vds
@@ -27,6 +45,7 @@ $ hail read -i file.vds
 
 ____
 
+<a name="vList"></a>
 #### `filtervariants list`
 
 Usage:
@@ -44,6 +63,7 @@ $ hail read -i file.vds
 
 ____
 
+<a name="vExpr"></a>
 #### `filtervariants expr`
 
 Usage:
@@ -68,6 +88,7 @@ $ hail read -i file.vds
 
 ____
 
+<a name="vAll"></a>
 #### `filtervariants all`
 
 Removes all variants from VDS.
@@ -82,6 +103,9 @@ ____
 
 ### Submodules of `filtersamples`:
 
+____
+
+<a name="sList"></a>
 #### `filtersamples list`
 
 Usage:
@@ -99,6 +123,7 @@ $ hail read -i file.vds
 
 ____
 
+<a name="sExpr"></a>
 #### `filtersamples expr`
 
 Usage:
@@ -123,6 +148,7 @@ $ hail read -i file.vds
 
 ____
 
+<a name="sAll"></a>
 #### `filtersamples all`
 
 Removes all samples from VDS.  The variants and variant annotations will remain, making it a sites-only VDS.
@@ -135,6 +161,7 @@ $ hail read -i file.vds
 
 ____
 
+<a name="genotypes"></a>
 ### `filtergenotypes`
 
 The filter genotypes module has only one function, the `expr` function, so it is not broken into submodules.  
