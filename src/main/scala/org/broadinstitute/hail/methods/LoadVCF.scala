@@ -188,7 +188,7 @@ object LoadVCF {
         Some(Field("filters", TSet(TString), 2, filters)),
         Some(Field("pass", TBoolean, 3)),
         infoSignature.map(sig => Field("info", sig, 4))
-      ).flatMap(x => x))
+      ).flatten)
 
     val headerLine = headerLines.last
     assert(headerLine(0) == '#' && headerLine(1) != '#')

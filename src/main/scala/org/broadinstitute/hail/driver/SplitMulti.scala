@@ -129,13 +129,10 @@ object SplitMulti extends Command {
       }
   }
 
-  val infoNumbersToConvert = Set("A", "R", "G")
-
   def splitNumber(str: String): String =
-    if (infoNumbersToConvert(str))
+    if (str == "A" || str == "R" || str == "G")
       "."
     else str
-
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -147,8 +144,7 @@ object SplitMulti extends Command {
 
     val vas4 = vas3.getAsOption[TStruct]("info").map { s =>
       val updatedInfoSignature = TStruct(s.fields.map { f =>
-        val numberOption = f.attrs.get("Number").map(splitNumber)
-        numberOption match {
+        f.attrs.get("Number").map(splitNumber) match {
           case Some(n) => f.copy(attrs = f.attrs + ("Number" -> n))
           case None => f
         }
