@@ -109,23 +109,24 @@ object Parser extends JavaTokenParsers {
       path.tail
   }
 
-  def parseAnnotationRootList(code: String, root: String): Seq[List[String]] = {
-    val pathList =
-      if (code.matches("""\s*"""))
-        Array.empty[List[String]]
-      else
-        parseAll(annotationIdentifierList, code) match {
-          case Success(result, _) => result.asInstanceOf[Array[List[String]]]
-          case NoSuccess(msg, _) => fatal(msg)
-        }
+  def parseExprs(code: String, symTab: Map[String, (Int, BaseType)],
+    a: ArrayBuffer[Any]): (Array[(BaseType, () => Option[Any])]) = {
 
-    pathList.map { path =>
-      if (path.isEmpty)
-        fatal(s"expected annotation paths starting in `$root', but got an empty path")
-      else if (path.head != root)
-        fatal(s"expected annotation paths starting in `$root', but got a path starting in '${path.head}'")
-      else
-        path.tail
+    if (code.matches("""\s*"""))
+      Array.empty[(BaseType, () => Option[Any])]
+    else {
+      val asts = parseAll(args, code) match {
+        case Success(result, _) => result.asInstanceOf[Array[AST]]
+        case NoSuccess(msg, _) => fatal(msg)
+      }
+
+      val ec = EvalContext(symTab, a)
+
+      asts.map { ast =>
+        ast.typecheck(symTab)
+        val f = ast.eval(ec)
+        (ast.`type`, () => Option(f()))
+      }
     }
   }
 
@@ -210,7 +211,7 @@ object Parser extends JavaTokenParsers {
       _.toList
     }
 
-  def annotationIdentifierList: Parser[Array[List[String]]] =
+  def annotationIdentifierArray: Parser[Array[List[String]]] =
     rep1sep(annotationIdentifier, ",") ^^ {
       _.toArray
     }

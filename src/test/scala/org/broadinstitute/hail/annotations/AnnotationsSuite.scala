@@ -118,9 +118,9 @@ class AnnotationsSuite extends SparkSuite {
     val vas2 = vds2.vaSignature
 
     // Check that VDS can be written to disk and retrieved while staying the same
-    hadoopDelete("/tmp/sample.vds", sc.hadoopConfiguration, recursive = true)
-    vds2.write(sqlContext, "/tmp/sample.vds")
-    val readBack = Read.run(state, Array("-i", "/tmp/sample.vds"))
+    val f = tmpDir.createTempFile("sample", extension = ".vds")
+    vds2.write(sqlContext, f)
+    val readBack = Read.run(state, Array("-i", f))
 
     assert(readBack.vds.same(vds2))
   }
@@ -130,8 +130,10 @@ class AnnotationsSuite extends SparkSuite {
     val s = State(sc, sqlContext, vds1)
     val vds2 = LoadVCF(sc, "src/test/resources/sample.vcf")
     assert(vds1.same(vds2))
-    Write.run(s, Array("-o", "/tmp/sample.vds"))
-    val vds3 = Read.run(s, Array("-i", "/tmp/sample.vds")).vds
+
+    val f = tmpDir.createTempFile("sample", extension = ".vds")
+    Write.run(s, Array("-o", f))
+    val vds3 = Read.run(s, Array("-i", f)).vds
     assert(vds3.same(vds1))
   }
 
@@ -357,8 +359,10 @@ class AnnotationsSuite extends SparkSuite {
     state = state.copy(vds = vds.mapAnnotations((v, va) => ins(va, Some(5)))
       .copy(vaSignature = newS))
 
-    Write.run(state, Array("-o", "/tmp/testwrite.vds"))
-    val state2 = Read.run(state, Array("-i", "/tmp/testwrite.vds"))
+    val f = tmpDir.createTempFile("testwrite", extension = ".vds")
+
+    Write.run(state, Array("-o", f))
+    val state2 = Read.run(state, Array("-i", f))
     assert(state.vds.same(state2.vds))
   }
 }

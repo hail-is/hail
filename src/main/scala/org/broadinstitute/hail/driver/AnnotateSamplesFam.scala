@@ -22,7 +22,7 @@ object AnnotateSamplesFam extends Command {
     var delimiter: String = "\\t"
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
-      usage = "Annotation root, a period-delimited path starting with `sa'")
+      usage = "Sample annotation root, a period-delimited path starting with `sa'")
     var root: String = "sa.fam"
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
