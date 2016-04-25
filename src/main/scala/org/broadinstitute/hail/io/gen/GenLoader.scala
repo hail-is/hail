@@ -51,27 +51,23 @@ object GenLoader2 {
     val b = new GenotypeStreamBuilder(variant) //FIXME: Add compression flag to apply
     val genoBuilder = new GenotypeBuilder(variant)
 
+    var numZeroedOut = 0
     for (i <- dosages.indices by 3) {
+      genoBuilder.clear()
+      val origDosages = Array(dosages(i), dosages(i+1), dosages(i+2))
 
-      val probs = normalizePPs(Array(dosages(i), dosages(i+1), dosages(i+2)))
+      if (origDosages.sum >= (1 - 0.02)) {
+        val normProbs = normalizePPs(Array(dosages(i), dosages(i + 1), dosages(i + 2)))
 
-      val dosageAA = convertProbsToInt(probs(0))
-      val dosageAB = convertProbsToInt(probs(1))
-      val dosageBB = convertProbsToInt(probs(2))
+        val dosageAA = convertProbsToInt(normProbs(0))
+        val dosageAB = convertProbsToInt(normProbs(1))
+        val dosageBB = convertProbsToInt(normProbs(2))
 
-      val sumDosage = dosageAA + dosageAB + dosageBB
+        val sumDosage = dosageAA + dosageAB + dosageBB
 
-      if (arr(0) == "01" && arr(3).toInt == 44000 && i == 3) {
-        //println(s"${dosages(i)} ${dosages(i + 1)} ${dosages(i + 2)}")
-        println(s"dosageAA=${dosages(i)} dosageAB=${dosages(i+1)} dosageBB=${dosages(i+2)}")
-        println(s"probAA=${probs(0)} probAB=${probs(1)} probBB=${probs(2)}")
-        println(s"intAA=${dosageAA} intAB=${dosageAB} intBB=${dosageBB}")
-        println(s"sumDosage=$sumDosage dosageAA=$dosageAA dosageAB=$dosageAB dosageBB=$dosageBB")
-      }
+        assert(sumDosage >= 32765 && sumDosage <= 32771)
 
-      assert(sumDosage >= 32765 && sumDosage <= 32771)
-
-      val gt = if (dosageAA > dosageAB && dosageAA > dosageBB)
+        val gt = if (dosageAA > dosageAB && dosageAA > dosageBB)
           0
         else if (dosageAB > dosageAA && dosageAB > dosageBB)
           1
@@ -80,27 +76,19 @@ object GenLoader2 {
         else
           -1
 
-//      println(s"dosageAA=${dosages(i)} dosageAB=${dosages(i+1)} dosageBB=${dosages(i+2)}")
-//      println(s"probAA=${probs(0)} probAB=${probs(1)} probBB=${probs(2)}")
-//      println(s"intAA=${dosageAA} intAB=${dosageAB} intBB=${dosageBB}")
-//      println(s"genotype=$gt")
-
-      genoBuilder.clear()
-      if (gt >= 0) {
-        genoBuilder.setGT(gt)
-        dosageArray(0) = dosageAA
-        dosageArray(1) = dosageAB
-        dosageArray(2) = dosageBB
-
-        genoBuilder.setDosage(dosageArray)
-        if (arr(0) == "01" && arr(3).toInt == 44000 && i == 3) {
-          println(s"input ${dosageArray.mkString(",")}")
-          println(s"genoBuilder ${genoBuilder.getPL().mkString(",")}")
+        if (gt >= 0) {
+          genoBuilder.setGT(gt)
         }
-      }
-      b.write(genoBuilder)
 
+        genoBuilder.setDosage(Array(dosageAA, dosageAB, dosageBB))
+
+      }
+      else
+        numZeroedOut += 1
+
+      b.write(genoBuilder)
     }
+
     (variant, annotations, b.result())
   }
 }
