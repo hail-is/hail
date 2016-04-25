@@ -9,6 +9,7 @@ import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
+import org.broadinstitute.hail.io.gen.GenLoader2
 
 import scala.io.Source
 import scala.language.postfixOps
@@ -39,7 +40,7 @@ class LoadBgenSuite extends SparkSuite {
     s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", "10", bgen))
     assert(s.vds.nSamples == nSamples && s.vds.nVariants == nVariants)
 
-    val genVDS = GenLoader(gen, sampleFile, sc)
+    val genVDS = GenLoader2(gen, sampleFile, sc)
     val bgenVDS = s.vds
     val genVariantsAnnotations = genVDS.variantsAndAnnotations
     val bgenVariantsAnnotations = bgenVDS.variantsAndAnnotations
@@ -61,7 +62,7 @@ class LoadBgenSuite extends SparkSuite {
 
 
   object Spec extends Properties("ImportBGEN") {
-    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
+    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.genDosage _);
                        nPartitions: Int <- choose(1, 10)) yield (vds, nPartitions)
 
     writeTextFile("/tmp/sample_rename.txt", sc.hadoopConfiguration) { case w =>
@@ -121,16 +122,22 @@ class LoadBgenSuite extends SparkSuite {
           val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
 
           val result = originalFull.fullOuterJoin(importedFull).map { case ((v, i), (gt1, gt2)) =>
-            val gt1x = gt1 match {
+              if (gt1 == gt2)
+                true
+              else {
+                println(s"v=$v i=$i $gt1 $gt2")
+                false
+              }
+/*            val gt1x = gt1 match {
               case Some(x) =>
                 var newPl = x.pl.getOrElse(Array(0, 0, 0)).map { i => math.min(i, BgenLoader.MAX_PL) }
                 val newGt = BgenUtils.parseGenotype(newPl)
                 newPl = if (newGt == -1) null else newPl
                 Some(x.copy(gt = Option(newGt), ad = None, dp = None, gq = None, pl = Option(newPl)))
               case None => None
-            }
+            }*/
 
-            if (gt1x == gt2)
+           /* if (gt1x == gt2)
               true
             else {
               if (gt1x.isDefined && gt2.isDefined)
@@ -147,9 +154,9 @@ class LoadBgenSuite extends SparkSuite {
               else {
                 println(s"$v $i $gt1x $gt2")
                 false
-              }
-            }
-          }.fold(true)(_ && _)
+              }*/
+            }.fold(true)(_ && _)
+/*          }.fold(true)(_ && _)*/
 
           result
         }

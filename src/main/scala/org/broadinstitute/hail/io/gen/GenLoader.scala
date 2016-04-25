@@ -7,15 +7,17 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
 
+object GenUtils {
 
-object GenLoader2 {
-  def apply(genFile: String, sampleFile: String, sc: SparkContext, nPartitions: Option[Int] = None, tolerance: Double = 0.02): VariantSampleMatrix[Genotype] = {
-    val hConf = sc.hadoopConfiguration
-    val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
-    val nSamples = sampleIds.length
-    val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions)).map{case line => readGenLine(line, nSamples)}
-    val signatures = TStruct("rsid" -> TString, "varid" -> TString)
-    VariantSampleMatrix(metadata = VariantMetadata(sampleIds).copy(vaSignature = signatures, wasSplit = true), rdd = rdd)
+  def normalizePPs(arr: Array[Double]): Array[Double] = {
+    val sum = arr.sum
+    if (sum != 0.0)
+      if (math.abs(sum - 1.0) > 3.0e-4)
+        arr.map{_ / sum}
+      else
+        arr
+    else
+      Array(0.3333, 0.3333, 0.3333)
   }
 
   def convertProbsToInt(prob: Double): Int = {
@@ -26,14 +28,17 @@ object GenLoader2 {
 
   def convertProbsToInt(probArray: Array[Double]): Array[Int] = probArray.map{ d => convertProbsToInt(d)}
 
-  def normalizePPs(arr: Array[Double]): Array[Double] = {
-    if (arr.sum != 0)
-      if (math.abs(arr.sum - 1.0) > 3.0e-4)
-        arr.map{_ / arr.sum}
-      else
-        arr
-    else
-      Array(0.3333, 0.3333, 0.3333)
+
+}
+
+object GenLoader2 {
+  def apply(genFile: String, sampleFile: String, sc: SparkContext, nPartitions: Option[Int] = None, tolerance: Double = 0.02): VariantSampleMatrix[Genotype] = {
+    val hConf = sc.hadoopConfiguration
+    val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
+    val nSamples = sampleIds.length
+    val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions)).map{case line => readGenLine(line, nSamples)}
+    val signatures = TStruct("rsid" -> TString, "varid" -> TString)
+    VariantSampleMatrix(metadata = VariantMetadata(sampleIds).copy(vaSignature = signatures, wasSplit = true), rdd = rdd)
   }
 
   def readGenLine(line: String, nSamples: Int): (Variant, Annotation, Iterable[Genotype]) = {
@@ -51,17 +56,16 @@ object GenLoader2 {
     val b = new GenotypeStreamBuilder(variant) //FIXME: Add compression flag to apply
     val genoBuilder = new GenotypeBuilder(variant)
 
-    var numZeroedOut = 0
     for (i <- dosages.indices by 3) {
       genoBuilder.clear()
       val origDosages = Array(dosages(i), dosages(i+1), dosages(i+2))
 
       if (origDosages.sum >= (1 - 0.02)) {
-        val normProbs = normalizePPs(Array(dosages(i), dosages(i + 1), dosages(i + 2)))
+        val normProbs = GenUtils.normalizePPs(origDosages)
 
-        val dosageAA = convertProbsToInt(normProbs(0))
-        val dosageAB = convertProbsToInt(normProbs(1))
-        val dosageBB = convertProbsToInt(normProbs(2))
+        val dosageAA = GenUtils.convertProbsToInt(normProbs(0))
+        val dosageAB = GenUtils.convertProbsToInt(normProbs(1))
+        val dosageBB = GenUtils.convertProbsToInt(normProbs(2))
 
         val sumDosage = dosageAA + dosageAB + dosageBB
 
@@ -83,8 +87,6 @@ object GenLoader2 {
         genoBuilder.setDosage(Array(dosageAA, dosageAB, dosageBB))
 
       }
-      else
-        numZeroedOut += 1
 
       b.write(genoBuilder)
     }

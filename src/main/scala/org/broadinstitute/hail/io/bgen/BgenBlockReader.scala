@@ -9,6 +9,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
+import org.broadinstitute.hail.io.gen.GenUtils
 
 import scala.collection.mutable
 
@@ -74,45 +75,43 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       val genoBuilder = new GenotypeBuilder(variant)
 
       for (i <- 0 until bState.nSamples) {
+        genoBuilder.clear()
 
         val pAA = bar.readShort()
         val pAB = bar.readShort()
         val pBB = bar.readShort()
 
-        val dAA = BgenLoader.phredConversionTable(pAA)
-        val dAB = BgenLoader.phredConversionTable(pAB)
-        val dBB = BgenLoader.phredConversionTable(pBB)
+        val origDosages = Array(pAA, pAB, pBB).map{_ / 32768.0}
 
-        val minValue = math.min(math.min(dAA, dAB), dBB)
+        if (math.abs(origDosages.sum - 1.0) <= 0.02) {
+          val normProbs = GenUtils.normalizePPs(origDosages)
 
-        val plAA = (dAA - minValue + .5).toInt
-        val plAB = (dAB - minValue + .5).toInt
-        val plBB = (dBB - minValue + .5).toInt
+          val dosageAA = GenUtils.convertProbsToInt(normProbs(0))
+          val dosageAB = GenUtils.convertProbsToInt(normProbs(1))
+          val dosageBB = GenUtils.convertProbsToInt(normProbs(2))
 
-        assert(plAA == 0 || plAB == 0 || plBB == 0)
+          val sumDosage = dosageAA + dosageAB + dosageBB
 
-        val gt = if (plAA == 0 && plAB == 0
-          || plAA == 0 && plBB == 0
-          || plAB == 0 && plBB == 0)
-          -1
-        else {
-          if (plAA == 0)
+          assert(sumDosage >= 32765 && sumDosage <= 32771)
+
+          val gt = if (dosageAA > dosageAB && dosageAA > dosageBB)
             0
-          else if (plAB == 0)
+          else if (dosageAB > dosageAA && dosageAB > dosageBB)
             1
-          else
+          else if (dosageBB > dosageAA && dosageBB > dosageAB)
             2
+          else
+            -1
+
+          if (gt >= 0) {
+            genoBuilder.setGT(gt)
+          }
+
+          genoBuilder.setDosage(Array(dosageAA, dosageAB, dosageBB))
         }
 
-        genoBuilder.clear()
-        if (gt >= 0) {
-          genoBuilder.setGT(gt)
-          plArray(0) = plAA
-          plArray(1) = plAB
-          plArray(2) = plBB
-          genoBuilder.setPL(plArray)
-        }
         b.write(genoBuilder)
+
       }
 
       value.setKey(variant)
