@@ -60,12 +60,11 @@ object Main {
     sys.exit(1)
   }
 
-  def logException(cmd: Command, e: Throwable): Unit = {
-    val msg = s"hail: ${cmd.name}: caught exception: ${e.getClass.getName}: ${e.getMessage}"
-    log.error(msg)
-    System.err.println(msg)
-    Option(e.getCause).foreach(exception => logException(cmd, exception))
-  }
+
+  def expandException(cmd: Command, e: Throwable): String =
+    s"${e.getClass.getName}: ${e.getMessage}\n${
+      Option(e.getCause).foreach(exception => expandException(cmd, exception))
+    }"
 
   def handlePropagatedException(cmd: Command, e: Throwable) {
     if (e.isInstanceOf[FatalException]) {
@@ -82,7 +81,10 @@ object Main {
     } catch {
       case e: Exception =>
         handlePropagatedException(cmd, e)
-        logException(cmd, e)
+
+        val msg = s"hail: ${cmd.name}: caught exception: ${expandException(cmd, e)}"
+        log.error(msg)
+        System.err.println(msg)
         sys.exit(1)
     }
   }
@@ -93,20 +95,17 @@ object Main {
 
     val times = mutable.ArrayBuffer.empty[(String, Long)]
 
-    invocations.foldLeft(State(sc, sqlContext)) {
-      case (s, (cmd, cmdOpts, cmdArgs)) =>
-        info(s"running: ${
-          cmdArgs
-            .map {
-              s => if (s.contains(" ")) s"'$s'" else s
-            }
-            .mkString(" ")
-        }")
-        val (newS, duration) = time {
-          runCommand(s, cmd, cmdOpts)
-        }
-        times += cmd.name -> duration
-        newS
+    invocations.foldLeft(State(sc, sqlContext)) { case (s, (cmd, cmdOpts, cmdArgs)) =>
+      info(s"running: ${
+        cmdArgs
+          .map { s => if (s.contains(" ")) s"'$s'" else s }
+          .mkString(" ")
+      }")
+      val (newS, duration) = time {
+        runCommand(s, cmd, cmdOpts)
+      }
+      times += cmd.name -> duration
+      newS
     }
 
     VCFReport.report()
