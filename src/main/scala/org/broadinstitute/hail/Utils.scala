@@ -527,8 +527,6 @@ trait Logging {
 
 class FatalException(msg: String) extends RuntimeException(msg)
 
-class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
-
 class RichAny(val a: Any) extends AnyVal {
   def castOption[T](implicit ct: ClassTag[T]): Option[T] =
     if (ct.runtimeClass.isInstance(a))
@@ -969,11 +967,11 @@ object Utils extends Logging {
             s"caught $e"
           log.error(
             s"""
-               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
                |  offending line: $value""".stripMargin)
           fatal(
             s"""
-               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
                |  offending line: $lineToPrint""".stripMargin)
       }
     }

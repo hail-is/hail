@@ -2,8 +2,8 @@ package org.broadinstitute.hail.variant
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
 
 import scala.collection.mutable
@@ -40,8 +40,9 @@ object AltAllele {
 
 case class AltAllele(ref: String,
   alt: String) {
-  require(ref != alt)
-  require(!ref.isEmpty && !alt.isEmpty)
+  require(ref != alt, "ref was equal to alt")
+  require(!ref.isEmpty, "ref was an empty string")
+  require(!alt.isEmpty, "alt was an empty string")
 
   import AltAlleleType._
 
