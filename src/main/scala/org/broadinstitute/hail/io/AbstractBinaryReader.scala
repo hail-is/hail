@@ -14,8 +14,7 @@ abstract class AbstractBinaryReader {
     var toRead = length
     while (toRead > 0) {
       val result = read(byteArray, hasRead, toRead)
-      if (result < 0)
-        return -1
+      assert(result >= 0)
       hasRead += result
       toRead -= result
     }

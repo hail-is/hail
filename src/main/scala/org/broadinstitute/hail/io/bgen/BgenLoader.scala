@@ -10,13 +10,12 @@ import org.broadinstitute.hail.io._
 
 import scala.io.Source
 
-case class BgenState(compressed: Boolean, nSamples: Int, nVariants: Int,
-  headerLength: Int, dataStart: Int, hasIds: Boolean)
+case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
+                      headerLength: Int, dataStart: Int, hasIds: Boolean)
 
 case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, Annotation, Iterable[Genotype])])
 
 object BgenLoader {
-  final val MAX_PL = 51 //difference between the expected minimum value [-10*log10(0.25)] and the expected maximum value [-10*log10(32768)]
 
   lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
 
@@ -109,14 +108,14 @@ object BgenLoader {
     }
   }
 
-  def readState(hConf: org.apache.hadoop.conf.Configuration, file: String): BgenState = {
+  def readState(hConf: org.apache.hadoop.conf.Configuration, file: String): BgenHeader = {
     readFile(file, hConf) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
       readState(reader)
     }
   }
 
-  def readState(reader: HadoopFSDataBinaryReader): BgenState = {
+  def readState(reader: HadoopFSDataBinaryReader): BgenHeader = {
     reader.seek(0)
     val allInfoLength = reader.readInt()
     val headerLength = reader.readInt()
@@ -143,6 +142,6 @@ object BgenLoader {
       fatal(s"Hail supports BGEN version 1.1, got version 1.$version")
 
     val hasIds = (flags >> 30 & 1) != 0
-    BgenState(compression, nSamples, nVariants, headerLength, dataStart, hasIds)
+    BgenHeader(compression, nSamples, nVariants, headerLength, dataStart, hasIds)
   }
 }

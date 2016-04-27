@@ -16,6 +16,8 @@ import scala.sys.process._
 
 class LoadBgenSuite extends SparkSuite {
 
+  final val MAX_PL = 51 //difference between the expected minimum value [-10*log10(0.25)] and the expected maximum value [-10*log10(32768)]
+
   def getNumberOfLinesInFile(file: String): Long = {
     readFile(file, sc.hadoopConfiguration) { s =>
       Source.fromInputStream(s)
@@ -123,7 +125,7 @@ class LoadBgenSuite extends SparkSuite {
           val result = originalFull.fullOuterJoin(importedFull).map { case ((v, i), (gt1, gt2)) =>
             val gt1x = gt1 match {
               case Some(x) =>
-                var newPl = x.pl.getOrElse(Array(0, 0, 0)).map { i => math.min(i, BgenLoader.MAX_PL) }
+                var newPl = x.pl.getOrElse(Array(0, 0, 0)).map { i => math.min(i, MAX_PL) }
                 val newGt = BgenUtils.parseGenotype(newPl)
                 newPl = if (newGt == -1) null else newPl
                 Some(x.copy(gt = Option(newGt), ad = None, dp = None, gq = None, pl = Option(newPl)))
@@ -134,8 +136,8 @@ class LoadBgenSuite extends SparkSuite {
               true
             else {
               if (gt1x.isDefined && gt2.isDefined)
-                gt1x.get.pl.getOrElse(Array(BgenLoader.MAX_PL, BgenLoader.MAX_PL, BgenLoader.MAX_PL))
-                  .zip(gt2.get.pl.getOrElse(Array(BgenLoader.MAX_PL, BgenLoader.MAX_PL, BgenLoader.MAX_PL)))
+                gt1x.get.pl.getOrElse(Array(MAX_PL, MAX_PL, MAX_PL))
+                  .zip(gt2.get.pl.getOrElse(Array(MAX_PL, MAX_PL, MAX_PL)))
                   .forall { case (pl1, pl2) =>
                     if (math.abs(pl1 - pl2) <= 2) {
                       true

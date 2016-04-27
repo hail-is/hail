@@ -25,7 +25,7 @@ class ImportPlinkSuite extends SparkSuite {
 
         s = SplitMulti.run(s, Array[String]())
         s = ExportPlink.run(s, Array("-o","/tmp/truth"))
-        if (vds.nSamples == 0 || vds.nVariants == 0)
+        if (s.vds.nSamples == 0 || s.vds.nVariants == 0)
           try {
             s = ImportPlink.run(s, Array("--bfile","/tmp/truth", "-n", nPartitions.toString))
             false
