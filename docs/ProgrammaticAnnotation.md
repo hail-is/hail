@@ -27,21 +27,22 @@ Identifier | Description
 :-: | ---
 `v` | Variant
 `va` | Variant annotations
-`gs` | Genotype row [aggregable](HailExpressionLanguage.md#aggregables))
+`gs` | Genotype row [aggregable](HailExpressionLanguage.md#aggregables)
 
 **`annotatesamples`:**
 Identifier | Description
 :-: | ---
 `s` | Sample
 `sa` | Sample annotations
-`gs` | Genotype column [aggregable](HailExpressionLanguage.md#aggregables))
+`gs` | Genotype column [aggregable](HailExpressionLanguage.md#aggregables)
 
 **`annotateglobal`:**
 
 Identifier | Description
 :-: | ---
-`v` | Variant
-`va` | Variant annotations
+`global` | Existing global annotations
+`variants` | variants and their annotations, an [aggregable](HailExpressionLanguage.md#aggregables)
+`samples` | samples and their annotations, an [aggregable](HailExpressionLanguage.md#aggregables)
 
 
 ## Command syntax

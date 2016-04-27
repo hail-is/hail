@@ -102,4 +102,40 @@ object Aggregators {
     }
   }
 
+  def makeFunctions(ec: EvalContext): (Array[Any], (Array[Any], (Any, Any)) => Array[Any],
+    (Array[Any], Array[Any]) => Array[Any], (Array[Any]) => Unit) = {
+
+    val agg = ec.aggregationFunctions.toArray
+
+    val arr = ec.a
+    val zVals = agg.map(_._1.apply())
+    val seqOps = agg.map(_._2)
+    val combOps = agg.map(_._3)
+    val indices = agg.map(_._4)
+
+    val seqOp: (Array[Any], (Any, Any)) => Array[Any] = (array: Array[Any], b) => {
+      ec.setContext(b._1, b._2)
+      for (i <- array.indices) {
+        val seqOp = seqOps(i)
+        array(i) = seqOp(array(i))
+      }
+      array
+    }
+    val combOp: (Array[Any], Array[Any]) => Array[Any] = (arr1, arr2) => {
+      for (i <- arr1.indices) {
+        val combOp = combOps(i)
+        arr1(i) = combOp(arr1(i), arr2(i))
+      }
+      arr1
+    }
+
+    val resultOp = (array: Array[Any]) => array.iterator
+      .zip(indices.iterator)
+      .foreach { case (res, index) =>
+        arr(index) = res
+      }
+
+    (zVals, seqOp, combOp, resultOp)
+  }
+
 }

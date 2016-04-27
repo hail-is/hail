@@ -50,11 +50,11 @@ class ExprSuite extends SparkSuite {
       Genotype(gt = Some(1)),
       Genotype(gt = Some(2)),
       Genotype(gt = Some(Genotype.gtIndex(3, 5))))
-    a += true
-    a += false
-    a += null // mb
-    a += "-37" // is
-    a += Set(0, 1, 2)
+    a(10) = true
+    a(11) = false
+    a(12) = null // mb
+    a(13) = "-37" // is
+    a(14) = Set(0, 1, 2)
     assert(a.length == 15)
 
     def eval[T](s: String): Option[T] = {

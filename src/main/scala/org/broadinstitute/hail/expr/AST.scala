@@ -1217,10 +1217,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(c)
       () => t.str(f())
-      t match {
-        case TArray(_) | TSet(_) | TStruct(_) => () => compact(t.makeJSON(f()))
-        case _ => () => f().toString
-      }
   }
 }
 
@@ -1705,7 +1701,7 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case ("+", TString) =>
       val lhsT = lhs.`type`.asInstanceOf[Type]
       val rhsT = rhs.`type`.asInstanceOf[Type]
-      AST.evalCompose[String, String](ec, lhs, rhs){(left, right) => lhsT.str(left) + rhsT.str(right) }
+      AST.evalCompose[Any, Any](ec, lhs, rhs){ (left, right) => lhsT.str(left) + rhsT.str(right) }
     case ("~", TBoolean) => AST.evalCompose[String, String](ec, lhs, rhs) { (s, t) =>
       s.r.findFirstIn(t).isDefined
     }

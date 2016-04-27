@@ -4,6 +4,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods.Aggregators
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -63,71 +64,22 @@ object AnnotateGlobal extends Command {
     val inserters = inserterBuilder.result()
 
     val a = ec.a
-    val sampleA = aggECV.a
-    val variantA = aggECS.a
 
-    val vAgg = aggECV.aggregationFunctions.toArray
-
-    if (vAgg.nonEmpty) {
-      val vArray = aggECV.a
-      val zVals = vAgg.map(_._1.apply())
-      val seqOps = vAgg.map(_._2)
-      val combOps = vAgg.map(_._3)
-      val indices = vAgg.map(_._4)
+    if (aggECV.aggregationFunctions.nonEmpty) {
+      val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions(aggECV)
 
       val result = vds.variantsAndAnnotations
-        .treeAggregate(zVals)({ case (arr, (v, va)) =>
-          aggECV.setContext(v, va)
-          for (i <- arr.indices) {
-            val seqOp = seqOps(i)
-            arr(i) = seqOp(arr(i))
-          }
-          arr
-        }, { case (arr1, arr2) =>
-          for (i <- arr1.indices) {
-            val combOp = combOps(i)
-            arr1(i) = combOp(arr1(i), arr2(i))
-          }
-          arr1
-        })
-      //
-      result.iterator
-        .zip(indices.iterator)
-        .foreach { case (res, index) =>
-          vArray(index) = res
-        }
+        .treeAggregate(zVal)(seqOp, combOp)
+      resOp(result)
     }
 
-    val sAgg = aggECS.aggregationFunctions.toArray
+    if (aggECS.aggregationFunctions.nonEmpty) {
 
-    if (sAgg.nonEmpty) {
-      val sArray = aggECS.a
-      val zVals = sAgg.map(_._1.apply())
-      val seqOps = sAgg.map(_._2)
-      val combOps = sAgg.map(_._3)
-      val indices = sAgg.map(_._4)
+      val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions(aggECS)
+
       val result = vds.sampleIdsAndAnnotations
-        .aggregate(zVals)({ case (arr, (s, sa)) =>
-          aggECS.setContext(s, sa)
-
-          for (i <- arr.indices) {
-            val seqOp = seqOps(i)
-            arr(i) = seqOp(arr(i))
-          }
-          arr
-        }, { case (arr1, arr2) =>
-          for (i <- arr1.indices) {
-            val combOp = combOps(i)
-            arr1(i) = combOp(arr1(i), arr2(i))
-          }
-          arr1
-        })
-
-      result.iterator
-        .zip(indices.iterator)
-        .foreach { case (res, index) =>
-          sArray(index) = res
-        }
+        .aggregate(zVal)(seqOp, combOp)
+      resOp(result)
     }
 
     a(0) = vds.globalAnnotation
