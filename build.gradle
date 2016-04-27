@@ -72,6 +72,18 @@ dependencies {
 test {
     useTestNG {}
 
+    def randomize = System.getProperty("hail.randomize","false").toBoolean()
+    def randomSeed = Random.nextInt()
+
+    if (randomize) {System.setProperty("hail.seed", randomSeed)
+    } else if (!System.hasProperty("hail.seed")) {
+        System.setProperty("hail.seed", "1")
+    }
+    println System.getProperty("hail.seed")
+/*    def seed = System.getProperty("hail.seed", "1")
+    if (randomize) System.setProperty("hail.seed", Random.nextInt())*/
+
+
     systemProperties System.getProperties()
 
     testLogging {

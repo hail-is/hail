@@ -12,6 +12,7 @@ class SparkSuite extends TestNGSuite {
   var sc: SparkContext = null
   var sqlContext: SQLContext = null
   val noArgs: Array[String] = Array.empty[String]
+  val seed: Int = System.getProperty("randseed", "1").toInt
 
   @BeforeClass
   def startSpark() {

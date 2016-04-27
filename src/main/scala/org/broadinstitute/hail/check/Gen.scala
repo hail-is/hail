@@ -5,13 +5,17 @@ import scala.collection.mutable
 import org.apache.commons.math3.random._
 
 object Parameters {
-  val default = Parameters(new RandomDataGenerator(), 100)
+  val default = Parameters(new RandomDataGenerator(), 100, 100)
 }
 
-case class Parameters(rng: RandomDataGenerator, size: Int) {
+case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
   def frequency(pass: Int, outOf: Int): Boolean = {
     assert(outOf > 0)
     rng.getRandomGenerator.nextInt(outOf) < pass
+  }
+
+  def setSeed(seed: Int) {
+    rng.reSeed(seed)
   }
 }
 
