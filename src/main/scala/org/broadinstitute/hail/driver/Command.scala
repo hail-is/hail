@@ -2,10 +2,11 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option => Args4jOption}
+
 import scala.collection.JavaConverters._
-import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
 
 case class State(sc: SparkContext,
@@ -58,8 +59,8 @@ object ToplevelCommands {
   register(ExportVCF)
   register(FilterGenotypes)
   register(FamSummary)
-  register(FilterVariants)
   register(FilterSamples)
+  register(FilterVariants)
   register(GenDataset)
   register(Grep)
   register(GRM)

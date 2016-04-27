@@ -135,7 +135,7 @@ class VSMSuite extends SparkSuite {
       new VariantDataset(mdata1, rdd6))
 
     for (i <- vdss.indices;
-      j <- vdss.indices) {
+         j <- vdss.indices) {
       if (i == j)
         assert(vdss(i) == vdss(j))
       else
@@ -205,7 +205,7 @@ class VSMSuite extends SparkSuite {
     s = Write.run(s, Array("-o", f))
 
     s = Read.run(s, Array("--skip-genotypes", "-i", f))
-    s = FilterVariants.run(s, Array("--keep", "-c", "va.info.AF[0] < 0.01"))
+    s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.info.AF[0] < 0.01"))
 
     assert(s.vds.nVariants == 234)
   }
@@ -221,7 +221,7 @@ class VSMSuite extends SparkSuite {
     s = Read.run(s, Array("--skip-genotypes", "-i", f))
 
     var s2 = Read.run(s, Array("-i", f))
-    s2 = FilterSamples.run(s, Array("--remove", "--all"))
+    s2 = FilterSamplesAll.run(s)
 
     assert(s.vds.same(s2.vds))
   }

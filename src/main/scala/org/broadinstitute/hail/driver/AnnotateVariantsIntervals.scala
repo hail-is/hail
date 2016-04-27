@@ -5,7 +5,7 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object AnnotateVariantsIList extends Command {
+object AnnotateVariantsIntervals extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"),

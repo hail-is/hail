@@ -1,9 +1,10 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
+
 import scala.io.Source
 
 class ExportSuite extends SparkSuite {
@@ -84,7 +85,7 @@ class ExportSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
-    s = FilterSamples.run(s, Array("--keep", "-c", """s.id == "C469::HG02026""""))
+    s = FilterSamplesExpr.run(s, Array("--keep", "-c", """s.id == "C469::HG02026""""))
     assert(s.vds.nSamples == 1)
 
     // verify exports localSamples
