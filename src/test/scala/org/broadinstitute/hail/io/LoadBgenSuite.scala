@@ -66,7 +66,8 @@ class LoadBgenSuite extends SparkSuite {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
                        nPartitions: Int <- choose(1, 10)) yield (vds, nPartitions)
 
-    writeTextFile("/tmp/sample_rename.txt", sc.hadoopConfiguration) { case w =>
+    val sampleRenameFile = tmpDir.createTempFile(prefix="sample_rename")
+    writeTextFile(sampleRenameFile, sc.hadoopConfiguration) { case w =>
       w.write("NA\tfdsdakfasdkfla")
     }
 
@@ -75,7 +76,7 @@ class LoadBgenSuite extends SparkSuite {
 
         val vdsRemapped = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "01"), va, gs) })
 
-        val fileRoot = "/tmp/testGenWriter"
+        val fileRoot = tmpDir.createTempFile(prefix="testImportBgen")
         val sampleFile = fileRoot + ".sample"
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
@@ -90,7 +91,7 @@ class LoadBgenSuite extends SparkSuite {
 
         var s = State(sc, sqlContext, vdsRemapped)
         s = SplitMulti.run(s, Array[String]())
-        s = RenameSamples.run(s, Array("-i", "/tmp/sample_rename.txt"))
+        s = RenameSamples.run(s, Array("-i", sampleRenameFile))
 
         val origVds = s.vds
 

@@ -1,4 +1,4 @@
-package org.broadinstitute.hail.methods
+package org.broadinstitute.hail.io
 
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
@@ -21,26 +21,29 @@ class ImportPlinkSuite extends SparkSuite {
     property("import generates same output as export") =
       forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
 
+        val tmpTruthRoot = tmpDir.createTempFile(prefix = "truth")
+        val tmpTestRoot = tmpDir.createTempFile(prefix = "test")
+
         var s = State(sc, sqlContext, vds)
 
         s = SplitMulti.run(s, Array[String]())
-        s = ExportPlink.run(s, Array("-o","/tmp/truth"))
+        s = ExportPlink.run(s, Array("-o", tmpTruthRoot))
         if (s.vds.nSamples == 0 || s.vds.nVariants == 0)
           try {
-            s = ImportPlink.run(s, Array("--bfile","/tmp/truth", "-n", nPartitions.toString))
+            s = ImportPlink.run(s, Array("--bfile", tmpTruthRoot, "-n", nPartitions.toString))
             false
           } catch {
             case e:FatalException => true
             case _: Throwable => false
           }
         else {
-          s = ImportPlink.run(s, Array("--bfile","/tmp/truth", "-n", nPartitions.toString))
+          s = ImportPlink.run(s, Array("--bfile", tmpTruthRoot, "-n", nPartitions.toString))
           s = SplitMulti.run(s, Array[String]())
-          s = ExportPlink.run(s, Array("-o", "/tmp/test"))
+          s = ExportPlink.run(s, Array("-o", tmpTestRoot))
 
-          val exitCodeFam = "diff /tmp/truth.fam /tmp/test.fam" !
-          val exitCodeBim = "diff /tmp/truth.bim /tmp/test.bim" !
-          val exitCodeBed = "diff /tmp/truth.bed /tmp/test.bed" !
+          val exitCodeFam = s"diff $tmpTruthRoot.fam $tmpTestRoot.fam" !
+          val exitCodeBim = s"diff $tmpTruthRoot.bim $tmpTestRoot.bim" !
+          val exitCodeBed = s"diff $tmpTruthRoot.bed $tmpTestRoot.bed" !
 
           if (exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0)
             true
