@@ -30,4 +30,6 @@ object Annotation {
   }
 
   def apply(args: Any*): Annotation = Row.fromSeq(args)
+
+  def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)
 }
