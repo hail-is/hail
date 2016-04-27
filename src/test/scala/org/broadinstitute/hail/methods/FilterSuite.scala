@@ -1,16 +1,10 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.TestRDDBuilder
-import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
-import org.broadinstitute.hail.Utils._
-
-import scala.collection.mutable.ArrayBuffer
 
 class FilterSuite extends SparkSuite {
 
@@ -20,16 +14,16 @@ class FilterSuite extends SparkSuite {
     var state = State(sc, sqlContext, vds.cache())
     state = SplitMulti.run(state, Array.empty[String])
 
-    assert(FilterSamples.run(state, Array("--keep", "-c", "\"^HG\" ~ s.id"))
+    assert(FilterSamplesExpr.run(state, Array("--keep", "-c", "\"^HG\" ~ s.id"))
       .vds.nSamples == 63)
 
-    assert(FilterVariants.run(state, Array("--remove", "-c", "v.start >= 14066228"))
+    assert(FilterVariantsExpr.run(state, Array("--remove", "-c", "v.start >= 14066228"))
       .vds.nVariants == 173)
 
-    assert(FilterVariants.run(state, Array("--keep", "-c", "va.pass"))
+    assert(FilterVariantsExpr.run(state, Array("--keep", "-c", "va.pass"))
       .vds.nVariants == 312)
 
-    assert(FilterVariants.run(state, Array("--keep", "-c", "va.info.AN == 200"))
+    assert(FilterVariantsExpr.run(state, Array("--keep", "-c", "va.info.AN == 200"))
       .vds.nVariants == 310)
 
     /*
@@ -37,45 +31,45 @@ class FilterSuite extends SparkSuite {
       .vds.nVariants == 3)
       */
 
-    assert(FilterVariants.run(state, Array("--keep", "-c", """va.filters.contains("VQSRTrancheSNP99.60to99.80")"""))
+    assert(FilterVariantsExpr.run(state, Array("--keep", "-c", """va.filters.contains("VQSRTrancheSNP99.60to99.80")"""))
       .vds.nVariants == 3)
 
     // FIXME: rsid of "." should be treated as missing value
-    assert(FilterVariants.run(state, Array("--keep", "-c", """va.rsid != ".""""))
+    assert(FilterVariantsExpr.run(state, Array("--keep", "-c", """va.rsid != ".""""))
       .vds.nVariants == 258)
 
-    assert(FilterVariants.run(state, Array("--remove", "-c", """va.rsid == ".""""))
+    assert(FilterVariantsExpr.run(state, Array("--remove", "-c", """va.rsid == ".""""))
       .vds.nVariants == 258)
 
     val stateWithSampleQC = SampleQC.run(state, Array.empty[String])
 
-    assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.nCalled == 337"))
+    assert(FilterSamplesExpr.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.nCalled == 337"))
       .vds.nSamples == 17)
 
-    assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.dpMean > 60"))
+    assert(FilterSamplesExpr.run(stateWithSampleQC, Array("--keep", "-c", "sa.qc.dpMean > 60"))
       .vds.nSamples == 7)
 
-    assert(FilterSamples.run(stateWithSampleQC, Array("--keep", "-c", "if (\"^C1048\" ~ s.id) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3"))
+    assert(FilterSamplesExpr.run(stateWithSampleQC, Array("--keep", "-c", "if (\"^C1048\" ~ s.id) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3"))
       .vds.nSamples == 14)
 
     val stateWithVariantQC = VariantQC.run(state, Array.empty[String])
 
-    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.nCalled < 100"))
+    assert(FilterVariantsExpr.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.nCalled < 100"))
       .vds.nVariants == 36)
 
-    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.nHomVar > 0 && va.qc.nHet > 0"))
+    assert(FilterVariantsExpr.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.nHomVar > 0 && va.qc.nHet > 0"))
       .vds.nVariants == 104)
 
-    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar > 0"))
+    assert(FilterVariantsExpr.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar > 0"))
       .vds.nVariants == 104)
 
-    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar >= 0"))
+    assert(FilterVariantsExpr.run(stateWithVariantQC, Array("--keep", "-c", "va.qc.rHetHomVar >= 0"))
       .vds.nVariants == 117)
 
-    assert(FilterVariants.run(stateWithVariantQC, Array("--remove", "-c", "isMissing(va.qc.rHetHomVar)"))
+    assert(FilterVariantsExpr.run(stateWithVariantQC, Array("--remove", "-c", "isMissing(va.qc.rHetHomVar)"))
       .vds.nVariants == 117)
 
-    assert(FilterVariants.run(stateWithVariantQC, Array("--keep", "-c", "isDefined(va.qc.rHetHomVar)"))
+    assert(FilterVariantsExpr.run(stateWithVariantQC, Array("--keep", "-c", "isDefined(va.qc.rHetHomVar)"))
       .vds.nVariants == 117)
 
     val highGQ = FilterGenotypes.run(state, Array("--remove", "-c", "g.gq < 20"))
@@ -99,7 +93,7 @@ class FilterSuite extends SparkSuite {
 
     assert(!highGQ2.vds.expand().collect().exists { case (v, s, g) => g.gq.exists(_ < 20) })
 
-    val chr1 = FilterVariants.run(state2, Array("--keep", "-c", "v.contig == \"1\""))
+    val chr1 = FilterVariantsExpr.run(state2, Array("--keep", "-c", "v.contig == \"1\""))
 
     assert(chr1.vds.rdd.count == 9)
 
@@ -124,27 +118,27 @@ class FilterSuite extends SparkSuite {
     var state = State(sc, sqlContext, vds)
     state = SplitMulti.run(state, Array.empty[String])
 
-    assert(FilterSamples.run(state, Array("--keep", "-c", "src/test/resources/filter.sample_list")).vds.nSamples == 3)
+    assert(FilterSamplesList.run(state, Array("--keep", "-i", "src/test/resources/filter.sample_list")).vds.nSamples == 3)
 
-    assert(FilterSamples.run(state, Array("--remove", "-c", "src/test/resources/filter.sample_list")).vds.nSamples == 5)
+    assert(FilterSamplesList.run(state, Array("--remove", "-i", "src/test/resources/filter.sample_list")).vds.nSamples == 5)
 
-    assert(FilterVariants.run(state, Array("--keep", "-c", "src/test/resources/filter.interval_list")).vds.nVariants == 6)
+    assert(FilterVariantsIntervals.run(state, Array("--keep", "-i", "src/test/resources/filter.interval_list")).vds.nVariants == 6)
 
-    assert(FilterVariants.run(state, Array("--remove", "-c", "src/test/resources/filter.interval_list")).vds.nVariants == 2)
+    assert(FilterVariantsIntervals.run(state, Array("--remove", "-i", "src/test/resources/filter.interval_list")).vds.nVariants == 2)
 
   }
 
   @Test def filterRegexTest() {
     val vds = LoadVCF(sc, "src/test/resources/multipleChromosomes.vcf")
     val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
-    val s2 = FilterVariants.run(s, Array("--keep", "-c", """ "^\\d+$" ~ v.contig """))
+    val s2 = FilterVariantsExpr.run(s, Array("--keep", "-c", """ "^\\d+$" ~ v.contig """))
     assert(s.vds.nVariants == s2.vds.nVariants)
   }
 
   @Test def MissingTest() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
-    val keepOneSample = FilterSamples.run(s, Array("--keep", "-c", "s.id == \"C1046::HG02024\""))
+    val keepOneSample = FilterSamplesExpr.run(s, Array("--keep", "-c", "s.id == \"C1046::HG02024\""))
     val qc = VariantQC.run(keepOneSample, Array.empty[String])
 
     val q = qc.vds.queryVA("va.qc.rHetHomVar")._2
@@ -158,7 +152,7 @@ class FilterSuite extends SparkSuite {
     // ensure that we're not checking empty vs empty
     assert(missingVariants.size > 0)
 
-    val missingVariantsFilter = FilterVariants.run(qc, Array("--keep", "-c", "isMissing(va.qc.rHetHomVar)"))
+    val missingVariantsFilter = FilterVariantsExpr.run(qc, Array("--keep", "-c", "isMissing(va.qc.rHetHomVar)"))
       .vds
       .variantsAndAnnotations
       .collect()
@@ -174,7 +168,7 @@ class FilterSuite extends SparkSuite {
       .mapAnnotations((v, va, gs) => i(va, Some(1000)))
       .copy(vaSignature = sigs)
     val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
-    val s2 = FilterVariants.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))
+    val s2 = FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`weird name \t test` > 500"))
     assert(s2.vds.nVariants == vds.nVariants)
   }
 

@@ -3,7 +3,6 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.SparkException
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.expr.TStruct
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
@@ -60,7 +59,8 @@ class ImportVCFSuite extends SparkSuite {
 
     s = SplitMulti.run(s, Array("--propagate-gq"))
 
-    ExportVCF.run(s, Array("-o", "/tmp/foo.vcf"))
+    val f = tmpDir.createTempFile(extension = ".vcf")
+    ExportVCF.run(s, Array("-o", f))
 
     var s2 = State(sc, sqlContext)
     s2 = ImportVCF.run(s, Array("--store-gq", "src/test/resources/store_gq_split.vcf"))
@@ -104,6 +104,6 @@ class ImportVCFSuite extends SparkSuite {
       s = ImportVCF.run(s, Array("src/test/resources/malformed.vcf"))
       s.vds.rdd.count() // force
     }
-    assert(e.getMessage.contains("org.broadinstitute.hail.PropagatedTribbleException: "))
+    assert(e.getMessage.contains("caught htsjdk.tribble.TribbleException$InternalCodecException: "))
   }
 }

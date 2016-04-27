@@ -41,6 +41,9 @@ object ImportAnnotations extends Command {
   def run(state: State, options: Options): State = {
     val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
+    if (files.isEmpty)
+      fatal("Arguments referred to no files")
+
     val (rdd, signature) = VariantTSVAnnotator(state.sc,
       files,
       AnnotateVariantsTSV.parseColumns(options.vCols),
@@ -49,7 +52,7 @@ object ImportAnnotations extends Command {
 
     val vds = new VariantDataset(
       VariantMetadata(IndexedSeq.empty, Annotation.emptyIndexedSeq(0), Annotation.empty,
-        TEmpty, signature, TEmpty, wasSplit = true),
+        TStruct.empty, signature, TStruct.empty, wasSplit = true),
       rdd.map { case (v, va) => (v, va, Iterable.empty) })
 
     state.copy(vds = vds)

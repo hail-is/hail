@@ -3,7 +3,6 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.{FatalException, SparkSuite}
@@ -31,7 +30,8 @@ class ExprSuite extends SparkSuite {
       "t" ->(10, TBoolean),
       "f" ->(11, TBoolean),
       "mb" ->(12, TBoolean),
-      "is" ->(13, TString))
+      "is" ->(13, TString),
+      "iset" ->(14, TSet(TInt)))
     val ec = EvalContext(symTab)
 
     val a = ec.a
@@ -50,11 +50,12 @@ class ExprSuite extends SparkSuite {
       Genotype(gt = Some(1)),
       Genotype(gt = Some(2)),
       Genotype(gt = Some(Genotype.gtIndex(3, 5))))
-    a(10) = true
-    a(11) = false
-    a(12) = null // mb
-    a(13) = "-37" // is
-    assert(a.length == 14)
+    a += true
+    a += false
+    a += null // mb
+    a += "-37" // is
+    a += Set(0, 1, 2)
+    assert(a.length == 15)
 
     def eval[T](s: String): Option[T] = {
       val f = Parser.parse(s, ec)._2
@@ -133,12 +134,33 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
 
+    assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
+      .contains("HELLO=-7, asdasd9"))
+
+    assert(eval[IndexedSeq[_]](""" a.filter(x => x < 4)   """)
+      .contains(IndexedSeq(1, 2, 3, 3, -1)))
+
+    assert(eval[IndexedSeq[_]](""" a.filter(x => x < 4).map(x => x * 100)   """)
+      .contains(IndexedSeq(1, 2, 3, 3, -1).map(_ * 100)))
+
+    assert(eval[Boolean](""" a.filter(x => x < 4).map(x => x * 100).exists(x => x == -100)   """)
+      .contains(true))
+
+    assert(eval[Int]("""a.min""").contains(-1))
+    assert(eval[Int]("""a.max""").contains(8))
+    assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
+    assert(eval[String]("""str(i)""").contains("5"))
+    assert(eval[String](""" 5 + "5" """) == eval[String](""" "5" + 5 """))
+    assert(eval[Int]("""iset.min""").contains(0))
+    assert(eval[Int]("""iset.max""").contains(2))
+    assert(eval[Int]("""iset.sum""").contains(3))
+
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
   }
 
   @Test def testAssign() {
-    val t1 = TEmpty
+    val t1 = TStruct.empty
 
     val (t2, insb) = t1.insert(TInt, "a", "b")
     val (t3, insc) = t2.insert(TDouble, "a", "c")
@@ -191,7 +213,14 @@ class ExprSuite extends SparkSuite {
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()
       val json = t.makeJSON(a)
-      a == VEP.jsonToAnnotation(json, t, "")
+      a == Annotation.fromJson(json, t, "")
+    })
+  }
+
+  @Test def testReadWrite() {
+    check(forAll { (t: Type) =>
+      val a = t.genValue.sample()
+      t.makeSparkReadable(t.makeSparkWritable(a)) == a
     })
   }
 

@@ -156,7 +156,7 @@ object ExportVCF extends Command {
       sb += '\t'
 
       filterQuery.flatMap(_ (a))
-        .map(_.asInstanceOf[IndexedSeq[String]]) match {
+        .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween { s =>
@@ -173,10 +173,15 @@ object ExportVCF extends Command {
 
       infoQuery(a).map(_.asInstanceOf[Row]) match {
         case Some(r) =>
-          infoSignature.get.fields
-            .zip(r.toSeq)
-            .foreachBetween { case (f, v) =>
-              if (v != null) {
+          val toWrite =
+            infoSignature.get.fields
+              .zip(r.toSeq)
+              .filter { case (f, v) => Option(v).isDefined }
+          if (toWrite.isEmpty)
+            sb += '.'
+          else {
+            toWrite
+              .foreachBetween { case (f, v) =>
                 sb.append(f.name)
                 if (f.`type` != TBoolean) {
                   sb += '='
@@ -185,8 +190,8 @@ object ExportVCF extends Command {
                     case _ => sb.append(v)
                   }
                 }
-              }
-            } { () => sb += ';' }
+              } { () => sb += ';' }
+          }
 
         case None =>
           sb += '.'

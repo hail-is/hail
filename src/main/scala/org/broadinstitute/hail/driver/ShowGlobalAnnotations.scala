@@ -27,7 +27,7 @@ object ShowGlobalAnnotations extends Command {
       fatal("showannotations requires a non-null variant dataset, import or read one first")
 
     val json = vds.globalSignature.makeJSON(vds.globalAnnotation)
-    val result = if (vds.globalSignature == TEmpty)
+    val result = if (vds.globalSignature == TStruct.empty)
       "Global annotations: `global' = Empty"
     else
       "Global annotations: `global' = " + pretty(render(json))

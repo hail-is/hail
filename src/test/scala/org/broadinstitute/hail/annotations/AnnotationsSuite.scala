@@ -3,12 +3,12 @@ package org.broadinstitute.hail.annotations
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant.Variant
 import org.testng.annotations.Test
-import org.broadinstitute.hail.methods._
+
 import scala.collection.mutable
 import scala.language.implicitConversions
 
@@ -101,9 +101,9 @@ class AnnotationsSuite extends SparkSuite {
       f.`type` == TSet(TString)
         && f.attrs.nonEmpty))
     assert(filtQuery(variantAnnotationMap(firstVariant))
-      .contains(Array("PASS"): mutable.WrappedArray[String]))
+      contains Set("PASS"))
     assert(filtQuery(variantAnnotationMap(anotherVariant))
-      contains (Array("VQSRTrancheSNP99.95to100.00"): mutable.WrappedArray[String]))
+      contains Set("VQSRTrancheSNP99.95to100.00"))
 
     // GATK PASS
     val passQuery = vas.query("pass")
@@ -118,9 +118,9 @@ class AnnotationsSuite extends SparkSuite {
     val vas2 = vds2.vaSignature
 
     // Check that VDS can be written to disk and retrieved while staying the same
-    hadoopDelete("/tmp/sample.vds", sc.hadoopConfiguration, recursive = true)
-    vds2.write(sqlContext, "/tmp/sample.vds")
-    val readBack = Read.run(state, Array("-i", "/tmp/sample.vds"))
+    val f = tmpDir.createTempFile("sample", extension = ".vds")
+    vds2.write(sqlContext, f)
+    val readBack = Read.run(state, Array("-i", f))
 
     assert(readBack.vds.same(vds2))
   }
@@ -130,8 +130,10 @@ class AnnotationsSuite extends SparkSuite {
     val s = State(sc, sqlContext, vds1)
     val vds2 = LoadVCF(sc, "src/test/resources/sample.vcf")
     assert(vds1.same(vds2))
-    Write.run(s, Array("-o", "/tmp/sample.vds"))
-    val vds3 = Read.run(s, Array("-i", "/tmp/sample.vds")).vds
+
+    val f = tmpDir.createTempFile("sample", extension = ".vds")
+    Write.run(s, Array("-o", f))
+    val vds3 = Read.run(s, Array("-i", f)).vds
     assert(vds3.same(vds1))
   }
 
@@ -150,7 +152,7 @@ class AnnotationsSuite extends SparkSuite {
     val (emptyS, d1) = vds.deleteVA()
     vds = vds.mapAnnotations((v, va, gs) => d1(va))
       .copy(vaSignature = emptyS)
-    assert(emptyS == TEmpty)
+    assert(emptyS == TStruct.empty)
 
     // add to the first layer
     val toAdd = 5
@@ -357,8 +359,10 @@ class AnnotationsSuite extends SparkSuite {
     state = state.copy(vds = vds.mapAnnotations((v, va, gs) => ins(va, Some(5)))
       .copy(vaSignature = newS))
 
-    Write.run(state, Array("-o", "/tmp/testwrite.vds"))
-    val state2 = Read.run(state, Array("-i", "/tmp/testwrite.vds"))
+    val f = tmpDir.createTempFile("testwrite", extension = ".vds")
+
+    Write.run(state, Array("-o", f))
+    val state2 = Read.run(state, Array("-i", f))
     assert(state.vds.same(state2.vds))
   }
 }

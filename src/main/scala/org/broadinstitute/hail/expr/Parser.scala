@@ -298,7 +298,7 @@ object Parser extends JavaTokenParsers {
   }
 
   def type_expr: Parser[Type] =
-    "Empty" ^^ { _ => TEmpty } |
+    "Empty" ^^ { _ => TStruct.empty } |
       "Boolean" ^^ { _ => TBoolean } |
       "Char" ^^ { _ => TChar } |
       "Int" ^^ { _ => TInt } |

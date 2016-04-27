@@ -30,6 +30,9 @@ object VariantSampleMatrix {
 
     val hConf = sqlContext.sparkContext.hadoopConfiguration
 
+    if (!hadoopExists(hConf, dirname))
+      fatal(s"no VDS found at `$dirname'")
+
     val vaSchema = dirname + "/va.schema"
     val saSchema = dirname + "/sa.schema"
     val globalSchema = dirname + "/global.schema"
@@ -99,18 +102,25 @@ object VariantSampleMatrix {
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
+    val vaRequiresConversion = vaSignature.requiresConversion
+
     if (skipGenotypes)
       new VariantSampleMatrix[Genotype](
         metadata.copy(sampleIds = IndexedSeq.empty[String],
           sampleAnnotations = IndexedSeq.empty[Annotation]),
         df.select("variant", "annotations")
-          .map(row => (row.getVariant(0), row.get(1), Iterable.empty[Genotype])))
+          .map(row => (row.getVariant(0),
+            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
+            Iterable.empty[Genotype])))
     else
       new VariantSampleMatrix(
         metadata,
         df.rdd.map { row =>
           val v = row.getVariant(0)
-          (v, row.get(1), row.getGenotypeStream(v, 2))
+
+          (v,
+            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
+            row.getGenotypeStream(v, 2))
         })
   }
 
@@ -122,12 +132,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](nSamples, g(v)))
+         values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](g(v)))
+         values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -141,18 +151,21 @@ object VariantSampleMatrix {
     variants: Array[Variant],
     g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val nSamples = sampleIds.length
-    for (rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
-      variants.map(v => Gen.zip(
-        Gen.const(v),
-        Gen.const(Annotation.empty),
-        genValues(nSamples, g(v))))))
-      yield VariantSampleMatrix[T](VariantMetadata(sampleIds), sc.parallelize(rows))
+    for (vaSig <- Type.genArb; saSig <- Type.genArb; globalSig <- Type.genArb;
+         saValues <- Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(saSig.genValue));
+        globalValue <- globalSig.genValue;
+         rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
+           variants.map(v => Gen.zip(
+             Gen.const(v),
+             vaSig.genValue,
+             genValues(nSamples, g(v))))))
+      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, globalValue, saSig, vaSig, globalSig), sc.parallelize(rows))
   }
 
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap {
       case (sampleIds, variants) => gen(sc, sampleIds, variants, g)
@@ -466,13 +479,26 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     rdd.map { case (v, va, gs) => (v, gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g))) }
 
   def same(that: VariantSampleMatrix[T]): Boolean = {
-    metadata == that.metadata &&
+    val metadataSame = metadata == that.metadata
+    if (!metadataSame)
+      println("metadata were not the same")
+    metadataSame &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
         .map {
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
-            it1.sameElements(it2) && va1 == va2
-          case _ => false
+            val annotationsSame = va1 == va2
+            if (!annotationsSame)
+              println(s"annotations $va1, $va2 were not the same")
+            val genotypesSame = (it1, it2).zipped.forall { case (g1, g2) =>
+              if (g1 != g2)
+                println(s"genotypes $g1, $g2 were not the same")
+              g1 == g2
+            }
+            annotationsSame && genotypesSame
+          case (v, _) =>
+            println(s"Found unmatched variant $v")
+            false
         }.fold(true)(_ && _)
   }
 
@@ -659,10 +685,15 @@ class RichVDS(vds: VariantDataset) {
       }
     }
 
+    val vaSignature = vds.vaSignature
+    val vaRequiresConversion = vaSignature.requiresConversion
+
     val rowRDD = vds.rdd
       .map {
         case (v, va, gs) =>
-          Row.fromSeq(Array(v.toRow, va, gs.toGenotypeStream(v, compress).toRow))
+          Row.fromSeq(Array(v.toRow,
+            if (vaRequiresConversion) vaSignature.makeSparkWritable(va) else va,
+            gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
