@@ -106,4 +106,13 @@ class ImportVCFSuite extends SparkSuite {
     }
     assert(e.getMessage.contains("caught htsjdk.tribble.TribbleException$InternalCodecException: "))
   }
+
+  @Test def testPPs() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf", "--pp-as-pl"))
+
+    val s2 = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+
+    assert(s.vds.same(s2.vds))
+  }
 }
