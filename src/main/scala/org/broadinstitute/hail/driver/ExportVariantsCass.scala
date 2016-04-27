@@ -78,11 +78,11 @@ object ExportVariantsCass extends Command {
     val symTab = Map(
       "v" ->(0, TVariant),
       "va" ->(1, vas))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
+    val ec = EvalContext(symTab)
+    val a = ec.a
 
-    val (header, fs) = Parser.parseExportArgs(cond, symTab, a)
+    val (header, fs) = Parser.parseExportArgs(cond, ec)
+
     if (header.isEmpty)
       fatal("column names required in condition")
 

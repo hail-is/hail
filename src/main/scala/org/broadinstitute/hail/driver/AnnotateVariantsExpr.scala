@@ -2,9 +2,8 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.expr.Type
-import org.broadinstitute.hail.io.annotators._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods.Aggregators
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -28,17 +27,25 @@ object AnnotateVariantsExpr extends Command {
 
     val cond = options.condition
 
-    val symTab = Map(
-      "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.vaSignature))
-    val a = new mutable.ArrayBuffer[Any](2)
-    for (_ <- symTab)
-      a += null
 
-    val parsed = expr.Parser.parseAnnotationArgs(cond, symTab, a)
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)))
+    val symTab = Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "gs" ->(-1, TAggregable(aggregationEC)))
+
+
+    val ec = EvalContext(symTab)
+    val parsed = Parser.parseAnnotationArgs(cond, ec)
+
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "va")
-        fatal(s"Path must start with `va.', got `${ids.mkString(".")}'")
+        fatal(s"Path must start with `va', got `${ids.mkString(".")}'")
       val sig = t match {
         case tws: Type => tws
         case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
@@ -55,9 +62,12 @@ object AnnotateVariantsExpr extends Command {
     }
     val inserters = inserterBuilder.result()
 
-    val annotated = vdsAddedSigs.mapAnnotations { case (v, va) =>
-      a(0) = v
-      a(1) = va
+    val aggregateOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
+
+    val annotated = vdsAddedSigs.mapAnnotations { case (v, va, gs) =>
+      ec.setContext(v, va)
+
+      aggregateOption.foreach(f => f(v, va, gs))
 
       var newVA = va
       computations.indices.foreach { i =>
@@ -65,7 +75,6 @@ object AnnotateVariantsExpr extends Command {
       }
       newVA
     }
-
     state.copy(vds = annotated)
   }
 

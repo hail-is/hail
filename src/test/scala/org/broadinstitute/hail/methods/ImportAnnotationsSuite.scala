@@ -200,7 +200,7 @@ class ImportAnnotationsSuite extends SparkSuite {
         case (v, va) =>
           (v.start <= 14000000 && q2(va).contains("gene1")) ||
             (v.start >= 17000000 && q2(va).contains("gene2")) ||
-            (q2(va).isEmpty)
+            q2(va).isEmpty
       }
 
     assert(bed3r.vds.same(bed2r.vds))
@@ -225,17 +225,35 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val s2 = ImportVCF.run(state, Array("src/test/resources/sampleInfoOnly.vcf"))
     val s2split = SplitMulti.run(s2)
-    Write.run(s2split, Array("-o", "/tmp/variantAnnotationsVCF.vds"))
+
+    val importVCFFile = tmpDir.createTempFile("variantAnnotationsTSV", ".vds")
+    val importTSVFile = tmpDir.createTempFile("variantAnnotationsTSV", ".vds")
+
+    Write.run(s2split, Array("-o", importVCFFile))
 
     val annoState = ImportAnnotations.run(state,
       Array("src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double"))
-    Write.run(annoState, Array("-o", "/tmp/variantAnnotationsTSV.vds"))
+    Write.run(annoState, Array("-o", importTSVFile))
 
     val tsvToVDS = AnnotateVariants.run(state,
-      Array("vds", "-i", "/tmp/variantAnnotationsTSV.vds", "-r", "va.stuff"))
+      Array("vds", "-i", importTSVFile, "-r", "va.stuff"))
 
     val vcfToVDS = AnnotateVariants.run(state,
-      Array("vds", "-i", "/tmp/variantAnnotationsVCF.vds", "-r", "va.other"))
+      Array("vds", "-i", importVCFFile, "-r", "va.other"))
+
+//    val sb = new StringBuilder
+//    vcf1.vds.vaSignature.pretty(sb, 0)
+//    println("vcf1: " + sb.result())
+//    sb.clear
+//
+//    vcfToVDS.vds.vaSignature.pretty(sb, 0)
+//    println("vcfToVDS: " + sb.result())
+//    sb.clear
+
+//    println(vcf1.vds.vaSignature == vcfToVDS.vds.vaSignature)
+//    println(vcf1.vds.metadata == vcfToVDS.vds.metadata)
+    println(vcf1.vds.variantsAndAnnotations.take(1).head)
+    println(vcfToVDS.vds.variantsAndAnnotations.take(1).head)
 
     assert(tsv1r.vds.same(tsvToVDS.vds))
     assert(vcf1.vds.same(vcfToVDS.vds))

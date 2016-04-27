@@ -1,6 +1,7 @@
 package org.broadinstitute.hail
 
 import java.io._
+import java.net.URI
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
@@ -28,6 +29,7 @@ import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.util.Random
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0
@@ -290,6 +292,21 @@ class RichArray[T](a: Array[T]) {
   def duplicates(): Set[T] = a.toIterable.duplicates()
 }
 
+class RichOrderedArray[T : Ordering](a: Array[T]) {
+  def isIncreasing: Boolean = a.toSeq.isIncreasing
+
+  def isSorted: Boolean = a.toSeq.isSorted
+}
+
+class RichOrderedSeq[T : Ordering](s: Seq[T]) {
+  import scala.math.Ordering.Implicits._
+
+  def isIncreasing: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ < _)
+
+  def isSorted: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ <= _)
+}
+
+
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFiles[T](files: Array[String], f: String => Unit = s => (),
     nPartitions: Int = sc.defaultMinPartitions): RDD[Line] = {
@@ -415,6 +432,8 @@ class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
 
 class RichOption[T](val o: Option[T]) extends AnyVal {
   def contains(v: T): Boolean = o.isDefined && o.get == v
+
+  override def toString: String = o.toString
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
@@ -505,6 +524,10 @@ class RichBoolean(val b: Boolean) extends AnyVal {
   def ==>(that: => Boolean): Boolean = !b || that
 
   def iff(that: Boolean): Boolean = b == that
+
+  def toInt: Double = if (b) 1 else 0
+
+  def toDouble: Double = if (b) 1d else 0d
 }
 
 trait Logging {
@@ -518,8 +541,6 @@ trait Logging {
 }
 
 class FatalException(msg: String) extends RuntimeException(msg)
-
-class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
 
 class RichAny(val a: Any) extends AnyVal {
   def castOption[T](implicit ct: ClassTag[T]): Option[T] =
@@ -579,6 +600,51 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   }
 }
 
+object TempDir {
+  def apply(tmpdir: String, hConf: hadoop.conf.Configuration): TempDir = {
+    while (true) {
+      try {
+        val dirname = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
+
+        hadoopMkdir(dirname, hConf)
+
+        val fs = hadoopFS(tmpdir, hConf)
+        fs.deleteOnExit(new hadoop.fs.Path(dirname))
+
+        return new TempDir(dirname)
+      } catch {
+        case e: IOException =>
+          // try again
+      }
+    }
+
+    // can't happen
+    null
+  }
+}
+
+class TempDir(val dirname: String) {
+  var counter: Int = 0
+
+  def relFile(relPath: String) = dirname + "/" + relPath
+  def relPath(relPath: String) =
+    new URI(relFile(relPath)).getPath
+
+  def createTempFile(prefix: String = "", extension: String = ""): String = {
+    val i = counter
+    counter += 1
+
+    val sb = new StringBuilder
+    sb.append(prefix)
+    if (prefix != "")
+      sb += '.'
+    sb.append("%05d".format(i))
+    sb.append(extension)
+
+    relFile(sb.result())
+  }
+}
+
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -598,7 +664,11 @@ object Utils extends Logging {
   implicit def toRichIteratorOfByte(i: Iterator[Byte]): RichIteratorOfByte =
     new RichIteratorOfByte(i)
 
-  implicit def richArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
+  implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
+
+  implicit def toRichOrderedArray[T : Ordering](a: Array[T]): RichOrderedArray[T] = new RichOrderedArray(a)
+
+  implicit def toRichOrderedSeq[T : Ordering](s: Seq[T]): RichOrderedSeq[T] = new RichOrderedSeq[T](s)
 
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow =
     new RichIndexedRow(r)
@@ -922,11 +992,11 @@ object Utils extends Logging {
             s"caught $e"
           log.error(
             s"""
-               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
                |  offending line: $value""".stripMargin)
           fatal(
             s"""
-               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
                |  offending line: $lineToPrint""".stripMargin)
       }
     }
@@ -1122,4 +1192,6 @@ object Utils extends Logging {
   def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
 
   def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
+
+  def uriPath(uri: String): String = new URI(uri).getPath
 }

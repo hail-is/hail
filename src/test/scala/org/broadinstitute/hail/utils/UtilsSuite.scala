@@ -26,12 +26,32 @@ class UtilsSuite extends SparkSuite {
     assert(flushDouble(0.0) == 0.0)
   }
 
-  @Test def areDistinct() {
+  @Test def testAreDistinct() {
     assert(Array().areDistinct())
     assert(Array(1).areDistinct())
     assert(Array(1,2).areDistinct())
     assert(!Array(1,1).areDistinct())
     assert(!Array(1,2,1).areDistinct())
+  }
+
+  @Test def testIsIncreasing() {
+    assert(Seq[Int]().isIncreasing)
+    assert(Seq(1).isIncreasing)
+    assert(Seq(1,2).isIncreasing)
+    assert(! Seq(1,1).isIncreasing)
+    assert(! Seq(1,2,1).isIncreasing)
+
+    assert(Array(1,2).isIncreasing)
+  }
+
+  @Test def testIsSorted() {
+    assert(Seq[Int]().isSorted)
+    assert(Seq(1).isSorted)
+    assert(Seq(1,2).isSorted)
+    assert(Seq(1,1).isSorted)
+    assert(! Seq(1,2,1).isSorted)
+
+    assert(Array(1,1).isSorted)
   }
 
   @Test def testHadoopStripCodec() {
