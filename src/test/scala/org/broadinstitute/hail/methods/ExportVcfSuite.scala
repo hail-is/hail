@@ -90,12 +90,14 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testReadWrite() {
     val s = State(sc, sqlContext, null)
+    val out = tmpDir.createTempFile("foo", ".vcf")
+    val out2 = tmpDir.createTempFile("foo2", ".vcf")
     val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
       hadoopDelete("/tmp/foo.vcf", sc.hadoopConfiguration, recursive = true)
-      ExportVCF.run(s.copy(vds = vsm), Array("-o", "/tmp/foo.vcf"))
-      val vsm2 = ImportVCF.run(s, Array("/tmp/foo.vcf")).vds
-      ExportVCF.run(s.copy(vds = vsm2), Array("-o", "/tmp/foo2.vcf"))
-      val vsm3 = ImportVCF.run(s, Array("/tmp/foo2.vcf")).vds
+      ExportVCF.run(s.copy(vds = vsm), Array("-o", out))
+      val vsm2 = ImportVCF.run(s, Array(out)).vds
+      ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
+      val vsm3 = ImportVCF.run(s, Array(out2)).vds
       vsm2.same(vsm3)
     }
 
