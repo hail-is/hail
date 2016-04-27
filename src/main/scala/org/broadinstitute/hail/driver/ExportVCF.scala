@@ -156,7 +156,7 @@ object ExportVCF extends Command {
       sb += '\t'
 
       filterQuery.flatMap(_ (a))
-        .map(_.asInstanceOf[IndexedSeq[String]]) match {
+        .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween { s =>

@@ -3,7 +3,6 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.{FatalException, SparkSuite}
@@ -32,7 +31,8 @@ class ExprSuite extends SparkSuite {
       "t" ->(10, TBoolean),
       "f" ->(11, TBoolean),
       "mb" ->(12, TBoolean),
-      "is" ->(13, TString))
+      "is" ->(13, TString),
+      "iset" ->(14, TSet(TInt)))
     val a = new ArrayBuffer[Any]()
     a += 5 // i
     a += -7 // j
@@ -54,7 +54,8 @@ class ExprSuite extends SparkSuite {
     a += false
     a += null // mb
     a += "-37" // is
-    assert(a.length == 14)
+    a += Set(0,1,2)
+    assert(a.length == 15)
 
     def eval[T](s: String): Option[T] = {
       val f = Parser.parse(s, symTab, a)._2
@@ -146,21 +147,20 @@ class ExprSuite extends SparkSuite {
       .contains(true))
 
     assert(eval[Int]("""a.min""").contains(-1))
-
     assert(eval[Int]("""a.max""").contains(8))
-
     assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
-
     assert(eval[String]("""str(i)""").contains("5"))
-
     assert(eval[String](""" 5 + "5" """) == eval[String](""" "5" + 5 """))
+    assert(eval[Int]("""iset.min""").contains(0))
+    assert(eval[Int]("""iset.max""").contains(2))
+    assert(eval[Int]("""iset.sum""").contains(3))
 
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
   }
 
   @Test def testAssign() {
-    val t1 = TEmpty
+    val t1 = TStruct.empty
 
     val (t2, insb) = t1.insert(TInt, "a", "b")
     val (t3, insc) = t2.insert(TDouble, "a", "c")
@@ -213,7 +213,14 @@ class ExprSuite extends SparkSuite {
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()
       val json = t.makeJSON(a)
-      a == VEP.jsonToAnnotation(json, t, "")
+      a == Annotation.fromJson(json, t, "")
+    })
+  }
+
+  @Test def testReadWrite() {
+    check(forAll { (t: Type) =>
+    val a = t.genValue.sample()
+      t.makeSparkReadable(t.makeSparkWritable(a)) == a
     })
   }
 }
