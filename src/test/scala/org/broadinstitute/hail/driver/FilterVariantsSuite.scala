@@ -23,12 +23,12 @@ class FilterVariantsSuite extends SparkSuite {
         }
       }
 
-      val t = FilterVariantsExpr.run(s, Array(
+      val t = FilterVariantsList.run(s, Array(
         if (keep)
           "--keep"
         else
           "--remove",
-        "-c", f))
+        "-i", f))
 
       val tVariants = t.vds.variants.collect().toSet
       if (keep)

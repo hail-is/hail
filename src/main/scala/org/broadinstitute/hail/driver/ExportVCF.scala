@@ -1,14 +1,16 @@
 package org.broadinstitute.hail.driver
 
+import java.time._
+
 import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
-import java.time._
+
 import scala.io.Source
 
 object ExportVCF extends Command {
@@ -171,10 +173,15 @@ object ExportVCF extends Command {
 
       infoQuery(a).map(_.asInstanceOf[Row]) match {
         case Some(r) =>
-          infoSignature.get.fields
-            .zip(r.toSeq)
-            .foreachBetween { case (f, v) =>
-              if (v != null) {
+          val toWrite =
+            infoSignature.get.fields
+              .zip(r.toSeq)
+              .filter { case (f, v) => Option(v).isDefined }
+          if (toWrite.isEmpty)
+            sb += '.'
+          else {
+            toWrite
+              .foreachBetween { case (f, v) =>
                 sb.append(f.name)
                 if (f.`type` != TBoolean) {
                   sb += '='
@@ -183,8 +190,8 @@ object ExportVCF extends Command {
                     case _ => sb.append(v)
                   }
                 }
-              }
-            } { () => sb += ';' }
+              } { () => sb += ';' }
+          }
 
         case None =>
           sb += '.'
