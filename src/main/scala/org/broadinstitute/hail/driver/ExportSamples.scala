@@ -4,7 +4,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable.ArrayBuffer
 
 object ExportSamples extends Command {
 
@@ -32,37 +31,47 @@ object ExportSamples extends Command {
     val cond = options.condition
     val output = options.output
 
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)))
     val symTab = Map(
       "s" ->(0, TSample),
-      "sa" ->(1, sas))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
+      "sa" ->(1, sas),
+      "gs" ->(-1, TAggregable(aggregationEC)))
+
+    val ec = EvalContext(symTab)
+
 
     val (header, fs) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)
+      ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
     else
-      Parser.parseExportArgs(cond, symTab, a)
+      Parser.parseExportArgs(cond, ec)
+
+    val aggregatorA = aggregationEC.a
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     val sb = new StringBuilder()
     val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
       sb.clear()
-      a(0) = s
-      a(1) = sa
+
+      ec.setContext(s, sa)
+
+      sampleAggregationOption.foreach(f => f.apply(s))
+
       var first = true
-      fs.foreach { f =>
-        if (first)
-          first = false
-        else
-          sb += '\t'
-        sb.tsvAppend(f())
-      }
+      fs.iterator.foreachBetween(f => sb.tsvAppend(f()))(() => sb += '\t')
       sb.result()
     }
+
     writeTable(output, hConf, lines, header)
 
     state
   }
+
 }

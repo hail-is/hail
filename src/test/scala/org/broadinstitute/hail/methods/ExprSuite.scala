@@ -8,7 +8,6 @@ import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
 
-import scala.collection.mutable.ArrayBuffer
 
 class ExprSuite extends SparkSuite {
 
@@ -33,32 +32,33 @@ class ExprSuite extends SparkSuite {
       "mb" ->(12, TBoolean),
       "is" ->(13, TString),
       "iset" ->(14, TSet(TInt)))
-    val a = new ArrayBuffer[Any]()
-    a += 5 // i
-    a += -7 // j
-    a += 3.14
-    a += 5.79e7
-    a += "12,34,56,78"
-    a += "this is a String, there are many like it, but this one is mine"
-    a += IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
-    a += null // m
-    a += (Array[Any](Annotation(23, "foo"),
-      Annotation(-7, null)): IndexedSeq[Any])
-    a += Annotation(
+    val ec = EvalContext(symTab)
+
+    val a = ec.a
+    a(0) = 5 // i
+    a(1) = -7 // j
+    a(2) = 3.14
+    a(3) = 5.79e7
+    a(4) = "12,34,56,78"
+    a(5) = "this is a String, there are many like it, but this one is mine"
+    a(6) = IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
+    a(7) = null // m
+    a(8) = Array[Any](Annotation(23, "foo"), Annotation.empty): IndexedSeq[Any]
+    a(9) = Annotation(
       Genotype(),
       Genotype(gt = Some(0)),
       Genotype(gt = Some(1)),
       Genotype(gt = Some(2)),
       Genotype(gt = Some(Genotype.gtIndex(3, 5))))
-    a += true
-    a += false
-    a += null // mb
-    a += "-37" // is
-    a += Set(0,1,2)
+    a(10) = true
+    a(11) = false
+    a(12) = null // mb
+    a(13) = "-37" // is
+    a(14) = Set(0, 1, 2)
     assert(a.length == 15)
 
     def eval[T](s: String): Option[T] = {
-      val f = Parser.parse(s, symTab, a)._2
+      val f = Parser.parse(s, ec)._2
       f().map(_.asInstanceOf[T])
     }
 
@@ -138,10 +138,10 @@ class ExprSuite extends SparkSuite {
       .contains("HELLO=-7, asdasd9"))
 
     assert(eval[IndexedSeq[_]](""" a.filter(x => x < 4)   """)
-      .contains(IndexedSeq(1,2,3,3,-1)))
+      .contains(IndexedSeq(1, 2, 3, 3, -1)))
 
     assert(eval[IndexedSeq[_]](""" a.filter(x => x < 4).map(x => x * 100)   """)
-      .contains(IndexedSeq(1,2,3,3,-1).map(_ * 100)))
+      .contains(IndexedSeq(1, 2, 3, 3, -1).map(_ * 100)))
 
     assert(eval[Boolean](""" a.filter(x => x < 4).map(x => x * 100).exists(x => x == -100)   """)
       .contains(true))
@@ -219,8 +219,9 @@ class ExprSuite extends SparkSuite {
 
   @Test def testReadWrite() {
     check(forAll { (t: Type) =>
-    val a = t.genValue.sample()
+      val a = t.genValue.sample()
       t.makeSparkReadable(t.makeSparkWritable(a)) == a
     })
   }
+
 }

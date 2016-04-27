@@ -2,7 +2,6 @@ package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
 
-import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -20,20 +19,21 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse(code: String, symTab: Map[String, (Int, BaseType)], a: ArrayBuffer[Any]): (BaseType, () => Option[Any]) = {
+  def parse(code: String, ec: EvalContext): (BaseType, () => Option[Any]) = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
-    t.typecheck(symTab)
 
-    val f: () => Any = t.eval(EvalContext(symTab, a))
+    t.typecheck(ec)
+
+    val f: () => Any = t.eval(ec)
     (t.`type`, () => Option(f()))
   }
 
-  def parse[T](code: String, symTab: Map[String, (Int, BaseType)], a: ArrayBuffer[Any], expected: Type): () => Option[T] = {
-    val (t, f) = parse(code, symTab, a)
+  def parse[T](code: String, ec: EvalContext, expected: Type): () => Option[T] = {
+    val (t, f) = parse(code, ec)
     if (t != expected)
       fatal(s"expression has wrong type: expected `$expected', got $t")
 
@@ -62,37 +62,42 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(code: String, symTab: Map[String, (Int, BaseType)],
-    a: ArrayBuffer[Any]): (Option[String], Array[() => Option[Any]]) = {
+  def parseExportArgs(code: String, ec: EvalContext): (Option[String], Array[() => Option[Any]]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[String], Array[AST])]
-      case NoSuccess(msg, _) => fatal(msg)
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    val ec = EvalContext(symTab, a)
-    ts.foreach(_.typecheck(symTab))
+    ts.foreach(_.typecheck(ec))
     val fs = ts.map { t =>
-      t.eval(ec)
-    }.map { f =>
+      val f = t.eval(ec)
       () => Option(f())
     }
 
     (header, fs)
   }
 
-  def parseAnnotationArgs(code: String, symTab: Map[String, (Int, BaseType)],
-    a: ArrayBuffer[Any]): (Array[(List[String], BaseType, () => Option[Any])]) = {
+  def parseAnnotationArgs(code: String, ec: EvalContext): (Array[(List[String], Type, () => Option[Any])]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(List[String], AST)]]
-      case NoSuccess(msg, _) => fatal(msg)
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    val ec = EvalContext(symTab, a)
+    def checkType(l: List[String], t: BaseType): Type = {
+      t match {
+        case tws: Type => tws
+        case _ => fatal(
+          s"""Annotations must be stored as types with schema.
+              |  Got invalid type `$t' from the result of `${l.mkString(".")}'""".stripMargin)
+      }
+    }
+
     arr.map {
       case (path, ast) =>
-        ast.typecheck(symTab)
+        ast.typecheck(ec)
+        val t = checkType(path, ast.`type`)
         val f = ast.eval(ec)
-        (path, ast.`type`, () => Option(f()))
+        (path, t, () => Option(f()))
     }
   }
 
@@ -110,8 +115,7 @@ object Parser extends JavaTokenParsers {
       path.tail
   }
 
-  def parseExprs(code: String, symTab: Map[String, (Int, BaseType)],
-    a: ArrayBuffer[Any]): (Array[(BaseType, () => Option[Any])]) = {
+  def parseExprs(code: String, ec: EvalContext): (Array[(BaseType, () => Option[Any])]) = {
 
     if (code.matches("""\s*"""))
       Array.empty[(BaseType, () => Option[Any])]
@@ -121,10 +125,8 @@ object Parser extends JavaTokenParsers {
         case NoSuccess(msg, _) => fatal(msg)
       }
 
-      val ec = EvalContext(symTab, a)
-
       asts.map { ast =>
-        ast.typecheck(symTab)
+        ast.typecheck(ec)
         val f = ast.eval(ec)
         (ast.`type`, () => Option(f()))
       }
@@ -265,7 +267,7 @@ object Parser extends JavaTokenParsers {
       } |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
-      (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")")  ^^ {
+      (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
         case id ~ lparen ~ args =>
           Apply(lparen.pos, id.x, args)
       } |

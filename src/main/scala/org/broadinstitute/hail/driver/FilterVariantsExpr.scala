@@ -43,19 +43,30 @@ object FilterVariantsExpr extends Command {
     val cond = options.condition
     val keep = options.keep
 
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype)
+    ))
     val symTab = Map(
       "v" ->(0, TVariant),
-      "va" ->(1, vas))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
-    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, symTab, a, TBoolean)
-    val p = (v: Variant, va: Annotation) => {
-      a(0) = v
-      a(1) = va
+      "va" ->(1, vds.vaSignature),
+      "gs" ->(-1, TAggregable(aggregationEC)))
+
+    val ec = EvalContext(symTab)
+    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+
+    val aggregatorOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
+
+    val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
+      ec.setContext(v, va)
+
+      aggregatorOption.foreach(f => f(v, va, gs))
+
       Filter.keepThis(f(), keep)
     }
-
 
     state.copy(vds = vds.filterVariants(p))
   }

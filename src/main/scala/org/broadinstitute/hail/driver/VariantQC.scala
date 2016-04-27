@@ -19,13 +19,7 @@ object VariantQCCombiner {
     "nHet\t" +
     "nHomVar\t" +
     "dpMean\tdpStDev\t" +
-    "dpMeanHomRef\tdpStDevHomRef\t" +
-    "dpMeanHet\tdpStDevHet\t" +
-    "dpMeanHomVar\tdpStDevHomVar\t" +
     "gqMean\tgqStDev\t" +
-    "gqMeanHomRef\tgqStDevHomRef\t" +
-    "gqMeanHet\tgqStDevHet\t" +
-    "gqMeanHomVar\tgqStDevHomVar\t" +
     "nNonRef\t" +
     "rHeterozygosity\t" +
     "rHetHomVar\t" +
@@ -42,20 +36,8 @@ object VariantQCCombiner {
     "nHomVar" -> TInt,
     "dpMean" -> TDouble,
     "dpStDev" -> TDouble,
-    "dpMeanHomRef" -> TDouble,
-    "dpStDevHomRef" -> TDouble,
-    "dpMeanHet" -> TDouble,
-    "dpStDevHet" -> TDouble,
-    "dpMeanHomVar" -> TDouble,
-    "dpStDevHomVar" -> TDouble,
     "gqMean" -> TDouble,
     "gqStDev" -> TDouble,
-    "gqMeanHomRef" -> TDouble,
-    "gqStDevHomRef" -> TDouble,
-    "gqMeanHet" -> TDouble,
-    "gqStDevHet" -> TDouble,
-    "gqMeanHomVar" -> TDouble,
-    "gqStDevHomVar" -> TDouble,
     "nNonRef" -> TInt,
     "rHeterozygosity" -> TDouble,
     "rHetHomVar" -> TDouble,
@@ -69,27 +51,9 @@ class VariantQCCombiner extends Serializable {
   var nHet: Int = 0
   var nHomVar: Int = 0
 
-  val dpHomRefSC = new StatCounter()
-  val dpHetSC = new StatCounter()
-  val dpHomVarSC = new StatCounter()
+  val dpSC = new StatCounter()
 
-  val gqHomRefSC: StatCounter = new StatCounter()
-  val gqHetSC: StatCounter = new StatCounter()
-  val gqHomVarSC: StatCounter = new StatCounter()
-
-  def dpSC: StatCounter = {
-    val r = dpHomRefSC.copy()
-    r.merge(dpHetSC)
-    r.merge(dpHomVarSC)
-    r
-  }
-
-  def gqSC: StatCounter = {
-    val r = gqHomRefSC.copy()
-    r.merge(gqHetSC)
-    r.merge(gqHomVarSC)
-    r
-  }
+  val gqSC: StatCounter = new StatCounter()
 
   // FIXME per-genotype
 
@@ -97,30 +61,21 @@ class VariantQCCombiner extends Serializable {
     (g.gt: @unchecked) match {
       case Some(0) =>
         nHomRef += 1
-        g.dp.foreach { v =>
-          dpHomRefSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHomRefSC.merge(v)
-        }
       case Some(1) =>
         nHet += 1
-        g.dp.foreach { v =>
-          dpHetSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHetSC.merge(v)
-        }
       case Some(2) =>
         nHomVar += 1
-        g.dp.foreach { v =>
-          dpHomVarSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHomVarSC.merge(v)
-        }
       case None =>
         nNotCalled += 1
+    }
+
+    if (g.isCalled) {
+      g.dp.foreach { v =>
+        dpSC.merge(v)
+      }
+      g.gq.foreach { v =>
+        gqSC.merge(v)
+      }
     }
 
     this
@@ -132,13 +87,9 @@ class VariantQCCombiner extends Serializable {
     nHet += that.nHet
     nHomVar += that.nHomVar
 
-    dpHomRefSC.merge(that.dpHomRefSC)
-    dpHetSC.merge(that.dpHetSC)
-    dpHomVarSC.merge(that.dpHomVarSC)
+    dpSC.merge(that.dpSC)
 
-    gqHomRefSC.merge(that.gqHomRefSC)
-    gqHetSC.merge(that.gqHetSC)
-    gqHomVarSC.merge(that.gqHomVarSC)
+    gqSC.merge(that.gqSC)
 
     this
   }
@@ -187,20 +138,8 @@ class VariantQCCombiner extends Serializable {
 
     emitSC(sb, dpSC)
     sb += '\t'
-    emitSC(sb, dpHomRefSC)
-    sb += '\t'
-    emitSC(sb, dpHetSC)
-    sb += '\t'
-    emitSC(sb, dpHomVarSC)
-    sb += '\t'
 
     emitSC(sb, gqSC)
-    sb += '\t'
-    emitSC(sb, gqHomRefSC)
-    sb += '\t'
-    emitSC(sb, gqHetSC)
-    sb += '\t'
-    emitSC(sb, gqHomVarSC)
     sb += '\t'
 
     // nNonRef
@@ -245,20 +184,8 @@ class VariantQCCombiner extends Serializable {
       nHomVar,
       nullIfNot(dpSC.count > 0, dpSC.mean),
       nullIfNot(dpSC.count > 0, dpSC.stdev),
-      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.mean),
-      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.stdev),
-      nullIfNot(dpHetSC.count > 0, dpHetSC.mean),
-      nullIfNot(dpHetSC.count > 0, dpHetSC.stdev),
-      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.mean),
-      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.stdev),
       nullIfNot(gqSC.count > 0, gqSC.mean),
       nullIfNot(gqSC.count > 0, gqSC.stdev),
-      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.mean),
-      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.stdev),
-      nullIfNot(gqHetSC.count > 0, gqHetSC.mean),
-      nullIfNot(gqHetSC.count > 0, gqHetSC.stdev),
-      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.mean),
-      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.stdev),
       nHet + nHomVar,
       divNull(nHet, nHomRef + nHet + nHomVar),
       divNull(nHet, nHomVar),

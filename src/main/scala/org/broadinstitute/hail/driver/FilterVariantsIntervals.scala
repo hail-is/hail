@@ -40,7 +40,8 @@ object FilterVariantsIntervals extends Command {
     val keep = options.keep
     val ilist = IntervalList.read(options.input, state.hadoopConf)
     val ilistBc = state.sc.broadcast(ilist)
-    val p = (v: Variant, va: Annotation) => Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
+    val p = (v: Variant, va: Annotation, _: Iterable[Genotype]) =>
+      Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
 
     state.copy(vds = vds.filterVariants(p))
   }

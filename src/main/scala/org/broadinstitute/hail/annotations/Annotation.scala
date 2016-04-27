@@ -13,6 +13,8 @@ object Annotation {
 
   final val VARIANT_HEAD = "va"
 
+  final val GLOBAL_HEAD = "global"
+
   def empty: Annotation = null
 
   def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(Annotation.empty)
@@ -24,15 +26,10 @@ object Annotation {
       case r: Row =>
         "Row:\n" +
           r.toSeq.zipWithIndex.map { case (elem, index) =>
-            s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}: ${
-              if (elem != null)
-                elem.getClass.getName
-              else
-                "Null"
-            }"""
+            s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}"""
           }
             .mkString("\n")
-      case a => a.toString + ": " + a.getClass.getName
+      case a => a.toString + ": " + a.getClass.getSimpleName
     }
   }
 
@@ -115,4 +112,5 @@ object Annotation {
     def toVariant =
       Variant(contig, start, ref, altAlleles.toArray)
   }
+
 }

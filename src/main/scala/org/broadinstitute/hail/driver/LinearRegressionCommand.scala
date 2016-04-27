@@ -7,8 +7,6 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-import scala.collection.mutable.ArrayBuffer
-
 object LinearRegressionCommand extends Command {
 
   def name = "linreg"
@@ -37,12 +35,11 @@ object LinearRegressionCommand extends Command {
       "s" -> (0, TSample),
       "sa" -> (1, vds.saSignature))
 
+    val ec = EvalContext(symTab)
     val sb = new StringBuilder
     vds.saSignature.pretty(sb, 0, true)
 
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
+    val a = ec.a
 
     def toDouble(t: BaseType, code: String): Any => Double = t match {
       case TInt => _.asInstanceOf[Int].toDouble
@@ -53,7 +50,7 @@ object LinearRegressionCommand extends Command {
       case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
     }
 
-    val (yT, yQ) = Parser.parse(options.ySA, symTab, a)
+    val (yT, yQ) = Parser.parse(options.ySA, ec)
     val yToDouble = toDouble(yT, options.ySA)
     val ySA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
@@ -61,7 +58,7 @@ object LinearRegressionCommand extends Command {
       yQ().map(yToDouble)
     }
 
-    val (covT, covQ) = Parser.parseExprs(options.covSA, symTab, a).unzip
+    val (covT, covQ) = Parser.parseExprs(options.covSA, ec).unzip
     val covToDouble = (covT, options.covSA.split(",").map(_.trim)).zipped.map(toDouble)
     val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s

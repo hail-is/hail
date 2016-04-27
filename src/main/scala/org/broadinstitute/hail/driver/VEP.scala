@@ -5,7 +5,7 @@ import java.util.Properties
 
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Variant
 import org.json4s._

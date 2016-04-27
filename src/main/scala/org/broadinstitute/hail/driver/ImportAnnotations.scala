@@ -39,7 +39,6 @@ object ImportAnnotations extends Command {
   def description = "Import a TSV file containing variants / annotations into a sample-free VDS"
 
   def run(state: State, options: Options): State = {
-
     val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
     if (files.isEmpty)

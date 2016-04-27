@@ -1,8 +1,9 @@
 # Importing annotations into Hail
 
-Hail includes modules for importing annotations from external files, for use in downstream filtering and analysis.  There are two such modules, one for annotating samples and one for annotating variants:
+Hail includes modules for importing annotations from external files, for use in downstream filtering and analysis.  There are three such modules, one for annotating samples, one for annotating variants, and one for adding global annotations:
  - `annotatesamples`
- - `annotatevariants` [(click to skip to annotate variants section)](#AnnoVar)
+ - `annotatevariants` [(click to seek)](#AnnoVar)
+ - `annotateglobal`  [(click to seek)](#AnnoGlobal)
  
 Each of these modules has multiple run modes, which are specified with the first word after the command invocation:
 ```
@@ -535,11 +536,25 @@ ____
 <a name="VariantProg"></a>
 ### Programmatic Annotation
 
-Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the variant (`v`) and the variant annotations (`va`).
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the variant (`v`), the variant annotations (`va`), and the genotype row aggregable (`gs`).
 
 **Command line arguments:**
 
 - `expr` Invoke this functionality (`annotatevariants expr <args>`)
-`-c | --condition <condition>`
+- `-c | --condition <condition>`
 
 For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
+
+____
+
+<a name="AnnoGlobal"></a>
+## Annotating global variables
+
+Hail currently supports annotating the global annotation table from expressions alone.  The exposed data structures are existing global annotations (`global`), a variant/variant annotations aggregable (`variants`), and a sample/sample annotations aggregable(`samples`).
+ 
+**Command line arguments:**
+
+- `-c | --condition <condition>`
+
+For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
+

@@ -1,8 +1,9 @@
 package org.broadinstitute.hail.check
 
+import org.apache.commons.math3.random._
+
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
-import org.apache.commons.math3.random._
 
 object Parameters {
   val default = Parameters(new RandomDataGenerator(), 100)
