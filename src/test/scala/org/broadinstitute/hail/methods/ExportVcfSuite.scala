@@ -45,7 +45,7 @@ class ExportVcfSuite extends SparkSuite {
     val toAdd = Some(Annotation.fromSeq(Array.fill[Any](infoSize)(null)))
     val (_, inserter) = vdsNew.insertVA(null, "info")
 
-    val vdsNewMissingInfo = vdsNew.mapAnnotations((v, va) => inserter(va, toAdd))
+    val vdsNewMissingInfo = vdsNew.mapAnnotations((v, va, gs) => inserter(va, toAdd))
 
     ExportVCF.run(stateOrig.copy(vds = vdsNewMissingInfo), Array("-o", outFile2))
 

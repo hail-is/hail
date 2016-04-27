@@ -1,4 +1,10 @@
 
+ - added **aggregators**!  see what you can do with them [here!](docs/HailExpressionLanguage.md)  As a consequence, removed some fields computed by `variantqc` and `sampleqc` because these are easy to compute with aggregators.
+
+ - added `annotateglobal`, which lets you create global annotations with expressions and aggregators.  See docs for details.
+ 
+ - renamed `showannotations` to `printschema`, and added `showglobals` to print out the current global annotations as JSON.
+
  - filtervariants and filtersamples have been reworked. Much like the annotate commands, you will need to specify `filtersamples expr` or `filtervariants intervals`. See the updated [filtering documentation](https://github.com/broadinstitute/hail/blob/master/docs/Filtering.md) for details.
 
  - filtervariants now supports filtering on .variant_list with lines

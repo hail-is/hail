@@ -11,7 +11,6 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 
-import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -200,11 +199,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def globalSignature: Type = metadata.globalSignature
 
+  def globalAnnotation: Annotation = metadata.globalAnnotation
+
   def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
   def sampleIdsAndAnnotations: IndexedSeq[(String, Annotation)] = sampleIds.zip(sampleAnnotations)
-
-  def globalAnnotation: Annotation = metadata.globalAnnotation
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
 
@@ -320,8 +319,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     }
   }
 
-  def mapAnnotations(f: (Variant, Annotation) => Annotation): VariantSampleMatrix[T] =
-    copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va), gs) })
+  def mapAnnotations(f: (Variant, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[T] =
+    copy[T](rdd = rdd.map { case (v, va, gs) => (v, f(v, va, gs), gs) })
 
   def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     flatMapWithKeys((v, s, g) => f(g))
@@ -335,11 +334,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }
   }
 
-  def filterVariants(p: (Variant, Annotation) => Boolean): VariantSampleMatrix[T] =
-    copy(rdd = rdd.filter { case (v, va, gs) => p(v, va) })
+  def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
+    copy(rdd = rdd.filter { case (v, va, gs) => p(v, va, gs) })
 
   def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
-    filterVariants((v, va) => ilist.contains(v.contig, v.start))
+    filterVariants((v, va, gs) => ilist.contains(v.contig, v.start))
 
   def dropSamples(): VariantSampleMatrix[T] =
     copy(sampleIds = IndexedSeq.empty[String],
@@ -563,10 +562,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def queryVA(code: String): (BaseType, Querier) = {
 
     val st = Map(Annotation.VARIANT_HEAD ->(0, vaSignature))
-    val a = new ArrayBuffer[Any]
-    a += null
+    val ec = EvalContext(st)
+    val a = ec.a
 
-    val (t, f) = Parser.parse(code, st, a)
+    val (t, f) = Parser.parse(code, ec)
 
     val f2: Annotation => Option[Any] = { annotation =>
       a(0) = annotation
@@ -579,10 +578,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def querySA(code: String): (BaseType, Querier) = {
 
     val st = Map(Annotation.SAMPLE_HEAD ->(0, saSignature))
-    val a = new ArrayBuffer[Any]
-    a += null
+    val ec = EvalContext(st)
+    val a = ec.a
 
-    val (t, f) = Parser.parse(code, st, a)
+    val (t, f) = Parser.parse(code, ec)
 
     val f2: Annotation => Option[Any] = { annotation =>
       a(0) = annotation
@@ -590,6 +589,21 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     }
 
     (t, f2)
+  }
+
+  def queryGlobal(path: String): (BaseType, Option[Annotation]) = {
+    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
+    val ec = EvalContext(st)
+    val a = ec.a
+
+    val (t, f) = Parser.parse(path, ec)
+
+    val f2: Annotation => Option[Any] = { annotation =>
+      a(0) = annotation
+      f()
+    }
+
+    (t, f2(globalAnnotation))
   }
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
@@ -600,6 +614,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def deleteSA(path: List[String]): (Type, Deleter) = saSignature.delete(path)
 
+  def deleteGlobal(args: String*): (Type, Deleter) = deleteGlobal(args.toList)
+
+  def deleteGlobal(path: List[String]): (Type, Deleter) = globalSignature.delete(path)
+
   def insertVA(sig: Type, args: String*): (Type, Inserter) = insertVA(sig, args.toList)
 
   def insertVA(sig: Type, path: List[String]): (Type, Inserter) = {
@@ -608,9 +626,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def insertSA(sig: Type, args: String*): (Type, Inserter) = insertSA(sig, args.toList)
 
-  def insertSA(sig: Type, path: List[String]): (Type, Inserter) = {
-    saSignature.insert(sig, path)
+  def insertSA(sig: Type, path: List[String]): (Type, Inserter) = saSignature.insert(sig, path)
+
+  def insertGlobal(sig: Type, args: String*): (Type, Inserter) = insertGlobal(sig, args.toList)
+
+  def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
+    globalSignature.insert(sig, path)
   }
+
 }
 
 // FIXME AnyVal Scala 2.11

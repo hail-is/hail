@@ -41,20 +41,8 @@ Identifier | Type | Description
 `rDeletionInsertion` | `Double` | Deletion/Insertion ratio across all variants
 `dpMean` | `Double` | Depth mean across all variants
 `dpStDev` | `Double` | Depth standard deviation across all variants
-`dpMeanHomRef` | `Double` | Depth mean across all variants called HomRef
-`dpStDevHomRef` | `Double` | Depth standard deviation across all variants called HomRef
-`dpMeanHet` | `Double` | Depth mean across all variants called Het
-`dpStDevHet` | `Double` | Depth standard deviation across all variants called Het
-`dpMeanHomVar` | `Double` | Depth mean across all variants called HomVar
-`dpStDevHomVar` | `Double` | Depth standard deviation across all variants called HomVar
 `gqMean` | `Double` | GQ mean across all variants
 `gqStDev` | `Double` | GQ standard deviation across all variants
-`gqMeanHomRef` | `Double` | GQ mean across all variants called HomRef
-`gqStDevHomRef` | `Double` | GQ standard deviation across all variants called HomRef
-`gqMeanHet` | `Double` | GQ mean across all variants called Het
-`gqStDevHet` | `Double` | GQ standard deviation across all variants called Het
-`gqMeanHomVar` | `Double` | GQ mean across all variants called HomVar
-`gqStDevHomVar` | `Double` | GQ standard deviation across all variants called HomVar
  
 ____
  
@@ -84,20 +72,8 @@ Identifier | Type | Description
 `rHetHomVar` | `Double` | Het/HomVar ratio across all samples
 `dpMean` | `Double` | Depth mean across all samples
 `dpStDev` | `Double` | Depth standard deviation across all samples
-`dpMeanHomRef` | `Double` | Depth mean across all samples called HomRef
-`dpStDevHomRef` | `Double` | Depth standard deviation across all samples called HomRef
-`dpMeanHet` | `Double` | Depth mean across all samples called Het
-`dpStDevHet` | `Double` | Depth standard deviation across all samples called Het
-`dpMeanHomVar` | `Double` | Depth mean across all samples called HomVar
-`dpStDevHomVar` | `Double` | Depth standard deviation across all samples called HomVar
 `gqMean` | `Double` | GQ mean across all samples
 `gqStDev` | `Double` | GQ standard deviation across all samples
-`gqMeanHomRef` | `Double` | GQ mean across all samples called HomRef
-`gqStDevHomRef` | `Double` | GQ standard deviation across all samples called HomRef
-`gqMeanHet` | `Double` | GQ mean across all samples called Het
-`gqStDevHet` | `Double` | GQ standard deviation across all samples called Het
-`gqMeanHomVar` | `Double` | GQ mean across all samples called HomVar
-`gqStDevHomVar` | `Double` | GQ standard deviation across all samples called HomVar
  
 ____
  

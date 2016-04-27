@@ -5,7 +5,6 @@ Hail includes three filtering modules:
  - `filtersamples`
  - `filtergenotypes`
 
-
 The `filtervariants` module contains the following submodules:
 
 - `intervals`: filter by an interval list [(skip to)](#vIntervals)
@@ -77,6 +76,8 @@ Exposed Name | Description
 :-: | ---
 `v`  | variant
 `va` | variant annotation
+`gs` | genotype row [aggregable](HailExpressionLanguage.md#aggregables)
+
     
 For more information about these exposed objects and how to use them, see the documentation on [representation](Representation.md) and the [Hail expression language](HailExpressionLanguage.md).
 
@@ -137,6 +138,8 @@ Exposed Name | Description
 :-: | ---
  `s`  | sample
  `sa` | sample annotation
+ `gs` | genotype column [aggregable](HailExpressionLanguage.md#aggregables)
+
    
 For more information about these exposed objects and how to use them, see the documentation on [representation](Representation.md) and the [Hail expression language](HailExpressionLanguage.md).
    

@@ -5,6 +5,11 @@ object AnnotateVariants extends SuperCommand {
 
   def description = "Annotate variants in current dataset"
 
+  override def run(state: State, args: Array[String]): State = {
+    val (c, newArgs) = lookup(args)
+    c.run(state, newArgs)
+  }
+
   register(AnnotateVariantsBed)
   register(AnnotateVariantsExpr)
   register(AnnotateVariantsIntervals)

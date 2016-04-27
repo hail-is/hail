@@ -39,16 +39,32 @@ object FilterSamplesExpr extends Command {
 
     val keep = options.keep
     val sas = vds.saSignature
+    val cond = options.condition
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, sas),
+      "g" ->(4, TGenotype)))
     val symTab = Map(
       "s" ->(0, TSample),
-      "sa" ->(1, sas))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
-    val f: () => Option[Boolean] = Parser.parse[Boolean](options.condition, symTab, a, TBoolean)
+      "sa" ->(1, sas),
+      "gs" ->(-1, TAggregable(aggregationEC)))
+    val ec = EvalContext(symTab)
+    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+
+    val aggregatorA = aggregationEC.a
+    val aggregators = ec.aggregationFunctions
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
+
+
+    val sampleIds = state.vds.sampleIds
     val p = (s: String, sa: Annotation) => {
-      a(0) = s
-      a(1) = sa
+      ec.setContext(s, sa)
+
+      sampleAggregationOption.foreach(f => f.apply(s))
+
       Filter.keepThis(f(), keep)
     }
 
