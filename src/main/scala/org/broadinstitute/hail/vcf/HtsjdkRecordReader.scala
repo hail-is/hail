@@ -29,7 +29,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
-    infoSignature: TStruct,
+    infoSignature: Option[TStruct],
     storeGQ: Boolean,
     skipGenotypes: Boolean,
     compress: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
@@ -49,28 +49,28 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
 
-    val info = Annotation(
-      infoSignature.fields.map { f =>
-        val a = vc.getAttribute(f.name)
-        try {
-          cast(a, f.`type`)
-        } catch {
-          case e: Exception =>
-            fatal(
-              s"""variant $v: INFO field ${f.name}:
-                  |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
-                  |  caught $e""".stripMargin)
-        }
-      }: _*)
+    val info = infoSignature.map { sig =>
+      val a = Annotation(
+        sig.fields.map { f =>
+          val a = vc.getAttribute(f.name)
+          try {
+            cast(a, f.`type`)
+          } catch {
+            case e: Exception =>
+              fatal(
+                s"""variant $v: INFO field ${f.name}:
+                    |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
+                    |  caught $e""".stripMargin)
+          }
+        }: _*)
+      assert(sig.typeCheck(a))
+      a
+    }
 
-    assert(infoSignature.typeCheck(info))
-
-    val va = Annotation(
-      rsid,
-      vc.getPhredScaledQual,
-      filters,
-      pass,
-      info)
+    val va = info match {
+      case Some(infoAnnotation) => Annotation(rsid, vc.getPhredScaledQual, filters, pass, infoAnnotation)
+      case None => Annotation(rsid, vc.getPhredScaledQual, filters, pass)
+    }
 
     if (skipGenotypes)
       return (v, va, Iterable.empty)

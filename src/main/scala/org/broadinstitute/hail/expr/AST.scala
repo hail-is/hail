@@ -596,7 +596,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val localSize = fields.size
 
       val inserter: Inserter = (a, toIns) => {
-        val r = if (a == null || localSize == 0)
+        val r = if (a == null || localSize == 0) // localsize == 0 catches cases where we overwrite a path
           Row.fromSeq(Array.fill[Any](localSize)(null))
         else
           a.asInstanceOf[Row]
@@ -687,7 +687,9 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   override def typeCheck(a: Any): Boolean =
-    a == null ||
+    if (fields.isEmpty)
+      a == null
+    else a == null ||
       a.isInstanceOf[Row] &&
         a.asInstanceOf[Row].toSeq.zip(fields).forall { case (v, f) => f.`type`.typeCheck(v) }
 

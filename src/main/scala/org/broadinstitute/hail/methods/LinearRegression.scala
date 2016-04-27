@@ -23,12 +23,14 @@ case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Do
 }
 
 class LinRegBuilder extends Serializable {
+  private val missingRowIndices = new mutable.ArrayBuilder.ofInt()
   private val rowsX = new mutable.ArrayBuilder.ofInt()
   private val valsX = new mutable.ArrayBuilder.ofDouble()
+  private var sparseLength = 0 // length of rowsX and valsX (ArrayBuilder has no length), used to track missingRowIndices
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0
-  private val missingRows = new mutable.ArrayBuilder.ofInt()
+  private var sumYMissing = 0.0
 
   def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
     g.gt match {
@@ -36,38 +38,46 @@ class LinRegBuilder extends Serializable {
       case Some(1) =>
         rowsX += row
         valsX += 1d
+        sparseLength += 1
         sumX += 1
         sumXX += 1
         sumXY += y(row)
       case Some(2) =>
         rowsX += row
         valsX += 2d
+        sparseLength += 1
         sumX += 2
         sumXX += 4
         sumXY += 2 * y(row)
       case None =>
+        missingRowIndices += sparseLength
         rowsX += row
         valsX += 0d // placeholder for meanX
-        missingRows += row
+        sparseLength += 1
+        sumYMissing += y(row)
       case _ => throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
+
     this
   }
 
+  // variant is atomic => combOp merge not called
   def merge(that: LinRegBuilder): LinRegBuilder = {
+    missingRowIndices ++= that.missingRowIndices.result().map(_ + sparseLength)
     rowsX ++= that.rowsX.result()
     valsX ++= that.valsX.result()
+    sparseLength += that.sparseLength
     sumX += that.sumX
     sumXX += that.sumXX
     sumXY += that.sumXY
-    missingRows ++= that.missingRows.result()
+    sumYMissing += that.sumYMissing
 
     this
   }
 
   def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double, Int)] = {
-    val missingRowsArray = missingRows.result()
-    val nMissing = missingRowsArray.size
+    val missingRowIndicesArray = missingRowIndices.result()
+    val nMissing = missingRowIndicesArray.size
     val nPresent = n - nMissing
 
     // all HomRef | all Het | all HomVar
@@ -77,12 +87,15 @@ class LinRegBuilder extends Serializable {
       val rowsXArray = rowsX.result()
       val valsXArray = valsX.result()
       val meanX = sumX.toDouble / nPresent
-      missingRowsArray.foreach(row => valsXArray(row) = meanX)
 
-      // rowsXArray is sorted, as expected by SparseVector constructor
+      missingRowIndicesArray.foreach(valsXArray(_) = meanX)
+
+      // variant is atomic => combOp merge not called => rowsXArray is sorted (as expected by SparseVector constructor)
+      assert(rowsXArray.isIncreasing)
+
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
       val xx = sumXX + meanX * meanX * nMissing
-      val xy = sumXY + meanX * missingRowsArray.iterator.map(y(_)).sum
+      val xy = sumXY + meanX * sumYMissing
 
       Some((x, xx, xy, nMissing))
     }
@@ -100,9 +113,9 @@ object LinearRegression {
     val d = n - k - 2
 
     if (d < 1)
-      fatal(s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${plural(k, "covariate")} with intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg on $n samples with $k sample covariates...")
+    info(s"Running linreg on $n samples with $k sample ${plural(k, "covariate")}...")
 
     val covAndOnes: DenseMatrix[Double] = cov match {
       case Some(dm) => DenseMatrix.horzcat(dm, DenseMatrix.ones[Double](n, 1))

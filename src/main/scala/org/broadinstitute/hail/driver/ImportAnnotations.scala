@@ -42,6 +42,9 @@ object ImportAnnotations extends Command {
 
     val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
+    if (files.isEmpty)
+      fatal("Arguments referred to no files")
+
     val (rdd, signature) = VariantTSVAnnotator(state.sc,
       files,
       AnnotateVariantsTSV.parseColumns(options.vCols),

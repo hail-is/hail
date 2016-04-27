@@ -115,5 +115,4 @@ object Annotation {
     def toVariant =
       Variant(contig, start, ref, altAlleles.toArray)
   }
-
 }

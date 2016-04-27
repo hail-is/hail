@@ -292,6 +292,21 @@ class RichArray[T](a: Array[T]) {
   def duplicates(): Set[T] = a.toIterable.duplicates()
 }
 
+class RichOrderedArray[T : Ordering](a: Array[T]) {
+  def isIncreasing: Boolean = a.toSeq.isIncreasing
+
+  def isSorted: Boolean = a.toSeq.isSorted
+}
+
+class RichOrderedSeq[T : Ordering](s: Seq[T]) {
+  import scala.math.Ordering.Implicits._
+
+  def isIncreasing: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ < _)
+
+  def isSorted: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ <= _)
+}
+
+
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFiles[T](files: Array[String], f: String => Unit = s => (),
     nPartitions: Int = sc.defaultMinPartitions): RDD[Line] = {
@@ -527,8 +542,6 @@ trait Logging {
 
 class FatalException(msg: String) extends RuntimeException(msg)
 
-class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
-
 class RichAny(val a: Any) extends AnyVal {
   def castOption[T](implicit ct: ClassTag[T]): Option[T] =
     if (ct.runtimeClass.isInstance(a))
@@ -651,7 +664,11 @@ object Utils extends Logging {
   implicit def toRichIteratorOfByte(i: Iterator[Byte]): RichIteratorOfByte =
     new RichIteratorOfByte(i)
 
-  implicit def richArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
+  implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
+
+  implicit def toRichOrderedArray[T : Ordering](a: Array[T]): RichOrderedArray[T] = new RichOrderedArray(a)
+
+  implicit def toRichOrderedSeq[T : Ordering](s: Seq[T]): RichOrderedSeq[T] = new RichOrderedSeq[T](s)
 
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow =
     new RichIndexedRow(r)
@@ -969,11 +986,11 @@ object Utils extends Logging {
             s"caught $e"
           log.error(
             s"""
-               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
                |  offending line: $value""".stripMargin)
           fatal(
             s"""
-               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
                |  offending line: $lineToPrint""".stripMargin)
       }
     }
