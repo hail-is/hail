@@ -3,12 +3,12 @@ package org.broadinstitute.hail.annotations
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant.Variant
 import org.testng.annotations.Test
-import org.broadinstitute.hail.methods._
+
 import scala.collection.mutable
 import scala.language.implicitConversions
 
@@ -101,9 +101,9 @@ class AnnotationsSuite extends SparkSuite {
       f.`type` == TSet(TString)
         && f.attrs.nonEmpty))
     assert(filtQuery(variantAnnotationMap(firstVariant))
-      .contains(Array("PASS"): mutable.WrappedArray[String]))
+      contains Set("PASS"))
     assert(filtQuery(variantAnnotationMap(anotherVariant))
-      contains (Array("VQSRTrancheSNP99.95to100.00"): mutable.WrappedArray[String]))
+      contains Set("VQSRTrancheSNP99.95to100.00"))
 
     // GATK PASS
     val passQuery = vas.query("pass")
@@ -152,7 +152,7 @@ class AnnotationsSuite extends SparkSuite {
     val (emptyS, d1) = vds.deleteVA()
     vds = vds.mapAnnotations((v, va) => d1(va))
       .copy(vaSignature = emptyS)
-    assert(emptyS == TEmpty)
+    assert(emptyS == TStruct.empty)
 
     // add to the first layer
     val toAdd = 5

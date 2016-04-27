@@ -3,6 +3,9 @@ package org.broadinstitute.hail.variant.vsm
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.{SparkSuite, TempDir}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 
 import scala.language.postfixOps
@@ -13,9 +16,6 @@ import org.testng.annotations.Test
 import scala.collection.mutable
 import scala.language.postfixOps
 import scala.util.Random
-import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.driver._
 
 class VSMSuite extends SparkSuite {
 
@@ -34,8 +34,8 @@ class VSMSuite extends SparkSuite {
         "inner" -> TStruct(
           "thing1" -> TString),
         "thing2" -> TString),
-      TEmpty,
-      TEmpty)
+      TStruct.empty,
+      TStruct.empty)
     val mdata4 = new VariantMetadata(
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
@@ -45,8 +45,8 @@ class VSMSuite extends SparkSuite {
           "thing1" -> TString),
         "thing2" -> TString,
         "dummy" -> TString),
-      TEmpty,
-      TEmpty)
+      TStruct.empty,
+      TStruct.empty)
 
     assert(mdata1 != mdata2)
     assert(mdata1 != mdata3)

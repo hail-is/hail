@@ -103,18 +103,25 @@ object VariantSampleMatrix {
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
+    val vaRequiresConversion = vaSignature.requiresConversion
+
     if (skipGenotypes)
       new VariantSampleMatrix[Genotype](
         metadata.copy(sampleIds = IndexedSeq.empty[String],
           sampleAnnotations = IndexedSeq.empty[Annotation]),
         df.select("variant", "annotations")
-          .map(row => (row.getVariant(0), row.get(1), Iterable.empty[Genotype])))
+          .map(row => (row.getVariant(0),
+            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
+            Iterable.empty[Genotype])))
     else
       new VariantSampleMatrix(
         metadata,
         df.rdd.map { row =>
           val v = row.getVariant(0)
-          (v, row.get(1), row.getGenotypeStream(v, 2))
+
+          (v,
+            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
+            row.getGenotypeStream(v, 2))
         })
   }
 
@@ -145,12 +152,15 @@ object VariantSampleMatrix {
     variants: Array[Variant],
     g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val nSamples = sampleIds.length
-    for (rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
-      variants.map(v => Gen.zip(
-        Gen.const(v),
-        Gen.const(Annotation.empty),
-        genValues(nSamples, g(v))))))
-      yield VariantSampleMatrix[T](VariantMetadata(sampleIds), sc.parallelize(rows))
+    for (vaSig <- Type.genArb; saSig <- Type.genArb; globalSig <- Type.genArb;
+         saValues <- Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(saSig.genValue));
+        globalValue <- globalSig.genValue;
+         rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
+           variants.map(v => Gen.zip(
+             Gen.const(v),
+             vaSig.genValue,
+             genValues(nSamples, g(v))))))
+      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, globalValue, saSig, vaSig, globalSig), sc.parallelize(rows))
   }
 
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
@@ -652,10 +662,15 @@ class RichVDS(vds: VariantDataset) {
       }
     }
 
+    val vaSignature = vds.vaSignature
+    val vaRequiresConversion = vaSignature.requiresConversion
+
     val rowRDD = vds.rdd
       .map {
         case (v, va, gs) =>
-          Row.fromSeq(Array(v.toRow, va.asInstanceOf[Row], gs.toGenotypeStream(v, compress).toRow))
+          Row.fromSeq(Array(v.toRow,
+            if (vaRequiresConversion) vaSignature.makeSparkWritable(va) else va,
+            gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")

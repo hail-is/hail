@@ -60,17 +60,18 @@ sealed abstract class BaseType extends Serializable {
 }
 
 object Type {
-  val genScalar = Gen.oneOf[Type](TEmpty, TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
+  val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
     TVariant, TAltAllele, TGenotype)
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)
-      Gen.const(TEmpty)
+      Gen.const(TStruct.empty)
     else if (size < 2)
       genScalar
     else
       Gen.oneOfGen(genScalar,
         genSized(size - 1).map(TArray),
+        // FIXME: genSized(size - 1).map(TSet),
         Gen.buildableOf[Array[(String, Type)], (String, Type)](
           Gen.zip(Gen.identifier,
             genArb))
@@ -109,7 +110,7 @@ abstract class Type extends BaseType {
     if (path.nonEmpty)
       throw new AnnotationPathException()
     else
-      (TEmpty, a => Annotation.empty)
+      (TStruct.empty, a => Annotation.empty)
   }
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
@@ -159,21 +160,13 @@ abstract class Type extends BaseType {
 
   def schema: DataType
 
+  def requiresConversion: Boolean = false
+
+  def makeSparkWritable(a: Annotation): Annotation = a
+
+  def makeSparkReadable(a: Annotation): Annotation = a
+
   def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
-}
-
-case object TEmpty extends Type {
-  override def toString = "Empty"
-
-  def typeCheck(a: Any): Boolean = a == null
-
-  def schema =
-  // placeholder
-    BooleanType
-
-  def selfMakeJSON(a: Annotation): JValue = JNothing
-
-  override def makeJSON(a: Annotation): JValue = JNothing
 }
 
 case object TBoolean extends Type with Parsable {
@@ -298,6 +291,24 @@ case class TArray(elementType: Type) extends Type {
     JArray(arr.map(elementType.makeJSON).toList)
   }
 
+  override def requiresConversion: Boolean = elementType.requiresConversion
+
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val values = a.asInstanceOf[IndexedSeq[Annotation]]
+      values.map(elementType.makeSparkWritable)
+    }
+
+  override def makeSparkReadable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val values = a.asInstanceOf[IndexedSeq[Annotation]]
+      values.map(elementType.makeSparkReadable)
+    }
+
   override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq[Annotation], Annotation](
     elementType.genValue)
 }
@@ -305,8 +316,8 @@ case class TArray(elementType: Type) extends Type {
 case class TSet(elementType: Type) extends Type {
   override def toString = s"Set[$elementType]"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[IndexedSeq[_]] &&
-    a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
+  def typeCheck(a: Any): Boolean =
+    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck))
 
   def schema = ArrayType(elementType.schema)
 
@@ -321,6 +332,24 @@ case class TSet(elementType: Type) extends Type {
     JArray(arr.map(elementType.makeJSON).toList)
   }
 
+  override def requiresConversion: Boolean = true
+
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val values = a.asInstanceOf[Set[Annotation]]
+      values.toSeq.map(elementType.makeSparkWritable)
+    }
+
+  override def makeSparkReadable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val values = a.asInstanceOf[Seq[Annotation]]
+      values.map(elementType.makeSparkWritable).toSet
+    }
+
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set[Annotation], Annotation](
     elementType.genValue)
 }
@@ -328,10 +357,9 @@ case class TSet(elementType: Type) extends Type {
 case object TSample extends Type {
   override def toString = "Sample"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Sample]
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
-  def schema = StructType(Array(
-    StructField("id", StringType, nullable = false)))
+  def schema = StringType
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Sample].toJSON
 
@@ -347,6 +375,29 @@ case object TGenotype extends Type {
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Genotype].toJSON
 
+  override def requiresConversion: Boolean = true
+
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val g = a.asInstanceOf[Genotype]
+      Annotation(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.pl.map(_.toSeq).orNull, g.fakeRef)
+    }
+
+  override def makeSparkReadable(a: Annotation): Genotype =
+    if (a == null)
+      null
+    else {
+      val r = a.asInstanceOf[Row]
+      Genotype(Option(r.get(0)).map(_.asInstanceOf[Int]),
+        Option(r.get(1)).map(_.asInstanceOf[Seq[Int]].toArray),
+        Option(r.get(2)).map(_.asInstanceOf[Int]),
+        Option(r.get(3)).map(_.asInstanceOf[Int]),
+        Option(r.get(4)).map(_.asInstanceOf[Seq[Int]].toArray),
+        r.get(5).asInstanceOf[Boolean])
+    }
+
   override def genValue: Gen[Annotation] = Genotype.genArb
 }
 
@@ -358,6 +409,24 @@ case object TAltAllele extends Type {
   def schema = AltAllele.schema
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[AltAllele].toJSON
+
+  override def requiresConversion: Boolean = true
+
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val aa = a.asInstanceOf[AltAllele]
+      Annotation(aa.ref, aa.alt)
+    }
+
+  override def makeSparkReadable(a: Annotation): AltAllele =
+    if (a == null)
+      null
+    else {
+      val r = a.asInstanceOf[Row]
+      AltAllele(r.getAs[String](0), r.getAs[String](1))
+    }
 
   override def genValue: Gen[Annotation] = AltAllele.gen
 }
@@ -371,18 +440,26 @@ case object TVariant extends Type {
 
   def selfMakeJSON(a: Annotation): JValue = a.asInstanceOf[Variant].toJSON
 
+  override def requiresConversion: Boolean = true
+
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val v = a.asInstanceOf[Variant]
+      Annotation(v.contig, v.start, v.ref, v.altAlleles.map(TAltAllele.makeSparkWritable))
+    }
+
+  override def makeSparkReadable(a: Annotation): Annotation =
+    if (a == null)
+      a
+    else {
+      val r = a.asInstanceOf[Row]
+      Variant(r.getAs[String](0), r.getAs[Int](1), r.getAs[String](2),
+        r.getAs[Seq[Row]](3).map(TAltAllele.makeSparkReadable).toArray)
+    }
+
   override def genValue: Gen[Annotation] = Variant.gen
-}
-
-object TStruct {
-  def empty: TStruct = TStruct(Array.empty[Field])
-
-  def apply(args: (String, Type)*): TStruct =
-    TStruct(args
-      .iterator
-      .zipWithIndex
-      .map { case ((n, t), i) => Field(n, t, i) }
-      .toArray)
 }
 
 case class Field(name: String, `type`: Type,
@@ -408,6 +485,17 @@ case class Field(name: String, `type`: Type,
       }(() => sb += '\n')
     }
   }
+}
+
+object TStruct {
+  def empty: TStruct = TStruct(Array.empty[Field])
+
+  def apply(args: (String, Type)*): TStruct =
+    TStruct(args
+      .iterator
+      .zipWithIndex
+      .map { case ((n, t), i) => Field(n, t, i) }
+      .toArray)
 }
 
 case class TStruct(fields: IndexedSeq[Field]) extends Type {
@@ -455,7 +543,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def delete(p: List[String]): (Type, Deleter) = {
     if (p.isEmpty)
-      (TEmpty, a => Annotation.empty)
+      (TStruct.empty, a => Annotation.empty)
     else {
       val key = p.head
       val f = selfField(key) match {
@@ -465,12 +553,12 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val index = f.index
       val (newFieldType, d) = f.`type`.delete(p.tail)
       val newType: Type =
-        if (newFieldType == TEmpty)
+        if (newFieldType == TStruct.empty)
           deleteKey(key, f.index)
         else
           updateKey(key, f.index, newFieldType)
 
-      val localDeleteFromRow = newFieldType == TEmpty
+      val localDeleteFromRow = newFieldType == TStruct.empty
 
       val deleter: Deleter = { a =>
         if (a == Annotation.empty)
@@ -508,7 +596,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val localSize = fields.size
 
       val inserter: Inserter = (a, toIns) => {
-        val r = if (a == Annotation.empty)
+        val r = if (a == null || localSize == 0) // localsize == 0 catches cases where we overwrite a path
           Row.fromSeq(Array.fill[Any](localSize)(null))
         else
           a.asInstanceOf[Row]
@@ -558,7 +646,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   def deleteKey(key: String, index: Int): Type = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
-      TEmpty
+      TStruct.empty
     else {
       val newFields = Array.fill[Field](fields.length - 1)(null)
       for (i <- 0 until index)
@@ -578,39 +666,42 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     TStruct(newFields)
   }
 
-  override def toString = "Struct"
+  override def toString = if (size == 0) "Empty" else "Struct"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
-    sb.append("Struct {")
-    sb += '\n'
-    fields.foreachBetween(f => {
-      f.pretty(sb, indent + 4, printAttrs)
-    })(() => {
-      sb += ','
+    if (size == 0)
+      sb.append("Empty")
+    else {
+      sb.append("Struct {")
       sb += '\n'
-    })
-    sb += '\n'
-    sb.append(" " * indent)
-    sb += '}'
+      fields.foreachBetween(f => {
+        f.pretty(sb, indent + 4, printAttrs)
+      })(() => {
+        sb += ','
+        sb += '\n'
+      })
+      sb += '\n'
+      sb.append(" " * indent)
+      sb += '}'
+    }
   }
 
-  override def typeCheck(a: Any): Boolean = a == null || {
-    a.isInstanceOf[Row] &&
-      a.asInstanceOf[Row].toSeq.zip(fields).forall { case (v, f) =>
-        val b = f.`type`.typeCheck(v)
-        if (!b)
-          println(s"v=$v, f=$f")
-        b
-      }
-  }
+  override def typeCheck(a: Any): Boolean =
+    if (fields.isEmpty)
+      a == null
+    else a == null ||
+      a.isInstanceOf[Row] &&
+        a.asInstanceOf[Row].toSeq.zip(fields).forall { case (v, f) => f.`type`.typeCheck(v) }
 
   def schema = {
-    assert(fields.nonEmpty)
-    StructType(fields
-      .map { case f =>
-        StructField(f.index.toString, f.`type`.schema) //FIXME hack
-        //        StructField(f.name, f.`type`.schema)
-      })
+    if (fields.isEmpty)
+      BooleanType //placeholder
+    else
+      StructType(fields
+        .map { case f =>
+          StructField(f.index.toString, f.`type`.schema) //FIXME hack
+          //        StructField(f.name, f.`type`.schema)
+        })
   }
 
   def selfMakeJSON(a: Annotation): JValue = {
@@ -620,10 +711,35 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         .toList)
   }
 
+  override def requiresConversion: Boolean = fields.exists(_.`type`.requiresConversion)
+
+  override def makeSparkWritable(a: Annotation): Annotation =
+    if (size == 0 || a == null)
+      null
+    else {
+      val r = a.asInstanceOf[Row]
+      Annotation.fromSeq(r.toSeq.iterator.zip(fields.map(_.`type`).iterator).map {
+        case (value, t) => t.makeSparkWritable(value)
+      }.toSeq)
+    }
+
+  override def makeSparkReadable(a: Annotation): Annotation =
+    if (size == 0 || a == null)
+      Annotation.empty
+    else {
+      val r = a.asInstanceOf[Row]
+      Annotation.fromSeq(r.toSeq.iterator.zip(fields.map(_.`type`).iterator).map {
+        case (value, t) => t.makeSparkReadable(value)
+      }.toSeq)
+    }
+
   override def genValue: Gen[Annotation] = {
-    Gen.sequence[IndexedSeq[Annotation], Annotation](
-      fields.map(f => f.`type`.genValue))
-      .map(a => Annotation(a: _*))
+    if (size == 0)
+      Gen.const[Annotation](Annotation.empty)
+    else
+      Gen.sequence[IndexedSeq[Annotation], Annotation](
+        fields.map(f => f.`type`.genValue))
+        .map(a => Annotation(a: _*))
   }
 }
 
@@ -1000,31 +1116,31 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (TSet(_), "isEmpty") => AST.evalCompose[IndexedSeq[_]](c, lhs)(_.isEmpty)
 
     case (TSet(TInt), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
     case (TSet(TLong), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).sum)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).sum)
     case (TSet(TFloat), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).sum)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).sum)
     case (TSet(TDouble), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).sum)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).sum)
 
     case (TSet(TInt), "min") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).min)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).min)
     case (TSet(TLong), "min") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).min)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).min)
     case (TSet(TFloat), "min") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).min)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).min)
     case (TSet(TDouble), "min") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).min)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).min)
 
     case (TSet(TInt), "max") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).max)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).max)
     case (TSet(TLong), "max") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).max)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).max)
     case (TSet(TFloat), "max") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
     case (TSet(TDouble), "max") =>
-      AST.evalCompose[IndexedSeq[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
+      AST.evalCompose[Set[_]](c, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
   }
 }
 
@@ -1257,7 +1373,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (TArray(TString), "mkString", Array(a)) =>
       AST.evalCompose[IndexedSeq[String], String](c, lhs, a) { case (s, t) => s.mkString(t) }
     case (TSet(elementType), "contains", Array(a)) =>
-      AST.evalCompose[IndexedSeq[Any], Any](c, lhs, a) { case (a, x) => a.contains(x) }
+      AST.evalCompose[Set[Any], Any](c, lhs, a) { case (a, x) => a.contains(x) }
 
     case (TString, "split", Array(a)) =>
       AST.evalCompose[String, String](c, lhs, a) { case (s, p) => s.split(p): IndexedSeq[String] }

@@ -241,6 +241,20 @@ class ImportAnnotationsSuite extends SparkSuite {
     val vcfToVDS = AnnotateVariants.run(state,
       Array("vds", "-i", importVCFFile, "-r", "va.other"))
 
+//    val sb = new StringBuilder
+//    vcf1.vds.vaSignature.pretty(sb, 0)
+//    println("vcf1: " + sb.result())
+//    sb.clear
+//
+//    vcfToVDS.vds.vaSignature.pretty(sb, 0)
+//    println("vcfToVDS: " + sb.result())
+//    sb.clear
+
+//    println(vcf1.vds.vaSignature == vcfToVDS.vds.vaSignature)
+//    println(vcf1.vds.metadata == vcfToVDS.vds.metadata)
+    println(vcf1.vds.variantsAndAnnotations.take(1).head)
+    println(vcfToVDS.vds.variantsAndAnnotations.take(1).head)
+
     assert(tsv1r.vds.same(tsvToVDS.vds))
     assert(vcf1.vds.same(vcfToVDS.vds))
   }
