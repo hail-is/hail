@@ -46,7 +46,7 @@ object AnnotateGlobal extends Command {
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "global")
-        fatal(s"expect 'global[.identifier]+', got ${ids.mkString(".")}")
+        fatal(s"Path must start with `global', got `${ids.mkString(".")}'")
       (ids.tail, t)
     }
 

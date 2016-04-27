@@ -45,7 +45,7 @@ object AnnotateVariantsExpr extends Command {
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "va")
-        fatal(s"Path must start with `va.', got `${ids.mkString(".")}'")
+        fatal(s"Path must start with `va', got `${ids.mkString(".")}'")
       val sig = t match {
         case tws: Type => tws
         case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")

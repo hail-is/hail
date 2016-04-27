@@ -45,7 +45,7 @@ object AnnotateSamplesExpr extends Command {
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
       if (ids.head != "sa")
-        fatal(s"Path must start with `sa.', got `${ids.mkString(".")}'")
+        fatal(s"Path must start with `sa', got `${ids.mkString(".")}'")
       val sig = t match {
         case tws: Type => tws
         case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
