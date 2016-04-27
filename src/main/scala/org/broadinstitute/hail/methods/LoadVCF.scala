@@ -146,7 +146,8 @@ object LoadVCF {
     storeGQ: Boolean = false,
     compress: Boolean = true,
     nPartitions: Option[Int] = None,
-    skipGenotypes: Boolean = false): VariantDataset = {
+    skipGenotypes: Boolean = false,
+    ppAsPL: Boolean = false): VariantDataset = {
 
     val hConf = sc.hadoopConfiguration
     val headerLines = readFile(file1, hConf) { s =>
@@ -231,7 +232,8 @@ object LoadVCF {
                   reportAcc += VCFReport.Symbolic
                   None
                 } else
-                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value), storeGQ, skipGenotypes, compress))
+                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value),
+                    storeGQ, skipGenotypes, compress, ppAsPL))
               }
             }
           }

@@ -8,6 +8,8 @@ import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
 import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix}
 import org.testng.annotations.Test
+import scala.language.postfixOps
+import scala.sys.process._
 
 import scala.io.Source
 
@@ -99,6 +101,29 @@ class ExportVcfSuite extends SparkSuite {
       vsm2.same(vsm3)
     }
 
-      p.check
+    p.check
+  }
+
+  @Test def testPPs() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf", "--pp-as-pl"))
+    val out = tmpDir.createTempFile("exportPPs", ".vcf")
+    ExportVCF.run(s, Array("-o", out, "--export-pp"))
+
+    val lines1 = readFile(out, sc.hadoopConfiguration) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .dropWhile(_.startsWith("#"))
+        .toIndexedSeq
+    }
+
+    val lines2 = readFile("src/test/resources/sample.PPs.vcf", sc.hadoopConfiguration) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .dropWhile(_.startsWith("#"))
+        .toIndexedSeq
+    }
+
+    assert(lines1 == lines2)
   }
 }
