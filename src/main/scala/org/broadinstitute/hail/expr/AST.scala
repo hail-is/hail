@@ -1436,7 +1436,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
     case (returnType, "filter", Array(Lambda(_, param, body))) =>
-      println(returnType)
       val localIdx = ec.a.length
       val localA = ec.a
       localA += null
