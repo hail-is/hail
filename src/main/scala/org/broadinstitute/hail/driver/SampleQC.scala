@@ -1,11 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -24,13 +23,7 @@ object SampleQCCombiner {
     "nTransition\t" +
     "nTransversion\t" +
     "dpMean\tdpStDev\t" +
-    "dpMeanHomRef\tdpStDevHomRef\t" +
-    "dpMeanHet\tdpStDevHet\t" +
-    "dpMeanHomVar\tdpStDevHomVar\t" +
     "gqMean\tgqStDev\t" +
-    "gqMeanHomRef\tgqStDevHomRef\t" +
-    "gqMeanHet\tgqStDevHet\t" +
-    "gqMeanHomVar\tgqStDevHomVar\t" +
     "nNonRef\t" +
     "rTiTv\t" +
     "rHetHomVar\t" +
@@ -50,20 +43,8 @@ object SampleQCCombiner {
     "nTransversion" -> TInt,
     "dpMean" -> TDouble,
     "dpStDev" -> TDouble,
-    "dpMeanHomRef" -> TDouble,
-    "dpStDevHomRef" -> TDouble,
-    "dpMeanHet" -> TDouble,
-    "dpStDevHet" -> TDouble,
-    "dpMeanHomVar" -> TDouble,
-    "dpStDevHomVar" -> TDouble,
     "gqMean" -> TDouble,
     "gqStDev" -> TDouble,
-    "gqMeanHomRef" -> TDouble,
-    "gqStDevHomRef" -> TDouble,
-    "gqMeanHet" -> TDouble,
-    "gqStDevHet" -> TDouble,
-    "gqMeanHomVar" -> TDouble,
-    "gqStDevHomVar" -> TDouble,
     "nNonRef" -> TInt,
     "rTiTv" -> TDouble,
     "rHetHomVar" -> TDouble,
@@ -76,10 +57,6 @@ class SampleQCCombiner extends Serializable {
   var nHet: Int = 0
   var nHomVar: Int = 0
 
-  val dpHomRefSC = new StatCounter()
-  val dpHetSC = new StatCounter()
-  val dpHomVarSC = new StatCounter()
-
   var nSNP: Int = 0
   var nIns: Int = 0
   var nDel: Int = 0
@@ -87,23 +64,9 @@ class SampleQCCombiner extends Serializable {
   var nTi: Int = 0
   var nTv: Int = 0
 
-  val gqHomRefSC: StatCounter = new StatCounter()
-  val gqHetSC: StatCounter = new StatCounter()
-  val gqHomVarSC: StatCounter = new StatCounter()
+  val dpSC: StatCounter = new StatCounter()
 
-  def dpSC: StatCounter = {
-    val r = dpHomRefSC.copy()
-    r.merge(dpHetSC)
-    r.merge(dpHomVarSC)
-    r
-  }
-
-  def gqSC: StatCounter = {
-    val r = gqHomRefSC.copy()
-    r.merge(gqHetSC)
-    r.merge(gqHomVarSC)
-    r
-  }
+  val gqSC: StatCounter = new StatCounter()
 
   // FIXME per-genotype
 
@@ -111,12 +74,6 @@ class SampleQCCombiner extends Serializable {
     g.gt match {
       case Some(0) =>
         nHomRef += 1
-        g.dp.foreach { v =>
-          dpHomRefSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHomRefSC.merge(v)
-        }
       case Some(1) =>
         nHet += 1
         if (v.altAllele.isSNP) {
@@ -133,12 +90,6 @@ class SampleQCCombiner extends Serializable {
           nDel += 1
         if (vIsSingleton)
           nSingleton += 1
-        g.dp.foreach { v =>
-          dpHetSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHetSC.merge(v)
-        }
       case Some(2) =>
         nHomVar += 1
         if (v.altAllele.isSNP) {
@@ -155,18 +106,20 @@ class SampleQCCombiner extends Serializable {
           nDel += 1
         if (vIsSingleton)
           nSingleton += 1
-        g.dp.foreach { v =>
-          dpHomVarSC.merge(v)
-        }
-        g.gq.foreach { v =>
-          gqHomVarSC.merge(v)
-        }
       case None =>
         nNotCalled += 1
       case _ =>
         throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
 
+    if (g.isCalled) {
+      g.dp.foreach { v =>
+        dpSC.merge(v)
+      }
+      g.gq.foreach { v =>
+        gqSC.merge(v)
+      }
+    }
     this
   }
 
@@ -183,13 +136,8 @@ class SampleQCCombiner extends Serializable {
     nTi += that.nTi
     nTv += that.nTv
 
-    dpHomRefSC.merge(that.dpHomRefSC)
-    dpHetSC.merge(that.dpHetSC)
-    dpHomVarSC.merge(that.dpHomVarSC)
-
-    gqHomRefSC.merge(that.gqHomRefSC)
-    gqHetSC.merge(that.gqHetSC)
-    gqHomVarSC.merge(that.gqHomVarSC)
+    dpSC.merge(that.dpSC)
+    gqSC.merge(that.gqSC)
 
     this
   }
@@ -236,20 +184,8 @@ class SampleQCCombiner extends Serializable {
 
     emitSC(sb, dpSC)
     sb += '\t'
-    emitSC(sb, dpHomRefSC)
-    sb += '\t'
-    emitSC(sb, dpHetSC)
-    sb += '\t'
-    emitSC(sb, dpHomVarSC)
-    sb += '\t'
 
     emitSC(sb, gqSC)
-    sb += '\t'
-    emitSC(sb, gqHomRefSC)
-    sb += '\t'
-    emitSC(sb, gqHetSC)
-    sb += '\t'
-    emitSC(sb, gqHomVarSC)
     sb += '\t'
 
     // nNonRef
@@ -284,20 +220,8 @@ class SampleQCCombiner extends Serializable {
       nTv,
       nullIfNot(dpSC.count > 0, dpSC.mean),
       nullIfNot(dpSC.count > 0, dpSC.stdev),
-      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.mean),
-      nullIfNot(dpHomRefSC.count > 0, dpHomRefSC.stdev),
-      nullIfNot(dpHetSC.count > 0, dpHetSC.mean),
-      nullIfNot(dpHetSC.count > 0, dpHetSC.stdev),
-      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.mean),
-      nullIfNot(dpHomVarSC.count > 0, dpHomVarSC.stdev),
       nullIfNot(gqSC.count > 0, gqSC.mean),
       nullIfNot(gqSC.count > 0, gqSC.stdev),
-      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.mean),
-      nullIfNot(gqHomRefSC.count > 0, gqHomRefSC.stdev),
-      nullIfNot(gqHetSC.count > 0, gqHetSC.mean),
-      nullIfNot(gqHetSC.count > 0, gqHetSC.stdev),
-      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.mean),
-      nullIfNot(gqHomVarSC.count > 0, gqHomVarSC.stdev),
       nHet + nHomVar,
       divNull(nTi, nTv),
       divNull(nHet, nHomVar),

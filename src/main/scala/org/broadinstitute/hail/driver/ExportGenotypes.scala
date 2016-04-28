@@ -48,14 +48,15 @@ object ExportGenotypes extends Command {
       "s" ->(2, TSample),
       "sa" ->(3, sas),
       "g" ->(4, TGenotype))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
+
+    val ec = EvalContext(symTab)
 
     val (header, fs) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(symTab, a, cond, sc.hadoopConfiguration)
+      ExportTSV.parseColumnsFile(ec, cond, sc.hadoopConfiguration)
     else
-      Parser.parseExportArgs(cond, symTab, a)
+      Parser.parseExportArgs(cond, ec)
+
+    val a = ec.a
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 

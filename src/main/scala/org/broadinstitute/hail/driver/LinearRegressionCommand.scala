@@ -1,6 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.methods.{LinRegStats, CovariateData, LinearRegression, Pedigree}
+import breeze.linalg.{DenseMatrix, DenseVector}
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object LinearRegressionCommand extends Command {
@@ -10,29 +14,87 @@ object LinearRegressionCommand extends Command {
   def description = "Compute beta, se, t, p-value with sample covariates"
 
   class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Output root filename")
-    var output: String = _
+    @Args4jOption(required = true, name = "-y", aliases = Array("--y"), usage = "Response sample annotation")
+    var ySA: String = _
 
-    @Args4jOption(required = true, name = "-f", aliases = Array("--fam"), usage = ".fam file")
-    var famFilename: String = _
+    @Args4jOption(required = false, name = "-c", aliases = Array("--covariates"), usage = "Covariate sample annotations, comma-separated")
+    var covSA: String = ""
 
-    @Args4jOption(required = true, name = "-c", aliases = Array("--cov"), usage = ".cov file")
-    var covFilename: String = _
+    @Args4jOption(required = false, name = "-r", aliases = Array("--root"), usage = "Variant annotation root, a period-delimited path starting with `va'")
+    var root: String = "va.linreg"
   }
 
   def newOptions = new Options
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val ped = Pedigree.read(options.famFilename, state.hadoopConf, vds.sampleIds)
-    val cov = CovariateData.read(options.covFilename, state.hadoopConf, vds.sampleIds)
 
-    val linreg = LinearRegression(vds, ped, cov)
+    val pathVA = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
 
-    if (options.output != null)
-      linreg.write(options.output)
+    val symTab = Map(
+      "s" -> (0, TSample),
+      "sa" -> (1, vds.saSignature))
 
-    val (newVAS, inserter) = vds.insertVA(LinRegStats.`type`, "linreg")
+    val ec = EvalContext(symTab)
+    val sb = new StringBuilder
+    vds.saSignature.pretty(sb, 0, true)
+
+    val a = ec.a
+
+    def toDouble(t: BaseType, code: String): Any => Double = t match {
+      case TInt => _.asInstanceOf[Int].toDouble
+      case TLong => _.asInstanceOf[Long].toDouble
+      case TFloat => _.asInstanceOf[Float].toDouble
+      case TDouble => _.asInstanceOf[Double]
+      case TBoolean => _.asInstanceOf[Boolean].toDouble
+      case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
+    }
+
+    val (yT, yQ) = Parser.parse(options.ySA, ec)
+    val yToDouble = toDouble(yT, options.ySA)
+    val ySA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
+      a(0) = s
+      a(1) = sa
+      yQ().map(yToDouble)
+    }
+
+    val (covT, covQ) = Parser.parseExprs(options.covSA, ec).unzip
+    val covToDouble = (covT, options.covSA.split(",").map(_.trim)).zipped.map(toDouble)
+    val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
+      a(0) = s
+      a(1) = sa
+      (covQ.map(_()), covToDouble).zipped.map(_.map(_))
+    }
+
+    val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
+      (ySA, covSA, vds.sampleIds)
+        .zipped
+        .filter( (y, c, s) => y.isDefined && c.forall(_.isDefined))
+
+    val yArray = yForCompleteSamples.map(_.get).toArray
+    val y = DenseVector(yArray)
+
+    val covArray = covForCompleteSamples.flatMap(_.map(_.get)).toArray
+    val k = covT.size
+    val cov =
+      if (k == 0)
+        None
+      else
+        Some(new DenseMatrix(
+          rows = completeSamples.size,
+          cols = k,
+          data = covArray,
+          offset = 0,
+          majorStride = k,
+          isTranspose = true))
+
+    val completeSampleSet = completeSamples.toSet
+    val vdsForCompleteSamples = vds.filterSamples((s, sa) => completeSampleSet(s))
+
+    val linreg = LinearRegression(vdsForCompleteSamples, y, cov)
+
+    val (newVAS, inserter) = vdsForCompleteSamples.insertVA(LinRegStats.`type`, pathVA)
+
     state.copy(
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(linreg.rdd) { case (it, jt) =>
@@ -40,7 +102,9 @@ object LinearRegressionCommand extends Command {
             assert(v == v2)
             (v, inserter(va, comb.map(_.toAnnotation)), gs)
           }
-
-        }, vaSignature = newVAS))
+        },
+        vaSignature = newVAS
+      )
+    )
   }
 }

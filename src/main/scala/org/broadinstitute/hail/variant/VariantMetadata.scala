@@ -9,9 +9,9 @@ object VariantMetadata {
     sampleIds,
     Annotation.emptyIndexedSeq(sampleIds.length),
     Annotation.empty,
-    TEmpty,
-    TEmpty,
-    TEmpty)
+    TStruct.empty,
+    TStruct.empty,
+    TStruct.empty)
 
   def apply(
     sampleIds: Array[String],

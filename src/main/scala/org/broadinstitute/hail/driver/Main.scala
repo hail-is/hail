@@ -44,9 +44,6 @@ object Main {
     @Args4jOption(required = false, name = "-q", aliases = Array("--quiet"), usage = "Don't write log file")
     var logQuiet: Boolean = false
 
-    @Args4jOption(required = false, name = "--stacktrace", usage = "Print stacktrace on exception")
-    var stacktrace: Boolean = false
-
     @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary directory")
     var tmpDir: String = "/tmp"
   }
@@ -63,45 +60,32 @@ object Main {
     sys.exit(1)
   }
 
-  def logAndPropagateException(cmd: Command, e: Exception): Nothing = {
-    log.error(s"${cmd.name}: exception", e)
-    if (HailConfiguration.stacktrace)
-      throw e
-    else {
-      System.err.println(s"hail: ${cmd.name}: caught exception: ${e.getClass.getName}: ${e.getMessage}")
-      sys.exit(1)
-    }
-  }
 
-  def handlePropagatedException(cmd: Command,
-    exceptionName: String,
-    e: Exception) {
-    val exceptionStr = exceptionName + ": "
-    var pos = e.getMessage.indexOf(exceptionStr)
-    if (pos >= 0) {
-      val atpos = e.getMessage.indexOf("\n\tat")
-      val submsg = e.getMessage.substring(pos + exceptionStr.length, atpos)
-      System.err.println(s"hail: ${cmd.name}: fatal: $submsg")
+  def expandException(cmd: Command, e: Throwable): String =
+    s"${e.getClass.getName}: ${e.getMessage}\n${
+      Option(e.getCause).foreach(exception => expandException(cmd, exception))
+    }"
+
+  def handlePropagatedException(cmd: Command, e: Throwable) {
+    if (e.isInstanceOf[FatalException]) {
+      System.err.println(s"hail: ${cmd.name}: fatal: ${e.getMessage.stripPrefix("\n")}")
+      log.error(e.getMessage)
       sys.exit(1)
-    }
+    } else
+      Option(e.getCause).foreach(c => handlePropagatedException(cmd, c))
   }
 
   def runCommand(s: State, cmd: Command, cmdOpts: Command#Options): State = {
     try {
       cmd.runCommand(s, cmdOpts.asInstanceOf[cmd.Options])
     } catch {
-      case e: FatalException =>
-        handleFatal(cmd, e)
-
-      case e: SparkException =>
-        handlePropagatedException(cmd, "org.broadinstitute.hail.FatalException", e)
-        handlePropagatedException(cmd, "org.broadinstitute.hail.PropagatedTribbleException", e)
-
-        // else
-        logAndPropagateException(cmd, e)
-
       case e: Exception =>
-        logAndPropagateException(cmd, e)
+        handlePropagatedException(cmd, e)
+
+        val msg = s"hail: ${cmd.name}: caught exception: ${expandException(cmd, e)}"
+        log.error(msg)
+        System.err.println(msg)
+        sys.exit(1)
     }
   }
 
@@ -129,8 +113,11 @@ object Main {
     // Thread.sleep(60*60*1000)
 
     info(s"timing:\n${
-      times.map { case (name, duration) =>
-        s"  $name: ${formatTime(duration)}"
+      times.map {
+        case (name, duration) =>
+          s"  $name: ${
+            formatTime(duration)
+          }"
       }.mkString("\n")
     }")
   }
@@ -141,12 +128,13 @@ object Main {
       (implicit tct: ClassTag[T]): Array[Array[T]] = {
       val r = mutable.ArrayBuilder.make[Array[T]]()
       val b = mutable.ArrayBuilder.make[T]()
-      a.foreach { (x: T) =>
-        if (p(x)) {
-          r += b.result()
-          b.clear()
-        }
-        b += x
+      a.foreach {
+        (x: T) =>
+          if (p(x)) {
+            r += b.result()
+            b.clear()
+          }
+          b += x
       }
       r += b.result()
       b.clear()
@@ -218,21 +206,22 @@ object Main {
       fatal("no commands given")
 
     val invocations: Array[(Command, Command#Options, Array[String])] = splitArgs.tail
-      .map { args =>
-        val (cmd, cmdArgs) =
+      .map {
+        args =>
+          val (cmd, cmdArgs) =
+            try {
+              ToplevelCommands.lookup(args)
+            } catch {
+              case e: FatalException =>
+                handleFatal(e)
+            }
+
           try {
-            ToplevelCommands.lookup(args)
+            (cmd, cmd.parseArgs(cmdArgs): Command#Options, args)
           } catch {
             case e: FatalException =>
-              handleFatal(e)
+              handleFatal(cmd, e)
           }
-
-        try {
-          (cmd, cmd.parseArgs(cmdArgs): Command#Options, args)
-        } catch {
-          case e: FatalException =>
-            handleFatal(cmd, e)
-        }
       }
 
     val conf = new SparkConf().setAppName("Hail")
@@ -269,7 +258,6 @@ object Main {
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     sc.addJar(jar)
 
-    HailConfiguration.stacktrace = options.stacktrace
     HailConfiguration.installDir = new File(jar).getParent + "/.."
     HailConfiguration.tmpDir = options.tmpDir
 

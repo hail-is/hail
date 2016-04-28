@@ -62,16 +62,6 @@ class BGzipCodecSuite extends SparkSuite {
     val decompLines = sc.textFile(compFilename, 10)
     assert(decompLines.partitions.size == 10)
 
-    /*
-    val fw = new FileWriter(new File("/tmp/uncomp.vcf"))
-    uncompLines.collect().foreach(line => fw.write(line + "\n"))
-    fw.close()
-
-    val fw2 = new FileWriter(new File("/tmp/decomp.vcf"))
-    decompLines.collect().foreach(line => fw2.write(line + "\n"))
-    fw2.close()
-    */
-
     assert(uncompLines.collect().toSet
       == decompLines.collect().toSet)
   }

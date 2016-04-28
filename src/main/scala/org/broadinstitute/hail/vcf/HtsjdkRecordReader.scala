@@ -29,19 +29,18 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
-    infoSignature: TStruct,
+    infoSignature: Option[TStruct],
     storeGQ: Boolean,
     skipGenotypes: Boolean,
-    compress: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
+    compress: Boolean,
+    ppAsPL: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
-    val filters: mutable.WrappedArray[String] = {
+    val filters: Set[String] = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
-        Array("PASS")
-      else {
-        val arr = vc.getFilters.asScala.toArray
-        arr
-      }
+        Set("PASS")
+      else
+        vc.getFilters.asScala.toSet
     }
     val rsid = vc.getID
 
@@ -51,27 +50,28 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
 
-    val info = Annotation(
-      infoSignature.fields.map { f =>
-        val a = vc.getAttribute(f.name)
-        try {
-          cast(a, f.`type`)
-        } catch {
-          case e: Exception =>
-            fatal(
-              s"""variant $v: INFO field ${f.name}:
-                  |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
-                  |  caught $e""".stripMargin)
-        }
-      }: _*)
-    assert(infoSignature.typeCheck(info))
+    val info = infoSignature.map { sig =>
+      val a = Annotation(
+        sig.fields.map { f =>
+          val a = vc.getAttribute(f.name)
+          try {
+            cast(a, f.`type`)
+          } catch {
+            case e: Exception =>
+              fatal(
+                s"""variant $v: INFO field ${f.name}:
+                    |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
+                    |  caught $e""".stripMargin)
+          }
+        }: _*)
+      assert(sig.typeCheck(a))
+      a
+    }
 
-    val va = Annotation(
-      rsid,
-      vc.getPhredScaledQual,
-      filters,
-      pass,
-      info)
+    val va = info match {
+      case Some(infoAnnotation) => Annotation(rsid, vc.getPhredScaledQual, filters, pass, infoAnnotation)
+      case None => Annotation(rsid, vc.getPhredScaledQual, filters, pass)
+    }
 
     if (skipGenotypes)
       return (v, va, Iterable.empty)
@@ -95,7 +95,14 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       var filter = false
       gb.clear()
 
-      var pl = g.getPL
+      var pl = if (ppAsPL) {
+        val str = g.getAnyAttribute("PP")
+        if (str != null)
+          str.asInstanceOf[String].split(",").map(_.toInt)
+        else null
+      }
+      else g.getPL
+
       if (g.hasPL) {
         val minPL = pl.min
         if (minPL != 0) {

@@ -20,6 +20,7 @@ object GenotypeSuite {
     gb.set(g)
     gb.write(ab)
     val g2 = Genotype.read(v, new ByteIterator(ab.result()))
+    //println(s"g = $g, g2 = $g2")
     g == g2
   }
 
@@ -88,6 +89,10 @@ class GenotypeSuite extends TestNGSuite {
     assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(99), Some(Array(100, 0, 100))).pAB().get, 1.0))
     assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(99), Some(Array(200, 0, 100))).pAB().get, 0.423950))
 
+<<<<<<< HEAD
     Spec.check(count = 100000)
+=======
+    Spec.check()
+>>>>>>> master
   }
 }

@@ -50,11 +50,13 @@ class MendelErrorsSuite extends SparkSuite {
     assert(nPerVariant(variant6) == 1)
     assert(nPerVariant.get(variant7).isEmpty)
 
+    val mendelBase = tmpDir.createTempFile("sample_mendel")
+
     //FIXME: How to test these?
-    men.writeMendel("/tmp/sample_mendel.mendel")
-    men.writeMendelL("/tmp/sample_mendel.lmendel")
-    men.writeMendelF("/tmp/sample_mendel.fmendel")
-    men.writeMendelI("/tmp/sample_mendel.imendel")
+    men.writeMendel(mendelBase + ".mendel")
+    men.writeMendelL(mendelBase + ".lmendel")
+    men.writeMendelF(mendelBase + ".fmendel")
+    men.writeMendelI(mendelBase + ".imendel")
 
     val ped2 = Pedigree.read("src/test/resources/mendelWithMissingSex.fam", sc.hadoopConfiguration, vds.sampleIds)
     val men2 = MendelErrors(vds, ped2.completeTrios)
