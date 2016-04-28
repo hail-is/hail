@@ -39,7 +39,7 @@ This file format requires one column containing sample IDs, and each other colum
 - `-i | --input <path-to-tsv>` specify the file path **(Required)**
 - `-r | --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `sa` **(Required)**
 - `-s | --sampleheader <id>` specify the name of the column containing sample IDs **(Optional with default "Sample")**
-- `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)**
+- `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  **If a field is not found in this type map, it will be read and stored as a string** **(Optional)**
 - `-m | --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
 
 ____
@@ -112,7 +112,7 @@ ____
 <a name="SampleProg"></a>
 ### Programmatic Annotation
 
-Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the sample (`s`) and the sample annotations (`sa`).
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the sample (`s`), the sample annotations (`sa`), and the global annotation (`global`).
 
 **Command line arguments:**
 
@@ -539,7 +539,7 @@ ____
 <a name="VariantProg"></a>
 ### Programmatic Annotation
 
-Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the variant (`v`), the variant annotations (`va`), and the genotype row aggregable (`gs`).
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the variant (`v`), the variant annotations (`va`), the global annotation (`global`), and the genotype row aggregable (`gs`).
 
 **Command line arguments:**
 
