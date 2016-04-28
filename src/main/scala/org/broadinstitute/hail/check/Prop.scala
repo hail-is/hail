@@ -34,10 +34,6 @@ abstract class Prop {
     p.rng.reSeed(seed2)
     apply(p)
   }
-
-  def check(size: Int = 100, count: Int = 100) {
-    apply(Parameters.default.copy(size = size, count = count))
-  }
 }
 
 class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {

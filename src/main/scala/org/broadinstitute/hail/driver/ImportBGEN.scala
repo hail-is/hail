@@ -75,7 +75,7 @@ object ImportBGEN extends Command {
     info(s"Number of variants in all BGEN files: $nVariants")
     info(s"Number of samples in BGEN files: $nSamples")
 
-    val signature = TStruct("rsid" -> TString, "varid" -> TString)
+    val signature = TStruct("rsid" -> TString, "varid" -> TString, "infoScore" -> TDouble)
 
     val rdd = sc.union(results.map(_.rdd))
     val vds = VariantSampleMatrix(VariantMetadata(samples), rdd).copy(vaSignature = signature, wasSplit = true)

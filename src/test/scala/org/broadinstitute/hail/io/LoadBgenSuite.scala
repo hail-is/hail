@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.io
 
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
@@ -42,17 +43,26 @@ class LoadBgenSuite extends SparkSuite {
 
     val genVDS = GenLoader2(gen, sampleFile, sc)
     val bgenVDS = s.vds
-    val genVariantsAnnotations = genVDS.variantsAndAnnotations
-    val bgenVariantsAnnotations = bgenVDS.variantsAndAnnotations
 
-    val bgenQuery = bgenVDS.vaSignature.query("varid")
-    val genQuery = genVDS.vaSignature.query("varid")
-    val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((bgenQuery(va).get, s), gt) }
-    val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((genQuery(va).get, s), gt) }
+    val varidBgenQuery = bgenVDS.vaSignature.query("varid")
+    val rsidBgenQuery = bgenVDS.vaSignature.query("rsid")
+    val infoBgenQuery = bgenVDS.vaSignature.query("infoScore")
+
+    val varidGenQuery = genVDS.vaSignature.query("varid")
+    val rsidGenQuery = bgenVDS.vaSignature.query("rsid")
+    val infoGenQuery = genVDS.vaSignature.query("infoScore")
 
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)
-    assert(bgenVariantsAnnotations.collect() sameElements genVariantsAnnotations.collect())
+
+    val bgenAnnotations = bgenVDS.variantsAndAnnotations.map{case (v, va) => (varidBgenQuery(va).get, va)}
+    val genAnnotations = genVDS.variantsAndAnnotations.map{case (v, va) => (varidGenQuery(va).get, va)}
+
+    assert(genAnnotations.fullOuterJoin(bgenAnnotations).map{case (varid, (va1, va2)) => if (va1 == va2) true else false}.fold(true)(_ && _))
+
+    val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidBgenQuery(va).get, s), gt) }
+    val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidGenQuery(va).get, s), gt) }
+
     genFull.fullOuterJoin(bgenFull)
       .collect()
       .foreach { case ((v, i), (gt1, gt2)) =>
@@ -60,6 +70,17 @@ class LoadBgenSuite extends SparkSuite {
       }
   }
 
+  @Test def testInfoScore() {
+    val sampleFile = "src/test/resources/example.sample"
+    val bgen = "src/test/resources/example.v11.bgen"
+    val fileRoot = tmpDir.createTempFile(prefix = "exampleInfoScoreTest")
+    val qcToolLogFile = fileRoot + ".qctool.log"
+    val statsFile = fileRoot + ".stats"
+    val qcToolPath = "qctool"
+
+    s"src/test/resources/runExternalToolQuiet.sh $qcToolPath -force -b $bgen -snp-stats $statsFile -log $qcToolLogFile" !
+
+  }
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.genDosage _);
@@ -79,7 +100,9 @@ class LoadBgenSuite extends SparkSuite {
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
         val qcToolLogFile = fileRoot + ".qctool.log"
+        val statsFile = fileRoot + ".stats"
         val qcToolPath = "qctool"
+
 
         hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, true)
         hadoopDelete(bgenFile, sc.hadoopConfiguration, true)
@@ -96,6 +119,8 @@ class LoadBgenSuite extends SparkSuite {
         GenWriter(fileRoot, s.vds, sc)
 
         s"src/test/resources/runExternalToolQuiet.sh $qcToolPath -force -g $genFile -s $sampleFile -og $bgenFile -log $qcToolLogFile" !
+
+        s"src/test/resources/runExternalToolQuiet.sh $qcToolPath -force -g $genFile -snp-stats $statsFile -log $qcToolLogFile" !
 
         if (vds.nVariants == 0)
           try {
@@ -163,9 +188,9 @@ class LoadBgenSuite extends SparkSuite {
       }
   }
 
-  @Test def testBgenImportRandom() {
+/*  @Test def testBgenImportRandom() {
     Spec.check(100, 100)
-  }
+  }*/
 }
 
 object BgenUtils {

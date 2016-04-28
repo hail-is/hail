@@ -427,7 +427,7 @@ case object TGenotype extends Type {
         Option(r.get(2)).map(_.asInstanceOf[Int]),
         Option(r.get(3)).map(_.asInstanceOf[Int]),
         Option(r.get(4)).map(_.asInstanceOf[Seq[Int]].toArray),
-        r.get(5).asInstanceOf[Boolean])
+        r.get(5).asInstanceOf[Int])
     }
 
   override def genValue: Gen[Annotation] = Genotype.genArb

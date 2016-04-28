@@ -73,10 +73,10 @@ object PlinkLoader {
     VariantSampleMatrix(VariantMetadata(
       sampleInfo.sampleIds,
       sampleInfo.annotations,
-      TEmpty,
+      Annotation.empty,
       sampleInfo.signatures,
-      TEmpty,
-      TEmpty), variantRDD)
+      TStruct.empty,
+      TStruct.empty), variantRDD)
   }
 
   def apply(bedPath: String, bimPath: String, famPath: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
