@@ -5,7 +5,8 @@ Hail includes modules for importing annotations from external files, for use in 
  - `annotatevariants` [(click to seek)](#AnnoVar)
  - `annotateglobal`  [(click to seek)](#AnnoGlobal)
  
-Each of these modules has multiple run modes, which are specified with the first word after the command invocation:
+Each of these modules has multiple run modes, which are specified with the first word after the command invocation.  Examples:
+
 ```
 <...> annotatesamples tsv <args>
 ```
@@ -14,8 +15,10 @@ Each of these modules has multiple run modes, which are specified with the first
 <...> annotatevariants expr <args>
 ```
 
-Read on and see examples for more information.
- 
+```
+<...> annotateglobal list <args>
+```
+
 ## Annotating Samples
 
 Hail currently supports annotating samples from:
@@ -550,11 +553,47 @@ ____
 <a name="AnnoGlobal"></a>
 ## Annotating global variables
 
-Hail currently supports annotating the global annotation table from expressions alone.  The exposed data structures are existing global annotations (`global`), a variant/variant annotations aggregable (`variants`), and a sample/sample annotations aggregable(`samples`).
+Hail currently supports annotating the global annotation table from two sources:
+ - [Text files](#GlobalList)
+ - [Programmatic commands](#GlobalProg)
+
+____
+
+<a name="GlobalList"></a>
+### Text lists
+
+It is possible to add global annotations from text files.  A file is read into the global table at the specified path as either an array or a set of strings.
+
+**Command line arguments:**
+
+- `list` Invoke this functionality (`annotateglobal list <args>`)
+- `-i | --input <file path>` Specify the path to the file **(Required)**
+- `-r | --root <root>` Specify the target namespace in the global table, as a period-delimited path starting with `global` **(Required)**
+- `--as-set` Read the file as a `Set[String]` instead of an `Array[String]` **(Optional)**
+
+____
+
+**Example1**
+$ cat /tmp/genes.txt
+SCN2A
+SONIC-HEDGEHOG
+PRNP
+ALDH4A1
+LEP
+OSM
+TSC1
+TSC2
+
+
+<a name="GlobalProg"></a>
+### Programmatic Annotation
+
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the existing global annotations (`global`), a variant/variant annotations aggregable (`variants`), and a sample/sample annotations aggregable(`samples`).
  
 **Command line arguments:**
 
-- `-c | --condition <condition>`
+- `expr` Invoke this functionality (`annotateglobal expr <args>`)
+- `-c | --condition <condition>` **(Required)**
 
 For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
 
