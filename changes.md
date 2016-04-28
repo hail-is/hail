@@ -1,4 +1,10 @@
 
+ - split `annotateglobal` into `annotateglobal expr` and `annotateglobal list`.  The latter can be used to load a text file as an `Array[String]` or `Set[String]` to the global annotations, which can then be used to do things like `filtervariants expr` on genes in a gene list.
+ 
+ - exposed `global` annotations throughout the expr language.  With aggregators, this allows you to do things like filter samples more than 5 standard deviations from the mean of a metric or the gene list filtering above
+ 
+ ____
+
  - added **aggregators**!  see what you can do with them [here!](docs/HailExpressionLanguage.md)  As a consequence, removed some fields computed by `variantqc` and `sampleqc` because these are easy to compute with aggregators.
 
  - added `annotateglobal`, which lets you create global annotations with expressions and aggregators.  See docs for details.

@@ -22,6 +22,8 @@ object AnnotateVariantsExpr extends Command {
 
   def description = "Annotate variants programatically"
 
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -33,14 +35,19 @@ object AnnotateVariantsExpr extends Command {
       "va" ->(1, vds.vaSignature),
       "s" ->(2, TSample),
       "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype)))
+      "g" ->(4, TGenotype),
+      "global" ->(5, vds.globalSignature)))
     val symTab = Map(
       "v" ->(0, TVariant),
       "va" ->(1, vds.vaSignature),
+      "global" ->(2, vds.globalSignature),
       "gs" ->(-1, TAggregable(aggregationEC)))
 
 
     val ec = EvalContext(symTab)
+    ec.set(2, vds.globalAnnotation)
+    aggregationEC.set(5, vds.globalAnnotation)
+
     val parsed = Parser.parseAnnotationArgs(cond, ec)
 
     val keyedSignatures = parsed.map { case (ids, t, f) =>
@@ -65,7 +72,7 @@ object AnnotateVariantsExpr extends Command {
     val aggregateOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
     val annotated = vdsAddedSigs.mapAnnotations { case (v, va, gs) =>
-      ec.setContext(v, va)
+      ec.setAll(v, va)
 
       aggregateOption.foreach(f => f(v, va, gs))
 

@@ -81,11 +81,9 @@ object Main {
     } catch {
       case e: Exception =>
         handlePropagatedException(cmd, e)
-
         val msg = s"hail: ${cmd.name}: caught exception: ${expandException(cmd, e)}"
         log.error(msg)
-        System.err.println(msg)
-        sys.exit(1)
+        throw e
     }
   }
 

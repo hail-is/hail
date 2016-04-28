@@ -27,13 +27,16 @@ Identifier | Description
 :-: | ---
 `v` | Variant
 `va` | Variant annotations
+`global` | global annotation
 `gs` | Genotype row [aggregable](HailExpressionLanguage.md#aggregables)
 
 **`annotatesamples`:**
+
 Identifier | Description
 :-: | ---
 `s` | Sample
 `sa` | Sample annotations
+`global` | global annotation
 `gs` | Genotype column [aggregable](HailExpressionLanguage.md#aggregables)
 
 **`annotateglobal`:**

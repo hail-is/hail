@@ -36,14 +36,18 @@ object ExportSamples extends Command {
       "va" ->(1, vds.vaSignature),
       "s" ->(2, TSample),
       "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype)))
+      "g" ->(4, TGenotype),
+      "global" ->(5, vds.globalSignature)))
+
     val symTab = Map(
       "s" ->(0, TSample),
-      "sa" ->(1, sas),
+      "sa" ->(1, vds.saSignature),
+      "global" ->(2, vds.globalSignature),
       "gs" ->(-1, TAggregable(aggregationEC)))
 
     val ec = EvalContext(symTab)
-
+    ec.set(2, vds.globalAnnotation)
+    aggregationEC.set(5, vds.globalAnnotation)
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
@@ -60,7 +64,7 @@ object ExportSamples extends Command {
     val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
       sb.clear()
 
-      ec.setContext(s, sa)
+      ec.setAll(s, sa)
 
       sampleAggregationOption.foreach(f => f.apply(s))
 

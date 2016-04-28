@@ -11,7 +11,17 @@ object PrintSchema extends Command {
     var output: String = _
 
     @Args4jOption(name = "--attributes", usage = "Print attributes on all fields")
-    var attributes: Boolean = _
+    var attributes: Boolean = false
+
+    @Args4jOption(name = "--va", usage = "Print the variant annotation schema")
+    var va: Boolean = false
+
+    @Args4jOption(name = "--sa", usage = "Print the sample annotation schema")
+    var sa: Boolean = false
+
+    @Args4jOption(name = "--global", usage = "Print the global annotation schema")
+    var global: Boolean = false
+
   }
 
   def newOptions = new Options
@@ -30,24 +40,32 @@ object PrintSchema extends Command {
 
     val sb = new StringBuilder()
 
-    sb.append("Global annotation schema:\n")
-    sb.append("global: ")
-    vds.metadata.globalSignature.pretty(sb, 0, printAttrs = options.attributes)
+    val printAll = !options.va && !options.sa && !options.global
 
-    sb += '\n'
-    sb += '\n'
+    if (printAll || options.global) {
+      sb.append("Global annotation schema:\n")
+      sb.append("global: ")
+      vds.metadata.globalSignature.pretty(sb, 0, printAttrs = options.attributes)
 
-    sb.append("Sample annotation schema:\n")
-    sb.append("sa: ")
-    vds.metadata.saSignature.pretty(sb, 0, printAttrs = options.attributes)
+      sb += '\n'
+      sb += '\n'
+    }
 
-    sb += '\n'
-    sb += '\n'
+    if (printAll || options.sa) {
+      sb.append("Sample annotation schema:\n")
+      sb.append("sa: ")
+      vds.metadata.saSignature.pretty(sb, 0, printAttrs = options.attributes)
 
-    sb.append("Variant annotation schema:\n")
-    sb.append("va: ")
-    vds.metadata.vaSignature.pretty(sb, 0, printAttrs = options.attributes)
-    sb += '\n'
+      sb += '\n'
+      sb += '\n'
+    }
+
+    if (printAll || options.va) {
+      sb.append("Variant annotation schema:\n")
+      sb.append("va: ")
+      vds.metadata.vaSignature.pretty(sb, 0, printAttrs = options.attributes)
+      sb += '\n'
+    }
 
     val result = sb.result()
     options.output match {

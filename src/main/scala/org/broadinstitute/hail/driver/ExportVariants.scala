@@ -37,14 +37,18 @@ object ExportVariants extends Command {
       "va" ->(1, vds.vaSignature),
       "s" ->(2, TSample),
       "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype)
-    ))
+      "g" ->(4, TGenotype),
+      "global" ->(5, vds.globalSignature)))
     val symTab = Map(
       "v" ->(0, TVariant),
       "va" ->(1, vds.vaSignature),
-      "gs" ->(2, TAggregable(aggregationEC)))
+      "global" ->(2, vds.globalSignature),
+      "gs" ->(-1, TAggregable(aggregationEC)))
+
 
     val ec = EvalContext(symTab)
+    ec.set(2, vds.globalAnnotation)
+    aggregationEC.set(5, vds.globalAnnotation)
 
     val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
@@ -63,7 +67,7 @@ object ExportVariants extends Command {
           variantAggregations.foreach { f => f(v, va, gs)}
           sb.clear()
 
-          ec.setContext(v, va)
+          ec.setAll(v, va)
 
           fs.iterator.foreachBetween { f => sb.tsvAppend(f()) }(() => sb.append("\t"))
           sb.result()
