@@ -17,26 +17,18 @@ object PlinkLoader {
   def expectedBedSize(nSamples:Int, nVariants:Long) : Long = 3 + nVariants * ((nSamples + 3) / 4)
 
   private def parseBim(bimPath: String, hConf: Configuration): Array[Variant] = {
-    readFile(bimPath, hConf) { s =>
-      Source.fromInputStream(s)
-        .getLines()
-        .filter(line => !line.isEmpty)
-        .map { line =>
-          val Array(contig, rsId, morganPos, bpPos, allele1, allele2) = line.split("\\s+")
-          Variant(contig, bpPos.toInt, allele2, allele1)
-        }
-        .toArray
+    readLines(bimPath, hConf)(_.map(_.transform { line =>
+      val Array(contig, rsId, morganPos, bpPos, allele1, allele2) = line.value.split("\\s+")
+      Variant(contig, bpPos.toInt, allele2, allele1)
     }
+    ).toArray)
   }
 
   private def parseFam(famPath: String, hConf: Configuration): SampleInfo = {
-    val sampleArray = readFile(famPath, hConf) { s =>
-      Source.fromInputStream(s)
-        .getLines()
-        .filter(line => !line.isEmpty)
-        .map { line => line.split("\\s+") }
-        .toArray
-    }
+    val sampleArray = readLines(famPath, hConf)(_.map(_.transform { line =>
+      val Array(fid, iid, mid, pid, sex, pheno) = line.value.split("\\s+")
+      Array(fid, iid, mid, pid, sex, pheno)
+    }).toArray)
 
     val signatures = TStruct("fid" -> TString, "mid" -> TString, "pid" -> TString, "reportedSex" -> TString, "phenotype" -> TString)
 

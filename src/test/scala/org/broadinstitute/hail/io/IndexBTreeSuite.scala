@@ -4,9 +4,8 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.SparkSuite
 import org.testng.annotations.Test
-
 import scala.language.implicitConversions
 
 class IndexBTreeSuite extends SparkSuite {
@@ -33,7 +32,7 @@ class IndexBTreeSuite extends SparkSuite {
       forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
         val arrayRandomStarts = fillRandomArray(arraySize)
         val maxLong = arrayRandomStarts.takeRight(1)(0)
-        val index = "/tmp/testBtree.idx"
+        val index = tmpDir.createTempFile(prefix = "testBtree", extension = ".idx")
 
         hadoopDelete(index, sc.hadoopConfiguration, true)
         IndexBTree.write(arrayRandomStarts, index, sc.hadoopConfiguration)
@@ -73,7 +72,7 @@ class IndexBTreeSuite extends SparkSuite {
   @Test def oneVariant() {
     val index = Array(24.toLong)
     val fileSize = 30 //made-up value greater than index
-    val idxFile = "/tmp/testBtree_1variant.idx"
+    val idxFile = tmpDir.createTempFile(prefix = "testBtree_1variant", extension = ".idx")
     val hConf = sc.hadoopConfiguration
 
     hadoopDelete(idxFile, sc.hadoopConfiguration, true)
@@ -96,7 +95,7 @@ class IndexBTreeSuite extends SparkSuite {
   @Test def zeroVariants() {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
-      val idxFile = "/tmp/testBtree_0variant.idx"
+      val idxFile = tmpDir.createTempFile(prefix = "testBtree_0variant", extension = ".idx")
       hadoopDelete(idxFile, sc.hadoopConfiguration, true)
       IndexBTree.write(index, idxFile, sc.hadoopConfiguration)
     }

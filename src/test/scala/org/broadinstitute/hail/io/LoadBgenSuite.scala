@@ -18,6 +18,8 @@ import scala.sys.process._
 
 class LoadBgenSuite extends SparkSuite {
 
+  final val MAX_PL = 51 //difference between the expected minimum value [-10*log10(0.25)] and the expected maximum value [-10*log10(32768)]
+
   def getNumberOfLinesInFile(file: String): Long = {
     readFile(file, sc.hadoopConfiguration) { s =>
       Source.fromInputStream(s)
@@ -86,7 +88,8 @@ class LoadBgenSuite extends SparkSuite {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.genDosage _);
                        nPartitions: Int <- choose(1, 10)) yield (vds, nPartitions)
 
-    writeTextFile("/tmp/sample_rename.txt", sc.hadoopConfiguration) { case w =>
+    val sampleRenameFile = tmpDir.createTempFile(prefix="sample_rename")
+    writeTextFile(sampleRenameFile, sc.hadoopConfiguration) { case w =>
       w.write("NA\tfdsdakfasdkfla")
     }
 
@@ -95,7 +98,7 @@ class LoadBgenSuite extends SparkSuite {
 
         val vdsRemapped = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "01"), va, gs) })
 
-        val fileRoot = "/tmp/testGenWriter"
+        val fileRoot = tmpDir.createTempFile(prefix="testImportBgen")
         val sampleFile = fileRoot + ".sample"
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
@@ -112,7 +115,7 @@ class LoadBgenSuite extends SparkSuite {
 
         var s = State(sc, sqlContext, vdsRemapped)
         s = SplitMulti.run(s, Array[String]())
-        s = RenameSamples.run(s, Array("-i", "/tmp/sample_rename.txt"))
+        s = RenameSamples.run(s, Array("-i", sampleRenameFile))
 
         val origVds = s.vds
 
@@ -155,7 +158,7 @@ class LoadBgenSuite extends SparkSuite {
               }
 /*            val gt1x = gt1 match {
               case Some(x) =>
-                var newPl = x.pl.getOrElse(Array(0, 0, 0)).map { i => math.min(i, BgenLoader.MAX_PL) }
+                var newPl = x.pl.getOrElse(Array(0, 0, 0)).map { i => math.min(i, MAX_PL) }
                 val newGt = BgenUtils.parseGenotype(newPl)
                 newPl = if (newGt == -1) null else newPl
                 Some(x.copy(gt = Option(newGt), ad = None, dp = None, gq = None, pl = Option(newPl)))
@@ -166,8 +169,8 @@ class LoadBgenSuite extends SparkSuite {
               true
             else {
               if (gt1x.isDefined && gt2.isDefined)
-                gt1x.get.pl.getOrElse(Array(BgenLoader.MAX_PL, BgenLoader.MAX_PL, BgenLoader.MAX_PL))
-                  .zip(gt2.get.pl.getOrElse(Array(BgenLoader.MAX_PL, BgenLoader.MAX_PL, BgenLoader.MAX_PL)))
+                gt1x.get.pl.getOrElse(Array(MAX_PL, MAX_PL, MAX_PL))
+                  .zip(gt2.get.pl.getOrElse(Array(MAX_PL, MAX_PL, MAX_PL)))
                   .forall { case (pl1, pl2) =>
                     if (math.abs(pl1 - pl2) <= 2) {
                       true

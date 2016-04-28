@@ -65,10 +65,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration) {
   }
 
   private def getOffset(depth: Int): Long = {
-    if (depth == 1)
-      0
-    else
-      (1 until depth).map(math.pow(1024,_).toLong * 8).sum
+    (1 until depth).map(math.pow(1024,_).toLong * 8).sum
   }
 
   private def getOffset(depth: Int, blockIndex: Long): Long = {

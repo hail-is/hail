@@ -41,7 +41,7 @@ object ImportPlink extends Command {
 
     if (options.bfile != null) {
       if (options.bim != null || options.bed != null || options.fam != null)
-        fatal("received --bfile argument, ignoring unexpected --bed/--bim/--fam arguments")
+        fatal("invalid input: require either --bed/--bim/--fam arguments or --bfile argument")
       state.copy(vds = PlinkLoader(options.bfile + ".bed", options.bfile + ".bim", options.bfile + ".fam", state.sc, nPartitionOption))
     } else
       state.copy(vds = PlinkLoader(options.bed, options.bim, options.fam, state.sc, nPartitionOption))

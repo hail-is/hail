@@ -23,20 +23,15 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   seekToFirstBlockInSplit(split.getStart)
 
   def seekToFirstBlockInSplit(start: Long) {
-    if (start > 2)
-      variantIndex = ((start - 3) / blockLength).toInt
-    else
-      variantIndex = 0
-
-    require(variantIndex >= 0)
-
+    variantIndex = math.max(0,((start - 3 + blockLength - 1) / blockLength).toInt)
     pos = variantIndex * blockLength + 3
+
     if (pos < start) {
       variantIndex += 1
       pos = variantIndex * blockLength + 3
     }
 
-    bfis.seek(variantIndex * blockLength + 3)
+    bfis.seek(pos)
   }
 
   def next(key: LongWritable, value: VariantRecord[Int]): Boolean = {
