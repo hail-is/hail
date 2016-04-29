@@ -28,7 +28,7 @@ class LoadGenSuite extends SparkSuite {
     val sampleFile = "src/test/resources/example.sample"
 
     var s = State(sc, sqlContext, null)
-    val genVDS = GenLoader2(gen, sampleFile, sc)
+    val genVDS = GenLoader2(Array(gen), sampleFile, sc)
     val genOrigData = makeRDD(gen)
 
     val genQuery = genVDS.vaSignature.query("varid")
@@ -57,17 +57,15 @@ class LoadGenSuite extends SparkSuite {
 
           case None =>
 
-            val res = if (dosOld(n) == dosOld(n+1) || dosOld(n) == dosOld(n+2))
+            val res = if (dosOld(n) == dosOld(n+1) || dosOld(n) == dosOld(n+2)) //FIXME: Is this correct?
               true
             else
               false
             n += 3
             res
         }
-
-
       }
-      result.fold(true)(_ && _)
+      result.forall(p => p)
     }.fold(true)(_ && _)
     assert(res)
   }

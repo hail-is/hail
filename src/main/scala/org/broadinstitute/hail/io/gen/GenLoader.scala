@@ -1,12 +1,13 @@
 package org.broadinstitute.hail.io.gen
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
 
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 class InfoScoreCalculator {
@@ -34,6 +35,53 @@ class InfoScoreCalculator {
   }
 }
 
+object GenReport {
+  val dosageNoCall = 1
+  val dosageNormalizedLessThan = 2
+  val dosageNormalizedGreaterThan = 3
+  val dosageLessThanTolerance = 4
+
+  var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
+
+  def warningMessage(id: Int, count: Int): String = {
+    val desc = id match {
+      case dosageNoCall => "Dosage triple of (0.0,0.0,0.0), set to None"
+      case dosageNormalizedLessThan => "Sum of Dosage < 1.0, normalized to 1.0 by Hail"
+      case dosageNormalizedGreaterThan => "Sum of Dosage < 1.0, normalized to 1.0 by Hail"
+      case dosageLessThanTolerance => "Sum of Dosage < 1.0 - tolerance, set to None"
+    }
+    s"$count ${plural(count, "time")}: $desc"
+  }
+
+  def report() {
+    val sb = new StringBuilder()
+
+    for ((file, m) <- accumulators) {
+      sb.clear()
+
+      sb.append(s"while importing:\n    $file")
+
+      val genotypeWarnings = m.value
+      val nGenotypesFiltered = genotypeWarnings.values.sum
+      if (nGenotypesFiltered > 0) {
+        sb.append(s"\n  filtered $nGenotypesFiltered genotypes:")
+        genotypeWarnings.foreach { case (id, n) =>
+          if (n > 0) {
+            sb.append("\n    ")
+            sb.append(warningMessage(id, n))
+          }
+        }
+      }
+
+      if (nGenotypesFiltered == 0) {
+        sb.append("  import clean")
+        info(sb.result())
+      } else
+        warn(sb.result())
+    }
+  }
+}
+
 object GenUtils {
 
   def normalizePPs(arr: Array[Double]): Array[Double] = {
@@ -57,16 +105,25 @@ object GenUtils {
 }
 
 object GenLoader2 {
-  def apply(genFile: String, sampleFile: String, sc: SparkContext, nPartitions: Option[Int] = None, tolerance: Double = 0.02): VariantSampleMatrix[Genotype] = {
+  def apply(genFile: Array[String], sampleFile: String, sc: SparkContext, nPartitions: Option[Int] = None, tolerance: Double = 0.02): VariantSampleMatrix[Genotype] = {
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
     val nSamples = sampleIds.length
-    val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions)).map{case line => readGenLine(line, nSamples)}
+
+    val rdd = sc.union(genFile.map{file =>
+      val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
+      GenReport.accumulators ::=(file, reportAcc)
+
+      sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
+        .map{ case line => readGenLine(line, nSamples, tolerance, reportAcc)}
+    })
+
     val signatures = TStruct("rsid" -> TString, "varid" -> TString, "infoScore" -> TDouble)
+
     VariantSampleMatrix(metadata = VariantMetadata(sampleIds).copy(vaSignature = signatures, wasSplit = true), rdd = rdd)
   }
 
-  def readGenLine(line: String, nSamples: Int): (Variant, Annotation, Iterable[Genotype]) = {
+  def readGenLine(line: String, nSamples: Int, tolerance: Double, reportAcc: Accumulable[mutable.Map[Int, Int], Int]): (Variant, Annotation, Iterable[Genotype]) = {
     val arr = line.split("\\s+")
     val rsid = arr(2)
     val varid = arr(1)
@@ -86,9 +143,20 @@ object GenLoader2 {
     for (i <- dosages.indices by 3) {
       genoBuilder.clear()
       val origDosages = Array(dosages(i), dosages(i+1), dosages(i+2))
+      val sumDosages = origDosages.sum
 
-      if (origDosages.sum >= (1 - 0.02)) {
+      if (sumDosages == 0.0)
+        reportAcc += GenReport.dosageNoCall
+      else if (sumDosages < (1.0 - tolerance))
+        reportAcc += GenReport.dosageLessThanTolerance
+      else if (sumDosages > 1.0)
+        reportAcc += GenReport.dosageNormalizedGreaterThan
+      else if (sumDosages < 1.0 && sumDosages >= (1.0 - tolerance))
+        reportAcc += GenReport.dosageNormalizedLessThan
+
+      if (origDosages.sum >= (1 - tolerance)) {
         val normProbs = GenUtils.normalizePPs(origDosages)
+
         infoScoreCalculator.addDosage(normProbs) //FIXME: Should dosages be here or before normalization
 
         val dosageAA = GenUtils.convertProbsToInt(normProbs(0))

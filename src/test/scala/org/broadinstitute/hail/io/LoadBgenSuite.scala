@@ -10,7 +10,7 @@ import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
-import org.broadinstitute.hail.io.gen.GenLoader2
+import org.broadinstitute.hail.io.gen.{GenReport, GenLoader2}
 
 import scala.io.Source
 import scala.language.postfixOps
@@ -32,8 +32,23 @@ class LoadBgenSuite extends SparkSuite {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
     val bgen = "src/test/resources/example.v11.bgen"
+    val fileRoot = tmpDir.createTempFile(prefix = "exampleInfoScoreTest")
+    val qcToolLogFile = fileRoot + ".qctool.log"
+    val statsFile = fileRoot + ".stats"
+    val qcToolPath = "qctool"
 
     hadoopDelete(bgen + ".idx", sc.hadoopConfiguration, true)
+
+    s"src/test/resources/runExternalToolQuiet.sh $qcToolPath -force -g $bgen -snp-stats $statsFile -log $qcToolLogFile" !
+
+    val truthInfoScore: RDD[(Any, Any)] = sc.parallelize( readLines(statsFile, sc.hadoopConfiguration)(_.map(_.transform { line =>
+      val Array(snpid, rsid, chromosome, position, a_allele, b_allele, minor_allele,
+      major_allele, aa, ab, bb, aa_calls, ab_calls, bb_calls,
+      maf, hwe, missing, missing_calls, information) = line.value.split("\\s+")
+      (snpid, information)
+    }
+    ).toArray.drop(1).map{case (s, i) => (s, Option((i.toDouble * 10000).round / 10000.0))}))
+
 
     val nSamples = getNumberOfLinesInFile(sampleFile) - 2
     val nVariants = getNumberOfLinesInFile(gen)
@@ -43,7 +58,7 @@ class LoadBgenSuite extends SparkSuite {
     s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", "10", bgen))
     assert(s.vds.nSamples == nSamples && s.vds.nVariants == nVariants)
 
-    val genVDS = GenLoader2(gen, sampleFile, sc)
+    val genVDS = GenLoader2(Array(gen), sampleFile, sc)
     val bgenVDS = s.vds
 
     val varidBgenQuery = bgenVDS.vaSignature.query("varid")
@@ -57,10 +72,29 @@ class LoadBgenSuite extends SparkSuite {
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)
 
+
+    GenReport.report()
+
     val bgenAnnotations = bgenVDS.variantsAndAnnotations.map{case (v, va) => (varidBgenQuery(va).get, va)}
     val genAnnotations = genVDS.variantsAndAnnotations.map{case (v, va) => (varidGenQuery(va).get, va)}
 
     assert(genAnnotations.fullOuterJoin(bgenAnnotations).map{case (varid, (va1, va2)) => if (va1 == va2) true else false}.fold(true)(_ && _))
+
+    val genInfoScore = genVDS.variantsAndAnnotations.map{case (v, va) => (varidGenQuery(va).get, infoGenQuery(va).get)}
+    val bgenInfoScore = bgenVDS.variantsAndAnnotations.map{case (v, va) => (varidBgenQuery(va).get, infoBgenQuery(va).get)}
+
+    assert(truthInfoScore.fullOuterJoin(genInfoScore).map{case (varid, (info1: Option[Option[Double]], info2: Option[Option[Double]])) =>
+      if (info1 == info2)
+        true
+      else {
+        if ((info1.flatten.get - info2.flatten.get) <= 1e-3 )
+          true
+        else {
+          println(s"varid=$varid info1=$info1 info2=$info2")
+          false
+        }
+      }
+    }.fold(true)(_ && _))
 
     val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidBgenQuery(va).get, s), gt) }
     val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidGenQuery(va).get, s), gt) }
@@ -70,18 +104,6 @@ class LoadBgenSuite extends SparkSuite {
       .foreach { case ((v, i), (gt1, gt2)) =>
         assert(gt1 == gt2)
       }
-  }
-
-  @Test def testInfoScore() {
-    val sampleFile = "src/test/resources/example.sample"
-    val bgen = "src/test/resources/example.v11.bgen"
-    val fileRoot = tmpDir.createTempFile(prefix = "exampleInfoScoreTest")
-    val qcToolLogFile = fileRoot + ".qctool.log"
-    val statsFile = fileRoot + ".stats"
-    val qcToolPath = "qctool"
-
-    s"src/test/resources/runExternalToolQuiet.sh $qcToolPath -force -b $bgen -snp-stats $statsFile -log $qcToolLogFile" !
-
   }
 
   object Spec extends Properties("ImportBGEN") {
