@@ -1,13 +1,10 @@
 package org.broadinstitute.hail.io
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.spark.rdd.{RDD, PairRDDFunctions}
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.driver.{ImportGEN, ImportBGEN, IndexBGEN, State}
+import org.broadinstitute.hail.driver.{ImportGEN, State}
 import org.testng.annotations.Test
-import org.broadinstitute.hail.io.gen._
 import org.broadinstitute.hail.variant._
 
 class LoadGenSuite extends SparkSuite {

@@ -83,7 +83,6 @@ object GenReport {
 }
 
 object GenUtils {
-
   def normalizePPs(arr: Array[Double]): Array[Double] = {
     val sum = arr.sum
     if (sum != 0.0)
@@ -104,8 +103,11 @@ object GenUtils {
   def convertProbsToInt(probArray: Array[Double]): Array[Int] = probArray.map{ d => convertProbsToInt(d)}
 }
 
-object GenLoader2 {
-  def apply(genFile: String, sampleFile: String, sc: SparkContext, nPartitions: Option[Int] = None, tolerance: Double = 0.02): GenResult = {
+object GenLoader {
+  def apply(genFile: String, sampleFile: String, sc: SparkContext,
+            nPartitions: Option[Int] = None, tolerance: Double = 0.02,
+            compress: Boolean = false, chromosome: Option[String] = None): GenResult = {
+
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
     val nSamples = sampleIds.length
@@ -114,25 +116,33 @@ object GenLoader2 {
     GenReport.accumulators ::=(genFile, reportAcc)
 
     val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
-        .map{ case line => readGenLine(line, nSamples, tolerance, reportAcc)}
+        .map{ case line => readGenLine(line, nSamples, tolerance, compress, chromosome, reportAcc)}
 
     val signatures = TStruct("rsid" -> TString, "varid" -> TString, "infoScore" -> TDouble)
 
     GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
   }
 
-  def readGenLine(line: String, nSamples: Int, tolerance: Double, reportAcc: Accumulable[mutable.Map[Int, Int], Int]): (Variant, Annotation, Iterable[Genotype]) = {
+  def readGenLine(line: String, nSamples: Int,
+                  tolerance: Double, compress: Boolean,
+                  chromosome: Option[String] = None, reportAcc: Accumulable[mutable.Map[Int, Int], Int]): (Variant, Annotation, Iterable[Genotype]) = {
     val arr = line.split("\\s+")
-    val rsid = arr(2)
-    val varid = arr(1)
-    val variant = Variant(arr(0), arr(3).toInt, arr(4), arr(5))
-    val dosages = arr.drop(6).map {_.toDouble}
+    val chrCol = if (chromosome.isDefined) 1 else 0
+    val chr = chromosome.getOrElse(arr(0))
+    val varid = arr(1 - chrCol)
+    val rsid = arr(2 - chrCol)
+    val start = arr(3 - chrCol)
+    val ref = arr(4 - chrCol)
+    val alt = arr(5 - chrCol)
+
+    val variant = Variant(chr, start.toInt, ref, alt)
+    val dosages = arr.drop(6 - chrCol).map {_.toDouble}
 
     if (dosages.length != (3 * nSamples))
-      fatal("Number of dosages does not match number of samples")
+      fatal("Number of dosages does not match number of samples. If no chromosome is given, make sure you use -c to input the chromosome")
 
     val dosageArray = new Array[Int](3)
-    val b = new GenotypeStreamBuilder(variant) //FIXME: Add compression flag to apply
+    val b = new GenotypeStreamBuilder(variant, compress)
     val genoBuilder = new GenotypeBuilder(variant)
     val infoScoreCalculator = new InfoScoreCalculator
 

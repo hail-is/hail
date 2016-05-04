@@ -6,11 +6,9 @@ import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
-import org.broadinstitute.hail.io.gen.{GenReport, GenLoader2}
 
 import scala.io.Source
 import scala.language.postfixOps
@@ -58,7 +56,6 @@ class LoadBgenSuite extends SparkSuite {
     assert(s.vds.nSamples == nSamples && s.vds.nVariants == nVariants)
 
     val genVDS = ImportGEN.run(s, Array("-s",sampleFile, gen)).vds
-    //val genVDS = GenLoader2(Array(gen), sampleFile, sc)
     val bgenVDS = s.vds
 
     val varidBgenQuery = bgenVDS.vaSignature.query("varid")
@@ -149,7 +146,7 @@ class LoadBgenSuite extends SparkSuite {
 
         val origVds = s.vds
 
-        GenWriter(fileRoot, s.vds, sc)
+        s = ExportGEN.run(s, Array("-o", fileRoot))
 
         s"src/test/resources/runExternalToolQuiet.sh $qcToolPath -force -g $genFile -s $sampleFile -og $bgenFile -log $qcToolLogFile" !
 
@@ -224,24 +221,5 @@ class LoadBgenSuite extends SparkSuite {
 
   @Test def testBgenImportRandom() {
     Spec.check(100, 100, Option(20))
-  }
-}
-
-object BgenUtils {
-  def parseGenotype(pls: Array[Int]): Int = {
-    if (pls(0) == 0 && pls(1) == 0
-      || pls(0) == 0 && pls(2) == 0
-      || pls(1) == 0 && pls(2) == 0)
-      -1
-    else {
-      if (pls(0) == 0)
-        0
-      else if (pls(1) == 0)
-        1
-      else if (pls(2) == 0)
-        2
-      else
-        -1
-    }
   }
 }

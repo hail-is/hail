@@ -4,7 +4,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader
-import org.broadinstitute.hail.io.gen.GenLoader2
+import org.broadinstitute.hail.io.gen.GenLoader
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._
@@ -21,8 +21,11 @@ object ImportGEN extends Command {
     @Args4jOption(name = "-s", required = true, aliases = Array("--samplefile"), usage = "Sample file for GEN files")
     var sampleFile: String = null
 
-    /*@Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
-    var noCompress: Boolean = false*/
+    @Args4jOption(name = "-c", aliases = Array("--chromosome"), usage = "Chromosome if not listed in GEN file")
+    var chromosome: String = null
+
+    @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
+    var noCompress: Boolean = true
 
     @Args4jOption(name = "-t", aliases = Array("--tolerance"), usage = "If sum dosages < (1 - tolerance), set to None")
     var tolerance: Double = 0.02
@@ -54,10 +57,8 @@ object ImportGEN extends Command {
 
     val nSamples = samples.length
 
-    //sc.hadoopConfiguration.setBoolean("compressGS", !options.noCompress)
-    sc.hadoopConfiguration.setDouble("tolerance", options.tolerance)
-
-    val results = inputs.map(f => GenLoader2(f, options.sampleFile, sc, Option(options.nPartitions), options.tolerance))
+    val results = inputs.map(f => GenLoader(f, options.sampleFile, sc, Option(options.nPartitions),
+      options.tolerance, !options.noCompress, Option(options.chromosome)))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.length > 0)
