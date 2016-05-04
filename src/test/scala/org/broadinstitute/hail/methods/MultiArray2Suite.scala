@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 
 class MultiArray2Suite extends SparkSuite{
   @Test def test() = {
-    assert(5 == 22)
+    assert(5 == 23)
     // test multiarray of size 0 will be created
     val ma0 = MultiArray2.fill[Int](0, 0)(0)
 
