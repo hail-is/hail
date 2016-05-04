@@ -63,6 +63,7 @@ object SplitMulti extends Command {
     propagateGQ: Boolean,
     compress: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, Annotation, Iterable[Genotype])] = {
+
     if (v.isBiallelic)
       return Iterator((v, insertSplitAnnots(va, 0, false), it))
 
@@ -80,43 +81,82 @@ object SplitMulti extends Command {
     for (g <- it) {
 
       val gadsum = g.ad.map(gadx => (gadx, gadx.sum))
+      val isDosage = Genotype.flagHasDosage(g.flags)
 
       // svj corresponds to the ith allele of v
       for (((svj, i), j) <- splitVariants.iterator.zipWithIndex) {
         val gb = splitGenotypeBuilders(j)
-
         gb.clear()
-        g.gt.foreach { ggtx =>
-          val gtx = splitGT(ggtx, i)
-          gb.setGT(gtx)
 
-          val p = Genotype.gtPair(ggtx)
-          if (gtx != p.nNonRefAlleles)
-            gb.setFakeRef()
-        }
+        if (!isDosage) {
+          g.gt.foreach { ggtx =>
+            val gtx = splitGT(ggtx, i)
+            gb.setGT(gtx)
 
-        gadsum.foreach { case (gadx, sum) =>
-          // what bcftools does
-          // Array(gadx(0), gadx(i))
-          gb.setAD(Array(sum - gadx(i), gadx(i)))
-        }
+            val p = Genotype.gtPair(ggtx)
+            if (gtx != p.nNonRefAlleles)
+              gb.setFakeRef()
+          }
 
-        g.dp.foreach { dpx => gb.setDP(dpx) }
+          gadsum.foreach { case (gadx, sum) =>
+            // what bcftools does
+            // Array(gadx(0), gadx(i))
+            gb.setAD(Array(sum - gadx(i), gadx(i)))
+          }
 
-        if (propagateGQ)
-          g.gq.foreach { gqx => gb.setGQ(gqx) }
+          g.dp.foreach { dpx => gb.setDP(dpx) }
 
-        g.pl.foreach { gplx =>
-          val plx = gplx.iterator.zipWithIndex
-            .map { case (p, k) => (splitGT(k, i), p) }
-            .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
-          gb.setPL(plx)
+          if (propagateGQ)
+            g.gq.foreach { gqx => gb.setGQ(gqx) }
 
-          if (!propagateGQ) {
-            val gq = Genotype.gqFromPL(plx)
-            gb.setGQ(gq)
+          g.pl.foreach { gplx =>
+            val plx = gplx.iterator.zipWithIndex
+              .map { case (p, k) => (splitGT(k, i), p) }
+              .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
+            gb.setPL(plx)
+
+            if (!propagateGQ) {
+              val gq = Genotype.gqFromPL(plx)
+              gb.setGQ(gq)
+            }
+          }
+        } else {
+          gb.setDosageFlag()
+
+          val newdx = g.dosage.map { case gdx =>
+            val dx = gdx.iterator.zipWithIndex
+              .map { case (d, k) => (splitGT(k, i), d) }
+              .reduceByKeyToArray(3, 0.0)(_ + _)
+
+            gb.setDosage(dx)
+            dx
+          }
+
+          val newgt = newdx match {
+            case Some(x) => {
+              if (x(0) > x(1) && x(0) > x(2))
+                0
+              else if (x(1) > x(0) && x(1) > x(2))
+                1
+              else if (x(2) > x(0) && x(2) > x(1))
+                2
+              else
+                -1
+            }
+            case None => -1
+          }
+
+          if (newgt != -1)
+            gb.setGT(newgt)
+
+          //FIXME: don't know how to set the fakeref if the original genotype was -1
+          g.gt.foreach { gtx =>
+            val p = Genotype.gtPair(gtx)
+            if (newgt != p.nNonRefAlleles && newgt != -1)
+              gb.setFakeRef()
           }
         }
+
 
         splitGenotypeStreamBuilders(j).write(gb)
       }

@@ -9,7 +9,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
-import org.broadinstitute.hail.io.gen.{GenUtils, InfoScoreCalculator}
+import org.broadinstitute.hail.io.gen.{GenReport, GenUtils, InfoScoreCalculator}
 
 import scala.collection.mutable
 
@@ -20,6 +20,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val btree = new IndexBTree(indexPath, job)
 
   val compressGS = job.getBoolean("compressGS", false)
+  val tolerance = job.get("tolerance", "0.02").toDouble
 
   val ab = new mutable.ArrayBuilder.ofByte
   val plArray = new Array[Int](3)
@@ -77,14 +78,18 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       for (i <- 0 until bState.nSamples) {
         genoBuilder.clear()
 
+        genoBuilder.setDosageFlag()
+
         val pAA = bar.readShort()
         val pAB = bar.readShort()
         val pBB = bar.readShort()
 
         val origDosages = Array(pAA, pAB, pBB).map{_ / 32768.0}
+        val sumDosages = origDosages.sum
 
-        if (math.abs(origDosages.sum - 1.0) <= 0.02) {
+        if (math.abs(origDosages.sum - 1.0) <= tolerance) {
           val normProbs = GenUtils.normalizePPs(origDosages)
+
           infoScoreCalculator.addDosage(normProbs)
 
           val dosageAA = GenUtils.convertProbsToInt(normProbs(0))
@@ -114,6 +119,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         b.write(genoBuilder)
 
       }
+      //println(s"v=$variant e=${infoScoreCalculator.e.sum} f=${infoScoreCalculator.f.sum} N=${infoScoreCalculator.N} theta=${infoScoreCalculator.thetaHat} info=e=${infoScoreCalculator.infoScore}")
       val infoScore = infoScoreCalculator.infoScore.map{case d => (d * 10000).round / 10000.0}
       val varAnnotation = Annotation(rsid, lid, infoScore)
 

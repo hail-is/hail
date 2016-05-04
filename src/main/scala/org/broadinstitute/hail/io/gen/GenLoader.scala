@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.io.gen
 
+import org.apache.spark.rdd.RDD
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
@@ -9,6 +10,8 @@ import org.broadinstitute.hail.variant._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+
+case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, Annotation, Iterable[Genotype])])
 
 class InfoScoreCalculator {
   var e = ArrayBuffer.empty[Double]
@@ -24,7 +27,7 @@ class InfoScoreCalculator {
       if (t == 1.0 || t == 0.0)
         1.0
       else
-        1 - ( e.zip(f).map{case (ei, fi) => fi - math.pow(ei, 2)}.sum / (2 * N * t * (1 - t)))
+        1.0 - ( e.zip(f).map{case (ei, fi) => fi - math.pow(ei, 2)}.sum / (2 * N * t * (1.0 - t)))
     }
   }
 
@@ -37,18 +40,15 @@ class InfoScoreCalculator {
 
 object GenReport {
   val dosageNoCall = 1
-  val dosageNormalizedLessThan = 2
-  val dosageNormalizedGreaterThan = 3
-  val dosageLessThanTolerance = 4
+  val dosageLessThanTolerance = 2
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
   def warningMessage(id: Int, count: Int): String = {
     val desc = id match {
-      case dosageNoCall => "Dosage triple of (0.0,0.0,0.0), set to None"
-      case dosageNormalizedLessThan => "Sum of Dosage < 1.0, normalized to 1.0 by Hail"
-      case dosageNormalizedGreaterThan => "Sum of Dosage < 1.0, normalized to 1.0 by Hail"
-      case dosageLessThanTolerance => "Sum of Dosage < 1.0 - tolerance, set to None"
+      case `dosageNoCall` => "Dosage triple of (0.0,0.0,0.0)"
+      case `dosageLessThanTolerance` => "Sum of Dosage < (1.0 - tolerance)"
+      case _ => throw new UnsupportedOperationException
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -105,22 +105,20 @@ object GenUtils {
 }
 
 object GenLoader2 {
-  def apply(genFile: Array[String], sampleFile: String, sc: SparkContext, nPartitions: Option[Int] = None, tolerance: Double = 0.02): VariantSampleMatrix[Genotype] = {
+  def apply(genFile: String, sampleFile: String, sc: SparkContext, nPartitions: Option[Int] = None, tolerance: Double = 0.02): GenResult = {
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
     val nSamples = sampleIds.length
 
-    val rdd = sc.union(genFile.map{file =>
-      val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-      GenReport.accumulators ::=(file, reportAcc)
+    val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
+    GenReport.accumulators ::=(genFile, reportAcc)
 
-      sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
+    val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
         .map{ case line => readGenLine(line, nSamples, tolerance, reportAcc)}
-    })
 
     val signatures = TStruct("rsid" -> TString, "varid" -> TString, "infoScore" -> TDouble)
 
-    VariantSampleMatrix(metadata = VariantMetadata(sampleIds).copy(vaSignature = signatures, wasSplit = true), rdd = rdd)
+    GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
   }
 
   def readGenLine(line: String, nSamples: Int, tolerance: Double, reportAcc: Accumulable[mutable.Map[Int, Int], Int]): (Variant, Annotation, Iterable[Genotype]) = {
@@ -128,9 +126,7 @@ object GenLoader2 {
     val rsid = arr(2)
     val varid = arr(1)
     val variant = Variant(arr(0), arr(3).toInt, arr(4), arr(5))
-    val dosages = arr.drop(6).map {
-        _.toDouble
-      }
+    val dosages = arr.drop(6).map {_.toDouble}
 
     if (dosages.length != (3 * nSamples))
       fatal("Number of dosages does not match number of samples")
@@ -142,6 +138,9 @@ object GenLoader2 {
 
     for (i <- dosages.indices by 3) {
       genoBuilder.clear()
+
+      genoBuilder.setDosageFlag()
+
       val origDosages = Array(dosages(i), dosages(i+1), dosages(i+2))
       val sumDosages = origDosages.sum
 
@@ -149,15 +148,11 @@ object GenLoader2 {
         reportAcc += GenReport.dosageNoCall
       else if (sumDosages < (1.0 - tolerance))
         reportAcc += GenReport.dosageLessThanTolerance
-      else if (sumDosages > 1.0)
-        reportAcc += GenReport.dosageNormalizedGreaterThan
-      else if (sumDosages < 1.0 && sumDosages >= (1.0 - tolerance))
-        reportAcc += GenReport.dosageNormalizedLessThan
 
       if (origDosages.sum >= (1 - tolerance)) {
         val normProbs = GenUtils.normalizePPs(origDosages)
 
-        infoScoreCalculator.addDosage(normProbs) //FIXME: Should dosages be here or before normalization
+        infoScoreCalculator.addDosage(normProbs) //FIXME: Should dosages be here or before normalization?
 
         val dosageAA = GenUtils.convertProbsToInt(normProbs(0))
         val dosageAB = GenUtils.convertProbsToInt(normProbs(1))

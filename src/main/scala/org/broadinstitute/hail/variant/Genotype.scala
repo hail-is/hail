@@ -57,8 +57,6 @@ class Genotype(private val _gt: Int,
   def fakeRef = (flags & Genotype.flagFakeRefBit) != 0
   def isDosage = (flags & Genotype.flagHasDosageBit) != 0
 
-  //println(s"isDosage=$isDosage")
-
   def check(v: Variant) {
     assert(gt.forall(i => i >= 0 && i < v.nGenotypes))
     assert(ad.forall(a => a.length == v.nAlleles))
@@ -74,13 +72,13 @@ class Genotype(private val _gt: Int,
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
-      _gt == g._gt &&
+        _gt == g._gt &&
         ((_ad == null && g._ad == null)
           || (_ad != null && g._ad != null && _ad.sameElements(g._ad))) &&
         _dp == g._dp &&
         _gq == g._gq &&
         isDosage == g.isDosage &&
-        ((!isDosage && ((_pl == null && g._pl == null) || (_pl != null && g._pl != null && _pl.sameElements(g._pl)))) ||
+        ((!isDosage &&  ((_pl == null && g._pl == null) || (_pl != null && g._pl != null && _pl.sameElements(g._pl)))) ||
           (isDosage && ((dosage.isEmpty && g.dosage.isEmpty) || (dosage.isDefined && g.dosage.isDefined && dosage.get.zip(g.dosage.get).forall{case (d1,d2) => math.abs(d1 - d2) <= 3.0e-4}))))
 
     case _ => false
@@ -281,8 +279,6 @@ object Genotype {
 
   def flagSetHasPL(flags: Int): Int = flags | flagHasPLBit
 
-  def flagSetHasDosage(flags: Int): Int = flags | flagHasDosageBit
-
   def flagSimpleAD(flags: Int): Boolean = (flags & flagSimpleADBit) != 0
 
   def flagSimpleDP(flags: Int): Boolean = (flags & flagSimpleDPBit) != 0
@@ -300,6 +296,10 @@ object Genotype {
   def flagSetFakeRef(flags: Int): Int = flags | flagFakeRefBit
 
   def flagUnsetFakeRef(flags: Int): Int = flags ^ flagFakeRefBit
+
+  def flagSetHasDosage(flags: Int): Int = flags | flagHasDosageBit
+
+  def flagUnsetHasDosage(flags: Int): Int = flags ^ flagHasDosageBit
 
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99
@@ -497,10 +497,11 @@ object Genotype {
       val plInt = pl.map{ pla => pla.map{case d: Double => ((d / pla.sum) * 32768.0).round.toInt}}
       val gt = plInt.map{pla => if (pla.count(_ == pla.max) != 1) -1 else pla.indexOf(pla.max)}
 
-      val flags = 0
-      val dosageFlag = flagSetHasDosage(flags)
+      var flags = 0
+      flags = flagSetHasDosage(flags)
+      flags = flagSetHasPL(flags)
 
-      val g = Genotype(gt = gt, pl = plInt, flags = dosageFlag)
+      val g = Genotype(gt = gt, pl = plInt, flags = flags)
       g.check(v)
       g
     }
@@ -606,6 +607,13 @@ class GenotypeBuilder(v: Variant) {
     flags = Genotype.flagSetHasPL(flags)
     flags = Genotype.flagSetHasDosage(flags)
     pl = newDosage
+  }
+
+  def setDosage(newDosage: Array[Double]) {
+    require(newDosage.length == v.nGenotypes)
+    flags = Genotype.flagSetHasPL(flags)
+    flags = Genotype.flagSetHasDosage(flags)
+    pl = newDosage.map{case d => (d * 32768).toInt}
   }
 
   def setFakeRef() {

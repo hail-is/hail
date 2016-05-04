@@ -5,7 +5,7 @@ import org.apache.spark.rdd.{RDD, PairRDDFunctions}
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.driver.{ImportBGEN, IndexBGEN, State}
+import org.broadinstitute.hail.driver.{ImportGEN, ImportBGEN, IndexBGEN, State}
 import org.testng.annotations.Test
 import org.broadinstitute.hail.io.gen._
 import org.broadinstitute.hail.variant._
@@ -28,7 +28,8 @@ class LoadGenSuite extends SparkSuite {
     val sampleFile = "src/test/resources/example.sample"
 
     var s = State(sc, sqlContext, null)
-    val genVDS = GenLoader2(Array(gen), sampleFile, sc)
+
+    val genVDS = ImportGEN.run(s, Array("-s",sampleFile, gen)).vds
     val genOrigData = makeRDD(gen)
 
     val genQuery = genVDS.vaSignature.query("varid")

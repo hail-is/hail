@@ -102,15 +102,10 @@ object GenWriter {
     writeGenFile(outGenFile, vds)
   }
 
-  def convertPlsToDosage(pl: Array[Int]): Array[Double] = {
-    val tmp = pl.map{case p => math.pow(10,p / -10.0)}
-    tmp.map{d => d / tmp.sum}
-  }
-
   def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype]) {
     sb.append(v.contig)
     sb += ' '
-    sb.append("fakeVariantID")
+    sb.append(v.toString)
     sb += ' '
     sb.append("fakeRSID")
     sb += ' '
@@ -121,8 +116,8 @@ object GenWriter {
     sb.append(v.alt)
 
     for (gt <- gs) {
-      val dosages = gt.pl match {
-        case Some(x) => convertPlsToDosage(x)
+      val dosages = gt.dosage match {
+        case Some(x) => x
         case None => Array(0.0,0.0,0.0)
       }
       sb += ' '

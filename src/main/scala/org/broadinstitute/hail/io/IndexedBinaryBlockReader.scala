@@ -5,8 +5,11 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred._
+import org.apache.spark.Accumulable
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.annotations._
+
+import scala.collection.mutable
 
 class VariantRecord[K] extends Serializable {
   var gs: Iterable[Genotype] = null

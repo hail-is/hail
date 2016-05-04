@@ -110,6 +110,7 @@ object Main {
     }
 
     VCFReport.report()
+    GenReport.report()
 
     // Thread.sleep(60*60*1000)
 
