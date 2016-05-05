@@ -26,7 +26,6 @@ object IntervalList {
 
   def read(filename: String,
     hConf: hadoop.conf.Configuration): IntervalList = {
-    require(filename.endsWith(".interval_list"))
 
     readFile(filename, hConf) { s =>
       IntervalList(
