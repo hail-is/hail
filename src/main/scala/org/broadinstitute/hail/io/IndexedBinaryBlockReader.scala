@@ -5,16 +5,15 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred._
-import org.apache.spark.Accumulable
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.annotations._
-
 import scala.collection.mutable
 
 class VariantRecord[K] extends Serializable {
   var gs: Iterable[Genotype] = null
   var ann: Annotation = Annotation.empty
   var key: K = _
+  var genotypeFlags = mutable.Map.empty[Int, Int]
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
@@ -33,6 +32,12 @@ class VariantRecord[K] extends Serializable {
   }
 
   def getKey: K = key
+
+  def getGenotypeFlags = genotypeFlags
+
+  def setGenotypeFlag(idx: Int) {
+    this.genotypeFlags(idx) = this.genotypeFlags.getOrElseUpdate(idx, 0) + 1
+  }
 }
 
 abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)

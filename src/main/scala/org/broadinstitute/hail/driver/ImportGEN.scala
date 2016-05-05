@@ -78,7 +78,7 @@ object ImportGEN extends Command {
     info(s"Number of variants in all GEN files: $nVariants")
     info(s"Number of samples in GEN files: $nSamples")
 
-    val signature = TStruct("rsid" -> TString, "varid" -> TString, "infoScore" -> TDouble)
+    val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
     val rdd = sc.union(results.map(_.rdd))
     val vds = VariantSampleMatrix(VariantMetadata(samples), rdd).copy(vaSignature = signature, wasSplit = true)

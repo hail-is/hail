@@ -25,13 +25,15 @@ object BgenLoader {
 
     val bState = readState(sc.hadoopConfiguration, file)
 
-/*    val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-    GenReport.accumulators ::=(file, reportAcc)*/
+    val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
+    GenReport.accumulators ::=(file, reportAcc)
 
     BgenResult(file, bState.nSamples, bState.nVariants,
       sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[VariantRecord[Variant]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
-      .map { case (lw, pl) => (pl.getKey, pl.getAnnotation, pl.getGS)})
+      .map { case (lw, vr) =>
+        reportAcc ++= vr.getGenotypeFlags
+        (vr.getKey, vr.getAnnotation, vr.getGS)})
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

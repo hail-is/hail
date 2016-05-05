@@ -5,11 +5,10 @@ import java.util.zip.Inflater
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
-import org.broadinstitute.hail.io.gen.{GenReport, GenUtils, InfoScoreCalculator}
+import org.broadinstitute.hail.io.gen.{GenReport, GenUtils}
 
 import scala.collection.mutable
 
@@ -73,7 +72,6 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       val b = new GenotypeStreamBuilder(variant, compress = compressGS)
 
       val genoBuilder = new GenotypeBuilder(variant)
-      val infoScoreCalculator = new InfoScoreCalculator
 
       for (i <- 0 until bState.nSamples) {
         genoBuilder.clear()
@@ -87,10 +85,12 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         val origDosages = Array(pAA, pAB, pBB).map{_ / 32768.0}
         val sumDosages = origDosages.sum
 
-        if (math.abs(origDosages.sum - 1.0) <= tolerance) {
+        if (sumDosages == 0.0)
+          value.setGenotypeFlag(GenReport.dosageNoCall)
+        else if (math.abs(origDosages.sum - 1.0) > tolerance)
+          value.setGenotypeFlag(GenReport.dosageLessThanTolerance)
+        else {
           val normProbs = GenUtils.normalizePPs(origDosages)
-
-          infoScoreCalculator.addDosage(normProbs)
 
           val dosageAA = GenUtils.convertProbsToInt(normProbs(0))
           val dosageAB = GenUtils.convertProbsToInt(normProbs(1))
@@ -100,14 +100,16 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
           assert(sumDosage >= 32765 && sumDosage <= 32771)
 
-          val gt = if (dosageAA > dosageAB && dosageAA > dosageBB)
-            0
-          else if (dosageAB > dosageAA && dosageAB > dosageBB)
-            1
-          else if (dosageBB > dosageAA && dosageBB > dosageAB)
-            2
-          else
-            -1
+          val gt = {
+            if (dosageAA > dosageAB && dosageAA > dosageBB)
+              0
+            else if (dosageAB > dosageAA && dosageAB > dosageBB)
+              1
+            else if (dosageBB > dosageAA && dosageBB > dosageAB)
+              2
+            else
+              -1
+          }
 
           if (gt >= 0) {
             genoBuilder.setGT(gt)
@@ -119,9 +121,8 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         b.write(genoBuilder)
 
       }
-      //println(s"v=$variant e=${infoScoreCalculator.e.sum} f=${infoScoreCalculator.f.sum} N=${infoScoreCalculator.N} theta=${infoScoreCalculator.thetaHat} info=e=${infoScoreCalculator.infoScore}")
-      val infoScore = infoScoreCalculator.infoScore.map{case d => (d * 10000).round / 10000.0}
-      val varAnnotation = Annotation(rsid, lid, infoScore)
+
+      val varAnnotation = Annotation(rsid, lid)
 
       value.setKey(variant)
       value.setAnnotation(varAnnotation)

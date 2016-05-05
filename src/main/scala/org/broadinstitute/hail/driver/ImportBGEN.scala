@@ -21,7 +21,7 @@ object ImportBGEN extends Command {
     var sampleFile: String = null
 
     @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
-    var noCompress: Boolean = false
+    var noCompress: Boolean = true
 
     @Args4jOption(name = "-t", aliases = Array("--tolerance"), usage = "If sum dosages < (1 - tolerance), set to None")
     var tolerance: Double = 0.02
@@ -54,6 +54,11 @@ object ImportBGEN extends Command {
       case _ => BgenLoader.readSamples(sc.hadoopConfiguration, inputs.head)
     }
 
+    if (samples.length != samples.toSet.size) {
+      val problemFile = if (Option(options.sampleFile).isDefined) options.sampleFile else inputs.head
+      fatal (s"Duplicate sample IDs exist in $problemFile")
+    }
+
     val nSamples = samples.length
 
     sc.hadoopConfiguration.setBoolean("compressGS", !options.noCompress)
@@ -79,7 +84,7 @@ object ImportBGEN extends Command {
     info(s"Number of variants in all BGEN files: $nVariants")
     info(s"Number of samples in BGEN files: $nSamples")
 
-    val signature = TStruct("rsid" -> TString, "varid" -> TString, "infoScore" -> TDouble)
+    val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
     val rdd = sc.union(results.map(_.rdd))
     val vds = VariantSampleMatrix(VariantMetadata(samples), rdd).copy(vaSignature = signature, wasSplit = true)

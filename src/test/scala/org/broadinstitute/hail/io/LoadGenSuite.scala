@@ -30,7 +30,6 @@ class LoadGenSuite extends SparkSuite {
     val genOrigData = makeRDD(gen)
 
     val genQuery = genVDS.vaSignature.query("varid")
-    val infoQuery = genVDS.vaSignature.query("infoScore")
     val newRDD: RDD[(String, Iterable[Genotype])] = genVDS.rdd.map { case (v, va, gs) => (genQuery(va).get.toString, gs) }
 
     val res = newRDD.fullOuterJoin(genOrigData).map { case (v, (gs, dos)) =>
@@ -54,11 +53,12 @@ class LoadGenSuite extends SparkSuite {
             agreeAA && agreeAB && agreeBB
 
           case None =>
-
-            val res = if (dosOld(n) == dosOld(n+1) || dosOld(n) == dosOld(n+2)) //FIXME: Is this correct?
+            val res = if (dosOld(n) == 0.0 && dosOld(n+1) == 0.0 && dosOld(n+2) == 0.0) //FIXME: Is this correct?
               true
-            else
+            else {
+              println(s"${dosOld(n)} ${dosOld(n+1)} ${dosOld(n+2)}")
               false
+            }
             n += 3
             res
         }

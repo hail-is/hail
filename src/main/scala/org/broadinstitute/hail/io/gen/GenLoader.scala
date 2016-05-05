@@ -13,34 +13,9 @@ import scala.collection.mutable.ArrayBuffer
 
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, Annotation, Iterable[Genotype])])
 
-class InfoScoreCalculator {
-  var e = ArrayBuffer.empty[Double]
-  var f = ArrayBuffer.empty[Double]
-  var N = 0
-
-  def thetaHat: Option[Double] = if (N != 0) Some(e.sum / (2*N)) else None
-
-  def infoScore: Option[Double] = {
-    thetaHat.map{case t =>
-      assert(t >= 0.0 && t <= 1.0)
-
-      if (t == 1.0 || t == 0.0)
-        1.0
-      else
-        1.0 - ( e.zip(f).map{case (ei, fi) => fi - math.pow(ei, 2)}.sum / (2 * N * t * (1.0 - t)))
-    }
-  }
-
-  def addDosage(d: Array[Double]) {
-    e += (d(1) + 2*d(2))
-    f += (d(1) + 4*d(2))
-    N += 1
-  }
-}
-
 object GenReport {
-  val dosageNoCall = 1
-  val dosageLessThanTolerance = 2
+  val dosageNoCall = 0
+  val dosageLessThanTolerance = 1
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
@@ -101,6 +76,7 @@ object GenUtils {
   }
 
   def convertProbsToInt(probArray: Array[Double]): Array[Int] = probArray.map{ d => convertProbsToInt(d)}
+
 }
 
 object GenLoader {
@@ -110,6 +86,10 @@ object GenLoader {
 
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
+
+    if (sampleIds.length != sampleIds.toSet.size)
+      fatal(s"Duplicate sample IDs exist in $sampleFile")
+
     val nSamples = sampleIds.length
 
     val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
@@ -118,7 +98,7 @@ object GenLoader {
     val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
         .map{ case line => readGenLine(line, nSamples, tolerance, compress, chromosome, reportAcc)}
 
-    val signatures = TStruct("rsid" -> TString, "varid" -> TString, "infoScore" -> TDouble)
+    val signatures = TStruct("rsid" -> TString, "varid" -> TString)
 
     GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
   }
@@ -139,16 +119,14 @@ object GenLoader {
     val dosages = arr.drop(6 - chrCol).map {_.toDouble}
 
     if (dosages.length != (3 * nSamples))
-      fatal("Number of dosages does not match number of samples. If no chromosome is given, make sure you use -c to input the chromosome")
+      fatal("Number of dosages does not match number of samples. If no chromosome is given, make sure you use -c to input the chromosome.")
 
     val dosageArray = new Array[Int](3)
     val b = new GenotypeStreamBuilder(variant, compress)
     val genoBuilder = new GenotypeBuilder(variant)
-    val infoScoreCalculator = new InfoScoreCalculator
 
     for (i <- dosages.indices by 3) {
       genoBuilder.clear()
-
       genoBuilder.setDosageFlag()
 
       val origDosages = Array(dosages(i), dosages(i+1), dosages(i+2))
@@ -156,13 +134,10 @@ object GenLoader {
 
       if (sumDosages == 0.0)
         reportAcc += GenReport.dosageNoCall
-      else if (sumDosages < (1.0 - tolerance))
+      else if (math.abs(sumDosages - 1.0) > tolerance)
         reportAcc += GenReport.dosageLessThanTolerance
-
-      if (origDosages.sum >= (1 - tolerance)) {
+      else {
         val normProbs = GenUtils.normalizePPs(origDosages)
-
-        infoScoreCalculator.addDosage(normProbs) //FIXME: Should dosages be here or before normalization?
 
         val dosageAA = GenUtils.convertProbsToInt(normProbs(0))
         val dosageAB = GenUtils.convertProbsToInt(normProbs(1))
@@ -191,8 +166,7 @@ object GenLoader {
       b.write(genoBuilder)
     }
 
-    val infoScore = infoScoreCalculator.infoScore.map{case d => (d * 10000).round / 10000.0}
-    val annotations = Annotation(rsid, varid, infoScore)
+    val annotations = Annotation(rsid, varid)
 
     (variant, annotations, b.result())
   }
