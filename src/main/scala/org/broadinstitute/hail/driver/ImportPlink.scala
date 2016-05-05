@@ -23,7 +23,7 @@ object ImportPlink extends Command {
     var fam: String = _
 
     @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
-    var noCompress: Boolean = false
+    var noCompress: Boolean = true
 
     @Args4jOption(name = "-n", aliases = Array("--npartition"), usage = "Number of partitions")
     var nPartitions: java.lang.Integer = _
