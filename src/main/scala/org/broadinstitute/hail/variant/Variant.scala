@@ -86,12 +86,12 @@ case class AltAllele(ref: String,
   def isTransversion: Boolean = isSNP && !isTransition
 
   def nMismatch: Int = {
-    require(ref.length == alt.length)
+    require(ref.length == alt.length, s"invalid nMismatch call on ref `${ref}' and alt `${alt}'")
     (ref, alt).zipped.map((a, b) => if (a == b) 0 else 1).sum
   }
 
   def strippedSNP: (Char, Char) = {
-    require(isSNP)
+    require(isSNP, "called strippedSNP on non-SNP")
     (ref, alt).zipped.dropWhile { case (a, b) => a == b }.head
   }
 
@@ -114,7 +114,7 @@ object Variant {
     Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
 
   def nGenotypes(nAlleles: Int): Int = {
-    require(nAlleles > 0)
+    require(nAlleles > 0, s"called nGenotypes with invalid number of alternates: $nAlleles")
     nAlleles * (nAlleles + 1) / 2
   }
 
@@ -172,8 +172,8 @@ case class Variant(contig: String,
   altAlleles: IndexedSeq[AltAllele]) extends Ordered[Variant] {
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
-  require(start >= 0)
-  require(!ref.isEmpty)
+  require(start >= 0, s"created a variant with negative position: `${this.toString}'")
+  require(!ref.isEmpty, s"created a variant with an empty ref string: `${this.toString}'")
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -181,7 +181,7 @@ case class Variant(contig: String,
 
   // FIXME altAllele, alt to be deprecated
   def altAllele: AltAllele = {
-    require(isBiallelic)
+    require(isBiallelic, "called altAllele on a non-biallelic variant")
     altAlleles(0)
   }
 

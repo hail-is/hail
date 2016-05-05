@@ -1878,8 +1878,17 @@ case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(
   }
 
   def eval(ec: EvalContext): () => Any = ((f.`type`, idx.`type`): @unchecked) match {
-    case (TArray(elementType), TInt) =>
-      AST.evalCompose[IndexedSeq[_], Int](ec, f, idx)((a, i) => a(i))
+    case (t: TArray, TInt) =>
+      AST.evalCompose[IndexedSeq[_], Int](ec, f, idx)((a, i) =>
+        try {
+        a(i)
+        } catch {
+          case e: java.lang.IndexOutOfBoundsException =>
+            fatal(s"Tried to access index [$i] on array ${compact(t.makeJSON(a))} of length ${a.length}" +
+              s"\n  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)" +
+              s"\n  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct")
+          case e: Throwable => throw e
+        })
 
     case (TString, TInt) =>
       AST.evalCompose[String, Int](ec, f, idx)((s, i) => s(i).toString)

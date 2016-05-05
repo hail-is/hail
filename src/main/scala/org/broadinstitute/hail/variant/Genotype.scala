@@ -25,8 +25,8 @@ import org.broadinstitute.hail.variant.GenotypeType.GenotypeType
 
 object GTPair {
   def apply(j: Int, k: Int): GTPair = {
-    require(j >= 0 && j <= 0xffff)
-    require(k >= 0 && k <= 0xffff)
+    require(j >= 0 && j <= 0xffff, "GTPair invalid j value")
+    require(k >= 0 && k <= 0xffff, "GTPair invalid k value")
     new GTPair(j | (k << 16))
   }
 }
@@ -51,8 +51,8 @@ class Genotype(private val _gt: Int,
   private val _pl: Array[Int],
   val fakeRef: Boolean) extends Serializable {
 
-  require(_gt >= -1)
-  require(_dp >= -1)
+  require(_gt >= -1, s"invalid _gt value: ${_gt}")
+  require(_dp >= -1, s"invalid _dp value: ${_dp}")
 
   def check(v: Variant) {
     assert(gt.forall(i => i >= 0 && i < v.nGenotypes))
@@ -120,7 +120,7 @@ class Genotype(private val _gt: Int,
 
   def isHomRef: Boolean = Genotype.isHomRef(_gt)
 
-  def isHet: Boolean =  Genotype.isHet(_gt)
+  def isHet: Boolean = Genotype.isHet(_gt)
 
   def isHomVar: Boolean = Genotype.isHomVar(_gt)
 
@@ -369,7 +369,7 @@ object Genotype {
   }
 
   def gtIndex(j: Int, k: Int): Int = {
-    require(j >= 0 && j <= k)
+    require(j >= 0 && j <= k, s"invalid gtIndex: ($j, $k)")
     k * (k + 1) / 2 + j
   }
 
@@ -458,12 +458,12 @@ object Genotype {
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
-        Gen.choose(0, m)));
-      dp <- Gen.option(Gen.choose(0, m));
-      gq <- Gen.option(Gen.choose(0, 10000));
-      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-        Gen.choose(0, m)))) yield {
+         ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
+           Gen.choose(0, m)));
+         dp <- Gen.option(Gen.choose(0, m));
+         gq <- Gen.option(Gen.choose(0, 10000));
+         pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
+           Gen.choose(0, m)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
@@ -484,12 +484,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- gen(v))
+         g <- gen(v))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-      g <- gen(v))
+         g <- gen(v))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
@@ -516,32 +516,40 @@ class GenotypeBuilder(v: Variant) {
     Genotype.flagHasGT(isBiallelic, flags)
 
   def setGT(newGT: Int) {
-    require(newGT >= 0 && newGT <= nGenotypes)
-    require(!hasGT)
+    if (newGT < 0)
+      fatal(s"invalid GT value `$newGT': negative value")
+    if (newGT > nGenotypes)
+      fatal(s"invalid GT value `$newGT': value larger than maximum number of genotypes $nGenotypes")
+    if (hasGT)
+      fatal(s"invalid GT, genotype already had GT")
     flags = Genotype.flagSetGT(isBiallelic, flags, newGT)
     gt = newGT
   }
 
   def setAD(newAD: Array[Int]) {
-    require(newAD.length == v.nAlleles)
+    if (newAD.length != v.nAlleles)
+      fatal(s"invalid AD field `${newAD.mkString(",")}': expected ${v.nAlleles} values, but got ${newAD.length}.")
     flags = Genotype.flagSetHasAD(flags)
     ad = newAD
   }
 
   def setDP(newDP: Int) {
-    assert(newDP >= 0)
+    if (newDP < 0)
+      fatal(s"invalid DP field `$newDP': negative value")
     flags = Genotype.flagSetHasDP(flags)
     dp = newDP
   }
 
   def setGQ(newGQ: Int) {
-    assert(newGQ >= 0)
+    if (newGQ < 0)
+      fatal(s"invalid GQ field `$newGQ': negative value")
     flags = Genotype.flagSetHasGQ(flags)
     gq = newGQ
   }
 
   def setPL(newPL: Array[Int]) {
-    require(newPL.length == v.nGenotypes)
+    if (newPL.length != nGenotypes)
+      fatal(s"invalid PL field `${newPL.mkString(",")}': expected $nGenotypes values, but got ${newPL.length}.")
     flags = Genotype.flagSetHasPL(flags)
     pl = newPL
   }
