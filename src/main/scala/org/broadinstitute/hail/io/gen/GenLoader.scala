@@ -145,7 +145,7 @@ object GenLoader {
 
         val sumDosage = dosageAA + dosageAB + dosageBB
 
-        assert(sumDosage >= 32765 && sumDosage <= 32771)
+        assert(sumDosage >= 32768 - variant.nGenotypes && sumDosage <= 32768 + variant.nGenotypes)
 
         val gt = if (dosageAA > dosageAB && dosageAA > dosageBB)
           0
