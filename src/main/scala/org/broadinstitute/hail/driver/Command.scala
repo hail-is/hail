@@ -51,6 +51,7 @@ object ToplevelCommands {
   register(Count)
   register(DownsampleVariants)
   register(ExportPlink)
+  register(ExportGEN)
   register(ExportGenotypes)
   register(ExportSamples)
   register(ExportVariants)
