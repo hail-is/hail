@@ -155,6 +155,25 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
 
+    assert(eval[String]("""NA: String""").isEmpty)
+    assert(eval[String]("""NA: Int""").isEmpty)
+    assert(eval[String]("""NA: Array[Int]""").isEmpty)
+
+    assert(eval[IndexedSeq[Any]]("""[1, 2, 3, 4]""").contains(IndexedSeq(1,2,3,4)))
+    assert(eval[IndexedSeq[Any]]("""[1, 2, NA:Int, 6, 3, 3, -1, 8]""").contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)))
+
+
+    assert(eval[IndexedSeq[Any]]("""[1, 2, 3.0, 4]""").contains(IndexedSeq(1,2,3.0,4)))
+    assert(eval[Double]("""[1, 2, 3.0, 4].max""").contains(4.0))
+
+    intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
+    intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
+
+    assert(eval[Annotation](""" {"field1": 1, "field2": 2 } """).contains(Annotation(1,2)))
+    assert(eval[Annotation](""" {"field1": 1, "asdasd": "Hello" } """).contains(Annotation(1,"Hello")))
+
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][0:2] """).contains(IndexedSeq(0,1)))
+
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
   }

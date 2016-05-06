@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.analysis.HiveTypeCoercion.StringToIntegralCasts
 import org.apache.spark.sql.types._
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.Utils._
@@ -222,12 +223,33 @@ case object TChar extends Type {
     .map(s => s.substring(0, 1))
 }
 
-abstract class TNumeric extends Type
+object TNumeric {
+  def parseResultType(types: Set[TNumeric]): Type = {
+    if (types(TDouble) || (types(TFloat) && (types(TInt) || types(TLong))))
+      TDouble
+    else if (types(TInt) && types(TLong))
+      TLong
+    else {
+      assert(types.size == 1)
+      types.head
+    }
+  }
+}
 
-abstract class TIntegral extends TNumeric
+abstract class TNumeric extends Type {
+  def makeDouble[U](a: Any): Double
+}
+
+abstract class TIntegral extends TNumeric {
+  def makeLong[U](a: Any): Long
+}
 
 case object TInt extends TIntegral with Parsable {
   override def toString = "Int"
+
+  def makeDouble[U](a: Any): Double = a.asInstanceOf[Int].toDouble
+
+  def makeLong[U](a: Any): Long = a.asInstanceOf[Int].toLong
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
@@ -243,6 +265,10 @@ case object TInt extends TIntegral with Parsable {
 case object TLong extends TIntegral with Parsable {
   override def toString = "Long"
 
+  def makeDouble[U](a: Any): Double = a.asInstanceOf[Long].toDouble
+
+  def makeLong[U](a: Any): Long = a.asInstanceOf[Long]
+
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 
   def schema = LongType
@@ -257,6 +283,8 @@ case object TLong extends TIntegral with Parsable {
 case object TFloat extends TNumeric with Parsable {
   override def toString = "Float"
 
+  def makeDouble[U](a: Any): Double = a.asInstanceOf[Float].toDouble
+
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 
   def schema = FloatType
@@ -270,6 +298,8 @@ case object TFloat extends TNumeric with Parsable {
 
 case object TDouble extends TNumeric with Parsable {
   override def toString = "Double"
+
+  def makeDouble[U](a: Any): Double = a.asInstanceOf[Double]
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
@@ -1183,6 +1213,65 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
   }
 }
 
+case class ArrayDeclaration(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
+  override def typecheckThis(ec: EvalContext): Type = {
+    if (elements.isEmpty)
+      parseError("Hail does not currently support declaring empty arrays.")
+    elements.foreach(_.typecheck(ec))
+    val types: Set[Type] = elements.map(_.`type`)
+      .map {
+        case t: Type => t
+        case bt => parseError(s"invalid array element found: `$bt'")
+      }
+      .toSet
+    if (types.size == 1)
+      TArray(types.head)
+    else if (types.forall(_.isInstanceOf[TNumeric])) {
+      TArray(TNumeric.parseResultType(types.map(_.asInstanceOf[TNumeric])))
+    }
+    else
+      parseError(s"declared array elements must be the same type (or numeric)." +
+        s"\n  Found: [${elements.map(_.`type`).mkString(", ")}]")
+  }
+
+  def eval(ec: EvalContext): () => Any = {
+    val f = elements.map(_.eval(ec))
+    val elementType = `type`.asInstanceOf[TArray].elementType
+    if (elementType.isInstanceOf[TNumeric]) {
+      val types = elements.map(_.`type`.asInstanceOf[TNumeric])
+      () => (types, f.map(_ ())).zipped.map { case (t, a) =>
+        (elementType: @unchecked) match {
+          case TDouble => t.makeDouble(a)
+          case TFloat => a
+          case TLong => t.asInstanceOf[TIntegral].makeLong(a)
+          case TInt => a
+        }
+      }: IndexedSeq[Any]
+    } else
+      () => f.map(_ ()): IndexedSeq[Any]
+
+  }
+}
+
+case class StructDeclaration(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
+  override def typecheckThis(ec: EvalContext): Type = {
+    if (elements.isEmpty)
+      parseError("Hail does not currently support declaring empty structs.")
+    elements.foreach(_.typecheck(ec))
+    val types = elements.map(_.`type`)
+      .map {
+        case t: Type => t
+        case bt => parseError(s"invalid array element found: `$bt'")
+      }
+    TStruct((names, types, names.indices).zipped.map { case (id, t, i) => Field(id, t, i) })
+  }
+
+  def eval(ec: EvalContext): () => Any = {
+    val f = elements.map(_.eval(ec))
+    () => Annotation.fromSeq(f.map(_ ()))
+  }
+}
+
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
   def typecheck(): BaseType = parseError("non-function context")
 
@@ -1881,7 +1970,7 @@ case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(
     case (t: TArray, TInt) =>
       AST.evalCompose[IndexedSeq[_], Int](ec, f, idx)((a, i) =>
         try {
-        a(i)
+          a(i)
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             fatal(s"Tried to access index [$i] on array ${compact(t.makeJSON(a))} of length ${a.length}" +
@@ -1893,7 +1982,20 @@ case class IndexArray(posn: Position, f: AST, idx: AST) extends AST(posn, Array(
     case (TString, TInt) =>
       AST.evalCompose[String, Int](ec, f, idx)((s, i) => s(i).toString)
   }
+}
 
+case class SliceArray(posn: Position, f: AST, idx1: AST, idx2: AST) extends AST(posn, Array(f, idx1, idx2)) {
+  override def typecheckThis(): BaseType = f.`type` match {
+    case (t: TArray) => (idx1.`type`, idx2.`type`) match {
+      case (TInt, TInt) => t
+      case _ => parseError(s"invalid slice expression.  " +
+        s"Expect array[start:end] where start and end are integers, but got [${idx1.`type`}:${idx2.`type`}]")
+    }
+    case _ => parseError(s"invalid slice expression.  Only arrays can be sliced, tried to slice type `${f.`type`}'")
+  }
+
+  def eval(ec: EvalContext): () => Any =
+    AST.evalCompose[IndexedSeq[_], Int, Int](ec, f, idx1, idx2)((a, i1, i2) => a.slice(i1, i2))
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
