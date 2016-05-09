@@ -5,10 +5,12 @@ import java.util.zip.Inflater
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
+import org.broadinstitute.hail.io.gen.GenReport._
+import org.broadinstitute.hail.io.gen.GenUtils._
+import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 
@@ -19,6 +21,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val btree = new IndexBTree(indexPath, job)
 
   val compressGS = job.getBoolean("compressGS", false)
+  val tolerance = job.get("tolerance", "0.02").toDouble
 
   val ab = new mutable.ArrayBuilder.ofByte
   val plArray = new Array[Int](3)
@@ -47,9 +50,12 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
       val ref = bfis.readLengthAndString(4)
       val alt = bfis.readLengthAndString(4)
+      val nAlleles = 2 //FIXME: for v1.2 the number of alleles is variable
+      val nGenotypes = triangle(nAlleles)
 
       val variant = Variant(chr, position, ref, alt)
-      val varAnnotation = Annotation(rsid, lid)
+
+      value.resetWarnings()
 
       val bytes = {
         if (bState.compressed) {
@@ -74,46 +80,39 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       val genoBuilder = new GenotypeBuilder(variant)
 
       for (i <- 0 until bState.nSamples) {
-
-        val pAA = bar.readShort()
-        val pAB = bar.readShort()
-        val pBB = bar.readShort()
-
-        val dAA = BgenLoader.phredConversionTable(pAA)
-        val dAB = BgenLoader.phredConversionTable(pAB)
-        val dBB = BgenLoader.phredConversionTable(pBB)
-
-        val minValue = math.min(math.min(dAA, dAB), dBB)
-
-        val plAA = (dAA - minValue + .5).toInt
-        val plAB = (dAB - minValue + .5).toInt
-        val plBB = (dBB - minValue + .5).toInt
-
-        assert(plAA == 0 || plAB == 0 || plBB == 0)
-
-        val gt = if (plAA == 0 && plAB == 0
-          || plAA == 0 && plBB == 0
-          || plAB == 0 && plBB == 0)
-          -1
-        else {
-          if (plAA == 0)
-            0
-          else if (plAB == 0)
-            1
-          else
-            2
-        }
-
         genoBuilder.clear()
-        if (gt >= 0) {
-          genoBuilder.setGT(gt)
-          plArray(0) = plAA
-          plArray(1) = plAB
-          plArray(2) = plBB
-          genoBuilder.setPL(plArray)
+
+        val origDosages = (0 until nGenotypes).map{case i => bar.readShort() / 32768.0}.toArray
+        val sumDosages = origDosages.sum
+
+        if (sumDosages == 0.0)
+          value.setWarning(dosageNoCall)
+        else if (math.abs(sumDosages - 1.0) > tolerance)
+          value.setWarning(dosageLessThanTolerance)
+        else {
+          val normIntDosages = normalizePPs(origDosages).map(convertProbToInt)
+          val sumIntDosages = normIntDosages.sum
+          assert(sumIntDosages >= 32768 - nGenotypes && sumIntDosages <= 32768 + nGenotypes)
+
+          val maxIntDosage = normIntDosages.max
+          val gt = {
+            if (maxIntDosage < 16384 && normIntDosages.count(_ == maxIntDosage) != 1) //first comparison for speed to not evaluate count if prob > 0.5
+              -1
+            else
+              normIntDosages.indexOf(maxIntDosage)
+          }
+
+          if (gt >= 0) {
+            genoBuilder.setGT(gt)
+          }
+
+          genoBuilder.setDosage(normIntDosages)
         }
+
         b.write(genoBuilder)
       }
+
+      val varAnnotation = Annotation(rsid, lid)
 
       value.setKey(variant)
       value.setAnnotation(varAnnotation)

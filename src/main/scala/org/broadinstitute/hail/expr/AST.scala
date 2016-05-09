@@ -414,7 +414,7 @@ case object TGenotype extends Type {
       a
     else {
       val g = a.asInstanceOf[Genotype]
-      Annotation(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.pl.map(_.toSeq).orNull, g.fakeRef)
+      Annotation(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.pl.map(_.toSeq).orNull, g.flags)
     }
 
   override def makeSparkReadable(a: Annotation): Genotype =
@@ -427,7 +427,7 @@ case object TGenotype extends Type {
         Option(r.get(2)).map(_.asInstanceOf[Int]),
         Option(r.get(3)).map(_.asInstanceOf[Int]),
         Option(r.get(4)).map(_.asInstanceOf[Seq[Int]].toArray),
-        r.get(5).asInstanceOf[Boolean])
+        r.get(5).asInstanceOf[Int])
     }
 
   override def genValue: Gen[Annotation] = Genotype.genArb
@@ -930,6 +930,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TGenotype, "od") => TInt
       case (TGenotype, "gq") => TInt
       case (TGenotype, "pl") => TArray(TInt)
+      case (TGenotype, "dosage") => TArray(TDouble)
       case (TGenotype, "isHomRef") => TBoolean
       case (TGenotype, "isHet") => TBoolean
       case (TGenotype, "isHomVar") => TBoolean
@@ -1014,6 +1015,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalFlatCompose[Genotype](ec, lhs)(_.gq)
     case (TGenotype, "pl") =>
       AST.evalFlatCompose[Genotype](ec, lhs)(g => g.pl.map(a => a: IndexedSeq[Int]))
+    case (TGenotype, "dosage") =>
+      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.dosage.map(a => a: IndexedSeq[Double]))
     case (TGenotype, "isHomRef") =>
       AST.evalCompose[Genotype](ec, lhs)(_.isHomRef)
     case (TGenotype, "isHet") =>

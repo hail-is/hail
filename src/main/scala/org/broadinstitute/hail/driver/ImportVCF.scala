@@ -55,11 +55,16 @@ object ImportVCF extends Command with VCFImporter {
     @Args4jOption(name = "--store-gq", usage = "Store GQ instead of computing from PL")
     var storeGQ: Boolean = false
 
+    @Args4jOption(name = "--pp-as-pl", usage = "Store PP genotype field as Hail PLs")
+    var ppAsPL: Boolean = false
+
     @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
 
   def newOptions = new Options
+
+  override def supportsMultiallelic = true
 
   def run(state: State, options: Options): State = {
     if (options.input)
@@ -81,7 +86,7 @@ object ImportVCF extends Command with VCFImporter {
         Some(options.nPartitions)
       else
         None,
-      options.skipGenotypes))
+      options.skipGenotypes, options.ppAsPL))
   }
 
 }

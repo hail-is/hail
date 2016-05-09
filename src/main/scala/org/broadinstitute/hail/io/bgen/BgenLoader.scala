@@ -5,9 +5,11 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.io.gen.GenReport
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.io._
 
+import scala.collection.mutable
 import scala.io.Source
 
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
@@ -17,16 +19,19 @@ case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Var
 
 object BgenLoader {
 
-  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
-
-  def load(sc: SparkContext, file: String, nPartitions: Option[Int] = None): BgenResult = {
+  def load(sc: SparkContext, file: String, nPartitions: Option[Int] = None, tolerance: Double = 0.02): BgenResult = {
 
     val bState = readState(sc.hadoopConfiguration, file)
+
+    val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
+    GenReport.accumulators ::=(file, reportAcc)
 
     BgenResult(file, bState.nSamples, bState.nVariants,
       sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[VariantRecord[Variant]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
-      .map { case (lw, pl) => (pl.getKey, pl.getAnnotation, pl.getGS) })
+      .map { case (lw, vr) =>
+        reportAcc ++= vr.getWarnings
+        (vr.getKey, vr.getAnnotation, vr.getGS)})
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

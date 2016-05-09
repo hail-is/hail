@@ -32,7 +32,8 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     infoSignature: Option[TStruct],
     storeGQ: Boolean,
     skipGenotypes: Boolean,
-    compress: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
+    compress: Boolean,
+    ppAsPL: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filters: Set[String] = {
@@ -94,7 +95,14 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       var filter = false
       gb.clear()
 
-      var pl = g.getPL
+      var pl = if (ppAsPL) {
+        val str = g.getAnyAttribute("PP")
+        if (str != null)
+          str.asInstanceOf[String].split(",").map(_.toInt)
+        else null
+      }
+      else g.getPL
+
       if (g.hasPL) {
         val minPL = pl.min
         if (minPL != 0) {

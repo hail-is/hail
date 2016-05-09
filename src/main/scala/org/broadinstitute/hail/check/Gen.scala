@@ -10,6 +10,7 @@ object Parameters {
 }
 
 case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
+
   def frequency(pass: Int, outOf: Int): Boolean = {
     assert(outOf > 0)
     rng.getRandomGenerator.nextInt(outOf) < pass

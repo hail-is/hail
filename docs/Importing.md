@@ -8,6 +8,7 @@ Command line options:
  - `--header-file <file>` -- File to load VCF header from.  By default, `importvcf` reads the header from the first file listed.
  - `-n <N> | --npartitions <N>` -- Number of partitions, advanced user option.
  - `--store-gq` -- Store GQ rather than computing it from PL.  Intended for use with the Michigan GotCloud calling pipeline which stores PLs but sets the GQ to the quality of the posterior probabilities.  Disables the GQ representation checks (GQ present iff PL present, GQ the difference of two smallest PL entries).  This option is experimental and will be removed when Hail supports posterior probabilities (PP).
+ - `--pp-as-pl` -- Take the genotype PP field instead of PL as Hail PLs.  _Note: Experimental, probably slow._
 
 `importvcf` takes a list of VCF files to load.  All files must have the same header and the same set of samples in the same order (e.g., a dataset split by chromosome).  Files can be specified as Hadoop glob patterns:
  - `?` -- Matches any single character.

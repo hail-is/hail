@@ -6,11 +6,33 @@ abstract class Prop {
   def apply(p: Parameters, name: Option[String] = None): Unit
 
   def check() {
-    apply(Parameters.default)
+    val p = Parameters.default
+
+    val seed = {
+      if (!System.getProperty("hail.randomize", "false").toBoolean)
+        System.getProperty("hail.seed", "1").toInt
+      else
+        Gen.arbInt.sample()
+    }
+
+    println(s"Using a seed of [$seed] for testing.")
+    p.rng.reSeed(seed)
+    apply(p)
   }
 
-  def check(size: Int = 100, count: Int = 100) {
-    apply(Parameters.default.copy(size = size, count = count))
+  def check(size: Int = 100, count: Int = 100, seed: Option[Int] = None, random: Boolean = false) {
+    val p = Parameters.default.copy(size = size, count = count)
+
+    val seed2 = {
+      if (!random && !System.getProperty("hail.randomize", "false").toBoolean)
+        seed.getOrElse(System.getProperty("hail.seed", "1").toInt).toLong
+      else
+        Gen.arbInt.sample()
+    }
+
+    println(s"Using a seed of [$seed2] for testing.")
+    p.rng.reSeed(seed2)
+    apply(p)
   }
 }
 

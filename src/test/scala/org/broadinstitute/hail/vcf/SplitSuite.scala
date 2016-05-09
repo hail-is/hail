@@ -45,7 +45,7 @@ class SplitSuite extends SparkSuite {
     val vds2 = LoadVCF(sc, "src/test/resources/split_test_b.vcf")
 
     // test splitting and downcoding
-    vds1.mapWithKeys((v, s, g) => ((v, s), g.copy(fakeRef = false)))
+    vds1.mapWithKeys((v, s, g) => ((v, s), g.copy(flags = Genotype.flagUnsetFakeRef(g.flags))))
       .join(vds2.mapWithKeys((v, s, g) => ((v, s), g)))
       .foreach { case (k, (g1, g2)) =>
         if (g1 != g2)

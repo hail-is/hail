@@ -8,6 +8,8 @@ import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
 import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix}
 import org.testng.annotations.Test
+import scala.language.postfixOps
+import scala.sys.process._
 
 import scala.io.Source
 
@@ -90,15 +92,40 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testReadWrite() {
     val s = State(sc, sqlContext, null)
+    val out = tmpDir.createTempFile("foo", ".vcf")
+    val out2 = tmpDir.createTempFile("foo2", ".vcf")
     val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
       hadoopDelete("/tmp/foo.vcf", sc.hadoopConfiguration, recursive = true)
-      ExportVCF.run(s.copy(vds = vsm), Array("-o", "/tmp/foo.vcf"))
-      val vsm2 = ImportVCF.run(s, Array("/tmp/foo.vcf")).vds
-      ExportVCF.run(s.copy(vds = vsm2), Array("-o", "/tmp/foo2.vcf"))
-      val vsm3 = ImportVCF.run(s, Array("/tmp/foo2.vcf")).vds
+      ExportVCF.run(s.copy(vds = vsm), Array("-o", out))
+      val vsm2 = ImportVCF.run(s, Array(out)).vds
+      ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
+      val vsm3 = ImportVCF.run(s, Array(out2)).vds
       vsm2.same(vsm3)
     }
 
-      p.check
+    p.check
+  }
+
+  @Test def testPPs() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf", "--pp-as-pl"))
+    val out = tmpDir.createTempFile("exportPPs", ".vcf")
+    ExportVCF.run(s, Array("-o", out, "--export-pp"))
+
+    val lines1 = readFile(out, sc.hadoopConfiguration) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .dropWhile(_.startsWith("#"))
+        .toIndexedSeq
+    }
+
+    val lines2 = readFile("src/test/resources/sample.PPs.vcf", sc.hadoopConfiguration) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .dropWhile(_.startsWith("#"))
+        .toIndexedSeq
+    }
+
+    assert(lines1 == lines2)
   }
 }

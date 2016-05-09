@@ -7,11 +7,13 @@ import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred._
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.annotations._
+import scala.collection.mutable
 
 class VariantRecord[K] extends Serializable {
   var gs: Iterable[Genotype] = null
   var ann: Annotation = Annotation.empty
   var key: K = _
+  var warnings = mutable.Map.empty[Int, Int]
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
@@ -30,6 +32,16 @@ class VariantRecord[K] extends Serializable {
   }
 
   def getKey: K = key
+
+  def getWarnings = warnings
+
+  def setWarning(idx: Int) {
+    this.warnings(idx) = this.warnings.getOrElseUpdate(idx, 0) + 1
+  }
+
+  def resetWarnings() {
+    this.warnings = mutable.Map.empty[Int, Int]
+  }
 }
 
 abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)

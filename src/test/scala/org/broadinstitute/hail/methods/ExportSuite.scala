@@ -62,7 +62,7 @@ class ExportSuite extends SparkSuite {
         "gqMean=va.qc.gqMean,gqStDev=va.qc.gqStDev," +
         "nNonRef=va.qc.nNonRef," +
         "rHeterozygosity=va.qc.rHeterozygosity,rHetHomVar=va.qc.rHetHomVar,rExpectedHetFrequency=va.qc.rExpectedHetFrequency," +
-        "pHWE=va.qc.pHWE"))
+        "pHWE=va.qc.pHWE," + "infoScore=va.qc.infoScore" ))
 
     val vQcOutput = readFile(variantQCFile, hadoopConf) { s =>
       Source.fromInputStream(s)
