@@ -44,9 +44,9 @@ object ImportAnnotations extends Command {
     if (files.isEmpty)
       fatal("Arguments referred to no files")
 
-    val (rdd, signature) = VariantTSVAnnotator(state.sc,
+    val (rdd, signature) = VariantTableAnnotator(state.sc,
       files,
-      AnnotateVariantsTSV.parseColumns(options.vCols),
+      AnnotateVariantsTable.parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
       options.missingIdentifier, options.delimiter)
 
