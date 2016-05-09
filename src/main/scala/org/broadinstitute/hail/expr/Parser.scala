@@ -246,7 +246,7 @@ object Parser extends JavaTokenParsers {
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
         case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" => ApplyMethod(dot.pos, acc, sym, args)
         case (lbracket: Positioned[_]) ~ (idx1: AST) ~ ":" ~ (idx2: AST) ~ "]" => SliceArray(lbracket.pos, acc, idx1, idx2)
-        case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexArray(lbracket.pos, acc, idx)
+        case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexOp(lbracket.pos, acc, idx)
       }
       }
     }
@@ -270,6 +270,7 @@ object Parser extends JavaTokenParsers {
       withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
       withPos(arrayDeclaration) ^^ (r => ArrayDeclaration(r.pos, r.x)) |
       withPos(structDeclaration) ^^ (r => StructDeclaration(r.pos, r.x.map(_._1), r.x.map(_._2))) |
+      withPos(indexStruct) ^^ (r => IndexStruct(r.pos, r.x._1, r.x._2)) |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
@@ -287,7 +288,12 @@ object Parser extends JavaTokenParsers {
 
   def structDeclaration: Parser[Array[(String, AST)]] = "{" ~> repsep(structField, ",") <~ "}" ^^ (_.toArray)
 
-  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ {case id ~ _ ~ ast => (id, ast)}
+  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ { case id ~ _ ~ ast => (id, ast) }
+
+  def indexStruct: Parser[(String, AST)] = "index" ~ "(" ~ expr ~ "," ~ identifier ~ ")" ^^ {
+    case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key, ast)
+//    case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key.substring(1, key.length - 1), ast)
+  }
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>

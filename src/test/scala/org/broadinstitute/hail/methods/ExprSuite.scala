@@ -31,7 +31,12 @@ class ExprSuite extends SparkSuite {
       "f" ->(11, TBoolean),
       "mb" ->(12, TBoolean),
       "is" ->(13, TString),
-      "iset" ->(14, TSet(TInt)))
+      "iset" ->(14, TSet(TInt)),
+      "genedict" ->(15, TDict(TInt)),
+      "structArray" ->(16, TArray(TStruct(
+        ("f1", TInt),
+        ("f2", TString),
+        ("f3", TInt)))))
     val ec = EvalContext(symTab)
 
     val a = ec.a
@@ -55,11 +60,21 @@ class ExprSuite extends SparkSuite {
     a(12) = null // mb
     a(13) = "-37" // is
     a(14) = Set(0, 1, 2)
-    assert(a.length == 15)
+    a(15) = Map("gene1" -> 2, "gene2" -> 10, "gene3" -> 14)
+    a(16) = IndexedSeq(Annotation(1, "A", 2),
+      Annotation(5, "B", 6),
+      Annotation(10, "C", 10))
+
+    assert(a.length == symTab.size)
 
     def eval[T](s: String): Option[T] = {
       val f = Parser.parse(s, ec)._2
       f().map(_.asInstanceOf[T])
+    }
+
+    def evalWithType[T](s: String): (BaseType, Option[T]) = {
+      val (t, f) = Parser.parse(s, ec)
+      (t, f().map(_.asInstanceOf[T]))
     }
 
     assert(eval[Int]("is.toInt").contains(-37))
@@ -159,23 +174,34 @@ class ExprSuite extends SparkSuite {
     assert(eval[String]("""NA: Int""").isEmpty)
     assert(eval[String]("""NA: Array[Int]""").isEmpty)
 
-    assert(eval[IndexedSeq[Any]]("""[1, 2, 3, 4]""").contains(IndexedSeq(1,2,3,4)))
+    assert(eval[IndexedSeq[Any]]("""[1, 2, 3, 4]""").contains(IndexedSeq(1, 2, 3, 4)))
     assert(eval[IndexedSeq[Any]]("""[1, 2, NA:Int, 6, 3, 3, -1, 8]""").contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)))
 
 
-    assert(eval[IndexedSeq[Any]]("""[1, 2, 3.0, 4]""").contains(IndexedSeq(1,2,3.0,4)))
+    assert(eval[IndexedSeq[Any]]("""[1, 2, 3.0, 4]""").contains(IndexedSeq(1, 2, 3.0, 4)))
     assert(eval[Double]("""[1, 2, 3.0, 4].max""").contains(4.0))
 
     intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
     intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
 
-    assert(eval[Annotation](""" {"field1": 1, "field2": 2 } """).contains(Annotation(1,2)))
-    assert(eval[Annotation](""" {"field1": 1, "asdasd": "Hello" } """).contains(Annotation(1,"Hello")))
+    assert(eval[Annotation](""" {"field1": 1, "field2": 2 } """).contains(Annotation(1, 2)))
+    assert(eval[Annotation](""" {"field1": 1, "asdasd": "Hello" } """).contains(Annotation(1, "Hello")))
 
-    assert(eval[IndexedSeq[_]](""" [0,1,2,3][0:2] """).contains(IndexedSeq(0,1)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][0:2] """).contains(IndexedSeq(0, 1)))
 
+    assert(eval[Int](""" genedict["gene2"] """).contains(10))
+
+    val (dictType, result) = evalWithType[Map[_, _]](""" index(structArray, f2) """)
+    assert(result.contains(
+      Map("A" -> Annotation(1, 2),
+        "B" -> Annotation(5, 6),
+        "C" -> Annotation(10, 10))
+    ))
+    assert(dictType == TDict(TStruct(("f1", TInt), ("f3", TInt))))
+
+
+    assert(eval[Int](""" index(structArray, f2)["B"].f3 """).contains(6))
     // FIXME catch parse errors
-    // assert(eval[Boolean]("i.max(d) == 5"))
   }
 
   @Test def testAssign() {
