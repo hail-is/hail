@@ -21,10 +21,7 @@ object GenotypeSuite {
     gb.set(g)
     gb.write(ab)
     val g2 = Genotype.read(v, new ByteIterator(ab.result()))
-    println(s"g=${g} isDosage=${g.isDosage}")
-    println(s"pls: g=${g.pl.getOrElse(Array("NA")).mkString(",")}")
-    println(s"dosages: g=${g.dosage.getOrElse(Array("NA")).mkString(",")}")
-    println(s"")
+
     g == g2
   }
 
@@ -93,6 +90,6 @@ class GenotypeSuite extends TestNGSuite {
     assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(99), Some(Array(100, 0, 100))).pAB().get, 1.0))
     assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(99), Some(Array(200, 0, 100))).pAB().get, 0.423950))
 
-    Spec.check(size = 100, count = 100)
+    Spec.check(size = 100, count = 100000)
   }
 }

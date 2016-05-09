@@ -624,10 +624,7 @@ class GenotypeBuilder(v: Variant) {
   }
 
   def setDosage(newDosage: Array[Double]) {
-    require(newDosage.length == v.nGenotypes)
-    flags = Genotype.flagSetHasPL(flags)
-    flags = Genotype.flagSetHasDosage(flags)
-    pl = newDosage.map{case d => (d * 32768).toInt}
+    setDosage(newDosage.map{case d => (d * 32768).toInt})
   }
 
   def setFakeRef() {

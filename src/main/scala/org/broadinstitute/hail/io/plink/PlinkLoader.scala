@@ -59,7 +59,7 @@ object PlinkLoader {
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val variantRDD = rdd.map {
-      case (lw, pl) => (variantsBc.value(pl.getKey), Annotation.empty, pl.getGS)
+      case (lw, vr) => (variantsBc.value(vr.getKey), Annotation.empty, vr.getGS)
     }
 
     VariantSampleMatrix(VariantMetadata(

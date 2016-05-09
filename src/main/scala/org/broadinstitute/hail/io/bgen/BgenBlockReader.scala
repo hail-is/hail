@@ -55,7 +55,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
       val variant = Variant(chr, position, ref, alt)
 
-      value.resetGenotypeFlags()
+      value.resetWarnings()
 
       val bytes = {
         if (bState.compressed) {
@@ -86,9 +86,9 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         val sumDosages = origDosages.sum
 
         if (sumDosages == 0.0)
-          value.setGenotypeFlags(dosageNoCall)
+          value.setWarning(dosageNoCall)
         else if (math.abs(sumDosages - 1.0) > tolerance)
-          value.setGenotypeFlags(dosageLessThanTolerance)
+          value.setWarning(dosageLessThanTolerance)
         else {
           val normIntDosages = normalizePPs(origDosages).map(convertProbToInt)
           val sumIntDosages = normIntDosages.sum

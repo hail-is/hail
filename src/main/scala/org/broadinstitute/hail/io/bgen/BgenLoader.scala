@@ -19,8 +19,6 @@ case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Var
 
 object BgenLoader {
 
-  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
-
   def load(sc: SparkContext, file: String, nPartitions: Option[Int] = None, tolerance: Double = 0.02): BgenResult = {
 
     val bState = readState(sc.hadoopConfiguration, file)
@@ -32,7 +30,7 @@ object BgenLoader {
       sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[VariantRecord[Variant]],
       nPartitions.getOrElse(sc.defaultMinPartitions))
       .map { case (lw, vr) =>
-        reportAcc ++= vr.getGenotypeFlags
+        reportAcc ++= vr.getWarnings
         (vr.getKey, vr.getAnnotation, vr.getGS)})
   }
 

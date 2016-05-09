@@ -13,7 +13,7 @@ class VariantRecord[K] extends Serializable {
   var gs: Iterable[Genotype] = null
   var ann: Annotation = Annotation.empty
   var key: K = _
-  var genotypeFlags = mutable.Map.empty[Int, Int]
+  var warnings = mutable.Map.empty[Int, Int]
 
   def setGS(gs: Iterable[Genotype]) {
     this.gs = gs
@@ -33,14 +33,14 @@ class VariantRecord[K] extends Serializable {
 
   def getKey: K = key
 
-  def getGenotypeFlags = genotypeFlags
+  def getWarnings = warnings
 
-  def setGenotypeFlags(idx: Int) {
-    this.genotypeFlags(idx) = this.genotypeFlags.getOrElseUpdate(idx, 0) + 1
+  def setWarning(idx: Int) {
+    this.warnings(idx) = this.warnings.getOrElseUpdate(idx, 0) + 1
   }
 
-  def resetGenotypeFlags() {
-    this.genotypeFlags = mutable.Map.empty[Int, Int]
+  def resetWarnings() {
+    this.warnings = mutable.Map.empty[Int, Int]
   }
 }
 
