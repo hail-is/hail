@@ -25,7 +25,7 @@ object ImportGEN extends Command {
     var chromosome: String = null
 
     @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
-    var noCompress: Boolean = true
+    var noCompress: Boolean = false
 
     @Args4jOption(name = "-t", aliases = Array("--tolerance"), usage = "If sum dosages < (1 - tolerance), set to None")
     var tolerance: Double = 0.02
@@ -51,12 +51,14 @@ object ImportGEN extends Command {
         fatal("unknown input file type")
       }
     }
+
     val sc = state.sc
 
     val samples =  BgenLoader.readSampleFile(sc.hadoopConfiguration, options.sampleFile)
 
     val nSamples = samples.length
 
+    //FIXME: can't specify multiple chromosomes
     val results = inputs.map(f => GenLoader(f, options.sampleFile, sc, Option(options.nPartitions),
       options.tolerance, !options.noCompress, Option(options.chromosome)))
 

@@ -21,7 +21,7 @@ object ImportBGEN extends Command {
     var sampleFile: String = null
 
     @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
-    var noCompress: Boolean = true
+    var noCompress: Boolean = false
 
     @Args4jOption(name = "-t", aliases = Array("--tolerance"), usage = "If abs(1 - sum dosages) > tolerance, set to None")
     var tolerance: Double = 0.02

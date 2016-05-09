@@ -12,7 +12,7 @@ hail read -i /path/to/file.vds exportgen -o /path/to/mygenfile
 
 ## Current behavior:
 
- - Does not support multiallelics. Run `splitmulti` before running `exportgen`.
+ - Does not support multiallelic variants. Run `splitmulti` before running `exportgen`.
 
  - The first 6 columns of the resulting .gen file are the following:
     - Chromosome (v.contig)
@@ -25,8 +25,7 @@ hail read -i /path/to/file.vds exportgen -o /path/to/mygenfile
  - Probability Dosages:
     - 3 probabilities per sample (pHomRef, pHet, pHomVar)
     - Any filtered genotypes will be output as (0.0, 0.0, 0.0)
-    - If `importbgen` or `importgen` was not used to create the VDS, then all dosage values will be triplets of (0.0, 0.0, 0.0)
  
  - The sample file has 3 columns:
-    - ID_1 and ID_2 are identical and set to the sample ID (s)
+    - ID_1 and ID_2 are identical and set to the sample ID (`s.id`)
     - The third column ("missing") is set to 0 for all samples 

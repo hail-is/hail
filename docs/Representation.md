@@ -105,6 +105,8 @@ Identifier | Type | Description
 `g.dp`             | `Int`     | the total number of informative reads
 `g.od`             | `Int`     | `od = dp - ad.sum`
 `g.gq`             | `Int`     | the difference between the two smallest PL entries
+`g.pl` | `Array[Int]` | the Phred scaled likelihoods
+`g.dosage` | `Array[Double]` | the linear-scaled probabilities
 `g.isHomRef`       | `Boolean` | true if this call is `0/0`
 `g.isHet`          | `Boolean` | true if this call is heterozygous
 `g.isHetRef`       | `Boolean` | true if this call is `0/k` with `k>0`
@@ -116,4 +118,3 @@ Identifier | Type | Description
 `g.nNonRefAlleles`        | `Int`     | the number of called alternate alleles
 `g.pAB()`          | `Double`  | p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
 `g.fractionReadsRef` | `Double` | the ratio of ref reads to the sum of all *informative* reads
- 

@@ -88,3 +88,4 @@ The below annotations can be accessed with `va.qc.<identifier>`
  - `gqStDevHet:            Double` -- GQ standard deviation across all samples called Het
  - `gqMeanHomVar:          Double` -- GQ mean across all samples called HomVar
  - `gqStDevHomVar:         Double` -- GQ standard deviation across all samples called HomVar
+ - `infoScore:             Double` -- Info score as calculated by IMPUTE, [see documentation here](https://mathgen.stats.ox.ac.uk/genetics_software/snptest/snptest.html#info_measures)
