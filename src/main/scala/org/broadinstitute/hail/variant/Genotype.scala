@@ -7,6 +7,7 @@ import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.io.gen.GenUtils._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
 
@@ -121,17 +122,24 @@ class Genotype(private val _gt: Int,
       None
 
   def pl: Option[Array[Int]] = {
-    if (!isDosage)
+    if (_pl == null)
+      None
+    else if (!isDosage)
       Option(_pl)
-    else
-      Option(_pl) //FIXME: replace with None
+    else {
+        val x = _pl.map(phredConversionTable)
+        Option(x.map{d => (d - x.min + 0.5).toInt})
+      }
   }
 
   def dosage: Option[Array[Double]] = {
-    if (!isDosage || _pl == null)
+    if (_pl == null)
       None
+    else if (isDosage)
+      Option(_pl.map{ _ / 32768.0 })
     else {
-      Option(_pl.map{_ / _pl.sum.toDouble})
+      val sumTransformedProbs = _pl.map{case i => math.pow(10, i / -10.0)}.sum
+      Option(_pl.map{case i => math.pow(10, i / -10.0) / sumTransformedProbs})
     }
   }
 
@@ -491,15 +499,21 @@ object Genotype {
   }
 
   def genDosage(v: Variant): Gen[Genotype] = {
-    val m = Int.MaxValue / (v.nAlleles + 1)
+
     for (pl <- Gen.option(Gen.buildableOfN[Array[Double], Double](v.nGenotypes, Gen.choose(0.0, 1.0)))) yield {
 
       val plInt = pl.map{ pla => pla.map{case d: Double => ((d / pla.sum) * 32768.0).round.toInt}}
       val gt = plInt.map{pla => if (pla.count(_ == pla.max) != 1) -1 else pla.indexOf(pla.max)}
 
       var flags = 0
-      flags = flagSetHasDosage(flags)
-      flags = flagSetHasPL(flags)
+      flags = {
+        if (plInt.isDefined) {
+          flagSetHasPL(flags)
+          flagSetHasDosage(flags)
+        }
+        else
+          flags
+      }
 
       val g = Genotype(gt = gt, pl = plInt, flags = flags)
       g.check(v)
@@ -620,10 +634,6 @@ class GenotypeBuilder(v: Variant) {
     flags = Genotype.flagSetFakeRef(flags)
   }
 
-  def setDosageFlag() {
-    flags = Genotype.flagSetHasDosage(flags)
-  }
-
   def set(g: Genotype) {
     g.gt.foreach(setGT)
     g.ad.foreach(setAD)
@@ -633,24 +643,19 @@ class GenotypeBuilder(v: Variant) {
     if (!g.isDosage)
       g.pl.foreach(setPL)
     else {
-      g.pl.foreach(setDosage)
+      g.dosage.foreach(setDosage)
     }
 
     if (g.fakeRef)
       setFakeRef()
-
-    if (g.isDosage)
-      setDosageFlag()
   }
 
   def write(b: mutable.ArrayBuilder[Byte]) {
     val hasGT = Genotype.flagHasGT(isBiallelic, flags)
-
     val hasAD = Genotype.flagHasAD(flags)
     val hasDP = Genotype.flagHasDP(flags)
     val hasGQ = Genotype.flagHasGQ(flags)
     val hasPL = Genotype.flagHasPL(flags)
-
     val hasDosage = Genotype.flagHasDosage(flags)
 
     var j = 0

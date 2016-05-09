@@ -8,7 +8,9 @@ import org.apache.hadoop.mapred.FileSplit
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.variant.{GenotypeBuilder, GenotypeStreamBuilder, Variant}
-import org.broadinstitute.hail.io.gen.{GenReport, GenUtils}
+import org.broadinstitute.hail.io.gen.GenReport._
+import org.broadinstitute.hail.io.gen.GenUtils._
+import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 
@@ -48,8 +50,12 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
       val ref = bfis.readLengthAndString(4)
       val alt = bfis.readLengthAndString(4)
+      val nAlleles = 2 //FIXME: for v1.2 the number of alleles is variable
+      val nGenotypes = triangle(nAlleles)
 
       val variant = Variant(chr, position, ref, alt)
+
+      value.resetGenotypeFlags()
 
       val bytes = {
         if (bState.compressed) {
@@ -76,50 +82,34 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       for (i <- 0 until bState.nSamples) {
         genoBuilder.clear()
 
-        genoBuilder.setDosageFlag()
-
-        val pAA = bar.readShort()
-        val pAB = bar.readShort()
-        val pBB = bar.readShort()
-
-        val origDosages = Array(pAA, pAB, pBB).map{_ / 32768.0}
+        val origDosages = (0 until nGenotypes).map{case i => bar.readShort() / 32768.0}.toArray
         val sumDosages = origDosages.sum
 
         if (sumDosages == 0.0)
-          value.setGenotypeFlag(GenReport.dosageNoCall)
-        else if (math.abs(origDosages.sum - 1.0) > tolerance)
-          value.setGenotypeFlag(GenReport.dosageLessThanTolerance)
+          value.setGenotypeFlags(dosageNoCall)
+        else if (math.abs(sumDosages - 1.0) > tolerance)
+          value.setGenotypeFlags(dosageLessThanTolerance)
         else {
-          val normProbs = GenUtils.normalizePPs(origDosages)
+          val normIntDosages = normalizePPs(origDosages).map(convertProbToInt)
+          val sumIntDosages = normIntDosages.sum
+          assert(sumIntDosages >= 32768 - nGenotypes && sumIntDosages <= 32768 + nGenotypes)
 
-          val dosageAA = GenUtils.convertProbsToInt(normProbs(0))
-          val dosageAB = GenUtils.convertProbsToInt(normProbs(1))
-          val dosageBB = GenUtils.convertProbsToInt(normProbs(2))
-
-          val sumDosage = dosageAA + dosageAB + dosageBB
-
-          assert(sumDosage >= 32768 - variant.nGenotypes && sumDosage <= 32768 + variant.nGenotypes)
-
+          val maxIntDosage = normIntDosages.max
           val gt = {
-            if (dosageAA > dosageAB && dosageAA > dosageBB)
-              0
-            else if (dosageAB > dosageAA && dosageAB > dosageBB)
-              1
-            else if (dosageBB > dosageAA && dosageBB > dosageAB)
-              2
-            else
+            if (maxIntDosage < 16384 && normIntDosages.count(_ == maxIntDosage) != 1) //first comparison for speed to not evaluate count if prob > 0.5
               -1
+            else
+              normIntDosages.indexOf(maxIntDosage)
           }
 
           if (gt >= 0) {
             genoBuilder.setGT(gt)
           }
 
-          genoBuilder.setDosage(Array(dosageAA, dosageAB, dosageBB))
+          genoBuilder.setDosage(normIntDosages)
         }
 
         b.write(genoBuilder)
-
       }
 
       val varAnnotation = Annotation(rsid, lid)

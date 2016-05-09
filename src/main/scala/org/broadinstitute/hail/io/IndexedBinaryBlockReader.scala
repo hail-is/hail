@@ -35,8 +35,12 @@ class VariantRecord[K] extends Serializable {
 
   def getGenotypeFlags = genotypeFlags
 
-  def setGenotypeFlag(idx: Int) {
+  def setGenotypeFlags(idx: Int) {
     this.genotypeFlags(idx) = this.genotypeFlags.getOrElseUpdate(idx, 0) + 1
+  }
+
+  def resetGenotypeFlags() {
+    this.genotypeFlags = mutable.Map.empty[Int, Int]
   }
 }
 

@@ -179,10 +179,6 @@ case class Variant(contig: String,
 
   def isBiallelic: Boolean = nAltAlleles == 1
 
-  //FIXME: probably a more robust way to do this
-  /*def isAutosomal: Boolean = if (contig == "23" || contig == "24" || contig == "25" ||
-    contig == "26" || (contig == "X" && !inParX) || (contig == "Y" && !inParY) || (contig == "MT")) false else true*/
-
   // FIXME altAllele, alt to be deprecated
   def altAllele: AltAllele = {
     require(isBiallelic)

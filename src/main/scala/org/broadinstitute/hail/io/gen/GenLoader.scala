@@ -6,6 +6,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader
+import org.broadinstitute.hail.io.gen.GenUtils._
 import org.broadinstitute.hail.variant._
 
 import scala.collection.mutable
@@ -60,23 +61,17 @@ object GenReport {
 object GenUtils {
   def normalizePPs(arr: Array[Double]): Array[Double] = {
     val sum = arr.sum
-    if (sum != 0.0)
-      if (math.abs(sum - 1.0) > 3.0e-4)
-        arr.map{_ / sum}
-      else
-        arr
-    else
-      Array(0.3333, 0.3333, 0.3333)
+    require(sum != 0.0, "Can't divide by 0 when normalizing dosages.")
+    arr.map{_ / sum}
   }
 
-  def convertProbsToInt(prob: Double): Int = {
+  def convertProbToInt(prob: Double): Int = {
     val tmp = prob * 32768
     require(tmp >= 0 && tmp < 65535.5)
     math.round(tmp).toInt
   }
 
-  def convertProbsToInt(probArray: Array[Double]): Array[Int] = probArray.map{ d => convertProbsToInt(d)}
-
+  lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
 }
 
 object GenLoader {
@@ -116,6 +111,7 @@ object GenLoader {
     val alt = arr(5 - chrCol)
 
     val variant = Variant(chr, start.toInt, ref, alt)
+    val nGenotypes = 3
     val dosages = arr.drop(6 - chrCol).map {_.toDouble}
 
     if (dosages.length != (3 * nSamples))
@@ -127,7 +123,6 @@ object GenLoader {
 
     for (i <- dosages.indices by 3) {
       genoBuilder.clear()
-      genoBuilder.setDosageFlag()
 
       val origDosages = Array(dosages(i), dosages(i+1), dosages(i+2))
       val sumDosages = origDosages.sum
@@ -137,32 +132,25 @@ object GenLoader {
       else if (math.abs(sumDosages - 1.0) > tolerance)
         reportAcc += GenReport.dosageLessThanTolerance
       else {
-        val normProbs = GenUtils.normalizePPs(origDosages)
+        val normIntDosages = normalizePPs(origDosages).map(convertProbToInt)
+        val sumIntDosages = normIntDosages.sum
+        assert(sumIntDosages >= 32768 - nGenotypes && sumIntDosages <= 32768 + nGenotypes)
 
-        val dosageAA = GenUtils.convertProbsToInt(normProbs(0))
-        val dosageAB = GenUtils.convertProbsToInt(normProbs(1))
-        val dosageBB = GenUtils.convertProbsToInt(normProbs(2))
-
-        val sumDosage = dosageAA + dosageAB + dosageBB
-
-        assert(sumDosage >= 32768 - variant.nGenotypes && sumDosage <= 32768 + variant.nGenotypes)
-
-        val gt = if (dosageAA > dosageAB && dosageAA > dosageBB)
-          0
-        else if (dosageAB > dosageAA && dosageAB > dosageBB)
-          1
-        else if (dosageBB > dosageAA && dosageBB > dosageAB)
-          2
-        else
-          -1
+        val maxIntDosage = normIntDosages.max
+        val gt = {
+          if (maxIntDosage < 16384 && normIntDosages.count(_ == maxIntDosage) != 1) //first comparison for speed to not evaluate count if prob > 0.5
+            -1
+          else
+            normIntDosages.indexOf(maxIntDosage)
+        }
 
         if (gt >= 0) {
           genoBuilder.setGT(gt)
         }
 
-        genoBuilder.setDosage(Array(dosageAA, dosageAB, dosageBB))
-
+        genoBuilder.setDosage(normIntDosages)
       }
+
       b.write(genoBuilder)
     }
 

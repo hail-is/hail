@@ -121,8 +121,6 @@ object SplitMulti extends Command {
             }
           }
         } else {
-          gb.setDosageFlag()
-
           val newdx = g.dosage.map { case gdx =>
             val dx = gdx.iterator.zipWithIndex
               .map { case (d, k) => (splitGT(k, i), d) }
@@ -134,14 +132,11 @@ object SplitMulti extends Command {
 
           val newgt = newdx match {
             case Some(x) => {
-              if (x(0) > x(1) && x(0) > x(2))
-                0
-              else if (x(1) > x(0) && x(1) > x(2))
-                1
-              else if (x(2) > x(0) && x(2) > x(1))
-                2
-              else
+              val maxDosage = x.max
+              if (maxDosage < 0.5 && newdx.count(_ == maxDosage) != 1) //first comparison for speed to not evaluate count if prob > 0.5
                 -1
+              else
+                x.indexOf(maxDosage)
             }
             case None => -1
           }
