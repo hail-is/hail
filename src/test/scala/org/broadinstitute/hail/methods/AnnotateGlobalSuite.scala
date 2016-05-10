@@ -5,6 +5,7 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr._
 import org.testng.annotations.Test
 
 
@@ -33,11 +34,11 @@ class AnnotateGlobalSuite extends SparkSuite {
 
     val qMaf = vds.queryVA("va.qc.MAF")._2
     val mafSC = vds.variantsAndAnnotations.map(_._2)
-        .aggregate(new StatCounter())({case (statC, va) =>
+      .aggregate(new StatCounter())({ case (statC, va) =>
         val maf = qMaf(va)
         maf.foreach(o => statC.merge(o.asInstanceOf[Double]))
         statC
-        }, { case (sc1, sc2) => sc1.merge(sc2)})
+      }, { case (sc1, sc2) => sc1.merge(sc2) })
 
     assert(vds.queryGlobal("global.mafDist")._2
       .contains(Annotation(mafSC.mean, mafSC.stdev, mafSC.min, mafSC.max, mafSC.count, mafSC.sum)))
@@ -46,11 +47,11 @@ class AnnotateGlobalSuite extends SparkSuite {
 
     val qMac = vds.queryVA("va.qc.MAC")._2
     val macSC = vds.variantsAndAnnotations.map(_._2)
-      .aggregate(new StatCounter())({case (statC, va) =>
+      .aggregate(new StatCounter())({ case (statC, va) =>
         val mac = qMac(va)
         mac.foreach(o => statC.merge(o.asInstanceOf[Int]))
         statC
-      }, { case (sc1, sc2) => sc1.merge(sc2)})
+      }, { case (sc1, sc2) => sc1.merge(sc2) })
 
     assert(vds.queryGlobal("global.macDist")._2
       .contains(Annotation(macSC.mean, macSC.stdev, macSC.min.toInt,
@@ -58,11 +59,11 @@ class AnnotateGlobalSuite extends SparkSuite {
 
     val qCR = vds.querySA("sa.qc.callRate")._2
     val crSC = vds.sampleAnnotations
-      .aggregate(new StatCounter())({case (statC, sa) =>
+      .aggregate(new StatCounter())({ case (statC, sa) =>
         val cr = qCR(sa)
         cr.foreach(o => statC.merge(o.asInstanceOf[Double]))
         statC
-      }, { case (sc1, sc2) => sc1.merge(sc2)})
+      }, { case (sc1, sc2) => sc1.merge(sc2) })
 
     assert(vds.queryGlobal("global.CRStats")._2
       .contains(Annotation(crSC.mean, crSC.stdev, crSC.min,
@@ -98,5 +99,41 @@ class AnnotateGlobalSuite extends SparkSuite {
     val (_, anno2) = s.vds.queryGlobal("global.array")
     assert(anno1.contains(toWrite1.toSet))
     assert(anno2.contains(toWrite2: IndexedSeq[Any]))
+  }
+
+  @Test def testTable() {
+    val out1 = tmpDir.createTempFile("file1", ".txt")
+
+    val toWrite1 = Array(
+      "GENE\tPLI\tEXAC_LOF_COUNT",
+      "Gene1\t0.12312\t2",
+      "Gene2\t0.99123\t0",
+      "Gene3\tNA\tNA",
+      "Gene4\t0.9123\t10",
+      "Gene5\t0.0001\t202")
+
+    writeTextFile(out1, sc.hadoopConfiguration) { out =>
+      toWrite1.foreach(line => out.write(line + "\n"))
+    }
+
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    s = AnnotateGlobal.run(s, Array("table", "-i", out1, "-r", "global.genes", "-t", "PLI: Double, EXAC_LOF_COUNT: Int"))
+
+    val (t, res) = s.vds.queryGlobal("global.genes")
+
+    assert(t == TArray(TStruct(
+      ("GENE", TString),
+      ("PLI", TDouble),
+      ("EXAC_LOF_COUNT", TInt))))
+
+    assert(res.contains(IndexedSeq(
+      Annotation("Gene1", "0.12312".toDouble, 2),
+      Annotation("Gene2", "0.99123".toDouble, 0),
+      Annotation("Gene3", null, null),
+      Annotation("Gene4", "0.9123".toDouble, 10),
+      Annotation("Gene5", "0.0001".toDouble, 202)
+    )))
+
   }
 }

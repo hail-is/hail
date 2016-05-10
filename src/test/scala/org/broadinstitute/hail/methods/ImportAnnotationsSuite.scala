@@ -36,7 +36,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     }
 
     val anno1 = AnnotateSamples.run(state,
-      Array("tsv", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.`my phenotype`", "-t", "qPhen:Int"))
+      Array("table", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.`my phenotype`", "-t", "qPhen:Int"))
 
     val q1 = anno1.vds.querySA("sa.`my phenotype`.Status")._2
     val q2 = anno1.vds.querySA("sa.`my phenotype`.qPhen")._2
@@ -126,7 +126,7 @@ class ImportAnnotationsSuite extends SparkSuite {
         .toMap
     }
     val anno1 = AnnotateVariants.run(state,
-      Array("tsv", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
+      Array("table", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
     val q1 = anno1.vds.queryVA("va.stuff")._2
     anno1.vds.rdd
@@ -138,10 +138,10 @@ class ImportAnnotationsSuite extends SparkSuite {
       }
 
     val anno1alternate = AnnotateVariants.run(state,
-      Array("tsv", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
+      Array("table", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
         "Chromosome:Position:Ref:Alt", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
-    val anno1glob = AnnotateVariants.run(state, Array("tsv", "src/test/resources/variantAnnotations.split.*.tsv",
+    val anno1glob = AnnotateVariants.run(state, Array("table", "src/test/resources/variantAnnotations.split.*.tsv",
       "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
     assert(anno1alternate.vds.same(anno1.vds))
@@ -219,7 +219,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
 
     val tsv1r = AnnotateVariants.run(state,
-      Array("tsv", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
+      Array("table", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
     val vcf1 = AnnotateVariants.run(state, Array("vcf", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
 

@@ -2,10 +2,10 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
+import org.broadinstitute.hail.io.annotators.SampleTableAnnotator
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object AnnotateSamplesTSV extends Command {
+object AnnotateSamplesTable extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
@@ -35,9 +35,9 @@ object AnnotateSamplesTSV extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatesamples tsv"
+  def name = "annotatesamples table"
 
-  def description = "Annotate samples with TSV file"
+  def description = "Annotate samples with a text table"
 
   override def supportsMultiallelic = true
 
@@ -46,7 +46,7 @@ object AnnotateSamplesTSV extends Command {
 
     val input = options.input
 
-    val (m, signature) = SampleTSVAnnotator(input, options.sampleCol,
+    val (m, signature) = SampleTableAnnotator(input, options.sampleCol,
       Parser.parseAnnotationTypes(options.types),
       options.missing,
       state.hadoopConf, options.delimiter)

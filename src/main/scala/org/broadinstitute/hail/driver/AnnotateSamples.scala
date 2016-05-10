@@ -7,5 +7,5 @@ object AnnotateSamples extends SuperCommand {
 
   register(AnnotateSamplesExpr)
   register(AnnotateSamplesFam)
-  register(AnnotateSamplesTSV)
+  register(AnnotateSamplesTable)
 }

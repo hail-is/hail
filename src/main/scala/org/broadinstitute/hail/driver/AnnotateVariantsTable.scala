@@ -8,7 +8,7 @@ import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 
-object AnnotateVariantsTSV extends Command {
+object AnnotateVariantsTable extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
@@ -38,7 +38,7 @@ object AnnotateVariantsTSV extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatevariants tsv"
+  def name = "annotatevariants table"
 
   def description = "Annotate variants with TSV file"
 
@@ -57,7 +57,7 @@ object AnnotateVariantsTSV extends Command {
     val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
 
     val vds = state.vds
-    val (rdd, signature) = VariantTSVAnnotator(vds.sparkContext, files,
+    val (rdd, signature) = VariantTableAnnotator(vds.sparkContext, files,
       parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
       options.missingIdentifier, options.delimiter)
