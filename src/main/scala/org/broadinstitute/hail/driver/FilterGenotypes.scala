@@ -57,7 +57,7 @@ object FilterGenotypes extends Command {
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
       (v: Variant, va: Annotation, s: String, sa: Annotation, g: Genotype) => {
-        ec.setContext(v, va, s, sa, g)
+        ec.setAll(v, va, s, sa, g)
 
         if (Filter.keepThis(f(), keep))
           g

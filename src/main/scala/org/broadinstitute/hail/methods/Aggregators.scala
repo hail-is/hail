@@ -20,11 +20,11 @@ object Aggregators {
       val endIndices = aggregators.map(_._4)
       val f = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
         val aggregations = aggregators.map(_._1())
+        aggregatorA(0) = v
+        aggregatorA(1) = va
         (gs, localSamplesBc.value, localAnnotationsBc.value).zipped
           .foreach {
             case (g, s, sa) =>
-              aggregatorA(0) = v
-              aggregatorA(1) = va
               aggregatorA(2) = s
               aggregatorA(3) = sa
               aggregatorA(4) = g
@@ -114,7 +114,7 @@ object Aggregators {
     val indices = agg.map(_._4)
 
     val seqOp: (Array[Any], (Any, Any)) => Array[Any] = (array: Array[Any], b) => {
-      ec.setContext(b._1, b._2)
+      ec.setAll(b._1, b._2)
       for (i <- array.indices) {
         val seqOp = seqOps(i)
         array(i) = seqOp(array(i))

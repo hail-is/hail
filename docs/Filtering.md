@@ -76,6 +76,7 @@ Exposed Name | Description
 :-: | ---
 `v`  | variant
 `va` | variant annotation
+`global` | global annotation
 `gs` | genotype row [aggregable](HailExpressionLanguage.md#aggregables)
 
     
@@ -138,6 +139,7 @@ Exposed Name | Description
 :-: | ---
  `s`  | sample
  `sa` | sample annotation
+ `global` | global annotation
  `gs` | genotype column [aggregable](HailExpressionLanguage.md#aggregables)
 
    
@@ -183,6 +185,8 @@ Exposed Name | Description
  `sa` | sample annotation
  `v`  | variant
  `va` | variant annotation
+ `global` | global annotation
+
    
 For more information about these exposed objects and how to use them, see the documentation on [representation](Representation.md) and the [Hail expression language](HailExpressionLanguage.md).
    

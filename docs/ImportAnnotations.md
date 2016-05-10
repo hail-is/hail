@@ -5,39 +5,42 @@ Hail includes modules for importing annotations from external files, for use in 
  - `annotatevariants` [(click to seek)](#AnnoVar)
  - `annotateglobal`  [(click to seek)](#AnnoGlobal)
  
-Each of these modules has multiple run modes, which are specified with the first word after the command invocation:
+Each of these modules has multiple run modes, which are specified with the first word after the command invocation.  Examples:
+
 ```
-<...> annotatesamples tsv <args>
+<...> annotatesamples table <args>
 ```
 
 ```
 <...> annotatevariants expr <args>
 ```
 
-Read on and see examples for more information.
- 
+```
+<...> annotateglobal list <args>
+```
+
 ## Annotating Samples
 
 Hail currently supports annotating samples from:
- - [tsv files](#SampleTSV)
+ - [text tables](#SampleTable)
  - [programmatic commands](#SampleProg)
  - [Plink .fam files](#Fam)
 
 ____
 
-<a name="SampleTSV"></a>
-### Tab separated values (.tsv[.gz])
+<a name="SampleTable"></a>
+### Text tables
 
-This file format requires one column containing sample IDs, and each other column will be written to sample annotations.
+This module expects a text file with multiple delimited columns (default: tab-delimited).  One of these columns must contain sample IDs, and each other column will be written to sample annotations.
 
 **Command line arguments:**
 
-- `tsv` Invoke this functionality (`annotatesamples tsv <args>`)
-- `-i | --input <path-to-tsv>` specify the file path **(Required)**
-- `-r | --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `sa` **(Required)**
+- `table` Invoke this functionality (`annotatesamples table <args>`)
+- `-i | --input <path-to-file>` specify the file path **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the fields read from the file, as a period-delimited path starting with `sa` **(Required)**
 - `-s | --sampleheader <id>` specify the name of the column containing sample IDs **(Optional with default "Sample")**
-- `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)**
-- `-m | --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
+- `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  **If a field is not found in this type map, it will be read and stored as a string** **(Optional)**
+- `-m | --missing <missing-value>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
 
 ____
 
@@ -58,13 +61,13 @@ To annotate from this file, one must a) specify where to put it in sample annota
 
 ```
 $ hail [read / import / previous commands] \
-    annotatesamples tsv \
+    annotatesamples table \
         -i file:///user/me/samples.tsv \
         -t "Phenotype1: Double, Age: Int" \
         -r sa.phenotypes
 ```
 
-   This will read the tsv and produce annotations of the following schema:
+   This will read the file and produce annotations of the following schema:
 
 ```
 Sample annotations:
@@ -96,7 +99,7 @@ This file does not have non-string types, but it does have a sample column ident
 
 ```
 $ hail [read / import, previous commands] \
-    annotatesamples tsv \
+    annotatesamples table \
         -i file:///user/me/samples2.tsv \
         -s PT-ID \
         --missing "." \
@@ -109,7 +112,8 @@ ____
 <a name="SampleProg"></a>
 ### Programmatic Annotation
 
-Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the sample (`s`) and the sample annotations (`sa`).
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the sample (`s`), the sample annotations (`sa`), an
+d the global annotation (`global`).
 
 **Command line arguments:**
 
@@ -162,7 +166,7 @@ ____
 ## Annotating Variants
 
 Hail currently supports annotating variants from seven sources:
- - [TSV files](#VariantTSV)
+ - [Text tables](#VariantTable)
  - [interval list files](#IntervalList)
  - [UCSC bed files](#UCSCBed)
  - [VCFs (info field, filters, qual)](#VCF)
@@ -171,19 +175,19 @@ Hail currently supports annotating variants from seven sources:
 
 ____
 
-<a name="VariantTSV"></a>
-### Tab separated values (tsv[.gz])
+<a name="VariantTable"></a>
+### Text tables
 
-This file format requires either one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations.  Multiple files can be read in one command, but they must agree in their file format.
+This module expects text files with multiple delimited columns (default: tab-delimited).  Variants are keyed either by one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations as a struct.  Multiple files can be read in one command, but they must agree in their file format.
 
 **Command line arguments:**
 
-- `tsv` Invoke this functionality (`annotatevariants tsv <args>`)
+- `table` Invoke this functionality (`annotatevariants table <args>`)
 - `<files...>` specify the file or files to be read **(Required)**
-- `-r | --root <root>` specify the annotation path in which to place the fields read from the TSV, as a period-delimited path starting with `va` **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the fields read from the file, as a period-delimited path starting with `va` **(Required)**
 - `-v | --vcolumns <variantcols>` Either one column name (if Chr:Pos:Ref:Alt), or four comma-separated column identifiers **(Optional with default "Chromosome, Position, Ref, Alt")**
 - `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)**
-- `-m | --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
+- `-m | --missing <missing-value>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
 
 ____
 
@@ -202,7 +206,7 @@ This file contains one field to identify the variant and two data columns: one w
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants tsv \
+    annotatevariants table \
         file:///user/me/consequences.tsv.gz \
         -t "DNAseSensitivity: Double" \
         -r va.varianteffects \
@@ -237,7 +241,7 @@ In this case, the variant is indicated by four columns, but the header does not 
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants tsv \
+    annotatevariants table \
         file:///user/me/ExAC_Counts.tsv.gz \
         -t "AC: Int" \
         -r va.exac \
@@ -536,7 +540,7 @@ ____
 <a name="VariantProg"></a>
 ### Programmatic Annotation
 
-Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the variant (`v`), the variant annotations (`va`), and the genotype row aggregable (`gs`).
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the variant (`v`), the variant annotations (`va`), the global annotation (`global`), and the genotype row aggregable (`gs`).
 
 **Command line arguments:**
 
@@ -550,11 +554,140 @@ ____
 <a name="AnnoGlobal"></a>
 ## Annotating global variables
 
-Hail currently supports annotating the global annotation table from expressions alone.  The exposed data structures are existing global annotations (`global`), a variant/variant annotations aggregable (`variants`), and a sample/sample annotations aggregable(`samples`).
+Hail currently supports annotating the global annotation table from two sources:
+ - Text files, both [lists](#GlobalList) and [tables](#GlobalTable)
+ - [Programmatic commands](#GlobalProg)
+
+____
+
+<a name="GlobalList"></a>
+### Text lists
+
+This module imports a text file "as-is", as either an `Array[String]` (where order and duplicates are kept) or a `Set[String]` (containing only unique values, good for assessing membership with `contains`).  If read as an array, the 
+
+**Command line arguments:**
+
+- `list` Invoke this functionality (`annotateglobal list <args>`)
+- `-i | --input <file path>` Specify the path to the file **(Required)**
+- `-r | --root <root>` Specify the target namespace in the global table, as a period-delimited path starting with `global` **(Required)**
+- `--as-set` Read the file as a `Set[String]` instead of an `Array[String]` **(Optional)**
+
+____
+
+**Example**
+
+```
+$ cat /tmp/genes.txt
+SCN2A
+SONIC-HEDGEHOG
+PRNP
+ALDH4A1
+LEP
+OSM
+TSC1
+TSC2
+
+$ hail 
+    read -i file.vds \ 
+    annotateglobal list -i /tmp/genes.txt -r global.genes \
+    printschema --global \
+    showglobals
+    
+          
+hail: info: running: read -i ../data/profile.vds/   
+hail: info: running: annotateglobal list -i /tmp/genes.txt -r global.genes
+hail: info: running: printschema --global    
+   Global annotation schema:
+   global: Struct {
+       genes: Array[String]
+   }
+hail: info: running: showglobals
+   Global annotations: `global' = {
+     "genes" : [ "SCN2A", "SONIC-HEDGEHOG", "PRNP", "ALDH4A1", "LEP", "OSM", "TSC1", "TSC2" ]
+   }
+```
+
+____
+
+<a name="GlobalTable"></a>
+### Text tables
+
+This module imports a text file with multiple columns as an `Array[Struct]`.  The usability of this module mimics the `annotatesamples table` module ([link here](#SampleTable))
+
+**Command line arguments:**
+
+- `table` Invoke this functionality (`annotateglobal table <args>`)
+- `-i | --input <path-to-file>` specify the file path **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the fields read from the file, as a period-delimited path starting with `global` **(Required)**
+- `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  **If a field is not found in this type map, it will be read and stored as a string** **(Optional)**
+- `-m | --missing <missing-value>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
+ 
+**Example**
+
+```
+$ cat /tmp/file1.txt
+GENE    PLI     EXAC_LOF_COUNT
+Gene1   0.12312 2
+Gene2   0.99123 0
+Gene3   NA      NA
+Gene4   0.9123  10
+Gene5   0.0001  202
+
+$ hail read -i ../data/profile.vds/ \
+    annotateglobal table -i /tmp/file1.txt -r global.genes -t "PLI: Double, EXAC_LOF_COUNT: Int" \
+    printschema --global \
+    showglobals
+    
+    
+hail: info: running: read -i ../data/profile.vds/
+hail: info: running: annotateglobal table -i /tmp/file1.txt -r global.genes -t 'PLI: Double, EXAC_LOF_COUNT: Int'
+hail: info: running: printschema --global
+Global annotation schema:
+global: Struct {
+    genes: Array[Struct {
+        GENE: String,
+        PLI: Double,
+        EXAC_LOF_COUNT: Int
+    }]
+}
+
+hail: info: running: showglobals
+Global annotations: `global' = {
+  "genes" : [ {
+    "GENE" : "Gene1",
+    "PLI" : 0.12312,
+    "EXAC_LOF_COUNT" : 2
+  }, {
+    "GENE" : "Gene2",
+    "PLI" : 0.99123,
+    "EXAC_LOF_COUNT" : 0
+  }, {
+    "GENE" : "Gene3",
+    "PLI" : null,
+    "EXAC_LOF_COUNT" : null
+  }, {
+    "GENE" : "Gene4",
+    "PLI" : 0.9123,
+    "EXAC_LOF_COUNT" : 10
+  }, {
+    "GENE" : "Gene5",
+    "PLI" : 1.0E-4,
+    "EXAC_LOF_COUNT" : 202
+  } ]
+}
+```
+
+____
+
+<a name="GlobalProg"></a>
+### Programmatic Annotation
+
+Programmatic annotation means computing new annotations from the existing exposed data structures, which in this case are the existing global annotations (`global`), a variant/variant annotations aggregable (`variants`), and a sample/sample annotations aggregable(`samples`).
  
 **Command line arguments:**
 
-- `-c | --condition <condition>`
+- `expr` Invoke this functionality (`annotateglobal expr <args>`)
+- `-c | --condition <condition>` **(Required)**
 
 For more information, see [programmatic annotation documentation](ProgrammaticAnnotation.md)
 

@@ -210,7 +210,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
   def writeULEB128(x0: Int) {
-    require(x0 >= 0)
+    require(x0 >= 0, s"tried to write negative ULEB value `${x0}'")
 
     var x = x0
     var more = true
@@ -757,6 +757,7 @@ object Utils extends Logging {
   }
 
   def fatal(msg: String): Nothing = {
+
     throw new FatalException(msg)
   }
 
@@ -1000,6 +1001,13 @@ object Utils extends Logging {
                |  offending line: $lineToPrint""".stripMargin)
       }
     }
+  }
+
+  def truncate(str: String, length: Int = 60): String = {
+    if (str.length > 57)
+      str.take(57) + " ..."
+    else
+      str
   }
 
   def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {

@@ -46,6 +46,7 @@ object ToplevelCommands {
 
   register(AnnotateSamples)
   register(AnnotateVariants)
+  register(AnnotateGlobal)
   register(Cache)
   register(ImportAnnotations)
   register(Count)
@@ -73,7 +74,6 @@ object ToplevelCommands {
   register(ImportVCF)
   register(IndexBGEN)
   register(LinearRegressionCommand)
-  register(AnnotateGlobal)
   register(MendelErrorsCommand)
   register(SplitMulti)
   register(PCA)
