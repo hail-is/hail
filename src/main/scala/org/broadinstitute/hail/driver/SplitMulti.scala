@@ -133,7 +133,7 @@ object SplitMulti extends Command {
           val newgt = newdx match {
             case Some(x) => {
               val maxDosage = x.max
-              if (maxDosage < 0.5 && newdx.count(_ == maxDosage) != 1) //first comparison for speed to not evaluate count if prob > 0.5
+              if (maxDosage < 0.5 && x.count{d: Double => math.abs(d - maxDosage) <= 3e-4 } != 1) //first comparison for speed to not evaluate count if prob > 0.5
                 -1
               else
                 x.indexOf(maxDosage)
