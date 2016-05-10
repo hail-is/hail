@@ -1,3 +1,8 @@
+ - added `annotateglobal table` which reads a text file with a header and stores it as an `Array[Struct]`.  [see docs for details](docs/ImportAnnotations.md#GlobalTable)
+
+ - renamed all `tsv` modules to `table`.  We support arbitrary delimiters, so the name should be more general
+
+____
 
  - split `annotateglobal` into `annotateglobal expr` and `annotateglobal list`.  The latter can be used to load a text file as an `Array[String]` or `Set[String]` to the global annotations, which can then be used to do things like `filtervariants expr` on genes in a gene list.
  

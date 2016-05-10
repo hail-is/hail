@@ -12,4 +12,5 @@ object AnnotateGlobal extends SuperCommand {
 
   register(AnnotateGlobalExpr)
   register(AnnotateGlobalList)
+  register(AnnotateGlobalTable)
 }

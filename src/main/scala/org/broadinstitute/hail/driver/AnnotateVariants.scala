@@ -13,7 +13,7 @@ object AnnotateVariants extends SuperCommand {
   register(AnnotateVariantsBed)
   register(AnnotateVariantsExpr)
   register(AnnotateVariantsIntervals)
-  register(AnnotateVariantsTSV)
+  register(AnnotateVariantsTable)
   register(AnnotateVariantsVCF)
   register(AnnotateVariantsVDS)
 }

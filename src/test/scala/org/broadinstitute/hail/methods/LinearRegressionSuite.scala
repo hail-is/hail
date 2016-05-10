@@ -17,12 +17,12 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = SplitMulti.run(s)
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
       "--types", "Pheno: Double",
@@ -114,7 +114,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = SplitMulti.run(s)
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
       "--types", "Pheno: Int",
@@ -184,7 +184,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = SplitMulti.run(s)
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
@@ -204,11 +204,11 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val qMissing = s.vds.queryVA("va.linreg.nMissing")._2
-    val qBeta = s.vds.queryVA("va.linreg.beta")._2
-    val qSe = s.vds.queryVA("va.linreg.se")._2
-    val qTstat = s.vds.queryVA("va.linreg.tstat")._2
-    val qPval = s.vds.queryVA("va.linreg.pval")._2
+    val (_, qMissing) = s.vds.queryVA("va.linreg.nMissing")
+    val (_, qBeta) = s.vds.queryVA("va.linreg.beta")
+    val (_, qSe) = s.vds.queryVA("va.linreg.se")
+    val (_, qTstat) = s.vds.queryVA("va.linreg.tstat")
+    val (_, qPval) = s.vds.queryVA("va.linreg.pval")
 
     val annotationMap = s.vds.variantsAndAnnotations
       .collect()
@@ -266,7 +266,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = SplitMulti.run(s)
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
@@ -350,12 +350,12 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = SplitMulti.run(s)
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
       "--types", "Pheno: String",
@@ -375,12 +375,12 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = SplitMulti.run(s)
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: String"))
 
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
       "--types", "Pheno: Double",
