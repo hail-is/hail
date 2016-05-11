@@ -1,8 +1,9 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr.{TInt, TDouble, TStruct}
 import org.broadinstitute.hail.methods.SexCheckPlink
 import org.kohsuke.args4j.{Option => Args4jOption}
+
 
 object SexCheck extends Command {
 
@@ -14,7 +15,7 @@ object SexCheck extends Command {
     var output2: String = _
   }
 
-  val header = "ID\tOrigSex\tImputedSex\tFlag\n"
+  //val header = "ID\tOrigSex\tImputedSex\tFlag\n"
 
   def newOptions = new Options
 
@@ -24,14 +25,20 @@ object SexCheck extends Command {
 
   override def supportsMultiallelic = true
 
-  //val signatures = Map("imputedSex" -> new SimpleSignature("Int"))
-
   def run(state: State, options: Options): State = {
-    val scheck = SexCheckPlink.calcSex(state.vds)
+    val result = SexCheckPlink.imputeSex(state.vds).result.collect().toMap
+
+    val signature = TStruct("F" -> TDouble, "E" -> TDouble, "O" -> TDouble, "N" -> TInt, "T" -> TInt, "imputedSex" -> TInt)
+
+    val (newSAS, insertSexCheck) = state.vds.saSignature.insert(signature, "sexcheck")
+    val newSampleAnnotations = state.vds.sampleIdsAndAnnotations
+      .map { case (s, sa) =>
+        insertSexCheck(sa, result.get(s))
+      }
 
     val output = options.output
 
-    if (output != null) {
+/*    if (output != null) {
       hadoopDelete(output, state.hadoopConf, recursive = true)
       scheck.inbreedingCoefficients.map { case (s, ibc) =>
         val sb = new StringBuilder()
@@ -49,8 +56,8 @@ object SexCheck extends Command {
         sb += '\t'
         sb.append(ibc.T)
         sb.result()
-      }.writeTable(output, Some("SampleID\tO(HOM)\tE(HOM)\tN(NM)\tF\tImputedSex\tT"))
-    }
+      }.writeTable(output, Some("SampleID\tO(HOM)\tE(HOM)\tN(NM)\tF\tImputedSex\tT"))*/
+ //   }
 
     //println(imputedSex)
 /*    val stats = scheck.inbreedingCoefficients.map

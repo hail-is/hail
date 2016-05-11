@@ -9,8 +9,8 @@ import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype}
 import org.broadinstitute.hail.annotations._
 
 object SexCheckPlink {
-  def calcSex(vds: VariantDataset) = new SexCheckPlink(vds)
-  def calcSex(vds: VariantDataset, mafThreshold: Double) = new SexCheckPlink(vds, mafThreshold)
+  def imputeSex(vds: VariantDataset) = new SexCheckPlink(vds)
+  def imputeSex(vds: VariantDataset, mafThreshold: Double) = new SexCheckPlink(vds, mafThreshold)
 
   def determineSex(ibc:InbreedingCombiner):Int = {
     if (ibc.N < 1000) // Jackie addition
@@ -28,22 +28,18 @@ class SexCheckPlink(vds: VariantDataset, mafThreshold: Double = 1e-6) {
 
   import SexCheckPlink._
 
-  def xChrVds = vds.filterVariants(
+  private def xChrVds = vds.filterVariants(
     (v: Variant, va: Annotation, gs: Iterable[Genotype]) => !v.inParX && (v.contig == "X" || v.contig == "23")
   )
 
-  def yChrVds = vds.filterVariants(
-    (v: Variant, va: Annotation, gs: Iterable[Genotype]) => !v.inParY && (v.contig == "Y" || v.contig == "24")
-  )
-
-  def populationParameters = xChrVds.rdd.map { case (v, va, gs) =>
+  private def populationParameters = xChrVds.rdd.map { case (v, va, gs) =>
     val nCalled = gs.map { g => if (g.isCalled) 1 else 0 }.sum
     val nAltAlleles = gs.map { g => if (g.isHet) 1 else if (g.isHomVar) 2 else 0 }.sum
     val maf: Option[Double] = divOption(nAltAlleles, 2 * nCalled)
     (v, (maf, nCalled))
   }
 
-  def inbreedingCoefficients: RDD[(String, InbreedingCombiner)] = {
+  private def inbreedingCoefficients: RDD[(String, InbreedingCombiner)] = {
     val sparkContext = xChrVds.sparkContext
     val localMafThreshold = mafThreshold
     val sampleIdsBC = xChrVds.sampleIds
@@ -83,7 +79,7 @@ class SexCheckPlink(vds: VariantDataset, mafThreshold: Double = 1e-6) {
     .map { case (s, ibc) => (s,ibc)}
   }
 
-  def imputedSex = inbreedingCoefficients.map { case (i, ibc) => (i, determineSex(ibc)) }
+  def result = inbreedingCoefficients.map { case (s, ibc) => (s, Annotation(ibc.F, ibc.E, ibc.O, ibc.N, ibc.T, determineSex(ibc))) }
 
 }
 
