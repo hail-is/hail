@@ -1073,10 +1073,12 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TNumeric, "abs") => t
       case (t: TNumeric, "signum") => TInt
       case (TString, "length") => TInt
-      case (t: TIterable, "length") => TInt
+      case (t: TArray, "length") => TInt
       case (t: TIterable, "size") => TInt
       case (t: TIterable, "isEmpty") => TBoolean
       case (t: TIterable, "toSet") => TSet(t.elementType)
+      case (t: TDict, "size") => TInt
+      case (t: TDict, "isEmpty") => TBoolean
       case (TArray(elementType: TNumeric), "sum" | "min" | "max") => elementType
       case (TSet(elementType: TNumeric), "sum" | "min" | "max") => elementType
 
@@ -1204,9 +1206,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
     case (TString, "length") => AST.evalCompose[String](ec, lhs)(_.length)
 
-    case (t: TIterable, "length") => AST.evalCompose[Iterable[_]](ec, lhs)(_.size)
+    case (t: TArray, "length") => AST.evalCompose[Iterable[_]](ec, lhs)(_.size)
+    case (t: TIterable, "size") => AST.evalCompose[Iterable[_]](ec, lhs)(_.size)
     case (t: TIterable, "isEmpty") => AST.evalCompose[Iterable[_]](ec, lhs)(_.isEmpty)
     case (t: TIterable, "toSet") => AST.evalCompose[Iterable[_]](ec, lhs)(_.toSet)
+
+    case (t: TDict, "size") => AST.evalCompose[Map[_, _]](ec, lhs)(_.size)
+    case (t: TDict, "isEmpty") => AST.evalCompose[Map[_, _]](ec, lhs)(_.isEmpty)
 
     case (TArray(TInt), "sum") =>
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
@@ -1350,10 +1356,13 @@ case class IndexStruct(posn: Position, key: String, body: AST) extends AST(posn,
   }
 
   def eval(ec: EvalContext): () => Any = {
+    val localDeleter = deleter
+    val localQuerier = querier
+    // FIXME: warn for duplicate keys?
     AST.evalCompose[IndexedSeq[_]](ec, body) { is =>
       is.filter(_ != null)
         .map(_.asInstanceOf[Row])
-        .flatMap(r => querier(r).map(x => (x, deleter(r))))
+        .flatMap(r => localQuerier(r).map(x => (x, localDeleter(r))))
         .toMap
     }
   }
@@ -1481,6 +1490,21 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${body.`type`}]")
         `type` = TBoolean
 
+      case (TDict(elementType), "mapvalues", rhs) =>
+        lhs.typecheck(ec)
+        val (param, body) = rhs match {
+          case Array(Lambda(_, p, b)) => (p, b)
+          case _ => parseError(s"method `$method' expects a lambda function [param => Any], " +
+            s"e.g. `x => x < 5' or `tc => tc.canonical'")
+        }
+        body.typecheck(ec.copy(st = ec.st + ((param, (-1, elementType)))))
+        `type` = body.`type` match {
+          case t: Type => TDict(t)
+          case error =>
+            parseError(s"method `$method' expects a lambda function [param => Any], got invalid mapping [param => $error]")
+        }
+
+
       case (agg: TAggregable, "count", rhs) =>
         rhs.foreach(_.typecheck(agg.ec))
         val types = rhs.map(_.`type`)
@@ -1563,6 +1587,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     (lhs.`type`, method, rhsTypes) match {
       case (TArray(TString), "mkString", Array(TString)) => TString
       case (TSet(elementType), "contains", Array(TString)) => TBoolean
+      case (TDict(_), "contains", Array(TString)) => TBoolean
       case (TString, "split", Array(TString)) => TArray(TString)
 
       case (t: TNumeric, "min", Array(t2: TNumeric)) =>
@@ -1666,6 +1691,19 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           localA(localIdx) = elt
           val r = bodyFn()
           r.asInstanceOf[Boolean]
+        }
+      }
+
+    case (returnType, "mapvalues", Array(Lambda(_, param, body))) =>
+      val localIdx = ec.a.length
+      val localA = ec.a
+      localA += null
+      val bodyFn = body.eval(ec.copy(st = ec.st + (param ->(localIdx, returnType))))
+
+      AST.evalCompose[Map[_, _]](ec, lhs) { case m =>
+        m.mapValues { elt =>
+          localA(localIdx) = elt
+          bodyFn()
         }
       }
 
@@ -1842,6 +1880,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       AST.evalCompose[Set[Any], Any](ec, lhs, a) { case (a, x) => a.contains(x) }
     case (TSet(elementType), "mkString", Array(a)) =>
       AST.evalCompose[IndexedSeq[String], String](ec, lhs, a) { case (s, t) => s.map(elementType.str).mkString(t) }
+
+    case (TDict(elementType), "contains", Array(a)) =>
+      AST.evalCompose[Map[String, _], String](ec, lhs, a) { case (m, key) => m.contains(key) }
 
     case (TString, "split", Array(a)) =>
       AST.evalCompose[String, String](ec, lhs, a) { case (s, p) => s.split(p): IndexedSeq[String] }
@@ -2061,12 +2102,15 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
 
   def eval(ec: EvalContext): () => Any = ((f.`type`, idx.`type`): @unchecked) match {
     case (t: TArray, TInt) =>
+      val localT = t
+      val localPos = posn
       AST.evalCompose[IndexedSeq[_], Int](ec, f, idx)((a, i) =>
         try {
           a(i)
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
-            fatal(s"Tried to access index [$i] on array ${compact(t.makeJSON(a))} of length ${a.length}" +
+            ParserUtils.error(localPos,
+              s"Tried to access index [$i] on array ${compact(localT.makeJSON(a))} of length ${a.length}" +
               s"\n  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)" +
               s"\n  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct")
           case e: Throwable => throw e
@@ -2084,18 +2128,28 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
   }
 }
 
-case class SliceArray(posn: Position, f: AST, idx1: AST, idx2: AST) extends AST(posn, Array(f, idx1, idx2)) {
+case class SliceArray(posn: Position, f: AST, idx1: Option[AST], idx2: Option[AST]) extends AST(posn, Array(Some(f), idx1, idx2).flatten) {
   override def typecheckThis(): BaseType = f.`type` match {
-    case (t: TArray) => (idx1.`type`, idx2.`type`) match {
-      case (TInt, TInt) => t
-      case _ => parseError(s"invalid slice expression.  " +
-        s"Expect array[start:end] where start and end are integers, but got [${idx1.`type`}:${idx2.`type`}]")
-    }
+    case (t: TArray) =>
+      if (idx1.exists(_.`type` != TInt) || idx2.exists(_.`type` != TInt))
+        parseError(s"invalid slice expression.  " +
+          s"Expect (array[start:end] || array[:end] || array[start:]) where start and end are integers, " +
+          s"but got [${idx1.map(_.`type`).getOrElse("")}:${idx2.map(_.`type`).getOrElse("")}]")
+      else
+        t
     case _ => parseError(s"invalid slice expression.  Only arrays can be sliced, tried to slice type `${f.`type`}'")
   }
 
   def eval(ec: EvalContext): () => Any =
-    AST.evalCompose[IndexedSeq[_], Int, Int](ec, f, idx1, idx2)((a, i1, i2) => a.slice(i1, i2))
+    (idx1, idx2) match {
+      case (Some(i1), Some(i2)) =>
+        AST.evalCompose[IndexedSeq[_], Int, Int](ec, f, i1, i2)((a, ind1, ind2) => a.slice(ind1, ind2))
+      case (Some(i1), None) =>
+        AST.evalCompose[IndexedSeq[_], Int](ec, f, i1)((a, ind1) => a.slice(ind1, a.length))
+      case (None, Some(i2)) =>
+        AST.evalCompose[IndexedSeq[_], Int](ec, f, i2)((a, ind2) => a.slice(0, ind2))
+      case (None, None) => f.eval(ec)
+    }
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {

@@ -184,10 +184,18 @@ class ExprSuite extends SparkSuite {
     intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
     intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
 
-    assert(eval[Annotation](""" {"field1": 1, "field2": 2 } """).contains(Annotation(1, 2)))
-    assert(eval[Annotation](""" {"field1": 1, "asdasd": "Hello" } """).contains(Annotation(1, "Hello")))
+    val (t, r) = evalWithType[Annotation](""" {"field1": 1, "field2": 2 } """)
+    assert(r.contains(Annotation(1, 2)))
+    assert(t == TStruct(("field1", TInt), ("field2", TInt)))
+
+    val (t2, r2) = evalWithType[Annotation](""" {"field1": 1, "asdasd": "Hello" } """)
+    assert(r2.contains(Annotation(1, "Hello")))
+    assert(t2 == TStruct(("field1", TInt), ("asdasd", TString)))
 
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][0:2] """).contains(IndexedSeq(0, 1)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][2:] """).contains(IndexedSeq(2, 3)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][:2] """).contains(IndexedSeq(0, 1)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][:] """).contains(IndexedSeq(0, 1, 2, 3)))
 
     assert(eval[Int](""" genedict["gene2"] """).contains(10))
 
@@ -201,6 +209,13 @@ class ExprSuite extends SparkSuite {
 
 
     assert(eval[Int](""" index(structArray, f2)["B"].f3 """).contains(6))
+    assert(eval[Map[_, _]](""" index(structArray, f2).mapvalues(x => x.f1) """).contains(Map(
+      "A" -> 1,
+      "B" -> 5,
+      "C" -> 10)
+    ))
+    assert(eval[Boolean](""" index(structArray, f2).contains("B") """).contains(true))
+    assert(eval[Boolean](""" index(structArray, f2).contains("E") """).contains(false))
     // FIXME catch parse errors
   }
 

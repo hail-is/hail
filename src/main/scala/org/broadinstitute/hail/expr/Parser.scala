@@ -241,11 +241,17 @@ object Parser extends JavaTokenParsers {
     primary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
       | (withPos(".") ~ identifier)
       | withPos("[") ~ expr ~ ":" ~ expr ~ "]"
+      | withPos("[") ~ ":" ~ expr ~ "]"
+      | withPos("[") ~ expr ~ ":" ~ "]"
+      | withPos("[") ~ ":" ~ "]"
       | withPos("[") ~ expr ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
         case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" => ApplyMethod(dot.pos, acc, sym, args)
-        case (lbracket: Positioned[_]) ~ (idx1: AST) ~ ":" ~ (idx2: AST) ~ "]" => SliceArray(lbracket.pos, acc, idx1, idx2)
+        case (lbracket: Positioned[_]) ~ (idx1: AST) ~ ":" ~ (idx2: AST) ~ "]" => SliceArray(lbracket.pos, acc, Some(idx1), Some(idx2))
+        case (lbracket: Positioned[_]) ~ ":" ~ (idx2: AST) ~ "]" => SliceArray(lbracket.pos, acc, None, Some(idx2))
+        case (lbracket: Positioned[_]) ~ (idx1: AST) ~ ":" ~ "]" => SliceArray(lbracket.pos, acc, Some(idx1), None)
+        case (lbracket: Positioned[_]) ~ ":" ~ "]" => SliceArray(lbracket.pos, acc, None, None)
         case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexOp(lbracket.pos, acc, idx)
       }
       }
@@ -288,7 +294,8 @@ object Parser extends JavaTokenParsers {
 
   def structDeclaration: Parser[Array[(String, AST)]] = "{" ~> repsep(structField, ",") <~ "}" ^^ (_.toArray)
 
-  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ { case id ~ _ ~ ast => (id, ast) }
+  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ { case id ~ _ ~ ast =>
+    (id.substring(1, id.length - 1), ast) }
 
   def indexStruct: Parser[(String, AST)] = "index" ~ "(" ~ expr ~ "," ~ identifier ~ ")" ^^ {
     case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key, ast)
