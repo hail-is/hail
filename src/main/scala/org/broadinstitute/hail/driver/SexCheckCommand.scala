@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.SimpleSignature
 import org.broadinstitute.hail.methods.SexCheckPlink
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -12,7 +11,7 @@ object SexCheck extends Command {
     var output: String = _
 
     @Args4jOption(required = false, name = "-s", aliases = Array("--store"), usage = "Output file")
-    var output: String = _
+    var output2: String = _
   }
 
   val header = "ID\tOrigSex\tImputedSex\tFlag\n"
@@ -25,7 +24,7 @@ object SexCheck extends Command {
 
   override def supportsMultiallelic = true
 
-  val signatures = Map("imputedSex" -> new SimpleSignature("Int"))
+  //val signatures = Map("imputedSex" -> new SimpleSignature("Int"))
 
   def run(state: State, options: Options): State = {
     val scheck = SexCheckPlink.calcSex(state.vds)

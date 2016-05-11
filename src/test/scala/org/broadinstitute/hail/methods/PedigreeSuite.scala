@@ -7,16 +7,17 @@ class PedigreeSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/pedigree.vcf")
     val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
-    ped.write("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds) // FIXME: this is not right
-    val pedwr = Pedigree.read("/tmp/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
+    val f = tmpDir.createTempFile("pedigree", ".fam")
+    ped.write(f, sc.hadoopConfiguration, vds.sampleIds) // FIXME: this is not right
+    val pedwr = Pedigree.read(f, sc.hadoopConfiguration, vds.sampleIds)
     assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in pedigree.vcf
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap
-    assert(nuclearFams((sampleIndex("Dad1"), sampleIndex("Mom1"))).toSet ==
-      Set(sampleIndex("Son1"), sampleIndex("Dtr1")))
-    assert(nuclearFams((sampleIndex("Dad2"), sampleIndex("Mom2"))).toSet ==
-      Set(sampleIndex("Son2")))
+    assert(nuclearFams(("Dad1", "Mom1")).toSet ==
+      Set("Son1", "Dtr1"))
+    assert(nuclearFams(("Dad2", "Mom2")).toSet ==
+      Set("Son2"))
     assert(nuclearFams.size == 2 && ped.completeTrios.length == 3 && ped.trios.length == 11)
 
     assert(ped.nSatisfying(_.isMale) == 6 && ped.nSatisfying(_.isFemale) == 5)
@@ -35,7 +36,7 @@ class PedigreeSuite extends SparkSuite {
 
     assert(ped.trios.toSet == ped2.trios.toSet)
 
-    //FIXME: How to test
-    //ped.writeSummary("/tmp/pedigree.sumfam", sc.hadoopConfiguration)
+    // FIXME: How to test
+    // ped.writeSummary("/tmp/pedigree.sumfam", sc.hadoopConfiguration)
   }
 }

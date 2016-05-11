@@ -22,11 +22,13 @@ class RenameSamplesSuite extends SparkSuite {
       s.vds.sampleIds(1) -> "a"
     )
 
-    writeSampleMap("/tmp/samples.map", m)
+    val samplesMapFile = tmpDir.createTempFile("samples", extension = ".map")
+
+    writeSampleMap(samplesMapFile, m)
 
     // FIXME keyword
     intercept[FatalException] {
-      s = RenameSamples.run(s, Array("-i", "/tmp/samples.map"))
+      s = RenameSamples.run(s, Array("-i", samplesMapFile))
     }
   }
 
@@ -37,7 +39,7 @@ class RenameSamplesSuite extends SparkSuite {
     val samples = s.vds.sampleIds.toSet
     val newSamples = mutable.Set[String](samples.toArray: _*)
     val m = mutable.Map.empty[String, String]
-    val genNewSample = Gen.identifier.filter(newS => !samples.contains(newS))
+    val genNewSample = Gen.identifier.filter(newS => !newSamples.contains(newS))
     for (s <- s.vds.sampleIds) {
       Gen.option(genNewSample, 0.5).sample() match {
         case Some(newS) =>
@@ -48,15 +50,18 @@ class RenameSamplesSuite extends SparkSuite {
       }
     }
 
+    // add a few extraneous entries whose domain don't overlap with samples
     for (i <- 1 to 10) {
-      val newS = genNewSample.sample()
-      val s = Gen.identifier.sample()
+      val newS = Gen.identifier.filter(s => !samples.contains(s)).sample()
+      val s = Gen.identifier.filter(s => !newSamples.contains(s)).sample()
       m += newS -> s
     }
 
-    writeSampleMap("/tmp/samples.map", m)
+    val samplesMapFile = tmpDir.createTempFile("samples", extension = ".map")
 
-    s = RenameSamples.run(s, Array("-i", "/tmp/samples.map"))
+    writeSampleMap(samplesMapFile, m)
+
+    s = RenameSamples.run(s, Array("-i", samplesMapFile))
 
     assert(s.vds.sampleIds.toSet == newSamples)
   }

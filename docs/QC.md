@@ -1,4 +1,4 @@
-# QC in Hail
+# Quality Control
 
 Hail includes two QC modules: 
  - `sampleqc`
@@ -6,16 +6,20 @@ Hail includes two QC modules:
  
 These modules compute a variety of statistics from the genotype data, collapsing either variants or samples.  The output from these modes can be written to TSV files, or stored within sample and variant annotations for later use in [filtering](Filtering.md) and [export](Exporting.md).  
   
-Command line arguments:
- - `-o` -- writes computed statistics to the following path as a TSV file
+Command line option:
+ - `-o | --output <filename>` -- **(Optional)** an output file path
  
-All computed statistics will be stored within hail in `annotations` objects, to be used with downstream [filter](Filtering.md) and [export](Exporting.md) modules.  These can be accessed with `va.qc.<identifier>` and `sa.qc.<identifier>` for variant and sample qc, respectively.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
+All computed statistics will be stored within Hail in sample or variant annotations, to be used with downstream [filter](Filtering.md) and [export](Exporting.md) modules.  These can be accessed with `va.qc.<identifier>` and `sa.qc.<identifier>` for variant and sample qc, respectively.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
 
 **Note:** All standard deviations are calculated with zero degrees of freedom.
 
 **Note:** Many values can be missing (`NA`).  Missingness is handled properly in filtering and is written as "NA" in export modules.
 
+<a name="sampleqc"></a>
 ## Sample QC
+
+The below annotations can be accessed with `sa.qc.<identifier>`
+
  - `callRate:             Double` -- Fraction of variants with called genotypes
  - `nHomRef:                 Int` -- Number of homozygous reference variants
  - `nHet:                    Int` -- Number of heterozygous variants
@@ -49,7 +53,11 @@ All computed statistics will be stored within hail in `annotations` objects, to 
  - `gqMeanHomVar:         Double` -- GQ mean across all variants called HomVar
  - `gqStDevHomVar:        Double` -- GQ standard deviation across all variants called HomVar
  
+<a name="variantqc"></a>
 ## VariantQC
+
+The below annotations can be accessed with `va.qc.<identifier>`
+
  - `callRate:              Double` -- Fraction of samples with called genotypes
  - `MAF:                   Double` -- Calculated minor allele frequency (q)
  - `MAC:                      Int` -- Count of alternate alleles

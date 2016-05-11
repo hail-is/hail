@@ -1,10 +1,8 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ExportSamples extends Command {
@@ -29,39 +27,55 @@ object ExportSamples extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val hConf = vds.sparkContext.hadoopConfiguration
-    val sas = vds.metadata.sampleAnnotationSignatures
+    val sas = vds.saSignature
     val cond = options.condition
     val output = options.output
 
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype),
+      "global" ->(5, vds.globalSignature)))
+
     val symTab = Map(
-      "s" ->(0, expr.TSample),
-      "sa" ->(1, vds.metadata.sampleAnnotationSignatures.toExprType))
-    val a = new Array[Any](2)
+      "s" ->(0, TSample),
+      "sa" ->(1, vds.saSignature),
+      "global" ->(2, vds.globalSignature),
+      "gs" ->(-1, TAggregable(aggregationEC)))
+
+    val ec = EvalContext(symTab)
+    ec.set(2, vds.globalAnnotation)
+    aggregationEC.set(5, vds.globalAnnotation)
 
     val (header, fs) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(symTab, a, cond, vds.sparkContext.hadoopConfiguration)
+      ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
     else
-      expr.Parser.parseExportArgs(symTab, a, cond)
+      Parser.parseExportArgs(cond, ec)
+
+    val aggregatorA = aggregationEC.a
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
     val sb = new StringBuilder()
-    val lines = for (s <- vds.localSamples) yield {
+    val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
       sb.clear()
-      a(0) = vds.sampleIds(s)
-      a(1) = vds.metadata.sampleAnnotations(s).attrs
+
+      ec.setAll(s, sa)
+
+      sampleAggregationOption.foreach(f => f.apply(s))
+
       var first = true
-      fs.foreach { f =>
-        if (first)
-          first = false
-        else
-          sb += '\t'
-        sb.tsvAppend(f())
-      }
+      fs.iterator.foreachBetween(f => sb.tsvAppend(f()))(() => sb += '\t')
       sb.result()
     }
+
     writeTable(output, hConf, lines, header)
 
     state
   }
+
 }

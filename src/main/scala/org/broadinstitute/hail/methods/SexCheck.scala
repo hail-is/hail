@@ -6,7 +6,7 @@ import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype}
-import org.broadinstitute.hail.annotations.Annotations
+import org.broadinstitute.hail.annotations._
 
 object SexCheckPlink {
   def calcSex(vds: VariantDataset) = new SexCheckPlink(vds)
@@ -29,11 +29,11 @@ class SexCheckPlink(vds: VariantDataset, mafThreshold: Double = 1e-6) {
   import SexCheckPlink._
 
   def xChrVds = vds.filterVariants(
-    (v: Variant, a: Annotations) => !v.inParX && (v.contig == "X" || v.contig == "23")
+    (v: Variant, va: Annotation, gs: Iterable[Genotype]) => !v.inParX && (v.contig == "X" || v.contig == "23")
   )
 
   def yChrVds = vds.filterVariants(
-    (v: Variant, a: Annotations) => !v.inParY && (v.contig == "Y" || v.contig == "24")
+    (v: Variant, va: Annotation, gs: Iterable[Genotype]) => !v.inParY && (v.contig == "Y" || v.contig == "24")
   )
 
   def populationParameters = xChrVds.rdd.map { case (v, va, gs) =>
@@ -45,10 +45,8 @@ class SexCheckPlink(vds: VariantDataset, mafThreshold: Double = 1e-6) {
 
   def inbreedingCoefficients: RDD[(String, InbreedingCombiner)] = {
     val sparkContext = xChrVds.sparkContext
-    val localSamples = xChrVds.localSamples
     val localMafThreshold = mafThreshold
-    val localSamplesBc = sparkContext.broadcast(localSamples)
-    val localSampleIds = xChrVds.sampleIds
+    val sampleIdsBC = xChrVds.sampleIds
 
     val serializer = SparkEnv.get.serializer.newInstance()
     val zeroBuffer = serializer.serialize(new InbreedingCombiner)
@@ -58,7 +56,7 @@ class SexCheckPlink(vds: VariantDataset, mafThreshold: Double = 1e-6) {
     xChrVds.rdd
       .zipPartitions(populationParameters) { case (it, jt) =>
         it.zip(jt).map { case ((v, va, gs), (v2, vinfo)) =>
-          assert(v == v2)
+          require(v == v2)
           (v, va, gs, vinfo)
         }
       }
@@ -69,12 +67,12 @@ class SexCheckPlink(vds: VariantDataset, mafThreshold: Double = 1e-6) {
 
       .map { case (v, va, gs, (maf, nCalled)) => (v, va, gs, (maf.get, nCalled))}
 
-      .mapPartitions { (it: Iterator[(Variant, Annotations, Iterable[Genotype], Any)]) =>
+      .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[Genotype], Any)]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
         def copyZeroValue() = serializer.deserialize[InbreedingCombiner](ByteBuffer.wrap(zeroArray))
-        val arrayZeroValue = Array.fill[InbreedingCombiner](localSamplesBc.value.length)(copyZeroValue())
+        val arrayZeroValue = Array.fill[InbreedingCombiner](sampleIdsBC.length)(copyZeroValue())
 
-        localSamplesBc.value.iterator
+        sampleIdsBC.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs, (maf: Double, nCalled: Int))) =>
             for ((g, i) <- gs.iterator.zipWithIndex)
               acc(i) = acc(i).addCount(g, maf, nCalled)
@@ -82,7 +80,7 @@ class SexCheckPlink(vds: VariantDataset, mafThreshold: Double = 1e-6) {
           }.iterator)
       }.foldByKey(new InbreedingCombiner)((ibc1, ibc2) => ibc1.combineCounts(ibc2))
 
-    .map { case (s, ibc) => (localSampleIds(s),ibc)}
+    .map { case (s, ibc) => (s,ibc)}
   }
 
   def imputedSex = inbreedingCoefficients.map { case (i, ibc) => (i, determineSex(ibc)) }

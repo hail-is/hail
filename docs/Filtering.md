@@ -1,179 +1,261 @@
-# Filtering in Hail
+# Filtering
 
 Hail includes three filtering modules:
  - `filtervariants`
  - `filtersamples`
  - `filtergenotypes`
-  
-The modules share much of their command-line interface, but there are some important differences.  Hail's modern filtering system is distinguished by the user's ability to evaluate a scala expression for each variant, sample, or genotype to determine whether to keep or remove those data.  This system is incredibly powerful, and allows for filtering procedures that might otherwise take multiple iterations or even multiple tools to be completed in one command.
 
-Command line arguments: 
- - `-c | --condition <cond>` -- filter expression (see below) or path to file of appropriate type
- - `--keep/--remove` -- determines behavior of file interval/list or boolean expression
-  
-## Using inclusion/exclusion files
+The `filtervariants` module contains the following submodules:
 
-1. `filtervariants` -- ".interval_list" file
- - Hail expects a .interval_list file to contain either three or five fields per line in the following formats: `contig:start-end` or `contig  start  end  direction  target` (TSV).  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the `.interval_list` file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  
- - _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
+- `intervals`: filter by an interval list [(skip to)](#vIntervals)
+- `list`: filter by a variant list [(skip to)](#vList)
+- `expr`: filter by Hail expressions [(skip to)](#vExpr)
+- `all`: drop all variants [(skip to)](#vAll)
 
-2. `filtersamples` -- ".sample_list" file
- - Hail expects a .sample_list file to contain a newline-delimited list of sample ids.  The `--keep` and `--remove` command-line flags will determine whether the list of samples is excluded or kept.  
- - **As of 12/21/15, Hail does not allow users to specify mappings between the ID scheme used in import and other naming conventions.  This feature will be added in a future release.**  
+The `filtersamples` module contains the following submodules:
 
-3. `filtergenotypes` -- no inclusion/exclusion files supported
+- `list`: filter by a sample list [(skip to)](#sList)
+- `expr`: filter by Hail expressions [(skip to)](#sExpr)
+- `all`: drop all samples [(skip to)](#sAll)
 
-## Using expressions
+The `filtergenotypes` module filters solely on Hail expressions. [(skip to)](#genotypes)
 
-Hail provides powerful utility in filtering by allowing users to write their own Scala boolean expressions on the command line, using the defined genotype, sample, variant, and annotation data.  This mode is used when the input to the `-c` command line argument does not match one of the expected inclusion/exclusion files extensions.
+____
 
-**Exposed namespaces:**
- - `filtersamples`: 
-   - `s` (sample)
-   - `sa` (sample annotation)
- - `filtervariants`:
-   - `v` (variant)
-   - `va` (variant annotation)
- - `filtergenotypes`:
-   - `g` (genotype)
-   - `s` (sample)
-   - `sa` (sample annotation)
-   - `v` (variant)
-   - `va` (variant annotation)
-  
-These boolean expressions can be as simple or complicated as you like.  The below are all possible expressions:
+### Submodules of `filtervariants`:
+
+____
+
+<a name="vIntervals"></a>
+#### `filtervariants intervals`
+
+Usage:
+
+ - `-i | --input <file>` -- path to interval list file
+ - `--keep/--remove` -- keep or remove variants within an interval from the file
+
+Hail expects an interval file to contain either three or five fields per line in the following formats: `contig:start-end` or `contig  start  end  direction  target` (tab-separated).  In either case, Hail will use only the `contig`, `start`, and `end` fields.  Each variant is evaluated against each line in the interval file, and any match will mark the variant to be kept / excluded based on the presence of the `--keep` and `--remove` flags.  _Note: "start" and "end" match positions inclusively, e.g. start <= position <= end_
+
 ```
-filtervariants -c 'v.contig == "5"' --keep
+$ hail read -i file.vds
+    filtervariants intervals -i intervals.txt --keep
+    ...
 ```
+
+____
+
+<a name="vList"></a>
+#### `filtervariants list`
+
+Usage:
+
+ - `-i | --input <file>` -- path to variant list file
+ - `--keep/--remove` -- keep or remove variants contained in the file
+
+Hail expects a .variant_list file to contain a variant per in line following format: `contig:pos:ref:alt1,alt2,...,altN`.  Variants in the dataset will be kept / excluded based on the presence of the `--keep` and `--remove` flags.
+
 ```
-filtervariants -c 'va.pass' --keep
+$ hail read -i file.vds
+    filtervariants list -i variants.txt --keep
+    ...
 ```
+
+____
+
+<a name="vExpr"></a>
+#### `filtervariants expr`
+
+Usage:
+
+ - `-c | --condition <file>` -- hail language expression
+ - `--keep/--remove` -- keep or remove variants where the condition is true
+
+Use the Hail expression language to supply a boolean expression involving the following exposed data structures:
+
+Exposed Name | Description
+:-: | ---
+`v`  | variant
+`va` | variant annotation
+`global` | global annotation
+`gs` | genotype row [aggregable](HailExpressionLanguage.md#aggregables)
+
+    
+For more information about these exposed objects and how to use them, see the documentation on [representation](Representation.md) and the [Hail expression language](HailExpressionLanguage.md).
+
 ```
-filtervariants -c '!va.pass' --remove
+$ hail read -i file.vds
+    filtervariants expr -c 'v.contig == "X"' --keep
+    ...
 ```
+
+____
+
+<a name="vAll"></a>
+#### `filtervariants all`
+
+Removes all variants from VDS.
+
+```
+$ hail read -i file.vds
+    filtervariants all
+    ...
+```
+
+____
+
+### Submodules of `filtersamples`:
+
+____
+
+<a name="sList"></a>
+#### `filtersamples list`
+
+Usage:
+
+ - `-i | --input <file>` -- path to variant list file
+ - `--keep/--remove` -- keep or remove samples contained in the file
+
+Hail expects a sample list file to contain one sample per line, with no other fields.
+
+```
+$ hail read -i file.vds
+    filtersamples list -i samples.txt --keep
+    ...
+```
+
+____
+
+<a name="sExpr"></a>
+#### `filtersamples expr`
+
+Usage:
+
+ - `-c | --condition <file>` -- hail language expression
+ - `--keep/--remove` -- keep or remove samples where the condition is true
+
+Use the Hail expression language to supply a boolean expression involving the following exposed data structures:
+
+Exposed Name | Description
+:-: | ---
+ `s`  | sample
+ `sa` | sample annotation
+ `global` | global annotation
+ `gs` | genotype column [aggregable](HailExpressionLanguage.md#aggregables)
+
+   
+For more information about these exposed objects and how to use them, see the documentation on [representation](Representation.md) and the [Hail expression language](HailExpressionLanguage.md).
+   
+```
+$ hail read -i file.vds
+    filtersamples expr -c 'sa.qc.callRate > 0.95' --keep
+    ...
+```
+
+____
+
+<a name="sAll"></a>
+#### `filtersamples all`
+
+Removes all samples from VDS.  The variants and variant annotations will remain, making it a sites-only VDS.
+
+```
+$ hail read -i file.vds
+    filtersamples all
+    ...
+```
+
+____
+
+<a name="genotypes"></a>
+### `filtergenotypes`
+
+The filter genotypes module has only one function, the `expr` function, so it is not broken into submodules.  
+
+**Usage:**
+
+ - `-c | --condition <file>` -- hail language expression
+ - `--keep/--remove` -- keep or remove genotypes where the condition is true
+
+In `filtergenotypes`, removed genotypes will be set to missing.  Use the Hail expression language to supply a boolean expression involving the following exposed data structures:
+
+Exposed Name | Description
+:-: | ---
+ `g`  | genotype
+ `s`  | sample
+ `sa` | sample annotation
+ `v`  | variant
+ `va` | variant annotation
+ `global` | global annotation
+
+   
+For more information about these exposed objects and how to use them, see the documentation on [representation](Representation.md) and the [Hail expression language](HailExpressionLanguage.md).
+   
+## Examples 
+
+#### Using files
+
+```
+filtervariants intervals -c 'file.interval_list' --keep
+```
+
+```
+filtervariants list -i 'file.variants' --keep
+```
+
+```
+filtersamples list -i 'file.sample_list' --remove
+```
+
+#### Using expressions
+
+```
+filtervariants expr -c 'v.contig == "5"' --keep
+```
+
+```
+filtervariants expr -c 'va.pass' --keep
+```
+
+```
+filtervariants expr -c '!va.pass' --remove
+```
+
+```
+[after importvcf & splitmulti]
+filtervariants expr -c 'va.info.AC[va.aIndex] > 1' --keep 
+```
+
 ```
 filtergenotypes -c 'g.ad(1).toDouble / g.dp < 0.2' --remove
 ```
+
 ```
-filtersamples -c 'if ("DUMMY" ~ s.id) {sa.qc.rTiTv > .45 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > .40' --keep
+filtersamples expr -c 'if ("DUMMY" ~ s.id) 
+    sa.qc.rTiTv > 0.45 && sa.qc.nSingleton < 10000000
+    else 
+    sa.qc.rTiTv > 0.40' --keep
 ```
+
 ```
 filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
 ```
 
-**Supported comparisons and transformations:**
- - Global comparisons: `a == b`, `a != b`
- - Boolean comparisons: `a || b`, `a && b`
- - Missingness:
-   - isMissing: `a.isMissing` -- returns true if `a` is missing
-   - isNotMissing: `a.isNotMissing` -- returns true if `a` is defined
- - Numerical comparisons: `<`, `<=`, `>`, `>=`
- - Numerical conversions: 
-   - toDouble: `i.toDouble`
-   - toInt: `i.toInt`
-   - toFloat: `i.toFloat`
-   - toLong: `i.toLong`
- - Numerical transformations:
-   - +, -, /, *, %: `a + b - c / d * e % f`
-   - abs: `i.abs` -- returns the absolute value of `i`
-   - signum: `i.signum` -- returns the sign of `i` (1, 0, or -1)
-   - min: `i.min(j)` -- returns the minimum of `i` and `j`
-   - max: `i.max(j)` -- returns the maximum of `i` and `j`
- - String operations: 
-   - apply: `str(index)` -- returns the character at `index`
-   - length: `str.length` -- returns the length of the string
-   - concatenate: `str1 + str2` -- returns the two strings joined start-to-end
-   - split: `str.split(delimiter)` -- returns an array of strings, split on the given `delimiter` 
- - String conversions:
-   - toInt: `str.toInt`
-   - toDouble: `str.toDouble`
-   - toLong: `str.toLong`
-   - toFloat: `str.toFloat`
- - Array Operations:
-   - apply: `arr(index)` -- get a value from the array, or NA if array or index is missing
-   - contains: `arr.contains(elem)` -- returns true if the element is contained in the array, otherwise false
-   - length: `arr.length` -- returns the length of the array as an integer
-   - isEmpty: `arr.isEmpty` -- returns true if the array has length 0
-   - mkString: `arr.mkString(sep)` -- returns a string generated by joining elements sequentially, delimited by `sep`
- - Set Operations: 
-   - contains: `set.contains(elem)` -- returns true if the element is contained in the array, otherwise false
-   - size: `set.size` -- returns the number of elements in the set as an integer
-   - isEmpty: `set.isEmpty` -- returns true if the set contains 0 elements
-   - equals: `set1 == set2` -- returns true if both sets contain the same elements
-   - plus: `set1 + elem` -- adds `elem` to `set1` and returns the new set
-   - minus: `set1 - elem` -- removes `elem` from `set1` (if it is present) and returns the new set
-   - union: `set1.union(set2)` -- returns a new set with all elements in `set1` or `set2`
-   - intersect: `set1.intersect(set2)` -- returns a new set with all elements in both `set1` and `set2`
-   - diff: `set1.diff(set2)` -- returns a new set with all elements not shared between `set1` and `set2`
-
 **Remember:**
  - All variables and values are case sensitive
  - Missing values will always be **excluded**, regardless of `--keep`/`--remove`.  Expressions in which any value is missing will evaluate to missing.
- - Always use logical and/or (`&&` / `||`) instead of bitwise and/or (`&` / `|`).  The latter can cause inconsistencies without throwing errors
-  
-## Accessible fields of exposed classes
-
-**Genotype:** `g`
- - `g.gt                  Int` -- the call, `gt = k*(k+1)/2+j` for call `j/k`
- - `g.ad:          Array[Int]` -- allelic depth for each allele
- - `g.dp:                 Int` -- the total number of informative reads
- - `g.od                  Int` -- `od = dp - ad.sum`
- - `g.gq:                 Int` -- the difference between the two smallest PL entries
- - `g.isHomRef:       Boolean` -- true if this call is `0/0`
- - `g.isHet:          Boolean` -- true if this call is heterozygous
- - `g.isHetRef:       Boolean` -- true if this call is `0/k` with `k>0`
- - `g.isHetNonRef:    Boolean` -- true if this call is `j/k` with `j>0`
- - `g.isHomVar:       Boolean` -- true if this call is `j/j` with `j>0`
- - `g.isCalledNonRef: Boolean` -- true if either `g.isHet` or `g.isHomVar` is true
- - `g.isCalled:       Boolean` -- true if the genotype is not `./.`
- - `g.isNotCalled:    Boolean` -- true if the genotype is `./.`
- - `g.nNonRef:            Int` -- the number of called alternate alleles
- - `g.pAB():           Double` -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
  
-**Variant:** `v`
- - `v.contig:                String` -- string representation of contig, exactly as imported.  _NB: Hail stores contigs as strings.  Use double-quotes when checking contig equality_
- - `v.start:                    Int` -- SNP position or start of an indel
- - `v.ref:                   String` -- reference allele sequence
- - `v.isBiallelic:          Boolean` -- true if `v` is biallelic
- - `v.nAlleles:                 Int` -- number of alleles
- - `v.nAltAlleles:              Int` -- number of alternate alleles, equal to `nAlleles - 1`
- - `v.nGenotypes:               Int` -- number of genotypes
- - `v.altAlleles: Array[AltAlleles]` -- the alternate alleles
- - `v.inParX:               Boolean` -- true if in pseudo-autosomal region on chromosome X
- - `v.inParY:               Boolean` -- true if in pseudo-autosomal region on chromosome Y
- - `v.altAllele:          AltAllele` -- The Alternate allele.  Assumes biallelic.
- - `v.alt:                   String` -- Alternate allele sequence.  Assumes biallelic.
-
-**AltAllele:**
- - `aa.ref:             String` -- reference allele sequence
- - `aa.alt:             String` -- alternate allele sequence
- - `aa.isSNP:          Boolean` -- true if both `v.ref` and `v.alt` are single bases
- - `aa.isMNP:          Boolean` -- true if `v.ref` and `v.alt` are the same (>1) length
- - `aa.isIndel:        Boolean` -- true if `v.ref` and `v.alt` are not the same length
- - `aa.isInsertion:    Boolean` -- true if `v.ref` is shorter than `v.alt`
- - `aa.isDeletion:     Boolean` -- true if `v.ref` is longer than `v.alt`
- - `aa.isComplex:      Boolean` -- true if `v` is not an indel, but `v.ref` and `v.alt` length do not match
- - `aa.isTransition:   Boolean` -- true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
- - `aa.isTransversion: Boolean` -- true if the polymorphism is a purine-pyrimidine flip
- - `aa.nMismatch:          Int` -- the total number of bases in `v.ref` and `v.alt` that do not match
+____ 
  
-**Sample:** `s`
- - `s.id:              String` The ID of this sample, as read at import-time
- 
-**Variant Annotations:** `va`
+#### Dropping all samples / variants from a VDS
 
-There are no mandatory methods for annotation classes.  Annotations are generated by hail modules, like the qc modules with the `--store` option.  However, there is an exception -- when a VCF file is imported, certain fields will be saved in annotations:
- - `va.pass:          Boolean` -- true if the variant contains `PASS` in the filter field (false if `.` or other)
- - `va.filters:   Set[String]` -- set containing the list of filters applied to a variant.  Accessible using `va.filters.contains("VQSRTranche99.5...")`, for example
- - `va.rsid:           String` -- rsid of the variant, if it has one ("." otherwise)
- - `va.qual:           Double` -- the number in the qual field
- - `va.multiallelic:  Boolean` -- true if the variant is multiallelic or was split
- - `va.info.<field>:      Any` -- matches (with proper capitalization) any defined info field.  Data types match the definition in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array.
- 
-If `variantqc --store` has been run:
- - `va.qc.<FIELD>:        Any` -- matches (with proper capitalization) variant qc fields.  [See list of available computed statistics here.](QC.md)
+```
+$ hail read -i with_genotypes.vds 
+    filtersamples all 
+    write -o sites_only.vds
+```
 
-**Sample Annotations:** `sa`
-
-There are no mandatory methods for annotation classes.  Annotations are generated by hail modules, like the qc modules with the `--store` option.  However, the following namespace will be available if `sampleqc --store` has been run:
- - `sa.qc.<FIELD>:        Any` -- matches (with proper capitalization) variant qc fields.  [See list of available computed statistics here.](QC.md)
+```
+$ hail read -i file.vds \
+    filtervariants all
+    write -o sample_info_only.vds
+```

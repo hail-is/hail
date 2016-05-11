@@ -1,10 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr
-import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype, Sample}
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object FilterGenotypes extends Command {
@@ -30,34 +30,36 @@ object FilterGenotypes extends Command {
   def run(state: State, options: Options): State = {
     val sc = state.sc
     val vds = state.vds
+    val vas = vds.vaSignature
+    val sas = vds.saSignature
 
     if (!options.keep && !options.remove)
       fatal(name + ": one of `--keep' or `--remove' required")
 
     val keep = options.keep
 
+    val cond = options.condition
     val symTab = Map(
-      "v" ->(0, expr.TVariant),
-      "va" ->(1, vds.metadata.variantAnnotationSignatures.toExprType),
-      "s" ->(2, expr.TSample),
-      "sa" ->(3, vds.metadata.sampleAnnotationSignatures.toExprType),
-      "g" ->(4, expr.TGenotype))
-    val a = new Array[Any](5)
+      "v" ->(0, TVariant),
+      "va" ->(1, vas),
+      "s" ->(2, TSample),
+      "sa" ->(3, sas),
+      "g" ->(4, TGenotype))
 
-    val f: () => Any = expr.Parser.parse[Any](symTab, a, options.condition)
+    val ec = EvalContext(symTab)
+    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
-    val sampleIdsBc = sc.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = sc.broadcast(vds.metadata.sampleAnnotations)
+    val sampleIdsBc = vds.sampleIdsBc
+    val sampleAnnotationsBc = vds.sampleAnnotationsBc
+
+    (vds.sampleIds, vds.sampleAnnotations).zipped.map((_, _))
 
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
-      (v: Variant, va: Annotations, s: Int, g: Genotype) => {
-        a(0) = v
-        a(1) = va.attrs
-        a(2) = sampleIdsBc.value(s)
-        a(3) = sampleAnnotationsBc.value(s).attrs
-        a(4) = g
-        if (Filter.keepThisAny(f(), keep))
+      (v: Variant, va: Annotation, s: String, sa: Annotation, g: Genotype) => {
+        ec.setAll(v, va, s, sa, g)
+
+        if (Filter.keepThis(f(), keep))
           g
         else
           noCall

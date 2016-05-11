@@ -1,13 +1,17 @@
 package org.broadinstitute.hail.variant
 
 import java.util
+
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
+import org.apache.spark.sql.types._
 import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.{Gen, Arbitrary}
-import scala.language.implicitConversions
-import scala.collection.mutable
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.json4s._
+
+import scala.collection.mutable
+import scala.language.implicitConversions
 
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
@@ -21,8 +25,8 @@ import org.broadinstitute.hail.variant.GenotypeType.GenotypeType
 
 object GTPair {
   def apply(j: Int, k: Int): GTPair = {
-    require(j >= 0 && j <= 0xffff)
-    require(k >= 0 && k <= 0xffff)
+    require(j >= 0 && j <= 0xffff, "GTPair invalid j value")
+    require(k >= 0 && k <= 0xffff, "GTPair invalid k value")
     new GTPair(j | (k << 16))
   }
 }
@@ -47,8 +51,8 @@ class Genotype(private val _gt: Int,
   private val _pl: Array[Int],
   val fakeRef: Boolean) extends Serializable {
 
-  require(_gt >= -1)
-  require(_dp >= -1)
+  require(_gt >= -1, s"invalid _gt value: ${_gt}")
+  require(_dp >= -1, s"invalid _dp value: ${_dp}")
 
   def check(v: Variant) {
     assert(gt.forall(i => i >= 0 && i < v.nGenotypes))
@@ -114,51 +118,25 @@ class Genotype(private val _gt: Int,
 
   def pl: Option[Array[Int]] = Option(_pl)
 
-  def isHomRef: Boolean = _gt == 0
+  def isHomRef: Boolean = Genotype.isHomRef(_gt)
 
-  def isHet: Boolean = _gt > 0 && {
-    val p = Genotype.gtPair(_gt)
-    p.j != p.k
-  }
+  def isHet: Boolean = Genotype.isHet(_gt)
 
-  def isHomVar: Boolean = _gt > 0 && {
-    val p = Genotype.gtPair(_gt)
-    p.j == p.k
-  }
+  def isHomVar: Boolean = Genotype.isHomVar(_gt)
 
-  def isCalledNonRef: Boolean = _gt > 0
+  def isCalledNonRef: Boolean = Genotype.isCalledNonRef(_gt)
 
-  def isHetNonRef: Boolean = _gt > 0 && {
-    val p = Genotype.gtPair(_gt)
-    p.j > 0 && p.j != p.k
-  }
+  def isHetNonRef: Boolean = Genotype.isHetNonRef(_gt)
 
-  def isHetRef: Boolean = _gt > 0 && {
-    val p = Genotype.gtPair(_gt)
-    p.j == 0 && p.k > 0
-  }
+  def isHetRef: Boolean = Genotype.isHetRef(_gt)
 
-  def isNotCalled: Boolean = _gt == -1
+  def isNotCalled: Boolean = Genotype.isNotCalled(_gt)
 
-  def isCalled: Boolean = _gt >= 0
+  def isCalled: Boolean = Genotype.isCalled(_gt)
 
-  def gtType: GenotypeType =
-    if (isHomRef)
-      GenotypeType.HomRef
-    else if (isHet)
-      GenotypeType.Het
-    else if (isHomVar)
-      GenotypeType.HomVar
-    else {
-      assert(isNotCalled)
-      GenotypeType.NoCall
-    }
+  def gtType: GenotypeType = Genotype.gtType(_gt)
 
-  def nNonRefAlleles: Option[Int] =
-    if (_gt >= 0)
-      Some(Genotype.gtPair(_gt).nNonRefAlleles)
-    else
-      None
+  def nNonRefAlleles: Option[Int] = Genotype.nNonRefAlleles(_gt)
 
   override def toString: String = {
     val b = new StringBuilder
@@ -186,6 +164,16 @@ class Genotype(private val _gt: Int,
     val mincp = d.cumulativeProbability(minDepth)
     (2 * mincp - minp).min(1.0).max(0.0)
   }
+
+  def fractionReadsRef(): Option[Double] = ad.flatMap { arr => divOption(arr(0), arr.sum) }
+
+  def toJSON: JValue = JObject(
+    ("gt", gt.map(JInt(_)).getOrElse(JNull)),
+    ("ad", ad.map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("dp", dp.map(JInt(_)).getOrElse(JNull)),
+    ("gq", gq.map(JInt(_)).getOrElse(JNull)),
+    ("pl", pl.map(pls => JArray(pls.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("fakeRef", JBool(fakeRef)))
 }
 
 object Genotype {
@@ -199,6 +187,14 @@ object Genotype {
     fakeRef: Boolean = false): Genotype = {
     new Genotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), pl.map(_.toArray).orNull, fakeRef)
   }
+
+  def schema: DataType = StructType(Array(
+    StructField("gt", IntegerType),
+    StructField("ad", ArrayType(IntegerType)),
+    StructField("dp", IntegerType),
+    StructField("gq", IntegerType),
+    StructField("pl", ArrayType(IntegerType)),
+    StructField("fakeRef", BooleanType)))
 
   final val flagMultiHasGTBit = 0x1
   final val flagMultiGTRefBit = 0x2
@@ -291,6 +287,53 @@ object Genotype {
     m2
   }
 
+
+  def isHomRef(gt: Int): Boolean = gt == 0
+
+  def isHet(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j != p.k
+  }
+
+  def isHomVar(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j == p.k
+  }
+
+  def isCalledNonRef(gt: Int): Boolean = gt > 0
+
+  def isHetNonRef(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j > 0 && p.j != p.k
+  }
+
+  def isHetRef(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j == 0 && p.k > 0
+  }
+
+  def isNotCalled(gt: Int): Boolean = gt == -1
+
+  def isCalled(gt: Int): Boolean = gt >= 0
+
+  def gtType(gt: Int): GenotypeType =
+    if (isHomRef(gt))
+      GenotypeType.HomRef
+    else if (isHet(gt))
+      GenotypeType.Het
+    else if (isHomVar(gt))
+      GenotypeType.HomVar
+    else {
+      assert(isNotCalled(gt))
+      GenotypeType.NoCall
+    }
+
+  def nNonRefAlleles(gt: Int): Option[Int] =
+    if (gt >= 0)
+      Some(Genotype.gtPair(gt).nNonRefAlleles)
+    else
+      None
+
   val smallGTPair = Array(GTPair(0, 0), GTPair(0, 1), GTPair(1, 1),
     GTPair(0, 2), GTPair(1, 2), GTPair(2, 2),
     GTPair(0, 3), GTPair(1, 3), GTPair(2, 3), GTPair(3, 3),
@@ -326,7 +369,7 @@ object Genotype {
   }
 
   def gtIndex(j: Int, k: Int): Int = {
-    require(j >= 0 && j <= k)
+    require(j >= 0 && j <= k, s"invalid gtIndex: ($j, $k)")
     k * (k + 1) / 2 + j
   }
 
@@ -415,18 +458,18 @@ object Genotype {
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
-        Gen.choose(0, m)));
-      dp <- Gen.option(Gen.choose(0, m));
-      gq <- Gen.option(Gen.choose(0, 10000));
-      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-        Gen.choose(0, m)))) yield {
+         ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
+           Gen.choose(0, m)));
+         dp <- Gen.option(Gen.choose(0, m));
+         gq <- Gen.option(Gen.choose(0, 10000));
+         pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
+           Gen.choose(0, m)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
       pl.foreach { pla =>
         val m = pla.min
-        var i =  0
+        var i = 0
         while (i < pla.length) {
           pla(i) -= m
           i += 1
@@ -441,12 +484,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- gen(v))
+         g <- gen(v))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-      g <- gen(v))
+         g <- gen(v))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
@@ -473,32 +516,40 @@ class GenotypeBuilder(v: Variant) {
     Genotype.flagHasGT(isBiallelic, flags)
 
   def setGT(newGT: Int) {
-    require(newGT >= 0 && newGT <= nGenotypes)
-    require(!hasGT)
+    if (newGT < 0)
+      fatal(s"invalid GT value `$newGT': negative value")
+    if (newGT > nGenotypes)
+      fatal(s"invalid GT value `$newGT': value larger than maximum number of genotypes $nGenotypes")
+    if (hasGT)
+      fatal(s"invalid GT, genotype already had GT")
     flags = Genotype.flagSetGT(isBiallelic, flags, newGT)
     gt = newGT
   }
 
   def setAD(newAD: Array[Int]) {
-    require(newAD.length == v.nAlleles)
+    if (newAD.length != v.nAlleles)
+      fatal(s"invalid AD field `${newAD.mkString(",")}': expected ${v.nAlleles} values, but got ${newAD.length}.")
     flags = Genotype.flagSetHasAD(flags)
     ad = newAD
   }
 
   def setDP(newDP: Int) {
-    assert(newDP >= 0)
+    if (newDP < 0)
+      fatal(s"invalid DP field `$newDP': negative value")
     flags = Genotype.flagSetHasDP(flags)
     dp = newDP
   }
 
   def setGQ(newGQ: Int) {
-    assert(newGQ >= 0)
+    if (newGQ < 0)
+      fatal(s"invalid GQ field `$newGQ': negative value")
     flags = Genotype.flagSetHasGQ(flags)
     gq = newGQ
   }
 
   def setPL(newPL: Array[Int]) {
-    require(newPL.length == v.nGenotypes)
+    if (newPL.length != nGenotypes)
+      fatal(s"invalid PL field `${newPL.mkString(",")}': expected $nGenotypes values, but got ${newPL.length}.")
     flags = Genotype.flagSetHasPL(flags)
     pl = newPL
   }

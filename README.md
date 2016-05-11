@@ -3,15 +3,21 @@
 ## Table of Contents
 
 1. [Representation](docs/Representation.md)
+2. [Hail's expression language](docs/HailExpressionLanguage.md)
 2. [Importing](docs/Importing.md)
 3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
-4. [QC](docs/QC.md)
-5. [Filtering](docs/Filtering.md)
-6. [Renaming Samples](docs/RenameSamples.md)
-6. [Exporting to TSVs](docs/ExportTSV.md)
-8. [Exporting to Plink](docs/ExportPlink.md)
-7. [Exporting to VCF](docs/ExportVCF.md)
+4. [Renaming Samples](docs/RenameSamples.md)
+5. [Annotating Samples or Variants](docs/ImportAnnotations.md)
+5. [Quality Control](docs/QC.md)
+6. [PCA](docs/PCA.md)
+7. [Annotating with the Variant Effect Predictor](docs/VEP.md)
+7. [Filtering](docs/Filtering.md)
+8. [Linear regression](docs/LinearRegression.md)
 9. [Mendel errors](docs/MendelErrors.md)
+10. [Exporting to TSV](docs/ExportTSV.md)
+11. [Exporting to VCF](docs/ExportVCF.md)
+12. [Exporting to Plink](docs/ExportPlink.md)
+13. [Persist](docs/Persist.md)
 
 ## Tools
 

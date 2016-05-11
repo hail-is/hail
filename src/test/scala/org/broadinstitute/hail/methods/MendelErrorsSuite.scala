@@ -14,12 +14,12 @@ class MendelErrorsSuite extends SparkSuite {
     val nPerIndiv = men.nErrorPerIndiv.collectAsMap()
     val nPerVariant = men.nErrorPerVariant.collectAsMap()
 
-    val son = vds.sampleIds.indexOf("Son1")
-    val dtr = vds.sampleIds.indexOf("Dtr1")
-    val dad = vds.sampleIds.indexOf("Dad1")
-    val mom = vds.sampleIds.indexOf("Mom1")
-    val dad2 = vds.sampleIds.indexOf("Dad2")
-    val mom2 = vds.sampleIds.indexOf("Mom2")
+    val son = "Son1"
+    val dtr = "Dtr1"
+    val dad = "Dad1"
+    val mom = "Mom1"
+    val dad2 = "Dad2"
+    val mom2 = "Mom2"
 
     val variant1 = Variant("1", 1, "C", "CT")
     val variant2 = Variant("1", 2, "C", "T")
@@ -50,15 +50,17 @@ class MendelErrorsSuite extends SparkSuite {
     assert(nPerVariant(variant6) == 1)
     assert(nPerVariant.get(variant7).isEmpty)
 
+    val mendelBase = tmpDir.createTempFile("sample_mendel")
+
     //FIXME: How to test these?
-    men.writeMendel("/tmp/sample_mendel.mendel")
-    men.writeMendelL("/tmp/sample_mendel.lmendel")
-    men.writeMendelF("/tmp/sample_mendel.fmendel")
-    men.writeMendelI("/tmp/sample_mendel.imendel")
+    men.writeMendel(mendelBase + ".mendel")
+    men.writeMendelL(mendelBase + ".lmendel")
+    men.writeMendelF(mendelBase + ".fmendel")
+    men.writeMendelI(mendelBase + ".imendel")
 
     val ped2 = Pedigree.read("src/test/resources/mendelWithMissingSex.fam", sc.hadoopConfiguration, vds.sampleIds)
     val men2 = MendelErrors(vds, ped2.completeTrios)
 
-    assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == 2).collect().toSet)
+    assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == "Dtr1").collect().toSet)
   }
 }

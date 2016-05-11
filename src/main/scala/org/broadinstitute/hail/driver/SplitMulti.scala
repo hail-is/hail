@@ -1,9 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.{SimpleSignature, Annotations}
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr.{TBoolean, TInt, TStruct}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.Utils._
 
 object SplitMulti extends Command {
   def name = "splitmulti"
@@ -15,6 +16,10 @@ object SplitMulti extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "--propagate-gq", usage = "Propagate GQ instead of computing from PL")
     var propagateGQ: Boolean = false
+
+    @Args4jOption(required = false, name = "--no-compress", usage = "Don't compress genotype streams")
+    var noCompress: Boolean = false
+
   }
 
   def newOptions = new Options
@@ -53,11 +58,13 @@ object SplitMulti extends Command {
   }
 
   def split(v: Variant,
-    va: Annotations,
+    va: Annotation,
     it: Iterable[Genotype],
-    propagateGQ: Boolean): Iterator[(Variant, Annotations, Iterable[Genotype])] = {
+    propagateGQ: Boolean,
+    compress: Boolean,
+    insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, Annotation, Iterable[Genotype])] = {
     if (v.isBiallelic)
-      return Iterator((v, va +("wasSplit", false), it))
+      return Iterator((v, insertSplitAnnots(va, 0, false), it))
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(_._1.alt != "*")
@@ -68,7 +75,7 @@ object SplitMulti extends Command {
       }.toArray
 
     val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv) }
-    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv, true) }
+    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv, compress) }
 
     for (g <- it) {
 
@@ -115,21 +122,46 @@ object SplitMulti extends Command {
       }
     }
 
-    splitVariants.iterator.map(_._1)
+    splitVariants.iterator
       .zip(splitGenotypeStreamBuilders.iterator)
-      .map { case (v, gsb) =>
-        (v, va +("wasSplit", true), gsb.result())
+      .map { case ((v, ind), gsb) =>
+        (v, insertSplitAnnots(va, ind - 1, true), gsb.result())
       }
   }
 
+  def splitNumber(str: String): String =
+    if (str == "A" || str == "R" || str == "G")
+      "."
+    else str
+
   def run(state: State, options: Options): State = {
-    val localPropagateGQ = options.propagateGQ
+    val vds = state.vds
+
+    val propagateGQ = options.propagateGQ
+    val noCompress = options.noCompress
+    val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
+    val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
+
+    val vas4 = vas3.getAsOption[TStruct]("info").map { s =>
+      val updatedInfoSignature = TStruct(s.fields.map { f =>
+        f.attrs.get("Number").map(splitNumber) match {
+          case Some(n) => f.copy(attrs = f.attrs + ("Number" -> n))
+          case None => f
+        }
+      })
+      val (newSignature, _) = vas3.insert(updatedInfoSignature, "info")
+      newSignature
+    }.getOrElse(vas3)
+
     val newVDS = state.vds.copy[Genotype](
-      metadata = state.vds.metadata
-        .copy(wasSplit = true)
-        .addVariantAnnotationSignatures("wasSplit", new SimpleSignature("Boolean")),
-      rdd = state.vds.rdd.flatMap[(Variant, Annotations, Iterable[Genotype])] { case (v, va, it) =>
-        split(v, va, it, localPropagateGQ)
+      wasSplit = true,
+      vaSignature = vas4,
+      rdd = vds.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
+        split(v, va, it,
+          propagateGQ = propagateGQ,
+          compress = !noCompress, { (va, index, wasSplit) =>
+            insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+          })
       })
     state.copy(vds = newVDS)
   }

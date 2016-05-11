@@ -1,24 +1,44 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.State
+import org.broadinstitute.hail.driver.{State, _}
 import org.testng.annotations.Test
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.Utils._
+import scala.io.Source
 
 class SampleQCSuite extends SparkSuite {
   @Test def testStoreAfterFilter() {
-    // test to show that code in SampleQC --store will fail if samples have been filtered when adding annotations
-    val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val tmpDir = "/tmp/"
-    val outFile = tmpDir + "testExportVcf.vcf"
+    var s = State(sc, sqlContext)
 
-    val vdsOrig = LoadVCF(sc, vcfFile)
-    var s = State(sc, sqlContext, vdsOrig)
+    val sampleQCFile = tmpDir.createTempFile("sampleqc", extension = ".tsv")
+    val exportSamplesFile = tmpDir.createTempFile("exportsamples", extension = ".tsv")
+
+    s = ImportVCF.run(s, Array("src/test/resources/multipleChromosomes.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
+    s = FilterSamplesExpr.run(s, Array("--keep", "-c", """"HG" ~ s.id"""))
+    s = SampleQC.run(s, Array("-o", sampleQCFile))
+    s = ExportSamples.run(s, Array("-o", exportSamplesFile, "-c",
+      """sampleID = s.id,
+        |nNotCalled = sa.qc.nNotCalled,
+        |nHomRef = sa.qc.nHomRef,
+        |nHet = sa.qc.nHet,
+        |nHomVar = sa.qc.nHomVar""".stripMargin))
 
-    // Get QC metrics
-    s = SampleQC.run(s, Array.empty[String])
-    s = FilterSamples.run(s, Array("--remove", "-c","""s.id ~ "C1046::HG02024""""))
-    s = SampleQC.run(s, Array.empty[String])
+    val sampleQCLines = readFile(sampleQCFile, hadoopConf) { s =>
+      Source.fromInputStream(s)
+        .getLines()
+        .map { line =>
+          val fields = line.split("\t")
+          Array(fields(0), fields(3), fields(4), fields(5), fields(6)).mkString("\t")
+        }
+        .toSet
+    }
+    val exportSamplesLines = readFile(exportSamplesFile, hadoopConf) { s =>
+      Source.fromInputStream(s)
+        .getLines().toSet
+    }
+
+    assert(exportSamplesLines == sampleQCLines)
   }
 }

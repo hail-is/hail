@@ -7,6 +7,8 @@ import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
 
+import scala.collection.mutable
+
 case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
                        gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType) {
 
@@ -20,7 +22,7 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     else
       "./."
 
-  def implicatedSamplesWithCounts: Iterator[(Int, (Int, Int))] = {
+  def implicatedSamplesWithCounts: Iterator[(String, (Int, Int))] = {
     if      (code == 2 || code == 1)                             Iterator(trio.kid, trio.dad, trio.mom)
     else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.dad)
     else if (code == 4 || code == 7 || code == 9  || code == 10) Iterator(trio.kid, trio.mom)
@@ -31,7 +33,7 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     val v = variant
     val t = trio
     val errorString = gtString(v, gtDad) + " x " + gtString(v, gtMom) + " -> " + gtString(v, gtKid)
-    t.fam.getOrElse("0") + "\t" + sampleIds(t.kid) + "\t" + v.contig + "\t" +
+    t.fam.getOrElse("0") + "\t" + t.kid + "\t" + v.contig + "\t" +
       v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + code + "\t" + errorString
   }
 }
@@ -64,13 +66,11 @@ object MendelErrors {
     if (nSamplesDiscarded > 0)
       warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
 
-    info(s"Computing Mendel errors for ${trios.size} ${plural(trios.size, "trio")}.")
-
-    val sampleTrioRoles: Array[List[(Int, Int)]] = Array.fill[List[(Int, Int)]](vds.nSamples)(List())
+    val sampleTrioRoles = mutable.Map.empty[String, List[(Int, Int)]]
     trios.zipWithIndex.foreach { case (t, ti) =>
-      sampleTrioRoles(t.kid) ::= (ti, 0)
-      sampleTrioRoles(t.dad) ::= (ti, 1)
-      sampleTrioRoles(t.mom) ::= (ti, 2)
+      sampleTrioRoles += (t.kid -> sampleTrioRoles.getOrElse(t.kid, List.empty[(Int, Int)]).::(ti, 0))
+      sampleTrioRoles += (t.dad -> sampleTrioRoles.getOrElse(t.dad, List.empty[(Int, Int)]).::(ti, 1))
+      sampleTrioRoles += (t.mom -> sampleTrioRoles.getOrElse(t.mom, List.empty[(Int, Int)]).::(ti, 2))
     }
 
     val sc = vds.sparkContext
@@ -81,8 +81,8 @@ object MendelErrors {
 
     val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length,3)(NoCall)
 
-    def seqOp(a: MultiArray2[GenotypeType], s: Int, g: Genotype): MultiArray2[GenotypeType] = {
-      sampleTrioRolesBc.value(s).foreach{ case (ti, ri) => a.update(ti,ri,g.gtType) }
+    def seqOp(a: MultiArray2[GenotypeType], s: String, g: Genotype): MultiArray2[GenotypeType] = {
+      sampleTrioRolesBc.value.get(s).foreach(l => l.foreach{ case (ti, ri) => a.update(ti,ri,g.gtType) })
       a
     }
 
@@ -125,7 +125,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
       .countByValueRDD()
   }
 
-  def nErrorPerNuclearFamily: RDD[((Int, Int), (Int, Int))] = {
+  def nErrorPerNuclearFamily: RDD[((String, String), (Int, Int))] = {
     val parentsRDD = sc.parallelize(nuclearFams.keys.toSeq)
     mendelErrors
       .map(me => ((me.trio.dad, me.trio.mom), (1, if (me.variant.altAllele.isSNP) 1 else 0)))
@@ -133,7 +133,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }
 
-  def nErrorPerIndiv: RDD[(Int, (Int, Int))] = {
+  def nErrorPerIndiv: RDD[(String, (Int, Int))] = {
     val indivRDD = sc.parallelize(trios.flatMap(t => Iterator(t.kid, t.dad, t.mom)).distinct)
     mendelErrors
       .flatMap(_.implicatedSamplesWithCounts)
@@ -150,9 +150,8 @@ case class MendelErrors(trios:        Array[CompleteTrio],
   def writeMendelF(filename: String) {
     val trioFamBc = sc.broadcast(trioFam)
     val nuclearFamsBc = sc.broadcast(nuclearFams)
-    val sampleIdsBc = sc.broadcast(sampleIds)
     val lines = nErrorPerNuclearFamily.map{ case ((dad, mom), (n, nSNP)) =>
-      trioFamBc.value.getOrElse(dad, "0") + "\t" + sampleIdsBc.value(dad) + "\t" + sampleIdsBc.value(mom) + "\t" +
+      trioFamBc.value.getOrElse(dad, "0") + "\t" + dad + "\t" + mom + "\t" +
         nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\t" + nSNP + "\n"
     }.collect()
     writeTable(filename, sc.hadoopConfiguration, lines, Some("FID\tPAT\tMAT\tCHLD\tN\tNSNP"))
@@ -162,7 +161,7 @@ case class MendelErrors(trios:        Array[CompleteTrio],
     val trioFamBc = sc.broadcast(trioFam)
     val sampleIdsBc = sc.broadcast(sampleIds)
     val lines = nErrorPerIndiv.map { case (s, (n, nSNP)) =>
-      trioFamBc.value.getOrElse(s, "0") + "\t" + sampleIdsBc.value(s) + "\t" + n + "\t" + nSNP + "\n"
+      trioFamBc.value.getOrElse(s, "0") + "\t" + s + "\t" + n + "\t" + nSNP + "\n"
     }.collect()
     writeTable(filename, sc.hadoopConfiguration, lines, Some("FID\tIID\tN\tNSNP"))
   }

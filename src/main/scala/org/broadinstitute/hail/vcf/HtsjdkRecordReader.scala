@@ -1,9 +1,13 @@
 package org.broadinstitute.hail.vcf
 
+import htsjdk.variant.variantcontext.VariantContext
 import org.apache.spark.Accumulable
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.VCFReport
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
@@ -20,13 +24,19 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 }
 
 class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
+
+  import HtsjdkRecordReader._
+
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    line: String,
-    typeMap: Map[String, Any], storeGQ: Boolean): (Variant, Annotations, Iterable[Genotype]) = {
-    val vc = codec.decode(line)
+    vc: VariantContext,
+    infoSignature: Option[TStruct],
+    storeGQ: Boolean,
+    skipGenotypes: Boolean,
+    compress: Boolean,
+    ppAsPL: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
-    val filts = {
+    val filters: Set[String] = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
         Set("PASS")
       else
@@ -40,25 +50,37 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
 
-    val va = Annotations(Map[String, Any]("info" -> Annotations(vc.getAttributes
-      .asScala
-      .mapValues(HtsjdkRecordReader.purgeJavaArrayLists)
-      .toMap
-      .flatMap { case (k, v) =>
-        typeMap.get(k).map { t =>
-          (k, HtsjdkRecordReader.mapType(v, t.asInstanceOf[VCFSignature]))
-        }
-      }),
-      "qual" -> vc.getPhredScaledQual,
-      "filters" -> filts,
-      "pass" -> pass,
-      "rsid" -> rsid))
+    val info = infoSignature.map { sig =>
+      val a = Annotation(
+        sig.fields.map { f =>
+          val a = vc.getAttribute(f.name)
+          try {
+            cast(a, f.`type`)
+          } catch {
+            case e: Exception =>
+              fatal(
+                s"""variant $v: INFO field ${f.name}:
+                    |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
+                    |  caught $e""".stripMargin)
+          }
+        }: _*)
+      assert(sig.typeCheck(a))
+      a
+    }
+
+    val va = info match {
+      case Some(infoAnnotation) => Annotation(rsid, vc.getPhredScaledQual, filters, pass, infoAnnotation)
+      case None => Annotation(rsid, vc.getPhredScaledQual, filters, pass)
+    }
+
+    if (skipGenotypes)
+      return (v, va, Iterable.empty)
 
     val gb = new GenotypeBuilder(v)
 
     // FIXME compress
     val noCall = Genotype()
-    val gsb = new GenotypeStreamBuilder(v, true)
+    val gsb = new GenotypeStreamBuilder(v, compress)
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala
@@ -73,7 +95,14 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       var filter = false
       gb.clear()
 
-      var pl = g.getPL
+      var pl = if (ppAsPL) {
+        val str = g.getAnyAttribute("PP")
+        if (str != null)
+          str.asInstanceOf[String].split(",").map(_.toInt)
+        else null
+      }
+      else g.getPL
+
       if (g.hasPL) {
         val minPL = pl.min
         if (minPL != 0) {
@@ -174,36 +203,37 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 }
 
 object HtsjdkRecordReader {
-  def apply(headerLines: Array[String]): HtsjdkRecordReader = {
-    val codec = new htsjdk.variant.vcf.VCFCodec()
+  def apply(headerLines: Array[String], codec: htsjdk.variant.vcf.VCFCodec): HtsjdkRecordReader = {
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)
   }
 
-  def purgeJavaArrayLists(ar: AnyRef): Any = {
-    ar match {
-      case arr: java.util.ArrayList[_] => arr.asScala
-      case _ => ar
-    }
-  }
+  def cast(value: Any, t: BaseType): Any = {
+    ((value, t): @unchecked) match {
+      case (null, _) => null
+      case (s: String, TArray(TInt)) =>
+        s.split(",").map(_.toInt): IndexedSeq[Int]
+      case (s: String, TArray(TDouble)) =>
+        s.split(",").map(_.toDouble): IndexedSeq[Double]
+      case (s: String, TArray(TString)) =>
+        s.split(","): IndexedSeq[String]
+      case (s: String, TArray(TChar)) =>
+        s.split(","): IndexedSeq[String]
+      case (s: String, TBoolean) => s.toBoolean
+      case (b: Boolean, TBoolean) => b
+      case (s: String, TString) => s
+      case (s: String, TChar) => s
+      case (s: String, TInt) => s.toInt
+      case (s: String, TDouble) => s.toDouble
 
-  def mapType(value: Any, sig: VCFSignature): Any = {
-    value match {
-      case str: String =>
-        sig.typeOf match {
-          case "Int" => str.toInt
-          case "Double" => str.toDouble
-          case "Array[Int]" => str.split(",").map(_.toInt): IndexedSeq[Int]
-          case "Array[Double]" => str.split(",").map(_.toDouble): IndexedSeq[Double]
-          case _ => value
-        }
-      case i: IndexedSeq[_] =>
-        sig.number match {
-          case "Array[Int]" => i.map(_.asInstanceOf[String].toInt)
-          case "Array[Double]" => i.map(_.asInstanceOf[String].toDouble)
-
-        }
-      case _ => value
+      case (a: java.util.ArrayList[_], TArray(TInt)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String].toInt).toArray: IndexedSeq[Int]
+      case (a: java.util.ArrayList[_], TArray(TDouble)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String].toDouble).toArray: IndexedSeq[Double]
+      case (a: java.util.ArrayList[_], TArray(TString)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
+      case (a: java.util.ArrayList[_], TArray(TChar)) =>
+        a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
     }
   }
 }

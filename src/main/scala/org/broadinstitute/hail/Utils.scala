@@ -2,29 +2,34 @@ package org.broadinstitute.hail
 
 import java.io._
 import java.net.URI
-import breeze.linalg.operators.{OpSub, OpAdd}
+
+import breeze.linalg.operators.{OpAdd, OpSub}
+import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import org.apache.commons.lang.StringEscapeUtils
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.{BytesWritable, Text, NullWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.AccumulableParam
+import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
+import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.io.hadoop.{BytesOnlyWritable, ByteArrayOutputFormat}
-import org.broadinstitute.hail.driver.HailConfiguration
+import org.apache.spark.sql.Row
+import org.apache.spark.{AccumulableParam, SparkContext}
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.io.compress.BGzipCodec
+import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
+import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
-import scala.collection.{TraversableOnce, mutable}
-import scala.language.implicitConversions
-import breeze.linalg.{Vector => BVector, DenseVector => BDenseVector, SparseVector => BSparseVector}
-import org.apache.spark.mllib.linalg.{Vector => SVector, DenseVector => SDenseVector, SparseVector => SSparseVector}
-import scala.reflect.ClassTag
 import org.slf4j.{Logger, LoggerFactory}
 
-import Utils._
+import scala.collection.{TraversableOnce, mutable}
+import scala.io.Source
+import scala.language.implicitConversions
+import scala.reflect.ClassTag
+import scala.util.Random
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0
@@ -80,15 +85,8 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     }
   }
 
-  def foreachBetween(f: (T) => Unit)(g: (Unit) => Unit) {
-    var first = true
-    i.foreach { elem =>
-      if (first)
-        first = false
-      else
-        g()
-      f(elem)
-    }
+  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
+    richIterator(i.iterator).foreachBetween(f)(g)
   }
 
   def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
@@ -100,6 +98,19 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         def hasNext: Boolean = it.hasNext && it2.hasNext
 
         def next(): S = f(it.next(), it2.next())
+      }
+    }
+
+  def lazyMapWith2[T2, T3, S](i2: Iterable[T2], i3: Iterable[T3], f: (T, T2, T3) => S): Iterable[S] =
+    new Iterable[S] with Serializable {
+      def iterator: Iterator[S] = new Iterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
+        val it3: Iterator[T3] = i3.iterator
+
+        def hasNext: Boolean = it.hasNext && it2.hasNext && it3.hasNext
+
+        def next(): S = f(it.next(), it2.next(), it3.next())
       }
     }
 
@@ -184,11 +195,22 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         seen += x
     true
   }
+
+  def duplicates(): Set[T] = {
+    val dups = mutable.HashSet[T]()
+    val seen = mutable.HashSet[T]()
+    for (x <- i)
+      if (seen(x))
+        dups += x
+      else
+        seen += x
+    dups.toSet
+  }
 }
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
   def writeULEB128(x0: Int) {
-    require(x0 >= 0)
+    require(x0 >= 0, s"tried to write negative ULEB value `${x0}'")
 
     var x = x0
     var more = true
@@ -266,6 +288,33 @@ class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
 
   def areDistinct() = a.toIterable.areDistinct()
+
+  def duplicates(): Set[T] = a.toIterable.duplicates()
+}
+
+class RichOrderedArray[T : Ordering](a: Array[T]) {
+  def isIncreasing: Boolean = a.toSeq.isIncreasing
+
+  def isSorted: Boolean = a.toSeq.isSorted
+}
+
+class RichOrderedSeq[T : Ordering](s: Seq[T]) {
+  import scala.math.Ordering.Implicits._
+
+  def isIncreasing: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ < _)
+
+  def isSorted: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ <= _)
+}
+
+
+class RichSparkContext(val sc: SparkContext) extends AnyVal {
+  def textFiles[T](files: Array[String], f: String => Unit = s => (),
+    nPartitions: Int = sc.defaultMinPartitions): RDD[Line] = {
+    files.foreach(f)
+    sc.union(
+      files.map(file =>
+        sc.textFile(file, nPartitions).map(l => Line(l, None, file))))
+  }
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
@@ -359,6 +408,8 @@ class RichIndexedRow(val r: IndexedRow) extends AnyVal {
 
   def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
 
+  def :*(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :* that)
+
   def :/(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :/ that)
 }
 
@@ -381,6 +432,8 @@ class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
 
 class RichOption[T](val o: Option[T]) extends AnyVal {
   def contains(v: T): Boolean = o.isDefined && o.get == v
+
+  override def toString: String = o.toString
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
@@ -396,7 +449,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
         sb += ':'
         sb.append(v.ref)
         sb += ':'
-        sb.append(v.alt)
+        sb.append(v.altAlleles.map(_.alt).mkString(","))
       case i: Iterable[_] =>
         var first = true
         i.foreach { x =>
@@ -454,12 +507,27 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       }
     n == 1
   }
+
+  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
+    var first = true
+    it.foreach { elem =>
+      if (first)
+        first = false
+      else
+        g()
+      f(elem)
+    }
+  }
 }
 
 class RichBoolean(val b: Boolean) extends AnyVal {
   def ==>(that: => Boolean): Boolean = !b || that
 
   def iff(that: Boolean): Boolean = b == that
+
+  def toInt: Double = if (b) 1 else 0
+
+  def toDouble: Double = if (b) 1d else 0d
 }
 
 trait Logging {
@@ -474,17 +542,120 @@ trait Logging {
 
 class FatalException(msg: String) extends RuntimeException(msg)
 
-class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
+class RichAny(val a: Any) extends AnyVal {
+  def castOption[T](implicit ct: ClassTag[T]): Option[T] =
+    if (ct.runtimeClass.isInstance(a))
+      Some(a.asInstanceOf[T])
+    else
+      None
+}
+
+object RichDenseMatrixDouble {
+  def horzcat(oms: Option[DenseMatrix[Double]]*): Option[DenseMatrix[Double]] = {
+    val ms = oms.flatMap(m => m)
+    if (ms.isEmpty)
+      None
+    else
+      Some(DenseMatrix.horzcat(ms: _*))
+  }
+}
+
+
+// Not supporting generic T because its difficult to do with ArrayBuilder and not needed yet. See:
+// http://stackoverflow.com/questions/16306408/boilerplate-free-scala-arraybuilder-specialization
+class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
+  def filterRows(keepRow: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nRows = 0
+    for (row <- 0 until m.rows)
+      if (keepRow(row)) {
+        nRows += 1
+        for (col <- 0 until m.cols)
+          ab += m(row, col)
+      }
+
+    if (nRows > 0)
+      Some(new DenseMatrix[Double](rows = nRows, cols = m.cols, data = ab.result(),
+        offset = 0, majorStride = m.cols, isTranspose = true))
+    else
+      None
+  }
+
+  def filterCols(keepCol: Int => Boolean): Option[DenseMatrix[Double]] = {
+    val ab = new mutable.ArrayBuilder.ofDouble
+
+    var nCols = 0
+    for (col <- 0 until m.cols)
+      if (keepCol(col)) {
+        nCols += 1
+        for (row <- 0 until m.rows)
+          ab += m(row, col)
+      }
+
+    if (nCols > 0)
+      Some(new DenseMatrix[Double](rows = m.rows, cols = nCols, data = ab.result()))
+    else
+      None
+  }
+}
+
+object TempDir {
+  def apply(tmpdir: String, hConf: hadoop.conf.Configuration): TempDir = {
+    while (true) {
+      try {
+        val dirname = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
+
+        hadoopMkdir(dirname, hConf)
+
+        val fs = hadoopFS(tmpdir, hConf)
+        fs.deleteOnExit(new hadoop.fs.Path(dirname))
+
+        return new TempDir(dirname)
+      } catch {
+        case e: IOException =>
+          // try again
+      }
+    }
+
+    // can't happen
+    null
+  }
+}
+
+class TempDir(val dirname: String) {
+  var counter: Int = 0
+
+  def relFile(relPath: String) = dirname + "/" + relPath
+  def relPath(relPath: String) =
+    new URI(relFile(relPath)).getPath
+
+  def createTempFile(prefix: String = "", extension: String = ""): String = {
+    val i = counter
+    counter += 1
+
+    val sb = new StringBuilder
+    sb.append(prefix)
+    if (prefix != "")
+      sb += '.'
+    sb.append("%05d".format(i))
+    sb.append(extension)
+
+    relFile(sb.result())
+  }
+}
 
 object Utils extends Logging {
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
+  implicit def toRichSC(sc: SparkContext): RichSparkContext = new RichSparkContext(sc)
+
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-  
+
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
@@ -493,7 +664,11 @@ object Utils extends Logging {
   implicit def toRichIteratorOfByte(i: Iterator[Byte]): RichIteratorOfByte =
     new RichIteratorOfByte(i)
 
-  implicit def richArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
+  implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
+
+  implicit def toRichOrderedArray[T : Ordering](a: Array[T]): RichOrderedArray[T] = new RichOrderedArray(a)
+
+  implicit def toRichOrderedSeq[T : Ordering](s: Seq[T]): RichOrderedSeq[T] = new RichOrderedSeq[T](s)
 
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow =
     new RichIndexedRow(r)
@@ -555,6 +730,9 @@ object Utils extends Logging {
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
 
+  implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble =
+    new RichDenseMatrixDouble(m)
+
   def plural(n: Int, sing: String, plur: String = null): String =
     if (n == 1)
       sing
@@ -579,6 +757,7 @@ object Utils extends Logging {
   }
 
   def fatal(msg: String): Nothing = {
+
     throw new FatalException(msg)
   }
 
@@ -590,7 +769,7 @@ object Utils extends Logging {
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
     new hadoop.fs.Path(filename).getFileSystem(hConf)
 
-  def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
+  private def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val os = fs.create(hPath)
@@ -603,7 +782,7 @@ object Utils extends Logging {
       os
   }
 
-  def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
+  private def hadoopOpen(filename: String, hConf: hadoop.conf.Configuration): InputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
     val is = fs.open(hPath)
@@ -613,6 +792,10 @@ object Utils extends Logging {
       codec.createInputStream(is)
     else
       is
+  }
+
+  def hadoopExists(hConf: hadoop.conf.Configuration, files: String*): Boolean = {
+    files.forall(filename => hadoopFS(filename, hConf).exists(new hadoop.fs.Path(filename)))
   }
 
   def hadoopMkdir(dirname: String, hConf: hadoop.conf.Configuration) {
@@ -640,6 +823,17 @@ object Utils extends Logging {
         getRandomName
     }
     getRandomName
+  }
+
+  def hadoopGlobAll(filenames: Iterable[String], hConf: hadoop.conf.Configuration): Array[String] = {
+    filenames.iterator
+      .flatMap { arg =>
+        val fss = hadoopGlobAndSort(arg, hConf)
+        val files = fss.map(_.getPath.toString)
+        if (files.isEmpty)
+          warn(s"`$arg' refers to no files")
+        files
+      }.toArray
   }
 
   def hadoopGlobAndSort(filename: String, hConf: hadoop.conf.Configuration): Array[FileStatus] = {
@@ -699,6 +893,18 @@ object Utils extends Logging {
     }
   }
 
+  def hadoopStripCodec(s: String, conf: hadoop.conf.Configuration): String = {
+    val path = new org.apache.hadoop.fs.Path(s)
+
+    Option(new CompressionCodecFactory(conf)
+      .getCodec(path))
+      .map { case codec =>
+        val ext = codec.getDefaultExtension
+        assert(s.endsWith(ext))
+        s.dropRight(ext.length)
+      }.getOrElse(s)
+  }
+
   def writeObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectOutputStream) => T): T = {
     val oos = new ObjectOutputStream(hadoopCreate(filename, hConf))
@@ -708,6 +914,9 @@ object Utils extends Logging {
       oos.close()
     }
   }
+
+  def hadoopFileStatus(filename: String, hConf: hadoop.conf.Configuration): FileStatus =
+    hadoopFS(filename, hConf).getFileStatus(new hadoop.fs.Path(filename))
 
   def readObjectFile[T](filename: String,
     hConf: hadoop.conf.Configuration)(f: (ObjectInputStream) => T): T = {
@@ -761,11 +970,58 @@ object Utils extends Logging {
     }
   }
 
+  case class Line(value: String, position: Option[Int], filename: String) {
+    def transform[T](f: Line => T): T = {
+      try {
+        f(this)
+      } catch {
+        case e: Exception =>
+          val lineToPrint =
+            if (value.length > 62)
+              value.take(59) + "..."
+            else
+              value
+          val msg = if (e.isInstanceOf[FatalException])
+            e.getMessage
+          else
+            s"caught $e"
+          log.error(
+            s"""
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
+               |  offending line: $value""".stripMargin)
+          fatal(
+            s"""
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
+               |  offending line: $lineToPrint""".stripMargin)
+      }
+    }
+  }
+
+  def truncate(str: String, length: Int = 60): String = {
+    if (str.length > 57)
+      str.take(57) + " ..."
+    else
+      str
+  }
+
+  def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {
+    readFile[T](filename, hConf) {
+      is =>
+        val lines = Source.fromInputStream(is)
+          .getLines()
+          .zipWithIndex
+          .map {
+            case (value, position) => Line(value, Some(position), filename)
+          }
+        reader(lines)
+    }
+  }
+
   def writeTable(filename: String, hConf: hadoop.conf.Configuration,
     lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
-        header.map { h =>
+        header.foreach { h =>
           fw.write(h)
           fw.write('\n')
         }
@@ -777,6 +1033,8 @@ object Utils extends Logging {
   }
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
+
+  def triangle(n: Int): Int = (n * (n + 1)) / 2
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
@@ -855,8 +1113,18 @@ object Utils extends Logging {
     else
       None
 
+  def nullIfNot(p: Boolean, x: Any): Any = {
+    if (p)
+      x
+    else
+      null
+  }
+
   def divOption[T](num: T, denom: T)(implicit ev: T => Double): Option[Double] =
     someIf(denom != 0, ev(num) / denom)
+
+  def divNull[T](num: T, denom: T)(implicit ev: T => Double): Any =
+    nullIfNot(denom != 0, ev(num) / denom)
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder =
     new RichStringBuilder(sb)
@@ -887,7 +1155,10 @@ object Utils extends Logging {
 
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
-  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase).filter(s => !s.isEmpty)
+  // ignore size; atomic, like String
+  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+    .resize(12)
+    .filter(s => !s.isEmpty)
 
   implicit def richIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
@@ -908,4 +1179,21 @@ object Utils extends Logging {
     def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
       mutable.Map.empty[K, Int]
   }
+
+  implicit def toRichAny(a: Any): RichAny = new RichAny(a)
+
+  implicit def toRichRow(r: Row): RichRow = new RichRow(r)
+
+  def prettyIdentifier(str: String): String = {
+    if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
+      str
+    else
+      s"`${escapeString(str)}`"
+  }
+
+  def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
+
+  def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
+
+  def uriPath(uri: String): String = new URI(uri).getPath
 }
