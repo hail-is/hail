@@ -70,6 +70,10 @@ object ExportVariantsCass extends Command {
 
   def description = "Export variant information to Cassandra"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val vas = vds.vaSignature

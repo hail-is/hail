@@ -28,7 +28,9 @@ object FilterVariantsList extends Command {
 
   def description = "Filter variants in current dataset with a variant list"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -40,16 +42,18 @@ object FilterVariantsList extends Command {
     val keep = options.keep
 
     val variants: RDD[(Variant, Unit)] =
-      vds.sparkContext.textFile(options.input)
-        .map { line =>
-          val fields = line.split(":")
-          if (fields.length != 4)
-            fatal("invalid variant")
-          val ref = fields(2)
-          (Variant(fields(0),
-            fields(1).toInt,
-            ref,
-            fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
+      vds.sparkContext.textFileLines(options.input)
+        .map {
+          _.transform { line =>
+            val fields = line.value.split(":")
+            if (fields.length != 4)
+              fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
+            val ref = fields(2)
+            (Variant(fields(0),
+              fields(1).toInt,
+              ref,
+              fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
+          }
         }
 
     state.copy(

@@ -30,7 +30,9 @@ object PrintSchema extends Command {
 
   def description = "Shows the schema for global, sample, and variant annotations"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

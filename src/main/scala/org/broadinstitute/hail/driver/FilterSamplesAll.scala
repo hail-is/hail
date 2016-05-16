@@ -12,7 +12,9 @@ object FilterSamplesAll extends Command {
 
   def description = "Discard all samples in current dataset"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

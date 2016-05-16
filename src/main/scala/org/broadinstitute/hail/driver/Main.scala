@@ -48,31 +48,33 @@ object Main {
     var tmpDir: String = "/tmp"
   }
 
-  def handleFatal(e: Exception): Nothing = {
-    System.err.println(s"hail: fatal: ${e.getMessage}")
-    log.error(e.getMessage)
+  private def fail(msg: String): Nothing = {
+    log.error(msg)
+    System.err.println(msg)
     sys.exit(1)
   }
 
+  def handleFatal(e: Exception): Nothing = {
+    val msg = s"hail: fatal: ${e.getMessage}"
+    fail(msg)
+  }
+
   def handleFatal(cmd: Command, e: Exception): Nothing = {
-    System.err.println(s"hail: fatal: ${cmd.name}: ${e.getMessage}")
-    log.error(e.getMessage)
-    sys.exit(1)
+    val msg = s"hail: fatal: ${cmd.name}: ${e.getMessage}"
+    fail(msg)
   }
 
 
   def expandException(cmd: Command, e: Throwable): String =
-    s"${e.getClass.getName}: ${e.getMessage}\n${
+    s"${e.getClass.getName}: ${e.getMessage}\n\tat ${e.getStackTrace.mkString("\n\tat ")}${
       Option(e.getCause).foreach(exception => expandException(cmd, exception))
     }"
 
   def handlePropagatedException(cmd: Command, e: Throwable) {
-    if (e.isInstanceOf[FatalException]) {
-      System.err.println(s"hail: ${cmd.name}: fatal: ${e.getMessage.stripPrefix("\n")}")
-      log.error(e.getMessage)
-      sys.exit(1)
-    } else
-      Option(e.getCause).foreach(c => handlePropagatedException(cmd, c))
+    e match {
+      case f: FatalException => handleFatal(cmd, f)
+      case _ => Option(e.getCause).foreach(c => handlePropagatedException(cmd, c))
+    }
   }
 
   def runCommand(s: State, cmd: Command, cmdOpts: Command#Options): State = {
@@ -81,9 +83,11 @@ object Main {
     } catch {
       case e: Exception =>
         handlePropagatedException(cmd, e)
-        val msg = s"hail: ${cmd.name}: caught exception: ${expandException(cmd, e)}"
-        log.error(msg)
-        throw e
+        val msg = s"hail: ${cmd.name}: caught exception: "
+        //        log.error(msg)
+        log.error(msg + expandException(cmd, e))
+        System.err.println(msg + e.getMessage)
+        sys.exit(1)
     }
   }
 
@@ -201,7 +205,7 @@ object Main {
     PropertyConfigurator.configure(logProps)
 
     if (splitArgs.length == 1)
-      fatal("no commands given")
+      fail(s"hail: fatal: no commands given")
 
     val invocations: Array[(Command, Command#Options, Array[String])] = splitArgs.tail
       .map {

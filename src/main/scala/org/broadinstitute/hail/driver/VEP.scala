@@ -30,7 +30,9 @@ object VEP extends Command {
 
   def description = "Annotation variants with VEP"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   val vepSignature = TStruct(
     "assembly_name" -> TString,

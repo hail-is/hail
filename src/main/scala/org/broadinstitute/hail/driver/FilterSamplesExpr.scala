@@ -28,7 +28,9 @@ object FilterSamplesExpr extends Command {
 
   def description = "Filter samples in current dataset using the Hail expression language"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

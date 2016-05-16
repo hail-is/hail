@@ -23,6 +23,10 @@ object AnnotateVariantsIntervals extends Command {
 
   def description = "Annotate variants with interval list"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val (iList, signature) = IntervalListAnnotator(options.input, state.hadoopConf)
