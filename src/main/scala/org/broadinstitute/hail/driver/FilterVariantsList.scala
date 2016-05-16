@@ -47,7 +47,7 @@ object FilterVariantsList extends Command {
           _.transform { line =>
             val fields = line.value.split(":")
             if (fields.length != 4)
-              fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,ALTN'")
+              fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
             val ref = fields(2)
             (Variant(fields(0),
               fields(1).toInt,

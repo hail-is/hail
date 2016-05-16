@@ -762,12 +762,6 @@ object Utils extends Logging {
     System.err.println("hail: error: " + msg)
   }
 
-  def fail(msg: String): Nothing = {
-    log.error(msg)
-    System.err.println(msg)
-    sys.exit(1)
-  }
-
   def fatal(msg: String): Nothing = {
     throw new FatalException(msg)
   }

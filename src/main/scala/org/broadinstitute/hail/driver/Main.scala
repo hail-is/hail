@@ -48,6 +48,12 @@ object Main {
     var tmpDir: String = "/tmp"
   }
 
+  private def fail(msg: String): Nothing = {
+    log.error(msg)
+    System.err.println(msg)
+    sys.exit(1)
+  }
+
   def handleFatal(e: Exception): Nothing = {
     val msg = s"hail: fatal: ${e.getMessage}"
     fail(msg)
