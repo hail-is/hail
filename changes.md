@@ -1,3 +1,7 @@
+ - added `imputegender` which calculates the gender from variant data using the same method as PLINK. [see docs for details](docs/ImputeGender.md)
+
+____
+ 
  - added `annotateglobal table` which reads a text file with a header and stores it as an `Array[Struct]`.  [see docs for details](docs/ImportAnnotations.md#GlobalTable)
 
  - renamed all `tsv` modules to `table`.  We support arbitrary delimiters, so the name should be more general

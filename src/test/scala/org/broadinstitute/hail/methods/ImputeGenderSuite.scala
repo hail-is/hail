@@ -41,12 +41,12 @@ class ImputeGenderSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
     s = ImputeGender.run(s, Array("-m","0.0"))
 
-    s"/Users/jigold/plink --vcf $vcfFile --const-fid --check-sex --out $plinkSexCheckOutput" !
+    s"/Users/jigold/plink --vcf $vcfFile --const-fid --check-sex --silent --out $plinkSexCheckOutput" !
 
     val plinkResult = parsePlinkSexCheck(plinkSexCheckOutput + ".sexcheck")
 
-    val (_, imputedSexQuery) = s.vds.querySA("sa.imputesex.imputedSex")
-    val (_, fQuery) = s.vds.querySA("sa.imputesex.F")
+    val (_, imputedSexQuery) = s.vds.querySA("sa.imputegender.imputedSex")
+    val (_, fQuery) = s.vds.querySA("sa.imputegender.F")
 
     val hailResult = sc.parallelize(s.vds.sampleIdsAndAnnotations.map{case (sample, sa) =>
       (sample, (imputedSexQuery(sa).get, fQuery(sa).get))
@@ -78,11 +78,15 @@ class ImputeGenderSuite extends SparkSuite {
     property("hail generates same results as PLINK v1.9") =
       forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { case (vds: VariantSampleMatrix[Genotype]) =>
 
-        if (vds.nSamples == 0 || vds.nVariants == 0) {
+        var s = State(sc, sqlContext).copy(vds = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "X"), va, gs) }))
+
+        s = SplitMulti.run(s, Array.empty[String])
+        s = VariantQC.run(s, Array[String]())
+        s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.MAC > 0"))
+
+        if (s.vds.nSamples == 0 || s.vds.nVariants == 0) {
           true
         } else {
-          var s = State(sc, sqlContext).copy(vds = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "X"), va, gs) }))
-
           val fileRoot = tmpDir.createTempFile(prefix = "plinksexCheck")
           val vcfOutputFile = fileRoot + ".vcf"
           val plinkSexCheckRoot = fileRoot
@@ -95,8 +99,8 @@ class ImputeGenderSuite extends SparkSuite {
 
           val plinkResult = parsePlinkSexCheck(plinkSexCheckRoot + ".sexcheck")
 
-          val (_, imputedSexQuery) = s.vds.querySA("sa.imputesex.imputedSex")
-          val (_, fQuery) = s.vds.querySA("sa.imputesex.F")
+          val (_, imputedSexQuery) = s.vds.querySA("sa.imputegender.imputedSex")
+          val (_, fQuery) = s.vds.querySA("sa.imputegender.F")
 
           val hailResult = sc.parallelize(s.vds.sampleIdsAndAnnotations.map { case (sample, sa) =>
             (sample, (imputedSexQuery(sa).get, fQuery(sa).get))
@@ -126,6 +130,6 @@ class ImputeGenderSuite extends SparkSuite {
   }
 
   @Test def testImputeGenderPlinkVersion() {
-    Spec.check(size = 100, count = 100, seed = Option(1), random = true)
+    Spec.check(size = 100, count = 1000, seed = Option(1), random = true)
   }
 }

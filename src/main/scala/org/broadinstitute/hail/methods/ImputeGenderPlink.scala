@@ -5,20 +5,22 @@ import java.nio.ByteBuffer
 import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.driver.ImputeGender.Options
 import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype}
 import org.broadinstitute.hail.annotations._
 
 object ImputeGenderPlink {
   def imputeGender(vds: VariantDataset) = new ImputeGenderPlink(vds)
+
   def imputeGender(vds: VariantDataset, mafThreshold: Double, excludePAR: Boolean) =
     new ImputeGenderPlink(vds, mafThreshold, excludePAR)
 
-  def determineSex(ibc:InbreedingCombiner): Option[Int] = {
+  def determineSex(ibc:InbreedingCombiner, fFemaleThreshold: Double, fMaleThreshold: Double): Option[Int] = {
     ibc.F match {
       case Some(x) =>
-        if (x <= 0.2)
+        if (x < fFemaleThreshold)
           Option(2)
-        else if (x >= 0.8)
+        else if (x > fMaleThreshold)
           Option(1)
         else
           None
@@ -94,7 +96,9 @@ class ImputeGenderPlink(vds: VariantDataset, mafThreshold: Double = 0.0,
     .map { case (s, ibc) => (s,ibc)}
   }
 
-  def result = inbreedingCoefficients.map { case (s, ibc) => (s, Annotation(ibc.F, ibc.E, ibc.O, ibc.N, ibc.T, determineSex(ibc))) }
+  def result(fFemaleThreshold: Double, fMaleThreshold: Double) = {
+    inbreedingCoefficients.map { case (s, ibc) => (s, Annotation(ibc.F, ibc.E, ibc.O, ibc.N, ibc.T, determineSex(ibc, fFemaleThreshold, fMaleThreshold))) }
+  }
 }
 
 
