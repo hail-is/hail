@@ -12,7 +12,7 @@ import org.broadinstitute.hail.utils.RichRow
 import scala.collection.mutable
 
 object HardCallSet {
-  def apply(sqlContext: SQLContext, vds: VariantDataset, sparseCutoff: Double = .15, blockWidth: Int = 1000000): HardCallSet = {
+  def apply(sqlContext: SQLContext, vds: VariantDataset, sparseCutoff: Double = .15, blockWidth: Int = 100000): HardCallSet = {
     import sqlContext.implicits._
 
     val n = vds.nSamples

@@ -417,6 +417,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
+    val v3 = Variant("1", 3, "C", "T")   // x = (0, ., 1, 1, 1, .)
     val v6 = Variant("1", 6, "C", "T")   // x = (0, 0, 0, 0, 0, 0)
     val v7 = Variant("1", 7, "C", "T")   // x = (1, 1, 1, 1, 1, 1)
     val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2)
@@ -470,6 +471,17 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qSe, v2, 0.3350599)
     assertDouble(qTstat, v2, -1.616919)
     assertDouble(qPval, v2, 0.24728705)
+
+    /*
+    v3 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
+    x = c(0, 0.75, 1, 1, 1, 0.75)
+    */
+
+    assertInt(qMissing, v3, 2)
+    assertDouble(qBeta, v3, 1.07367185)
+    assertDouble(qSe, v3, 0.6764348)
+    assertDouble(qTstat, v3, 1.5872510)
+    assertDouble(qPval, v3, 0.2533675)
 
     assertEmpty(qBeta, v6)
     assertEmpty(qBeta, v7)

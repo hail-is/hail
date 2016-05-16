@@ -13,7 +13,7 @@ object T2DServer extends Command {
     var covFile: String = _
 
     @Args4jOption(required = false, name = "-p", aliases = Array("--port"), usage = "Service port")
-    var port: Int = 6062
+    var port: Int = 8080
 
     @Args4jOption(required = true, name = "-h1", aliases = Array("--hcs100Kb"), usage = ".hcs with 100Kb block")
     var hcsFile: String = _
@@ -33,14 +33,9 @@ object T2DServer extends Command {
 
   override def supportsMultiallelic = true
 
-  def run(state: State, options: Options): State = {
-
-    val hcs = HardCallSet.read(state.sqlContext, options.hcsFile)
-    val hcs1Mb = HardCallSet.read(state.sqlContext, options.hcs1MbFile)
-    val hcs10Mb = HardCallSet.read(state.sqlContext, options.hcs10MbFile)
-
+  def readCovData(state: State, covFile: String, sampleIds: IndexedSeq[String]): Map[String, Array[Double]] = {
     val (covNames, sampleCovs): (Array[String], Map[String, Array[Double]]) =
-      readLines(options.covFile, state.hadoopConf) { lines =>
+      readLines(covFile, state.hadoopConf) { lines =>
         if (lines.isEmpty)
           fatal("empty TSV file")
 
@@ -56,12 +51,26 @@ object T2DServer extends Command {
               (lineSplit(0), lineSplit.drop(1).map(_.toDouble))
             }
           }.toMap
-        )
+          )
       }
 
-    val covMap: Map[String, Array[Double]] = covNames
+    covNames
       .zipWithIndex
-      .map{ case (name, j) => (name, hcs.sampleIds.map(s => sampleCovs(s)(j)).toArray) }.toMap
+      .map{ case (name, j) => (name, sampleIds.map(s => sampleCovs(s)(j)).toArray) }.toMap
+  }
+
+
+  def run(state: State, options: Options): State = {
+
+    val hcs = HardCallSet.read(state.sqlContext, options.hcsFile)
+    val hcs1Mb = HardCallSet.read(state.sqlContext, options.hcs1MbFile)
+    val hcs10Mb = HardCallSet.read(state.sqlContext, options.hcs10MbFile)
+
+    val covMap = readCovData(state, options.covFile, hcs.sampleIds)
+
+    assert(hcs.sampleIds == hcs1Mb.sampleIds)
+    assert(hcs1Mb.sampleIds == hcs10Mb.sampleIds)
+    assert(hcs.sampleIds.forall(covMap.keySet(_)))
 
     val service = new T2DService(hcs, hcs1Mb, hcs10Mb, covMap)
     val task = BlazeBuilder.bindHttp(options.port, "0.0.0.0")
