@@ -63,12 +63,13 @@ object PlinkLoader {
     }
 
     VariantSampleMatrix(VariantMetadata(
-      sampleInfo.sampleIds,
-      sampleInfo.annotations,
-      Annotation.empty,
-      sampleInfo.signatures,
-      TStruct.empty,
-      TStruct.empty), variantRDD)
+      sampleIds = sampleInfo.sampleIds,
+      sampleAnnotations = sampleInfo.annotations,
+      globalAnnotation = Annotation.empty,
+      saSignature = sampleInfo.signatures,
+      vaSignature = TStruct.empty,
+      globalSignature = TStruct.empty,
+      wasSplit = true), variantRDD)
   }
 
   def apply(bedPath: String, bimPath: String, famPath: String, sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
