@@ -27,6 +27,8 @@ object ImputeGender extends Command {
 
   def description = "Impute gender of samples"
 
+  def requiresVDS = true
+
   override def supportsMultiallelic = true
 
   def run(state: State, options: Options): State = {
