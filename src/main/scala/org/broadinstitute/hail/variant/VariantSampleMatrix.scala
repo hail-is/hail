@@ -153,7 +153,7 @@ object VariantSampleMatrix {
     val nSamples = sampleIds.length
     for (vaSig <- Type.genArb; saSig <- Type.genArb; globalSig <- Type.genArb;
          saValues <- Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(saSig.genValue));
-        globalValue <- globalSig.genValue;
+         globalValue <- globalSig.genValue;
          rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
            variants.map(v => Gen.zip(
              Gen.const(v),
@@ -533,7 +533,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def annotateInvervals(iList: IntervalList, signature: Type, path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
-    val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
+    val booleanSignature = newSignature == TBoolean
+    val newRDD = if (booleanSignature)
+      rdd.map { case (v, va, gs) => (v, inserter(va, Some(iList.contains(v.contig, v.start))), gs) }
+    else
+      rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
@@ -592,7 +596,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def queryGlobal(path: String): (BaseType, Option[Annotation]) = {
-    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
+    val st = Map(Annotation.GLOBAL_HEAD ->(0, globalSignature))
     val ec = EvalContext(st)
     val a = ec.a
 

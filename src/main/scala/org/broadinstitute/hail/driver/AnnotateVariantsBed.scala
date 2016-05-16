@@ -23,6 +23,10 @@ object AnnotateVariantsBed extends Command {
 
   def description = "Annotate variants with UCSC BED file"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val (iList, signature) = BedAnnotator(options.input, state.hadoopConf)
     state.copy(

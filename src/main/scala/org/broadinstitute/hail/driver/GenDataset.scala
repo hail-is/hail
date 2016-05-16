@@ -14,6 +14,10 @@ object GenDataset extends Command {
 
   override def hidden = true
 
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
+
   def run(state: State, options: Options): State = {
     state.copy(
       vds = VariantSampleMatrix.gen(state.sc, Genotype.gen).sample())

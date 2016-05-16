@@ -32,7 +32,9 @@ object ExportVCF extends Command {
 
   def description = "Write current dataset as VCF file"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def infoNumber(t: BaseType): String = t match {
     case TBoolean => "0"

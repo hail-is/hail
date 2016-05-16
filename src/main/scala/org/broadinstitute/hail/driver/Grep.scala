@@ -20,7 +20,9 @@ object Grep extends Command {
 
   def description = "Grep a big file, like, really fast"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     val sc = state.sc

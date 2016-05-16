@@ -27,6 +27,10 @@ object FilterGenotypes extends Command {
 
   def description = "Filter genotypes in current dataset"
 
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val sc = state.sc
     val vds = state.vds

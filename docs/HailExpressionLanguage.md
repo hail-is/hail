@@ -10,8 +10,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
  - Boolean comparisons: `a || b`, `a && b`  Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without evaluating `b`.  If `a` is missing, `b` is evaluated and the comparison returns `true` if `b` is true, otherwise missing.
  - Missingness:
  
-     - isMissing: `a.isMissing` -- returns true if `a` is missing
-     - isDefined: `a.isDefined` -- returns true if `a` is defined
+     - isMissing: `isMissing(a)` -- returns true if `a` is missing
+     - isDefined: `isDefined(a)` -- returns true if `a` is defined
      - orElse: `a.OrElse(x)` -- return `a` if `a` is defined, otherwise `x`.  `x` is only evaluated if `a` is NA.
  - Numerical comparisons: `<`, `<=`, `>`, `>=`
  - Numerical conversions: 
@@ -130,27 +130,27 @@ The result of `count` is a `Long` (integer).
 
 One can replicate `qc.nHet` for either samples or variants by counting:
 ```
-    annotatesamples -c 'sa.nHet = gs.count(g.isHet)'
-    annotatevariants -c 'va.nHet = gs.count(g.isHet)'
+    annotatesamples expr -c 'sa.nHet = gs.count(g.isHet)'
+    annotatevariants expr -c 'va.nHet = gs.count(g.isHet)'
 ```
 
 One can also compute more complicated counts.  Here we compute the number of non-ref cases and controls per variant (Assuming that `sa.pheno.isCase` is a boolean sample annotation)
 ```
-    annotatevariants -c 'va.caseCount = gs.count(sa.pheno.isCase && g.isCalledNonRef), va.controlCount = gs.count(!(sa.pheno.isCase) && g.isCalledNonRef)'
+    annotatevariants expr -c 'va.caseCount = gs.count(sa.pheno.isCase && g.isCalledNonRef), va.controlCount = gs.count(!(sa.pheno.isCase) && g.isCalledNonRef)'
 ```
 
 Here we count the number of singleton non-ref LOFs and the number of homozygous alternate LOFs per sample, assuming that one has previously annotated variant consequence into `va.consequence`:
 ```
-    annotatevariants -c 'va.isSingleton = gs.count(g.isCalledNonRef) == 1' \
-    annotatesamples -c 'sa.singletonLOFs = gs.count(va.isSingleton && g.isCalledNonRef && va.consequence == "LOF"),
+    annotatevariants expr -c 'va.isSingleton = gs.count(g.isCalledNonRef) == 1' \
+    annotatesamples expr -c 'sa.singletonLOFs = gs.count(va.isSingleton && g.isCalledNonRef && va.consequence == "LOF"),
                         sa.homVarLOFs = gs.count(g.isHomVar && va.consequence == "LOF")
 ```
 
 This can also be used to calculate statistics from sample/variant annotations in `annotateglobal`:
 ```
-    annotatevariants -c 'va.isSingleton = gs.count(g.isCalledNonRef) == 1'
-    annotatesamples -c 'sa.callrate = gs.fraction(g.isNotCalled)'
-    annotateglobal -c 'global.lowQualSamples = samples.count(sa.callrate < 0.95),
+    annotatevariants expr -c 'va.isSingleton = gs.count(g.isCalledNonRef) == 1'
+    annotatesamples expr -c 'sa.callrate = gs.fraction(g.isNotCalled)'
+    annotateglobal expr -c 'global.lowQualSamples = samples.count(sa.callrate < 0.95),
                   global.totalNSingleton = variants.count(va.isSingleton)'
 ```
 
@@ -170,13 +170,13 @@ The result of `fraction` is a `Double` (floating-point)
 
 One can replicate call rate, or calculate missingness:
 ```
-    filtervariants --keep -c 'gs.fraction(g.isNotCalled) > 0.90'
-    filtersamples --keep -c 'gs.fraction(g.isNotCalled) > 0.95'
+    filtervariants expr --keep -c 'gs.fraction(g.isNotCalled) > 0.90'
+    filtersamples expr --keep -c 'gs.fraction(g.isNotCalled) > 0.95'
 ```
 
 One can also extend this thinking to compute the differential missingness at SNPs and indels:
 ```
-    annotatesamples -c 'sa.SNPmissingness = gs.fraction(g.isNotCalled && v.alt.isSNP),
+    annotatesamples expr -c 'sa.SNPmissingness = gs.fraction(g.isNotCalled && v.alt.isSNP),
                         sa.indelmissingness = gs.fraction(g.isNotCalled && v.alt.isIndel)
 ```
 
@@ -194,14 +194,14 @@ The result of `stats` is a group of { mean, standard deviation, min value, max v
 
 One can replicate the calculations in `<va / sa>.qc.gqMean` and `<va / sa>.qc.gqStDev` with the command below.  After this command, `va.gqstats.mean` is equal to the result of running `variantqc` and querying `va.qc.gqMean`, and this equivalence holds for the other values.
 ```
-    annotatevariants -c 'va.gqstats = gs.stats(g.gq)'
-    annotatesamples -c 'sa.gqstats = gs.stats(g.gq)'
+    annotatevariants expr -c 'va.gqstats = gs.stats(g.gq)'
+    annotatesamples expr -c 'sa.gqstats = gs.stats(g.gq)'
 ```
 
 One can use `stats` to compute statistics on annotations as well:
 ```
     sampleqc
-    annotateglobal -c 'global.singletonStats = samples.stats(sa.qc.nSingleton)' 
+    annotateglobal expr -c 'global.singletonStats = samples.stats(sa.qc.nSingleton)' 
 ```
 
 ### Stats If
@@ -216,7 +216,7 @@ One can use `stats` to compute statistics on annotations as well:
 
 Compute gq/dp statistics stratified by genotype call:
 ```
-    annotatevariants -c '
+    annotatevariants expr -c '
         va.homrefGQ = gs.statsif(g.isHomRef, g.gq),
         va.hetGQ = gs.statsif(g.isHet, g.gq),
         va.homvarGQ = gs.statsif(g.isHomVar, g.gq),
@@ -228,7 +228,7 @@ Compute gq/dp statistics stratified by genotype call:
 Compute statistics on number of singletons stratified by case/control:
 ```
     sampleqc
-    annotateglobal -c 'global.caseSingletons = samples.statsif(sa.fam.isCase, sa.qc.nSingleton),
+    annotateglobal expr -c 'global.caseSingletons = samples.statsif(sa.fam.isCase, sa.qc.nSingleton),
         global.controlSingletons = samples.statsif(!sa.fam.isCase, sa.qc.nSingleton)'
 
 ```
@@ -240,24 +240,24 @@ Compute statistics on number of singletons stratified by case/control:
 Filtering requires an expression that evaluates to a boolean.
 
 ```
-filtersamples --keep -c '"PT-1234" ~ s.id'
+filtersamples expr --keep -c '"PT-1234" ~ s.id'
 ```
 
 
 ```
-filtersamples --keep -c 'sa.qc.callRate > 0.99'
+filtersamples expr --keep -c 'sa.qc.callRate > 0.99'
 ```
 
 In the below expression, we will use a different cutoff for samples with European and non-European ancestry.  This can be done with an if/else statement.
 
 ```
-filtersamples --keep -c 'if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200'
+filtersamples expr --keep -c 'if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200'
 ```
 
 The below expression assumes a VDS was split from a VCF, and filters down to sites which were singletons on import.  `va.aIndex` indexes into the originally-multiallelic array `va.info.AC` with the original position of each variant.
 
 ```
-filtervariants --keep -c 'if (va.info.AC[va.aIndex]) == 1' 
+filtervariants expr --keep -c 'if (va.info.AC[va.aIndex]) == 1' 
 ```
 
 See documentation on [exporting to TSV](ExportTSV.md) and [programmatic annotation](ProgrammaticAnnotation.md) for more examples of what Hail's language can do.

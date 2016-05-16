@@ -18,7 +18,9 @@ object ShowGlobalAnnotations extends Command {
 
   def description = "Shows the signatures for all annotations currently stored in the dataset"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

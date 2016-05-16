@@ -15,6 +15,10 @@ object DownsampleVariants extends Command {
 
   def description = "Downsample variants in current dataset"
 
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val nVariants = state.vds.nVariants
     val vds = state.vds

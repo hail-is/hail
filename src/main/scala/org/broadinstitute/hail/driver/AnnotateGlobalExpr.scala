@@ -23,7 +23,9 @@ object AnnotateGlobalExpr extends Command {
 
   def description = "Annotate global table"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
