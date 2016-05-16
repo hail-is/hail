@@ -49,47 +49,49 @@ object Main {
   }
 
   def handleFatal(e: Exception): Nothing = {
-    System.err.println(s"hail: fatal: ${e.getMessage}")
-    log.error(e.getMessage)
+    val msg = s"hail: fatal: ${e.getMessage}"
+    System.err.println(msg)
+    log.error(msg)
     sys.exit(1)
   }
 
-  def handleFatal(cmd: Command, e: Exception): Nothing = {
-    System.err.println(s"hail: fatal: ${cmd.name}: ${e.getMessage}")
-    log.error(e.getMessage)
+  def handleFatal(cmd: BaseCommand, e: Exception): Nothing = {
+    val msg = s"hail: fatal: ${cmd.name}: ${e.getMessage}"
+    System.err.println(msg)
+    log.error(msg)
     sys.exit(1)
   }
 
 
-  def expandException(cmd: Command, e: Throwable): String =
-    s"${e.getClass.getName}: ${e.getMessage}\n${
+  def expandException(cmd: BaseCommand, e: Throwable): String =
+    s"${e.getClass.getName}: ${e.getMessage}\n\tat ${e.getStackTrace.mkString("\n\tat ")}${
       Option(e.getCause).foreach(exception => expandException(cmd, exception))
     }"
 
-  def handlePropagatedException(cmd: Command, e: Throwable) {
-    if (e.isInstanceOf[FatalException]) {
-      System.err.println(s"hail: ${cmd.name}: fatal: ${e.getMessage.stripPrefix("\n")}")
-      log.error(e.getMessage)
-      sys.exit(1)
-    } else
-      Option(e.getCause).foreach(c => handlePropagatedException(cmd, c))
+  def handlePropagatedException(cmd: BaseCommand, e: Throwable) {
+    e match {
+      case f: FatalException => handleFatal(cmd, f)
+      case _ => Option(e.getCause).foreach(c => handlePropagatedException(cmd, c))
+    }
   }
 
-  def runCommand(s: State, cmd: Command, cmdOpts: Command#Options): State = {
+  def runCommand(s: State, cmd: BaseCommand, cmdOpts: BaseCommand#Options): State = {
     try {
       cmd.runCommand(s, cmdOpts.asInstanceOf[cmd.Options])
     } catch {
       case e: Exception =>
         handlePropagatedException(cmd, e)
-        val msg = s"hail: ${cmd.name}: caught exception: ${expandException(cmd, e)}"
-        log.error(msg)
-        throw e
+        val msg = s"hail: ${cmd.name}: caught exception: "
+        //        log.error(msg)
+        log.error(msg + expandException(cmd, e))
+        System.err.println(msg + e.getMessage)
+        sys.exit(1)
     }
   }
 
   def runCommands(sc: SparkContext,
     sqlContext: SQLContext,
-    invocations: Array[(Command, Command#Options, Array[String])]) {
+    invocations: Array[(BaseCommand, BaseCommand#Options, Array[String])]) {
 
     val times = mutable.ArrayBuffer.empty[(String, Long)]
 
@@ -200,10 +202,14 @@ object Main {
     LogManager.resetConfiguration()
     PropertyConfigurator.configure(logProps)
 
-    if (splitArgs.length == 1)
-      fatal("no commands given")
+    if (splitArgs.length == 1) {
+      val msg = s"hail: fatal: no commands given"
+      System.err.println(msg)
+      log.error(msg)
+      sys.exit(1)
+    }
 
-    val invocations: Array[(Command, Command#Options, Array[String])] = splitArgs.tail
+    val invocations: Array[(BaseCommand, BaseCommand#Options, Array[String])] = splitArgs.tail
       .map {
         args =>
           val (cmd, cmdArgs) =
@@ -215,7 +221,7 @@ object Main {
             }
 
           try {
-            (cmd, cmd.parseArgs(cmdArgs): Command#Options, args)
+            (cmd, cmd.parseArgs(cmdArgs): BaseCommand#Options, args)
           } catch {
             case e: FatalException =>
               handleFatal(cmd, e)

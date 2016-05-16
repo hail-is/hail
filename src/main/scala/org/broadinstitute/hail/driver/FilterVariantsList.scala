@@ -40,16 +40,18 @@ object FilterVariantsList extends Command {
     val keep = options.keep
 
     val variants: RDD[(Variant, Unit)] =
-      vds.sparkContext.textFile(options.input)
-        .map { line =>
-          val fields = line.split(":")
-          if (fields.length != 4)
-            fatal("invalid variant")
-          val ref = fields(2)
-          (Variant(fields(0),
-            fields(1).toInt,
-            ref,
-            fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
+      vds.sparkContext.lineTextFile(options.input)
+        .map {
+          _.transform { line =>
+            val fields = line.value.split(":")
+            if (fields.length != 4)
+              fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,ALTN'")
+            val ref = fields(2)
+            (Variant(fields(0),
+              fields(1).toInt,
+              ref,
+              fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
+          }
         }
 
     state.copy(

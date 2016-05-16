@@ -4,7 +4,7 @@ import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._
 
-object Grep extends Command {
+object Grep extends MiscCommand {
 
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-m", aliases = Array("--max-count"), usage = "Stop after <num> matches")

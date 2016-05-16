@@ -17,15 +17,15 @@ case class State(sc: SparkContext,
 }
 
 object ToplevelCommands {
-  val commands = mutable.Map.empty[String, Command]
+  val commands = mutable.Map.empty[String, BaseCommand]
 
   def commandNames: Set[String] = commands.keys.toSet
 
-  def register(command: Command) {
+  def register(command: BaseCommand) {
     commands += command.name -> command
   }
 
-  def lookup(args: Array[String]): (Command, Array[String]) = {
+  def lookup(args: Array[String]): (BaseCommand, Array[String]) = {
     assert(!args.isEmpty)
 
     val commandName = args.head
@@ -87,7 +87,7 @@ object ToplevelCommands {
   register(example.CaseControlCount)
 }
 
-abstract class SuperCommand extends Command {
+abstract class SuperCommand extends BaseCommand {
 
   class Options extends BaseOptions {
     @Argument(required = true, usage = "<subcommand> <arguments...>")
@@ -96,11 +96,11 @@ abstract class SuperCommand extends Command {
 
   def newOptions = new Options
 
-  val subcommands = mutable.Map.empty[String, Command]
+  val subcommands = mutable.Map.empty[String, BaseCommand]
 
   def subcommandNames: Set[String] = subcommands.keys.toSet
 
-  def register(subcommand: Command) {
+  def register(subcommand: BaseCommand) {
     val split = subcommand.name.split(" ")
     assert(name == split.init.mkString(" "))
     subcommands += split.last -> subcommand
@@ -108,7 +108,7 @@ abstract class SuperCommand extends Command {
 
   override def supportsMultiallelic = true
 
-  override def lookup(args: Array[String]): (Command, Array[String]) = {
+  override def lookup(args: Array[String]): (BaseCommand, Array[String]) = {
     val subArgs = args.dropWhile(_ == "-h")
 
     if (subArgs.isEmpty)
@@ -150,6 +150,10 @@ abstract class SuperCommand extends Command {
     options
   }
 
+  def runCommand(state: State, options: Options): State = {
+    run(state, options)
+  }
+
   def run(state: State, options: Options): State = {
     val args = options.arguments.asScala.toArray
 
@@ -161,7 +165,7 @@ abstract class SuperCommand extends Command {
   }
 }
 
-abstract class Command {
+abstract class BaseCommand {
 
   class BaseOptions {
     @Args4jOption(name = "-h", aliases = Array("--help"), help = true, usage = "Print usage and exit")
@@ -181,7 +185,7 @@ abstract class Command {
 
   def supportsMultiallelic = false
 
-  def lookup(args: Array[String]): (Command, Array[String]) = (this, args)
+  def lookup(args: Array[String]): (BaseCommand, Array[String]) = (this, args)
 
   def printUsage() {
     println("usage: " + name + " [<args>]")
@@ -210,17 +214,34 @@ abstract class Command {
     options
   }
 
-  def runCommand(state: State, options: Options): State = {
-    if (!supportsMultiallelic
-      && state.vds != null
-      && !state.vds.wasSplit)
-      fatal(s"does not support multiallelics.\n  Run `splitmulti' first.")
-
-    run(state, options)
-  }
+  def runCommand(state: State, options: Options): State
 
   def run(state: State, args: Array[String] = Array.empty): State =
     runCommand(state, parseArgs(args))
 
   protected def run(state: State, options: Options): State
+}
+
+abstract class ImportCommand extends BaseCommand {
+  def runCommand(state: State, options: Options): State = {
+    run(state, options)
+  }
+}
+
+abstract class Command extends BaseCommand {
+  def runCommand(state: State, options: Options): State = {
+    if (state.vds == null)
+      fatal(s"no VDS to operate on.\n  Run an `import' or `read' command first.")
+    if (!supportsMultiallelic
+      && !state.vds.wasSplit)
+      fatal(s"does not support multiallelics.\n  Run `splitmulti' first.")
+
+    run(state, options)
+  }
+}
+
+abstract class MiscCommand extends BaseCommand {
+  def runCommand(state: State, options: Options): State = {
+    run(state, options)
+  }
 }

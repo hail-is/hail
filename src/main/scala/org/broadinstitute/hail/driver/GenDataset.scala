@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix}
 
-object GenDataset extends Command {
+object GenDataset extends ImportCommand {
 
   class Options extends BaseOptions
 

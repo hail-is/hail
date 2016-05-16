@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.variant.VariantSampleMatrix
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object Read extends Command {
+object Read extends ImportCommand {
   def name = "read"
 
   def description = "Load file .vds as the current dataset"

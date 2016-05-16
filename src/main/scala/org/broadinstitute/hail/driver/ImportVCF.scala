@@ -27,7 +27,7 @@ trait VCFImporter {
   }
 }
 
-object ImportVCF extends Command with VCFImporter {
+object ImportVCF extends ImportCommand with VCFImporter {
   def name = "importvcf"
 
   def description = "Load file (.vcf or .vcf.bgz) as the current dataset"

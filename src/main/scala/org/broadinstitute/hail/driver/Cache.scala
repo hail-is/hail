@@ -6,6 +6,9 @@ object Cache extends Command {
 
   def name = "cache"
   def description = "Cache current dataset in memory"
+
+  override def supportsMultiallelic = true
+
   def run(state: State, options: Options): State = {
     state.copy(vds = state.vds.cache())
   }

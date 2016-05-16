@@ -9,7 +9,7 @@ import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 
-object ImportAnnotations extends Command {
+object ImportAnnotations extends ImportCommand {
 
   class Options extends BaseOptions {
     @Argument(usage = "<files...>")
