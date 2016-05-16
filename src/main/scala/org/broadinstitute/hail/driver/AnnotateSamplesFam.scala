@@ -36,7 +36,9 @@ object AnnotateSamplesFam extends Command {
 
   def description = "Annotate samples with .fam file: famID, patID, matID, isMale, and either isCase or qPheno"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

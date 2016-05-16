@@ -28,6 +28,10 @@ object AnnotateVariantsVCF extends Command with VCFImporter {
 
   def description = "Annotate variants with VCF file"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 

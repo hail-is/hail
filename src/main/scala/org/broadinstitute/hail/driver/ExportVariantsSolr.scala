@@ -29,7 +29,9 @@ object ExportVariantsSolr extends Command {
 
   def description = "Export variant information to Solr"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val sc = state.vds.sparkContext

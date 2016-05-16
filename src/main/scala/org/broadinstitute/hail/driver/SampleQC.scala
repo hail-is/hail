@@ -243,6 +243,10 @@ object SampleQC extends Command {
 
   def description = "Compute per-sample QC metrics"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def results(vds: VariantDataset): Map[String, SampleQCCombiner] = {
     vds.sampleIds.iterator
       .zip(

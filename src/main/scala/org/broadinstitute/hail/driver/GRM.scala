@@ -31,7 +31,9 @@ object GRM extends Command {
 
   def description = "Compute the Genetic Relatedness Matrix (GRM)"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def writeFloatLittleEndian(s: DataOutputStream, f: Float) {
     val bits: Int = java.lang.Float.floatToRawIntBits(f)

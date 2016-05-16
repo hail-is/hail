@@ -24,6 +24,10 @@ object AnnotateVariantsVDS extends Command {
 
   def description = "Annotate variants with VDS file"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 

@@ -106,7 +106,9 @@ abstract class SuperCommand extends Command {
     subcommands += split.last -> subcommand
   }
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   override def lookup(args: Array[String]): (Command, Array[String]) = {
     val subArgs = args.dropWhile(_ == "-h")
@@ -150,6 +152,10 @@ abstract class SuperCommand extends Command {
     options
   }
 
+  override def runCommand(state: State, options: Options): State = {
+    run(state, options)
+  }
+
   def run(state: State, options: Options): State = {
     val args = options.arguments.asScala.toArray
 
@@ -179,7 +185,9 @@ abstract class Command {
 
   def hidden: Boolean = false
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic: Boolean
+
+  def requiresVDS: Boolean
 
   def lookup(args: Array[String]): (Command, Array[String]) = (this, args)
 
@@ -211,12 +219,12 @@ abstract class Command {
   }
 
   def runCommand(state: State, options: Options): State = {
-    if (!supportsMultiallelic
-      && state.vds != null
-      && !state.vds.wasSplit)
-      fatal(s"does not support multiallelics.\n  Run `splitmulti' first.")
-
-    run(state, options)
+    if (requiresVDS && state.vds == null)
+      fatal("this module requires a VDS.\n  Provide a VDS through a `read' or `import' command first.")
+    else if (!supportsMultiallelic && !state.vds.wasSplit)
+      fatal("this module does not support multiallelic variants.\n  Please run `splitmulti' first.")
+    else
+      run(state, options)
   }
 
   def run(state: State, args: Array[String] = Array.empty): State =

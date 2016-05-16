@@ -32,7 +32,10 @@ object ExportGenotypes extends Command {
   def name = "exportgenotypes"
 
   def description = "Export list of sample-variant information to tsv"
-  override def supportsMultiallelic = true
+
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

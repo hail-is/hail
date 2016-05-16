@@ -42,6 +42,10 @@ object AnnotateVariantsTable extends Command {
 
   def description = "Annotate variants with TSV file"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def parseColumns(s: String): Array[String] = {
     val split = s.split(",").map(_.trim)
     if (split.length != 4 && split.length != 1)

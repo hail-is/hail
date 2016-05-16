@@ -9,7 +9,9 @@ object Repartition extends Command {
   }
   def newOptions = new Options
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def name = "repartition"
   def description = "Repartition the current dataset"
