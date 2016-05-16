@@ -309,15 +309,15 @@ class RichOrderedSeq[T: Ordering](s: Seq[T]) {
 
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
-  def lineTextFiles(files: Array[String], f: String => Unit = s => (),
+  def textFilesLines(files: Array[String], f: String => Unit = s => (),
     nPartitions: Int = sc.defaultMinPartitions): RDD[Line] = {
     files.foreach(f)
     sc.union(
       files.map(file =>
-        sc.textFile(file, nPartitions).map(l => Line(l, None, file))))
+        sc.textFileLines(file, nPartitions)))
   }
 
-  def lineTextFile(file: String, nPartitions: Int = sc.defaultMinPartitions): RDD[Line] =
+  def textFileLines(file: String, nPartitions: Int = sc.defaultMinPartitions): RDD[Line] =
     sc.textFile(file, nPartitions)
       .map(l => Line(l, None, file))
 }
@@ -762,14 +762,14 @@ object Utils extends Logging {
     System.err.println("hail: error: " + msg)
   }
 
-  def fatal(msg: String): Nothing = {
-
-    throw new FatalException(msg)
+  def fail(msg: String): Nothing = {
+    log.error(msg)
+    System.err.println(msg)
+    sys.exit(1)
   }
 
-  def fail(): Nothing = {
-    assert(false)
-    sys.exit(1)
+  def fatal(msg: String): Nothing = {
+    throw new FatalException(msg)
   }
 
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =

@@ -4,7 +4,7 @@ import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._
 
-object Grep extends MiscCommand {
+object Grep extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-m", aliases = Array("--max-count"), usage = "Stop after <num> matches")
@@ -20,7 +20,9 @@ object Grep extends MiscCommand {
 
   def description = "Grep a big file, like, really fast"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     val sc = state.sc

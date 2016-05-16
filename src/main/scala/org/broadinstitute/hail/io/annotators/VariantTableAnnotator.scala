@@ -94,7 +94,7 @@ object VariantTableAnnotator extends TSVAnnotator {
         }
     }
 
-    val rdd = sc.lineTextFiles(files)
+    val rdd = sc.textFilesLines(files)
         .filter(_.value != header)
         .mapPartitions {
           iter =>

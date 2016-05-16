@@ -9,7 +9,7 @@ import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 
-object ImportAnnotations extends ImportCommand {
+object ImportAnnotations extends Command {
 
   class Options extends BaseOptions {
     @Argument(usage = "<files...>")
@@ -37,6 +37,10 @@ object ImportAnnotations extends ImportCommand {
   def name = "importannotations"
 
   def description = "Import a TSV file containing variants / annotations into a sample-free VDS"
+
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)

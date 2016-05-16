@@ -22,7 +22,9 @@ object AnnotateSamplesExpr extends Command {
 
   def description = "Annotate samples programatically"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

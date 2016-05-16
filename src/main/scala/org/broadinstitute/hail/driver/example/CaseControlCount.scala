@@ -16,7 +16,9 @@ object CaseControlCount extends Command {
 
   def description = "Count number of alternate alleles in cases vs controls"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

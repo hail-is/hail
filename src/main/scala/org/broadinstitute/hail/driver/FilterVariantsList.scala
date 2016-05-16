@@ -28,7 +28,9 @@ object FilterVariantsList extends Command {
 
   def description = "Filter variants in current dataset with a variant list"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
@@ -40,7 +42,7 @@ object FilterVariantsList extends Command {
     val keep = options.keep
 
     val variants: RDD[(Variant, Unit)] =
-      vds.sparkContext.lineTextFile(options.input)
+      vds.sparkContext.textFileLines(options.input)
         .map {
           _.transform { line =>
             val fields = line.value.split(":")

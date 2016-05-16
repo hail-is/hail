@@ -27,7 +27,7 @@ trait VCFImporter {
   }
 }
 
-object ImportVCF extends ImportCommand with VCFImporter {
+object ImportVCF extends Command with VCFImporter {
   def name = "importvcf"
 
   def description = "Load file (.vcf or .vcf.bgz) as the current dataset"
@@ -63,7 +63,9 @@ object ImportVCF extends ImportCommand with VCFImporter {
 
   def newOptions = new Options
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     if (options.input)

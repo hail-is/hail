@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix}
 
-object GenDataset extends ImportCommand {
+object GenDataset extends Command {
 
   class Options extends BaseOptions
 
@@ -13,6 +13,10 @@ object GenDataset extends ImportCommand {
   def description = "Generate random dataset"
 
   override def hidden = true
+
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     state.copy(

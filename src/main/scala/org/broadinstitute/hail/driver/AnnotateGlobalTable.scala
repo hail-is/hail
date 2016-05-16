@@ -35,7 +35,9 @@ object AnnotateGlobalTable extends Command {
 
   def description = "Annotate global table from a text file with multiple columns"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

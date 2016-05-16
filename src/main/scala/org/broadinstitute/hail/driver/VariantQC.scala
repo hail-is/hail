@@ -213,6 +213,10 @@ object VariantQC extends Command {
       .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
         (comb1, comb2) => comb1.merge(comb2))
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
