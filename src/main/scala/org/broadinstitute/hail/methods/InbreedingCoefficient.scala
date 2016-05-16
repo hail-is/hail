@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.variant.Genotype
+import org.broadinstitute.hail.Utils._
 
 class InbreedingCombiner extends Serializable {
   var N = 0.0
@@ -13,7 +14,7 @@ class InbreedingCombiner extends Serializable {
     if (gt.isCalled) {
       N += 1
       E += 1.0 - (2.0*maf*(1.0-maf))
-      //E += 1.0 - ((2.0*maf*(1.0-maf))*2.0*nSamples)/(2.0*nSamples - 1.0)
+
       if (gt.isHomRef || gt.isHomVar)
         O += 1
     }
@@ -28,5 +29,5 @@ class InbreedingCombiner extends Serializable {
     this
   }
 
-  def F: Double = (O - E) / (N - E)
+  def F: Option[Double] = divOption(O - E, N - E)
 }

@@ -78,6 +78,7 @@ object ToplevelCommands {
   register(Repartition)
   register(SampleQC)
   register(PrintSchema)
+  register(ImputeGender)
   register(ShowGlobalAnnotations)
   register(VariantQC)
   register(VEP)
