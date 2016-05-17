@@ -24,7 +24,9 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val tolerance = job.get("tolerance", "0.02").toDouble
 
   val ab = new mutable.ArrayBuilder.ofByte
-  val plArray = new Array[Int](3)
+  val intArray = new Array[Int](3)
+  val dosageArray = Array.fill[Double](3)(0d)
+  val dosageDivisor = 32768
 
   seekToFirstBlockInSplit(split.getStart)
 
@@ -50,8 +52,8 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
       val ref = bfis.readLengthAndString(4)
       val alt = bfis.readLengthAndString(4)
-      val nAlleles = 2 //FIXME: for v1.2 the number of alleles is variable
-      val nGenotypes = triangle(nAlleles)
+      val nAlleles = 2
+      val nGenotypes = 3
 
       val variant = Variant(chr, position, ref, alt)
 
@@ -72,41 +74,47 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
           bfis.readBytes(nRow * 6)
       }
 
-      assert(bytes.length == nRow * 6)
+      assert(bytes.length != nRow * 6)
 
       val bar = new ByteArrayReader(bytes)
-      val b = new GenotypeStreamBuilder(variant, compress = compressGS)
+      val b = new GenotypeStreamBuilder(2, compress = compressGS)
 
-      val genoBuilder = new GenotypeBuilder(variant)
+      val genoBuilder = new GenotypeBuilder(2)
 
       for (i <- 0 until bState.nSamples) {
         genoBuilder.clear()
 
-        val origDosages = (0 until nGenotypes).map{case i => bar.readShort() / 32768.0}.toArray
-        val sumDosages = origDosages.sum
-
-        if (sumDosages == 0.0)
+        intArray(0) = bar.readShort()
+        intArray(1) = bar.readShort()
+        intArray(2) = bar.readShort()
+        val (cp1, cp2, cp3) = (intArray(0), intArray(1), intArray(2))
+        val intSum = intArray.sum
+        val dosageSum = intSum / dosageDivisor.toDouble
+        if (dosageSum == 0.0)
           value.setWarning(dosageNoCall)
-        else if (math.abs(sumDosages - 1.0) > tolerance)
+        else if (1d - dosageSum > tolerance)
           value.setWarning(dosageLessThanTolerance)
+        else if (dosageSum - 1d > tolerance)
+          value.setWarning(dosageGreaterThanTolerance)
         else {
-          val normIntDosages = normalizePPs(origDosages).map(convertProbToInt)
-          val sumIntDosages = normIntDosages.sum
-          assert(sumIntDosages >= 32768 - nGenotypes && sumIntDosages <= 32768 + nGenotypes)
+          intArray(0) = (intArray(0) / dosageSum + .5).toInt
+          intArray(1) = (intArray(1) / dosageSum + .5).toInt
+          intArray(2) = (intArray(2) / dosageSum + .5).toInt
 
-          val maxIntDosage = normIntDosages.max
+          val normalizedSum = intArray.sum
+          assert(normalizedSum > dosageDivisor - 4 && normalizedSum < dosageDivisor + 4)
+          val maxIntDosage = intArray.max
           val gt = {
-            if (maxIntDosage < 16384 && normIntDosages.count(_ == maxIntDosage) != 1) //first comparison for speed to not evaluate count if prob > 0.5
+            if (maxIntDosage < 16384 && intArray.count(_ == maxIntDosage) != 1) //first comparison for speed to not evaluate count if prob > 0.5
               -1
             else
-              normIntDosages.indexOf(maxIntDosage)
+              intArray.indexOf(maxIntDosage)
           }
 
           if (gt >= 0) {
             genoBuilder.setGT(gt)
           }
-
-          genoBuilder.setDosage(normIntDosages)
+          genoBuilder.setDosage(intArray)
         }
 
         b.write(genoBuilder)

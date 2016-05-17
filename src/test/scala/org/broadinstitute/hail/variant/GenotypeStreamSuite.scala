@@ -9,7 +9,7 @@ object GenotypeStreamSuite {
 
   object Spec extends Properties("GenotypeStream") {
     property("iterateBuild") = forAll(VariantSampleMatrix.genVariantGenotypes) { case (v: Variant, it: Iterable[Genotype]) =>
-      val b = new GenotypeStreamBuilder(v)
+      val b = new GenotypeStreamBuilder(v.nAlleles)
       b ++= it
       val gs = b.result()
       val a2 = gs.toArray

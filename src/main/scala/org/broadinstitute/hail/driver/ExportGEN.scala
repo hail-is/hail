@@ -4,7 +4,7 @@ import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr.TStruct
+import org.broadinstitute.hail.expr.TString
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -22,15 +22,22 @@ object ExportGEN extends Command {
 
   def newOptions = new Options
 
-  override def supportsMultiallelic = false
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
+  val emptyDosage = Array(0d, 0d, 0d)
+
+  def formatDosage(d: Double): String = d.formatted("%.4f")
 
   def run(state: State, options: Options): State = {
     val sc = state.sc
     val vds = state.vds
 
-    def writeSampleFile() { //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
-      val header = Array("ID_1 ID_2 missing","0 0 0")
-      writeTable(options.output + ".sample", sc.hadoopConfiguration, header ++ state.vds.sampleIds.map{case s => Array(s, s, "0").mkString(" ")})
+    def writeSampleFile() {
+      //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
+      writeTable(options.output + ".sample", sc.hadoopConfiguration,
+        "ID_1 ID_2 missing" :: "0 0 0" :: vds.sampleIds.map(s => s"$s $s 0").toList)
     }
 
     def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
@@ -47,25 +54,34 @@ object ExportGEN extends Command {
       sb.append(v.alt)
 
       for (gt <- gs) {
-        val dosages = gt.dosage match {
-          case Some(x) => x
-          case None => Array(0.0,0.0,0.0)
-        }
+        val dosages = gt.dosage.getOrElse(ExportGEN.emptyDosage)
         sb += ' '
-        sb.append(dosages.mkString(" "))
+        sb.append(formatDosage(dosages(0)))
+        sb += ' '
+        sb.append(formatDosage(dosages(1)))
+        sb += ' '
+        sb.append(formatDosage(dosages(2)))
       }
     }
 
     def writeGenFile() {
-      val varidSignature = vds.vaSignature.getAsOption[TStruct]("varid")
+      val varidSignature = vds.vaSignature.getOption("varid")
       val varidQuery: Querier = varidSignature match {
-        case Some(_) => vds.queryVA("va.varid")._2
+        case Some(_) => val (t, q) = vds.queryVA("va.varid")
+          t match {
+            case TString => q
+            case _ => a => None
+          }
         case None => a => None
       }
 
-      val rsidSignature = vds.vaSignature.getAsOption[TStruct]("rsid")
+      val rsidSignature = vds.vaSignature.getOption("rsid")
       val rsidQuery: Querier = rsidSignature match {
-        case Some(_) => vds.queryVA("va.rsid")._2
+        case Some(_) => val (t, q) = vds.queryVA("va.rsid")
+          t match {
+            case TString => q
+            case _ => a => None
+          }
         case None => a => None
       }
 
@@ -92,4 +108,3 @@ object ExportGEN extends Command {
     state
   }
 }
-

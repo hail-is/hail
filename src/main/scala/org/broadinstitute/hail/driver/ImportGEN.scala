@@ -36,7 +36,9 @@ object ImportGEN extends Command {
 
   def newOptions = new Options
 
-  override def supportsMultiallelic = false
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     val nPartitions = if (options.nPartitions > 0) Some(options.nPartitions) else None

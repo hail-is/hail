@@ -1010,6 +1010,13 @@ object Utils extends Logging {
       str
   }
 
+  def truncateArray(arr: Array[String], length: Int = 10): Array[String] = {
+    if (arr.length <= length)
+      arr
+    else
+      arr.take(length - 1) :+ "... (remaining elements written to hail.log"
+  }
+
   def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {
     readFile[T](filename, hConf) {
       is =>
@@ -1023,7 +1030,8 @@ object Utils extends Logging {
     }
   }
 
-  def writeTable(filename: String, hConf: hadoop.conf.Configuration,
+  def
+  writeTable(filename: String, hConf: hadoop.conf.Configuration,
     lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>

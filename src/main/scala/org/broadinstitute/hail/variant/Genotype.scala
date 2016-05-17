@@ -413,8 +413,8 @@ object Genotype {
 
   def gtIndex(p: GTPair): Int = gtIndex(p.j, p.k)
 
-  def read(v: Variant, a: ByteIterator): Genotype = {
-    val isBiallelic = v.isBiallelic
+  def read(nAlleles: Int, a: ByteIterator): Genotype = {
+    val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
     val isDosage = flagHasDosage(flags)
@@ -430,7 +430,7 @@ object Genotype {
 
     val ad: Array[Int] =
       if (flagHasAD(flags)) {
-        val ada = new Array[Int](v.nAlleles)
+        val ada = new Array[Int](nAlleles)
         if (flagSimpleAD(flags)) {
           assert(gt >= 0)
           val p = Genotype.gtPair(gt)
@@ -459,7 +459,7 @@ object Genotype {
 
     val pl: Array[Int] =
       if (flagHasPL(flags)) {
-        val pla = new Array[Int](v.nGenotypes)
+        val pla = new Array[Int](triangle(nAlleles))
         if (gt >= 0) {
           var i = 0
           while (i < gt) {
@@ -562,10 +562,10 @@ object Genotype {
   implicit def arbGenotype = Arbitrary(genArb)
 }
 
-class GenotypeBuilder(v: Variant) {
-
-  val isBiallelic = v.isBiallelic
-  val nGenotypes = v.nGenotypes
+class GenotypeBuilder(nAlleles: Int) {
+  require(nAlleles > 0, s"tried to create genotype builder with $nAlleles ${plural(nAlleles, "allele")}")
+  val isBiallelic = nAlleles == 2
+  val nGenotypes = triangle(nAlleles)
 
   var flags: Int = 0
 
@@ -597,8 +597,8 @@ class GenotypeBuilder(v: Variant) {
   }
 
   def setAD(newAD: Array[Int]) {
-    if (newAD.length != v.nAlleles)
-      fatal(s"invalid AD field `${newAD.mkString(",")}': expected ${v.nAlleles} values, but got ${newAD.length}.")
+    if (newAD.length != nAlleles)
+      fatal(s"invalid AD field `${newAD.mkString(",")}': expected $nAlleles values, but got ${newAD.length}.")
     flags = Genotype.flagSetHasAD(flags)
     ad = newAD
   }
@@ -625,7 +625,7 @@ class GenotypeBuilder(v: Variant) {
   }
 
   def setDosage(newDosage: Array[Int]) {
-    require(newDosage.length == v.nGenotypes)
+    require(newDosage.length == nGenotypes)
     flags = Genotype.flagSetHasPL(flags)
     flags = Genotype.flagSetHasDosage(flags)
     pl = newDosage

@@ -21,6 +21,11 @@ object IndexBGEN extends Command {
 
   def newOptions = new Options
 
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
+
+
   def run(state: State, options: Options): State = {
 
     val inputs = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
