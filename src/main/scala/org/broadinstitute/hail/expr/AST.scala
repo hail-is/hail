@@ -998,6 +998,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TIterable, "toSet") => TSet(t.elementType)
       case (TArray(elementType: TNumeric), "sum" | "min" | "max") => elementType
       case (TSet(elementType: TNumeric), "sum" | "min" | "max") => elementType
+      case (TArray(elementType), "head") => elementType
+      case (t@TArray(elementType), "tail") => t
 
       case (t, _) =>
         parseError(s"`$t' has no field `$rhs'")
@@ -1180,6 +1182,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
     case (TSet(TDouble), "max") =>
       AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
+
+    case (TArray(elementType), "head") =>
+      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.head)
+    case (t@TArray(elementType), "tail") =>
+      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
   }
 }
 
@@ -1231,7 +1238,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("json", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(c)
-      () => t.makeJSON(f())
+      () => compact(t.makeJSON(f()))
   }
 }
 

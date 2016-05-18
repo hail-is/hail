@@ -50,6 +50,14 @@ object Annotation {
       case (JDouble(x), TFloat) => x.toFloat
       case (JString(x), TString) => x
       case (JString(x), TChar) => x
+      case (JString(x), TInt) =>
+        try {
+          x.toInt
+        } catch {
+          case e: java.lang.NumberFormatException =>
+            warn(s"Can't convert json value $jv to signature $t for $parent.")
+            null
+        }
       case (JString(x), TDouble) =>
         if (x.startsWith("-:"))
           x.drop(2).toDouble
