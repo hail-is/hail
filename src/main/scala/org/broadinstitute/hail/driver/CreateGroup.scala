@@ -51,6 +51,8 @@ object CreateGroup extends Command {
 
   def description = "create groups for burden tests"
 
+  def requiresVDS = true
+
   override def supportsMultiallelic = true
 
   def run(state: State, options: Options): State = {
