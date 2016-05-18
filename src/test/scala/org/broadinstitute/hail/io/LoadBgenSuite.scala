@@ -169,7 +169,8 @@ class LoadBgenSuite extends SparkSuite {
               if (gt1.isDefined && gt2.isDefined) {
                 val gt1x = gt1.get
                 val gt2x = gt2.get
-                if (gt1x.dosage.get.zip(gt2x.dosage.get).forall { case (d1, d2) => math.abs(d1 - d2) <= 3.0e-4 }) {
+                if (gt1x.dosage.zip(gt2x.dosage).map { case (d1, d2) => d1.zip(d2) }
+                  .exists(_.forall { case (d1, d2) => math.abs(d1 - d2) <= 3.0e-4 })) {
                   println(s"WARN Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
                   true
                 } else {

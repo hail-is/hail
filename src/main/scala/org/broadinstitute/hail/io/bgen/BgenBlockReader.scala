@@ -27,6 +27,8 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val intArray = new Array[Int](3)
   val dosageArray = Array.fill[Double](3)(0d)
   val dosageDivisor = 32768
+  val genoBuilder = new GenotypeBuilder(2)
+  val b = new GenotypeStreamBuilder(2, compress = compressGS)
 
   seekToFirstBlockInSplit(split.getStart)
 
@@ -65,7 +67,6 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
           val compressedBytes = bfis.readInt()
           val inflater = new Inflater
           inflater.setInput(bfis.readBytes(compressedBytes))
-          var decompressed = 0
           while (!inflater.finished()) {
             inflater.inflate(expansion)
           }
@@ -74,12 +75,10 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
           bfis.readBytes(nRow * 6)
       }
 
-      assert(bytes.length != nRow * 6)
+      assert(bytes.length == nRow * 6)
 
+      b.clear()
       val bar = new ByteArrayReader(bytes)
-      val b = new GenotypeStreamBuilder(2, compress = compressGS)
-
-      val genoBuilder = new GenotypeBuilder(2)
 
       for (i <- 0 until bState.nSamples) {
         genoBuilder.clear()
@@ -105,7 +104,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
           assert(normalizedSum > dosageDivisor - 4 && normalizedSum < dosageDivisor + 4)
           val maxIntDosage = intArray.max
           val gt = {
-            if (maxIntDosage < 16384 && intArray.count(_ == maxIntDosage) != 1) //first comparison for speed to not evaluate count if prob > 0.5
+            if (maxIntDosage < 16384 && intArray.count(_ == maxIntDosage) != 1)
               -1
             else
               intArray.indexOf(maxIntDosage)

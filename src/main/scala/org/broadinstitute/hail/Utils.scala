@@ -1210,4 +1210,16 @@ object Utils extends Logging {
   def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
 
   def uriPath(uri: String): String = new URI(uri).getPath
+
+  class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
+    private def writeObject(out: ObjectOutputStream) {
+      out.defaultWriteObject()
+      value.write(out)
+    }
+
+    private def readObject(in: ObjectInputStream) {
+      value = new hadoop.conf.Configuration(false)
+      value.readFields(in)
+    }
+  }
 }

@@ -48,7 +48,7 @@ Flag | Description | Default
 ### Importing VCF files with the importvcf command
 
  - Ensure that the VCF file is correctly prepared for import:
-    - VCFs should be either uncompressed (".vcf") or block-compressed (".vcf.bgz").  If you have a large compressed VCF that ends in ".vcf.gz", it is likely that the file is actually block-compressed, and you should rename the file to ".vcf.bgz" accordingly.  If you actually have a standard gzipped file, it is possible to import it to hail using the `-f` option.  However, this is not recommended -- all parsing will have to take place on one node, because gzip decompression is not parallelizable.  In this case, import could take significantly magnitude longer.
+    - VCFs should be either uncompressed (".vcf") or block-compressed (".vcf.bgz").  If you have a large compressed VCF that ends in ".vcf.gz", it is likely that the file is actually block-compressed, and you should rename the file to ".vcf.bgz" accordingly.  If you actually have a standard gzipped file, it is possible to import it to hail using the `-f` option.  However, this is not recommended -- all parsing will have to take place on one node, because gzip decompression is not parallelizable.  In this case, import could take *significantly* longer.
     - VCFs should reside to the hadoop file system
  
  - Run a hail command with `importvcf`.  The below command will read a .vcf.bgz file and write to a .vds file (Hail's preferred format). 

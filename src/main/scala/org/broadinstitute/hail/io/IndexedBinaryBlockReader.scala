@@ -36,11 +36,11 @@ class VariantRecord[K] extends Serializable {
   def getWarnings = warnings
 
   def setWarning(idx: Int) {
-    this.warnings(idx) = this.warnings.getOrElseUpdate(idx, 0) + 1
+    warnings(idx) = this.warnings.getOrElseUpdate(idx, 0) + 1
   }
 
   def resetWarnings() {
-    this.warnings = mutable.Map.empty[Int, Int]
+    warnings = mutable.Map.empty[Int, Int]
   }
 }
 

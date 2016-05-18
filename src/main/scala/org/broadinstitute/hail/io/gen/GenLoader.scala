@@ -15,9 +15,9 @@ import scala.collection.mutable.ArrayBuffer
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, Annotation, Iterable[Genotype])])
 
 object GenReport {
-  val dosageNoCall = 0
-  val dosageLessThanTolerance = 1
-  val dosageGreaterThanTolerance = 2
+  final val dosageNoCall = 0
+  final val dosageLessThanTolerance = 1
+  final val dosageGreaterThanTolerance = 2
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 

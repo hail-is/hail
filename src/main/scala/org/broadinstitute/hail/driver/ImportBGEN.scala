@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
