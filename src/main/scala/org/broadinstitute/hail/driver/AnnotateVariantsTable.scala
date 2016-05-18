@@ -42,6 +42,10 @@ object AnnotateVariantsTable extends Command {
 
   def description = "Annotate variants with TSV file"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def parseColumns(s: String): Array[String] = {
     val split = s.split(",").map(_.trim)
     if (split.length != 4 && split.length != 1)
@@ -61,8 +65,10 @@ object AnnotateVariantsTable extends Command {
       parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
       options.missingIdentifier, options.delimiter)
-    val annotated = vds.annotateVariants(rdd, signature,
-      Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
+    val annotated = vds
+      .withGenotypeStream()
+      .annotateVariants(rdd, signature,
+        Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
 
     state.copy(vds = annotated)
   }

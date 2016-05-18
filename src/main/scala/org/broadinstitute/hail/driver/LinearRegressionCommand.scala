@@ -26,6 +26,10 @@ object LinearRegressionCommand extends Command {
 
   def newOptions = new Options
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 

@@ -18,7 +18,9 @@ object RenameSamples extends Command {
 
   def description = "Rename samples"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val m = readFile(options.input, state.hadoopConf) { s =>

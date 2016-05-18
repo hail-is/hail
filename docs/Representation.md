@@ -105,6 +105,7 @@ Identifier | Type | Description
 `g.dp`             | `Int`     | the total number of informative reads
 `g.od`             | `Int`     | `od = dp - ad.sum`
 `g.gq`             | `Int`     | the difference between the two smallest PL entries
+`g.pl`          | `Array[Int]` | phred-scaled normalized genotype likelihood values
 `g.isHomRef`       | `Boolean` | true if this call is `0/0`
 `g.isHet`          | `Boolean` | true if this call is heterozygous
 `g.isHetRef`       | `Boolean` | true if this call is `0/k` with `k>0`
