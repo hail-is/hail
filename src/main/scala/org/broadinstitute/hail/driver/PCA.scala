@@ -30,6 +30,10 @@ object PCA extends Command {
 
   def newOptions = new Options
 
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
 
     val vds = state.vds

@@ -21,6 +21,10 @@ object ExportPlink extends Command {
 
   def description = "Write current dataset as .bed/.bim/.fam"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 

@@ -11,8 +11,6 @@ object SplitMulti extends Command {
 
   def description = "Split multi-allelic sites in the current dataset"
 
-  override def supportsMultiallelic = true
-
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "--propagate-gq", usage = "Propagate GQ instead of computing from PL")
     var propagateGQ: Boolean = false
@@ -23,6 +21,10 @@ object SplitMulti extends Command {
   }
 
   def newOptions = new Options
+
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def splitGT(gt: Int, i: Int): Int = {
     val p = Genotype.gtPair(gt)
@@ -136,6 +138,10 @@ object SplitMulti extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+    if (vds.wasSplit) {
+      warn("called redundant `splitmulti' on an already split VDS")
+      return state
+    }
 
     val propagateGQ = options.propagateGQ
     val noCompress = options.noCompress

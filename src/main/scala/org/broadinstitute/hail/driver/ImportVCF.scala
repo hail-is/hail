@@ -63,7 +63,9 @@ object ImportVCF extends Command with VCFImporter {
 
   def newOptions = new Options
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     if (options.input)
