@@ -24,8 +24,8 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val tolerance = job.get("tolerance", "0.02").toDouble
 
   val ab = new mutable.ArrayBuilder.ofByte
-  val intArray = new Array[Int](3)
-  val dosageArray = Array.fill[Double](3)(0d)
+  val bgenIntArray = new Array[Int](3)
+  val dosageArray = new Array[Int](3)
   val dosageDivisor = 32768
   val genoBuilder = new GenotypeBuilder(2)
   val b = new GenotypeStreamBuilder(2, compress = compressGS)
@@ -83,11 +83,11 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       for (i <- 0 until bState.nSamples) {
         genoBuilder.clear()
 
-        intArray(0) = bar.readShort()
-        intArray(1) = bar.readShort()
-        intArray(2) = bar.readShort()
-        val (cp1, cp2, cp3) = (intArray(0), intArray(1), intArray(2))
-        val intSum = intArray.sum
+        bgenIntArray(0) = bar.readShort()
+        bgenIntArray(1) = bar.readShort()
+        bgenIntArray(2) = bar.readShort()
+        val (cp1, cp2, cp3) = (bgenIntArray(0), bgenIntArray(1), bgenIntArray(2))
+        val intSum = bgenIntArray.sum
         val dosageSum = intSum / dosageDivisor.toDouble
         if (dosageSum == 0.0)
           value.setWarning(dosageNoCall)
@@ -96,24 +96,24 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
         else if (dosageSum - 1d > tolerance)
           value.setWarning(dosageGreaterThanTolerance)
         else {
-          intArray(0) = (intArray(0) / dosageSum + .5).toInt
-          intArray(1) = (intArray(1) / dosageSum + .5).toInt
-          intArray(2) = (intArray(2) / dosageSum + .5).toInt
+          dosageArray(0) = (bgenIntArray(0) / dosageSum + .5).toInt
+          dosageArray(1) = (bgenIntArray(1) / dosageSum + .5).toInt
+          dosageArray(2) = (bgenIntArray(2) / dosageSum + .5).toInt
 
-          val normalizedSum = intArray.sum
+          val normalizedSum = dosageArray.sum
           assert(normalizedSum > dosageDivisor - 4 && normalizedSum < dosageDivisor + 4)
-          val maxIntDosage = intArray.max
+          val maxIntDosage = dosageArray.max
           val gt = {
-            if (maxIntDosage < 16384 && intArray.count(_ == maxIntDosage) != 1)
+            if (maxIntDosage < 16384 && dosageArray.count(_ == maxIntDosage) != 1)
               -1
             else
-              intArray.indexOf(maxIntDosage)
+              dosageArray.indexOf(maxIntDosage)
           }
 
           if (gt >= 0) {
             genoBuilder.setGT(gt)
           }
-          genoBuilder.setDosage(intArray)
+          genoBuilder.setDosage(dosageArray)
         }
 
         b.write(genoBuilder)
