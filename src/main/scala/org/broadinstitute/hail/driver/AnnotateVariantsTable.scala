@@ -65,8 +65,10 @@ object AnnotateVariantsTable extends Command {
       parseColumns(options.vCols),
       Parser.parseAnnotationTypes(options.types),
       options.missingIdentifier, options.delimiter)
-    val annotated = vds.annotateVariants(rdd, signature,
-      Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
+    val annotated = vds
+      .withGenotypeStream()
+      .annotateVariants(rdd, signature,
+        Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
 
     state.copy(vds = annotated)
   }

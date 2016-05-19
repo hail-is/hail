@@ -38,8 +38,10 @@ object AnnotateVariantsVDS extends Command {
     if (!readOtherVds.wasSplit)
       fatal("cannot annotate from a multiallelic VDS, run `splitmulti' on that VDS first.")
 
-    val annotated = vds.annotateVariants(readOtherVds.variantsAndAnnotations,
-      readOtherVds.vaSignature, Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
+    val annotated = vds
+      .withGenotypeStream()
+      .annotateVariants(readOtherVds.variantsAndAnnotations,
+        readOtherVds.vaSignature, Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
     state.copy(vds = annotated)
   }
 }

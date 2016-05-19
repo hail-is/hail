@@ -7,7 +7,6 @@ import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-
 object FilterVariantsList extends Command {
 
   class Options extends BaseOptions {
@@ -56,17 +55,18 @@ object FilterVariantsList extends Command {
           }
         }
 
+    val in = vds.rdd
+      .map { case (v, va, gs) => (v, (va, gs.toGenotypeStream(v, compress = false))) }
+
     state.copy(
       vds = vds.copy(
         rdd =
           if (keep)
-            vds.rdd
-              .map { case (v, va, gs) => (v, (va, gs)) }
+            in
               .join(variants)
               .map { case (v, ((va, gs), _)) => (v, va, gs) }
           else
-            vds.rdd
-              .map { case (v, va, gs) => (v, (va, gs)) }
+            in
               .leftOuterJoin(variants)
               .flatMap {
                 case (v, ((va, gs), Some(_))) =>
