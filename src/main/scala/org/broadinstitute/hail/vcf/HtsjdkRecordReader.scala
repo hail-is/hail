@@ -76,11 +76,11 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     if (skipGenotypes)
       return (v, va, Iterable.empty)
 
-    val gb = new GenotypeBuilder(v)
+    val gb = new GenotypeBuilder(v.nAlleles)
 
     // FIXME compress
     val noCall = Genotype()
-    val gsb = new GenotypeStreamBuilder(v, compress)
+    val gsb = new GenotypeStreamBuilder(v.nAlleles, compress)
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala

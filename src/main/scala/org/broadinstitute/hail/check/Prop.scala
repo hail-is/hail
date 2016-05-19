@@ -44,7 +44,7 @@ class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {
       val r = f(v1)
       if (!r) {
         println(s"""! ${prefix}Falsified after $i passed tests.""")
-        println("> ARG_0: $v1")
+        println(s"> ARG_0: $v1")
         assert(r)
       }
     }

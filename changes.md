@@ -1,3 +1,11 @@
+ - Import from PLINK binary files (must be in SNP-major mode), GEN files, and BGEN files [see docs for details](docs/Importing.md)
+ 
+ - Export to GEN file [see docs for details](docs/ExportGEN.md)
+ 
+ - `variantqc` calculates the IMPUTE info score; accessed with `va.qc.infoScore` 
+
+____
+
  - Fixed some bad error messages, now errors will write a full stacktrace in the `hail.log`
 
 ____

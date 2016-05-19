@@ -1,16 +1,15 @@
 package org.broadinstitute.hail.io.compress
 
-import java.io.{FileWriter, File}
+import java.io.File
 import java.net.URI
-import java.nio.file.{Paths, Files}
+import java.nio.file.{Files, Paths}
 
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.{Path, FileSystem}
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec.READ_MODE
 import org.broadinstitute.hail.SparkSuite
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-import org.apache.hadoop.conf.Configuration
 
 import scala.collection.mutable
 import scala.util.Random

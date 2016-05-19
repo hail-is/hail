@@ -794,6 +794,12 @@ object Utils extends Logging {
       is
   }
 
+  def hadoopGetFileSize(filename: String, hConf: hadoop.conf.Configuration): Long = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    fs.getFileStatus(hPath).getLen
+  }
+
   def hadoopExists(hConf: hadoop.conf.Configuration, files: String*): Boolean = {
     files.forall(filename => hadoopFS(filename, hConf).exists(new hadoop.fs.Path(filename)))
   }
@@ -1004,6 +1010,13 @@ object Utils extends Logging {
       str
   }
 
+  def truncateArray(arr: Array[String], length: Int = 10): Array[String] = {
+    if (arr.length <= length)
+      arr
+    else
+      arr.take(length - 1) :+ "... (remaining elements written to hail.log"
+  }
+
   def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {
     readFile[T](filename, hConf) {
       is =>
@@ -1017,7 +1030,8 @@ object Utils extends Logging {
     }
   }
 
-  def writeTable(filename: String, hConf: hadoop.conf.Configuration,
+  def
+  writeTable(filename: String, hConf: hadoop.conf.Configuration,
     lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename, hConf) {
       fw =>
@@ -1196,4 +1210,16 @@ object Utils extends Logging {
   def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
 
   def uriPath(uri: String): String = new URI(uri).getPath
+
+  class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
+    private def writeObject(out: ObjectOutputStream) {
+      out.defaultWriteObject()
+      value.write(out)
+    }
+
+    private def readObject(in: ObjectInputStream) {
+      value = new hadoop.conf.Configuration(false)
+      value.readFields(in)
+    }
+  }
 }

@@ -1,41 +1,193 @@
-# Importing
+# Importing Data
 
-Hail does not operate directly on VCF files.  Hail uses a fast and storage-efficient internal representation called a VDS (variant dataset).  In order to use Hail for data analysis, data must first be imported to the VDS format.  This is done with the `importvcf` command.  Hail is designed to be maximally compatible with files in the [VCF v4.2 spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf).
+Hail does not operate directly on input files.  Hail uses a fast and storage-efficient internal representation called a VDS (variant dataset).  In order to use Hail for data analysis, data must first be imported to the VDS format using one of the following commands:
 
-Command line options:
- - `-d | --no-compress` -- Do not compress VDS.  Not recommended.
- - `-f | --force` -- Force load `.gz` file.  Not recommended (see below).
- - `--header-file <file>` -- File to load VCF header from.  By default, `importvcf` reads the header from the first file listed.
- - `-n <N> | --npartitions <N>` -- Number of partitions, advanced user option.
- - `--store-gq` -- Store GQ rather than computing it from PL.  Intended for use with the Michigan GotCloud calling pipeline which stores PLs but sets the GQ to the quality of the posterior probabilities.  Disables the GQ representation checks (GQ present iff PL present, GQ the difference of two smallest PL entries).  This option is experimental and will be removed when Hail supports posterior probabilities (PP).
- - `--pp-as-pl` -- Take the genotype PP field instead of PL as Hail PLs.  _Note: Experimental, probably slow._
+**Data Types:**
 
-`importvcf` takes a list of VCF files to load.  All files must have the same header and the same set of samples in the same order (e.g., a dataset split by chromosome).  Files can be specified as Hadoop glob patterns:
- - `?` -- Matches any single character.
- - `*` -- Matches zero or more characters.
- - `[abc]` -- Matches a single character from character set {a,b,c}.
- - `[a-b]` -- Matches a single character from the character range {a...b}. Note that character a must be lexicographically less than or equal to character b.
- - `[^a]` -- Matches a single character that is not from character set or range {a}. Note that the ^ character must occur immediately to the right of the opening bracket.
- - `\c` -- Removes (escapes) any special meaning of character c.
- - `{ab,cd}` -- Matches a string from the string set {ab, cd}.
- - `{ab,c{de,fh}}` -- Matches a string from the string set {ab, cde, cfh}.
+Command | Extensions | File Spec
+--- | :-: | ---
+[`importvcf`](#vcffiles)             | .vcf .vcf.bgz .vcf.gz     | [VCF file](https://samtools.github.io/hts-specs/VCFv4.2.pdf)
+[`importplink`](#plinkfiles)          | .bed .bim .fam | [PLINK binary dataset](http://pngu.mgh.harvard.edu/~purcell/plink/data.shtml#bed)
+[`importgen`](#genfiles)             | .gen .sample     | [GEN file](http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300)
+[`importbgen`](#bgenfiles)             | .bgen .sample     | [BGEN file](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.1.html)
 
-## Importing VCF files with the `importvcf` command
+<a name="hadoopglob"></a>
+All of these commands take a list of  files to load.  All files must have the same header (VCF files) and the same set of samples in the same order (e.g., a dataset split by chromosome).  Files can be specified as Hadoop glob patterns:
+
+Character | Description
+--- | :-: | ---
+`?` | Matches any single character.
+`*` | Matches zero or more characters.
+`[abc]` | Matches a single character from character set {a,b,c}.
+`[a-b]` | Matches a single character from the character range {a...b}. Note that character a must be lexicographically less than or equal to character b.
+`[^a]`  | Matches a single character that is not from character set or range {a}. Note that the ^ character must occur immediately to the right of the opening bracket.
+`\c`  | Removes (escapes) any special meaning of character c.
+`{ab,cd}` | Matches a string from the string set {ab, cd}.
+`{ab,c{de,fh}}` | Matches a string from the string set {ab, cde, cfh}.
+
+It is possible to import and operate directly on an input file without first doing an import/write step, but this will greatly increase compute time if multiple commands are run (it is significantly faster to read a vds than import a file).
+
+<a name="vcffiles"></a>
+## VCF Files
+
+ * Hail is designed to be maximally compatible with files in the [VCF v4.2 spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf).
+ * Hail makes certain assumptions about the genotype fields, see [Representation](https://github.com/broadinstitute/hail/blob/master/docs/Representation.md).  On import, Hail filters (sets to no-call) any genotype that violates these assumptions.  
+ * Hail interpets the format fields: GT, AD, OD, DP, GQ, PL; all others are silently dropped.
+
+### Command line options:
+
+Flag | Description | Default
+--- | :-: | ---
+`-d | --no-compress` | Do not compress VDS. | False (Not recommended)
+`-f | --force` | Force load `.gz` file.  | False (Not recommended -- see below).
+`--header-file <file>` | File to load VCF header from | `importvcf` reads the header from the first file listed.
+`-n <N> | --npartitions <N>` | Number of partitions | Advanced user option.
+`--store-gq` | Store GQ rather than computing it from PL |  Intended for use with the Michigan GotCloud calling pipeline which stores PLs but sets the GQ to the quality of the posterior probabilities.  Disables the GQ representation checks (GQ present iff PL present, GQ the difference of two smallest PL entries).  This option is experimental and will be removed when Hail supports posterior probabilities (PP).
+`--pp-as-pl` | Take the genotype PP field instead of PL as Hail PLs. | Experimental, probably slow.
+
+### Importing VCF files with the importvcf command
 
  - Ensure that the VCF file is correctly prepared for import:
-   - VCFs should be either uncompressed (".vcf") or block-compressed (".vcf.bgz").  If you have a large compressed VCF that ends in ".vcf.gz", it is likely that the file is actually block-compressed, and you should rename the file to ".vcf.bgz" accordingly.  If you actually have a standard gzipped file, it is possible to import it to hail using the `-f` option.  However, this is not recommended -- all parsing will have to take place on one node, because gzip decompression is not parallelizable.  In this case, import could take significantly magnitude longer.
-   - VCFs should reside to the hadoop file system
- - Run a hail command with `importvcf`.  The below command will read a .vcf.bgz file and write to a .vds file (Hail's preferred format).  It is possible to import and operate directly on a VCF file without first doing an import/write step, but this will greatly increase compute time if multiple commands are run (it is significantly faster to read a vds than import a vcf).
+    - VCFs should be either uncompressed (".vcf") or block-compressed (".vcf.bgz").  If you have a large compressed VCF that ends in ".vcf.gz", it is likely that the file is actually block-compressed, and you should rename the file to ".vcf.bgz" accordingly.  If you actually have a standard gzipped file, it is possible to import it to hail using the `-f` option.  However, this is not recommended -- all parsing will have to take place on one node, because gzip decompression is not parallelizable.  In this case, import could take *significantly* longer.
+    - VCFs should reside to the hadoop file system
+ 
+ - Run a hail command with `importvcf`.  The below command will read a .vcf.bgz file and write to a .vds file (Hail's preferred format). 
 ``` 
 $ hail importvcf /path/to/file.vcf.bgz write -o /path/to/output.vds
 ```
+ 
  - Hail makes certain assumptions about the genotype fields, see [Representation](https://github.com/broadinstitute/hail/blob/master/docs/Representation.md).  On import, Hail filters (sets to no-call) any genotype that violates these assumptions.  Hail interpets the format fields: GT, AD, OD, DP, GQ, PL; all others are silently dropped.
 
 <a name="annotations"></a>
-## Annotations generated by `importvcf`
+### Annotations generated by importvcf
+Name | Type | Description
+--- | :-: | ---
+`va.pass` |          `Boolean` | true if the variant contains `PASS` in the filter field (false if `.` or other)
+`va.filters`|   `Set[String]` | set containing the list of filters applied to a variant.  Accessible using `va.filters.contains("VQSRTranche99.5...")`, for example
+`va.rsid`|          `String` | rsid of the variant, if it has one ("." otherwise)
+`va.qual`|           `Double` | the number in the qual field
+`va.info.<field>` |        `T` | matches (with proper capitalization) any defined info field.  Data types match the type specified in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array (accessed with array\[index\]).
 
- - `va.pass:          Boolean` -- true if the variant contains `PASS` in the filter field (false if `.` or other)
- - `va.filters:   Set[String]` -- set containing the list of filters applied to a variant.  Accessible using `va.filters.contains("VQSRTranche99.5...")`, for example
- - `va.rsid:           String` -- rsid of the variant, if it has one ("." otherwise)
- - `va.qual:           Double` -- the number in the qual field
- - `va.info.<field>:        T` -- matches (with proper capitalization) any defined info field.  Data types match the type specified in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array (accessed with array\[index\]).
+<a name="plinkfiles"></a>
+## PLINK Binary Files
+
+Only SNP-major mode files can be read into Hail. To convert your file from Individual-major mode to SNP-major mode, use PLINK to read in your fileset and use the `--make-bed` option.
+
+### Command line options:
+Flag | Description
+--- | :-: | ---
+`--bfile <file base>` | Path of input file base. Will expect `<file base>.bed`, `<file base>.bim`, `<file base>.fam` all exist
+`--bed <bed file>` | Path of input .bed file 
+`--bim <bim file>` | Path of input .bim file 
+`--fam <fam file>` | Path of input .fam file 
+`-d | --no-compress` | Do not compress VDS. Not recommended.
+`-n <N> | --npartitions <N>` | Number of partitions. Advanced user option.
+
+ You must use `--bfile` only, or all three of `--bed`, `--bim`, and `--fam`.
+
+### Importing PLINK files with the importplink command
+
+Example `importplink` command and writing to a VDS file:
+```
+hail importplink --bfile /path/to/myfileroot write -o /path/to/myfile.vds
+```
+or
+```
+hail importplink --bed /path/to/myfileroot.bed --bim /path/to/myfileroot.bim --fam /path/to/myfileroot.fam write -o /path/to/myfile.vds
+```
+
+### Assumptions:
+ - The centiMorgan position is not currently used in Hail (Column 3 in .bim file).
+ - The ID (`s.id`) used by Hail is the individual ID (column 2 in .fam file).
+ - No duplicate individual IDs are allowed.
+
+
+<a name="genfiles"></a>
+## GEN Files
+
+### Command line options:
+Flag | Description
+--- | :-: | ---
+`-d | --no-compress` | Do not compress VDS.  Not recommended.
+`-n <N> | --npartitions <N>` | Number of partitions, advanced user option.
+`-t <Double> | --tolerance <Double>` | Given a tolerance of T and the sum of the 3 genotype probabilities equal to X, genotypes with abs(X - 1.0) > T will be filtered out. **\[Default = 0.02\]**.
+`-c | --chromosome` | Chromosome of the GEN file. If no chromosome is given in the GEN file (1st column), then this argument is required.
+`-s <file> | --samplefile <file>` | **\[Required\]** File with sample IDs and phenotypes. See the spec [here](http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#Sample_File_Format_).
+
+
+### Importing GEN files with the importgen command
+
+ - Ensure that the GEN file(s) and Sample File are correctly prepared for import:
+    - Files should reside in the hadoop file system
+    - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the `-c` or `--chromosome` option
+    - No duplicate sample IDs are allowed
+ 
+ - Run a hail command with `importgen`.  The below command will read a .gen and a .sample file and write to a .vds file (Hail's preferred format).
+``` 
+$ hail importgen -s /path/to/file.sample /path/to/file.gen write -o /path/to/output.vds
+```
+ 
+ - To load multiple files at the same time, use [Hadoop glob patterns](#hadoopglob):
+``` 
+$ hail importgen -s /path/to/file.sample /path/to/file.chr*.gen write -o /path/to/output.vds
+```
+ 
+ - The sample id `s.id` used is the first column in the .sample file
+ 
+### Dosage representation
+ - Hail automatically filters out any genotypes where the absolute value of the sum of the dosages is greater than a certain tolerance (specified by `-t` or `--tolerance`) from 1.0. The default value is 0.02.
+ - Hail normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+ - Hail will give slightly different results than the original data (maximum difference observed is 3E-4). 
+
+### Annotations generated by importgen
+Name | Type | Description
+--- | :-: | ---
+`va.varid` |   `String` | if a chromosome field is present, the 2nd column of the .gen file (otherwise, the 1st column of the .gen file)
+`va.rsid`  |        `String` | if a chromosome field is present, the 3rd column of the .gen file (otherwise, the 2nd column of the .gen file)
+ 
+<a name="bgenfiles"></a>
+## BGEN Files
+
+**Only v1.1 BGEN files are supported at this time**
+
+### Command line options:
+Flag | Description
+--- | :-: | ---
+`-d | --no-compress` | Do not compress VDS.  Not recommended.
+`-n <N> | --npartitions <N>` | Number of partitions, advanced user option.
+`-t <Double> | --tolerance <Double>` | Given a tolerance of T and the sum of the 3 genotype probabilities equal to X, genotypes with abs(X - 1.0) > T will be filtered out. **\[Default = 0.02\]**.
+`-s <file> | --samplefile <file>` | **\[Required\]** File with sample IDs and phenotypes. See the spec [here](http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#Sample_File_Format_).
+
+
+### Importing BGEN files with the indexbgen and importbgen commands
+
+ - Ensure that the BGEN file(s) and Sample File are correctly prepared for import:
+    - Files should reside in the hadoop file system
+    - The sample file should have the same number of samples as the BGEN file
+    - No duplicate sample IDs are allowed
+    
+ - Run a hail command first with `indexbgen` and then with `importbgen`.  The below command will first create an index for the .bgen file, then read the .bgen and a .sample files, and lastly write to a .vds file (Hail's preferred format).
+``` 
+$ hail indexbgen /path/to/file.bgen
+$ hail importbgen -s /path/to/file.sample /path/to/file.bgen write -o /path/to/output.vds
+```
+ 
+ - To load multiple files at the same time, use [Hadoop glob patterns](#hadoopglob):
+``` 
+$ hail indexbgen /path/to/file.chr*.bgen
+$ hail importbgen -s /path/to/file.sample /path/to/file.chr*.bgen write -o /path/to/output.vds
+```
+ 
+ - The sample id `s.id` used is the first column in the .sample file
+  
+### Dosage representation
+ - Hail automatically filters out any genotypes where the absolute value of the sum of the dosages is greater than a certain tolerance (specified by `-t` or `--tolerance`) from 1.0. The default value is 0.02.
+ - Hail normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+ - Hail will give slightly different results than the original data (maximum difference observed is 3E-4). 
+
+ 
+### Annotations generated by importbgen
+Name | Type | Description
+--- | :-: | ---
+`va.varid` |   `String` | if a chromosome field is present, the 2nd column of the .gen file (otherwise, the 1st column of the .gen file)
+`va.rsid`  |        `String` | if a chromosome field is present, the 3rd column of the .gen file (otherwise, the 2nd column of the .gen file)

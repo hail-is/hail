@@ -6,7 +6,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TInt
-import org.broadinstitute.hail.io.annotators.SampleFamAnnotator
+import org.broadinstitute.hail.io.plink.PlinkLoader
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
@@ -50,8 +50,8 @@ class ImportAnnotationsSuite extends SparkSuite {
   }
 
   @Test def testSampleFamAnnotator() {
-    def assertNumeric(s: String) = assert(SampleFamAnnotator.numericRegex.findFirstIn(s).isDefined)
-    def assertNonNumeric(s: String) = assert(SampleFamAnnotator.numericRegex.findFirstIn(s).isEmpty)
+    def assertNumeric(s: String) = assert(PlinkLoader.numericRegex.findFirstIn(s).isDefined)
+    def assertNonNumeric(s: String) = assert(PlinkLoader.numericRegex.findFirstIn(s).isEmpty)
 
     List("0", "0.0", ".0", "-01", "1e5", "1e10", "1.1e10", ".1E-10").foreach(assertNumeric)
     List("", "a", "1.", ".1.", "1e", "e", "E0", "1e1.", "1e.1", "1e1.1").foreach(assertNonNumeric)

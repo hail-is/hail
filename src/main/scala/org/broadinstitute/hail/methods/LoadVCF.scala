@@ -84,6 +84,7 @@ object VCFReport {
   }
 }
 
+
 object LoadVCF {
   def lineRef(s: String): String = {
     var i = 0

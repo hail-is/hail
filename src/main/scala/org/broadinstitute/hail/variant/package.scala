@@ -12,7 +12,7 @@ package object variant {
       it match {
         case gs: GenotypeStream => gs
         case _ =>
-          val b: GenotypeStreamBuilder = new GenotypeStreamBuilder(v, compress = compress)
+          val b: GenotypeStreamBuilder = new GenotypeStreamBuilder(v.nAlleles, compress = compress)
           b ++= it
           b.result()
       }

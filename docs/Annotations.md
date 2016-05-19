@@ -74,7 +74,7 @@ Identifier | Type | Description
 `dpStDev` | `Double` | Depth standard deviation across all samples
 `gqMean` | `Double` | GQ mean across all samples
 `gqStDev` | `Double` | GQ standard deviation across all samples
- 
+`infoScore` | `Double` | Info score as calculated by IMPUTE, [see documentation here](https://mathgen.stats.ox.ac.uk/genetics_software/snptest/snptest.html#info_measures) 
 ____
  
 <a name="importvcf"></a>
