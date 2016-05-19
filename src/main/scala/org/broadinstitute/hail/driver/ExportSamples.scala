@@ -24,6 +24,10 @@ object ExportSamples extends Command {
 
   def description = "Export list of sample information to tsv"
 
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val hConf = vds.sparkContext.hadoopConfiguration

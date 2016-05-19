@@ -20,6 +20,10 @@ object MendelErrorsCommand extends Command {
   }
   def newOptions = new Options
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds)
     val men = MendelErrors(state.vds, ped.completeTrios)

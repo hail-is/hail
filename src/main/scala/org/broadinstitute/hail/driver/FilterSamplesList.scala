@@ -27,7 +27,9 @@ object FilterSamplesList extends Command {
 
   def description = "Filter samples in current dataset with a sample list"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

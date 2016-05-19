@@ -39,7 +39,9 @@ object AnnotateSamplesTable extends Command {
 
   def description = "Annotate samples with a text table"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

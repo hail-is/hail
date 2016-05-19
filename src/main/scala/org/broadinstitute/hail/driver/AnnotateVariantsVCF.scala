@@ -28,6 +28,10 @@ object AnnotateVariantsVCF extends Command with VCFImporter {
 
   def description = "Annotate variants with VCF file"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
@@ -36,8 +40,10 @@ object AnnotateVariantsVCF extends Command with VCFImporter {
     val otherVds = LoadVCF(vds.sparkContext, inputs.head, inputs, skipGenotypes = true)
     val otherVdsSplit = SplitMulti.run(state.copy(vds = otherVds)).vds
 
-    val annotated = vds.annotateVariants(otherVdsSplit.variantsAndAnnotations, otherVdsSplit.vaSignature,
-      Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
+    val annotated = vds
+      .withGenotypeStream()
+      .annotateVariants(otherVdsSplit.variantsAndAnnotations, otherVdsSplit.vaSignature,
+        Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
     state.copy(vds = annotated)
   }
 }

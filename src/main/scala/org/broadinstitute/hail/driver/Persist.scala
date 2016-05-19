@@ -18,7 +18,9 @@ object Persist extends Command {
 
   def description = "Persist the current dataset"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

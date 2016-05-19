@@ -132,12 +132,12 @@ object VariantSampleMatrix {
 
   def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         values <- genValues[T](nSamples, g(v)))
+      values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
   def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         values <- genValues[T](g(v)))
+      values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -152,20 +152,20 @@ object VariantSampleMatrix {
     g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val nSamples = sampleIds.length
     for (vaSig <- Type.genArb; saSig <- Type.genArb; globalSig <- Type.genArb;
-         saValues <- Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(saSig.genValue));
-        globalValue <- globalSig.genValue;
-         rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
-           variants.map(v => Gen.zip(
-             Gen.const(v),
-             vaSig.genValue,
-             genValues(nSamples, g(v))))))
+      saValues <- Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(saSig.genValue));
+      globalValue <- globalSig.genValue;
+      rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
+        variants.map(v => Gen.zip(
+          Gen.const(v),
+          vaSig.genValue,
+          genValues(nSamples, g(v))))))
       yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, globalValue, saSig, vaSig, globalSig), sc.parallelize(rows))
   }
 
   def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val samplesVariantsGen =
       for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
+        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
         yield (sampleIds, variants)
     samplesVariantsGen.flatMap {
       case (sampleIds, variants) => gen(sc, sampleIds, variants, g)
@@ -533,7 +533,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def annotateInvervals(iList: IntervalList, signature: Type, path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
-    val newRDD = rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
+    val booleanSignature = newSignature == TBoolean
+    val newRDD = if (booleanSignature)
+      rdd.map { case (v, va, gs) => (v, inserter(va, Some(iList.contains(v.contig, v.start))), gs) }
+    else
+      rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
@@ -592,7 +596,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def queryGlobal(path: String): (BaseType, Option[Annotation]) = {
-    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
+    val st = Map(Annotation.GLOBAL_HEAD ->(0, globalSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -714,4 +718,9 @@ class RichVDS(vds: VariantDataset) {
     } else
       vds
   }
+
+  def withGenotypeStream(compress: Boolean = false): VariantDataset =
+    vds.copy(rdd = vds.rdd.map { case (v, va, gs) =>
+      (v, va, gs.toGenotypeStream(v, compress = compress))
+    })
 }
