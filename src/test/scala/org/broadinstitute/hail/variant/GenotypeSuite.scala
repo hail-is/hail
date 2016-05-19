@@ -16,11 +16,11 @@ object GenotypeSuite {
   def readWriteEqual(v: Variant, g: Genotype): Boolean = {
     ab.clear()
 
-    val gb = new GenotypeBuilder(v)
+    val gb = new GenotypeBuilder(v.nAlleles)
 
     gb.set(g)
     gb.write(ab)
-    val g2 = Genotype.read(v, new ByteIterator(ab.result()))
+    val g2 = Genotype.read(v.nAlleles, new ByteIterator(ab.result()))
 
     g == g2
   }

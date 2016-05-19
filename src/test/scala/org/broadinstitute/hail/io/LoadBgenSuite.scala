@@ -24,21 +24,21 @@ class LoadBgenSuite extends SparkSuite {
     }.toLong
   }
 
-  def getInfoScoresFromQCTool(statsFile: String): RDD[(Any, Any)] = sc.parallelize( readLines(statsFile, sc.hadoopConfiguration)(_.map(_.transform { line =>
+  def getInfoScoresFromQCTool(statsFile: String): RDD[(Any, Any)] = sc.parallelize(readLines(statsFile, sc.hadoopConfiguration)(_.map(_.transform { line =>
     val Array(snpid, rsid, chromosome, position, a_allele, b_allele, minor_allele,
     major_allele, aa, ab, bb, aa_calls, ab_calls, bb_calls,
     maf, hwe, missing, missing_calls, information) = line.value.split("\\s+")
     (snpid, information)
   }
-  ).toArray.drop(1).map{case (s, i) => (s, Option((i.toDouble * 10000).round / 10000.0))}))
+  ).toArray.drop(1).map { case (s, i) => (s, Option((i.toDouble * 10000).round / 10000.0)) }))
 
-  def getInfoScoresFromSNPTest(statsFile: String): RDD[(Any, Any)] = sc.parallelize( readLines(statsFile, sc.hadoopConfiguration)(_.map(_.transform { line =>
+  def getInfoScoresFromSNPTest(statsFile: String): RDD[(Any, Any)] = sc.parallelize(readLines(statsFile, sc.hadoopConfiguration)(_.map(_.transform { line =>
     if (!line.value.startsWith("#")) {
       val x = line.value.split("\\s+")
       (x(0), x(8).toDouble)
     }
   }
-  ).toArray.drop(1).map{case (s: String, i: Double) => (s, Option((i * 10000).round / 10000.0))}))
+  ).toArray.drop(1).map { case (s: String, i: Double) => (s, Option((i * 10000).round / 10000.0)) }))
 
   @Test def testGavinExample() {
     val gen = "src/test/resources/example.gen"
@@ -59,7 +59,7 @@ class LoadBgenSuite extends SparkSuite {
     s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", "10", bgen))
     assert(s.vds.nSamples == nSamples && s.vds.nVariants == nVariants)
 
-    val genVDS = ImportGEN.run(s, Array("-s",sampleFile, gen)).vds
+    val genVDS = ImportGEN.run(s, Array("-s", sampleFile, gen)).vds
     val bgenVDS = s.vds
 
     val varidBgenQuery = bgenVDS.vaSignature.query("varid")
@@ -71,10 +71,10 @@ class LoadBgenSuite extends SparkSuite {
     assert(bgenVDS.metadata == genVDS.metadata)
     assert(bgenVDS.sampleIds == genVDS.sampleIds)
 
-    val bgenAnnotations = bgenVDS.variantsAndAnnotations.map{case (v, va) => (varidBgenQuery(va).get, va)}
-    val genAnnotations = genVDS.variantsAndAnnotations.map{case (v, va) => (varidGenQuery(va).get, va)}
+    val bgenAnnotations = bgenVDS.variantsAndAnnotations.map { case (v, va) => (varidBgenQuery(va).get, va) }
+    val genAnnotations = genVDS.variantsAndAnnotations.map { case (v, va) => (varidGenQuery(va).get, va) }
 
-    assert(genAnnotations.fullOuterJoin(bgenAnnotations).map{case (varid, (va1, va2)) => if (va1 == va2) true else false}.fold(true)(_ && _))
+    assert(genAnnotations.fullOuterJoin(bgenAnnotations).map { case (varid, (va1, va2)) => if (va1 == va2) true else false }.fold(true)(_ && _))
 
     val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidBgenQuery(va).get, s), gt) }
     val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidGenQuery(va).get, s), gt) }
@@ -90,7 +90,7 @@ class LoadBgenSuite extends SparkSuite {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.genDosage _);
                        nPartitions: Int <- choose(1, 10)) yield (vds, nPartitions)
 
-    val sampleRenameFile = tmpDir.createTempFile(prefix="sample_rename")
+    val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
     writeTextFile(sampleRenameFile, sc.hadoopConfiguration) { case w =>
       w.write("NA\tfdsdakfasdkfla")
     }
@@ -100,17 +100,17 @@ class LoadBgenSuite extends SparkSuite {
 
         val vdsRemapped = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "01"), va, gs) })
 
-        assert(vdsRemapped.rdd.map{case (v, va, gs) =>
-          gs.map{case g =>
+        assert(vdsRemapped.rdd.map { case (v, va, gs) =>
+          gs.map { case g =>
             g.dosage.forall(ad =>
-              ad.forall{case d =>
+              ad.forall { case d =>
                 d >= 0.0 && d <= 1.0
               }
             )
-          }.toArray.fold(true)(_ && _)
+          }.fold(true)(_ && _)
         }.fold(true)(_ && _))
 
-        val fileRoot = tmpDir.createTempFile(prefix="testImportBgen")
+        val fileRoot = tmpDir.createTempFile(prefix = "testImportBgen")
         val sampleFile = fileRoot + ".sample"
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
@@ -160,26 +160,29 @@ class LoadBgenSuite extends SparkSuite {
           val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
           val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
 
-          val genotypeResult = originalFull.fullOuterJoin(importedFull).map { case ((v, i), (gt1, gt2)) =>
-              if (gt1 == gt2)
-                true
-              else {
-                if (gt1.isDefined && gt2.isDefined) {
-                  val gt1x = gt1.get
-                  val gt2x = gt2.get
-                  if (gt1x.dosage.get.zip(gt2x.dosage.get).forall { case (d1, d2) => math.abs(d1 - d2) <= 3.0e-4 }) {
-                    println(s"Warning Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
-                    true
-                  } else
-                    false
+          originalFull.fullOuterJoin(importedFull).map { case ((v, i), (gt1, gt2)) =>
+            if (gt1 == gt2)
+              true
+            else {
+              println(gt1)
+              println(gt2)
+              if (gt1.isDefined && gt2.isDefined) {
+                val gt1x = gt1.get
+                val gt2x = gt2.get
+                if (gt1x.dosage.zip(gt2x.dosage).map { case (d1, d2) => d1.zip(d2) }
+                  .exists(_.forall { case (d1, d2) => math.abs(d1 - d2) <= 3.0e-4 })) {
+                  println(s"WARN Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
+                  true
                 } else {
-                  println(s"v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
+                  println(s"ERROR Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
                   false
                 }
+              } else {
+                println(s"v=$v i=$i $gt1 $gt2")
+                false
               }
-            }.fold(true)(_ && _)
-
-          genotypeResult
+            }
+          }.fold(true)(_ && _)
         }
       }
   }

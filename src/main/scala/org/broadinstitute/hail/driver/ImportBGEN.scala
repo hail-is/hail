@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.variant._
@@ -32,7 +31,9 @@ object ImportBGEN extends Command {
 
   def newOptions = new Options
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     val nPartitions = if (options.nPartitions > 0) Some(options.nPartitions) else None
@@ -54,9 +55,11 @@ object ImportBGEN extends Command {
       case _ => BgenLoader.readSamples(sc.hadoopConfiguration, inputs.head)
     }
 
-    if (samples.length != samples.toSet.size) {
-      val problemFile = if (Option(options.sampleFile).isDefined) options.sampleFile else inputs.head
-      fatal (s"Duplicate sample IDs exist in $problemFile")
+    val duplicateIds = samples.duplicates().toArray
+    if (duplicateIds.nonEmpty) {
+      val n = duplicateIds.length
+      log.warn(s"found $n duplicate sample ${plural(n, "id")}:\n  ${duplicateIds.mkString("\n  ")}")
+      warn(s"found $n duplicate sample ${plural(n, "id")}:\n  ${truncateArray(duplicateIds).mkString("\n  ")}")
     }
 
     val nSamples = samples.length
@@ -81,8 +84,8 @@ object ImportBGEN extends Command {
     val nVariants = results.map(_.nVariants).sum
 
     info(s"Number of BGEN files parsed: ${results.length}")
-    info(s"Number of variants in all BGEN files: $nVariants")
     info(s"Number of samples in BGEN files: $nSamples")
+    info(s"Number of variants across all BGEN files: $nVariants")
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 

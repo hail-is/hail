@@ -9,11 +9,11 @@ import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
 
 // FIXME use zipWithIndex
-class GenotypeStreamIterator(v: Variant, b: ByteIterator) extends Iterator[Genotype] {
+class GenotypeStreamIterator(nAlleles: Int, b: ByteIterator) extends Iterator[Genotype] {
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = {
-    Genotype.read(v, b)
+    Genotype.read(nAlleles, b)
   }
 }
 
@@ -41,26 +41,26 @@ object LZ4Utils {
   }
 }
 
-case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Array[Byte])
+case class GenotypeStream(nAlleles: Int, decompLenOption: Option[Int], a: Array[Byte])
   extends Iterable[Genotype] {
 
   override def iterator: GenotypeStreamIterator = {
     decompLenOption match {
       case Some(decompLen) =>
-        new GenotypeStreamIterator(variant, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
+        new GenotypeStreamIterator(nAlleles, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
-        new GenotypeStreamIterator(variant, new ByteIterator(a))
+        new GenotypeStreamIterator(nAlleles, new ByteIterator(a))
     }
   }
 
   override def newBuilder: mutable.Builder[Genotype, GenotypeStream] = {
-    new GenotypeStreamBuilder(variant)
+    new GenotypeStreamBuilder(nAlleles)
   }
 
   def decompressed: GenotypeStream = {
     decompLenOption match {
       case Some(decompLen) =>
-        GenotypeStream(variant, None, LZ4Utils.decompress(decompLen, a))
+        GenotypeStream(nAlleles, None, LZ4Utils.decompress(decompLen, a))
       case None => this
     }
   }
@@ -69,7 +69,7 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
     decompLenOption match {
       case Some(_) => this
       case None =>
-        GenotypeStream(variant, Some(a.length), LZ4Utils.compress(a))
+        GenotypeStream(nAlleles, Some(a.length), LZ4Utils.compress(a))
     }
   }
 
@@ -89,22 +89,22 @@ object GenotypeStream {
     ))
   }
 
-  def fromRow(v: Variant, row: Row): GenotypeStream = {
+  def fromRow(nAlleles: Int, row: Row): GenotypeStream = {
 
-    GenotypeStream(v,
+    GenotypeStream(nAlleles,
       row.getAsOption[Int](0),
       row.getAs[mutable.WrappedArray[Byte]](1)
         .toArray)
   }
 }
 
-class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
+class GenotypeStreamBuilder(nAlleles: Int, compress: Boolean = true)
   extends mutable.Builder[Genotype, GenotypeStream] {
 
   val b = new mutable.ArrayBuilder.ofByte
 
   override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
-    val gb = new GenotypeBuilder(variant)
+    val gb = new GenotypeBuilder(nAlleles)
     gb.set(g)
     gb.write(b)
     this
@@ -127,8 +127,8 @@ class GenotypeStreamBuilder(variant: Variant, compress: Boolean = true)
   override def result(): GenotypeStream = {
     val a = b.result()
     if (compress)
-      GenotypeStream(variant, Some(a.length), LZ4Utils.compress(a))
+      GenotypeStream(nAlleles, Some(a.length), LZ4Utils.compress(a))
     else
-      GenotypeStream(variant, None, a)
+      GenotypeStream(nAlleles, None, a)
   }
 }

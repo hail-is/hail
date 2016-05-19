@@ -59,5 +59,5 @@ class RichRow(r: Row) {
 
   def getVariant(i: Int) = Variant.fromRow(r.getAs[Row](i))
 
-  def getGenotypeStream(v: Variant, i: Int) = GenotypeStream.fromRow(v, r.getAs[Row](i))
+  def getGenotypeStream(v: Variant, i: Int) = GenotypeStream.fromRow(v.nAlleles, r.getAs[Row](i))
 }

@@ -15,16 +15,17 @@ import scala.collection.mutable.ArrayBuffer
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, Annotation, Iterable[Genotype])])
 
 object GenReport {
-  val dosageNoCall = 0
-  val dosageLessThanTolerance = 1
+  final val dosageNoCall = 0
+  final val dosageLessThanTolerance = 1
+  final val dosageGreaterThanTolerance = 2
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
   def warningMessage(id: Int, count: Int): String = {
-    val desc = id match {
+    val desc = (id: @unchecked) match {
       case `dosageNoCall` => "Dosage triple of (0.0,0.0,0.0)"
       case `dosageLessThanTolerance` => "Sum of Dosage < (1.0 - tolerance)"
-      case _ => throw new UnsupportedOperationException
+      case `dosageGreaterThanTolerance` => "Sum of Dosage > (1.0 + tolerance)"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -61,13 +62,15 @@ object GenReport {
 object GenUtils {
   def normalizePPs(arr: Array[Double]): Array[Double] = {
     val sum = arr.sum
-    require(sum != 0.0, "Can't divide by 0 when normalizing dosages.")
-    arr.map{_ / sum}
+    if (sum == 0d)
+      fatal("found invalid set of PP values that sum to zero")
+    else
+      arr.map(_ / sum)
   }
 
   def convertProbToInt(prob: Double): Int = {
     val tmp = prob * 32768
-    require(tmp >= 0 && tmp < 65535.5)
+    require(tmp >= 0d && tmp < 65535.5)
     math.round(tmp).toInt
   }
 
@@ -76,8 +79,8 @@ object GenUtils {
 
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext,
-            nPartitions: Option[Int] = None, tolerance: Double = 0.02,
-            compress: Boolean = false, chromosome: Option[String] = None): GenResult = {
+    nPartitions: Option[Int] = None, tolerance: Double = 0.02,
+    compress: Boolean = false, chromosome: Option[String] = None): GenResult = {
 
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
@@ -90,8 +93,10 @@ object GenLoader {
     val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
     GenReport.accumulators ::=(genFile, reportAcc)
 
-    val rdd = sc.textFile(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
-        .map{ case line => readGenLine(line, nSamples, tolerance, compress, chromosome, reportAcc)}
+    val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
+      .map(_.transform { l =>
+        readGenLine(l.value, nSamples, tolerance, compress, chromosome, reportAcc)
+      })
 
     val signatures = TStruct("rsid" -> TString, "varid" -> TString)
 
@@ -99,8 +104,8 @@ object GenLoader {
   }
 
   def readGenLine(line: String, nSamples: Int,
-                  tolerance: Double, compress: Boolean,
-                  chromosome: Option[String] = None, reportAcc: Accumulable[mutable.Map[Int, Int], Int]): (Variant, Annotation, Iterable[Genotype]) = {
+    tolerance: Double, compress: Boolean,
+    chromosome: Option[String] = None, reportAcc: Accumulable[mutable.Map[Int, Int], Int]): (Variant, Annotation, Iterable[Genotype]) = {
     val arr = line.split("\\s+")
     val chrCol = if (chromosome.isDefined) 1 else 0
     val chr = chromosome.getOrElse(arr(0))
@@ -112,19 +117,21 @@ object GenLoader {
 
     val variant = Variant(chr, start.toInt, ref, alt)
     val nGenotypes = 3
-    val dosages = arr.drop(6 - chrCol).map {_.toDouble}
+    val dosages = arr.drop(6 - chrCol).map {
+      _.toDouble
+    }
 
     if (dosages.length != (3 * nSamples))
-      fatal("Number of dosages does not match number of samples. If no chromosome is given, make sure you use -c to input the chromosome.")
+      fatal("Number of dosages does not match number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
     val dosageArray = new Array[Int](3)
-    val b = new GenotypeStreamBuilder(variant, compress)
-    val genoBuilder = new GenotypeBuilder(variant)
+    val b = new GenotypeStreamBuilder(2, compress)
+    val genoBuilder = new GenotypeBuilder(2)
 
     for (i <- dosages.indices by 3) {
       genoBuilder.clear()
 
-      val origDosages = Array(dosages(i), dosages(i+1), dosages(i+2))
+      val origDosages = Array(dosages(i), dosages(i + 1), dosages(i + 2))
       val sumDosages = origDosages.sum
 
       if (sumDosages == 0.0)

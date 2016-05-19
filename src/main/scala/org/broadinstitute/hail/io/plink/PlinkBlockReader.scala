@@ -38,9 +38,8 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
     if (pos >= end)
       false
     else {
-      val nullVariant = Variant("0", 0, "A", "T")
-      val b = new GenotypeStreamBuilder(nullVariant, compress = compressGS)
-      val genoBuilder = new GenotypeBuilder(nullVariant)
+      val b = new GenotypeStreamBuilder(2, compress = compressGS)
+      val genoBuilder = new GenotypeBuilder(2)
 
 
       bfis.readBytes(blockLength)

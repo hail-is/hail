@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.io.plink.PlinkLoader
+import org.broadinstitute.hail.io.plink.{FamFileConfig, PlinkLoader}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ImportPlink extends Command {
@@ -22,14 +22,30 @@ object ImportPlink extends Command {
     @Args4jOption(name = "--fam", usage = "Plink .fam file", forbids = Array("--bfile"), depends = Array("--bim","--bed"))
     var fam: String = _
 
-    @Args4jOption(name = "-d", aliases = Array("--no-compress"), usage = "Don't compress in-memory representation")
-    var noCompress: Boolean = true
+    @Args4jOption(name = "--no-compress", usage = "Don't compress in-memory representation")
+    var noCompress: Boolean = false
 
     @Args4jOption(name = "-n", aliases = Array("--npartition"), usage = "Number of partitions")
     var nPartitions: java.lang.Integer = _
+
+    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
+      usage = ".fam file field delimiter regex")
+    var famDelimiter: String = "\\t"
+
+    @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
+      usage = ".fam identifier to be treated as missing (for case-control, in addition to `0', `-9', and non-numeric)")
+    var famMissing: String = "NA"
+
+    @Args4jOption(required = false, name = "-q", aliases = Array("--quantpheno"),
+      usage = ".fam file quantitative phenotype flag")
+    var famIsQuantitative: Boolean = false
   }
 
   def newOptions = new Options
+
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     val nPartitionOption = Option(options.nPartitions).map(_.toInt)
@@ -39,11 +55,14 @@ object ImportPlink extends Command {
     if (options.bfile == null && (options.bed == null || options.bim == null || options.fam == null))
       fatal("invalid input: require either --bed/--bim/--fam arguments or --bfile argument")
 
+    val ffConfig = FamFileConfig(options.famIsQuantitative, options.famDelimiter, options.famMissing)
     if (options.bfile != null) {
       if (options.bim != null || options.bed != null || options.fam != null)
         fatal("invalid input: require either --bed/--bim/--fam arguments or --bfile argument")
-      state.copy(vds = PlinkLoader(options.bfile + ".bed", options.bfile + ".bim", options.bfile + ".fam", state.sc, nPartitionOption))
+      state.copy(vds = PlinkLoader(options.bfile + ".bed", options.bfile + ".bim", options.bfile + ".fam",
+        ffConfig, state.sc, nPartitionOption))
     } else
-      state.copy(vds = PlinkLoader(options.bed, options.bim, options.fam, state.sc, nPartitionOption))
+      state.copy(vds = PlinkLoader(options.bed, options.bim, options.fam,
+        ffConfig, state.sc, nPartitionOption))
   }
 }

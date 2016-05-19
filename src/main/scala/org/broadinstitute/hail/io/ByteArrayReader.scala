@@ -2,8 +2,6 @@ package org.broadinstitute.hail.io
 
 class ByteArrayReader(arr: Array[Byte]) extends AbstractBinaryReader {
 
-  def this(bb: ByteBlock) = this(bb.getArray)
-
   final var position: Int = 0
   val length = arr.length
 
