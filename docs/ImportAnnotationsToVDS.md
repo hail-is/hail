@@ -1,9 +1,16 @@
 # Importing annotations TSVs
 
-Importing large TSV files into Hail annotations can be slow, and these commands can be cumbersome to write on the command line (types may need to be specified, etc.).  Hail includes the module `importannotations` to do the slow parsing steps ahead of time, which is useful if a large TSV will be used to annotate many datasets or if one wants to perform filtering and querying operations on these large files.  The expected TSV files contain variant identifiers either in one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations.
+Importing large files into Hail annotations can be slow, and these commands can be cumbersome to write on the command line (types may need to be specified, etc.).  Hail includes the module `importannotations` to do the slow parsing steps ahead of time, which is useful if a large will be used to annotate many datasets or if one wants to perform filtering and querying operations on these files.  Files are imported as a sites-only VDS.  There are two subcommands:
+ - `importannotations tsv`
+ - `importannotations json`
+
+### Text tables
+
+This subcommand expects text files with multiple delimited columns (default: tab-delimited).  Variants are keyed either by one column of the format "Chr:Pos:Ref:Alt", or four columns (one for each of these fields).  All other columns will be written to variant annotations as a struct.  Multiple files can be read in one command, but they must agree in their file format.
 
 **Command line arguments:**
- - `<files>` specify the file or files to read **(Required)**
+- `table` Invoke this functionality (`importannotations table <args>`)
+- `<files>` specify the file or files to read **(Required)**
  - `-v <variantcols>, --vcolumns <variantcols>` Either one column identifier (if Chr:Pos:Ref:Alt), or four comma-separated column identifiers **(Optional with default "Chromosome, Position, Ref, Alt")**
  - `-t <typestring>, --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)** 
  - `-m <missings>, --missing <missings>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")** 
@@ -68,3 +75,14 @@ $ hail \
     write \
         -o /user/tpot/ExAC_Counts.vds
 ```
+
+### JSON
+
+This `json` subcommand imports annotations from JSON files, one JSON object per line.  Variants are keyed by four expressions computing the chromosome (String), position (Int), ref (String) and alts (Array[String]) per JSON object.  The entire JSON object is written to the variant annotations.  Multiple files can be read in one command, but they must agree in their file format.
+
+**Command line arguments:**
+
+- `json` Invoke this functionality (`importannotations json <args>`)
+- `<files...>` specify the file or files to be read **(Required)**
+- `-v | --vfields <variantcols>` Four comma-delimited expressions computing the chromosome (String), position (Int), ref (String) and alts (Array[String]) **(Required)**
+- `-t | --type <typestring>` type of the JSON objects  **(Required)**
