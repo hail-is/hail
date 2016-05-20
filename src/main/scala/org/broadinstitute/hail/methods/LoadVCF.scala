@@ -13,6 +13,12 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.io.Source
 
+case class VCFSettings(storeGQ: Boolean = false,
+  skipGenotypes: Boolean = false,
+  compress: Boolean = true,
+  ppAsPL: Boolean = false,
+  skipBadAD: Boolean = false)
+
 object VCFReport {
   val GTPLMismatch = 1
   val ADDPMismatch = 2
@@ -22,6 +28,7 @@ object VCFReport {
   val GQMissingPL = 6
   val RefNonACGTN = 7
   val Symbolic = 8
+  val ADInvalidNumber = 9
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
@@ -39,6 +46,7 @@ object VCFReport {
       case GQMissingPL => "GQ present but PL missing"
       case RefNonACGTN => "REF contains non-ACGT"
       case Symbolic => "Variant is symbolic"
+      case ADInvalidNumber => "AD array contained the wrong number of elements"
     }
     s"$count ${plural(count, "time")}: $desc"
   }
@@ -147,7 +155,10 @@ object LoadVCF {
     compress: Boolean = true,
     nPartitions: Option[Int] = None,
     skipGenotypes: Boolean = false,
-    ppAsPL: Boolean = false): VariantDataset = {
+    ppAsPL: Boolean = false,
+    skipBadAD: Boolean = false): VariantDataset = {
+
+    val settings = VCFSettings(storeGQ, skipGenotypes, compress, ppAsPL, skipBadAD)
 
     val hConf = sc.hadoopConfiguration
     val headerLines = readFile(file1, hConf) { s =>
@@ -235,7 +246,7 @@ object LoadVCF {
                   None
                 } else
                   Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value),
-                    storeGQ, skipGenotypes, compress, ppAsPL))
+                    settings))
               }
             }
           }

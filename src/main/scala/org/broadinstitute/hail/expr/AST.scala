@@ -92,8 +92,8 @@ object Type {
       genScalar
     else
       Gen.oneOfGen(genScalar,
-        genSized(size - 1).map(TArray),
-        // FIXME: genSized(size - 1).map(TSet),
+        genArb.resize(size - 1).map(TArray),
+        genArb.resize(size - 1).map(TSet),
         Gen.buildableOf[Array[(String, Type)], (String, Type)](
           Gen.zip(Gen.identifier,
             genArb))
@@ -387,7 +387,7 @@ case class TSet(elementType: Type) extends TIterable {
       a
     else {
       val values = a.asInstanceOf[Seq[Annotation]]
-      values.map(elementType.makeSparkWritable).toSet
+      values.map(elementType.makeSparkReadable).toSet
     }
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set[Annotation], Annotation](

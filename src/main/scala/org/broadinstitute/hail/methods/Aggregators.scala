@@ -61,11 +61,11 @@ object Aggregators {
 
       val functionMap = vds.sampleIds.zip(vds.rdd.treeAggregate(Array.fill[Array[Any]](vds.nSamples)(aggregators.map(_._1())))({
         case (arr, (v, va, gs)) =>
+          aggregatorA(0) = v
+          aggregatorA(1) = va
           gs.iterator
             .zipWithIndex
             .foreach { case (g, i) =>
-              aggregatorA(0) = v
-              aggregatorA(1) = va
               aggregatorA(2) = localSamplesBc.value(i)
               aggregatorA(3) = localAnnotationsBc.value(i)
               aggregatorA(4) = g
