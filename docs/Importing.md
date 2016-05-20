@@ -3,6 +3,7 @@
 Hail does not operate directly on VCF files.  Hail uses a fast and storage-efficient internal representation called a VDS (variant dataset).  In order to use Hail for data analysis, data must first be imported to the VDS format.  This is done with the `importvcf` command.  Hail is designed to be maximally compatible with files in the [VCF v4.2 spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf).
 
 Command line options:
+ - `--skip-genotypes` -- Do not load genotypes, creates a sites-only VDS
  - `-d | --no-compress` -- Do not compress VDS.  Not recommended.
  - `-f | --force` -- Force load `.gz` file.  Not recommended (see below).
  - `--header-file <file>` -- File to load VCF header from.  By default, `importvcf` reads the header from the first file listed.
