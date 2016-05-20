@@ -11,6 +11,7 @@ import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
+import org.apache.spark.mapreduce.SparkHadoopMapReduceUtil
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
