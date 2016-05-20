@@ -11,11 +11,12 @@ import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
+import org.apache.spark.Partitioner._
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{AccumulableParam, SparkContext}
+import org.apache.spark.{Partitioner, AccumulableParam, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -407,6 +408,21 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   }
 }
 
+class RichPairRDD[K, V](val r: RDD[(K, V)])
+                       (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) {
+
+  def leftOuterJoin[W](other: RDD[(K, W)]): RDD[(K, (V, Option[W]))] = leftOuterJoin(other, defaultPartitioner(r, other))
+
+  def leftOuterJoin[W](other: RDD[(K, W)], partitioner: Partitioner) = {
+    r.cogroup(other, partitioner).flatMapValues { pair =>
+      if (pair._2.isEmpty)
+        pair._1.iterator.map(v => (v, None))
+      else
+        for (v <- pair._1.iterator; w <- pair._2.iterator.take(1)) yield (v, Some(w))
+    }
+  }
+}
+
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
 
   def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
@@ -661,6 +677,8 @@ object Utils extends Logging {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
+
+  implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K], vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
 
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 

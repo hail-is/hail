@@ -61,4 +61,12 @@ class UtilsSuite extends SparkSuite {
     assert(hadoopStripCodec("file.tsv.lz4", sc.hadoopConfiguration) == "file.tsv")
     assert(hadoopStripCodec("file", sc.hadoopConfiguration) == "file")
   }
+
+  @Test def testPairRDDNoDup() {
+    val pairRDD1 = sc.parallelize(Array(1, 2, 3, 4)).map{i => (i, i*i)}
+    val pairRDD2 = sc.parallelize(Array(1, 2, 3, 4)).map{i => (i, i)}
+
+    val join = pairRDD1.leftOuterJoin(pairRDD1)
+    assert(join.count() == 4)
+  }
 }
