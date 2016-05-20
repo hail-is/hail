@@ -1,6 +1,6 @@
  - Support JSON in annotation import.  `importannotations` is now
-   `importannotations table`.  Added `importannotations json` and
-   `annotationvariants json`.
+   `importannotations table`.  Added `importannotations json`,
+   `annotatevariants json` and `annotatesamples json`.
 
 ____
 

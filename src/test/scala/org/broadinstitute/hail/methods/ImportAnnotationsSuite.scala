@@ -252,7 +252,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val jsonSchema = "Struct { Rand1: Double, Rand2: Double, Gene: String, contig: String, start: Int, ref: String, alt: String }"
     // FIXME better way to array-ify
-    val vFields = """va.contig, va.start, va.ref, va.alt.split("/")"""
+    val vFields = """root.contig, root.start, root.ref, root.alt.split("/")"""
 
     s = ImportAnnotations.run(s0,
       Array("json", "src/test/resources/importAnnot.json", "--vfields", vFields, "-t", jsonSchema))

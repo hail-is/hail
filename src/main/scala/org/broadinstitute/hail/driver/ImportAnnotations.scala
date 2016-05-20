@@ -85,7 +85,7 @@ object ImportAnnotationsJSON extends Command {
     var `type`: String = _
 
     @Args4jOption(required = true, name = "--vfields",
-      usage = "Expressions for chromosome, position, ref and alt in terms of `va'")
+      usage = "Expressions for chromosome, position, ref and alt in terms of `root'")
     var variantFields: String = _
   }
 
@@ -109,49 +109,18 @@ object ImportAnnotationsJSON extends Command {
 
     val t = Parser.parseType(options.`type`)
 
-    val ec = EvalContext(Map(
-      "va" ->(0, t)))
-
-    val fs: Array[(BaseType, () => Option[Any])] = Parser.parseExprs(options.variantFields, ec)
-
-    if (fs.length != 4)
-      fatal(s"wrong number of variant field expressions: expected 4, got ${fs.length}")
-
-    if (fs(0)._1 != TString)
-      fatal(s"wrong type for chromosome field: expected String, got ${fs(0)._1}")
-    if (fs(1)._1 != TInt)
-      fatal(s"wrong type for pos field: expected Int, got ${fs(1)._1}")
-    if (fs(2)._1 != TString)
-      fatal(s"wrong type for ref field: expected String, got ${fs(2)._1}")
-    if (fs(3)._1 != TArray(TString))
-      fatal(s"wrong type for alt field: expected Array[String], got ${fs(3)._1}")
+    val extractVariant = Annotation.jsonExtractVariant(t, options.variantFields)
 
     val rdd =
       sc.union(files.map { f =>
         sc.textFile(f)
           .map { line =>
-            Annotation.fromJson(parse(line), t, "va")
+            Annotation.fromJson(parse(line), t, "<root>")
           }
       })
         .flatMap { va =>
-          ec.setAll(va)
-
-          val vfs = fs.map(_._2())
-
-          vfs(0).flatMap { chr =>
-            vfs(1).flatMap { pos =>
-              vfs(2).flatMap { ref =>
-                vfs(3).map { alt =>
-                  (Variant(chr.asInstanceOf[String],
-                    pos.asInstanceOf[Int],
-                    ref.asInstanceOf[String],
-                    alt.asInstanceOf[IndexedSeq[String]].toArray),
-                    va,
-                    Iterable.empty[Genotype])
-                }
-              }
-            }
-          }
+          extractVariant(va)
+            .map { v => (v, va, Iterable.empty[Genotype]) }
         }
 
     val vds = new VariantDataset(

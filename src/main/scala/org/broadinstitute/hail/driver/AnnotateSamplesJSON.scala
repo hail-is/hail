@@ -3,14 +3,12 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.io.annotators._
-import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.json4s.jackson.JsonMethods._
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 
-object AnnotateVariantsJSON extends Command {
+object AnnotateSamplesJSON extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
@@ -18,12 +16,12 @@ object AnnotateVariantsJSON extends Command {
     var `type`: String = ""
 
     @Args4jOption(required = true, name = "-r", aliases = Array("--root"),
-      usage = "Period-delimited path starting with `va'")
+      usage = "Period-delimited path starting with `sa'")
     var root: String = _
 
-    @Args4jOption(required = true, name = "-v", aliases = Array("--vfields"),
-      usage = "Expressions for chromosome, position, ref and alt in terms of `root'")
-    var variantFields: String = _
+    @Args4jOption(required = true, name = "-v", aliases = Array("--sample"),
+      usage = "Expression for sample in terms of `root'")
+    var sample: String = _
 
     @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
@@ -32,9 +30,9 @@ object AnnotateVariantsJSON extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatevariants json"
+  def name = "annotatesamples json"
 
-  def description = "Annotate variants with JSON file"
+  def description = "Annotate samples with JSON file"
 
   def supportsMultiallelic = true
 
@@ -49,25 +47,23 @@ object AnnotateVariantsJSON extends Command {
 
     val t = Parser.parseType(options.`type`)
 
-    val extractVariant = Annotation.jsonExtractVariant(t, options.variantFields)
+    val extractSample = Annotation.jsonExtractSample(t, options.sample)
 
-    val jsonRDD =
+    val sampleAnnot =
       sc.union(files.map { f =>
         sc.textFile(f)
           .map { line =>
             Annotation.fromJson(parse(line), t, "<root>")
           }
       })
-        .flatMap { va =>
-          extractVariant(va)
-            .map { v => (v, va) }
+        .flatMap { sa =>
+          extractSample(sa)
+            .map { s => (s, sa) }
         }
+        .collectAsMap()
+        .toMap
 
-    val annotated = vds
-      .withGenotypeStream()
-      .annotateVariants(jsonRDD, t,
-        Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
-
-    state.copy(vds = annotated)
+    state.copy(vds = vds
+      .annotateSamples(sampleAnnot, t, Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD)))
   }
 }
