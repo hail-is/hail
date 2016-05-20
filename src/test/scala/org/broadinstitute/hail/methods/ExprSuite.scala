@@ -201,8 +201,6 @@ class ExprSuite extends SparkSuite {
 
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
-      sb.clear()
-      t.pretty(sb, 0, printAttrs = true)
       val res = sb.result()
       val parsed = Parser.parseType(res)
       t == parsed
@@ -219,6 +217,8 @@ class ExprSuite extends SparkSuite {
 
   @Test def testReadWrite() {
     check(forAll { (t: Type) =>
+      val sb = new StringBuilder
+      t.pretty(sb, 0)
       val a = t.genValue.sample()
       t.makeSparkReadable(t.makeSparkWritable(a)) == a
     })
