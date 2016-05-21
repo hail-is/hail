@@ -211,12 +211,15 @@ object LinearRegression {
           val xyp: Double = (x dot yBc.value) - (qtx dot qty)
           val yyp: Double = yypBc.value
 
-          val b: Double = xyp / xxp
-          val se = math.sqrt((yyp / xxp - b * b) / d)
-          val t = b / se
-          val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
-
-          Some(LinRegStats(nMissing, b, se, t, p))
+          if (xxp == 0d)
+            None
+          else {
+            val b: Double = xyp / xxp
+            val se = math.sqrt((yyp / xxp - b * b) / d)
+            val t = b / se
+            val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+            Some(LinRegStats(nMissing, b, se, t, p))
+          }
         }
       }
     )

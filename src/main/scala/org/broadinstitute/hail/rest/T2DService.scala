@@ -170,7 +170,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
             case other =>
               throw new RESTFailure(s"'pos filter operator must be 'gte', 'gt', 'lte', 'lt', or 'eq': '$other' not supported.")
           }
-        case other => throw new RESTFailure(s"Filter operant must be 'chrom' or 'pos': '$other' not supported.")
+        case other => throw new RESTFailure(s"Filter operand must be 'chrom' or 'pos': '$other' not supported.")
       }
     })
 

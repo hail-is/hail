@@ -138,7 +138,7 @@ case class HardCallSet(df: DataFrame,
 
   def variantGts(v: Variant): Array[Double] = {
     val vRow = df
-      .filter(df("contig") === v.contig)
+      .filter(df("contig") === "chr" + v.contig)
       .filter(df("block") === v.start / blockWidth)
       .filter(df("start") === v.start)
       .filter(df("ref") === v.ref)
