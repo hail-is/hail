@@ -210,7 +210,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
   def writeULEB128(x0: Int) {
-    require(x0 >= 0)
+    require(x0 >= 0, s"tried to write negative ULEB value `${x0}'")
 
     var x = x0
     var more = true
@@ -292,13 +292,14 @@ class RichArray[T](a: Array[T]) {
   def duplicates(): Set[T] = a.toIterable.duplicates()
 }
 
-class RichOrderedArray[T : Ordering](a: Array[T]) {
+class RichOrderedArray[T: Ordering](a: Array[T]) {
   def isIncreasing: Boolean = a.toSeq.isIncreasing
 
   def isSorted: Boolean = a.toSeq.isSorted
 }
 
-class RichOrderedSeq[T : Ordering](s: Seq[T]) {
+class RichOrderedSeq[T: Ordering](s: Seq[T]) {
+
   import scala.math.Ordering.Implicits._
 
   def isIncreasing: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ < _)
@@ -308,13 +309,17 @@ class RichOrderedSeq[T : Ordering](s: Seq[T]) {
 
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
-  def textFiles[T](files: Array[String], f: String => Unit = s => (),
+  def textFilesLines(files: Array[String], f: String => Unit = s => (),
     nPartitions: Int = sc.defaultMinPartitions): RDD[Line] = {
     files.foreach(f)
     sc.union(
       files.map(file =>
-        sc.textFile(file, nPartitions).map(l => Line(l, None, file))))
+        sc.textFileLines(file, nPartitions)))
   }
+
+  def textFileLines(file: String, nPartitions: Int = sc.defaultMinPartitions): RDD[Line] =
+    sc.textFile(file, nPartitions)
+      .map(l => Line(l, None, file))
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
@@ -542,8 +547,6 @@ trait Logging {
 
 class FatalException(msg: String) extends RuntimeException(msg)
 
-class PropagatedTribbleException(msg: String) extends RuntimeException(msg)
-
 class RichAny(val a: Any) extends AnyVal {
   def castOption[T](implicit ct: ClassTag[T]): Option[T] =
     if (ct.runtimeClass.isInstance(a))
@@ -616,7 +619,7 @@ object TempDir {
         return new TempDir(dirname)
       } catch {
         case e: IOException =>
-          // try again
+        // try again
       }
     }
 
@@ -629,6 +632,7 @@ class TempDir(val dirname: String) {
   var counter: Int = 0
 
   def relFile(relPath: String) = dirname + "/" + relPath
+
   def relPath(relPath: String) =
     new URI(relFile(relPath)).getPath
 
@@ -668,9 +672,9 @@ object Utils extends Logging {
 
   implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
 
-  implicit def toRichOrderedArray[T : Ordering](a: Array[T]): RichOrderedArray[T] = new RichOrderedArray(a)
+  implicit def toRichOrderedArray[T: Ordering](a: Array[T]): RichOrderedArray[T] = new RichOrderedArray(a)
 
-  implicit def toRichOrderedSeq[T : Ordering](s: Seq[T]): RichOrderedSeq[T] = new RichOrderedSeq[T](s)
+  implicit def toRichOrderedSeq[T: Ordering](s: Seq[T]): RichOrderedSeq[T] = new RichOrderedSeq[T](s)
 
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow =
     new RichIndexedRow(r)
@@ -760,11 +764,6 @@ object Utils extends Logging {
 
   def fatal(msg: String): Nothing = {
     throw new FatalException(msg)
-  }
-
-  def fail(): Nothing = {
-    assert(false)
-    sys.exit(1)
   }
 
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
@@ -988,14 +987,21 @@ object Utils extends Logging {
             s"caught $e"
           log.error(
             s"""
-               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
                |  offending line: $value""".stripMargin)
           fatal(
             s"""
-               |$filename:${position.map(_ + 1).getOrElse("?")}: $msg
+               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
                |  offending line: $lineToPrint""".stripMargin)
       }
     }
+  }
+
+  def truncate(str: String, length: Int = 60): String = {
+    if (str.length > 57)
+      str.take(57) + " ..."
+    else
+      str
   }
 
   def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {

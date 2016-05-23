@@ -1,12 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable.ArrayBuffer
 
 object FilterGenotypes extends Command {
 
@@ -28,6 +27,10 @@ object FilterGenotypes extends Command {
 
   def description = "Filter genotypes in current dataset"
 
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val sc = state.sc
     val vds = state.vds
@@ -39,25 +42,27 @@ object FilterGenotypes extends Command {
 
     val keep = options.keep
 
+    val cond = options.condition
     val symTab = Map(
       "v" ->(0, TVariant),
       "va" ->(1, vas),
       "s" ->(2, TSample),
       "sa" ->(3, sas),
       "g" ->(4, TGenotype))
-    val a = new ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
-    val f: () => Option[Boolean] = Parser.parse[Boolean](options.condition, symTab, a, TBoolean)
+
+    val ec = EvalContext(symTab)
+    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+
+    val sampleIdsBc = vds.sampleIdsBc
+    val sampleAnnotationsBc = vds.sampleAnnotationsBc
+
+    (vds.sampleIds, vds.sampleAnnotations).zipped.map((_, _))
 
     val noCall = Genotype()
     val newVDS = vds.mapValuesWithAll(
       (v: Variant, va: Annotation, s: String, sa: Annotation, g: Genotype) => {
-        a(0) = v
-        a(1) = va
-        a(2) = s
-        a(3) = sa
-        a(4) = g
+        ec.setAll(v, va, s, sa, g)
+
         if (Filter.keepThis(f(), keep))
           g
         else

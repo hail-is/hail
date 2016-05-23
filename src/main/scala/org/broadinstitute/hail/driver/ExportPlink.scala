@@ -21,8 +21,22 @@ object ExportPlink extends Command {
 
   def description = "Write current dataset as .bed/.bim/.fam"
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
+
+    val spaceRegex = """\s+""".r
+    val badSampleIds = vds.sampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
+    if (badSampleIds.nonEmpty) {
+      val msg =
+        s"""Found ${badSampleIds.length} sample IDs with whitespace.  Please run `renamesamples' to fix this problem before exporting to plink format.""".stripMargin
+      log.error(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.mkString("  \n")}")
+      fatal(msg + s"\n  Bad sample IDs: \n  ${badSampleIds.take(10).mkString("  \n")}${
+        if (badSampleIds.length > 10) "\n  ...\n  See hail.log for full list of IDs" else ""}")
+    }
 
     val bedHeader = Array[Byte](108, 27, 1)
 

@@ -2,8 +2,8 @@ package org.broadinstitute.hail.variant
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
 
 import scala.collection.mutable
@@ -40,8 +40,9 @@ object AltAllele {
 
 case class AltAllele(ref: String,
   alt: String) {
-  require(ref != alt)
-  require(!ref.isEmpty && !alt.isEmpty)
+  require(ref != alt, "ref was equal to alt")
+  require(!ref.isEmpty, "ref was an empty string")
+  require(!alt.isEmpty, "alt was an empty string")
 
   import AltAlleleType._
 
@@ -85,12 +86,12 @@ case class AltAllele(ref: String,
   def isTransversion: Boolean = isSNP && !isTransition
 
   def nMismatch: Int = {
-    require(ref.length == alt.length)
+    require(ref.length == alt.length, s"invalid nMismatch call on ref `${ref}' and alt `${alt}'")
     (ref, alt).zipped.map((a, b) => if (a == b) 0 else 1).sum
   }
 
   def strippedSNP: (Char, Char) = {
-    require(isSNP)
+    require(isSNP, "called strippedSNP on non-SNP")
     (ref, alt).zipped.dropWhile { case (a, b) => a == b }.head
   }
 
@@ -113,7 +114,7 @@ object Variant {
     Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
 
   def nGenotypes(nAlleles: Int): Int = {
-    require(nAlleles > 0)
+    require(nAlleles > 0, s"called nGenotypes with invalid number of alternates: $nAlleles")
     nAlleles * (nAlleles + 1) / 2
   }
 
@@ -138,7 +139,7 @@ object Variant {
     // FIXME temporary to make plink happy, see: https://github.com/broadinstitute/hail/issues/229
     for (contig <- Gen.oneOfSeq((1 to 22).map(_.toString));
       start <- Gen.posInt;
-      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(1, 10)));
+      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10)));
       alleles <- Gen.distinctBuildableOfN[Array[String], String](
         nAlleles,
         Gen.frequency((10, genDNAString),
@@ -171,8 +172,8 @@ case class Variant(contig: String,
   altAlleles: IndexedSeq[AltAllele]) extends Ordered[Variant] {
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
-  require(start >= 0)
-  require(!ref.isEmpty)
+  require(start >= 0, s"created a variant with negative position: `${this.toString}'")
+  require(!ref.isEmpty, s"created a variant with an empty ref string: `${this.toString}'")
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -180,7 +181,7 @@ case class Variant(contig: String,
 
   // FIXME altAllele, alt to be deprecated
   def altAllele: AltAllele = {
-    require(isBiallelic)
+    require(isBiallelic, "called altAllele on a non-biallelic variant")
     altAlleles(0)
   }
 

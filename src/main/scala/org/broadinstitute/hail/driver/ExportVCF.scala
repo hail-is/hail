@@ -1,14 +1,16 @@
 package org.broadinstitute.hail.driver
 
+import java.time._
+
 import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Variant, Genotype}
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
-import java.time._
+
 import scala.io.Source
 
 object ExportVCF extends Command {
@@ -20,6 +22,8 @@ object ExportVCF extends Command {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
 
+    @Args4jOption(name = "--export-pp", usage = "Export Hail PLs as a PP format field")
+    var exportPP: Boolean = false
   }
 
   def newOptions = new Options
@@ -28,7 +32,9 @@ object ExportVCF extends Command {
 
   def description = "Write current dataset as VCF file"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def infoNumber(t: BaseType): String = t match {
     case TBoolean => "0"
@@ -61,18 +67,28 @@ object ExportVCF extends Command {
 
     val hasSamples = vds.nSamples > 0
 
+    val exportPP = options.exportPP
+
     def header: String = {
       val sb = new StringBuilder()
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##fileDate=${LocalDate.now}\n")
       // FIXME add Hail version
-      sb.append(
-        """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-          |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-          |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-          |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-          |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
+      if (exportPP)
+        sb.append(
+          """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+            |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+            |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+            |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+            |##FORMAT=<ID=PP,Number=G,Type=Integer,Description="Normalized, Phred-scaled posterior probabilities for genotypes as defined in the VCF specification">""".stripMargin)
+      else
+        sb.append(
+          """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+            |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+            |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+            |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+            |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
       sb += '\n'
 
       vds.vaSignature.fieldOption("filters")
@@ -154,7 +170,7 @@ object ExportVCF extends Command {
       sb += '\t'
 
       filterQuery.flatMap(_ (a))
-        .map(_.asInstanceOf[IndexedSeq[String]]) match {
+        .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
             f.foreachBetween { s =>
@@ -171,10 +187,15 @@ object ExportVCF extends Command {
 
       infoQuery(a).map(_.asInstanceOf[Row]) match {
         case Some(r) =>
-          infoSignature.get.fields
-            .zip(r.toSeq)
-            .foreachBetween { case (f, v) =>
-              if (v != null) {
+          val toWrite =
+            infoSignature.get.fields
+              .zip(r.toSeq)
+              .filter { case (f, v) => Option(v).isDefined }
+          if (toWrite.isEmpty)
+            sb += '.'
+          else {
+            toWrite
+              .foreachBetween { case (f, v) =>
                 sb.append(f.name)
                 if (f.`type` != TBoolean) {
                   sb += '='
@@ -183,8 +204,8 @@ object ExportVCF extends Command {
                     case _ => sb.append(v)
                   }
                 }
-              }
-            } { () => sb += ';' }
+              } { () => sb += ';' }
+          }
 
         case None =>
           sb += '.'
@@ -192,7 +213,10 @@ object ExportVCF extends Command {
 
       if (hasSamples) {
         sb += '\t'
-        sb.append("GT:AD:DP:GQ:PL")
+        if (exportPP)
+          sb.append("GT:AD:DP:GQ:PP")
+        else
+          sb.append("GT:AD:DP:GQ:PL")
         gs.foreach { g =>
           sb += '\t'
           sb.append(g)

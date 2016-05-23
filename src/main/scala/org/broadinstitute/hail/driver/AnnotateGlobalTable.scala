@@ -2,26 +2,22 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.io.annotators.SampleTSVAnnotator
+import org.broadinstitute.hail.io.annotators.GlobalTableAnnotator
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object AnnotateSamplesTSV extends Command {
+object AnnotateGlobalTable extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
-      usage = "TSV file path")
+      usage = "Path to file")
     var input: String = _
 
-    @Args4jOption(name = "-s", aliases = Array("--sampleheader"),
-      usage = "Identify the name of the column containing the sample IDs")
-    var sampleCol: String = "Sample"
-
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
-      usage = "Define types of fields in annotations files")
+      usage = "Define types of fields in file")
     var types: String = ""
 
     @Args4jOption(required = true, name = "-r", aliases = Array("--root"),
-      usage = "Argument is a period-delimited path starting with `sa'")
+      usage = "Argument is a period-delimited path starting with `global'")
     var root: String = _
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
@@ -35,23 +31,28 @@ object AnnotateSamplesTSV extends Command {
 
   def newOptions = new Options
 
-  def name = "annotatesamples tsv"
+  def name = "annotateglobal table"
 
-  def description = "Annotate samples with TSV file"
+  def description = "Annotate global table from a text file with multiple columns"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val input = options.input
+    val path = Parser.parseAnnotationRoot(options.root, Annotation.GLOBAL_HEAD)
 
-    val (m, signature) = SampleTSVAnnotator(input, options.sampleCol,
-      Parser.parseAnnotationTypes(options.types),
-      options.missing,
-      state.hadoopConf, options.delimiter)
-    val annotated = vds.annotateSamples(m, signature,
-      Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
-    state.copy(vds = annotated)
+    val (result, signature) = GlobalTableAnnotator(options.input, state.hadoopConf,
+      Parser.parseAnnotationTypes(options.types), options.missing, options.delimiter)
+
+
+    val (newGlobalSig, inserter) = vds.insertGlobal(signature, path)
+
+    state.copy(vds = vds.copy(
+      globalAnnotation = inserter(vds.globalAnnotation, Some(result)),
+      globalSignature = newGlobalSig))
   }
 }
+

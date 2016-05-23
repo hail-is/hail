@@ -2,14 +2,13 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
-import org.broadinstitute.hail.variant.VariantDataset
+import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option => Args4jOption}
+
 import org.broadinstitute.hail.variant.{HardCallSet, VariantDataset}
 import org.broadinstitute.hail.FatalException
-import org.kohsuke.args4j.{CmdLineException, CmdLineParser, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.rest.T2DServer
 
 import scala.collection.mutable
@@ -52,6 +51,7 @@ object ToplevelCommands {
 
   register(AnnotateSamples)
   register(AnnotateVariants)
+  register(AnnotateGlobal)
   register(Cache)
   register(ImportAnnotations)
   register(Count)
@@ -65,8 +65,8 @@ object ToplevelCommands {
   register(ExportVCF)
   register(FilterGenotypes)
   register(FamSummary)
-  register(FilterVariants)
   register(FilterSamples)
+  register(FilterVariants)
   register(GenDataset)
   register(Grep)
   register(GRM)
@@ -82,7 +82,8 @@ object ToplevelCommands {
   register(RenameSamples)
   register(Repartition)
   register(SampleQC)
-  register(ShowAnnotations)
+  register(PrintSchema)
+  register(ShowGlobalAnnotations)
   register(VariantQC)
   register(VEP)
   register(Write)
@@ -120,7 +121,9 @@ abstract class SuperCommand extends Command {
     subcommands += split.last -> subcommand
   }
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   override def lookup(args: Array[String]): (Command, Array[String]) = {
     val subArgs = args.dropWhile(_ == "-h")
@@ -164,6 +167,10 @@ abstract class SuperCommand extends Command {
     options
   }
 
+  override def runCommand(state: State, options: Options): State = {
+    run(state, options)
+  }
+
   def run(state: State, options: Options): State = {
     val args = options.arguments.asScala.toArray
 
@@ -193,7 +200,9 @@ abstract class Command {
 
   def hidden: Boolean = false
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic: Boolean
+
+  def requiresVDS: Boolean
 
   def lookup(args: Array[String]): (Command, Array[String]) = (this, args)
 
@@ -225,12 +234,12 @@ abstract class Command {
   }
 
   def runCommand(state: State, options: Options): State = {
-    if (!supportsMultiallelic
-      && state.vds != null
-      && !state.vds.wasSplit)
-      fatal(s"does not support multiallelics.\n  Run `splitmulti' first.")
-
-    run(state, options)
+    if (requiresVDS && state.vds == null)
+      fatal("this module requires a VDS.\n  Provide a VDS through a `read' or `import' command first.")
+    else if (!supportsMultiallelic && !state.vds.wasSplit)
+      fatal("this module does not support multiallelic variants.\n  Please run `splitmulti' first.")
+    else
+      run(state, options)
   }
 
   def run(state: State, args: Array[String] = Array.empty): State =

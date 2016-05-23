@@ -62,7 +62,9 @@ object GQHist extends Command {
 
   def description = "Compute histogram of GQ values stratified over genotype call"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   override def hidden = true
 

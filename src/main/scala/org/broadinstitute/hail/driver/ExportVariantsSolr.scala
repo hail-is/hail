@@ -2,10 +2,12 @@ package org.broadinstitute.hail.driver
 
 import org.apache.solr.client.solrj.impl.HttpSolrClient
 import org.apache.solr.common.SolrInputDocument
-import org.broadinstitute.hail.expr.{Parser, TArray, TVariant}
+import org.broadinstitute.hail.expr.{EvalContext, Parser, TArray, TVariant}
+
 import scala.collection.JavaConverters._
 import org.broadinstitute.hail.Utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
+
 import scala.collection.mutable
 
 object ExportVariantsSolr extends Command {
@@ -27,7 +29,9 @@ object ExportVariantsSolr extends Command {
 
   def description = "Export variant information to Solr"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = true
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val sc = state.vds.sparkContext
@@ -38,11 +42,10 @@ object ExportVariantsSolr extends Command {
     val symTab = Map(
       "v" ->(0, TVariant),
       "va" ->(1, vas))
-    val a = new mutable.ArrayBuffer[Any]()
-    for (_ <- symTab)
-      a += null
+    val ec = EvalContext(symTab)
+    val a = ec.a
 
-    val (header, fs) = Parser.parseExportArgs(cond, symTab, a)
+    val (header, fs) = Parser.parseExportArgs(cond, ec)
     if (header.isEmpty)
       fatal("column names required in condition")
 

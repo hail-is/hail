@@ -16,6 +16,10 @@ object FamSummary extends Command {
   }
   def newOptions = new Options
 
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
+
   def run(state: State, options: Options): State = {
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds)
     ped.writeSummary(options.output, state.hadoopConf)

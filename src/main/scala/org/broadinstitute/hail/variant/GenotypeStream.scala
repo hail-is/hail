@@ -82,7 +82,7 @@ case class GenotypeStream(variant: Variant, decompLenOption: Option[Int], a: Arr
 }
 
 object GenotypeStream {
-  val schema: StructType = {
+  def schema: StructType = {
     StructType(Array(
       StructField("decompLen", IntegerType, nullable = true),
       StructField("bytes", ArrayType(ByteType), nullable = false)

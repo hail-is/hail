@@ -5,7 +5,7 @@ import org.apache.spark.Accumulable
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.methods.VCFReport
+import org.broadinstitute.hail.methods.{VCFReport, VCFSettings}
 import org.broadinstitute.hail.variant._
 
 import scala.collection.JavaConverters._
@@ -29,19 +29,15 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
-    infoSignature: TStruct,
-    storeGQ: Boolean,
-    skipGenotypes: Boolean,
-    compress: Boolean): (Variant, Annotation, Iterable[Genotype]) = {
+    infoSignature: Option[TStruct],
+    vcfSettings: VCFSettings): (Variant, Annotation, Iterable[Genotype]) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
-    val filters: mutable.WrappedArray[String] = {
+    val filters: Set[String] = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
-        Array("PASS")
-      else {
-        val arr = vc.getFilters.asScala.toArray
-        arr
-      }
+        Set("PASS")
+      else
+        vc.getFilters.asScala.toSet
     }
     val rsid = vc.getID
 
@@ -50,37 +46,40 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       vc.getStart,
       ref,
       vc.getAlternateAlleles.iterator.asScala.map(a => AltAllele(ref, a.getBaseString)).toArray)
+    val nAlleles = v.nAlleles
+    val nGeno = v.nGenotypes
 
-    val info = Annotation(
-      infoSignature.fields.map { f =>
-        val a = vc.getAttribute(f.name)
-        try {
-          cast(a, f.`type`)
-        } catch {
-          case e: Exception =>
-            fatal(
-              s"""variant $v: INFO field ${f.name}:
-                  |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
-                  |  caught $e""".stripMargin)
-        }
-      }: _*)
-    assert(infoSignature.typeCheck(info))
+    val info = infoSignature.map { sig =>
+      val a = Annotation(
+        sig.fields.map { f =>
+          val a = vc.getAttribute(f.name)
+          try {
+            cast(a, f.`type`)
+          } catch {
+            case e: Exception =>
+              fatal(
+                s"""variant $v: INFO field ${f.name}:
+                    |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
+                    |  caught $e""".stripMargin)
+          }
+        }: _*)
+      assert(sig.typeCheck(a))
+      a
+    }
 
-    val va = Annotation(
-      rsid,
-      vc.getPhredScaledQual,
-      filters,
-      pass,
-      info)
+    val va = info match {
+      case Some(infoAnnotation) => Annotation(rsid, vc.getPhredScaledQual, filters, pass, infoAnnotation)
+      case None => Annotation(rsid, vc.getPhredScaledQual, filters, pass)
+    }
 
-    if (skipGenotypes)
+    if (vcfSettings.skipGenotypes)
       return (v, va, Iterable.empty)
 
     val gb = new GenotypeBuilder(v)
 
     // FIXME compress
     val noCall = Genotype()
-    val gsb = new GenotypeStreamBuilder(v, compress)
+    val gsb = new GenotypeStreamBuilder(v, vcfSettings.compress)
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala
@@ -95,7 +94,14 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       var filter = false
       gb.clear()
 
-      var pl = g.getPL
+      var pl = if (vcfSettings.ppAsPL) {
+        val str = g.getAnyAttribute("PP")
+        if (str != null)
+          str.asInstanceOf[String].split(",").map(_.toInt)
+        else null
+      }
+      else g.getPL
+
       if (g.hasPL) {
         val minPL = pl.min
         if (minPL != 0) {
@@ -130,8 +136,12 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       }
 
       val ad = g.getAD
-      if (g.hasAD)
-        gb.setAD(ad)
+      if (g.hasAD) {
+        if (vcfSettings.skipBadAD && ad.length != nAlleles)
+          reportAcc += VCFReport.ADInvalidNumber
+        else
+          gb.setAD(ad)
+      }
 
       if (g.hasDP) {
         var dp = g.getDP
@@ -153,7 +163,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         val gq = g.getGQ
         gb.setGQ(gq)
 
-        if (!storeGQ) {
+        if (!vcfSettings.storeGQ) {
           if (pl != null) {
             val gqFromPL = Genotype.gqFromPL(pl)
 

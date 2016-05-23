@@ -54,11 +54,21 @@ object ImportVCF extends Command with VCFImporter {
     @Args4jOption(name = "--store-gq", usage = "Store GQ instead of computing from PL")
     var storeGQ: Boolean = false
 
+    @Args4jOption(name = "--pp-as-pl", usage = "Store PP genotype field as Hail PLs [EXPERIMENTAL]")
+    var ppAsPL: Boolean = false
+
+    @Args4jOption(name = "--skip-bad-ad", usage = "Set to missing all AD fields with the wrong number of elements")
+    var skipBadAD: Boolean = false
+
     @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
 
   def newOptions = new Options
+
+  def supportsMultiallelic = true
+
+  def requiresVDS = false
 
   def run(state: State, options: Options): State = {
     if (options.input)
@@ -80,7 +90,9 @@ object ImportVCF extends Command with VCFImporter {
         Some(options.nPartitions)
       else
         None,
-      options.skipGenotypes))
+      options.skipGenotypes,
+      options.ppAsPL,
+      options.skipBadAD))
   }
 
 }

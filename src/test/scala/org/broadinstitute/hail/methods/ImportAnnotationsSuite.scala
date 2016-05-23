@@ -36,7 +36,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     }
 
     val anno1 = AnnotateSamples.run(state,
-      Array("tsv", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.`my phenotype`", "-t", "qPhen:Int"))
+      Array("table", "-i", "src/test/resources/sampleAnnotations.tsv", "-s", "Sample", "-r", "sa.`my phenotype`", "-t", "qPhen:Int"))
 
     val q1 = anno1.vds.querySA("sa.`my phenotype`.Status")._2
     val q2 = anno1.vds.querySA("sa.`my phenotype`.qPhen")._2
@@ -126,7 +126,7 @@ class ImportAnnotationsSuite extends SparkSuite {
         .toMap
     }
     val anno1 = AnnotateVariants.run(state,
-      Array("tsv", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
+      Array("table", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
     val q1 = anno1.vds.queryVA("va.stuff")._2
     anno1.vds.rdd
@@ -138,10 +138,10 @@ class ImportAnnotationsSuite extends SparkSuite {
       }
 
     val anno1alternate = AnnotateVariants.run(state,
-      Array("tsv", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
+      Array("table", "src/test/resources/variantAnnotations.alternateformat.tsv", "--vcolumns",
         "Chromosome:Position:Ref:Alt", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
-    val anno1glob = AnnotateVariants.run(state, Array("tsv", "src/test/resources/variantAnnotations.split.*.tsv",
+    val anno1glob = AnnotateVariants.run(state, Array("table", "src/test/resources/variantAnnotations.split.*.tsv",
       "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
 
     assert(anno1alternate.vds.same(anno1.vds))
@@ -215,34 +215,55 @@ class ImportAnnotationsSuite extends SparkSuite {
   }
 
   @Test def testSerializedAnnotator() {
-    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
+    val s0 = State(sc, sqlContext)
+    var s: State = null
+    var t: State = null
 
-    val tsv1r = AnnotateVariants.run(state,
-      Array("tsv", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
+    s = ImportVCF.run(s0, Array("src/test/resources/sample.vcf"))
+    val sSample = SplitMulti.run(s, Array.empty[String])
 
-    val vcf1 = AnnotateVariants.run(state, Array("vcf", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
-
-    val s2 = ImportVCF.run(state, Array("src/test/resources/sampleInfoOnly.vcf"))
-    val s2split = SplitMulti.run(s2)
-
-    val importVCFFile = tmpDir.createTempFile("variantAnnotationsTSV", ".vds")
+    // tsv
     val importTSVFile = tmpDir.createTempFile("variantAnnotationsTSV", ".vds")
+    s = ImportAnnotations.run(s0,
+      Array("table", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double"))
+    Write.run(s, Array("-o", importTSVFile))
 
-    Write.run(s2split, Array("-o", importVCFFile))
-
-    val annoState = ImportAnnotations.run(state,
-      Array("src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double"))
-    Write.run(annoState, Array("-o", importTSVFile))
-
-    val tsvToVDS = AnnotateVariants.run(state,
+    s = AnnotateVariants.run(sSample,
+      Array("table", "src/test/resources/variantAnnotations.tsv", "-t", "Rand1:Double,Rand2:Double", "-r", "va.stuff"))
+    t = AnnotateVariants.run(sSample,
       Array("vds", "-i", importTSVFile, "-r", "va.stuff"))
+    assert(s.vds.same(t.vds))
 
-    val vcfToVDS = AnnotateVariants.run(state,
+    // vcf
+    val importVCFFile = tmpDir.createTempFile("variantAnnotationsVCF", ".vds")
+    s = ImportVCF.run(s0, Array("src/test/resources/sampleInfoOnly.vcf"))
+    s = SplitMulti.run(s)
+    Write.run(s, Array("-o", importVCFFile))
+
+    s = AnnotateVariants.run(sSample,
+      Array("vcf", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
+    t = AnnotateVariants.run(sSample,
       Array("vds", "-i", importVCFFile, "-r", "va.other"))
 
-    assert(tsv1r.vds.same(tsvToVDS.vds))
-    assert(vcf1.vds.same(vcfToVDS.vds))
+    assert(s.vds.same(t.vds))
+
+    // json
+    val importJSONFile = tmpDir.createTempFile("variantAnnotationsJSON", ".vds")
+
+    val jsonSchema = "Struct { Rand1: Double, Rand2: Double, Gene: String, contig: String, start: Int, ref: String, alt: String }"
+    // FIXME better way to array-ify
+    val vFields = """root.contig, root.start, root.ref, root.alt.split("/")"""
+
+    s = ImportAnnotations.run(s0,
+      Array("json", "src/test/resources/importAnnot.json", "--vfields", vFields, "-t", jsonSchema))
+    Write.run(s, Array("-o", importJSONFile))
+
+    s = AnnotateVariants.run(sSample,
+      Array("json", "src/test/resources/importAnnot.json", "-t", jsonSchema, "--vfields", vFields, "--root", "va.third"))
+    t = AnnotateVariants.run(sSample,
+      Array("vds", "-i", importJSONFile, "-r", "va.third"))
+
+    assert(s.vds.same(t.vds))
   }
 
   @Test def testAnnotateSamples() {
@@ -251,7 +272,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val annoMap = vds.sampleIds.map(id => (id, 5))
       .toMap
-    val vds2 = vds.filterSamples({case (s, sa) => scala.util.Random.nextFloat > 0.5})
+    val vds2 = vds.filterSamples({ case (s, sa) => scala.util.Random.nextFloat > 0.5 })
       .annotateSamples(annoMap, TInt, List("test"))
 
     val q = vds2.querySA("sa.test")._2

@@ -8,7 +8,7 @@ class CaseControlCountSuite extends SparkSuite {
   @Test def test() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/casecontrolcount.vcf"))
-    s = AnnotateSamples.run(s, Array("tsv",
+    s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/casecontrolstatus.tsv",
       "--root", "sa",
       "--types", "case: Boolean"))

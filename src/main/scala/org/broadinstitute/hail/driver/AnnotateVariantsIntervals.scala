@@ -5,7 +5,7 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object AnnotateVariantsIList extends Command {
+object AnnotateVariantsIntervals extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
@@ -22,6 +22,10 @@ object AnnotateVariantsIList extends Command {
   def name = "annotatevariants intervals"
 
   def description = "Annotate variants with interval list"
+
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
 
   def run(state: State, options: Options): State = {
     val vds = state.vds

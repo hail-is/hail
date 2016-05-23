@@ -90,6 +90,18 @@ dependencies {
 test {
     useTestNG {}
 
+    Random random = new Random()
+
+    def randomize = System.getProperty("hail.randomize","false").toBoolean()
+    def randomSeed = random.nextInt()
+
+    if (randomize) {System.setProperty("hail.seed", randomSeed.toString())
+    } else if (System.getProperty("hail.seed") == null) {
+        System.setProperty("hail.seed", "1")
+    }
+    def seed = System.getProperty("hail.seed")
+    println "Using a seed of [$seed] for testing."
+
     systemProperties System.getProperties()
 
     testLogging {

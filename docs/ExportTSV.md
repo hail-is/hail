@@ -16,15 +16,20 @@ Command line arguments:
 1. `exportsamples` will print one line per sample in the VDS.  The accessible namespace includes:
    - `s` (sample)
    - `sa` (sample annotations)
+   - `global` (global annotations)
+   - `gs` (genotype column [aggregable](HailExpressionLanguage.md#aggregables))
 2. `exportvariants` will print one line per variant in the VDS.  The accessible namespace includes:
    - `v` (variant)
    - `va` (variant annotations)
+   - `global` (global annotations)
+   - `gs` (genotype row [aggregable](HailExpressionLanguage.md#aggregables))
 3. `exportgenotypes` will print one line per cell (genotype) in the VDS<sup>*</sup>.  The accessible namespace includes:
    - `g` (genotype)
    - `s` (sample)
    - `sa` (sample annotations)
    - `v` (variant)
-   - `va` (variant annotations). 
+   - `va` (variant annotations).
+   - `global` (global annotations)
    
 <sup>*</sup>The `exportgenotypes` module does not print hom-ref or missing genotypes by default, in order to restrict the size of the file produced.  There are command line arguments to turn on these print modes:
  - `--print-ref`

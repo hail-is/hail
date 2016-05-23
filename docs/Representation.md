@@ -22,6 +22,9 @@
            |__________________________|
                 Sample annotations
            
+                     ____
+                    |    | Global annotations
+                    |____|           
 ```
 
 The above cartoon depicts the rough organization of the data stored in Hail.  The majority of the data is genotype information, which can be thought of as a matrix with columns keyed by [**sample**](#sample) objects, and rows keyed by [**variant**](#variant) objects.  Each cell of the matrix is a [**genotype**](#genotype) object.
@@ -102,6 +105,7 @@ Identifier | Type | Description
 `g.dp`             | `Int`     | the total number of informative reads
 `g.od`             | `Int`     | `od = dp - ad.sum`
 `g.gq`             | `Int`     | the difference between the two smallest PL entries
+`g.pl`          | `Array[Int]` | phred-scaled normalized genotype likelihood values
 `g.isHomRef`       | `Boolean` | true if this call is `0/0`
 `g.isHet`          | `Boolean` | true if this call is heterozygous
 `g.isHetRef`       | `Boolean` | true if this call is `0/k` with `k>0`
@@ -110,7 +114,7 @@ Identifier | Type | Description
 `g.isCalledNonRef` | `Boolean` | true if either `g.isHet` or `g.isHomVar` is true
 `g.isCalled`       | `Boolean` | true if the genotype is not `./.`
 `g.isNotCalled`    | `Boolean` | true if the genotype is `./.`
-`g.nNonRef`        | `Int`     | the number of called alternate alleles
+`g.nNonRefAlleles`        | `Int`     | the number of called alternate alleles
 `g.pAB()`          | `Double`  | p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
 `g.fractionReadsRef` | `Double` | the ratio of ref reads to the sum of all *informative* reads
  

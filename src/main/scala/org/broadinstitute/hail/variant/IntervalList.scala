@@ -26,22 +26,24 @@ object IntervalList {
 
   def read(filename: String,
     hConf: hadoop.conf.Configuration): IntervalList = {
-    require(filename.endsWith(".interval_list"))
 
-    readFile(filename, hConf) { s =>
+    readLines(filename, hConf) { s =>
       IntervalList(
-        Source.fromInputStream(s)
-          .getLines() // Iterator[String]
-          .filter(line => !line.isEmpty && line(0) != '@')
-          .map {
-            case intervalRegex(contig, start_str, end_str) =>
-              Interval(contig, start_str.toInt, end_str.toInt)
-            case line =>
-              val Array(contig, start, end, direction, target) = line.split("\t")
-              // FIXME proper input error handling
-              assert(direction == "+" || direction == "-")
-              Interval(contig, start.toInt, end.toInt)
-          }
+        s.filter(line => !line.value.isEmpty && line.value(0) != '@')
+          .map(_.transform { l =>
+            l.value match {
+              case intervalRegex(contig, start_str, end_str) =>
+                Interval(contig, start_str.toInt, end_str.toInt)
+              case line => line.split("\t") match {
+                case Array(contig, start, end, direction, target) =>
+                  // FIXME proper input error handling
+                  assert(direction == "+" || direction == "-")
+                  Interval(contig, start.toInt, end.toInt)
+                case _ => fatal("invalid interval format" +
+                  "\n  expected: `chr:start-end' or `chr  start  end  strand  target' (tab-separated)")
+              }
+            }
+          })
           .toTraversable)
     }
   }
