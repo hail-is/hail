@@ -201,6 +201,8 @@ class ExprSuite extends SparkSuite {
 
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
+      sb.clear()
+      t.pretty(sb, 0)
       val res = sb.result()
       val parsed = Parser.parseType(res)
       t == parsed
