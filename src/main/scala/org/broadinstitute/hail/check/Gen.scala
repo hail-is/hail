@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.check
 
 import org.apache.commons.math3.random._
+import org.broadinstitute.hail.Utils._
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
@@ -71,6 +72,31 @@ object Gen {
   def choose(min: Double, max: Double): Gen[Double] = Gen { (p: Parameters) =>
     p.rng.nextUniform(min, max, true)
   }
+
+  def shuffle[T](is: IndexedSeq[T]): Gen[IndexedSeq[T]] = {
+    Gen { (p: Parameters) =>
+      p.rng.nextPermutation(is.size, is.size).map(is)
+    }
+  }
+
+  def chooseWithWeights(weights: Array[Double]): Gen[Int] = {
+    assert(weights.forall(x => 0 <= x && x <= 1) && D_==(weights.sum, 1))
+    val cumulativeWeights = Array.fill[Double](weights.length)(0)
+    weights
+      .zipWithIndex
+      .foldLeft(0d)({ case (sum, (element, i)) =>
+        cumulativeWeights(i) = sum + element
+        sum + element
+      })
+    Gen { (p: Parameters) =>
+      val d = p.rng.nextUniform(0, 1)
+      val ind = cumulativeWeights.indexWhere(_ >= d)
+      if (ind < 0) weights.length else ind
+    }
+  }
+
+  def choose2WithWeights(weights: Array[Double]): Gen[(Int, Int)] =
+    zip(chooseWithWeights(weights), chooseWithWeights(weights))
 
   def frequency[T](wxs: (Int, Gen[T])*): Gen[T] = {
     assert(wxs.nonEmpty)

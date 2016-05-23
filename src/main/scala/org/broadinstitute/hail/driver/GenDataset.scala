@@ -20,6 +20,6 @@ object GenDataset extends Command {
 
   def run(state: State, options: Options): State = {
     state.copy(
-      vds = VariantSampleMatrix.gen(state.sc, Genotype.gen).sample())
+      vds = VariantSampleMatrix.gen(state.sc, Genotype.genRealistic(_)).sample())
   }
 }

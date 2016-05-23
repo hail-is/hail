@@ -130,14 +130,16 @@ object VariantSampleMatrix {
   def genValues[T](g: Gen[T]): Gen[Iterable[T]] =
     Gen.buildableOf[Iterable[T], T](g)
 
-  def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
+  def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[Gen[T]]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](nSamples, g(v)))
+         gg <- g(v);
+         values <- genValues[T](nSamples, gg))
       yield (v, values)
 
-  def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
+  def genVariantValues[T](g: (Variant) => Gen[Gen[T]]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-      values <- genValues[T](g(v)))
+         gg <- g(v);
+         values <- genValues[T](gg))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -147,41 +149,37 @@ object VariantSampleMatrix {
     genVariantValues(nSamples, Genotype.gen)
 
   def gen[T](sc: SparkContext,
-    sampleIds: Array[String],
-    variants: Array[Variant],
-    g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val nSamples = sampleIds.length
-    for (vaSig <- Type.genArb; saSig <- Type.genArb; globalSig <- Type.genArb;
-      saValues <- Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(saSig.genValue));
-      globalValue <- globalSig.genValue;
-      rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
-        variants.map(v => Gen.zip(
-          Gen.const(v),
-          vaSig.genValue,
-          genValues(nSamples, g(v))))))
-      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, globalValue, saSig, vaSig, globalSig), sc.parallelize(rows))
+    gens: VSMSubGens[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    for (vaSig <- gens.vaSigGen;
+         saSig <- gens.saSigGen;
+         globalSig <- gens.globalSigGen;
+         sampleIds <- gens.sampleIdGen;
+         global <- gens.globalGen(globalSig);
+         saValues <- gens.saGen(sampleIds.length, saSig);
+         rows <- Gen.distinctBuildableOf[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
+           for (v <- gens.vGen;
+                va <- gens.vaGen(vaSig);
+                tgen <- gens.tGen(v);
+                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, tgen))
+             yield (v, va, ts)))
+      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig), sc.parallelize(rows))
   }
 
-  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val samplesVariantsGen =
-      for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-        variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
-        yield (sampleIds, variants)
-    samplesVariantsGen.flatMap {
-      case (sampleIds, variants) => gen(sc, sampleIds, variants, g)
-    }
-  }
-
-  def gen[T](sc: SparkContext, sampleIds: Array[String], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val variantsGen = Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen)
-    variantsGen.flatMap(variants => gen(sc, sampleIds, variants, g))
-  }
-
-  def gen[T](sc: SparkContext, variants: Array[Variant], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val samplesGen = Gen.distinctBuildableOf[Array[String], String](Gen.identifier)
-    samplesGen.flatMap(sampleIds => gen(sc, sampleIds, variants, g))
-  }
+  def gen[T](sc: SparkContext, g: (Variant) => Gen[Gen[T]])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    gen(sc, VSMSubGens[T](tGen = g))
 }
+
+case class VSMSubGens[T](
+  sampleIdGen: Gen[IndexedSeq[String]] = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
+  saSigGen: Gen[Type] = Type.genArb,
+  vaSigGen: Gen[Type] = Type.genArb,
+  globalSigGen: Gen[Type] = Type.genArb,
+  saGen: (Int, Type) => Gen[IndexedSeq[Annotation]] = (nSamples: Int, t: Type) =>
+    Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(t.genValue)),
+  vaGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
+  globalGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
+  vGen: Gen[Variant] = Variant.gen,
+  tGen: (Variant) => Gen[Gen[T]])
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
   val rdd: RDD[(Variant, Annotation, Iterable[T])])

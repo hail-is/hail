@@ -136,14 +136,25 @@ object Variant {
     Gen.buildableOfN[Array[Variant], Variant](nVariants, gen)
 
   def gen: Gen[Variant] =
-    // FIXME temporary to make plink happy, see: https://github.com/broadinstitute/hail/issues/229
-    for (contig <- Gen.oneOfSeq((1 to 22).map(_.toString));
+    for (contig <- Gen.identifier;
       start <- Gen.posInt;
       nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10)));
       alleles <- Gen.distinctBuildableOfN[Array[String], String](
         nAlleles,
         Gen.frequency((10, genDNAString),
           (1, Gen.const("*")))) if alleles(0) != "*") yield {
+      val ref = alleles(0)
+      Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
+    }
+
+  def genPlinkCompatible: Gen[Variant] =
+    for (contig <- Gen.oneOfSeq((1 to 22).map(_.toString));
+         start <- Gen.posInt;
+         nAlleles <- Gen.const(2);
+         alleles <- Gen.distinctBuildableOfN[Array[String], String](
+           nAlleles,
+           Gen.frequency((10, genDNAString),
+             (1, Gen.const("*")))) if alleles(0) != "*") yield {
       val ref = alleles(0)
       Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
     }
@@ -165,6 +176,17 @@ object Variant {
       r.getAs[mutable.WrappedArray[Row]](3)
         .map(s => AltAllele.fromRow(s)))
 }
+
+case class VariantSubGens(
+  contigGen: Gen[String] = Gen.identifier,
+  startGen: Gen[Int] = Gen.posInt,
+  nAlleleGen: Gen[Int] = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
+  allelesGen: (String, Int) => Gen[Array[String]] = (ref: String, nAlleles: Int) =>
+    Gen.distinctBuildableOfN[Array[String], String](
+    nAlleles,
+    Gen.frequency((10, genDNAString),
+      (1, Gen.const("*")))).filter(_(0) != "*")
+)
 
 case class Variant(contig: String,
   start: Int,

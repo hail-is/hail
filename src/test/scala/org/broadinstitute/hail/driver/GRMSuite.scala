@@ -1,19 +1,18 @@
 package org.broadinstitute.hail.driver
 
-import java.io.{DataInputStream, File}
-import java.net.URI
+import java.io.DataInputStream
 
 import breeze.linalg.DenseMatrix
-import org.broadinstitute.hail.{SparkSuite, TempDir}
-import org.broadinstitute.hail.check.{Gen, Prop}
-import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.{Genotype, Variant, VariantSampleMatrix}
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.{Gen, Prop}
+import org.broadinstitute.hail.variant.{Genotype, VSMSubGens, Variant, VariantSampleMatrix}
+import org.broadinstitute.hail.{SparkSuite, TempDir}
 import org.testng.annotations.Test
 
 import scala.io.Source
-import sys.process._
 import scala.language.postfixOps
+import scala.sys.process._
 
 class GRMSuite extends SparkSuite {
   def loadIDFile(file: String): Array[String] = {
@@ -133,7 +132,8 @@ class GRMSuite extends SparkSuite {
     val grmBinFile = tmpDir.createTempFile("test", ".grm.bin")
     val grmNBinFile = tmpDir.createTempFile("test", ".grm.N.bin")
 
-    Prop.check(forAll(VariantSampleMatrix.gen[Genotype](sc, (v: Variant) => Genotype.gen(v).filter(_.isCalled))
+    Prop.check(forAll(VariantSampleMatrix.gen[Genotype](sc,
+      VSMSubGens(tGen = (v: Variant) => Genotype.genRealistic(v).map(g => g.filter(_.isCalled)), vGen = Variant.genPlinkCompatible))
       // plink fails with fewer than 2 samples, no variants
       .filter(vsm => vsm.nSamples > 1 && vsm.nVariants > 0),
       Gen.oneOf("rel", "gcta-grm", "gcta-grm-bin")) {
