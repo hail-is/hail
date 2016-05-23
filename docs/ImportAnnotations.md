@@ -12,6 +12,10 @@ Each of these modules has multiple run modes, which are specified with the first
 ```
 
 ```
+<...> annotatesamples json <args>
+```
+
+```
 <...> annotatevariants expr <args>
 ```
 
@@ -167,6 +171,7 @@ ____
 
 Hail currently supports annotating variants from seven sources:
  - [Text tables](#VariantTable)
+ - [JSON](#VariantJSON)
  - [interval list files](#IntervalList)
  - [UCSC bed files](#UCSCBed)
  - [VCFs (info field, filters, qual)](#VCF)
@@ -259,6 +264,19 @@ va: va.<identifier>
 ```
 
 ____
+
+<a name="VariantJSON"></a>
+### JSON
+
+This module annotates variants from JSON files, one JSON object per line.  Variants are keyed by four expressions computing the chromosome (String), position (Int), ref (String) and alts (Array[String]) per JSON object.  The entire JSON object is written to the variant annotations at the specified root.  Multiple files can be read in one command, but they must agree in their file format.
+
+**Command line arguments:**
+
+- `json` Invoke this functionality (`annotatevariants json <args>`)
+- `<files...>` specify the file or files to be read **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the data read from the file, as a period-delimited path starting with `va` **(Required)**
+- `-v | --vfields <variantcols>` Four comma-delimited expressions computing the chromosome (String), position (Int), ref (String) and alts (Array[String]) **(Required)**
+- `-t | --type <typestring>` type of the JSON objects  **(Required)**
 
 <a name="IntervalList"></a>
 ### Interval list files (.interval_list[.gz])
