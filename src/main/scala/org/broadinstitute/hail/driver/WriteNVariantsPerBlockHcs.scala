@@ -22,4 +22,8 @@ object WriteNVariantsPerBlockHcs extends Command {
 
     state
   }
+
+  def supportsMultiallelic = false
+
+  def requiresVDS = false
 }

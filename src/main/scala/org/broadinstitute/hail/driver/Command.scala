@@ -93,7 +93,7 @@ object ToplevelCommands {
   register(AddHcs)
   register(CacheHcs)
   register(CapVariantsPerBlockHcs)
-  register(LinearRegressionOnHcsCommand)
+//  register(LinearRegressionOnHcsCommand)
   register(ReadHcs)
   register(RepartitionHcs)
   register(WriteHcs)

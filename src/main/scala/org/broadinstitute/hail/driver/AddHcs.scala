@@ -13,6 +13,10 @@ object AddHcs extends Command {
     var blockWidth: Int = 100000
   }
 
+  def supportsMultiallelic = false
+
+  def requiresVDS = true
+
   def newOptions = new Options
 
   def name = "addhcs"

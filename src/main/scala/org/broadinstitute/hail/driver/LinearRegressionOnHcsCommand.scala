@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.driver
 
+/*
 import breeze.linalg.{DenseMatrix, DenseVector}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
@@ -114,3 +115,4 @@ object LinearRegressionOnHcsCommand extends Command {
     )
   }
 }
+*/

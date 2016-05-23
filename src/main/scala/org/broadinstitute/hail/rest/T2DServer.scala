@@ -31,7 +31,9 @@ object T2DServer extends Command {
 
   def description = "Run T2D REST server"
 
-  override def supportsMultiallelic = true
+  def supportsMultiallelic = false
+
+  def requiresVDS = false
 
   def readCovData(state: State, covFile: String, sampleIds: IndexedSeq[String]): Map[String, Array[Double]] = {
     val (covNames, sampleCovs): (Array[String], Map[String, Array[Double]]) =

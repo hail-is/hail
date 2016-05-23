@@ -9,4 +9,8 @@ object CacheHcs extends Command {
   def run(state: State, options: Options): State = {
     state.copy(hcs = state.hcs.cache())
   }
+
+  def supportsMultiallelic = false
+
+  def requiresVDS = false
 }

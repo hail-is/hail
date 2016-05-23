@@ -22,4 +22,8 @@ object RepartitionHcs extends Command {
     } else
       state.copy(hcs = state.hcs.rangePartition())
   }
+
+  def supportsMultiallelic = false
+
+  def requiresVDS = false
 }
