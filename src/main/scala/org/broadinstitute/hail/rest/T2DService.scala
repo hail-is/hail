@@ -91,11 +91,11 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
   def getStats(req: GetStatsRequest): GetStatsResult = {
     req.md_version.foreach { md_version =>
       if (md_version != "mdv1")
-        throw new RESTFailure(s"Unknown md_version `$md_version'. Available md_versions: mdv1.")
+        throw new RESTFailure(s"Unknown md_version `$md_version'. Available md_versions: mdv1")
     }
 
     if (req.api_version != 1)
-      throw new RESTFailure(s"Unsupported API version `${req.api_version}'. Supported API versions: 1.")
+      throw new RESTFailure(s"Unsupported API version `${req.api_version}'. Supported API versions: 1")
 
     val MaxWidthForHcs = 600000
     val MaxWidthForHcs1Mb = 10000000
@@ -103,13 +103,13 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
 
     val limit = req.limit.getOrElse(HardLimit)
 
-    val y: DenseVector[Double] = {
-      val pheno = req.phenotype.getOrElse("T2D")
+    val pheno = req.phenotype.getOrElse("T2D")
+
+    val y: DenseVector[Double] =
       covMap.get(pheno) match {
         case Some(a) => DenseVector(a)
         case None => throw new RESTFailure(s"$pheno is not a valid phenotype name")
       }
-    }
 
     val phenoCovs = mutable.Set[String]()
     val variantCovs = new mutable.ArrayBuffer[Variant]()
@@ -125,19 +125,22 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
                 else
                   throw new RESTFailure(s"${c.name} is not a valid covariate name")
               case None =>
-                throw new RESTFailure("Covariate of type 'phenotype' must include 'name' field in request.")
+                throw new RESTFailure("Covariate of type 'phenotype' must include 'name' field in request")
             }
           case "variant" =>
             (c.chrom, c.pos, c.ref, c.alt) match {
               case (Some(chrom), Some(pos), Some(ref), Some(alt)) =>
                 variantCovs += Variant(chrom, pos, ref, alt)
               case missingFields =>
-                throw new RESTFailure("Covariate of type 'variant' must include 'chrom', 'pos', 'ref', and 'alt' fields in request.")
+                throw new RESTFailure("Covariate of type 'variant' must include 'chrom', 'pos', 'ref', and 'alt' fields in request")
             }
           case other =>
-            throw new RESTFailure(s"$other is not a supported covariate type.")
+            throw new RESTFailure(s"$other is not a supported covariate type")
         }
     }
+
+    if (phenoCovs(pheno))
+      throw new RESTFailure(s"$pheno appears as both the response phenotype and a covariate phenotype")
 
     val nCov = phenoCovs.size + variantCovs.size
     val covArray = phenoCovs.toArray.flatMap(s => covMap(s)) ++ variantCovs.toArray.flatMap(hcs.variantGts)
@@ -158,18 +161,21 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     req.variant_filters.foreach(_.foreach { f =>
       f.operand match {
         case "chrom" =>
-          chromFilters += f
+          if (f.operator == "eq")
+            chromFilters += f
+          else
+            throw new RESTFailure(s"chrom filter operator must be 'eq': '${f.operator}' not supported")
         case "pos" =>
-          posFilters += f
           f.operator match {
             case "gte" => minPos = minPos max f.value.toInt
             case "gt" => minPos = minPos max (f.value.toInt + 1)
             case "lte" => maxPos = maxPos min f.value.toInt
-            case "le" => maxPos = maxPos min (f.value.toInt - 1)
+            case "lt" => maxPos = maxPos min (f.value.toInt - 1)
             case "eq" => isSingleVariant = true
             case other =>
-              throw new RESTFailure(s"'pos filter operator must be 'gte', 'gt', 'lte', 'lt', or 'eq': '$other' not supported.")
+              throw new RESTFailure(s"pos filter operator must be 'gte', 'gt', 'lte', 'lt', or 'eq': '$other' not supported")
           }
+          posFilters += f
         case other => throw new RESTFailure(s"Filter operand must be 'chrom' or 'pos': '$other' not supported.")
       }
     })
@@ -182,8 +188,6 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
         1
       else
         maxPos - minPos
-
-    assert(maxPos >= minPos)
 
     val hcsToUse =
       if (width <= MaxWidthForHcs)
@@ -210,22 +214,25 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
       stats = stats.take(limit)
 
     req.sort_by.foreach { a =>
-      var fields = a.distinct.sortBy(a.indexOf(_))
+      var fields = a.distinct.toList
 
-      if (fields.startsWith("contig")) {
+      // Default order is pos, ref, alt
+      if (fields.nonEmpty && fields.head == "pos") {
         fields = fields.tail
-        if (fields.startsWith("pos"))
+        if (fields.nonEmpty && fields.head == "ref") {
           fields = fields.tail
+          if (fields.nonEmpty && fields.head == "alt")
+            fields = fields.tail
+        }
       }
 
       fields.reverse.foreach { f =>
         stats = f match {
-          case "contig" => stats.sortBy(_.chrom)
           case "pos" => stats.sortBy(_.pos)
           case "ref" => stats.sortBy(_.ref)
           case "alt" => stats.sortBy(_.alt)
           case "p-value" => stats.sortBy(_.`p-value`.getOrElse(2d))
-          case _ => throw new RESTFailure(s"Valid sort_by arguments are `contig', `pos', `ref', `alt', and `p-value': got $f")
+          case _ => throw new RESTFailure(s"Valid sort_by arguments are `pos', `ref', `alt', and `p-value': got $f")
         }
       }
     }
