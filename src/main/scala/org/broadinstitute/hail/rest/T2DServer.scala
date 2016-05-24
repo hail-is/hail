@@ -15,6 +15,7 @@ object T2DServer extends Command {
     @Args4jOption(required = false, name = "-p", aliases = Array("--port"), usage = "Service port")
     var port: Int = 8080
 
+
     @Args4jOption(required = true, name = "-h1", aliases = Array("--hcs100Kb"), usage = ".hcs with 100Kb block")
     var hcsFile: String = _
 
@@ -34,7 +35,7 @@ object T2DServer extends Command {
 
   def description = "Run T2D REST server"
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic = true
 
   def requiresVDS = false
 
@@ -56,8 +57,11 @@ object T2DServer extends Command {
               (lineSplit(0), lineSplit.drop(1).map(_.toDouble))
             }
           }.toMap
-          )
+        )
       }
+
+    if (! sampleIds.forall(sampleCovs.keySet(_)))
+      throw new RESTFailure("Not all samples in the hard call set are listed in the phenotype data set")
 
     covNames
       .zipWithIndex
@@ -75,7 +79,6 @@ object T2DServer extends Command {
 
     assert(hcs.sampleIds == hcs1Mb.sampleIds)
     assert(hcs1Mb.sampleIds == hcs10Mb.sampleIds)
-    assert(hcs.sampleIds.forall(covMap.keySet(_)))
 
     val service = new T2DService(hcs, hcs1Mb, hcs10Mb, covMap, options.defaultMinMAC)
     val task = BlazeBuilder.bindHttp(options.port, "0.0.0.0")

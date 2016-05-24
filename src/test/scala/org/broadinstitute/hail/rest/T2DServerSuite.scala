@@ -28,6 +28,10 @@ class T2DRunnable(sc: SparkContext, sqlContext: SQLContext) extends Runnable {
     val hcs10Mb = hcs1Mb.capNVariantsPerBlock(maxPerBlock = 1000, newBlockWidth = 10000000).rangePartition(2)
     val covMap = T2DServer.readCovData(s, "src/test/resources/t2dserver.cov", hcs.sampleIds)
 
+//    hcs.write(sqlContext, "src/test/resources/t2dserver100Kb.hcs")
+//    hcs.write(sqlContext, "src/test/resources/t2dserver1Mb.hcs")
+//    hcs.write(sqlContext, "src/test/resources/t2dserver10Mb.hcs")
+
     val service = new T2DService(hcs, hcs1Mb, hcs10Mb, covMap)
 
     task = BlazeBuilder.bindHttp(8080)
@@ -43,7 +47,7 @@ class T2DServerSuite extends SparkSuite {
   var r: T2DRunnable = null
   var t: Thread = null
 
-  //RestAssured.config = RestAssured.config().jsonConfig(
+  // RestAssured.config = RestAssured.config().jsonConfig...
 
   @BeforeClass
   override def beforeClass() = {
@@ -1154,7 +1158,6 @@ class T2DServerSuite extends SparkSuite {
         .response()
 
     println(response.asString())
-
   }
 
 

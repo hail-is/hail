@@ -24,7 +24,7 @@ object WriteHcs extends Command {
     state
   }
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic = true
 
   def requiresVDS = false
 }

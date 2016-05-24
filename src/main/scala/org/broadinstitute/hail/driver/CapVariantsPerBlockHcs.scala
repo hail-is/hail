@@ -27,7 +27,7 @@ object CapVariantsPerBlockHcs extends Command {
     state.copy(hcs = newHcs)
   }
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic = true
 
   def requiresVDS = false
 }
