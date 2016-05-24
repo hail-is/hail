@@ -26,11 +26,8 @@ case class VariantFilter(operand: String,
   def filterDf(df: DataFrame, blockWidth: Int): DataFrame = {
     operand match {
       case "chrom" =>
-        assert(operand_type == "string"
-          && operator == "eq")
         df.filter(df("contig") === "chr" + value)
       case "pos" =>
-        assert(operand_type == "integer")
         val v = value.toInt
         val vblock = v / blockWidth
         operator match {
@@ -86,7 +83,7 @@ case class GetStatsResult(is_error: Boolean,
 
 class RESTFailure(message: String) extends Exception(message)
 
-class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, covMap: Map[String, Array[Double]]) {
+class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, covMap: Map[String, Array[Double]], defaultMinMAC: Int = 0) {
 
   def getStats(req: GetStatsRequest): GetStatsResult = {
     req.md_version.foreach { md_version =>
@@ -102,9 +99,14 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     val HardLimit = 100000 // max is around 16k for T2D
 
     val limit = req.limit.getOrElse(HardLimit)
+    if (limit < 0)
+      throw new RESTFailure(s"limit must be non-negative: got $limit")
+
+//    val minMAC = req.min_mac.getOrElse(DefaultMinMAC)
+//    if (minMAC < 0)
+//      throw new RESTFailure(s"min_mac must be non-negative, default is $DefaultMinMAC: got $minMAC")
 
     val pheno = req.phenotype.getOrElse("T2D")
-
     val y: DenseVector[Double] =
       covMap.get(pheno) match {
         case Some(a) => DenseVector(a)
@@ -135,7 +137,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
                 throw new RESTFailure("Covariate of type 'variant' must include 'chrom', 'pos', 'ref', and 'alt' fields in request")
             }
           case other =>
-            throw new RESTFailure(s"$other is not a supported covariate type")
+            throw new RESTFailure(s"Supported covariate types are phenotype and variant: got $other")
         }
     }
 
@@ -151,21 +153,27 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
         None
 
     var minPos = 0
-    var maxPos = 1000000000
+    var maxPos = Int.MaxValue // 2,147,483,647 is greater than length of longest chromosome
+
+    var minMAC = 0
+    var maxMAC = Int.MaxValue
 
     val chromFilters = mutable.Set[VariantFilter]()
     val posFilters = mutable.Set[VariantFilter]()
+    val macFilters = mutable.Set[VariantFilter]()
 
     var isSingleVariant = false
+    var useDefaultMinMAC = true
 
     req.variant_filters.foreach(_.foreach { f =>
       f.operand match {
         case "chrom" =>
-          if (f.operator == "eq")
-            chromFilters += f
-          else
-            throw new RESTFailure(s"chrom filter operator must be 'eq': '${f.operator}' not supported")
+          if (!(f.operator == "eq" && f.operand_type == "string"))
+            throw new RESTFailure(s"chrom filter operator must be 'eq' and operand_type must be 'string': got '${f.operator}' and '${f.operand_type}'")
+          chromFilters += f
         case "pos" =>
+          if (f.operand_type != "integer")
+            throw new RESTFailure(s"pos filter operand_type must be 'integer': got '${f.operand_type}'")
           f.operator match {
             case "gte" => minPos = minPos max f.value.toInt
             case "gt" => minPos = minPos max (f.value.toInt + 1)
@@ -173,10 +181,22 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
             case "lt" => maxPos = maxPos min (f.value.toInt - 1)
             case "eq" => isSingleVariant = true
             case other =>
-              throw new RESTFailure(s"pos filter operator must be 'gte', 'gt', 'lte', 'lt', or 'eq': '$other' not supported")
+              throw new RESTFailure(s"pos filter operator must be 'gte', 'gt', 'lte', 'lt', or 'eq': got '$other'")
           }
           posFilters += f
-        case other => throw new RESTFailure(s"Filter operand must be 'chrom' or 'pos': '$other' not supported.")
+        case "mac" =>
+          if (f.operand_type != "integer")
+            throw new RESTFailure(s"mac filter operand_type must be 'integer': got '${f.operand_type}'")
+          f.operator match {
+            case "gte" => minMAC = minMAC max f.value.toInt
+            case "gt" => minMAC = minMAC max (f.value.toInt + 1)
+            case "lte" => maxMAC = maxMAC min f.value.toInt
+            case "lt" => maxMAC = maxMAC min (f.value.toInt - 1)
+            case other =>
+              throw new RESTFailure(s"mac filter operator must be 'gte', 'gt', 'lte', 'lt': got '$other'")
+          }
+          useDefaultMinMAC = false
+        case other => throw new RESTFailure(s"Filter operand must be 'chrom' or 'pos': got '$other'")
       }
     })
 
@@ -188,6 +208,8 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
         1
       else
         maxPos - minPos
+
+    // val widthMAC = maxMAC - minMAC
 
     val hcsToUse =
       if (width <= MaxWidthForHcs)
@@ -203,7 +225,10 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     chromFilters.foreach(f => df = f.filterDf(df, blockWidth))
     posFilters.foreach(f => df = f.filterDf(df, blockWidth))
 
-    var stats = LinearRegression(hcsToUse.copy(df = df), y, cov)
+    if (useDefaultMinMAC)
+      minMAC = defaultMinMAC
+
+    var stats = LinearRegression(hcsToUse.copy(df = df), y, cov, minMAC, maxMAC)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
       .collect()

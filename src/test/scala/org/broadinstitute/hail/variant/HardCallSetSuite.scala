@@ -91,7 +91,7 @@ class HardCallSetSuite extends SparkSuite {
     val sampleFilter = Set("A","B","C","D","E","F")
 
     val filtVds = vds
-      .filterVariants((v, va) => variantFilter(v))
+      .filterVariants((v, va, gs) => variantFilter(v))
       .filterSamples((s, sa) => sampleFilter(s))
 
     val hcs = HardCallSet(sqlContext, filtVds, sparseCutoff = .5)

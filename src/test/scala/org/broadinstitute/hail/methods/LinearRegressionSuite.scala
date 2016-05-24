@@ -393,6 +393,7 @@ class LinearRegressionSuite extends SparkSuite {
     }
   }
 
+  /*
   @Test def testWithTwoCovHcs() {
     var s = State(sc, sqlContext)
 
@@ -489,4 +490,5 @@ class LinearRegressionSuite extends SparkSuite {
     assertEmpty(qBeta, v9)
     assertEmpty(qBeta, v10)
   }
+  */
 }

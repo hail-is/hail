@@ -23,6 +23,9 @@ object T2DServer extends Command {
 
     @Args4jOption(required = true, name = "-h3", aliases = Array("--hcs10Mb"), usage = ".hcs with 10Mb block")
     var hcs10MbFile: String = _
+
+    @Args4jOption(required = false, name = "-m", aliases = Array("--minmac"), usage = "default minimum MAC")
+    var defaultMinMAC: Int = 0
   }
 
   def newOptions = new Options
@@ -74,7 +77,7 @@ object T2DServer extends Command {
     assert(hcs1Mb.sampleIds == hcs10Mb.sampleIds)
     assert(hcs.sampleIds.forall(covMap.keySet(_)))
 
-    val service = new T2DService(hcs, hcs1Mb, hcs10Mb, covMap)
+    val service = new T2DService(hcs, hcs1Mb, hcs10Mb, covMap, options.defaultMinMAC)
     val task = BlazeBuilder.bindHttp(options.port, "0.0.0.0")
       .mountService(service.service, "/")
       .run

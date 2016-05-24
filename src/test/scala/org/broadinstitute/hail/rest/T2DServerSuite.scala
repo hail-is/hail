@@ -922,7 +922,7 @@ class T2DServerSuite extends SparkSuite {
         .`then`()
         .statusCode(400)
         .body("is_error", is(true))
-        .body("error_message", containsString("not a supported covariate type"))
+        .body("error_message", containsString("Supported covariate types are phenotype and variant"))
         .extract()
         .response()
 
@@ -1007,6 +1007,154 @@ class T2DServerSuite extends SparkSuite {
         .body("error_message", containsString("Valid sort_by arguments are `pos', `ref', `alt', and `p-value'"))
         .extract()
         .response()
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "errorNegLimit",
+            |  "api_version"     : 1,
+            |  "limit"           : -1
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(400)
+        .body("is_error", is(true))
+        .body("error_message", containsString("limit must be non-negative"))
+        .extract()
+        .response()
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "errorPosString",
+            |  "api_version"     : 1,
+            |  "variant_filters" : [
+            |                        {"operand": "pos", "operator": "gte", "value": "1", "operand_type": "string"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(400)
+        .body("is_error", is(true))
+        .body("error_message", containsString("pos filter operand_type must be 'integer'"))
+        .extract()
+        .response()
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "errorChromGte",
+            |  "api_version"     : 1,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "gte", "value": "1", "operand_type": "string"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(400)
+        .body("is_error", is(true))
+        .body("error_message", containsString("chrom filter operator must be 'eq' and operand_type must be 'string'"))
+        .extract()
+        .response()
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "errorChromInteger",
+            |  "api_version"     : 1,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": 1, "operand_type": "integer"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(400)
+        .body("is_error", is(true))
+        .body("error_message", containsString("chrom filter operator must be 'eq' and operand_type must be 'string'"))
+        .extract()
+        .response()
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "errorChromIntString",
+            |  "api_version"     : 1,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "gte", "value": 1, "operand_type": "string"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(400)
+        .body("is_error", is(true))
+        .body("error_message", containsString("chrom filter operator must be 'eq' and operand_type must be 'string'"))
+        .extract()
+        .response()
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "notErrorPosValueString",
+            |  "api_version"     : 1,
+            |  "variant_filters" : [
+            |                        {"operand": "pos", "operator": "eq", "value": "1", "operand_type": "integer"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(200)
+        .body("is_error", is(false))
+        .body("stats[0].pos", is(1))
+        .extract()
+        .response()
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "notErrorPosValueString",
+            |  "api_version"     : 1,
+            |  "variant_filters" : [
+            |                        {"operand": "pos", "operator": "eq", "value": 1.5, "operand_type": "integer"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        //.statusCode(200)
+        //.body("is_error", is(false))
+        //.body("stats[0].pos", is(1))  FIXME: how to handle?
+        .extract()
+        .response()
+
+    println(response.asString())
+
   }
 
 

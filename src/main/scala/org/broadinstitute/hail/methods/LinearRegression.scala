@@ -167,7 +167,9 @@ object LinearRegression {
   def apply(
     hcs: HardCallSet,
     y: DenseVector[Double],
-    cov: Option[DenseMatrix[Double]]): LinearRegression = {
+    cov: Option[DenseMatrix[Double]],
+    minMAC: Int = 0,
+    maxMAC: Int = Int.MaxValue): LinearRegression = {
 
     require(cov.forall(_.rows == y.size))
 
@@ -198,11 +200,11 @@ object LinearRegression {
     new LinearRegression(hcs
       .rdd
       .mapValues { cs =>
-        val GtVectorAndStats(x, xx, nMissing) = cs.hardStats(n)
+        val GtVectorAndStats(x, sumX, xx, nMissing) = cs.hardStats(n) // FIXME: save out real sumX or compute as needed from x
 
         // FIXME: make condition more robust to rounding errors?
         // all HomRef | all Het | all HomVar
-        if (xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n)
+        if ((xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n) || sumX < minMAC || sumX > maxMAC)
           None
         else {
           val qtx = qtBc.value * x

@@ -181,7 +181,7 @@ case class HardCallSet(df: DataFrame,
 }
 
 
-case class GtVectorAndStats(x: breeze.linalg.Vector[Double], xx: Double, nMiossing: Int)
+case class GtVectorAndStats(x: breeze.linalg.Vector[Double], sumX: Double, xx: Double, nMiossing: Int) // FIXME: sumX is convoluted here
 
 
 object CallStream {
@@ -482,7 +482,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         merge(i + 2, (a(j) & mask00110000) >> 4)
     }
 
-    GtVectorAndStats(DenseVector(x), sumXX, nMissing)
+    GtVectorAndStats(DenseVector(x), meanX * n, sumXX, nMissing)
   }
 
   def sparseStats(n: Int): GtVectorAndStats = {
@@ -510,7 +510,6 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
       }
     }
 
-    // FIXME: Can we somehow store with & 0xFF already applied on encode so that we don't need it on decode?
     def rowDiff(k: Int, l: Int) =
       (l: @unchecked) match {
         case 0 => a(k) & 0xFF
@@ -620,7 +619,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         merge(i, r, gt3)
     }
 
-    GtVectorAndStats(new SparseVector[Double](rowX, valX, n), sumXX, nMissing)
+    GtVectorAndStats(new SparseVector[Double](rowX, valX, n), meanX * n, sumXX, nMissing)
   }
 
   import CallStream._
