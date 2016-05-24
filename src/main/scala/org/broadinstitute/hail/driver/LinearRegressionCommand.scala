@@ -1,11 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import breeze.linalg.{DenseMatrix, DenseVector}
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression}
+import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression, LinRegUtils}
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.variant.Variant
 
 object LinearRegressionCommand extends Command {
 
@@ -43,69 +42,20 @@ object LinearRegressionCommand extends Command {
     val sb = new StringBuilder
     vds.saSignature.pretty(sb, 0, true)
 
-    val a = ec.a
-
-    def toDouble(t: BaseType, code: String): Any => Double = t match {
-      case TInt => _.asInstanceOf[Int].toDouble
-      case TLong => _.asInstanceOf[Long].toDouble
-      case TFloat => _.asInstanceOf[Float].toDouble
-      case TDouble => _.asInstanceOf[Double]
-      case TBoolean => _.asInstanceOf[Boolean].toDouble
-      case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
-    }
-
-    val (yT, yQ) = Parser.parse(options.ySA, ec)
-    val yToDouble = toDouble(yT, options.ySA)
-    val ySA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      a(0) = s
-      a(1) = sa
-      yQ().map(yToDouble)
-    }
-
-    val (covT, covQ) = Parser.parseExprs(options.covSA, ec).unzip
-    val covToDouble = (covT, options.covSA.split(",").map(_.trim)).zipped.map(toDouble)
-    val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      a(0) = s
-      a(1) = sa
-      (covQ.map(_()), covToDouble).zipped.map(_.map(_))
-    }
-
-    val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
-      (ySA, covSA, vds.sampleIds)
-        .zipped
-        .filter( (y, c, s) => y.isDefined && c.forall(_.isDefined))
-
-    val yArray = yForCompleteSamples.map(_.get).toArray
-    val y = DenseVector(yArray)
-
-    val covArray = covForCompleteSamples.flatMap(_.map(_.get)).toArray
-    val k = covT.size
-    val cov =
-      if (k == 0)
-        None
-      else
-        Some(new DenseMatrix(
-          rows = completeSamples.size,
-          cols = k,
-          data = covArray,
-          offset = 0,
-          majorStride = k,
-          isTranspose = true))
-
-    val completeSampleSet = completeSamples.toSet
+    val (completeSampleSet, y, cov) = LinRegUtils.prepareCovMatrixAndY(vds.sampleIdsAndAnnotations, options.ySA, options.covSA, ec)
     val vdsForCompleteSamples = vds.filterSamples((s, sa) => completeSampleSet(s))
+    val genotypeData = vdsForCompleteSamples.rdd.map{case (v, va, gs) => (v, gs.map(_.nNonRefAlleles.map(_.toDouble)))}
 
-    val linreg = LinearRegression(vdsForCompleteSamples, y, cov)
+    val linreg = LinearRegression[Variant](state.sc, y, cov, genotypeData)
 
     val (newVAS, inserter) = vdsForCompleteSamples.insertVA(LinRegStats.`type`, pathVA)
 
     state.copy(
       vds = vds.copy(
-        rdd = vds.rdd.zipPartitions(linreg.rdd) { case (it, jt) =>
-          it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
-            assert(v == v2)
-            (v, inserter(va, comb.map(_.toAnnotation)), gs)
-          }
+        rdd = vds.rdd.map{case (v, va, gs) => (v, (va, gs))}.fullOuterJoin(linreg.rdd).map {case (v, (x, y)) =>
+          val (va, gs) = x.getOrElse(throw new IllegalArgumentException("join of rdd and linreg results didn't work"))
+          val results = y.getOrElse(throw new IllegalArgumentException("join of rdd and linreg results didn't work"))
+          (v, inserter(va, results.map(_.toAnnotation)), gs)
         },
         vaSignature = newVAS
       )
