@@ -3,13 +3,15 @@ package org.broadinstitute.hail.variant
 import java.nio.ByteBuffer
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StructField, StructType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 import scala.io.Source
 import scala.language.implicitConversions
@@ -17,7 +19,7 @@ import scala.reflect.ClassTag
 
 object VariantSampleMatrix {
   final val magicNumber: Int = 0xe51e2c58
-  final val fileVersion: Int = 3
+  final val fileVersion: Int = 4
 
   def apply[T](metadata: VariantMetadata,
     rdd: RDD[(Variant, Annotation, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
@@ -37,32 +39,25 @@ object VariantSampleMatrix {
     val saSchema = dirname + "/sa.schema"
     val globalSchema = dirname + "/global.schema"
     val pqtSuccess = dirname + "/rdd.parquet/_SUCCESS"
-    val metadataFile = dirname + "/metadata.ser"
+    val version = dirname + "/version.dat"
+    val globalJson = dirname + "/global.json"
+    val sampleInfoJson = dirname + "/sampleInfo.json"
 
-    if (!hadoopExists(hConf, metadataFile))
-      fatal("corrupt VDS: no metadata.ser file.  Recreate VDS.")
+    if (!hadoopExists(hConf, version))
+      fatal("corrupt VDS: no `version.dat' file found.  Recreate VDS with current version of Hail.")
 
-    val (sampleIds, sampleAnnotations, globalAnnotation, wasSplit) =
-      readDataFile(dirname + "/metadata.ser", hConf) { dis =>
+    val wasSplit =
+      readDataFile(dirname + "/version.dat", hConf) { dis =>
         try {
-          val serializer = SparkEnv.get.serializer.newInstance()
-          val ds = serializer.deserializeStream(dis)
-
-          val m = ds.readObject[Int]
+          val m = dis.readInt()
           if (m != magicNumber)
             fatal("Invalid VDS: invalid magic number")
 
-          val v = ds.readObject[Int]
+          val v = dis.readInt()
           if (v != fileVersion)
             fatal("Old VDS version found")
 
-          val sampleIds = ds.readObject[IndexedSeq[String]]
-          val sampleAnnotations = ds.readObject[IndexedSeq[Annotation]]
-          val globalAnnotation = ds.readObject[Annotation]
-          val wasSplit = ds.readObject[Boolean]
-
-          ds.close()
-          (sampleIds, sampleAnnotations, globalAnnotation, wasSplit)
+          dis.readBoolean()
 
         } catch {
           case e: Exception =>
@@ -71,34 +66,57 @@ object VariantSampleMatrix {
         }
       }
 
+    if (!hadoopExists(hConf, globalJson))
+      fatal("corrupt VDS: no `global.json' file found.  Recreate VDS.")
+
+    if (!hadoopExists(hConf, sampleInfoJson))
+      fatal("corrupt VDS: no `sampleInfo.json' file found.  Recreate VDS.")
+
     if (!hadoopExists(hConf, pqtSuccess))
       fatal("corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
 
     if (!hadoopExists(hConf, vaSchema, saSchema, globalSchema))
       fatal("corrupt VDS: one or more .schema files missing.  Recreate VDS.")
 
-    val vaSignature = readFile(dirname + "/va.schema", hConf) { dis =>
+    val vaSignature = readFile(vaSchema, hConf) { dis =>
       val schema = Source.fromInputStream(dis)
         .mkString
       Parser.parseType(schema)
     }
 
-    val saSignature = readFile(dirname + "/sa.schema", hConf) { dis =>
+    val saSignature = readFile(saSchema, hConf) { dis =>
       val schema = Source.fromInputStream(dis)
         .mkString
       Parser.parseType(schema)
     }
 
-    val globalSignature = readFile(dirname + "/global.schema", hConf) { dis =>
+    val globalSignature = readFile(globalSchema, hConf) { dis =>
       val schema = Source.fromInputStream(dis)
         .mkString
       Parser.parseType(schema)
     }
 
+    val globalAnnotation = readFile(globalJson, hConf) { dis =>
+      Annotation.fromJson(parse(Source.fromInputStream(dis).mkString), globalSignature, "global")
+    }
 
-    val metadata = VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
+    val sampleInfo = readFile(sampleInfoJson, hConf) { dis =>
+      val jsonType = TStruct(("id", TString), ("annotation", saSignature))
+      val json = parse(Source.fromInputStream(dis).mkString)
+      json match {
+        case JArray(l: List[JValue]) =>
+          l.map {
+            case JObject(List(("id", JString(id)), ("annotation", jv: JValue))) =>
+              (id, Annotation.fromJson(jv, saSignature, "sample-info"))
+          }.toArray
+        case other => fatal("`sampleInfo.json' file corrupt.  Recreate VDS.")
+      }
+    }
+    val ids = sampleInfo.map(_._1)
+    val annotations = sampleInfo.map(_._2)
+
+    val metadata = VariantMetadata(ids, annotations, globalAnnotation,
       saSignature, vaSignature, globalSignature, wasSplit)
-
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
@@ -151,7 +169,9 @@ object VariantSampleMatrix {
     variants: Array[Variant],
     g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
     val nSamples = sampleIds.length
-    for (vaSig <- Type.genArb; saSig <- Type.genArb; globalSig <- Type.genArb;
+    for (vaSig <- Type.genArb;
+         saSig <- Type.genArb;
+         globalSig <- Type.genArb;
          saValues <- Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(saSig.genValue));
          globalValue <- globalSig.genValue;
          rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
@@ -674,18 +694,27 @@ class RichVDS(vds: VariantDataset) {
       out.write(sb.result())
     }
 
-    writeDataFile(dirname + "/metadata.ser", hConf) {
+    sb.clear()
+    writeTextFile(dirname + "/global.json", hConf) { out =>
+      sb.append(compact(vds.globalSignature.makeJSON(vds.globalAnnotation)))
+      out.write(sb.result())
+    }
+
+    writeTextFile(dirname + "/sampleInfo.json", hConf) { out =>
+      val jsonType = TStruct(("id", TString), ("annotation", vds.saSignature))
+      val signature = vds.saSignature
+      val jObjects = vds.sampleIdsAndAnnotations
+        .map { case (id, annotation) =>
+          JObject(List(("id", JString(id)), ("annotation", signature.makeJSON(annotation))))
+        }
+      out.write(compact(JArray(jObjects.toList)))
+    }
+
+    writeDataFile(dirname + "/version.dat", hConf) {
       dos => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        val ss = serializer.serializeStream(dos)
-        ss
-          .writeObject(VariantSampleMatrix.magicNumber)
-          .writeObject(VariantSampleMatrix.fileVersion)
-          .writeObject(vds.sampleIds)
-          .writeObject(vds.sampleAnnotations)
-          .writeObject(vds.globalAnnotation)
-          .writeObject(vds.wasSplit)
-        ss.close()
+        dos.writeInt(VariantSampleMatrix.magicNumber)
+        dos.writeInt(VariantSampleMatrix.fileVersion)
+        dos.writeBoolean(vds.wasSplit)
       }
     }
 

@@ -151,7 +151,7 @@ class VSMSuite extends SparkSuite {
       vsm2.same(vsm)
     }
 
-    p.check
+    p.check()
   }
 
   @Test def testFilterSamples() {

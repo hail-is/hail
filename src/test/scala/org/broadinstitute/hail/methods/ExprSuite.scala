@@ -8,6 +8,8 @@ import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.testng.annotations.Test
 
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 class ExprSuite extends SparkSuite {
 
@@ -213,7 +215,8 @@ class ExprSuite extends SparkSuite {
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()
       val json = t.makeJSON(a)
-      a == Annotation.fromJson(json, t, "")
+      val string = compact(json)
+      a == Annotation.fromJson(parse(string), t, "")
     })
   }
 
