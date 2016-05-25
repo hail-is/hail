@@ -119,6 +119,10 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("isDefined(a[2])").contains(false))
     assert(eval[Boolean]("a[2]").isEmpty)
 
+    assert(eval[Boolean]("1 == 1.0").contains(true))
+    val equalsError = intercept[FatalException](eval[Boolean](""" s == 2 """))
+    assert(equalsError.getMessage.contains("can only compare objects of similar type"))
+
     assert(eval[Int]("as.length").contains(2))
     assert(eval[Int]("as[0].a").contains(23))
     assert(eval[Boolean]("isMissing(as[1].b)").contains(true))
