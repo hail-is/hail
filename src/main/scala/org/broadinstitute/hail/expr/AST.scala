@@ -1844,9 +1844,13 @@ case class Comparison(posn: Position, lhs: AST, operation: String, rhs: AST) ext
 
   override def typecheckThis(): BaseType = {
     operandType = (lhs.`type`, operation, rhs.`type`) match {
-      case (_, "==" | "!=", _) => null
-      case (lhsType: TNumeric, "<=" | ">=" | "<" | ">", rhsType: TNumeric) =>
+      case (lhsType: TNumeric, "==" | "!=" | "<=" | ">=" | "<" | ">", rhsType: TNumeric) =>
         AST.promoteNumeric(lhsType, rhsType)
+
+      case (lhsType, "==" | "!=", rhsType) =>
+        if (lhsType != rhsType)
+          parseError(s"invalid comparison: `$lhsType' and `$rhsType', can only compare objects of similar type")
+        else TBoolean
 
       case (lhsType, _, rhsType) =>
         parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")
