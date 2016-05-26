@@ -7,6 +7,7 @@ import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
+import scala.StringBuilder
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -78,6 +79,21 @@ object LinRegUtils {
 
 case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double) {
   def toAnnotation: Annotation = Annotation(nMissing, beta, se, t, p)
+
+  override def toString: String = {
+    val sb = new StringBuilder()
+    sb.append(nMissing)
+    sb.append("\t")
+    sb.append(beta)
+    sb.append("\t")
+    sb.append(se)
+    sb.append("\t")
+    sb.append(t)
+    sb.append("\t")
+    sb.append(p)
+    sb.append("\n")
+    sb.result()
+  }
 }
 
 class LinRegBuilder extends Serializable {

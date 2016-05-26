@@ -8,7 +8,7 @@ import org.testng.annotations.Test
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.Utils._
 
-class CreateGroupSuite extends SparkSuite {
+class GroupSuite extends SparkSuite {
 
   @Test def hardCoded() {
     val genotypeArray = Array(
@@ -20,6 +20,15 @@ class CreateGroupSuite extends SparkSuite {
 
     val variants = for (i <- 1 to genotypeArray.length) yield {Variant("1", i, "A", "T")}
     val sampleIds = for (i <- 1 to genotypeArray(0).length) yield s"Sample_$i"
+    val phenotypes = for (i <- 1 to genotypeArray(0).length) yield {
+      if (i % 3 == 0)
+        "true"
+      else if (i % 3 == 1)
+        "false"
+      else
+        "NA"
+    }
+
     val genes = Array("A", "B", "A", "B", "A")
 
     val sumAnswer = sc.parallelize(Array((IndexedSeq("A"), Array(Some(2.0), None, Some(2.0), Some(6.0), Some(3.0), Some(0.0), Some(1.0), Some(1.0), Some(0.0))),
@@ -29,6 +38,7 @@ class CreateGroupSuite extends SparkSuite {
                               (IndexedSeq("B"), Array(Some(1.0), None, Some(1.0), Some(1.0), Some(1.0), Some(0.0), None, Some(1.0), Some(0.0)))))
 
     val geneTable = tmpDir.createTempFile("hardCodedCreateGroup",".txt")
+    val phenotypeTable = tmpDir.createTempFile("phenotypes", ".txt")
 
     writeTextFile(geneTable, sc.hadoopConfiguration) { w =>
       w.write(s"Variant\tGene\n")
@@ -46,6 +56,18 @@ class CreateGroupSuite extends SparkSuite {
       sb.append("\n")
       w.write(sb.result())
     }}
+
+    writeTextFile(phenotypeTable, sc.hadoopConfiguration) { w =>
+      w.write(s"Sample\tPhenotype1\n")
+      phenotypes.zipWithIndex.foreach { case (p, i) =>
+        val sb = new StringBuilder()
+        sb.append(sampleIds(i))
+        sb.append("\t")
+        sb.append(p)
+        sb.append("\n")
+        w.write(sb.result())
+      }
+    }
 
     val rdd = sc.parallelize(variants.zipWithIndex.map { case (v, i) =>
       val b = new GenotypeStreamBuilder(v, true)
@@ -100,5 +122,12 @@ class CreateGroupSuite extends SparkSuite {
     }.fold(true)(_ && _)
 
     assert(answerSum && answerCarrier)
+
+    // FIXME: test linear regression results
+    val tmpOutputLinReg = tmpDir.createTempFile(prefix = "groupLinReg_test", extension = ".tsv")
+    val tmpOutputFisher = tmpDir.createTempFile(prefix = "groupFisher_test", extension = ".tsv")
+    c = AnnotateSamplesTable.run(c, Array("-i", phenotypeTable, "-r", "sa.mypheno", "-t", "Phenotype1: Boolean"))
+    c = GroupTest.run(c, Array("linreg", "-o", tmpOutputLinReg, "-y", "sa.mypheno.Phenotype1"))
+    c = GroupTest.run(c, Array("fisher", "-o", tmpOutputFisher, "-y", "sa.mypheno.Phenotype1"))
   }
 }

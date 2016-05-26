@@ -31,15 +31,15 @@ object CreateGroup extends Command {
 
   class Options extends BaseOptions {
 
-    @Args4jOption(required = false, name = "-k", aliases = Array("--groupkeys"),
+    @Args4jOption(required = true, name = "-k", aliases = Array("--groupkeys"),
       usage = "comma-separated list of annotations to be used as grouping variable(s) (must be attribute of va)")
     var groupKeys: String = _
 
-    @Args4jOption(required = false, name = "-v", aliases = Array("--groupvalues"),
+    @Args4jOption(required = true, name = "-v", aliases = Array("--groupvalues"),
       usage = "genotype variable to group (must be attribute of g)")
     var groupValues: String = _
 
-    @Args4jOption(required = false, name = "-a", aliases = Array("--aggregator"),
+    @Args4jOption(required = true, name = "-a", aliases = Array("--aggregator"),
       usage = "function for combining variables across variants in each group [sum, carrier]")
     var aggregator: String = _
 
