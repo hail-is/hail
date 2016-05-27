@@ -90,7 +90,7 @@ object GroupTestFET extends Command {
         sb.append(k.mkString(","))
         sb.append("\t")
         counts.foreach{d => sb.append(d.toString); sb.append("\t")}
-        sb.append(pval) //FIXME: should we add rounding to a certain number of decimal places?
+        sb.append(pval) //FIXME: how to round pvalues
         sb.result()
       }
     }.writeTable(options.output, Some(header))

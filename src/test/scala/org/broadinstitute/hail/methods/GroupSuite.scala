@@ -18,52 +18,57 @@ class GroupSuite extends SparkSuite {
       Array(-1, -1, 0, 2, 1, 0, -1, 1, 0), //B
       Array(2, -1, 0, 2, 1, 0, -1, 0, 0)) //A
 
-    val variants = for (i <- 1 to genotypeArray.length) yield {Variant("1", i, "A", "T")}
+    val variants = for (i <- 1 to genotypeArray.length) yield {
+      Variant("1", i, "A", "T")
+    }
     val sampleIds = for (i <- 1 to genotypeArray(0).length) yield s"Sample_$i"
     val phenotypes = for (i <- 1 to genotypeArray(0).length) yield {
       if (i % 3 == 0)
-        "true"
+        ("ADD", "true")
       else if (i % 3 == 1)
-        "false"
+        ("Control", "false")
       else
-        "NA"
+        ("NA", "NA")
     }
 
     val genes = Array("A", "B", "A", "B", "A")
 
     val sumAnswer = sc.parallelize(Array((IndexedSeq("A"), Array((Some(2.0), Some(4.0)), (None, None), (Some(2.0), Some(4.0)), (Some(6.0), Some(0.0)), (Some(3.0), Some(3.0)), (Some(0.0), Some(6.0)), (Some(1.0), Some(1.0)), (Some(1.0), Some(5.0)), (Some(0.0), Some(6.0)))),
-                          (IndexedSeq("B"), Array((Some(1.0), Some(1.0)), (None, None), (Some(1.0), Some(3.0)), (Some(4.0), Some(0.0)), (Some(2.0), Some(2.0)), (Some(0.0), Some(4.0)), (None, None), (Some(1.0), Some(3.0)), (Some(0.0), Some(4.0))))))
+      (IndexedSeq("B"), Array((Some(1.0), Some(1.0)), (None, None), (Some(1.0), Some(3.0)), (Some(4.0), Some(0.0)), (Some(2.0), Some(2.0)), (Some(0.0), Some(4.0)), (None, None), (Some(1.0), Some(3.0)), (Some(0.0), Some(4.0))))))
 
     val carrierAnswer = sc.parallelize(Array((IndexedSeq("A"), Array((Some(1.0), Some(0.0)), (None, None), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0)), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0)))),
-                              (IndexedSeq("B"), Array((Some(1.0), Some(0.0)), (None, None), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0)), (None, None), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0))))))
+      (IndexedSeq("B"), Array((Some(1.0), Some(0.0)), (None, None), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0)), (None, None), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0))))))
 
-    val geneTable = tmpDir.createTempFile("hardCodedCreateGroup",".txt")
+    val geneTable = tmpDir.createTempFile("hardCodedCreateGroup", ".txt")
     val phenotypeTable = tmpDir.createTempFile("phenotypes", ".txt")
 
     writeTextFile(geneTable, sc.hadoopConfiguration) { w =>
       w.write(s"Variant\tGene\n")
       variants.zipWithIndex.foreach { case (v, i) =>
-      val sb = new StringBuilder()
-      sb.append(v.contig)
-      sb.append(":")
-      sb.append(v.start)
-      sb.append(":")
-      sb.append(v.ref)
-      sb.append(":")
-      sb.append(v.alt)
-      sb.append("\t")
-      sb.append(genes(i))
-      sb.append("\n")
-      w.write(sb.result())
-    }}
+        val sb = new StringBuilder()
+        sb.append(v.contig)
+        sb.append(":")
+        sb.append(v.start)
+        sb.append(":")
+        sb.append(v.ref)
+        sb.append(":")
+        sb.append(v.alt)
+        sb.append("\t")
+        sb.append(genes(i))
+        sb.append("\n")
+        w.write(sb.result())
+      }
+    }
 
     writeTextFile(phenotypeTable, sc.hadoopConfiguration) { w =>
-      w.write(s"Sample\tPhenotype1\n")
+      w.write(s"Sample\tPhenotype1\tPhenotype2\n")
       phenotypes.zipWithIndex.foreach { case (p, i) =>
         val sb = new StringBuilder()
         sb.append(sampleIds(i))
         sb.append("\t")
-        sb.append(p)
+        sb.append(p._1)
+        sb.append("\t")
+        sb.append(p._2)
         sb.append("\n")
         w.write(sb.result())
       }
@@ -86,7 +91,7 @@ class GroupSuite extends SparkSuite {
     var s = State(sc, sqlContext, vds = vds)
     s = CreateGroup.run(s, Array("-k", "va.gene", "-v", "g.nNonRefAlleles", "-a", "sum"))
 
-    val sumResults = s.group.map{case (k, v) => (k.map(_.toString), v)}
+    val sumResults = s.group.map { case (k, v) => (k.map(_.toString), v) }
     val answerSum = sumAnswer.fullOuterJoin(sumResults).map { case (k, (v1, v2)) =>
       if (v1.isEmpty || v2.isEmpty)
         false
@@ -105,7 +110,7 @@ class GroupSuite extends SparkSuite {
     var c = State(sc, sqlContext, vds = vds)
     c = CreateGroup.run(c, Array("-k", "va.gene", "-v", "g.nNonRefAlleles", "-a", "carrier"))
 
-    val carrierResults = c.group.map{case (k, v) => (k.map(_.toString), v)}
+    val carrierResults = c.group.map { case (k, v) => (k.map(_.toString), v) }
     val answerCarrier = carrierAnswer.fullOuterJoin(carrierResults).map { case (k, (v1, v2)) =>
       if (v1.isEmpty || v2.isEmpty)
         false
@@ -123,11 +128,33 @@ class GroupSuite extends SparkSuite {
 
     assert(answerSum && answerCarrier)
 
-    // FIXME: test linear regression results
-    val tmpOutputLinReg = tmpDir.createTempFile(prefix = "groupLinReg_test", extension = ".tsv")
+    c = AnnotateSamplesTable.run(c, Array("-i", phenotypeTable, "-r", "sa.mypheno", "-t", "Phenotype1: String, Phenotype2: Boolean"))
+
+    //test FET
     val tmpOutputFisher = tmpDir.createTempFile(prefix = "groupFisher_test", extension = ".tsv")
-    c = AnnotateSamplesTable.run(c, Array("-i", phenotypeTable, "-r", "sa.mypheno", "-t", "Phenotype1: Boolean"))
-    c = GroupTest.run(c, Array("linreg", "-o", tmpOutputLinReg, "-y", "sa.mypheno.Phenotype1"))
     c = GroupTest.run(c, Array("fisher", "-o", tmpOutputFisher, "-y", "sa.mypheno.Phenotype1"))
+
+    val results: Map[String, Array[Double]] = readLines(tmpOutputFisher, sc.hadoopConfiguration) { lines =>
+      lines.map {
+        val header = lines.next().value
+        _.transform { line =>
+
+          val split = line.value.split("\t")
+          val Array(groupname, false_mac, false_maj, true_mac, true_maj, pval) = split
+          (groupname, Array(true_mac.toDouble, true_maj.toDouble, false_mac.toDouble, false_maj.toDouble, pval.toDouble))
+        }
+      }.toMap
+    }
+
+    val aResult = results("A")
+    assert(aResult(0) == 1.0 && aResult(1) == 2.0 && aResult(2) == 3.0 && aResult(3) == 0.0 && math.abs(aResult(4) - 0.4) < 1e-4)
+    val bResult = results("B")
+    assert(bResult(0) == 1.0 && bResult(1) == 2.0 && bResult(2) == 2.0 && bResult(3) == 0.0 && math.abs(bResult(4) - 0.4) < 1e-4)
+
+    // test linear regression
+    val tmpOutputLinReg = tmpDir.createTempFile(prefix = "groupLinReg_test", extension = ".tsv")
+    c = GroupTest.run(c, Array("linreg", "-o", tmpOutputLinReg, "-y", "sa.mypheno.Phenotype2"))
+
+    //FIXME: not sure how to test linreg results...
   }
 }
