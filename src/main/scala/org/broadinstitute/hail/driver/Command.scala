@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.VariantDataset
@@ -12,7 +13,7 @@ import scala.collection.mutable
 case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
-  vds: VariantDataset = null) {
+  vds: VariantDataset = null, group: RDD[(IndexedSeq[Any], Array[Option[Double]])] = null) {
   def hadoopConf = sc.hadoopConfiguration
 }
 
@@ -49,6 +50,7 @@ object ToplevelCommands {
   register(AnnotateGlobal)
   register(Cache)
   register(ImportAnnotations)
+  register(CreateGroup)
   register(Count)
   register(DownsampleVariants)
   register(ExportPlink)
