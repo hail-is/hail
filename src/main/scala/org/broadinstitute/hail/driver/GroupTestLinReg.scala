@@ -48,7 +48,7 @@ object GroupTestLinReg extends Command {
     val inputData = group.map{ case (k, v) =>
       (k, v.zipWithIndex.filter{ case (d, i) =>
         completeSampleSet(sampleIds(i))
-      }.map{case (d, i) => d}.toIterable)}
+      }.map{case (d, i) => d._1}.toIterable)}
 
     val linreg = LinearRegression[IndexedSeq[Any]](state.sc, y, cov, inputData)
 

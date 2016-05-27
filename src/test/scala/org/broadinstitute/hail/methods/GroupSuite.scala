@@ -31,11 +31,11 @@ class GroupSuite extends SparkSuite {
 
     val genes = Array("A", "B", "A", "B", "A")
 
-    val sumAnswer = sc.parallelize(Array((IndexedSeq("A"), Array(Some(2.0), None, Some(2.0), Some(6.0), Some(3.0), Some(0.0), Some(1.0), Some(1.0), Some(0.0))),
-                          (IndexedSeq("B"), Array(Some(1.0), None, Some(1.0), Some(4.0), Some(2.0), Some(0.0), None, Some(1.0), Some(0.0)))))
+    val sumAnswer = sc.parallelize(Array((IndexedSeq("A"), Array((Some(2.0), Some(4.0)), (None, None), (Some(2.0), Some(4.0)), (Some(6.0), Some(0.0)), (Some(3.0), Some(3.0)), (Some(0.0), Some(6.0)), (Some(1.0), Some(1.0)), (Some(1.0), Some(5.0)), (Some(0.0), Some(6.0)))),
+                          (IndexedSeq("B"), Array((Some(1.0), Some(1.0)), (None, None), (Some(1.0), Some(3.0)), (Some(4.0), Some(0.0)), (Some(2.0), Some(2.0)), (Some(0.0), Some(4.0)), (None, None), (Some(1.0), Some(3.0)), (Some(0.0), Some(4.0))))))
 
-    val carrierAnswer = sc.parallelize(Array((IndexedSeq("A"), Array(Some(1.0), None, Some(1.0), Some(1.0), Some(1.0), Some(0.0), Some(1.0), Some(1.0), Some(0.0))),
-                              (IndexedSeq("B"), Array(Some(1.0), None, Some(1.0), Some(1.0), Some(1.0), Some(0.0), None, Some(1.0), Some(0.0)))))
+    val carrierAnswer = sc.parallelize(Array((IndexedSeq("A"), Array((Some(1.0), Some(0.0)), (None, None), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0)), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0)))),
+                              (IndexedSeq("B"), Array((Some(1.0), Some(0.0)), (None, None), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0)), (None, None), (Some(1.0), Some(0.0)), (Some(0.0), Some(1.0))))))
 
     val geneTable = tmpDir.createTempFile("hardCodedCreateGroup",".txt")
     val phenotypeTable = tmpDir.createTempFile("phenotypes", ".txt")
@@ -95,7 +95,7 @@ class GroupSuite extends SparkSuite {
           if (d1 == d2)
             true
           else {
-            println(s"k=$k i=$i d1=${d1.getOrElse("NA")} d2=${d2.getOrElse("NA")}")
+            println(s"sum k=$k i=$i truth.1=${d1._1.getOrElse("NA")} hail.1=${d2._1.getOrElse("NA")} truth.2=${d1._2.getOrElse("NA")} hail.2=${d2._2.getOrElse("NA")}")
             false
           }
         }
@@ -114,7 +114,7 @@ class GroupSuite extends SparkSuite {
           if (d1 == d2)
             true
           else {
-            println(s"k=$k i=$i d1=${d1.getOrElse("NA")} d2=${d2.getOrElse("NA")}")
+            println(s"carrier k=$k i=$i truth.1=${d1._1.getOrElse("NA")} hail.1=${d2._1.getOrElse("NA")} truth.2=${d1._2.getOrElse("NA")} hail.2=${d2._2.getOrElse("NA")}")
             false
           }
         }

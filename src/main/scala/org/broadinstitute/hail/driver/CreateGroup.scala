@@ -9,20 +9,22 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable.ArrayBuffer
 
 class GenotypeStreamCombiner[T](nSamples: Int, aggregator: (Option[T], Option[T]) => Option[T]) extends Serializable {
-  val resultVector = Array.fill[Option[T]](nSamples)(None)
+  val resultVector = Array.fill[(Option[T], Int)](nSamples)((None, 0))
 
   def addCount(gs: Iterable[Genotype], ec: EvalContext, f: () => Option[Any], t: (Any) => T): GenotypeStreamCombiner[T] = {
     require(gs.size == nSamples)
 
     gs.zipWithIndex.foreach{case (g: Genotype, i: Int) =>
       ec.setAll(g)
-      resultVector(i) = aggregator(resultVector(i), f().map(t))
+      resultVector(i) = (aggregator(resultVector(i)._1, f().map(t)), resultVector(i)._2 + (if (f().map(t).isDefined) 1 else 0))
     }
     this
   }
 
   def combineCounts(other: GenotypeStreamCombiner[T]): GenotypeStreamCombiner[T] = {
-    other.resultVector.zipWithIndex.foreach{case (g2, i) => resultVector(i) = aggregator(resultVector(i), g2)}
+    other.resultVector.zipWithIndex.foreach{case (g2, i) =>
+      resultVector(i) = (aggregator(resultVector(i)._1, g2._1), resultVector(i)._2 + g2._2)
+    }
     this
   }
 }
@@ -79,12 +81,17 @@ object CreateGroup extends Command {
       case _ => fatal(s"Option for '-a' ${options.aggregator} not recognized.")
     }
 
+    val majorAlleleCountCalculator = options.aggregator match {
+      case "sum" => (a: Option[Double], b: Int) => if (a.isEmpty) (a, None) else (a, Some(b * 2 - a.get))
+      case "carrier" => (a: Option[Double], b: Int) => if (b == 0) (a, None) else if (a.getOrElse(0d) == 1d) (a, Some(0d)) else (a, Some(1d))
+    }
+
     val queriers = options.groupKeys.split(",").map{vds.queryVA(_)._2}
 
     state.copy(group = vds.rdd.map{case (v, va, gs) => (queriers.map{_(va).get}.toIndexedSeq, gs)}
       .aggregateByKey(new GenotypeStreamCombiner[Double](vds.nSamples, aggregator))(
         (comb, gs) => comb.addCount(gs, ec, xQ, xToDouble), (comb1, comb2) => comb1.combineCounts(comb2))
-      .map{case (k, v) => (k, v.resultVector)}
+      .map{case (k, v) => (k, v.resultVector.map{case (mac, nvar) => majorAlleleCountCalculator(mac, nvar)})}
     )
   }
 }

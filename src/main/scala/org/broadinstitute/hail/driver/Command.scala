@@ -13,7 +13,7 @@ import scala.collection.mutable
 case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
-  vds: VariantDataset = null, group: RDD[(IndexedSeq[Any], Array[Option[Double]])] = null) {
+  vds: VariantDataset = null, group: RDD[(IndexedSeq[Any], Array[(Option[Double], Option[Double])])] = null) {
   def hadoopConf = sc.hadoopConfiguration
 }
 
