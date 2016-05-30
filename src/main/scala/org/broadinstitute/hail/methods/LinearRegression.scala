@@ -204,7 +204,7 @@ object LinearRegression {
 
         // FIXME: make condition more robust to rounding errors?
         // all HomRef | all Het | all HomVar
-        if ((xx == 0.0 || (x.size == n && xx == n) || xx == 4 * n) || sumX < minMAC || sumX > maxMAC)
+        if ((xx == 0.0 || (sumX == n && xx == n) || xx == 4 * n) || sumX < minMAC || sumX > maxMAC)
           None
         else {
           val qtx = qtBc.value * x

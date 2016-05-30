@@ -148,9 +148,9 @@ case class HardCallSet(df: DataFrame,
     if (vRow.size == 1)
       vRow(0).getCallStream(3).hardStats(nSamples).x.toArray
     else if (vRow.isEmpty)
-      fatal(s"Covariate ${v.toString} does not refer to a variant in the data set.")
+      fatal(s"Variant ${v.toString} is not in the hard call set")
     else
-      fatal(s"Covariate ${v.toString} refers to multiple variants in the data set.")
+      fatal(s"Variant ${v.toString} refers to ${vRow.size} variants in the hard call set") // should never happen
   }
 
   def capNVariantsPerBlock(maxPerBlock: Int, newBlockWidth: Int = blockWidth): HardCallSet = {

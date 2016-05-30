@@ -28,7 +28,7 @@ case class VariantFilter(operand: String,
       case "chrom" =>
         df.filter(df("contig") === "chr" + value)
       case "pos" =>
-        val v = value.toInt
+        val v = value.toInt // FIXME: if not int, throw error
         val vblock = v / blockWidth
         operator match {
           case "eq" =>
@@ -239,7 +239,10 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
       stats = stats.take(limit)
 
     req.sort_by.foreach { a =>
-      var fields = a.distinct.toList
+      if (! a.areDistinct())
+        throw new RESTFailure("sort_by arguments must be distinct")
+
+      var fields = a.toList
 
       // Default order is pos, ref, alt
       if (fields.nonEmpty && fields.head == "pos") {
@@ -265,7 +268,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     if (req.count.getOrElse(false))
       GetStatsResult(is_error = false, None, req.passback, None, Some(stats.size))
     else
-      GetStatsResult(is_error = false, None, req.passback, Some(stats), None)
+      GetStatsResult(is_error = false, None, req.passback, Some(stats), Some(stats.size))
   }
 
   def service(implicit executionContext: ExecutionContext = ExecutionContext.global): HttpService = Router(
