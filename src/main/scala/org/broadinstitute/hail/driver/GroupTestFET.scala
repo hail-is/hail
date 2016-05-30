@@ -84,7 +84,7 @@ object GroupTestFET extends Command {
           if (counts(0) + counts(1) == 0d || counts(2) + counts(3) == 0d)
             None
           else
-            FisherExactTest(counts).calcPvalue()
+            FisherExactTest(counts).result(0)
         }
 
         sb.append(k.mkString(","))
