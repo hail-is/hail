@@ -220,7 +220,10 @@ object LinearRegression {
             val se = math.sqrt((yyp / xxp - b * b) / d)
             val t = b / se
             val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
-            Some(LinRegStats(nMissing, b, se, t, p))
+            if (p.isNaN) // FIXME: clean up logic around NaN
+              None
+            else
+              Some(LinRegStats(nMissing, b, se, t, p))
           }
         }
       }

@@ -110,7 +110,7 @@ class T2DServerSuite extends SparkSuite {
         .extract()
         .response()
 
-    // println(response.asString())
+    println(response.asString())
 
     response =
       given()
@@ -192,7 +192,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[1].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double])
         .body("stats[2].p-value", closeTo(0.13397460, 1e-5))
         .body("stats[3].p-value", closeTo(0.32917961, 1e-5))
-        // .body("stats[4].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double]) // FIXME: getting NaN
+        .body("stats[4].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double]) // FIXME: getting NaN
         .extract()
         .response()
 

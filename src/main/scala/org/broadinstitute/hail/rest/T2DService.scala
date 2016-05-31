@@ -83,7 +83,7 @@ case class GetStatsResult(is_error: Boolean,
 
 class RESTFailure(message: String) extends Exception(message)
 
-class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, covMap: Map[String, Array[Double]], defaultMinMAC: Int = 0) {
+class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]]], defaultMinMAC: Int = 0) {
 
   def getStats(req: GetStatsRequest): GetStatsResult = {
     req.md_version.foreach { md_version =>
@@ -107,12 +107,6 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
 //      throw new RESTFailure(s"min_mac must be non-negative, default is $DefaultMinMAC: got $minMAC")
 
     val pheno = req.phenotype.getOrElse("T2D")
-    val y: DenseVector[Double] =
-      covMap.get(pheno) match {
-        case Some(a) => DenseVector(a)
-        case None => throw new RESTFailure(s"$pheno is not a valid phenotype name")
-      }
-
     val phenoCovs = mutable.Set[String]()
     val variantCovs = new mutable.ArrayBuffer[Variant]()
 
@@ -144,8 +138,32 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     if (phenoCovs(pheno))
       throw new RESTFailure(s"$pheno appears as both the response phenotype and a covariate phenotype")
 
-    val nCov = phenoCovs.size + variantCovs.size
-    val covArray = phenoCovs.toArray.flatMap(s => covMap(s)) ++ variantCovs.toArray.flatMap(hcs.variantGts)
+    // FIXME: introduce subsetting
+
+    val reqCovMap = covMap.filterKeys(c => phenoCovs(c) || c == pheno)
+
+    println(reqCovMap)
+
+// val completeSamples = hcs.sampleIds.filter(s => reqCovMap(s).forall(_.isDefined))
+
+    val isReqSample: IndexedSeq[Boolean] = hcs.sampleIds.indices.map(si => reqCovMap.valuesIterator.forall(_(si).isDefined))
+
+    println(isReqSample)
+
+    println("MARK")
+
+    val reqSampleIndices: Array[Int] = hcs.sampleIds.indices.filter(isReqSample).toArray
+
+    println(reqSampleIndices.mkString(","))
+
+    val y: DenseVector[Double] =
+      covMap.get(pheno) match {
+        case Some(a) => DenseVector(reqSampleIndices.flatMap(a(_)))
+        case None => throw new RESTFailure(s"$pheno is not a valid phenotype name")
+      }
+
+    val nCov = phenoCovs.size + variantCovs.size // FIXME: pass in sample filter to variantGts
+    val covArray = phenoCovs.toArray.flatMap(c => reqSampleIndices.flatMap(covMap(c)(_))) ++ variantCovs.toArray.flatMap(hcs.variantGts)
     val cov: Option[DenseMatrix[Double]] =
       if (nCov > 0)
         Some(new DenseMatrix[Double](hcs.nSamples, nCov, covArray))

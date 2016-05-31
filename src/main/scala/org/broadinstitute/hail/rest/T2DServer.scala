@@ -39,8 +39,8 @@ object T2DServer extends Command {
 
   def requiresVDS = false
 
-  def readCovData(state: State, covFile: String, sampleIds: IndexedSeq[String]): Map[String, Array[Double]] = {
-    val (covNames, sampleCovs): (Array[String], Map[String, Array[Double]]) =
+  def readCovData(state: State, covFile: String, sampleIds: IndexedSeq[String]): Map[String, IndexedSeq[Option[Double]]] = {
+    val (covNames, sampleCovs): (Array[String], Map[String, Array[Option[Double]]]) =
       readLines(covFile, state.hadoopConf) { lines =>
         if (lines.isEmpty)
           fatal("empty TSV file")
@@ -54,7 +54,7 @@ object T2DServer extends Command {
               val lineSplit = l.value.split("\\t")
               if (lineSplit.length != nFields)
                 fatal(s"expected $nFields fields, but got ${lineSplit.length}")
-              (lineSplit(0), lineSplit.drop(1).map(_.toDouble))
+              (lineSplit(0), lineSplit.drop(1).map(x => if (x == "NA") None else Some(x.toDouble))) // FIXME: add error checking
             }
           }.toMap
         )
@@ -65,7 +65,7 @@ object T2DServer extends Command {
 
     covNames
       .zipWithIndex
-      .map{ case (name, j) => (name, sampleIds.map(s => sampleCovs(s)(j)).toArray) }.toMap
+      .map{ case (name, j) => (name, sampleIds.map(s => sampleCovs(s)(j))) }.toMap
   }
 
 

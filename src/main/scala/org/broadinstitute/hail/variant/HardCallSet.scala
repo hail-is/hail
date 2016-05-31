@@ -136,7 +136,7 @@ case class HardCallSet(df: DataFrame,
 
   def nDenseVariants: Long = rdd.filter { case (v, cs) => !cs.isSparse }.count()
 
-  def variantGts(v: Variant): Array[Double] = {
+  def variantGts(v: Variant): Array[Double] = { // FIXME: pass in filter
     val vRow = df
       .filter(df("contig") === "chr" + v.contig)
       .filter(df("block") === v.start / blockWidth)
@@ -146,7 +146,7 @@ case class HardCallSet(df: DataFrame,
       .collect()
 
     if (vRow.size == 1)
-      vRow(0).getCallStream(3).hardStats(nSamples).x.toArray
+      vRow(0).getCallStream(3).hardStats(nSamples).x.toArray // FIXME: pass in filter
     else if (vRow.isEmpty)
       fatal(s"Variant ${v.toString} is not in the hard call set")
     else
@@ -197,7 +197,7 @@ object CallStream {
       denseCallStream(gs, n, nHomRef)
   }
 
-  def denseCallStream(gs: Iterable[Genotype], n: Int, nHomRef: Int) =
+  def denseCallStream(gs: Iterable[Genotype], n: Int, nHomRef: Int): CallStream =
     denseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int, nHomRef: Int)
 
   def denseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
