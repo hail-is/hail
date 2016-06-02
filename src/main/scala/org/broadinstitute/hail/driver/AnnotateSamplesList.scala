@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.io.annotators._
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -30,12 +30,18 @@ object AnnotateSamplesList extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    var sampleAnnotations = SampleListAnnotator(options.input, state.hadoopConf)
+    val samplesInList =  readLines(options.input, state.hadoopConf) { lines =>
+      if (lines.isEmpty)
+        warn(s"Empty annotation file given ${options.input}")
 
-    vds.sampleIds.foreach{ s =>
-      if (!sampleAnnotations.contains(s))
-        sampleAnnotations += (s -> false)
+      lines.map {
+        _.transform { line =>
+          line.value
+        }
+      }.toArray
     }
+
+    val sampleAnnotations = vds.sampleIds.map{case s => (s,samplesInList.contains(s))}.toMap
 
     val annotated = vds.annotateSamples(sampleAnnotations, TBoolean,
       Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))

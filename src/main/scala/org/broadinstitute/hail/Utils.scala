@@ -411,9 +411,9 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
 class RichPairRDD[K, V](val r: RDD[(K, V)])
                        (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) {
 
-  def leftOuterJoin[W](other: RDD[(K, W)]): RDD[(K, (V, Option[W]))] = leftOuterJoin(other, defaultPartitioner(r, other))
+  def leftOuterJoinDistinct[W](other: RDD[(K, W)]): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
 
-  def leftOuterJoin[W](other: RDD[(K, W)], partitioner: Partitioner) = {
+  def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner) = {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       if (pair._2.isEmpty)
         pair._1.iterator.map(v => (v, None))

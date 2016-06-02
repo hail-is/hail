@@ -129,9 +129,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     val (_, querier2) = s.vds.querySA("sa.test2")
     val (_, querier3) = s.vds.querySA("sa.test3")
 
-    assert(s.vds.sampleIdsAndAnnotations.forall{case (s, sa) => querier1(sa).get == false})
-    assert(s.vds.sampleIdsAndAnnotations.forall{case (s, sa) => querier3(sa).get == true})
-    assert(s.vds.sampleIdsAndAnnotations.forall{case (s, sa) => querier2(sa).get == sampleList2.contains(s)})
+    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier1(sa).get == false})
+    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier3(sa).get == true})
+    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier2(sa).get == sampleList2.contains(sample)})
   }
 
   @Test def testVariantTSVAnnotator() {

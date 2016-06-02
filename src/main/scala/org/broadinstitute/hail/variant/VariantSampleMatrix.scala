@@ -545,7 +545,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
-      .leftOuterJoin(otherRDD)
+      .leftOuterJoinDistinct(otherRDD)
       .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
