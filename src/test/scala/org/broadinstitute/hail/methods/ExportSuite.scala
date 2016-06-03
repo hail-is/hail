@@ -102,7 +102,7 @@ class ExportSuite extends SparkSuite {
     s = ExportSamples.run(s, Array("-o", f2, "-c",
       "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS**** = s.id, ANOTHERTHING=s.id"))
     s = ExportSamples.run(s, Array("-o", f3, "-c",
-      "`I have some spaces and tabs\there` = s.id,`more weird stuff here`=s.id"))
+      "`I have some spaces and tabs\\there` = s.id,`more weird stuff here`=s.id"))
     readFile(f, sc.hadoopConfiguration) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()

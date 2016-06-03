@@ -204,11 +204,29 @@ class ExprSuite extends SparkSuite {
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
       sb.clear()
-      t.pretty(sb, 0)
+      t.compact(sb, true)
       val res = sb.result()
+//      println(res)
+      val parsed = Parser.parseType(res)
+//      sb.clear()
+//      parsed.compact(sb, true)
+//      val res2 = sb.result()
+//      println(res2)
+//      val parsed2 = Parser.parseType(res2)
+//      sb.clear()
+//      parsed2.compact(sb, true)
+//      println(sb.result())
+      t == parsed
+    })
+    check(forAll { (t: Type) =>
+      sb.clear()
+      t.pretty(sb, 0, true)
+      val res = sb.result()
+//      println(res)
       val parsed = Parser.parseType(res)
       t == parsed
     })
+
   }
 
   @Test def testJSON() {
@@ -217,6 +235,12 @@ class ExprSuite extends SparkSuite {
       val json = t.makeJSON(a)
       val string = compact(json)
       a == Annotation.fromJson(parse(string), t, "")
+    })
+
+    check(forAll { (t: Type) =>
+      val a = t.genValue.sample()
+      val json = t.makeJSON(a)
+      a == Annotation.fromJson(json, t, "")
     })
   }
 
@@ -229,4 +253,11 @@ class ExprSuite extends SparkSuite {
     })
   }
 
+  @Test def testEscaping() {
+    val p = forAll { (s: String) =>
+      s == unescapeString(escapeString(s))
+    }
+
+    p.check(count = 1000)
+  }
 }

@@ -2,10 +2,10 @@ package org.broadinstitute.hail
 
 import java.io._
 import java.net.URI
+import java.util.Locale
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
-import org.apache.commons.lang.StringEscapeUtils
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
@@ -71,6 +71,141 @@ final class ByteIterator(val a: Array[Byte]) {
       x = (x << (32 - shift)) >> (32 - shift)
 
     x
+  }
+}
+
+object StringEscapeUtils {
+
+  def hex(ch: Char): String = Integer.toHexString(ch).toUpperCase(Locale.ENGLISH)
+
+  def escape(str: String, inputSB: Option[StringBuilder] = None): String = {
+    inputSB.foreach(_.clear())
+    val sb = inputSB.getOrElse(new StringBuilder(capacity = str.length * 2))
+
+    var sz: Int = 0
+    sz = str.length
+    var i: Int = 0
+    while (i < sz) {
+      {
+        val ch: Char = str.charAt(i)
+        if (ch > 0xfff) {
+          sb.append("\\u" + hex(ch))
+        }
+        else if (ch > 0xff) {
+          sb.append("\\u0" + hex(ch))
+        }
+        else if (ch > 0x7f) {
+          sb.append("\\u00" + hex(ch))
+        }
+        else if (ch < 32) {
+          ch match {
+            case '\b' =>
+              sb += '\\'
+              sb += 'b'
+            case '\n' =>
+              sb += '\\'
+              sb += 'n'
+            case '\t' =>
+              sb += '\\'
+              sb += 't'
+            case '\f' =>
+              sb += '\\'
+              sb += 'f'
+            case '\r' =>
+              sb += '\\'
+              sb += 'r'
+            case _ =>
+              if (ch > 0xf) {
+                sb.append("\\u00" + hex(ch))
+              }
+              else {
+                sb.append("\\u000" + hex(ch))
+              }
+          }
+        }
+        else {
+          ch match {
+            case '\'' =>
+              sb += '\\'
+              sb += '\''
+            case '\"' =>
+              sb += '\\'
+              sb += '\"'
+            case '\\' =>
+              sb += '\\'
+              sb += '\\'
+            case '`' =>
+              sb += '\\'
+              sb += '`'
+            case _ =>
+              sb.append(ch)
+          }
+        }
+      }
+      i += 1
+    }
+    sb.result()
+  }
+
+  def unescape(str: String, inputSB: Option[StringBuilder] = None): String = {
+    inputSB.foreach(_.clear())
+    val sb = inputSB.getOrElse(new StringBuilder(capacity = str.length))
+
+    val sz = str.length()
+    var hadSlash = false
+    var inUnicode = false
+    lazy val unicode = new StringBuilder(capacity = 4)
+    var i = 0
+    while (i < str.length) {
+
+      val ch = str.charAt(i)
+      if (inUnicode) {
+        // if in unicode, then we're reading unicode
+        // values in somehow
+        unicode.append(ch)
+        if (unicode.length == 4) {
+          // unicode now contains the four hex digits
+          // which represents our unicode character
+          try {
+            val value = Integer.parseInt(unicode.toString(), 16)
+            sb += value.toChar
+            unicode.clear()
+            inUnicode = false
+            hadSlash = false
+          } catch {
+            case nfe: NumberFormatException =>
+              Utils.fatal("Unable to parse unicode value: " + unicode)
+          }
+        }
+      }
+      else if (hadSlash) {
+        hadSlash = false
+        ch match {
+          case '\\' => sb += '\\'
+          case '\'' => sb += '\''
+          case '\"' => sb += '\"'
+          case '`' => sb += '`'
+          case 'r' => sb += '\r'
+          case 'f' => sb += '\f'
+          case 't' => sb += '\t'
+          case 'n' => sb += '\n'
+          case 'b' => sb += '\b'
+          case 'u' => inUnicode = true
+          case _ => fatal(s"Got invalid escape character: `\\$ch'")
+        }
+      }
+      else if (ch == '\\')
+        hadSlash = true
+      else
+        sb += ch
+      i += 1
+    }
+    if (hadSlash) {
+      // then we're in the weird case of a \ at the end of the
+      // string, let's output it anyway.
+      sb += '\\'
+    }
+    sb.result()
   }
 }
 
@@ -1191,9 +1326,14 @@ object Utils extends Logging {
       s"`${escapeString(str)}`"
   }
 
-  def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
+  def escapeString(str: String): String = StringEscapeUtils.escape(str)
 
-  def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
+  def unescapeString(str: String): String = StringEscapeUtils.unescape(str)
+
+  def unescapeStringLiteral(str: String): String = {
+    assert(str.head == '\"' && str.last == '\"')
+    StringEscapeUtils.unescape(str.substring(1, str.length - 1))
+  }
 
   def uriPath(uri: String): String = new URI(uri).getPath
 }

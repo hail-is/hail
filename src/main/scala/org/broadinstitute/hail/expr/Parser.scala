@@ -219,11 +219,9 @@ object Parser extends JavaTokenParsers {
       _.toArray
     }
 
-  def tsvIdentifier: Parser[String] = tickIdentifier | """[^\s\p{Cntrl}=,]+""".r
+  def tsvIdentifier: Parser[String] = backtickLiteral | """[^\s\p{Cntrl}=,]+""".r
 
-  def tickIdentifier: Parser[String] = """`[^`]+`""".r ^^ { i => i.substring(1, i.length - 1) }
-
-  def identifier = tickIdentifier | ident
+  def identifier = backtickLiteral | ident
 
   def args: Parser[Array[AST]] =
     repsep(expr, ",") ^^ {
@@ -249,22 +247,12 @@ object Parser extends JavaTokenParsers {
       }
     }
 
-  // """"([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r
-  def evalStringLiteral(lit: String): String = {
-    assert(lit.head == '"' && lit.last == '"')
-    val r = """\\[\\'"bfnrt]""".r
-    // replacement does backslash expansion
-    r.replaceAllIn(lit.tail.init, _.matched)
-  }
-
   def primary_expr: Parser[AST] =
     withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       // FIXME L suffix
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
-      withPos(""""([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r) ^^ { r =>
-        Const(r.pos, evalStringLiteral(r.x), TString)
-      } |
+      withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString)} |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
@@ -278,13 +266,18 @@ object Parser extends JavaTokenParsers {
   def annotationSignature: Parser[TStruct] =
     struct_fields ^^ { fields => TStruct(fields) }
 
+  def backtickLiteral: Parser[String] =
+    ("`" + stringSequence + "`").r ^^ (s => unescapeString(s.substring(1, s.length - 1)))
+
+  override def stringLiteral: Parser[String] =
+    ("\"" + stringSequence + "\"").r ^^ (s => unescapeString(s.substring(1, s.length - 1)))
+
+  val stringSequence = """([^"\p{Cntrl}\\`]|\\[\\'"bfnrt`]|\\u[a-fA-F0-9]{4})*""".r
+
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>
       //    ("@" ~> (identifier <~ "=")) ~ stringLiteral("\"" ~> "[^\"]".r <~ "\"") ^^ { case name ~ desc =>
-      (unescapeString(name), {
-        val unescaped = unescapeString(desc)
-        unescaped.substring(1, unescaped.length - 1)
-      })
+      (name, desc)
     }
 
   def struct_field: Parser[(String, Type, Map[String, String])] =
