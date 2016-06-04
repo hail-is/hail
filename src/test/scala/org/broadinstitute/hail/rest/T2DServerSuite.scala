@@ -23,7 +23,7 @@ class T2DRunnable(sc: SparkContext, sqlContext: SQLContext) extends Runnable {
     s = ImportVCF.run(s, Array("src/test/resources/t2dserver.vcf"))
     s = SplitMulti.run(s)
 
-    val hcs = HardCallSet(sqlContext, s.vds).rangePartition(2)
+    val hcs = HardCallSet(sqlContext, s.vds, sparseCutoff = 0).rangePartition(2)
     val hcs1Mb =  hcs.capNVariantsPerBlock(maxPerBlock = 1000, newBlockWidth =  1000000).rangePartition(2)
     val hcs10Mb = hcs1Mb.capNVariantsPerBlock(maxPerBlock = 1000, newBlockWidth = 10000000).rangePartition(2)
     val covMap = T2DServer.readCovData(s, "src/test/resources/t2dserver.cov", hcs.sampleIds)
@@ -73,16 +73,130 @@ class T2DServerSuite extends SparkSuite {
     summary(fit)["coefficients"]
 
     Contents of t2dserverR.tsv (change spaces to tabs):
-    IID v1  v2  v3  v4  v5  v6  v7  v8  v9  v10 T2D SEX PC1
-    A   0   1   0   0   0   0   1   2   1   2   1   0   -1
-    B   1   2   .75 0   1   0   1   2   1   2   1   2   3
-    C   0   1   1   0   1   0   1   2   1   2   2   1   5
-    D   0   2   1   1   2   0   1   2   1   2   2   -2  0
-    E   0   0   1   1   0   0   1   2   1   2   2   -2  -4
-    F   1   0   .75 1   0   0   1   2   1   2   2   4   3
+    IID v1  v2  v3  v4  v5  v6  v7  v8  v9  v10 T2D SEX PC1 BMI HEIGHT
+    A   0   1   0   0   0   0   1   2   1   2   1   0   -1  20  5.4
+    B   1   2   .75 0   1   0   1   2   1   2   1   2   3   25  5.6
+    C   0   1   1   0   1   0   1   2   1   2   2   1   5   NA  6.3
+    D   0   2   1   1   2   0   1   2   1   2   2   -2  0   30  NA
+    E   0   0   1   1   0   0   1   2   1   2   2   -2  -4  22  6.0
+    F   1   0   .75 1   0   0   1   2   1   2   2   4   3   19  5.8
     */
 
     var response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "CovariateBMI",
+            |  "api_version"     : 1,
+            |  "covariates"      : [
+            |                        {"type": "phenotype", "name": "BMI"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(200)
+        .body("is_error", is(false))
+        .body("stats[0].chrom", is("1"))
+        .body("stats[0].pos", is(1))
+        .body("stats[0].p-value", closeTo(0.8632555, 1e-5))
+        .body("stats[1].p-value", closeTo(0.06340577, 1e-5))
+        .body("stats[2].p-value", closeTo(0.2337485, 1e-5))
+        .body("stats[3].p-value", closeTo(0, 1e-5)) // FIXME: perfect fit, SE approx 0
+        .body("stats[4].p-value", closeTo(0.8443759, 1e-5))
+        .extract()
+        .response()
+
+    println(response.asString())
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "CovariateHeight",
+            |  "api_version"     : 1,
+            |  "covariates"      : [
+            |                        {"type": "phenotype", "name": "HEIGHT"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(200)
+        .body("is_error", is(false))
+        .body("stats[0].chrom", is("1"))
+        .body("stats[0].pos", is(1))
+        .body("stats[0].p-value", closeTo(0.8162976, 1e-5))
+        .body("stats[1].p-value", closeTo(0.05123045, 1e-5))
+        .body("stats[2].p-value", closeTo(0.9242424, 1e-5))
+        .body("stats[3].p-value", closeTo(0.08263506, 1e-5))
+        .body("stats[4].p-value", closeTo(0.12565524, 1e-5))
+        .extract()
+        .response()
+
+    println(response.asString())
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "PhenotypeBMIAndCovariateHEIGHT",
+            |  "api_version"     : 1,
+            |  "covariates"      : [
+            |                        {"type": "phenotype", "name": "HEIGHT"}
+            |                      ],
+            |  "phenotype"       : "BMI"
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(200)
+        .body("is_error", is(false))
+        .body("stats[0].chrom", is("1"))
+        .body("stats[0].pos", is(1))
+        .body("stats[0].p-value", closeTo(0.8599513, 1e-5))
+        .body("stats[1].p-value", closeTo(0.1276718, 1e-5))
+        .body("stats[2].p-value", closeTo(0.3953922, 1e-5))
+        .body("stats[3].p-value", closeTo(0.1400487, 1e-5))
+        .body("stats[4].p-value", closeTo(0.2677205, 1e-5))
+        .extract()
+        .response()
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "CovariateHEIGHTandVariantCovariate",
+            |  "api_version"     : 1,
+            |  "covariates"      : [
+            |                        {"type": "phenotype", "name": "HEIGHT"},
+            |                        {"type": "variant", "chrom": "1", "pos": 1, "ref": "C", "alt": "T"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(200)
+        .body("is_error", is(false))
+        .body("stats[0].chrom", is("1"))
+        .body("stats[0].pos", is(1))
+        .body("stats[0].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double])
+        .body("stats[1].p-value", closeTo(0.04233032, 1e-5))
+        .body("stats[2].p-value", closeTo(0.9478751, 1e-5))
+        .body("stats[3].p-value", closeTo(0.2634229, 1e-5))
+        .body("stats[4].p-value", closeTo(0.06779419, 1e-5))
+        .extract()
+        .response()
+
+    response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
         .contentType("application/json")
@@ -103,7 +217,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[0].pos", is(1))
         .body("stats[0].p-value", closeTo(0.63281250, 1e-5))
         .body("stats[1].p-value", closeTo(0.391075888, 1e-5))
-        .body("stats[2].p-value", closeTo(0.08593750, 1e-5))
+        .body("stats[2].p-value", closeTo(0.08593750, 1e-5)) // getting null
         .body("stats[3].p-value", closeTo(0.116116524, 1e-5))
         .body("stats[4].p-value", closeTo(0.764805599, 1e-5))
         .body("stats.size", is(5))
@@ -810,7 +924,7 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[0].p-value", is(nullValue()))
         .body("stats[1].p-value", closeTo(0.391075888, 1e-5))
-        .body("stats[2].p-value", closeTo(0.08593750, 1e-5))
+        .body("stats[2].p-value", is(nullValue())) // mac is computed without mean imputation
         .body("stats[3].p-value", is(nullValue()))
         .body("stats[4].p-value", closeTo(0.764805599, 1e-5))
         .extract()
@@ -1243,6 +1357,8 @@ class T2DServerSuite extends SparkSuite {
 
     println(response.asString())
   }
+
+
 
 
   @AfterClass(alwaysRun = true)

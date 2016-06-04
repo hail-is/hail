@@ -64,12 +64,12 @@ class HardCallSetSuite extends SparkSuite {
 
       val y = DenseVector.fill[Double](n)(Random.nextInt(2))
 
-      val ds = dcs.hardStats(n)
-      val ss = scs.hardStats(n)
+      val ds = dcs.hardStats(n, n, Array.fill(n)(true), (0 until n).toArray)
+      val ss = scs.hardStats(n, n, Array.fill(n)(true), (0 until n).toArray)
 
       assert(ds == ss)
 
-      //println(scs)
+      //print(scs)
       //println(ss)
       //println()
     }

@@ -168,19 +168,25 @@ object LinearRegression {
     hcs: HardCallSet,
     y: DenseVector[Double],
     cov: Option[DenseMatrix[Double]],
+    sampleFilter: Array[Boolean],
+    reduceSampleIndex: Array[Int],
     minMAC: Int = 0,
     maxMAC: Int = Int.MaxValue): LinearRegression = {
 
+    //println(cov)
+    //println(y)
     require(cov.forall(_.rows == y.size))
+
+    //println("do we get this far?")
 
     val n = y.size
     val k = if (cov.isDefined) cov.get.cols else 0
     val d = n - k - 2
 
     if (d < 1)
-      fatal(s"$n samples and $k covariates with intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${plural(k, "covariate")} with intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg on $n samples with $k sample covariates...")
+    info(s"Running linreg on $n samples with $k sample ${plural(k, "covariate")}...")
 
     val covAndOnes: DenseMatrix[Double] = cov match {
       case Some(dm) => DenseMatrix.horzcat(dm, DenseMatrix.ones[Double](n, 1))
@@ -197,16 +203,23 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (qty dot qty))
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
+    // FIXME: broadcast sampleFilter, reduceSampleIndex?
+
     new LinearRegression(hcs
       .rdd
-      .mapValues { cs =>
-        val GtVectorAndStats(x, sumX, xx, nMissing) = cs.hardStats(n) // FIXME: save out real sumX or compute as needed from x
+      .mapValues { cs => // FIXME: only three are necessary
+        val GtVectorAndStats(x, nHomRef, nHet, nHomVar, nMissing, meanX1) = cs.hardStats(hcs.nSamples, n, sampleFilter, reduceSampleIndex)
 
-        // FIXME: make condition more robust to rounding errors?
-        // all HomRef | all Het | all HomVar
-        if ((xx == 0.0 || (sumX == n && xx == n) || xx == 4 * n) || sumX < minMAC || sumX > maxMAC)
+        val nPresent = n - nMissing
+        val mac = nHet + nHomVar * 2
+
+        //println(s"$x,  $nHomRef, $nHet, $nHomVar, $nMissing, $meanX1, $nPresent, $mac")
+
+        if (nHomRef == nPresent || nHet == nPresent || nHomVar == nPresent || mac < minMAC || mac > maxMAC)
           None
         else {
+          //val meanX = (nHet + nHomVar * 2).toDouble / nPresent
+          val xx = nHet + nHomVar * 4 + nMissing * meanX1 * meanX1
           val qtx = qtBc.value * x
           val qty = qtyBc.value
           val xxp: Double = xx - (qtx dot qtx)

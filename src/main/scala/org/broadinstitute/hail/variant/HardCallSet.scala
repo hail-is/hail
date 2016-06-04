@@ -136,7 +136,7 @@ case class HardCallSet(df: DataFrame,
 
   def nDenseVariants: Long = rdd.filter { case (v, cs) => !cs.isSparse }.count()
 
-  def variantGts(v: Variant): Array[Double] = { // FIXME: pass in filter
+  def variantGts(v: Variant, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): Array[Double] = { // FIXME: pass in filter
     val vRow = df
       .filter(df("contig") === "chr" + v.contig)
       .filter(df("block") === v.start / blockWidth)
@@ -146,7 +146,7 @@ case class HardCallSet(df: DataFrame,
       .collect()
 
     if (vRow.size == 1)
-      vRow(0).getCallStream(3).hardStats(nSamples).x.toArray // FIXME: pass in filter
+      vRow(0).getCallStream(3).hardStats(nSamples, n0, sampleFilter, reduceSampleIndex).x.toArray
     else if (vRow.isEmpty)
       fatal(s"Variant ${v.toString} is not in the hard call set")
     else
@@ -181,7 +181,7 @@ case class HardCallSet(df: DataFrame,
 }
 
 
-case class GtVectorAndStats(x: breeze.linalg.Vector[Double], sumX: Double, xx: Double, nMiossing: Int) // FIXME: sumX is convoluted here
+case class GtVectorAndStats(x: breeze.linalg.Vector[Double], nHomRef: Int, nHet: Int, nHomVar: Int, nMissing: Int, meanX1: Double) // FIXME: sumX is convoluted here
 
 
 object CallStream {
@@ -423,20 +423,26 @@ object CallStream {
   def toIntsString(b: Byte): String = {for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i}.mkString(":")
 }
 
-case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: Int, nHomRef: Int, isSparse: Boolean) {
+case class CallStream(a: Array[Byte], meanX1: Double, sumXX1: Double, nMissing1: Int, nHomRef1: Int, isSparse: Boolean) {
 
-  def hardStats(n: Int): GtVectorAndStats = {
+  def hardStats(n: Int, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): GtVectorAndStats = {
     if (n == 0)
       fatal("Cannot compute statistics for 0 samples.")
     if (isSparse)
-      sparseStats(n)
+      sparseStats(n, n0, sampleFilter, reduceSampleIndex)
     else
-      denseStats(n)
+      denseStats(n, n0, sampleFilter, reduceSampleIndex)
   }
 
-  def denseStats(n: Int): GtVectorAndStats = {
+  def denseStats(n: Int, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): GtVectorAndStats = {
 
-    val x = Array.ofDim[Double](n)
+    //println(s"n = $n")
+    //println(s"n0 = $n0")
+
+    val x = Array.ofDim[Double](n0)
+    var nHet = 0
+    var nHomVar = 0
+    var nMissing = 0
 
     val mask00000011 = 3
     val mask00001100 = 3 << 2
@@ -447,11 +453,14 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
       (gt: @unchecked) match {
         case 0 =>
         case 1 =>
-          x(i) = 1.0
+          x(reduceSampleIndex(i)) = 1.0
+          nHet += 1
         case 2 =>
-          x(i) = 2.0
+          x(reduceSampleIndex(i)) = 2.0
+          nHomVar += 1
         case 3 =>
-          x(i) = this.meanX
+          x(reduceSampleIndex(i)) = this.meanX1 // FIXME: uses global mean, not subset mean
+          nMissing += 1
       }
     }
 
@@ -460,53 +469,63 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
 
     while (i < n - 3) {
       val b = a(j)
-      merge(i, b & mask00000011)
-      merge(i + 1, (b & mask00001100) >> 2)
-      merge(i + 2, (b & mask00110000) >> 4)
-      merge(i + 3, (b & mask11000000) >> 6)
-
-      i += 4
+      if (sampleFilter(i)) merge(i, b & mask00000011)
+      i += 1
+      if (sampleFilter(i)) merge(i, (b & mask00001100) >> 2)
+      i += 1
+      if (sampleFilter(i)) merge(i, (b & mask00110000) >> 4)
+      i += 1
+      if (sampleFilter(i)) merge(i, (b & mask11000000) >> 6)
+      i += 1
       j += 1
     }
 
     (n - i: @unchecked) match {
       case 0 =>
       case 1 =>
-        merge(i, a(j) & mask00000011)
+        if (sampleFilter(i)) merge(i, a(j) & mask00000011)
       case 2 =>
-        merge(i, a(j) & mask00000011)
-        merge(i + 1, (a(j) & mask00001100) >> 2)
+        if (sampleFilter(i)) merge(i, a(j) & mask00000011)
+        i += 1
+        if (sampleFilter(i)) merge(i, (a(j) & mask00001100) >> 2)
       case 3 =>
-        merge(i, a(j) & mask00000011)
-        merge(i + 1, (a(j) & mask00001100) >> 2)
-        merge(i + 2, (a(j) & mask00110000) >> 4)
+        if (sampleFilter(i)) merge(i, a(j) & mask00000011)
+        i += 1
+        if (sampleFilter(i)) merge(i, (a(j) & mask00001100) >> 2)
+        i += 1
+        if (sampleFilter(i)) merge(i, (a(j) & mask00110000) >> 4)
     }
 
-    GtVectorAndStats(DenseVector(x), meanX * n, sumXX, nMissing)
+    val nHomRef = n0 - nHet - nHomVar - nMissing
+
+    GtVectorAndStats(DenseVector(x), nHomRef, nHet, nHomVar, nMissing, meanX1)
   }
 
-  def sparseStats(n: Int): GtVectorAndStats = {
+  def sparseStats(n: Int, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): GtVectorAndStats = {
 
-    val rowX = Array.ofDim[Int](n - nHomRef)
-    val valX = Array.ofDim[Double](n - nHomRef)
+    val rowX = new mutable.ArrayBuilder.ofInt()
+    val valX = new mutable.ArrayBuilder.ofDouble()
+    var nHet = 0
+    var nHomVar = 0
+    var nMissing = 0
 
     val mask00000011 = 3
     val mask00001100 = 3 << 2
     val mask00110000 = 3 << 4
     val mask11000000 = 3 << 6
 
-    def merge(i: Int, r: Int, gt: Int) {
+    def merge(r0: Int, gt: Int) {
+      rowX += r0 // FIXME: try moving this line out?
       (gt: @unchecked) match {
-        case 0 =>
         case 1 =>
-          rowX(i) = r
-          valX(i) = 1.0
+          valX += 1.0
+          nHet += 1
         case 2 =>
-          rowX(i) = r
-          valX(i) = 2.0
+          valX += 2.0
+          nHomVar += 1
         case 3 =>
-          rowX(i) = r
-          valX(i) = meanX
+          valX += this.meanX1
+          nMissing += 1
       }
     }
 
@@ -522,7 +541,7 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
     var j = 0 // byte index
     var r = 0 // row
 
-    while (i + 3 < n - nHomRef) {
+    while (i + 3 < n - nHomRef1) {
       val gtByte = a(j)
       val gt1 = gtByte & mask00000011
       val gt2 = (gtByte & mask00001100) >> 2
@@ -538,27 +557,29 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
       j += 2
 
       r += rowDiff(j, l1)
-      merge(i, r, gt1)
-      i += 1
+      if (sampleFilter(r) && gt1 != 0)
+        merge(reduceSampleIndex(r), gt1)
       j += l1 + 1
 
       r += rowDiff(j, l2)
-      merge(i, r, gt2)
-      i += 1
+      if (sampleFilter(r) && gt2 != 0)
+        merge(reduceSampleIndex(r), gt2)
       j += l2 + 1
 
       r += rowDiff(j, l3)
-      merge(i, r, gt3)
-      i += 1
+      if (sampleFilter(r) && gt3 != 0)
+        merge(reduceSampleIndex(r), gt3)
       j += l3 + 1
 
       r += rowDiff(j, l4)
-      merge(i, r, gt4)
-      i += 1
+      if (sampleFilter(r) && gt4 != 0)
+        merge(reduceSampleIndex(r), gt4)
       j += l4 + 1
+
+      i += 4
     }
 
-    (n - nHomRef - i: @unchecked) match {
+    (n - nHomRef1 - i: @unchecked) match {
       case 0 =>
 
       case 1 =>
@@ -571,7 +592,8 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         j += 2
 
         r += rowDiff(j, l1)
-        merge(i, r, gt1)
+        if (sampleFilter(r) && gt1 != 0)
+          merge(reduceSampleIndex(r), gt1)
 
       case 2 =>
         val gtByte = a(j)
@@ -585,12 +607,13 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         j += 2
 
         r += rowDiff(j, l1)
-        merge(i, r, gt1)
-        i += 1
+        if (sampleFilter(r) && gt1 != 0)
+          merge(reduceSampleIndex(r), gt1)
         j += l1 + 1
 
         r += rowDiff(j, l2)
-        merge(i, r, gt2)
+        if (sampleFilter(r) && gt2 != 0)
+          merge(reduceSampleIndex(r), gt2)
 
       case 3 =>
         val gtByte = a(j)
@@ -606,25 +629,28 @@ case class CallStream(a: Array[Byte], meanX: Double, sumXX: Double, nMissing: In
         j += 2
 
         r += rowDiff(j, l1)
-        merge(i, r, gt1)
-        i += 1
+        if (sampleFilter(r) && gt1 != 0)
+          merge(reduceSampleIndex(r), gt1)
         j += l1 + 1
 
         r += rowDiff(j, l2)
-        merge(i, r, gt2)
-        i += 1
+        if (sampleFilter(r) && gt2 != 0)
+          merge(reduceSampleIndex(r), gt2)
         j += l2 + 1
 
         r += rowDiff(j, l3)
-        merge(i, r, gt3)
+        if (sampleFilter(r) && gt3 != 0)
+          merge(reduceSampleIndex(r), gt3)
     }
 
-    GtVectorAndStats(new SparseVector[Double](rowX, valX, n), meanX * n, sumXX, nMissing)
+    val nHomRef = n0 - nHet - nHomVar - nMissing
+
+    GtVectorAndStats(new SparseVector[Double](rowX.result(), valX.result(), n0), nHomRef, nHet, nHomVar, nMissing, meanX1)
   }
 
   import CallStream._
 
   def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
 
-  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $meanX, $sumXX, $nMissing"
+  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $meanX1, $sumXX1, $nMissing1, $nHomRef1, $isSparse"
 }

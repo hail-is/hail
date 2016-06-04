@@ -138,37 +138,48 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     if (phenoCovs(pheno))
       throw new RESTFailure(s"$pheno appears as both the response phenotype and a covariate phenotype")
 
-    // FIXME: introduce subsetting
+    // FIXME: finish subsetting
 
     val reqCovMap = covMap.filterKeys(c => phenoCovs(c) || c == pheno)
 
-    println(reqCovMap)
+    //println(reqCovMap)
 
-// val completeSamples = hcs.sampleIds.filter(s => reqCovMap(s).forall(_.isDefined))
+    // val completeSamples = hcs.sampleIds.filter(s => reqCovMap(s).forall(_.isDefined))
 
-    val isReqSample: IndexedSeq[Boolean] = hcs.sampleIds.indices.map(si => reqCovMap.valuesIterator.forall(_(si).isDefined))
+    val sampleFilter: Array[Boolean] = hcs.sampleIds.indices.map(si => reqCovMap.valuesIterator.forall(_(si).isDefined)).toArray
 
-    println(isReqSample)
+    //println(sampleFilter.mkString(","))
 
-    println("MARK")
+    val n = hcs.nSamples
 
-    val reqSampleIndices: Array[Int] = hcs.sampleIds.indices.filter(isReqSample).toArray
+    val reqSampleIndex: Array[Int] = (0 until n).filter(sampleFilter).toArray
 
-    println(reqSampleIndices.mkString(","))
+    //println(s"reqSampleIndex = ${reqSampleIndex.mkString(",")}")
+
+    val n0 = reqSampleIndex.size
+
+    val reduceSampleIndex: Array[Int] = Array.ofDim[Int](n)
+    (0 until n0).foreach(i => reduceSampleIndex(reqSampleIndex(i)) = i) // FIXME: Improve this
+
+    //println(s"reduceSampleIndex = $reduceSampleIndex")
 
     val y: DenseVector[Double] =
       covMap.get(pheno) match {
-        case Some(a) => DenseVector(reqSampleIndices.flatMap(a(_)))
+        case Some(a) => DenseVector(reqSampleIndex.flatMap(a(_)))
         case None => throw new RESTFailure(s"$pheno is not a valid phenotype name")
       }
 
+    //println(s"y = $y")
+
     val nCov = phenoCovs.size + variantCovs.size // FIXME: pass in sample filter to variantGts
-    val covArray = phenoCovs.toArray.flatMap(c => reqSampleIndices.flatMap(covMap(c)(_))) ++ variantCovs.toArray.flatMap(hcs.variantGts)
+    val covArray = phenoCovs.toArray.flatMap(c => reqSampleIndex.flatMap(covMap(c)(_))) ++ variantCovs.toArray.flatMap(v => hcs.variantGts(v, n0, sampleFilter, reduceSampleIndex))
     val cov: Option[DenseMatrix[Double]] =
       if (nCov > 0)
-        Some(new DenseMatrix[Double](hcs.nSamples, nCov, covArray))
+        Some(new DenseMatrix[Double](n0, nCov, covArray))
       else
         None
+
+    //println(s"cov = $cov")
 
     var minPos = 0
     var maxPos = Int.MaxValue // 2,147,483,647 is greater than length of longest chromosome
@@ -246,15 +257,14 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     if (useDefaultMinMAC)
       minMAC = defaultMinMAC
 
-    var stats = LinearRegression(hcsToUse.copy(df = df), y, cov, minMAC, maxMAC)
+    var stats = LinearRegression(hcsToUse.copy(df = df), y, cov, sampleFilter, reduceSampleIndex, minMAC, maxMAC)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
-      .collect()
+      .take(limit)
 
-    // FIXME: test timing with .take(limit) to avoid copying below
-
-    if (stats.length > limit)
-      stats = stats.take(limit)
+    // FIXME: test timing with .take(limit), if slow consider this:
+    // if (stats.length > limit)
+    //  stats = stats.take(limit)
 
     req.sort_by.foreach { a =>
       if (! a.areDistinct())
@@ -262,7 +272,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
 
       var fields = a.toList
 
-      // Default order is pos, ref, alt
+      // Default sort order is [pos, ref, alt] and sortBy is stable
       if (fields.nonEmpty && fields.head == "pos") {
         fields = fields.tail
         if (fields.nonEmpty && fields.head == "ref") {
