@@ -23,7 +23,7 @@ class T2DRunnable(sc: SparkContext, sqlContext: SQLContext) extends Runnable {
     s = ImportVCF.run(s, Array("src/test/resources/t2dserver.vcf"))
     s = SplitMulti.run(s)
 
-    val hcs = HardCallSet(sqlContext, s.vds, sparseCutoff = 0).rangePartition(2)
+    val hcs = HardCallSet(sqlContext, s.vds, sparseCutoff = 2).rangePartition(2) // FIXME: test with sparseCutoff 0 and 2
     val hcs1Mb =  hcs.capNVariantsPerBlock(maxPerBlock = 1000, newBlockWidth =  1000000).rangePartition(2)
     val hcs10Mb = hcs1Mb.capNVariantsPerBlock(maxPerBlock = 1000, newBlockWidth = 10000000).rangePartition(2)
     val covMap = T2DServer.readCovData(s, "src/test/resources/t2dserver.cov", hcs.sampleIds)
@@ -67,7 +67,7 @@ class T2DServerSuite extends SparkSuite {
   @Test def test() {
 
     /*
-    Sample code for generating p-values in R:
+    Sample code for generating p-values in R (here missing genotypes are imputed using all samples, modify when using BMI or HEIGHT):
     df = read.table("t2dserverR.tsv", header = TRUE)
     fit <- lm(T2D ~ v1 + SEX, data=df)
     summary(fit)["coefficients"]
@@ -103,7 +103,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[0].pos", is(1))
         .body("stats[0].p-value", closeTo(0.8632555, 1e-5))
         .body("stats[1].p-value", closeTo(0.06340577, 1e-5))
-        .body("stats[2].p-value", closeTo(0.2337485, 1e-5))
+        .body("stats[2].p-value", closeTo(0.1930786, 1e-5))
         .body("stats[3].p-value", closeTo(0, 1e-5)) // FIXME: perfect fit, SE approx 0
         .body("stats[4].p-value", closeTo(0.8443759, 1e-5))
         .extract()
@@ -131,8 +131,8 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[0].chrom", is("1"))
         .body("stats[0].pos", is(1))
         .body("stats[0].p-value", closeTo(0.8162976, 1e-5))
-        .body("stats[1].p-value", closeTo(0.05123045, 1e-5))
-        .body("stats[2].p-value", closeTo(0.9242424, 1e-5))
+        .body("stats[1].p-value", closeTo(0.11942193, 1e-5))
+        .body("stats[2].p-value", closeTo(0.9536821, 1e-5))
         .body("stats[3].p-value", closeTo(0.08263506, 1e-5))
         .body("stats[4].p-value", closeTo(0.12565524, 1e-5))
         .extract()
@@ -161,8 +161,8 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[0].chrom", is("1"))
         .body("stats[0].pos", is(1))
         .body("stats[0].p-value", closeTo(0.8599513, 1e-5))
-        .body("stats[1].p-value", closeTo(0.1276718, 1e-5))
-        .body("stats[2].p-value", closeTo(0.3953922, 1e-5))
+        .body("stats[1].p-value", closeTo(0.1844617, 1e-5))
+        .body("stats[2].p-value", closeTo(0.1400487, 1e-5))
         .body("stats[3].p-value", closeTo(0.1400487, 1e-5))
         .body("stats[4].p-value", closeTo(0.2677205, 1e-5))
         .extract()
@@ -189,7 +189,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[0].chrom", is("1"))
         .body("stats[0].pos", is(1))
         .body("stats[0].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double])
-        .body("stats[1].p-value", closeTo(0.04233032, 1e-5))
+        .body("stats[1].p-value", closeTo(0.06066189, 1e-5))
         .body("stats[2].p-value", closeTo(0.9478751, 1e-5))
         .body("stats[3].p-value", closeTo(0.2634229, 1e-5))
         .body("stats[4].p-value", closeTo(0.06779419, 1e-5))

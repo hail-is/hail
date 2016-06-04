@@ -181,7 +181,7 @@ case class HardCallSet(df: DataFrame,
 }
 
 
-case class GtVectorAndStats(x: breeze.linalg.Vector[Double], nHomRef: Int, nHet: Int, nHomVar: Int, nMissing: Int, meanX1: Double) // FIXME: sumX is convoluted here
+case class GtVectorAndStats(x: breeze.linalg.Vector[Double], nHomRef: Int, nHet: Int, nHomVar: Int, nMissing: Int, meanX: Double)
 
 
 object CallStream {
@@ -202,7 +202,6 @@ object CallStream {
 
   def denseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
     var sumX = 0
-    var sumXX = 0
     var nMissing = 0
 
     for (gt <- gts)
@@ -210,10 +209,8 @@ object CallStream {
         case 0 =>
         case 1 =>
           sumX += 1
-          sumXX += 1
         case 2 =>
           sumX += 2
-          sumXX += 4
         case 3 =>
           nMissing += 1
       }
@@ -222,9 +219,6 @@ object CallStream {
 
     new CallStream(
       denseByteArray(gts.toArray),
-      meanX,
-      sumXX + meanX * meanX * nMissing,
-      nMissing,
       nHomRef,
       false)
   }
@@ -258,7 +252,6 @@ object CallStream {
     val rowX = Array.ofDim[Int](n - nHomRef)
     val valX = Array.ofDim[Int](n - nHomRef)
     var sumX = 0
-    var sumXX = 0
     var nMissing = 0
 
     var j = 0
@@ -269,13 +262,11 @@ object CallStream {
           rowX(j) = i
           valX(j) = 1
           sumX += 1
-          sumXX += 1
           j += 1
         case 2 =>
           rowX(j) = i
           valX(j) = 2
           sumX += 2
-          sumXX += 4
           j += 1
         case 3 =>
           rowX(j) = i
@@ -288,9 +279,6 @@ object CallStream {
 
     new CallStream(
       sparseByteArray(rowX, valX),
-      meanX,
-      sumXX + meanX * meanX * nMissing,
-      nMissing,
       nHomRef,
       true)
   }
@@ -423,7 +411,7 @@ object CallStream {
   def toIntsString(b: Byte): String = {for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i}.mkString(":")
 }
 
-case class CallStream(a: Array[Byte], meanX1: Double, sumXX1: Double, nMissing1: Int, nHomRef1: Int, isSparse: Boolean) {
+case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
 
   def hardStats(n: Int, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): GtVectorAndStats = {
     if (n == 0)
@@ -436,13 +424,11 @@ case class CallStream(a: Array[Byte], meanX1: Double, sumXX1: Double, nMissing1:
 
   def denseStats(n: Int, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): GtVectorAndStats = {
 
-    //println(s"n = $n")
-    //println(s"n0 = $n0")
-
     val x = Array.ofDim[Double](n0)
     var nHet = 0
     var nHomVar = 0
     var nMissing = 0
+    val missingRowIndices = new mutable.ArrayBuilder.ofInt()
 
     val mask00000011 = 3
     val mask00001100 = 3 << 2
@@ -459,7 +445,7 @@ case class CallStream(a: Array[Byte], meanX1: Double, sumXX1: Double, nMissing1:
           x(reduceSampleIndex(i)) = 2.0
           nHomVar += 1
         case 3 =>
-          x(reduceSampleIndex(i)) = this.meanX1 // FIXME: uses global mean, not subset mean
+          missingRowIndices += reduceSampleIndex(i)
           nMissing += 1
       }
     }
@@ -497,8 +483,11 @@ case class CallStream(a: Array[Byte], meanX1: Double, sumXX1: Double, nMissing1:
     }
 
     val nHomRef = n0 - nHet - nHomVar - nMissing
+    val nPresent = n0 - nMissing
+    val meanX = (nHet + nHomVar * 2).toDouble / nPresent
+    missingRowIndices.result().foreach(x(_) = meanX)
 
-    GtVectorAndStats(DenseVector(x), nHomRef, nHet, nHomVar, nMissing, meanX1)
+    GtVectorAndStats(DenseVector(x), nHomRef, nHet, nHomVar, nMissing, meanX)
   }
 
   def sparseStats(n: Int, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): GtVectorAndStats = {
@@ -508,6 +497,8 @@ case class CallStream(a: Array[Byte], meanX1: Double, sumXX1: Double, nMissing1:
     var nHet = 0
     var nHomVar = 0
     var nMissing = 0
+    val missingRowIndices = new mutable.ArrayBuilder.ofInt()
+    var sparseLength = 0
 
     val mask00000011 = 3
     val mask00001100 = 3 << 2
@@ -524,9 +515,11 @@ case class CallStream(a: Array[Byte], meanX1: Double, sumXX1: Double, nMissing1:
           valX += 2.0
           nHomVar += 1
         case 3 =>
-          valX += this.meanX1
+          missingRowIndices += sparseLength
+          valX += 0d // placeholder for meanX
           nMissing += 1
       }
+      sparseLength += 1
     }
 
     def rowDiff(k: Int, l: Int) =
@@ -643,14 +636,18 @@ case class CallStream(a: Array[Byte], meanX1: Double, sumXX1: Double, nMissing1:
           merge(reduceSampleIndex(r), gt3)
     }
 
-    val nHomRef = n0 - nHet - nHomVar - nMissing
+    val nHomRef = n0 - sparseLength
+    val nPresent = n0 - nMissing
+    val meanX = (nHet + nHomVar * 2).toDouble / nPresent
+    val valXArray = valX.result()
+    missingRowIndices.result().foreach(valXArray(_) = meanX)
 
-    GtVectorAndStats(new SparseVector[Double](rowX.result(), valX.result(), n0), nHomRef, nHet, nHomVar, nMissing, meanX1)
+    GtVectorAndStats(new SparseVector[Double](rowX.result(), valXArray, n0), nHomRef, nHet, nHomVar, nMissing, meanX)
   }
 
   import CallStream._
 
   def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
 
-  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $meanX1, $sumXX1, $nMissing1, $nHomRef1, $isSparse"
+  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $nHomRef1, $isSparse"
 }
