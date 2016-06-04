@@ -57,10 +57,10 @@ class HardCallSetSuite extends SparkSuite {
 
     for (gts <- gtsList) {
       val n = gts.size
-      val nHomRef = gts.count(_ == 0)
+      val nNonRef = gts.count(_ != 0)
 
-      val dcs = denseCallStreamFromGtStream(gts, n, nHomRef)
-      val scs = sparseCallStreamFromGtStream(gts, n, nHomRef)
+      val dcs = denseCallStreamFromGtStream(gts, nNonRef)
+      val scs = sparseCallStreamFromGtStream(gts, nNonRef)
 
       val y = DenseVector.fill[Double](n)(Random.nextInt(2))
 

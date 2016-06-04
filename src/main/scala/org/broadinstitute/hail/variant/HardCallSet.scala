@@ -189,42 +189,25 @@ object CallStream {
   def apply(gs: Iterable[Genotype], n: Int, sparseCutoff: Double): CallStream = {
     require(n >= 0) // FIXME: allowing n = 0 requires check that n != 0 in hardstats below. Right choice?
 
-    val nHomRef = gs.count(_.isHomRef)
+    val nNonRef = gs.count(!_.isHomRef)
 
-    if (n - nHomRef < n * sparseCutoff)
-      sparseCallStream(gs, n, nHomRef)
+    if (nNonRef < n * sparseCutoff)
+      sparseCallStream(gs, nNonRef)
     else
-      denseCallStream(gs, n, nHomRef)
+      denseCallStream(gs, nNonRef)
   }
 
-  def denseCallStream(gs: Iterable[Genotype], n: Int, nHomRef: Int): CallStream =
-    denseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int, nHomRef: Int)
+  def denseCallStream(gs: Iterable[Genotype], nNonRef: Int): CallStream =
+    denseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), nNonRef: Int)
 
-  def denseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
-    var sumX = 0
-    var nMissing = 0
-
-    for (gt <- gts)
-      (gt: @unchecked) match {
-        case 0 =>
-        case 1 =>
-          sumX += 1
-        case 2 =>
-          sumX += 2
-        case 3 =>
-          nMissing += 1
-      }
-
-    val meanX = sumX.toDouble / (n - nMissing) // FIXME: deal with case of all missing
-
+  def denseCallStreamFromGtStream(gts: Iterable[Int], nNonRef: Int): CallStream = {
     new CallStream(
       denseByteArray(gts.toArray),
-      nHomRef,
+      nNonRef,
       false)
   }
 
   def denseByteArray(gts: Array[Int]): Array[Byte] = {
-
     val a = Array.ofDim[Byte]((gts.length + 3) / 4)
 
     var i = 0
@@ -245,41 +228,15 @@ object CallStream {
     a
   }
 
-  def sparseCallStream(gs: Iterable[Genotype], n: Int, nHomRef: Int) =
-    sparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), n: Int, nHomRef: Int)
+  def sparseCallStream(gs: Iterable[Genotype], nNonRef: Int) =
+    sparseCallStreamFromGtStream(gs.map(_.gt.getOrElse(3)), nNonRef: Int)
 
-  def sparseCallStreamFromGtStream(gts: Iterable[Int], n: Int, nHomRef: Int): CallStream = {
-    val rowX = Array.ofDim[Int](n - nHomRef)
-    val valX = Array.ofDim[Int](n - nHomRef)
-    var sumX = 0
-    var nMissing = 0
-
-    var j = 0
-    for ((gt, i) <- gts.view.zipWithIndex)
-      (gt: @unchecked) match {
-        case 0 =>
-        case 1 =>
-          rowX(j) = i
-          valX(j) = 1
-          sumX += 1
-          j += 1
-        case 2 =>
-          rowX(j) = i
-          valX(j) = 2
-          sumX += 2
-          j += 1
-        case 3 =>
-          rowX(j) = i
-          valX(j) = 3
-          nMissing += 1
-          j += 1
-      }
-
-    val meanX = sumX.toDouble / (n - nMissing)
+  def sparseCallStreamFromGtStream(gts: Iterable[Int], nNonRef: Int): CallStream = {
+    val (valX, rowX) = gts.zipWithIndex.filter(_._1 != 0).unzip
 
     new CallStream(
-      sparseByteArray(rowX, valX),
-      nHomRef,
+      sparseByteArray(rowX.toArray, valX.toArray),
+      nNonRef,
       true)
   }
 
@@ -411,11 +368,12 @@ object CallStream {
   def toIntsString(b: Byte): String = {for (i <- 6 to 0 by -2) yield (b & (3 << i)) >> i}.mkString(":")
 }
 
-case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
+case class CallStream(a: Array[Byte], nNonRefForAllSamples: Int, isSparse: Boolean) {
 
   def hardStats(n: Int, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): GtVectorAndStats = {
-    if (n == 0)
+    if (n0 == 0)
       fatal("Cannot compute statistics for 0 samples.")
+
     if (isSparse)
       sparseStats(n, n0, sampleFilter, reduceSampleIndex)
     else
@@ -435,17 +393,17 @@ case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
     val mask00110000 = 3 << 4
     val mask11000000 = 3 << 6
 
-    def merge(i: Int, gt: Int) {
+    def merge(i0: Int, gt: Int) {
       (gt: @unchecked) match {
         case 0 =>
         case 1 =>
-          x(reduceSampleIndex(i)) = 1.0
+          x(i0) = 1.0
           nHet += 1
         case 2 =>
-          x(reduceSampleIndex(i)) = 2.0
+          x(i0) = 2.0
           nHomVar += 1
         case 3 =>
-          missingRowIndices += reduceSampleIndex(i)
+          missingRowIndices += i0
           nMissing += 1
       }
     }
@@ -455,13 +413,13 @@ case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
 
     while (i < n - 3) {
       val b = a(j)
-      if (sampleFilter(i)) merge(i, b & mask00000011)
+      if (sampleFilter(i)) merge(reduceSampleIndex(i), b & mask00000011)
       i += 1
-      if (sampleFilter(i)) merge(i, (b & mask00001100) >> 2)
+      if (sampleFilter(i)) merge(reduceSampleIndex(i), (b & mask00001100) >> 2)
       i += 1
-      if (sampleFilter(i)) merge(i, (b & mask00110000) >> 4)
+      if (sampleFilter(i)) merge(reduceSampleIndex(i), (b & mask00110000) >> 4)
       i += 1
-      if (sampleFilter(i)) merge(i, (b & mask11000000) >> 6)
+      if (sampleFilter(i)) merge(reduceSampleIndex(i), (b & mask11000000) >> 6)
       i += 1
       j += 1
     }
@@ -469,22 +427,24 @@ case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
     (n - i: @unchecked) match {
       case 0 =>
       case 1 =>
-        if (sampleFilter(i)) merge(i, a(j) & mask00000011)
+        if (sampleFilter(i)) merge(reduceSampleIndex(i), a(j) & mask00000011)
       case 2 =>
-        if (sampleFilter(i)) merge(i, a(j) & mask00000011)
+        if (sampleFilter(i)) merge(reduceSampleIndex(i), a(j) & mask00000011)
         i += 1
-        if (sampleFilter(i)) merge(i, (a(j) & mask00001100) >> 2)
+        if (sampleFilter(i)) merge(reduceSampleIndex(i), (a(j) & mask00001100) >> 2)
       case 3 =>
-        if (sampleFilter(i)) merge(i, a(j) & mask00000011)
+        if (sampleFilter(i)) merge(reduceSampleIndex(i), a(j) & mask00000011)
         i += 1
-        if (sampleFilter(i)) merge(i, (a(j) & mask00001100) >> 2)
+        if (sampleFilter(i)) merge(reduceSampleIndex(i), (a(j) & mask00001100) >> 2)
         i += 1
-        if (sampleFilter(i)) merge(i, (a(j) & mask00110000) >> 4)
+        if (sampleFilter(i)) merge(reduceSampleIndex(i), (a(j) & mask00110000) >> 4)
     }
 
+    if (n0 == nMissing)
+      fatal("All genotypes in sample subset are missing for variant, so mean genotype is undefined.")
+
     val nHomRef = n0 - nHet - nHomVar - nMissing
-    val nPresent = n0 - nMissing
-    val meanX = (nHet + nHomVar * 2).toDouble / nPresent
+    val meanX = (nHet + nHomVar * 2).toDouble / (n0 - nMissing)
     missingRowIndices.result().foreach(x(_) = meanX)
 
     GtVectorAndStats(DenseVector(x), nHomRef, nHet, nHomVar, nMissing, meanX)
@@ -534,7 +494,7 @@ case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
     var j = 0 // byte index
     var r = 0 // row
 
-    while (i + 3 < n - nHomRef1) {
+    while (i + 3 < nNonRefForAllSamples) {
       val gtByte = a(j)
       val gt1 = gtByte & mask00000011
       val gt2 = (gtByte & mask00001100) >> 2
@@ -572,7 +532,7 @@ case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
       i += 4
     }
 
-    (n - nHomRef1 - i: @unchecked) match {
+    (nNonRefForAllSamples - i: @unchecked) match {
       case 0 =>
 
       case 1 =>
@@ -636,9 +596,11 @@ case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
           merge(reduceSampleIndex(r), gt3)
     }
 
+    if (n0 == nMissing)
+      fatal("All genotypes in sample subset are missing for variant, so mean genotype is undefined.")
+
     val nHomRef = n0 - sparseLength
-    val nPresent = n0 - nMissing
-    val meanX = (nHet + nHomVar * 2).toDouble / nPresent
+    val meanX = (nHet + nHomVar * 2).toDouble / (n0 - nMissing)
     val valXArray = valX.result()
     missingRowIndices.result().foreach(valXArray(_) = meanX)
 
@@ -649,5 +611,5 @@ case class CallStream(a: Array[Byte], nHomRef1: Int, isSparse: Boolean) {
 
   def showBinary() = println(a.map(b => toBinaryString(b)).mkString("[", ", ", "]"))
 
-  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $nHomRef1, $isSparse"
+  override def toString = s"${a.map(b => toBinaryString(b)).mkString("[", ", ", "]")}, $nNonRefForAllSamples, $isSparse"
 }

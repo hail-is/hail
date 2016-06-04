@@ -79,6 +79,7 @@ case class GetStatsResult(is_error: Boolean,
   error_message: Option[String],
   passback: Option[String],
   stats: Option[Array[Stat]],
+  nsamples: Option[Int],
   count: Option[Int])
 
 class RESTFailure(message: String) extends Exception(message)
@@ -157,6 +158,9 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     //println(s"reqSampleIndex = ${reqSampleIndex.mkString(",")}")
 
     val n0 = reqSampleIndex.size
+
+    if (n0 == 0)
+      throw new RESTFailure("No samples in the intersection of given phenotype and covariates.")
 
     val reduceSampleIndex: Array[Int] = Array.ofDim[Int](n)
     (0 until n0).foreach(i => reduceSampleIndex(reqSampleIndex(i)) = i) // FIXME: Improve this
@@ -294,9 +298,9 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     }
     
     if (req.count.getOrElse(false))
-      GetStatsResult(is_error = false, None, req.passback, None, Some(stats.size))
+      GetStatsResult(is_error = false, None, req.passback, None, Some(n0), Some(stats.size)) // FIXME: don't bother to compute when just returning count
     else
-      GetStatsResult(is_error = false, None, req.passback, Some(stats), Some(stats.size))
+      GetStatsResult(is_error = false, None, req.passback, Some(stats), Some(n0), Some(stats.size))
   }
 
   def service(implicit executionContext: ExecutionContext = ExecutionContext.global): HttpService = Router(
@@ -324,7 +328,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
             .putHeaders(`Content-Type`(`application/json`))
         } catch {
           case e: Exception =>
-            val result = GetStatsResult(is_error = true, Some(e.getMessage), passback, None, None)
+            val result = GetStatsResult(is_error = true, Some(e.getMessage), passback, None, None, None)
             BadRequest(write(result))
               .putHeaders(`Content-Type`(`application/json`))
         }

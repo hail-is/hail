@@ -104,8 +104,9 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[0].p-value", closeTo(0.8632555, 1e-5))
         .body("stats[1].p-value", closeTo(0.06340577, 1e-5))
         .body("stats[2].p-value", closeTo(0.1930786, 1e-5))
-        .body("stats[3].p-value", closeTo(0, 1e-5)) // FIXME: perfect fit, SE approx 0
+        .body("stats[3].p-value", closeTo(0, 1e-5)) // perfect fit, SE approx 0
         .body("stats[4].p-value", closeTo(0.8443759, 1e-5))
+        .body("nsamples", is(5))
         .extract()
         .response()
 
@@ -135,6 +136,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[2].p-value", closeTo(0.9536821, 1e-5))
         .body("stats[3].p-value", closeTo(0.08263506, 1e-5))
         .body("stats[4].p-value", closeTo(0.12565524, 1e-5))
+        .body("nsamples", is(5))
         .extract()
         .response()
 
@@ -165,6 +167,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[2].p-value", closeTo(0.1400487, 1e-5))
         .body("stats[3].p-value", closeTo(0.1400487, 1e-5))
         .body("stats[4].p-value", closeTo(0.2677205, 1e-5))
+        .body("nsamples", is(4))
         .extract()
         .response()
 
@@ -193,6 +196,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[2].p-value", closeTo(0.9478751, 1e-5))
         .body("stats[3].p-value", closeTo(0.2634229, 1e-5))
         .body("stats[4].p-value", closeTo(0.06779419, 1e-5))
+        .body("nsamples", is(5))
         .extract()
         .response()
 
@@ -221,6 +225,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[3].p-value", closeTo(0.116116524, 1e-5))
         .body("stats[4].p-value", closeTo(0.764805599, 1e-5))
         .body("stats.size", is(5))
+        .body("nsamples", is(6))
         .extract()
         .response()
 
