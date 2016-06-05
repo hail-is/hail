@@ -15,18 +15,17 @@ object T2DServer extends Command {
     @Args4jOption(required = false, name = "-p", aliases = Array("--port"), usage = "Service port")
     var port: Int = 8080
 
-
-    @Args4jOption(required = true, name = "-h1", aliases = Array("--hcs100Kb"), usage = ".hcs with 100Kb block")
+    @Args4jOption(required = true, name = "-hcs", aliases = Array("--hcs"), usage = "hard call set")
     var hcsFile: String = _
-
-    @Args4jOption(required = true, name = "-h2", aliases = Array("--hcs1Mb"), usage = ".hcs with 1Mb block")
-    var hcs1MbFile: String = _
-
-    @Args4jOption(required = true, name = "-h3", aliases = Array("--hcs10Mb"), usage = ".hcs with 10Mb block")
-    var hcs10MbFile: String = _
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--minmac"), usage = "default minimum MAC")
     var defaultMinMAC: Int = 0
+
+    @Args4jOption(required = false, name = "-w", aliases = Array("--maxwidth"), usage = "maximum interval width")
+    var maxWidth: Int = 600000
+
+    @Args4jOption(required = false, name = "-l", aliases = Array("--limit"), usage = "maximum number of variants returned")
+    var hardLimit: Int = 100000
   }
 
   def newOptions = new Options
@@ -72,15 +71,9 @@ object T2DServer extends Command {
   def run(state: State, options: Options): State = {
 
     val hcs = HardCallSet.read(state.sqlContext, options.hcsFile)
-    val hcs1Mb = HardCallSet.read(state.sqlContext, options.hcs1MbFile)
-    val hcs10Mb = HardCallSet.read(state.sqlContext, options.hcs10MbFile)
-
     val covMap = readCovData(state, options.covFile, hcs.sampleIds)
 
-    assert(hcs.sampleIds == hcs1Mb.sampleIds)
-    assert(hcs1Mb.sampleIds == hcs10Mb.sampleIds)
-
-    val service = new T2DService(hcs, hcs1Mb, hcs10Mb, covMap, options.defaultMinMAC)
+    val service = new T2DService(hcs, covMap, options.defaultMinMAC, options.maxWidth, options.hardLimit)
     val task = BlazeBuilder.bindHttp(options.port, "0.0.0.0")
       .mountService(service.service, "/")
       .run

@@ -38,7 +38,7 @@ class T2DRunnable(sc: SparkContext, sqlContext: SQLContext) extends Runnable {
 //    println()
 //    hcs10Mb.rdd.foreach(println)
 
-    val service = new T2DService(hcs, hcs1Mb, hcs10Mb, covMap)
+    val service = new T2DService(hcs, covMap)
 
     task = BlazeBuilder.bindHttp(8080)
       .mountService(service.service, "/")
@@ -92,6 +92,11 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "covariates"      : [
             |                        {"type": "phenotype", "name": "BMI"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "gte", "value": 1, "operand_type": "integer"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -122,7 +127,12 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "covariates"      : [
             |                        {"type": "phenotype", "name": "HEIGHT"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
+            |
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -153,7 +163,11 @@ class T2DServerSuite extends SparkSuite {
             |  "covariates"      : [
             |                        {"type": "phenotype", "name": "HEIGHT"}
             |                      ],
-            |  "phenotype"       : "BMI"
+            |  "phenotype"       : "BMI",
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -182,6 +196,10 @@ class T2DServerSuite extends SparkSuite {
             |  "covariates"      : [
             |                        {"type": "phenotype", "name": "HEIGHT"},
             |                        {"type": "variant", "chrom": "1", "pos": 1, "ref": "C", "alt": "T"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -209,7 +227,8 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "noCovariatesChrom1",
             |  "api_version"     : 1,
             |  "variant_filters" : [
-            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"}
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -240,7 +259,8 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "noCovariatesChrom2",
             |  "api_version"     : 1,
             |  "variant_filters" : [
-            |                        {"operand": "chrom", "operator": "eq", "value": "2", "operand_type": "string"}
+            |                        {"operand": "chrom", "operator": "eq", "value": "2", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -270,7 +290,12 @@ class T2DServerSuite extends SparkSuite {
             |  "covariates"      : [
             |                        {"type": "phenotype", "name": "SEX"},
             |                        {"type": "phenotype", "name": "PC1"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
+            |
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -298,7 +323,12 @@ class T2DServerSuite extends SparkSuite {
             |  "covariates"      : [
             |                        {"type": "variant", "chrom": "1", "pos": 1, "ref": "C", "alt": "T"},
             |                        {"type": "variant", "chrom": "1", "pos": 2, "ref": "C", "alt": "T"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
+            |
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -328,7 +358,12 @@ class T2DServerSuite extends SparkSuite {
             |  "covariates"      : [
             |                        {"type": "phenotype", "name": "PC1"},
             |                        {"type": "variant", "chrom": "1", "pos": 1, "ref": "C", "alt": "T"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
+            |
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -356,7 +391,12 @@ class T2DServerSuite extends SparkSuite {
             |  "phenotype"      : "SEX",
             |  "covariates"     :  [
             |                        {"type": "phenotype", "name": "T2D"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
+            |
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -379,37 +419,10 @@ class T2DServerSuite extends SparkSuite {
         .contentType("application/json")
         .body(
           """{
-            |  "passback"        : "defaultToChrom1",
-            |  "api_version"     : 1
-            |}""".stripMargin)
-        .when()
-        .post("/getStats")
-        .`then`()
-        .statusCode(200)
-        .body("is_error", is(false))
-        .body("stats[0].chrom", is("1"))
-        .body("stats[0].pos", is(1))
-        .body("stats[1].chrom", is("1"))
-        .body("stats[1].pos", is(2))
-        .body("stats[2].chrom", is("1"))
-        .body("stats[2].pos", is(900000))
-        .body("stats[3].chrom", is("1"))
-        .body("stats[3].pos", is(9000000))
-        .body("stats[4].chrom", is("1"))
-        .body("stats[4].pos", is(90000000))
-        .body("stats.size", is(5))
-        .extract()
-        .response()
-
-    response =
-      given()
-        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
-        .contentType("application/json")
-        .body(
-          """{
             |  "passback"        : "posEq",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "eq", "value": 2, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
@@ -457,6 +470,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "incompatiblePos",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "eq", "value": 1, "operand_type": "integer"},
             |                        {"operand": "pos", "operator": "eq", "value": 2, "operand_type": "integer"}
             |                      ]
@@ -479,6 +493,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "posGteLte",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "gte", "value": 1, "operand_type": "integer"},
             |                        {"operand": "pos", "operator": "lte", "value": 2, "operand_type": "integer"}
             |                      ]
@@ -505,6 +520,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "posGtLte",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "gt", "value": 1, "operand_type": "integer"},
             |                        {"operand": "pos", "operator": "lte", "value": 2, "operand_type": "integer"}
             |                      ]
@@ -529,6 +545,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "posGteLt",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "gte", "value": 1, "operand_type": "integer"},
             |                        {"operand": "pos", "operator": "lt", "value": 2, "operand_type": "integer"}
             |                      ]
@@ -553,6 +570,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "posGtLt",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "gt", "value": 1, "operand_type": "integer"},
             |                        {"operand": "pos", "operator": "lt", "value": 2, "operand_type": "integer"}
             |                      ]
@@ -575,6 +593,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "posGtEq",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "gt", "value": 1, "operand_type": "integer"},
             |                        {"operand": "pos", "operator": "eq", "value": 2, "operand_type": "integer"}
             |                      ]
@@ -598,7 +617,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "limit",
             |  "api_version"     : 1,
-            |  "limit"           : 3
+            |  "limit"           : 3,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -619,7 +642,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "count",
             |  "api_version"     : 1,
-            |  "count"           : true
+            |  "count"           : true,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -639,7 +666,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortPos",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "pos" ]
+            |  "sort_by"         : [ "pos" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -648,9 +679,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[0].pos", is(1))
         .body("stats[1].pos", is(2))
-        .body("stats[2].pos", is(900000))
-        .body("stats[3].pos", is(9000000))
-        .body("stats[4].pos", is(90000000))
+        .body("stats[2].pos", is(150000))
+        .body("stats[3].pos", is(250000))
+        .body("stats[4].pos", is(350000))
         .extract()
         .response()
 
@@ -662,7 +693,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortPosRef",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "pos", "ref" ]
+            |  "sort_by"         : [ "pos", "ref" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -671,9 +706,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[0].pos", is(1))
         .body("stats[1].pos", is(2))
-        .body("stats[2].pos", is(900000))
-        .body("stats[3].pos", is(9000000))
-        .body("stats[4].pos", is(90000000))
+        .body("stats[2].pos", is(150000))
+        .body("stats[3].pos", is(250000))
+        .body("stats[4].pos", is(350000))
         .extract()
         .response()
 
@@ -685,7 +720,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortPosRefAlt",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "pos", "ref", "alt" ]
+            |  "sort_by"         : [ "pos", "ref", "alt" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -694,9 +733,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[0].pos", is(1))
         .body("stats[1].pos", is(2))
-        .body("stats[2].pos", is(900000))
-        .body("stats[3].pos", is(9000000))
-        .body("stats[4].pos", is(90000000))
+        .body("stats[2].pos", is(150000))
+        .body("stats[3].pos", is(250000))
+        .body("stats[4].pos", is(350000))
         .extract()
         .response()
 
@@ -708,7 +747,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortRef",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "ref" ]
+            |  "sort_by"         : [ "ref" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -717,9 +760,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[2].pos", is(1))
         .body("stats[3].pos", is(2))
-        .body("stats[0].pos", is(900000))
-        .body("stats[1].pos", is(9000000))
-        .body("stats[4].pos", is(90000000))
+        .body("stats[0].pos", is(150000))
+        .body("stats[1].pos", is(250000))
+        .body("stats[4].pos", is(350000))
         .extract()
         .response()
 
@@ -731,7 +774,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortRefAlt",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "ref", "alt" ]
+            |  "sort_by"         : [ "ref", "alt" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -740,9 +787,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[3].pos", is(1))
         .body("stats[4].pos", is(2))
-        .body("stats[0].pos", is(900000))
-        .body("stats[1].pos", is(9000000))
-        .body("stats[2].pos", is(90000000))
+        .body("stats[0].pos", is(150000))
+        .body("stats[1].pos", is(250000))
+        .body("stats[2].pos", is(350000))
         .extract()
         .response()
 
@@ -754,7 +801,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortAlt",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "alt" ]
+            |  "sort_by"         : [ "alt" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -763,9 +814,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[1].pos", is(1))
         .body("stats[2].pos", is(2))
-        .body("stats[3].pos", is(900000))
-        .body("stats[4].pos", is(9000000))
-        .body("stats[0].pos", is(90000000))
+        .body("stats[3].pos", is(150000))
+        .body("stats[4].pos", is(250000))
+        .body("stats[0].pos", is(350000))
         .extract()
         .response()
 
@@ -777,7 +828,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortAltRef",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "alt", "ref" ]
+            |  "sort_by"         : [ "alt", "ref" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -786,9 +841,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[3].pos", is(1))
         .body("stats[4].pos", is(2))
-        .body("stats[1].pos", is(900000))
-        .body("stats[2].pos", is(9000000))
-        .body("stats[0].pos", is(90000000))
+        .body("stats[1].pos", is(150000))
+        .body("stats[2].pos", is(250000))
+        .body("stats[0].pos", is(350000))
         .extract()
         .response()
 
@@ -801,7 +856,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortRefPosAlt",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "ref", "pos", "alt" ]
+            |  "sort_by"         : [ "ref", "pos", "alt" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -810,9 +869,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[2].pos", is(1))
         .body("stats[3].pos", is(2))
-        .body("stats[0].pos", is(900000))
-        .body("stats[1].pos", is(9000000))
-        .body("stats[4].pos", is(90000000))
+        .body("stats[0].pos", is(150000))
+        .body("stats[1].pos", is(250000))
+        .body("stats[4].pos", is(350000))
         .extract()
         .response()
 
@@ -825,7 +884,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortRefAltPos",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "ref", "alt", "pos" ]
+            |  "sort_by"         : [ "ref", "alt", "pos" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -834,9 +897,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[3].pos", is(1))
         .body("stats[4].pos", is(2))
-        .body("stats[0].pos", is(900000))
-        .body("stats[1].pos", is(9000000))
-        .body("stats[2].pos", is(90000000))
+        .body("stats[0].pos", is(150000))
+        .body("stats[1].pos", is(250000))
+        .body("stats[2].pos", is(350000))
         .extract()
         .response()
 
@@ -848,7 +911,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortPValue",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "p-value" ]
+            |  "sort_by"         : [ "p-value" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -857,9 +924,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[3].pos", is(1))
         .body("stats[2].pos", is(2))
-        .body("stats[0].pos", is(900000))
-        .body("stats[1].pos", is(9000000))
-        .body("stats[4].pos", is(90000000))
+        .body("stats[0].pos", is(150000))
+        .body("stats[1].pos", is(250000))
+        .body("stats[4].pos", is(350000))
         .extract()
         .response()
 
@@ -871,7 +938,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortRefPValue",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "ref", "p-value" ]
+            |  "sort_by"         : [ "ref", "p-value" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -880,9 +951,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[3].pos", is(1))
         .body("stats[2].pos", is(2))
-        .body("stats[0].pos", is(900000))
-        .body("stats[1].pos", is(9000000))
-        .body("stats[4].pos", is(90000000))
+        .body("stats[0].pos", is(150000))
+        .body("stats[1].pos", is(250000))
+        .body("stats[4].pos", is(350000))
         .extract()
         .response()
 
@@ -894,7 +965,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortAltPValue",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "alt", "p-value" ]
+            |  "sort_by"         : [ "alt", "p-value" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -903,9 +978,9 @@ class T2DServerSuite extends SparkSuite {
         .body("is_error", is(false))
         .body("stats[4].pos", is(1))
         .body("stats[3].pos", is(2))
-        .body("stats[1].pos", is(900000))
-        .body("stats[2].pos", is(9000000))
-        .body("stats[0].pos", is(90000000))
+        .body("stats[1].pos", is(150000))
+        .body("stats[2].pos", is(250000))
+        .body("stats[0].pos", is(350000))
         .extract()
         .response()
 
@@ -919,6 +994,7 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "variant_filters" : [
             |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"},
             |                        {"operand": "mac", "operator": "gte", "value": 4, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
@@ -945,7 +1021,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "errorUnknownMDVersion",
             |  "md_version"      : "-1",
-            |  "api_version"     : 1
+            |  "api_version"     : 1,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -963,7 +1043,11 @@ class T2DServerSuite extends SparkSuite {
         .body(
           """{
             |  "passback"        : "errorUnsupportedAPIVersion",
-            |  "api_version"     : -1
+            |  "api_version"     : -1,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -982,7 +1066,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "errorInvalidPhenotypeName",
             |  "api_version"     : 1,
-            |  "phenotype"       : "notAPhenotype"
+            |  "phenotype"       : "notAPhenotype",
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -1003,6 +1091,10 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "covariates"      : [
             |                        {"type": "phenotype", "name": "notACovariate"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1024,6 +1116,10 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "covariates"      : [
             |                        {"type": "phenotype"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1045,6 +1141,10 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "covariates"      : [
             |                        {"type": "variant", "name": "missingVariantInfo"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1066,6 +1166,10 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "covariates"      : [
             |                        {"type": "notACovariateType"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1087,6 +1191,10 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "covariates"      : [
             |                        {"type": "phenotype", "name": "T2D"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1107,7 +1215,8 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "errorUnsupportedPosOperator",
             |  "api_version"     : 1,
             |  "variant_filters" : [
-            |                        {"operand": "chrom", "operator": "notAChromOperator", "value": "1", "operand_type": "string"}
+            |                        {"operand": "chrom", "operator": "notAChromOperator", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1128,6 +1237,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "errorUnsupportedPosOperator",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "notAPosOperator", "value": 1, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
@@ -1148,7 +1258,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "errorInvalidSortField",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "notASortField" ]
+            |  "sort_by"         : [ "notASortField" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -1167,7 +1281,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "errorNegLimit",
             |  "api_version"     : 1,
-            |  "limit"           : -1
+            |  "limit"           : -1,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -1187,6 +1305,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "errorPosString",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "gte", "value": "1", "operand_type": "string"}
             |                      ]
             |}""".stripMargin)
@@ -1208,7 +1327,8 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "errorChromGte",
             |  "api_version"     : 1,
             |  "variant_filters" : [
-            |                        {"operand": "chrom", "operator": "gte", "value": "1", "operand_type": "string"}
+            |                        {"operand": "chrom", "operator": "gte", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1229,7 +1349,8 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "errorChromInteger",
             |  "api_version"     : 1,
             |  "variant_filters" : [
-            |                        {"operand": "chrom", "operator": "eq", "value": 1, "operand_type": "integer"}
+            |                        {"operand": "chrom", "operator": "eq", "value": 1, "operand_type": "integer"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1250,7 +1371,8 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "errorChromIntString",
             |  "api_version"     : 1,
             |  "variant_filters" : [
-            |                        {"operand": "chrom", "operator": "eq", "value": 1, "operand_type": "string"}
+            |                        {"operand": "chrom", "operator": "eq", "value": 1, "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()
@@ -1271,6 +1393,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "notErrorPosValueString",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "eq", "value": "1", "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
@@ -1292,6 +1415,7 @@ class T2DServerSuite extends SparkSuite {
             |  "passback"        : "notErrorPosValueString",
             |  "api_version"     : 1,
             |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "eq", "value": 1.5, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
@@ -1312,7 +1436,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortNotDistinct",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "alt", "ref", "alt" ]
+            |  "sort_by"         : [ "alt", "ref", "alt" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -1330,7 +1458,11 @@ class T2DServerSuite extends SparkSuite {
           """{
             |  "passback"        : "sortNotDistinct",
             |  "api_version"     : 1,
-            |  "sort_by"         : [ "invalidSortArg" ]
+            |  "sort_by"         : [ "invalidSortArg" ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
             |}""".stripMargin)
         .when()
         .post("/getStats")
@@ -1350,6 +1482,10 @@ class T2DServerSuite extends SparkSuite {
             |  "api_version"     : 1,
             |  "covariates"      : [
             |                        {"type": "variant", "chrom": "3", "pos": 1, "ref": "C", "alt": "T"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
             |                      ]
             |}""".stripMargin)
         .when()

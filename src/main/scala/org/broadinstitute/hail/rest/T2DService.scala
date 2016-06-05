@@ -84,7 +84,7 @@ case class GetStatsResult(is_error: Boolean,
 
 class RESTFailure(message: String) extends Exception(message)
 
-class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]]], defaultMinMAC: Int = 0) {
+class T2DService(hcs: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]]], defaultMinMAC: Int = 0, maxWidth: Int = 600000, hardLimit: Int = 100000) {
 
   def getStats(req: GetStatsRequest): GetStatsResult = {
     req.md_version.foreach { md_version =>
@@ -95,17 +95,9 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     if (req.api_version != 1)
       throw new RESTFailure(s"Unsupported API version `${req.api_version}'. Supported API versions: 1")
 
-    val MaxWidthForHcs = 600000
-    val MaxWidthForHcs1Mb = 10000000
-    val HardLimit = 100000 // max is around 16k for T2D
-
-    val limit = req.limit.getOrElse(HardLimit)
+    val limit = req.limit.getOrElse(hardLimit)
     if (limit < 0)
       throw new RESTFailure(s"limit must be non-negative: got $limit")
-
-//    val minMAC = req.min_mac.getOrElse(DefaultMinMAC)
-//    if (minMAC < 0)
-//      throw new RESTFailure(s"min_mac must be non-negative, default is $DefaultMinMAC: got $minMAC")
 
     val pheno = req.phenotype.getOrElse("T2D")
     val phenoCovs = mutable.Set[String]()
@@ -234,7 +226,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     })
 
     if (chromFilters.isEmpty)
-      chromFilters += VariantFilter("chrom", "eq", "1", "string")
+      throw new RESTFailure("No chromosome specified in variant_filter")
 
     val width =
       if (isSingleVariant)
@@ -242,18 +234,11 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
       else
         maxPos - minPos
 
-    // val widthMAC = maxMAC - minMAC
+    if (width > maxWidth)
+      throw new RESTFailure(s"Interval length cannot exceed $maxWidth: got $width")
 
-    val hcsToUse =
-      if (width <= MaxWidthForHcs)
-        hcs
-      else if (width <= MaxWidthForHcs1Mb)
-        hcs1Mb
-      else
-        hcs10Mb
-
-    var df = hcsToUse.df
-    val blockWidth = hcsToUse.blockWidth
+    var df = hcs.df
+    val blockWidth = hcs.blockWidth
 
     chromFilters.foreach(f => df = f.filterDf(df, blockWidth))
     posFilters.foreach(f => df = f.filterDf(df, blockWidth))
@@ -261,7 +246,7 @@ class T2DService(hcs: HardCallSet, hcs1Mb: HardCallSet, hcs10Mb: HardCallSet, co
     if (useDefaultMinMAC)
       minMAC = defaultMinMAC
 
-    var stats = LinearRegression(hcsToUse.copy(df = df), y, cov, sampleFilter, reduceSampleIndex, minMAC, maxMAC)
+    var stats = LinearRegression(hcs.copy(df = df), y, cov, sampleFilter, reduceSampleIndex, minMAC, maxMAC)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
       .take(limit)
