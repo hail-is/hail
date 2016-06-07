@@ -28,7 +28,12 @@ case class VariantFilter(operand: String,
       case "chrom" =>
         df.filter(df("contig") === "chr" + value)
       case "pos" =>
-        val v = value.toInt // FIXME: if not int, throw error
+        var v = 0
+        try
+          v = value.toInt // FIXME: should I be catching this? Otherwise, error message given 1.5 is just "For input string: \"1.5\"
+        catch {
+          case e: Exception => throw new RESTFailure(s"Value of position in variant_filter must be an integer: got $value")
+        }
         val vblock = v / blockWidth
         operator match {
           case "eq" =>
@@ -95,10 +100,6 @@ class T2DService(hcs: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]
     if (req.api_version != 1)
       throw new RESTFailure(s"Unsupported API version `${req.api_version}'. Supported API versions: 1")
 
-    val limit = req.limit.getOrElse(hardLimit)
-    if (limit < 0)
-      throw new RESTFailure(s"limit must be non-negative: got $limit")
-
     val pheno = req.phenotype.getOrElse("T2D")
     val phenoCovs = mutable.Set[String]()
     val variantCovs = new mutable.ArrayBuffer[Variant]()
@@ -131,51 +132,36 @@ class T2DService(hcs: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]
     if (phenoCovs(pheno))
       throw new RESTFailure(s"$pheno appears as both the response phenotype and a covariate phenotype")
 
-    // FIXME: finish subsetting
+    // FIXME: I'm not satisfied with next section
 
     val reqCovMap = covMap.filterKeys(c => phenoCovs(c) || c == pheno)
 
-    //println(reqCovMap)
-
-    // val completeSamples = hcs.sampleIds.filter(s => reqCovMap(s).forall(_.isDefined))
-
-    val sampleFilter: Array[Boolean] = hcs.sampleIds.indices.map(si => reqCovMap.valuesIterator.forall(_(si).isDefined)).toArray
-
-    //println(sampleFilter.mkString(","))
+    val reqSampleFilter: Array[Boolean] = hcs.sampleIds.indices.map(si => reqCovMap.valuesIterator.forall(_(si).isDefined)).toArray
 
     val n = hcs.nSamples
 
-    val reqSampleIndex: Array[Int] = (0 until n).filter(sampleFilter).toArray
+    val reqSampleOriginalIndex: Array[Int] = (0 until n).filter(reqSampleFilter).toArray
 
-    //println(s"reqSampleIndex = ${reqSampleIndex.mkString(",")}")
-
-    val n0 = reqSampleIndex.size
-
+    val n0 = reqSampleOriginalIndex.size
     if (n0 == 0)
       throw new RESTFailure("No samples in the intersection of given phenotype and covariates.")
 
     val reduceSampleIndex: Array[Int] = Array.ofDim[Int](n)
-    (0 until n0).foreach(i => reduceSampleIndex(reqSampleIndex(i)) = i) // FIXME: Improve this
-
-    //println(s"reduceSampleIndex = $reduceSampleIndex")
+    (0 until n0).foreach(i => reduceSampleIndex(reqSampleOriginalIndex(i)) = i) // FIXME: Map is more natural than Array, but less efficient when using nearly all samples
 
     val y: DenseVector[Double] =
       covMap.get(pheno) match {
-        case Some(a) => DenseVector(reqSampleIndex.flatMap(a(_)))
+        case Some(a) => DenseVector(reqSampleOriginalIndex.flatMap(a(_)))
         case None => throw new RESTFailure(s"$pheno is not a valid phenotype name")
       }
 
-    //println(s"y = $y")
-
-    val nCov = phenoCovs.size + variantCovs.size // FIXME: pass in sample filter to variantGts
-    val covArray = phenoCovs.toArray.flatMap(c => reqSampleIndex.flatMap(covMap(c)(_))) ++ variantCovs.toArray.flatMap(v => hcs.variantGts(v, n0, sampleFilter, reduceSampleIndex))
+    val nCov = phenoCovs.size + variantCovs.size
+    val covArray = phenoCovs.toArray.flatMap(c => reqSampleOriginalIndex.flatMap(covMap(c)(_))) ++ variantCovs.toArray.flatMap(v => hcs.variantGts(v, n0, reqSampleFilter, reduceSampleIndex))
     val cov: Option[DenseMatrix[Double]] =
       if (nCov > 0)
         Some(new DenseMatrix[Double](n0, nCov, covArray))
       else
         None
-
-    //println(s"cov = $cov")
 
     var minPos = 0
     var maxPos = Int.MaxValue // 2,147,483,647 is greater than length of longest chromosome
@@ -246,14 +232,22 @@ class T2DService(hcs: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]
     if (useDefaultMinMAC)
       minMAC = defaultMinMAC
 
-    var stats = LinearRegression(hcs.copy(df = df), y, cov, sampleFilter, reduceSampleIndex, minMAC, maxMAC)
+    val statsRDD = LinearRegression(hcs.copy(df = df), y, cov, reqSampleFilter, reduceSampleIndex, minMAC, maxMAC)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
-      .take(limit)
 
-    // FIXME: test timing with .take(limit), if slow consider this:
-    // if (stats.length > limit)
-    //  stats = stats.take(limit)
+    var stats =
+      if (req.limit.isEmpty)
+        statsRDD.collect() // avoids first pass of take, modify if stats grows beyond memory capacity
+      else {
+        val limit = req.limit.get
+        if (limit < 0)
+          throw new RESTFailure(s"limit must be non-negative: got $limit")
+        statsRDD.take(limit)
+      }
+
+    if (stats.size > hardLimit)
+      stats = stats.take(hardLimit)
 
     req.sort_by.foreach { a =>
       if (! a.areDistinct())

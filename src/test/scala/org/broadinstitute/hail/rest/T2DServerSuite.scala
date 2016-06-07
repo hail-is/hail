@@ -23,20 +23,11 @@ class T2DRunnable(sc: SparkContext, sqlContext: SQLContext) extends Runnable {
     s = ImportVCF.run(s, Array("src/test/resources/t2dserver.vcf"))
     s = SplitMulti.run(s)
 
-    val hcs = HardCallSet(sqlContext, s.vds, sparseCutoff = 2).rangePartition(2) // FIXME: test with sparseCutoff 0 and 2
-    val hcs1Mb =  hcs.capNVariantsPerBlock(maxPerBlock = 1000, newBlockWidth =  1000000).rangePartition(2)
-    val hcs10Mb = hcs1Mb.capNVariantsPerBlock(maxPerBlock = 1000, newBlockWidth = 10000000).rangePartition(2)
+    val hcs = HardCallSet(sqlContext, s.vds, sparseCutoff = .6).repartition(2).sortByVariant() // FIXME: also test with sparseCutoff 0 and 2
     val covMap = T2DServer.readCovData(s, "src/test/resources/t2dserver.cov", hcs.sampleIds)
 
 //    hcs.write(sqlContext, "src/test/resources/t2dserver100Kb.hcs")
-//    hcs.write(sqlContext, "src/test/resources/t2dserver1Mb.hcs")
-//    hcs.write(sqlContext, "src/test/resources/t2dserver10Mb.hcs")
-//
 //    hcs.rdd.foreach(println)
-//    println()
-//    hcs1Mb.rdd.foreach(println)
-//    println()
-//    hcs10Mb.rdd.foreach(println)
 
     val service = new T2DService(hcs, covMap)
 
@@ -53,21 +44,29 @@ class T2DServerSuite extends SparkSuite {
   var r: T2DRunnable = null
   var t: Thread = null
 
-  // RestAssured.config = RestAssured.config().jsonConfig...
-
   @BeforeClass
   override def beforeClass() = {
     super.beforeClass()
     r = new T2DRunnable(sc, sqlContext)
     t = new Thread(r)
     t.start()
+
     Thread.sleep(8000)
+
+//    var isUnavailable = true
+//    var nAttempts = 0
+//    do {
+//      Thread.sleep(1000)
+//      nAttempts += 1
+//      if () // FIXME: How do I test if servor is up?
+//        isUnavailable = false
+//    } while (isUnavailable && nAttempts < 20)
   }
 
   @Test def test() {
 
     /*
-    Sample code for generating p-values in R (here missing genotypes are imputed using all samples, modify when using BMI or HEIGHT):
+    Sample code for generating p-values in R (below, missing genotypes are imputed using all samples; use subset when using BMI or HEIGHT):
     df = read.table("t2dserverR.tsv", header = TRUE)
     fit <- lm(T2D ~ v1 + SEX, data=df)
     summary(fit)["coefficients"]
@@ -341,7 +340,7 @@ class T2DServerSuite extends SparkSuite {
         .body("stats[1].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double])
         .body("stats[2].p-value", closeTo(0.13397460, 1e-5))
         .body("stats[3].p-value", closeTo(0.32917961, 1e-5))
-        .body("stats[4].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double]) // FIXME: getting NaN
+        .body("stats[4].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double]) // NaN
         .extract()
         .response()
 
@@ -1422,11 +1421,37 @@ class T2DServerSuite extends SparkSuite {
         .when()
         .post("/getStats")
         .`then`()
-        //.statusCode(200)
-        //.body("is_error", is(false))
-        //.body("stats[0].pos", is(1))  FIXME: how to handle?
+        .statusCode(400)
+        .body("is_error", is(true))
+        .body("error_message", containsString("Value of position in variant_filter must be an integer"))
         .extract()
         .response()
+
+    println(response.asString())
+
+    response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "notErrorPosValueString",
+            |  "api_version"     : 1,
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "eq", "value": "abc", "operand_type": "integer"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(400)
+        .body("is_error", is(true))
+        .body("error_message", containsString("Value of position in variant_filter must be an integer"))
+        .extract()
+        .response()
+
+    println(response.asString())
 
     response =
       given()
@@ -1495,8 +1520,6 @@ class T2DServerSuite extends SparkSuite {
         .body("error_message", containsString("Variant 3:1:C:T is not in the hard call set"))
         .extract()
         .response()
-
-    println(response.asString())
   }
 
 

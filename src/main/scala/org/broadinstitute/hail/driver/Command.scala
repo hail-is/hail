@@ -96,6 +96,7 @@ object ToplevelCommands {
 //  register(LinearRegressionOnHcsCommand)
   register(ReadHcs)
   register(RepartitionHcs)
+  register(SortHcs)
   register(WriteHcs)
 
   // example commands

@@ -1,13 +1,11 @@
 package org.broadinstitute.hail.variant
 
 import breeze.linalg._
-import org.apache.spark.{RangePartitioner, SparkContext, SparkEnv}
+import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.utils.RichRow
 
 import scala.collection.mutable
 
@@ -109,24 +107,9 @@ case class HardCallSet(df: DataFrame,
 
   def persist(level: StorageLevel): HardCallSet = copy(df = df.persist(level))
 
-  def nPartitions: Int = df.rdd.partitions.length
+  def repartition(n: Int): HardCallSet = copy(df = df.repartition(n))
 
-  def rangePartition(n: Int = nPartitions): HardCallSet = {
-    import df.sqlContext.implicits._
-
-    val newDf = rdd
-        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, CallStream](n, rdd)) //Is sorting necessary?
-        .map { case (v, gs) =>
-          (v.start, v.ref, v.alt, gs, "chr" + v.contig, v.start / blockWidth)
-        }.toDF("start", "ref", "alt", "callStream", "contig", "block")
-
-    copy(df = newDf)
-  }
-
-  /*
-  def filterVariants(p: (Variant) => Boolean): HardCallSet =
-    copy(rdd = rdd.filter { case (v, cs) => p(v) })
-  */
+  def sortByVariant(): HardCallSet = copy(df = df.sort("contig", "start", "ref", "alt"))
 
   def nSamples = sampleIds.size
 
@@ -136,7 +119,7 @@ case class HardCallSet(df: DataFrame,
 
   def nDenseVariants: Long = rdd.filter { case (v, cs) => !cs.isSparse }.count()
 
-  def variantGts(v: Variant, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): Array[Double] = { // FIXME: pass in filter
+  def variantGts(v: Variant, n0: Int, sampleFilter: Array[Boolean], reduceSampleIndex: Array[Int]): Array[Double] = {
     val vRow = df
       .filter(df("contig") === "chr" + v.contig)
       .filter(df("block") === v.start / blockWidth)
@@ -187,7 +170,7 @@ case class GtVectorAndStats(x: breeze.linalg.Vector[Double], nHomRef: Int, nHet:
 object CallStream {
 
   def apply(gs: Iterable[Genotype], n: Int, sparseCutoff: Double): CallStream = {
-    require(n >= 0) // FIXME: allowing n = 0 requires check that n != 0 in hardstats below. Right choice?
+    require(n >= 0)
 
     val nNonRef = gs.count(!_.isHomRef)
 
@@ -466,7 +449,7 @@ case class CallStream(a: Array[Byte], nNonRefForAllSamples: Int, isSparse: Boole
     val mask11000000 = 3 << 6
 
     def merge(r0: Int, gt: Int) {
-      rowX += r0 // FIXME: try moving this line out?
+      rowX += r0
       (gt: @unchecked) match {
         case 1 =>
           valX += 1.0
