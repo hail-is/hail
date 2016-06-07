@@ -249,23 +249,26 @@ class T2DService(hcs: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]
     if (stats.size > hardLimit)
       stats = stats.take(hardLimit)
 
-    req.sort_by.foreach { a =>
-      if (! a.areDistinct())
+    if (req.sort_by.isEmpty)
+      stats = stats.sortBy(s => (s.pos, s.ref, s.alt))
+    else {
+      val sortFields = req.sort_by.get
+      if (! sortFields.areDistinct())
         throw new RESTFailure("sort_by arguments must be distinct")
 
-      var fields = a.toList
+//      var fields = a.toList
+//
+//      // Default sort order is [pos, ref, alt] and sortBy is stable
+//      if (fields.nonEmpty && fields.head == "pos") {
+//        fields = fields.tail
+//        if (fields.nonEmpty && fields.head == "ref") {
+//          fields = fields.tail
+//          if (fields.nonEmpty && fields.head == "alt")
+//            fields = fields.tail
+//        }
+//      }
 
-      // Default sort order is [pos, ref, alt] and sortBy is stable
-      if (fields.nonEmpty && fields.head == "pos") {
-        fields = fields.tail
-        if (fields.nonEmpty && fields.head == "ref") {
-          fields = fields.tail
-          if (fields.nonEmpty && fields.head == "alt")
-            fields = fields.tail
-        }
-      }
-
-      fields.reverse.foreach { f =>
+      sortFields.reverse.foreach { f =>
         stats = f match {
           case "pos" => stats.sortBy(_.pos)
           case "ref" => stats.sortBy(_.ref)
