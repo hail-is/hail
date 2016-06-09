@@ -296,7 +296,7 @@ object Parser extends JavaTokenParsers {
         ParserUtils.error(newPos,
           s"""invalid character in string literal: `${
             escapeUnprintable(toSearch.charAt(m.start).toString)
-          }""")
+          }'""")
       }
 
   def decorator: Parser[(String, String)] =
