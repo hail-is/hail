@@ -9,7 +9,7 @@ class InbreedingCombiner extends Serializable {
   var O = 0.0
   var T = 0.0
 
-  def addCount(gt:Genotype,maf:Double,nSamples:Int): InbreedingCombiner = {
+  def addCount(gt:Genotype, maf: Double): InbreedingCombiner = {
     T += 1
     if (gt.isCalled) {
       N += 1

@@ -402,38 +402,35 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }.foldByKey(zeroValue)(combOp)
   }
 
-  /*def aggregateBySampleWithVariantInfo[U](zeroValue: U)(
-    seqOp: (U, Variant, Annotations, Int, T, Any) => U,
+  def aggregateBySampleWithVariantInfo[U](zeroValue: U)(
+    seqOp: (U, Variant, Annotation, String, Annotation, T, Any) => U,
     combOp: (U, U) => U, variantInfo: RDD[(Variant, Any)])
-                                         (implicit uct: ClassTag[U]): RDD[(Int, U)] = {
-
-    val localSamplesBc = sparkContext.broadcast(localSamples)
+                                         (implicit uct: ClassTag[U]): RDD[(String, U)] = {
 
     val serializer = SparkEnv.get.serializer.newInstance()
     val zeroBuffer = serializer.serialize(zeroValue)
     val zeroArray = new Array[Byte](zeroBuffer.limit)
     zeroBuffer.get(zeroArray)
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
 
-    rdd
-      .zipPartitions(variantInfo) { case (it, jt) =>
-        it.zip(jt).map { case ((v, va, gs), (v2, vinfo)) =>
-          assert(v == v2)
-          (v, va, gs, vinfo)
-        }
-      }
-      .mapPartitions { (it: Iterator[(Variant, Annotations, Iterable[T], Any)]) =>
+
+    rdd.map{case (v, va, gs) => (v, (va, gs))}.join(variantInfo).map{case (v, ((va, gs), a)) => (v, va, gs, a)}
+      .mapPartitions { (it: Iterator[(Variant, Annotation, Iterable[T], Any)]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
         def copyZeroValue() = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-        val arrayZeroValue = Array.fill[U](localSamplesBc.value.length)(copyZeroValue())
+        val arrayZeroValue = Array.fill[U](localSampleIdsBc.value.length)(copyZeroValue())
 
-        localSamplesBc.value.iterator
-          .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs, vinfo)) =>
-            for ((g, i) <- gs.iterator.zipWithIndex)
-              acc(i) = seqOp(acc(i), v, va, localSamplesBc.value(i), g, vinfo)
+        localSampleIdsBc.value.iterator
+          .zip(it.foldLeft(arrayZeroValue){ case (acc, (v, va, gs, a)) =>
+          for ((g, i) <- gs.iterator.zipWithIndex){
+            acc(i) = seqOp(acc(i), v, va,
+              localSampleIdsBc.value(i), localSampleAnnotationsBc.value(i), g, a)
+          }
             acc
           }.iterator)
       }.foldByKey(zeroValue)(combOp)
-  }*/
+  }
 
   def aggregateByVariant[U](zeroValue: U)(
     seqOp: (U, T) => U,

@@ -5,15 +5,15 @@ import java.nio.ByteBuffer
 import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.driver.ImputeGender.Options
+import org.broadinstitute.hail.driver.ImputeSex.Options
 import org.broadinstitute.hail.variant.{VariantDataset, Variant, Genotype}
 import org.broadinstitute.hail.annotations._
 
-object ImputeGenderPlink {
-  def imputeGender(vds: VariantDataset) = new ImputeGenderPlink(vds)
+object ImputeSexPlink {
+  def imputeSex(vds: VariantDataset) = new ImputeSexPlink(vds)
 
-  def imputeGender(vds: VariantDataset, mafThreshold: Double, excludePAR: Boolean) =
-    new ImputeGenderPlink(vds, mafThreshold, excludePAR)
+  def imputeSex(vds: VariantDataset, mafThreshold: Double, excludePAR: Boolean) =
+    new ImputeSexPlink(vds, mafThreshold, excludePAR)
 
   def determineSex(ibc:InbreedingCombiner, fFemaleThreshold: Double, fMaleThreshold: Double): Option[Int] = {
     ibc.F match {
@@ -29,10 +29,10 @@ object ImputeGenderPlink {
   }
 }
 
-class ImputeGenderPlink(vds: VariantDataset, mafThreshold: Double = 0.0,
-                        excludePAR: Boolean = true) {
+class ImputeSexPlink(vds: VariantDataset, mafThreshold: Double = 0.0,
+                     excludePAR: Boolean = true) {
 
-  import ImputeGenderPlink._
+  import ImputeSexPlink._
 
   private def xChrVds =  {
     if (excludePAR)
@@ -62,12 +62,34 @@ class ImputeGenderPlink(vds: VariantDataset, mafThreshold: Double = 0.0,
           (v, va, gs, vinfo)
         }
       }
-
       .filter { case (v, va, gs, (maf, nCalled)) =>
         maf.isDefined && maf.get >= localMafThreshold && nCalled > 0
       }
-
       .map { case (v, va, gs, (maf, nCalled)) => (v, va, gs, (maf.get, nCalled))}
+  }
+
+  private def filteredXchrRDD2 = {
+    val localMafThreshold = mafThreshold
+
+    xChrVds.copy(rdd =
+      xChrVds.rdd
+      .zipPartitions(populationParameters) { case (it, jt) =>
+        it.zip(jt).map { case ((v, va, gs), (v2, vinfo)) =>
+          require(v == v2)
+          (v, va, gs, vinfo)
+        }
+      }
+      .filter { case (v, va, gs, (maf, nCalled)) =>
+        maf.isDefined && maf.get >= localMafThreshold && nCalled > 0
+      }
+      .map { case (v, va, gs, (maf, nCalled)) => (v, va, gs)})
+  }
+
+  private def inbreedingCoefficients2: RDD[(String, InbreedingCombiner)] = {
+    filteredXchrRDD2.aggregateBySampleWithVariantInfo(new InbreedingCombiner)(
+      (comb, v, va, s, sa, g, a) => comb.addCount(g, a.asInstanceOf[Double]),
+      (comb1, comb2) => comb1.combineCounts(comb2),
+      populationParameters.map{case (v, (maf, nCalled)) => (v, maf)})
   }
 
   private def inbreedingCoefficients: RDD[(String, InbreedingCombiner)] = {
@@ -88,7 +110,7 @@ class ImputeGenderPlink(vds: VariantDataset, mafThreshold: Double = 0.0,
         sampleIdsBC.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, va, gs, (maf: Double, nCalled: Int))) =>
             for ((g, i) <- gs.iterator.zipWithIndex)
-              acc(i) = acc(i).addCount(g, maf, nCalled)
+              acc(i) = acc(i).addCount(g, maf)
             acc
           }.iterator)
       }.foldByKey(new InbreedingCombiner)((ibc1, ibc2) => ibc1.combineCounts(ibc2))

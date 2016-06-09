@@ -1,4 +1,4 @@
- - added `imputegender` which calculates the gender from variant data using the same method as PLINK. [see docs for details](docs/ImputeGender.md)
+ - added `imputesex` which imputes the sex from variant data using the same method as PLINK. [see docs for details](docs/ImputeSex.md)
  
 ____
  

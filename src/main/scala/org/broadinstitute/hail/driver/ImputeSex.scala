@@ -1,10 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.expr.{TInt, TDouble, TStruct}
-import org.broadinstitute.hail.methods.ImputeGenderPlink
+import org.broadinstitute.hail.methods.ImputeSexPlink
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object ImputeGender extends Command {
+object ImputeSex extends Command {
 
   class Options extends BaseOptions {
 
@@ -23,9 +23,9 @@ object ImputeGender extends Command {
 
   def newOptions = new Options
 
-  def name = "imputegender"
+  def name = "imputesex"
 
-  def description = "Impute gender of samples"
+  def description = "Impute sex of samples"
 
   def requiresVDS = true
 
@@ -33,12 +33,12 @@ object ImputeGender extends Command {
 
   def run(state: State, options: Options): State = {
 
-    val result = ImputeGenderPlink.imputeGender(state.vds, options.mafThreshold, options.excludePAR)
+    val result = ImputeSexPlink.imputeSex(state.vds, options.mafThreshold, options.excludePAR)
       .result(options.fFemaleThreshold, options.fMaleThreshold).collect().toMap
 
     val signature = TStruct("F" -> TDouble, "E" -> TDouble, "O" -> TDouble, "N" -> TInt, "T" -> TInt, "imputedSex" -> TInt)
 
-    val (newSAS, insertSexCheck) = state.vds.saSignature.insert(signature, "imputegender")
+    val (newSAS, insertSexCheck) = state.vds.saSignature.insert(signature, "imputesex")
     val newSampleAnnotations = state.vds.sampleIdsAndAnnotations
       .map { case (s, sa) =>
         insertSexCheck(sa, result.get(s))

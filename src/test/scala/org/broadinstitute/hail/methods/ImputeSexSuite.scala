@@ -12,7 +12,7 @@ import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.variant._
 
 
-class ImputeGenderSuite extends SparkSuite {
+class ImputeSexSuite extends SparkSuite {
 
   def parsePlinkSexCheck(file: String): RDD[(String, (Option[Int], Option[Double]))] = sc.parallelize(readLines(file, sc.hadoopConfiguration)(_.drop(1).map(_.transform { line =>
     val Array(fid, iid, pedsex, snpsex, status, f) = line.value.trim.split("\\s+")
@@ -49,16 +49,15 @@ class ImputeGenderSuite extends SparkSuite {
           val vcfOutputFile = fileRoot + ".vcf"
           val plinkSexCheckRoot = fileRoot
 
-          s = SplitMulti.run(s, Array[String]())
-          s = ImputeGender.run(s, Array("-m", "0.0"))
+          s = ImputeSex.run(s, Array("-m", "0.0"))
           s = ExportVCF.run(s, Array("-o", vcfOutputFile))
 
-          s"plink --vcf $vcfOutputFile --const-fid --check-sex --out $plinkSexCheckRoot" !
+          s"plink --vcf $vcfOutputFile --const-fid --check-sex --silent --out $plinkSexCheckRoot" !
 
           val plinkResult = parsePlinkSexCheck(plinkSexCheckRoot + ".sexcheck")
 
-          val (_, imputedSexQuery) = s.vds.querySA("sa.imputegender.imputedSex")
-          val (_, fQuery) = s.vds.querySA("sa.imputegender.F")
+          val (_, imputedSexQuery) = s.vds.querySA("sa.imputesex.imputedSex")
+          val (_, fQuery) = s.vds.querySA("sa.imputesex.F")
 
           val hailResult = sc.parallelize(s.vds.sampleIdsAndAnnotations.map { case (sample, sa) =>
             (sample, (imputedSexQuery(sa).get, fQuery(sa).get))
@@ -87,7 +86,7 @@ class ImputeGenderSuite extends SparkSuite {
       }
   }
 
-  @Test def testImputeGenderPlinkVersion() {
+  @Test def testImputeSexPlinkVersion() {
     Spec.check()
   }
 }
