@@ -1,6 +1,6 @@
 # Hail
 
-Hail is a framework for scalable genomic data analysis.  Hail is
+Hail is a framework for scalable genetic data analysis.  Hail is
 pre-alpha software and under active development.  Hail is written in
 Scala (mostly) and uses Apache [Spark](http://spark.apache.org/) and
 other Apache Hadoop projects.  If you are interested in getting
