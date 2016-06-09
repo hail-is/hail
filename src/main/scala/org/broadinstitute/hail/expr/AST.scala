@@ -6,6 +6,7 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.utils.StringEscapeUtils
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
@@ -544,7 +545,7 @@ case class Field(name: String, `type`: Type,
         sb += '@'
         sb.append(prettyIdentifier(k))
         sb.append("=\"")
-        sb.append(escapeString(v))
+        sb.append(StringEscapeUtils.escapeString(v))
         sb += '"'
       }(() => sb += '\n')
     }
@@ -560,7 +561,7 @@ case class Field(name: String, `type`: Type,
         sb.append(prettyIdentifier(k))
         sb += '='
         sb += '"'
-        sb.append(escapeString(v))
+        sb.append(StringEscapeUtils.escapeString(v))
         sb += '"'
       }
     }

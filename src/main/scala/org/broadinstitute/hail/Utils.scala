@@ -2,7 +2,6 @@ package org.broadinstitute.hail
 
 import java.io._
 import java.net.URI
-import java.util.Locale
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
@@ -21,7 +20,7 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
-import org.broadinstitute.hail.utils.RichRow
+import org.broadinstitute.hail.utils.{RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -74,140 +73,7 @@ final class ByteIterator(val a: Array[Byte]) {
   }
 }
 
-object StringEscapeUtils {
 
-  def hex(ch: Char): String = Integer.toHexString(ch).toUpperCase(Locale.ENGLISH)
-
-  def escape(str: String, inputSB: Option[StringBuilder] = None): String = {
-    inputSB.foreach(_.clear())
-    val sb = inputSB.getOrElse(new StringBuilder(capacity = str.length * 2))
-
-    var sz: Int = 0
-    sz = str.length
-    var i: Int = 0
-    while (i < sz) {
-      {
-        val ch: Char = str.charAt(i)
-        if (ch > 0xfff) {
-          sb.append("\\u" + hex(ch))
-        }
-        else if (ch > 0xff) {
-          sb.append("\\u0" + hex(ch))
-        }
-        else if (ch > 0x7f) {
-          sb.append("\\u00" + hex(ch))
-        }
-        else if (ch < 32) {
-          ch match {
-            case '\b' =>
-              sb += '\\'
-              sb += 'b'
-            case '\n' =>
-              sb += '\\'
-              sb += 'n'
-            case '\t' =>
-              sb += '\\'
-              sb += 't'
-            case '\f' =>
-              sb += '\\'
-              sb += 'f'
-            case '\r' =>
-              sb += '\\'
-              sb += 'r'
-            case _ =>
-              if (ch > 0xf) {
-                sb.append("\\u00" + hex(ch))
-              }
-              else {
-                sb.append("\\u000" + hex(ch))
-              }
-          }
-        }
-        else {
-          ch match {
-            case '\'' =>
-              sb += '\\'
-              sb += '\''
-            case '\"' =>
-              sb += '\\'
-              sb += '\"'
-            case '\\' =>
-              sb += '\\'
-              sb += '\\'
-            case '`' =>
-              sb += '\\'
-              sb += '`'
-            case _ =>
-              sb.append(ch)
-          }
-        }
-      }
-      i += 1
-    }
-    sb.result()
-  }
-
-  def unescape(str: String, inputSB: Option[StringBuilder] = None): String = {
-    inputSB.foreach(_.clear())
-    val sb = inputSB.getOrElse(new StringBuilder(capacity = str.length))
-
-    val sz = str.length()
-    var hadSlash = false
-    var inUnicode = false
-    lazy val unicode = new StringBuilder(capacity = 4)
-    var i = 0
-    while (i < str.length) {
-
-      val ch = str.charAt(i)
-      if (inUnicode) {
-        // if in unicode, then we're reading unicode
-        // values in somehow
-        unicode.append(ch)
-        if (unicode.length == 4) {
-          // unicode now contains the four hex digits
-          // which represents our unicode character
-          try {
-            val value = Integer.parseInt(unicode.toString(), 16)
-            sb += value.toChar
-            unicode.clear()
-            inUnicode = false
-            hadSlash = false
-          } catch {
-            case nfe: NumberFormatException =>
-              Utils.fatal("Unable to parse unicode value: " + unicode)
-          }
-        }
-      }
-      else if (hadSlash) {
-        hadSlash = false
-        ch match {
-          case '\\' => sb += '\\'
-          case '\'' => sb += '\''
-          case '\"' => sb += '\"'
-          case '`' => sb += '`'
-          case 'r' => sb += '\r'
-          case 'f' => sb += '\f'
-          case 't' => sb += '\t'
-          case 'n' => sb += '\n'
-          case 'b' => sb += '\b'
-          case 'u' => inUnicode = true
-          case _ => fatal(s"Got invalid escape character: `\\$ch'")
-        }
-      }
-      else if (ch == '\\')
-        hadSlash = true
-      else
-        sb += ch
-      i += 1
-    }
-    if (hadSlash) {
-      // then we're in the weird case of a \ at the end of the
-      // string, let's output it anyway.
-      sb += '\\'
-    }
-    sb.result()
-  }
-}
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
   def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
@@ -1323,16 +1189,7 @@ object Utils extends Logging {
     if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
-      s"`${escapeString(str)}`"
-  }
-
-  def escapeString(str: String): String = StringEscapeUtils.escape(str)
-
-  def unescapeString(str: String): String = StringEscapeUtils.unescape(str)
-
-  def unescapeStringLiteral(str: String): String = {
-    assert(str.head == '\"' && str.last == '\"')
-    StringEscapeUtils.unescape(str.substring(1, str.length - 1))
+      s"`${StringEscapeUtils.escapeBackticked(str)}`"
   }
 
   def uriPath(uri: String): String = new URI(uri).getPath

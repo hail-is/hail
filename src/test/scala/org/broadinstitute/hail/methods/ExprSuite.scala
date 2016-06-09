@@ -4,12 +4,12 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.{FatalException, SparkSuite}
-import org.testng.annotations.Test
-
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.testng.annotations.Test
 
 class ExprSuite extends SparkSuite {
 
@@ -156,6 +156,15 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""iset.min""").contains(0))
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
+
+    assert(eval[String](""" "\t\t\t" """).contains("\t\t\t"))
+    assert(eval[String](""" "\"\"\"" """).contains("\"\"\""))
+    assert(eval[String](""" "```" """).contains("```"))
+    val badInput1 = intercept[FatalException](eval[String](" \"aaa\t\t\taaa\" "))
+    assert(badInput1.getMessage.contains("invalid character in string literal: `\\t'"))
+
+    val badInput2 = intercept[FatalException](eval[String](" (\"\f\f\f\") "))
+    assert(badInput2.getMessage.contains("invalid character in string literal: `\\f"))
 
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))

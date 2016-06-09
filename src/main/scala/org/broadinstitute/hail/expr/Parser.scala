@@ -1,9 +1,12 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
+
+case class SimplePosition(line: Int, column: Int, lineContents: String) extends Position
 
 object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
@@ -252,7 +255,7 @@ object Parser extends JavaTokenParsers {
       withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       // FIXME L suffix
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
-      withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString)} |
+      withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString) } |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
@@ -267,12 +270,34 @@ object Parser extends JavaTokenParsers {
     struct_fields ^^ { fields => TStruct(fields) }
 
   def backtickLiteral: Parser[String] =
-    ("`" + stringSequence + "`").r ^^ (s => unescapeString(s.substring(1, s.length - 1)))
+    ("`" + """([^\p{Cntrl}\\`]|\\[\\bfnrt`]|\\u[a-fA-F0-9]{4})*""" + "`").r ^^
+      (s => unescapeBackticked(s.substring(1, s.length - 1))) |
+      withPos(("`" + ".*".r + "`").r) ^^ { r =>
+        val toSearch = r.x.substring(1, r.x.length - 1)
+        val matches = """[\p{Cntrl}]|[^\\][\\'"bfnrt`]""".r.findFirstMatchIn(toSearch)
+        assert(matches.isDefined)
+        val m = matches.get
+        val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
+        ParserUtils.error(newPos,
+          s"""invalid character in backtick identifier: `${
+            escapeUnprintable(toSearch.charAt(m.start).toString)
+          }'""")
+      }
 
   override def stringLiteral: Parser[String] =
-    ("\"" + stringSequence + "\"").r ^^ (s => unescapeString(s.substring(1, s.length - 1)))
-
-  val stringSequence = """([^"\p{Cntrl}\\`]|\\[\\'"bfnrt`]|\\u[a-fA-F0-9]{4})*""".r
+    ("\"" + """([^"'\p{Cntrl}\\]|\\[\\"'bfnrt]|\\u[a-fA-F0-9]{4})*""" + "\"").r ^^
+      (s => unescapeString(s.substring(1, s.length - 1))) |
+      withPos(("\"" + ".*".r + "\"").r) ^^ { r =>
+        val toSearch = r.x.substring(1, r.x.length - 1)
+        val matches = """[\p{Cntrl}]|[^\\][\\'"bfnrt`]""".r.findFirstMatchIn(toSearch)
+        assert(matches.isDefined)
+        val m = matches.get
+        val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
+        ParserUtils.error(newPos,
+          s"""invalid character in string literal: `${
+            escapeUnprintable(toSearch.charAt(m.start).toString)
+          }""")
+      }
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>

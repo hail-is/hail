@@ -49,20 +49,20 @@ object VariantSampleMatrix {
         s"Recreate VDS with current version of Hail")
     }
 
-    def castJSON[T <: JValue](jv: JValue, fname: String, expected: String): T = jv match {
-        case t: T => t
-        case other => fatal(s"Invalid json value.  Expected `$expected' in field `$fname', but got `${other.getClass.getName}'\n  " +
-          s"Recreate VDS with current version of Hail")
-      }
-
-    val fields = castJSON[JObject](json, "top-level", "JObject")
-      .obj
-      .toMap
-
-    def getAndCastJSON[T <: JValue](fname: String, expected: String): T = fields.get(fname) match {
-      case Some(jval) => castJSON[T](jval, fname, expected)
-      case None => fatal(s"Invalid metadata file.  Missing field `$fname'")
+    val fields = json match {
+      case jo: JObject => jo.obj.toMap
+      case _ => fatal("corrupt VDS: invalid metadata json.\n  Recreate VDS with current version of Hail.")
     }
+
+    def getAndCastJSON[T <: JValue](fname: String, expected: String)(implicit tct: ClassTag[T]): T =
+      fields.get(fname) match {
+        case Some(t: T) => t
+        case Some(other) =>
+          fatal(s"corrupt VDS: invalid json value.  Expected `$expected' in field `$fname', " +
+            s"but got `${other.getClass.getName}'\n  " +
+          s"Recreate VDS with current version of Hail")
+        case None => fatal(s"Invalid metadata file.  Missing field `$fname'")
+      }
 
     val wasSplit = getAndCastJSON[JBool]("was split", "JBool").value
     val version = getAndCastJSON[JInt]("version", "JBool").num
@@ -479,13 +479,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     if (!metadataSame) {
       println(
         s"""Discordant Metadata:
-          |  Sample IDs:          ${if (sampleIds == that.sampleIds) "PASS" else "FAIL"}
-          |  Sample Annotations:  ${if (sampleAnnotations == that.sampleAnnotations) "PASS" else "FAIL"}
-          |  VA Signature:        ${if (vaSignature == that.vaSignature) "PASS" else "FAIL"}
-          |  SA Signature:        ${if (saSignature == that.saSignature) "PASS" else "FAIL"}
-          |  Global Signature:    ${if (globalSignature == that.globalSignature) "PASS" else "FAIL"}
-          |  Global Annotation:   ${if (globalAnnotation == that.globalAnnotation) "PASS" else "FAIL"}
-          |  Was split:           ${if (wasSplit == that.wasSplit) "PASS" else "FAIL"}""".stripMargin)
+            |  Sample IDs:          ${if (sampleIds == that.sampleIds) "PASS" else "FAIL"}
+            |  Sample Annotations:  ${if (sampleAnnotations == that.sampleAnnotations) "PASS" else "FAIL"}
+            |  VA Signature:        ${if (vaSignature == that.vaSignature) "PASS" else "FAIL"}
+            |  SA Signature:        ${if (saSignature == that.saSignature) "PASS" else "FAIL"}
+            |  Global Signature:    ${if (globalSignature == that.globalSignature) "PASS" else "FAIL"}
+            |  Global Annotation:   ${if (globalAnnotation == that.globalAnnotation) "PASS" else "FAIL"}
+            |  Was split:           ${if (wasSplit == that.wasSplit) "PASS" else "FAIL"}""".stripMargin)
       val sb = new StringBuilder
       metadata.vaSignature.compact(sb)
       println(sb.result())
