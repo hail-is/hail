@@ -203,7 +203,7 @@ object LinearRegression {
 
     val sampleFilterBc = sc.broadcast(sampleFilter)
     val reduceSampleIndexBc = sc.broadcast(reduceSampleIndex)
-
+    
     new LinearRegression(hcs
       .rdd
       .mapValues { cs => // FIXME: only three are necessary

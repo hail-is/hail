@@ -113,7 +113,7 @@ class T2DService(hcs: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]
                 if (covMap.keySet(name))
                   phenoCovs += name
                 else
-                  throw new RESTFailure(s"${c.name} is not a valid covariate name")
+                  throw new RESTFailure(s"$name is not a valid covariate name")
               case None =>
                 throw new RESTFailure("Covariate of type 'phenotype' must include 'name' field in request")
             }

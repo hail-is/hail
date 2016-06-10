@@ -1523,8 +1523,6 @@ class T2DServerSuite extends SparkSuite {
   }
 
 
-
-
   @AfterClass(alwaysRun = true)
   override def afterClass() = {
     r.task.shutdownNow()
