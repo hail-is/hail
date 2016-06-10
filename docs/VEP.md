@@ -21,10 +21,16 @@ hail.vep.lof.conservation_file = /path/to/loftee_data//phylocsf.sql
 
 ## Options
 
+ - `--block-size <size>` -- Variants per VEP invocation.  Default: 1000.
  - `--config <.properties file>` -- Configuration file.
+ - `--force` -- Force VEP to annotate from scratch.
  - `-r | --root <root>` -- Variant annotation path to store the VEP output.  Default: va.vep.
 
 ## How VEP is Run
+
+If the root already exists and its schema matches the VEP schema, then
+`vep` only runs VEP for variants for which the value of the root is
+missing.
 
 The `vep` command needs a configuration file to tell it how it run
 VEP.  The format is a

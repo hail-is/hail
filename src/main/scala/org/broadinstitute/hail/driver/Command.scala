@@ -54,6 +54,7 @@ object ToplevelCommands {
   register(AnnotateGlobal)
   register(Cache)
   register(ImportAnnotations)
+  register(CompareVDS)
   register(Count)
   register(DownsampleVariants)
   register(ExportPlink)
