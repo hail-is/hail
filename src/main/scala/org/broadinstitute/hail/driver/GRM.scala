@@ -48,21 +48,14 @@ object GRM extends Command {
     val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
 
     val nSamples = vds.nSamples
-    val (nVariants, grm) = mat.rows.mapPartitions { it =>
-      val b = new mutable.ArrayBuilder.ofDouble
-      var i = 0
-      it.foreach { r =>
-        i += 1
-        b ++= r.vector.toArray
-      }
-      if (i == 0)
-        Iterator((0, DenseMatrix.zeros[Double](nSamples, nSamples)))
-      else {
-        val m = new DenseMatrix(nSamples, i, b.result())
-        Iterator((i, m * m.t))
-      }
-    }.treeAggregate[(Long, DenseMatrix[Double])]((0, DenseMatrix.zeros[Double](nSamples, nSamples)))(
-      { case ((i1, m1), (i2, m2)) => (i1 + i2, m1 + m2) }, { case ((i1, m1), (i2, m2)) => (i1 + i2, m1 + m2) })
+    assert(nSamples == mat.numCols())
+    val nVariants = mat.numRows() // mat cached
+
+    val bmat = mat.toBlockMatrix().cache()
+    val grm = bmat.transpose.multiply(bmat)
+          .toLocalMatrix()
+    assert(grm.numCols == nSamples
+      && grm.numRows == nSamples)
 
     if (options.idFile != null) {
       writeTextFile(options.idFile, state.hadoopConf) { s =>
