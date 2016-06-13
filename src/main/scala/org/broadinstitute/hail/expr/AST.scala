@@ -226,13 +226,15 @@ case object TChar extends Type {
 
 object TNumeric {
   def promoteNumeric(types: Set[TNumeric]): Type = {
-    if (types(TDouble) || (types(TFloat) && types.size > 1))
-      TDouble
-    else if (types(TInt) && types(TLong))
-      TLong
-    else {
-      assert(types.size == 1)
+    if (types.size == 1)
       types.head
+    else if (types(TDouble))
+      TDouble
+    else if (types(TFloat))
+      TFloat
+    else {
+      assert(types == Set(TLong))
+      TLong
     }
   }
 }
