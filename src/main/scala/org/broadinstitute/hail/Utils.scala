@@ -416,9 +416,9 @@ class RichPairRDD[K, V](val r: RDD[(K, V)])
   def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner) = {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       if (pair._2.isEmpty)
-        pair._1.iterator.map(v => (v, None))
+        pair._1.iterator.take(1).map(v => (v, None))
       else
-        for (v <- pair._1.iterator; w <- pair._2.iterator.take(1)) yield (v, Some(w))
+        for (v <- pair._1.iterator.take(1); w <- pair._2.iterator.take(1)) yield (v, Some(w))
     }
   }
 }

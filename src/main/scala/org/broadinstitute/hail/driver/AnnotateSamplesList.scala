@@ -38,10 +38,10 @@ object AnnotateSamplesList extends Command {
         _.transform { line =>
           line.value
         }
-      }.toArray
+      }.toSet
     }
 
-    val sampleAnnotations = vds.sampleIds.map{case s => (s,samplesInList.contains(s))}.toMap
+    val sampleAnnotations = vds.sampleIds.map{case s => (s, samplesInList.contains(s))}.toMap
 
     val annotated = vds.annotateSamples(sampleAnnotations, TBoolean,
       Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
