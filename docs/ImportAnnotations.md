@@ -131,7 +131,7 @@ ____
 <a name="Fam"></a>
 ### Plink .fam files
 
-For convenience, Hail provides a simple command to import sample annotations from [Plink .fam files](https://www.cog-genomics.org/plink2/formats#fam).
+For convenience, Hail provides a simple command to import sample annotations from [Plink .fam files](https://www.cog-genomics.org/plink2/formats#fam). For case-control phenotypes, Hail assumes `1` means control and `2` means case.
 
  - `fam` Invoke this functionality (`annotatesamples fam <args>`)
  - `-i | --input <filename>` path of .fam file
@@ -148,7 +148,7 @@ will add sample annotations for family ID, paternal ID, maternal ID, sex, and ca
 
 `annotatesamples fam -i myStudy.fam -q`
 
-will interpret the phenotype as quantitative instead. The annotation names, types, and missing values are shown below, assuming the default root `sa.fam`
+will interpret the phenotype as quantitative instead. The annotation names, types, and missing values are shown below, assuming the default root `sa.fam`.
 
 Field | Annotation | Type | Missing
 ---|---|---|---
@@ -156,7 +156,7 @@ Family ID | `sa.fam.famID` | String | `0`
 Sample ID | `s` | String |
 Paternal ID | `sa.fam.patID` | String | `0`
 Maternal ID | `sa.fam.matID` | String | `0`
-Sex | `sa.fam.isMale` | Boolean | `0`
+Sex | `sa.fam.isFemale` | Boolean | `0`
 Case-control phenotype | `sa.fam.isCase` | Boolean | `0`, `-9`, non-numeric, and -m arg if given
 Quantitative phenotype | `sa.fam.qPheno` |Double |  either `NA` or -m arg if given
 
