@@ -13,7 +13,7 @@ Command line arguments:
 
 The `tdt` command generates the file
 
-     tdtres.tdt
+     `tdtres.tdt`
 
 which contains the following fields:
 
