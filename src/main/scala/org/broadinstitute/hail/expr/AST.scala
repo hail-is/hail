@@ -95,6 +95,7 @@ object Type {
       Gen.oneOfGen(genScalar,
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
+        genArb.resize(size - 1).map(TDict),
         Gen.buildableOf[Array[(String, Type)], (String, Type)](
           Gen.zip(Gen.identifier,
             genArb))
@@ -224,8 +225,8 @@ case object TChar extends Type {
 }
 
 object TNumeric {
-  def parseResultType(types: Set[TNumeric]): Type = {
-    if (types(TDouble) || (types(TFloat) && (types(TInt) || types(TLong))))
+  def promoteNumeric(types: Set[TNumeric]): Type = {
+    if (types(TDouble) || (types(TFloat) && types.size > 1))
       TDouble
     else if (types(TInt) && types(TLong))
       TLong
@@ -444,9 +445,7 @@ case class TDict(elementType: Type) extends Type {
 
   def selfMakeJSON(a: Annotation): JValue = {
     val m = a.asInstanceOf[Map[_, _]]
-    JArray(m.map { case (k, v) => JObject(List(("key", JString(k.asInstanceOf[String])), ("value", elementType.makeJSON(v)))
-    )
-    }.toList)
+    JObject(m.map { case (k, v) => (k.asInstanceOf[String], elementType.makeJSON(v)) }.toList)
   }
 
   override def requiresConversion: Boolean = true
@@ -457,7 +456,7 @@ case class TDict(elementType: Type) extends Type {
     else {
       val values = a.asInstanceOf[Map[_, _]]
       values.map { case (k, v) => Annotation(k, elementType.makeSparkWritable(v))
-      }
+      }.toIndexedSeq
     }
 
   override def makeSparkReadable(a: Annotation): Annotation =
@@ -1277,7 +1276,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
   }
 }
 
-case class ArrayDeclaration(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
+case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
   override def typecheckThis(ec: EvalContext): Type = {
     if (elements.isEmpty)
       parseError("Hail does not currently support declaring empty arrays.")
@@ -1291,7 +1290,7 @@ case class ArrayDeclaration(posn: Position, elements: Array[AST]) extends AST(po
     if (types.size == 1)
       TArray(types.head)
     else if (types.forall(_.isInstanceOf[TNumeric])) {
-      TArray(TNumeric.parseResultType(types.map(_.asInstanceOf[TNumeric])))
+      TArray(TNumeric.promoteNumeric(types.map(_.asInstanceOf[TNumeric])))
     }
     else
       parseError(s"declared array elements must be the same type (or numeric)." +
@@ -1317,7 +1316,7 @@ case class ArrayDeclaration(posn: Position, elements: Array[AST]) extends AST(po
   }
 }
 
-case class StructDeclaration(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
+case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
   override def typecheckThis(ec: EvalContext): Type = {
     if (elements.isEmpty)
       parseError("Hail does not currently support declaring empty structs.")
@@ -2108,7 +2107,13 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
     case (TString, TInt) => TChar
 
     case _ =>
-      parseError("invalid array index expression")
+      parseError(
+        s""" invalid index expression: cannot index `${f.`type`}' with type `${idx.`type`}'
+            |  Known index operations:
+            |    Array with Int: a[0]
+            |    String[Int] (Returns a character)
+            |    Dict[String]
+         """.stripMargin)
   }
 
   def eval(ec: EvalContext): () => Any = ((f.`type`, idx.`type`): @unchecked) match {
@@ -2117,13 +2122,16 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
       val localPos = posn
       AST.evalCompose[IndexedSeq[_], Int](ec, f, idx)((a, i) =>
         try {
-          a(i)
+          if (i < 0)
+            a(a.length + i)
+          else
+            a(i)
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             ParserUtils.error(localPos,
               s"Tried to access index [$i] on array ${compact(localT.makeJSON(a))} of length ${a.length}" +
-              s"\n  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)" +
-              s"\n  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct")
+                s"\n  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)" +
+                s"\n  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct")
           case e: Throwable => throw e
         })
 
@@ -2151,16 +2159,15 @@ case class SliceArray(posn: Position, f: AST, idx1: Option[AST], idx2: Option[AS
     case _ => parseError(s"invalid slice expression.  Only arrays can be sliced, tried to slice type `${f.`type`}'")
   }
 
-  def eval(ec: EvalContext): () => Any =
-    (idx1, idx2) match {
-      case (Some(i1), Some(i2)) =>
+  def eval(ec: EvalContext): () => Any = {
+    val i1 = idx1.getOrElse(Const(posn, 0, TInt))
+    idx2 match {
+      case (Some(i2)) =>
         AST.evalCompose[IndexedSeq[_], Int, Int](ec, f, i1, i2)((a, ind1, ind2) => a.slice(ind1, ind2))
-      case (Some(i1), None) =>
+      case (None) =>
         AST.evalCompose[IndexedSeq[_], Int](ec, f, i1)((a, ind1) => a.slice(ind1, a.length))
-      case (None, Some(i2)) =>
-        AST.evalCompose[IndexedSeq[_], Int](ec, f, i2)((a, ind2) => a.slice(0, ind2))
-      case (None, None) => f.eval(ec)
     }
+  }
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {

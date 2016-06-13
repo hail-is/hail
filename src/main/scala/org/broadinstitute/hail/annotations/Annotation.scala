@@ -59,14 +59,9 @@ object Annotation {
           x.toDouble
       case (JBool(x), TBoolean) => x
 
-      case (JArray(a), TDict(elementType)) =>
-        a.map {
-          case (JObject(List(key, value))) =>
-        assert(key == ("key", JString))
-        assert(value._1 == "value")
-            (fromJson(key._2, TString, parent + "." + key._1),
-              fromJson(value._2, elementType, parent + "." + value._1))
-          case _ => fatal("json dict parse error")
+      case (JObject(a), TDict(elementType)) =>
+        a.map { case (key, value) =>
+          (key, fromJson(value, elementType, parent))
         }
           .toMap
 
