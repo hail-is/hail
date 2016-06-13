@@ -2,8 +2,8 @@
   
     - array slicing, python-style
     - dicts, python-style (maps keyed by string)
-    - function `index`, which takes an `Array[Struct]` and converts it to a Dict.  If `global.genes` is an `Array[Struct]` with struct types `{geneID: String, PLI: Double, ExAC_LOFs: Int}`, then the function `index(global.genes, geneID)` will return a `Dict[Struct]` where the value has struct types `{PLI: Double, "ExAC_LOFs": Int}` (the key was pulled out)
-    - Array and struct constructors: `[1, 2]` will give you an `Array[Int]`, and `{"gene": "SCN1A", "PLI": 0.999, ExAC_LOFs: 5}` will give you a `Struct`.
+    - function `index`, which takes an `Array[Struct]` and converts it to a Dict.  If `global.genes` is an `Array[Struct]` with struct type `Struct {geneID: String, PLI: Double, ExAC_LOFs: Int}`, then the function `index(global.genes, geneID)` will return a `Dict[Struct]` where the value has struct type `Struct {PLI: Double, ExAC_LOFs: Int}` (the key was pulled out)
+    - Array and struct constructors: `[1, 2]` will give you an `Array[Int]`, and `{"gene": "SCN1A", "PLI": 0.999, "ExAC_LOFs": 5}` will give you a `Struct`.
     - Added a way to declare values missing: `NA: Type`. For example, you could say `if (condition) 5 else NA: Int`
  
 ____
