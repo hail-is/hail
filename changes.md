@@ -8,6 +8,12 @@
  
 ____
  
+ - Support JSON in annotation import.  `importannotations` is now
+   `importannotations table`.  Added `importannotations json`,
+   `annotatevariants json` and `annotatesamples json`.
+
+____
+
  - Fixed some bad error messages, now errors will write a full stacktrace in the `hail.log`
 
 ____

@@ -1,8 +1,9 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.spark.SparkException
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
 
 class ImportVCFSuite extends SparkSuite {
@@ -114,5 +115,22 @@ class ImportVCFSuite extends SparkSuite {
     val s2 = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
 
     assert(s.vds.same(s2.vds))
+  }
+
+  @Test def testBadAD() {
+    val s = ImportVCF.run(State(sc, sqlContext), Array("src/test/resources/sample_bad_AD.vcf", "--skip-bad-ad"))
+    assert(s.vds.expand()
+      .map(_._3)
+      .collect()
+      .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080)))))
+
+    val sFail = ImportVCF.run(State(sc, sqlContext), Array("src/test/resources/sample_bad_AD.vcf"))
+    val e = intercept[SparkException] {
+      sFail.vds.expand()
+        .map(_._3)
+        .collect()
+        .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080))))
+    }
+    assert(e.getMessage.contains("FatalException"))
   }
 }
