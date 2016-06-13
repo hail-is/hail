@@ -95,6 +95,7 @@ object ToplevelCommands {
   register(Coalesce)
   register(SampleQC)
   register(SeqrServerCommand)
+  register(TDTCommand)
   register(PrintSchema)
   register(ShowGlobalAnnotations)
   register(VariantQC)
