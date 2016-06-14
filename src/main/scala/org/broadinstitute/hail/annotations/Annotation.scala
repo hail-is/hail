@@ -2,7 +2,7 @@ package org.broadinstitute.hail.annotations
 
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._
 import org.json4s.jackson.Serialization
@@ -50,6 +50,8 @@ object Annotation {
       case (JDouble(x), TFloat) => x.toFloat
       case (JString(x), TString) => x
       case (JString(x), TChar) => x
+      case (JString(x), TInt) =>
+        x.toInt
       case (JString(x), TDouble) =>
         if (x.startsWith("-:"))
           x.drop(2).toDouble
@@ -113,4 +115,53 @@ object Annotation {
       Variant(contig, start, ref, altAlleles.toArray)
   }
 
+  def jsonExtractVariant(t: Type, variantFields: String): Any => Option[Variant] = {
+    val ec = EvalContext(Map(
+      "root" ->(0, t)))
+
+    val fs: Array[(BaseType, () => Option[Any])] = Parser.parseExprs(variantFields, ec)
+
+    if (fs.length != 4)
+      fatal(s"wrong number of variant field expressions: expected 4, got ${fs.length}")
+
+    if (fs(0)._1 != TString)
+      fatal(s"wrong type for chromosome field: expected String, got ${fs(0)._1}")
+    if (fs(1)._1 != TInt)
+      fatal(s"wrong type for pos field: expected Int, got ${fs(1)._1}")
+    if (fs(2)._1 != TString)
+      fatal(s"wrong type for ref field: expected String, got ${fs(2)._1}")
+    if (fs(3)._1 != TArray(TString))
+      fatal(s"wrong type for alt field: expected Array[String], got ${fs(3)._1}")
+
+    (root: Annotation) => {
+      ec.setAll(root)
+
+      val vfs = fs.map(_._2())
+
+      vfs(0).flatMap { chr =>
+        vfs(1).flatMap { pos =>
+          vfs(2).flatMap { ref =>
+            vfs(3).map { alt =>
+              Variant(chr.asInstanceOf[String],
+                pos.asInstanceOf[Int],
+                ref.asInstanceOf[String],
+                alt.asInstanceOf[IndexedSeq[String]].toArray)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  def jsonExtractSample(t: Type, sampleExpr: String): Any => Option[String] = {
+    val ec = EvalContext(Map(
+      "root" ->(0, t)))
+
+    val f: () => Option[Any] = Parser.parse(sampleExpr, ec, TString)
+
+    (root: Annotation) => {
+      ec.setAll(root)
+      f().map(_.asInstanceOf[String])
+    }
+  }
 }

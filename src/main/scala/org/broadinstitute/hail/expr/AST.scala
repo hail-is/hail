@@ -92,8 +92,8 @@ object Type {
       genScalar
     else
       Gen.oneOfGen(genScalar,
-        genSized(size - 1).map(TArray),
-        // FIXME: genSized(size - 1).map(TSet),
+        genArb.resize(size - 1).map(TArray),
+        genArb.resize(size - 1).map(TSet),
         Gen.buildableOf[Array[(String, Type)], (String, Type)](
           Gen.zip(Gen.identifier,
             genArb))
@@ -387,7 +387,7 @@ case class TSet(elementType: Type) extends TIterable {
       a
     else {
       val values = a.asInstanceOf[Seq[Annotation]]
-      values.map(elementType.makeSparkWritable).toSet
+      values.map(elementType.makeSparkReadable).toSet
     }
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set[Annotation], Annotation](
@@ -998,6 +998,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TIterable, "toSet") => TSet(t.elementType)
       case (TArray(elementType: TNumeric), "sum" | "min" | "max") => elementType
       case (TSet(elementType: TNumeric), "sum" | "min" | "max") => elementType
+      case (TArray(elementType), "head") => elementType
+      case (t@TArray(elementType), "tail") => t
 
       case (t, _) =>
         parseError(s"`$t' has no field `$rhs'")
@@ -1180,6 +1182,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
     case (TSet(TDouble), "max") =>
       AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
+
+    case (TArray(elementType), "head") =>
+      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.head)
+    case (t@TArray(elementType), "tail") =>
+      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
   }
 }
 
@@ -1231,7 +1238,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("json", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(c)
-      () => t.makeJSON(f())
+      () => compact(t.makeJSON(f()))
   }
 }
 
@@ -1837,9 +1844,13 @@ case class Comparison(posn: Position, lhs: AST, operation: String, rhs: AST) ext
 
   override def typecheckThis(): BaseType = {
     operandType = (lhs.`type`, operation, rhs.`type`) match {
-      case (_, "==" | "!=", _) => null
-      case (lhsType: TNumeric, "<=" | ">=" | "<" | ">", rhsType: TNumeric) =>
+      case (lhsType: TNumeric, "==" | "!=" | "<=" | ">=" | "<" | ">", rhsType: TNumeric) =>
         AST.promoteNumeric(lhsType, rhsType)
+
+      case (lhsType, "==" | "!=", rhsType) =>
+        if (lhsType != rhsType)
+          parseError(s"invalid comparison: `$lhsType' and `$rhsType', can only compare objects of similar type")
+        else TBoolean
 
       case (lhsType, _, rhsType) =>
         parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")

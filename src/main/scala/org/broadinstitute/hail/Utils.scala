@@ -15,7 +15,7 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{AccumulableParam, SparkContext}
+import org.apache.spark.{AccumulableParam, SparkContext, SparkEnv, TaskContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -30,6 +30,7 @@ import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.Random
+import scala.collection.JavaConverters._
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0
@@ -281,6 +282,8 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
     x
   }
   */
+
+
 }
 
 // FIXME AnyVal in Scala 2.11
@@ -522,6 +525,40 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
         g()
       f(elem)
     }
+  }
+
+  def pipe(pb: ProcessBuilder,
+    printHeader: (String => Unit) => Unit,
+    printElement: (String => Unit, T) => Unit,
+    printFooter: (String => Unit) => Unit): Iterator[String] = {
+
+    val command = pb.command().asScala.mkString(" ")
+
+    val proc = pb.start()
+
+    // Start a thread to print the process's stderr to ours
+    new Thread("stderr reader for " + command) {
+      override def run() {
+        for (line <- Source.fromInputStream(proc.getErrorStream).getLines) {
+          System.err.println(line)
+        }
+      }
+    }.start()
+
+    // Start a thread to feed the process input from our parent's iterator
+    new Thread("stdin writer for " + command) {
+      override def run() {
+        val out = new PrintWriter(proc.getOutputStream)
+
+        printHeader(out.println)
+        it.foreach(x => printElement(out.println, x))
+        printFooter(out.println)
+        out.close()
+      }
+    }.start()
+
+    // Return an iterator that read lines from the process's stdout
+    Source.fromInputStream(proc.getInputStream).getLines()
   }
 }
 

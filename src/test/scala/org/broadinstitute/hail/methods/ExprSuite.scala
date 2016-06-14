@@ -119,6 +119,10 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("isDefined(a[2])").contains(false))
     assert(eval[Boolean]("a[2]").isEmpty)
 
+    assert(eval[Boolean]("1 == 1.0").contains(true))
+    val equalsError = intercept[FatalException](eval[Boolean](""" s == 2 """))
+    assert(equalsError.getMessage.contains("can only compare objects of similar type"))
+
     assert(eval[Int]("as.length").contains(2))
     assert(eval[Int]("as[0].a").contains(23))
     assert(eval[Boolean]("isMissing(as[1].b)").contains(true))
@@ -202,7 +206,7 @@ class ExprSuite extends SparkSuite {
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
       sb.clear()
-      t.pretty(sb, 0, printAttrs = true)
+      t.pretty(sb, 0)
       val res = sb.result()
       val parsed = Parser.parseType(res)
       t == parsed
@@ -219,6 +223,8 @@ class ExprSuite extends SparkSuite {
 
   @Test def testReadWrite() {
     check(forAll { (t: Type) =>
+      val sb = new StringBuilder
+      t.pretty(sb, 0)
       val a = t.genValue.sample()
       t.makeSparkReadable(t.makeSparkWritable(a)) == a
     })
