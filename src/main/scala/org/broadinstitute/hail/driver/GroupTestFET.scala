@@ -84,13 +84,13 @@ object GroupTestFET extends Command {
           if (counts(0) + counts(1) == 0d || counts(2) + counts(3) == 0d)
             None
           else
-            FisherExactTest(counts).result(0)
+            FisherExactTest(counts).result()(0)
         }
 
         sb.append(k.mkString(","))
         sb.append("\t")
         counts.foreach{d => sb.append(d.toString); sb.append("\t")}
-        sb.append(pval) //FIXME: how to round pvalues
+        sb.append(pval.getOrElse(Double.NaN).formatted("%.4f"))
         sb.result()
       }
     }.writeTable(options.output, Some(header))
