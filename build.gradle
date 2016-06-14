@@ -19,7 +19,6 @@ apply plugin: 'jacoco'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 repositories {
-    mavenLocal()
     mavenCentral()
     jcenter()
     maven {
