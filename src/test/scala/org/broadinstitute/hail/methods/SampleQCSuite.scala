@@ -19,7 +19,7 @@ class SampleQCSuite extends SparkSuite {
     s = FilterSamplesExpr.run(s, Array("--keep", "-c", """"HG" ~ s.id"""))
     s = SampleQC.run(s, Array("-o", sampleQCFile))
     s = ExportSamples.run(s, Array("-o", exportSamplesFile, "-c",
-      """sampleID = s.id,
+      """Sample = s.id,
         |nNotCalled = sa.qc.nNotCalled,
         |nHomRef = sa.qc.nHomRef,
         |nHet = sa.qc.nHet,
