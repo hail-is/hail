@@ -1256,6 +1256,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       () => compact(t.makeJSON(f()))
     case ("hwe", Array(a, b, c)) =>
       AST.evalCompose[Int, Int, Int](ec, a, b, c) { case (nHomRef, nHet, nHomVar) =>
+        if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
+          fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
         val n = nHomRef + nHet + nHomVar
         val nAB = nHet
         val nA = nAB + 2 * nHomRef.min(nHomVar)

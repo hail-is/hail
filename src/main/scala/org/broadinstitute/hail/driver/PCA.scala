@@ -41,7 +41,7 @@ object PCA extends Command {
     val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.lOutput != null, options.eOutput != null)) (vds)
 
     writeTextFile(options.output, state.hadoopConf) { s =>
-      s.write("sample\t" + (1 to options.k).map("PC" + _).mkString("\t") + "\n")
+      s.write("Sample\t" + (1 to options.k).map("PC" + _).mkString("\t") + "\n")
       for ((id, i) <- vds.sampleIds.zipWithIndex) {
         s.write(id)
         for (j <- 0 until options.k)
