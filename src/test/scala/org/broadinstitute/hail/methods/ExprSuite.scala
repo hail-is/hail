@@ -159,6 +159,10 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
 
+    assert(eval[String](""" "a b c d".replace(" ", "_") """).contains("a_b_c_d"))
+    assert(eval[String](" \"a\\tb\".replace(\"\\t\", \"_\") ").contains("a_b"))
+    assert(eval[String](""" "a    b  c    d".replace("\\s+", "_") """).contains("a_b_c_d"))
+
     // FIXME catch parse errors
     // assert(eval[Boolean]("i.max(d) == 5"))
   }

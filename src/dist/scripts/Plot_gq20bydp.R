@@ -31,7 +31,7 @@ Plot_gq20bydp <- function(filename, plotname=".png", widthres=8, heightres=6, ti
 	meltd <- melt(d)
 	meanM <- colMeans(d[,2:ncol(d)],na.rm=T)
 	meanMadd <- cbind("Means",names(meanM),colMeans(d[,2:ncol(d)],na.rm=T))
-	colnames(meanMadd) <- c("sample","variable","value")
+	colnames(meanMadd) <- ec("sample","variable","value")
 	meltd <- rbind(meltd,meanMadd)
 
 	meltd$ymin <- as.numeric(sapply(strsplit(as.character(meltd$variable),"-"),function(x) x[1]))
