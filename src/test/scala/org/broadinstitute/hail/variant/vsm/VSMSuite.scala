@@ -154,7 +154,7 @@ class VSMSuite extends SparkSuite {
     p.check
   }
 
-  @Test(enabled=false) def testKuduReadWrite() {
+  @Test(enabled = false) def testKuduReadWrite() {
 
     val vcf = "src/test/resources/multipleChromosomes.vcf"
     var s = State(sc, sqlContext)

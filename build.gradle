@@ -59,8 +59,8 @@ dependencies {
     compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
     compile 'args4j:args4j:2.32'
     compile 'com.github.samtools:htsjdk:1.143'
-    compile 'org.kududb:kudu-client:0.7.0'
-    compile 'org.kududb:kudu-mapreduce:0.7.0'
+    compile 'org.kududb:kudu-client:0.9.0'
+    compile 'org.kududb:kudu-spark_2.10:0.9.0'
 
     compile 'org.json4s:json4s-core_2.10:3.2.10'
     // compile 'org.json4s:json4s-native_2.10:3.2.10'
@@ -133,7 +133,7 @@ shadowJar {
         include(dependency('org.apache.solr:solr-solrj:.*'))
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('org.kududb:kudu-client:.*'))
-        include(dependency('org.kududb:kudu-mapreduce:.*'))
+        include(dependency('org.kududb:kudu-spark_2.10:.*'))
     }
 }
 
@@ -159,7 +159,8 @@ task shadowTestJar(type: ShadowJar) {
 
         include(dependency('org.apache.solr:solr-solrj:.*'))
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
-
+        include(dependency('org.kududb:kudu-client:.*'))
+        include(dependency('org.kududb:kudu-spark_2.10:.*'))
     }
 }
 

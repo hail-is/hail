@@ -1,10 +1,11 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
+import java.util
 
-import htsjdk.samtools.SAMSequenceDictionary
+import org.kududb.spark.kudu._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StructField, StructType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
@@ -12,8 +13,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.vcf.BufferedLineIterator
-import org.kududb.client.SessionConfiguration.FlushMode
-import org.kududb.spark.KuduContext
+import org.kududb.spark.kudu.KuduContext
 
 import scala.io.Source
 import scala.language.implicitConversions
@@ -140,8 +140,8 @@ object VariantSampleMatrix {
     val metadata = readMetadata(sqlContext, dirname, skipGenotypes = false,
       requireParquetSuccess = false)
 
-    val df = sqlContext.read.format("org.kududb.spark").options(
-      Map("kudu.table" -> tableName, "kudu.master" -> master)).load()
+    val df = sqlContext.read.options(
+      Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
     val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = df.rdd.mapPartitions(iter => {
       val ser = SparkEnv.get.serializer.newInstance()
       iter.map(r => {
@@ -773,33 +773,38 @@ class RichVDS(vds: VariantDataset) {
     KuduUtils.createTableIfNecessary(master, tableName, seqDict, rowsPerPartition)
 
     val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = vds.rdd
-    val kuduContext = new KuduContext(sqlContext.sparkContext, master)
-    kuduContext.foreachPartition(rdd, (it: Iterator[(Variant, Annotation,
-      Iterable[Genotype])], kuduClient, asyncKuduClient) => {
-      val table = kuduClient.openTable(tableName)
-      val session = kuduClient.newSession()
-      session.setFlushMode(FlushMode.AUTO_FLUSH_BACKGROUND)
+    val rowRdd = rdd.map {
+      case (v, va, gs) =>
+        val stream = gs.toGenotypeStream(v, compress)
+        Row(
+          KuduUtils.normalizeContig(v.contig),
+          v.start,
+          v.ref,
+          v.allele(1), // TODO: remove biallelic assumption
+          sampleGroup,
+          v.contig,
+          new Array[Byte](0), // TODO: serialize annotations
+          stream.decompLenOption.get,
+          stream.a
+        )
+    }
+    val schema = StructType(List(
+      StructField("contig_norm", StringType, nullable = false),
+      StructField("start", IntegerType, nullable = false),
+      StructField("ref", StringType, nullable = false),
+      StructField("alt", StringType, nullable = false),
+      StructField("sample_group", StringType, nullable = false),
+      StructField("contig", StringType, nullable = false),
+      StructField("annotations", BinaryType, nullable = true),
+      StructField("genotypes_byte_len", IntegerType, nullable = true),
+      StructField("genotypes", BinaryType, nullable = true)))
+    val df = sqlContext.createDataFrame(rowRdd, schema)
 
-      val serializer = SparkEnv.get.serializer.newInstance()
+    val kuduContext = new KuduContext(master)
+    df.write
+      .options(Map("kudu.master"-> master, "kudu.table"-> tableName))
+      .mode("append").kudu
 
-      it.foreach {
-        case (v, va, gs) =>
-          val stream = gs.toGenotypeStream(v, compress)
-          val operation = table.newInsert
-          val row = operation.getRow
-          row.addString("contig_norm", KuduUtils.normalizeContig(v.contig))
-          row.addInt("start", v.start)
-          row.addString("ref", v.ref)
-          row.addString("alt", v.allele(1)) // TODO: remove biallelic assumption
-          row.addString("sample_group", sampleGroup)
-          row.addString("contig", v.contig)
-          row.addBinary("annotations", new Array[Byte](0)) // TODO: serialize annotations
-          row.addInt("genotypes_byte_len", stream.decompLenOption.get)
-          row.addBinary("genotypes", stream.a)
-          session.apply(operation)
-      }
-      session.close()
-    })
     println("Written to Kudu")
   }
 
