@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.utils
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.SpanningIterator
+import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 import org.broadinstitute.hail.Utils._
@@ -60,5 +62,22 @@ class UtilsSuite extends SparkSuite {
     assert(hadoopStripCodec("file.tsv.bgz", sc.hadoopConfiguration) == "file.tsv")
     assert(hadoopStripCodec("file.tsv.lz4", sc.hadoopConfiguration) == "file.tsv")
     assert(hadoopStripCodec("file", sc.hadoopConfiguration) == "file")
+  }
+
+  @Test def spanningIterator() = {
+    assert(span(List()) == List())
+    assert(span(List((1, "a"))) == List((1, List("a"))))
+    assert(span(List((1, "a"), (1, "b"))) == List((1, List("a", "b"))))
+    assert(span(List((1, "a"), (2, "b"))) == List((1, List("a")), (2, List("b"))))
+    assert(span(List((1, "a"), (1, "b"), (2, "c"))) ==
+      List((1, List("a", "b")), (2, List("c"))))
+    assert(span(List((1, "a"), (2, "b"), (2, "c"))) ==
+      List((1, List("a")), (2, List("b", "c"))))
+    assert(span(List((1, "a"), (2, "b"), (1, "c"))) ==
+      List((1, List("a")), (2, List("b")), (1, List("c"))))
+  }
+
+  def span[K, V](tuples: List[(K, V)]) = {
+    new SpanningIterator(tuples.iterator).toIterable.toList
   }
 }
