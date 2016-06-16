@@ -53,7 +53,7 @@ object Parser extends JavaTokenParsers {
     if (code.matches("""\s*"""))
       Map.empty[String, Type]
     else
-      parseAll(struct_fields, code) match {
+      parseAll(type_fields, code) match {
         case Success(result, _) => result.map(f => (f.name, f.`type`)).toMap
         case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
       }
@@ -240,11 +240,15 @@ object Parser extends JavaTokenParsers {
   def dot_expr: Parser[AST] =
     primary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
       | (withPos(".") ~ identifier)
-      | withPos("[") ~ expr ~ "]") ^^ { case lhs ~ lst =>
+      | withPos("[") ~ expr ~ "]"
+      | withPos("[") ~ opt(expr) ~ ":" ~ opt(expr) ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
-        case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" => ApplyMethod(dot.pos, acc, sym, args)
-        case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexArray(lbracket.pos, acc, idx)
+        case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
+          ApplyMethod(dot.pos, acc, sym, args)
+        case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexOp(lbracket.pos, acc, idx)
+        case (lbracket: Positioned[_]) ~ (idx1: Option[_]) ~ ":" ~ (idx2: Option[_]) ~ "]" =>
+          SliceArray(lbracket.pos, acc, idx1.map(_.asInstanceOf[AST]), idx2.map(_.asInstanceOf[AST]))
       }
       }
     }
@@ -265,6 +269,10 @@ object Parser extends JavaTokenParsers {
       withPos(""""([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r) ^^ { r =>
         Const(r.pos, evalStringLiteral(r.x), TString)
       } |
+      withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
+      withPos(arrayDeclaration) ^^ (r => ArrayConstructor(r.pos, r.x)) |
+      withPos(structDeclaration) ^^ (r => StructConstructor(r.pos, r.x.map(_._1), r.x.map(_._2))) |
+      withPos(indexStruct) ^^ (r => IndexStruct(r.pos, r.x._1, r.x._2)) |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
@@ -276,23 +284,35 @@ object Parser extends JavaTokenParsers {
       "(" ~> expr <~ ")"
 
   def annotationSignature: Parser[TStruct] =
-    struct_fields ^^ { fields => TStruct(fields) }
+    type_fields ^^ { fields => TStruct(fields) }
+
+  def arrayDeclaration: Parser[Array[AST]] = "[" ~> repsep(expr, ",") <~ "]" ^^ (_.toArray)
+
+  def structDeclaration: Parser[Array[(String, AST)]] = "{" ~> repsep(structField, ",") <~ "}" ^^ (_.toArray)
+
+  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ { case id ~ _ ~ ast =>
+    (id.substring(1, id.length - 1), ast)
+  }
+
+  def indexStruct: Parser[(String, AST)] = "index" ~ "(" ~ expr ~ "," ~ identifier ~ ")" ^^ {
+    case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key, ast)
+    //    case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key.substring(1, key.length - 1), ast)
+  }
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>
-      //    ("@" ~> (identifier <~ "=")) ~ stringLiteral("\"" ~> "[^\"]".r <~ "\"") ^^ { case name ~ desc =>
       (unescapeString(name), {
         val unescaped = unescapeString(desc)
         unescaped.substring(1, unescaped.length - 1)
       })
     }
 
-  def struct_field: Parser[(String, Type, Map[String, String])] =
+  def type_field: Parser[(String, Type, Map[String, String])] =
     (identifier <~ ":") ~ type_expr ~ rep(decorator) ^^ { case name ~ t ~ decorators =>
       (name, t, decorators.toMap)
     }
 
-  def struct_fields: Parser[Array[Field]] = repsep(struct_field, ",") ^^ {
+  def type_fields: Parser[Array[Field]] = repsep(type_field, ",") ^^ {
     _.zipWithIndex.map { case ((id, t, attrs), index) => Field(id, t, index, attrs) }
       .toArray
   }
@@ -313,7 +333,8 @@ object Parser extends JavaTokenParsers {
       "String" ^^ { _ => TString } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
-      ("Struct" ~ "{") ~> struct_fields <~ "}" ^^ { fields =>
+      ("Dict" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TDict(elementType) } |
+      ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields =>
         TStruct(fields)
       }
 }
