@@ -2173,14 +2173,10 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
       val localPos = posn
       AST.evalCompose[IndexedSeq[_], Int](ec, f, idx)((a, i) =>
         try {
-          <<<<<<< HEAD
-            a(i)
-          =======
           if (i < 0)
             a(a.length + i)
           else
             a(i)
-          >>>>>>> origin / master
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             ParserUtils.error(localPos,
