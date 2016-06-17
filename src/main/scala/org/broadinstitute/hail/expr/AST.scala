@@ -945,7 +945,6 @@ object AST extends Positional {
     }
   }
 
-<<<<<<< HEAD
   def evalCompose[T1, T2, T3, T4](c: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST, subexpr4: AST)
                              (g: (T1, T2, T3, T4) => Any): () => Any = {
     val f1 = subexpr1.eval(c)
