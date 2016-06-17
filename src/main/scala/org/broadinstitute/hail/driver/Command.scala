@@ -49,6 +49,7 @@ object ToplevelCommands {
   register(AnnotateGlobal)
   register(Cache)
   register(ImportAnnotations)
+  register(CompareVDS)
   register(Count)
   register(DownsampleVariants)
   register(ExportPlink)
@@ -74,6 +75,7 @@ object ToplevelCommands {
   register(PCA)
   register(Persist)
   register(Read)
+  register(ReadKudu)
   register(RenameSamples)
   register(Repartition)
   register(SampleQC)
@@ -82,6 +84,7 @@ object ToplevelCommands {
   register(VariantQC)
   register(VEP)
   register(Write)
+  register(WriteKudu)
 
   // example commands
   register(example.CaseControlCount)

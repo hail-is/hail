@@ -1,3 +1,19 @@
+ - Added several new pieces of functionality to expr language, which can be viewed in the [docs here](docs/HailExpressionLanguage.md)
+  
+    - array slicing, python-style
+    - dicts, python-style (maps keyed by string)
+    - function `index`, which takes an `Array[Struct]` and converts it to a Dict.  If `global.genes` is an `Array[Struct]` with struct type `Struct {geneID: String, PLI: Double, ExAC_LOFs: Int}`, then the function `index(global.genes, geneID)` will return a `Dict[Struct]` where the value has struct type `Struct {PLI: Double, ExAC_LOFs: Int}` (the key was pulled out)
+    - Array and struct constructors: `[1, 2]` will give you an `Array[Int]`, and `{"gene": "SCN1A", "PLI": 0.999, "ExAC_LOFs": 5}` will give you a `Struct`.
+    - Added a way to declare values missing: `NA: Type`. For example, you could say `if (condition) 5 else NA: Int`
+ 
+____
+ 
+ - Support JSON in annotation import.  `importannotations` is now
+   `importannotations table`.  Added `importannotations json`,
+   `annotatevariants json` and `annotatesamples json`.
+
+____
+
  - Fixed some bad error messages, now errors will write a full stacktrace in the `hail.log`
 
 ____

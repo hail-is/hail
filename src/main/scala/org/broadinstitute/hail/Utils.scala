@@ -16,7 +16,7 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{Partitioner, AccumulableParam, SparkContext}
+import org.apache.spark.{AccumulableParam, SparkContext, Partitioner, SparkEnv, TaskContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -26,11 +26,13 @@ import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
 import org.slf4j.{Logger, LoggerFactory}
 
+import scala.collection.mutable.ListBuffer
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.Random
+import scala.collection.JavaConverters._
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0
@@ -282,6 +284,8 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
     x
   }
   */
+
+
 }
 
 // FIXME AnyVal in Scala 2.11
@@ -364,6 +368,40 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 }
 
+class SpanningIterator[K, V](val it: Iterator[(K, V)]) extends Iterator[(K, Iterable[V])] {
+  val bit = it.buffered
+  var n: Option[(K, Iterable[V])] = None
+
+  override def hasNext: Boolean = {
+    if (n.isDefined) return true
+    n = computeNext
+    n.isDefined
+  }
+
+  override def next(): ((K, Iterable[V])) = {
+    val result = n.get
+    n = None
+    result
+  }
+
+  def computeNext: (Option[(K, Iterable[V])]) = {
+    var k: Option[K] = None
+    val span: ListBuffer[V] = ListBuffer()
+    while (bit.hasNext) {
+      if (k.isEmpty) {
+        val (k_, v_) = bit.next
+        k = Some(k_)
+        span += v_
+      } else if (bit.head._1 == k.get) {
+        span += bit.next._2
+      } else {
+        return Some((k.get, span))
+      }
+    }
+    k.map((_, span))
+  }
+}
+
 class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
     val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
@@ -408,21 +446,27 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   }
 }
 
-class RichPairRDD[K, V](val r: RDD[(K, V)])
-                       (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) {
+class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
 
-  def leftOuterJoinDistinct[W](other: RDD[(K, W)]): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
+  def spanByKey()(implicit kct: ClassTag[K], vct: ClassTag[V]): RDD[(K, Iterable[V])] =
+    r.mapPartitions(p => new SpanningIterator(p))
 
-  def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner) = {
+  def leftOuterJoinDistinct[W](other: RDD[(K, W)])
+                              (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
+
+  def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
+                              (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null)= {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       val w = pair._2.headOption
       pair._1.map((_, w))
     }
   }
 
-  def joinDistinct[W](other: RDD[(K, W)]): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
+  def joinDistinct[W](other: RDD[(K, W)])
+                     (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
 
-  def joinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner) = {
+  def joinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
+                     (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null)= {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       for (v <- pair._1.iterator; w <- pair._2.iterator.take(1)) yield (v, w)
     }
@@ -544,6 +588,40 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
         g()
       f(elem)
     }
+  }
+
+  def pipe(pb: ProcessBuilder,
+    printHeader: (String => Unit) => Unit,
+    printElement: (String => Unit, T) => Unit,
+    printFooter: (String => Unit) => Unit): Iterator[String] = {
+
+    val command = pb.command().asScala.mkString(" ")
+
+    val proc = pb.start()
+
+    // Start a thread to print the process's stderr to ours
+    new Thread("stderr reader for " + command) {
+      override def run() {
+        for (line <- Source.fromInputStream(proc.getErrorStream).getLines) {
+          System.err.println(line)
+        }
+      }
+    }.start()
+
+    // Start a thread to feed the process input from our parent's iterator
+    new Thread("stdin writer for " + command) {
+      override def run() {
+        val out = new PrintWriter(proc.getOutputStream)
+
+        printHeader(out.println)
+        it.foreach(x => printElement(out.println, x))
+        printFooter(out.println)
+        out.close()
+      }
+    }.start()
+
+    // Return an iterator that read lines from the process's stdout
+    Source.fromInputStream(proc.getInputStream).getLines()
   }
 }
 
@@ -682,9 +760,10 @@ object Utils extends Logging {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
-  implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
+  implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K],
+    vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
 
-  implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K], vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
+  implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
