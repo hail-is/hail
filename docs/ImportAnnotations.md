@@ -29,6 +29,7 @@ Hail currently supports annotating samples from:
  - [text tables](#SampleTable)
  - [programmatic commands](#SampleProg)
  - [Plink .fam files](#Fam)
+ - [list of samples](#SampleList)
 
 ____
 
@@ -163,6 +164,19 @@ Quantitative phenotype | `sa.fam.qPheno` |Double |  either `NA` or -m arg if giv
 In Hail, unlike Plink, the user must be explicit about whether the phenotype is case-control or quantitative. Importing a quantitive phenotype without the `-q` flag will return an error (unless all values happen to be `0`, `1`, `2`, and `-9`).
 
 If the .fam file is delimited by whitespace other than tabs (e.g., spaces), use delimiter parameter `\s*`.
+
+____
+
+<a name="SampleList"></a>
+### List of samples
+
+This module expects a text file with one column corresponding to the sample id `s.id`. A Boolean (true/false) annotation is added to sample annotations corresponding to a sample id's presence and absence in the input list of samples.
+
+**Command line arguments:**
+
+- `list` Invoke this functionality (`annotatesamples list <args>`)
+- `-i | --input <path-to-file>` specify the file path **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the new Boolean annotation, as a period-delimited path starting with `sa` **(Required)**
 
 ____
 
@@ -361,6 +375,9 @@ ____
 
 
 UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQformat.html#format1) function similarly to .interval_list files, with a slightly different format.  Like interval list files, bed files can produce either a string or boolean annotation, depending on the presence of the 4th column (the target).
+
+Bed files are on a 0-based coordinate system while VCF files are on a 1-based coordinate system as described on Page 2 of [the SAM file spec](https://samtools.github.io/hts-specs/SAMv1.pdf). Hail will transform the Bed coordinates as the following:
+ `Bed: [start, end) => Hail: [start + 1, end]`. 
 
 **Command line arguments:**
 

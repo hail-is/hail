@@ -36,7 +36,7 @@ development:
  - kinship estimation from GRM
  - LMM
  - burden tests, SKAT
- - logic regression
+ - logistic regression
  - dosage
  - posterior (PP)
  - LD pruning
