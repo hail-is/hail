@@ -29,6 +29,7 @@ object Parser extends JavaTokenParsers {
     t.typecheck(ec)
 
     val f: () => Any = t.eval(ec)
+
     (t.`type`, () => Option(f()))
   }
 
