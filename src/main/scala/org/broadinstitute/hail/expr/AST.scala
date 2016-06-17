@@ -1249,16 +1249,14 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
       case ("fet", rhs) =>
         rhs.map(_.`type`) match {
-          case Array(TInt, TInt, TInt, TInt) => TStruct(("pFET", TDouble), ("orFET", TDouble), ("ciLowerFET", TDouble), ("ciUpperFET", TDouble))
-          case Array(TDouble, TDouble, TDouble, TDouble) => TStruct(("pFET", TDouble), ("orFET", TDouble), ("ciLowerFET", TDouble), ("ciUpperFET", TDouble))
-          case Array(TLong, TLong, TLong, TLong) => TStruct(("pFET", TDouble), ("orFET", TDouble), ("ciLowerFET", TDouble), ("ciUpperFET", TDouble))
+          case Array(TInt, TInt, TInt, TInt) => TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble))
           case other =>
             val nArgs = other.length
             parseError(
-              s"""method `fet' expects 4 arguments of type Int or Double, e.g. fet(5,100,0,1000)
+              s"""method `fet' expects 4 arguments of type Int, e.g. fet(5,100,0,1000)
                   |  Found $nArgs ${plural(nArgs, "argument")}${
                 if (nArgs > 0)
-                  s"of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
+                  s" of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
                 else ""
               }""".stripMargin)
         }
@@ -1285,8 +1283,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       () => compact(t.makeJSON(f()))
     case ("fet", Array(a, b, c, d)) =>
       AST.evalCompose[Int, Int, Int, Int](ec, a, b, c, d) { case (c1, c2, c3, c4) =>
-        if (c1 + c2 == 0 || c3 + c4 == 0 || c1 + c2 + c3 + c4 == 0)
-          fatal(s"got invalid argument to function `fet': fet($a, $b, $c, $d)")
+        if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
+          fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
         val fet = FisherExactTest(c1, c2, c3, c4).result()
         Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
       }

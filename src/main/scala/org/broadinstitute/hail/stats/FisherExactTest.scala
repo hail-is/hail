@@ -92,6 +92,7 @@ object FisherUtils {
 object FisherExactTest {
   def apply(a: Int, b: Int, c: Int, d: Int) = new FisherExactTest(a, b, c, d)
   def apply(a: Double, b: Double, c: Double, d: Double): FisherExactTest = FisherExactTest(a.toInt, b.toInt, c.toInt, d.toInt)
+  def apply(a: Long, b: Long, c: Long, d: Long): FisherExactTest = FisherExactTest(a.toInt, b.toInt, c.toInt, d.toInt)
 
   def apply(a: Array[Double]): FisherExactTest = {
     require(a.length == 4)
@@ -110,16 +111,15 @@ class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
   private val sampleSize = a + b
   private val numSuccessSample = a
 
-  require(popSize > 0 && sampleSize > 0 && sampleSize < popSize)
+  require(a >= 0 && b >= 0 && c >= 0 && d >= 0)
 
-  private val low = math.max(0, (a + b) - (c + d))
+  private val low = math.max(0, (a + b) - (b + d))
   private val high = math.min(a + b, a + c)
   private val support = (low to high).toArray
-  private val hgd = new HypergeometricDistribution(null, popSize, numSuccessPopulation, sampleSize)
 
   import FisherUtils._
 
-  def result(oddsRatio: Double = 1d, confidence_level: Double = 0.95, alternative: String = "two.sided") = {
+  def result(oddsRatio: Double = 1d, confidence_level: Double = 0.95, alternative: String = "two.sided"): Array[Option[Double]] = {
 
     if (confidence_level < 0d || confidence_level > 1d)
       fatal("Confidence level must be between 0 and 1")
@@ -127,6 +127,11 @@ class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
       fatal("Odds ratio must be between 0 and Inf")
     if (alternative != "greater" && alternative != "less" && alternative != "two.sided")
       fatal("Did not recognize test type string. Use one of greater, less, two.sided")
+
+    if (!(popSize > 0 && sampleSize > 0 && sampleSize < popSize))
+      return Array(None, None, None, None)
+
+    val hgd = new HypergeometricDistribution(null, popSize, numSuccessPopulation, sampleSize)
 
     def dhyper(k: Int, logProb: Boolean = false): Double = {
       if (logProb) hgd.logProbability(k) else hgd.probability(k)
@@ -236,7 +241,6 @@ class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
       case "two.sided" =>
         if (oddsRatio == 0)
           if (low == numSuccessSample) 1d else 0d
-
         else if (oddsRatio == Double.PositiveInfinity)
           if (high == numSuccessSample) 1d else 0d
         else {

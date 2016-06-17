@@ -1,3 +1,6 @@
+ - Added expr function `fet` to calculate p-values using Fisher's Exact Test.  Invoke this with `fet(count1, count2, count3, count4)` [see docs for details](docs/HailExpressionLanguage.md)
+____
+
  - Support JSON in annotation import.  `importannotations` is now
    `importannotations table`.  Added `importannotations json`,
    `annotatevariants json` and `annotatesamples json`.
