@@ -65,17 +65,21 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testPairRDDNoDup() {
+    val answer1 = Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))
     val pairRDD1 = sc.parallelize(Array(1, 2, 3, 4)).map { i => (i, i * i) }
-    val pairRDD2 = sc.parallelize(Array(1, 2, 3, 4)).map { i => (i, i) }
+    val pairRDD2 = sc.parallelize(Array(1, 2, 3, 4, 1, 2, 3, 4)).map { i => (i, i) }
+    val join = pairRDD1.leftOuterJoinDistinct(pairRDD2)
 
-    val join = pairRDD1.leftOuterJoinDistinct(pairRDD1)
+    assert(join.collect().sortBy(t => t._1) sameElements answer1)
     assert(join.count() == 4)
 
+    val answer2 = Array((1, (1, 1)), (2, (4, 2)))
     val pairRDD3 = sc.parallelize(Array(1, 2, 3, 4)).map { i => (i, i * i) }
     val pairRDD4 = sc.parallelize(Array(1, 2)).map { i => (i, i) }
-
     val join2 = pairRDD3.joinDistinct(pairRDD4)
-    assert(join.count() == 2)
+    
+    assert(join2.collect() sameElements answer2)
+    assert(join2.count() == 2)
   }
 
   @Test def spanningIterator() = {
