@@ -6,18 +6,18 @@ Hail contains an `imputesex` module which will calculate the inbreeding coeffici
 
 Short Flag | Long Flag | Description | Default
 --- | :-: | ---
-`-m <Double>` | `--mafthreshold <Double>` | Minimum variant minor allele frequency | 0.0
-`-e` | `--excludepar` | Exclude variants in pseudo autosomal regions (HG19) | false
-`-x <Double>` | `--femalethreshold <Double>` | If the inbreeding coefficient is less than `<Double>`, then sample is called as Female | 0.2
-`-y <Double>` | `--malethreshold <Double>` | If the inbreeding coefficient is greater than `<Double>`, then sample is called as Male | 0.8
-
+`-m <Double>` | `--maf-threshold <Double>` | Minimum variant minor allele frequency | 0.0
+`-e` | `--exclude-par` | Exclude variants in pseudo autosomal regions (HG19) | false
+`-x <Double>` | `--female-threshold <Double>` | If the inbreeding coefficient is less than `<Double>`, then sample is called as Female | 0.2
+`-y <Double>` | `--male-threshold <Double>` | If the inbreeding coefficient is greater than `<Double>`, then sample is called as Male | 0.8
+`-p <expression>` | `--pop-freq <expression>` | Population minor allele frequency (variant annotation expression, e.g. `va.exac.AF`) | *Compute from genotypes*
 
 ## Example `imputesex` command:
 ```
 hail read -i /path/to/file.vds imputesex -e -m 0.01 exportsamples -o /path/to/output.tsv -c "ID=s.id, F=sa.imputesex.F, ImputedSex=sa.imputesex.imputedSex"
 ```
 
-To get the exact same answer as PLINK, make sure you split multi-allelic variants and use the following flags:
+To get the exact same answer as PLINK, make sure you split multi-allelic variants and use default arguments:
 ```
 hail read -i /path/to/file.vds splitmulti imputesex
 ```
@@ -33,16 +33,16 @@ hail read -i /path/to/file.vds splitmulti imputesex
 7. For each variant and sample with a non-missing genotype call, `N` is incremented by 1
 8. For each sample, `E`, `O`, and `N` are combined across variants
 9. `F` is calculated by `(O - E) / (N - E)`
-10. A sex is assigned to each sample with the following criteria: `F < 0.2 => Female (2); F > 0.8 => Male (1)`. Use `--femalethreshold` and `--malethreshold` to change this behavior.
+10. A sex is assigned to each sample with the following criteria: `F < 0.2 => Female; F > 0.8 => Male`. Use `--female-threshold` and `--male-threshold` to change this behavior.
 
 ## Available sample annotations:
 The below annotations can be accessed with `sa.imputesex.<identifier>`
 
 Identifier | Type | Description
 --- | :-: | ---
-`imputedSex` | `Int` | Imputed Sex: 1 = Male, 2 = Female
-`F` | `Double` | Inbreeding coefficient
-`T` | `Int` | Total number of variants considered
-`N` | `Int` | Number of variants with a genotype call
-`E` | `Double` | Expected number of homozygotes
-`O` | `Double` | Observed number of homozygotes
+`isFemale` | `Boolean` | True if the imputed sex is female, false if male, missing if undetermined
+`Fstat` | `Double` | Inbreeding coefficient
+`nVariants` | `Int` | Total number of variants considered
+`nCalled` | `Int` | Number of variants with a genotype call
+`expectedHoms` | `Double` | Expected number of homozygotes
+`observedHoms` | `Double` | Observed number of homozygotes
