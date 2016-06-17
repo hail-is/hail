@@ -1,3 +1,9 @@
+ - The `count` module no longer counts genotypes by default.  Use option `--genotypes` to do this.
+ - Changed sample id column header in several modules.  They are now all "Sample".
+ - Added expr function 'hwe'.  Invoke this with `hwe(homref_count, het_count, homvar_count)` 
+
+____
+
  - Added several new pieces of functionality to expr language, which can be viewed in the [docs here](docs/HailExpressionLanguage.md)
   
     - array slicing, python-style
