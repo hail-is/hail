@@ -7,6 +7,7 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.stats.LeveneHaldane
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -1399,6 +1400,20 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
         TString
 
+      case ("hwe", rhs) =>
+        rhs.map(_.`type`) match {
+          case Array(TInt, TInt, TInt) => TStruct(("rExpectedHetFrequency", TDouble), ("pHWE", TDouble))
+          case other =>
+            val nArgs = other.length
+            parseError(
+              s"""method `hwe' expects 3 arguments of type Int, e.g. hwe(90,10,1)
+                  |  Found $nArgs ${plural(nArgs, "argument")}${
+                if (nArgs > 0)
+                  s"of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
+                else ""
+              }""".stripMargin)
+        }
+
       case ("index", rhs) =>
         parseError(s"Got invalid arguments (${rhs.map(_.`type`).mkString(", ")}) to function `$fn'." +
           s"\n  Expected arguments (Array[Struct], <field identifier>) e.g. `index(global.gene_info, gene_id)'")
@@ -1424,6 +1439,17 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(ec)
       () => compact(t.makeJSON(f()))
+    case ("hwe", Array(a, b, c)) =>
+      AST.evalCompose[Int, Int, Int](ec, a, b, c) { case (nHomRef, nHet, nHomVar) =>
+        if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
+          fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
+        val n = nHomRef + nHet + nHomVar
+        val nAB = nHet
+        val nA = nAB + 2 * nHomRef.min(nHomVar)
+
+        val LH = LeveneHaldane(n, nA)
+        Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
+      }
     case ("index", Array(toIndex, key)) =>
       val keyF = key.eval(ec)
       val f = toIndex.eval(ec)
@@ -1445,6 +1471,24 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   override def typecheck(ec: EvalContext) {
     lhs.typecheck(ec)
     (lhs.`type`, method, args) match {
+
+      case (TString, "replace", rhs) => {
+        lhs.typecheck(ec)
+        rhs.foreach(_.typecheck(ec))
+        rhs.map(_.`type`) match {
+          case Array(TString, TString) => TString
+          case other =>
+            val nArgs = other.length
+            parseError(
+              s"""method `$method' expects 2 arguments of type String, e.g. str.replace(" ", "_")
+                  |  Found $nArgs ${plural(nArgs, "argument")}${
+                if (nArgs > 0)
+                  s"of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
+                else ""
+              }""".stripMargin)
+        }
+      }
+
       case (it: TIterable, "find", rhs) =>
         lhs.typecheck(ec)
         val (param, body) = rhs match {
@@ -1880,6 +1924,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           f2()
         else
           v
+      }
+
+    case (TString, "replace", Array(a, b)) =>
+      AST.evalCompose[String, String, String](ec, lhs, a, b) { case (str, pattern1, pattern2) =>
+        str.replaceAll(pattern1, pattern2)
       }
 
     case (TArray(elementType), "mkString", Array(a)) =>

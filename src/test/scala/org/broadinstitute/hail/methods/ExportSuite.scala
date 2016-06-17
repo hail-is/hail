@@ -29,7 +29,7 @@ class ExportSuite extends SparkSuite {
     assert(sb.result() == "5.1240e+00")
 
     ExportSamples.run(postSampleQC, Array("-o", exportSamplesFile, "-c",
-      "sampleID=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
+      "Sample=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
         "nHet=sa.qc.nHet,nHomVar=sa.qc.nHomVar,nSNP=sa.qc.nSNP,nInsertion=sa.qc.nInsertion," +
         "nDeletion=sa.qc.nDeletion,nSingleton=sa.qc.nSingleton,nTransition=sa.qc.nTransition," +
         "nTransversion=sa.qc.nTransversion,dpMean=sa.qc.dpMean,dpStDev=sa.qc.dpStDev," +
