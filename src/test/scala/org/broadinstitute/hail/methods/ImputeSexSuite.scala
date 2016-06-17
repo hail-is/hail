@@ -56,11 +56,11 @@ class ImputeSexSuite extends SparkSuite {
 
           val plinkResult = parsePlinkSexCheck(plinkSexCheckRoot + ".sexcheck")
 
-          val (_, imputedSexQuery) = s.vds.querySA("sa.imputesex.imputedSex")
-          val (_, fQuery) = s.vds.querySA("sa.imputesex.F")
+          val (_, imputedSexQuery) = s.vds.querySA("if (sa.imputesex.isFemale) 2 else 1")
+          val (_, fQuery) = s.vds.querySA("sa.imputesex.Fstat")
 
           val hailResult = sc.parallelize(s.vds.sampleIdsAndAnnotations.map { case (sample, sa) =>
-            (sample, (imputedSexQuery(sa).get, fQuery(sa).get))
+            (sample, (imputedSexQuery(sa), fQuery(sa)))
           })
 
           val mergeResults = plinkResult.fullOuterJoin(hailResult)
@@ -81,7 +81,11 @@ class ImputeSexSuite extends SparkSuite {
             }
           }.fold(true)(_ && _)
 
-          result
+          val countAnnotated = AnnotateVariantsExpr.run(s,
+            Array("-c", "va.maf = gs.stats(g.nNonRefAlleles).sum / (gs.count(true) * 2)"))
+          val sexcheck2 = ImputeSex.run(countAnnotated, Array("--pop-freq", "va.maf"))
+
+          result && sexcheck2.vds.sampleAnnotations == s.vds.sampleAnnotations
         }
       }
   }

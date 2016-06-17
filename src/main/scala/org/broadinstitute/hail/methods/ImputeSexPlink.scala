@@ -67,8 +67,8 @@ object ImputeSexPlink {
       .collect()
       .toMap
       .mapValues(ibc =>
-        Annotation(determineSex(ibc, fFemaleThreshold, fMaleThreshold),
-          ibc.Fstat,
+        Annotation(determineSex(ibc, fFemaleThreshold, fMaleThreshold).orNull,
+          ibc.Fstat.orNull,
           ibc.total,
           ibc.nCalled,
           ibc.expectedHoms,
