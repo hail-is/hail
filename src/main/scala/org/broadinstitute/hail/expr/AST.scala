@@ -6,6 +6,7 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.stats.FisherExactTest
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -861,6 +862,33 @@ object AST extends Positional {
     }
   }
 
+  def evalCompose[T1, T2, T3, T4](c: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST, subexpr4: AST)
+                             (g: (T1, T2, T3, T4) => Any): () => Any = {
+    val f1 = subexpr1.eval(c)
+    val f2 = subexpr2.eval(c)
+    val f3 = subexpr3.eval(c)
+    val f4 = subexpr4.eval(c)
+    () => {
+      val x = f1()
+      if (x != null) {
+        val y = f2()
+        if (y != null) {
+          val z = f3()
+          if (z != null) {
+            val aa = f4()
+            if (aa != null)
+              g(x.asInstanceOf[T1], y.asInstanceOf[T2], z.asInstanceOf[T3], aa.asInstanceOf[T4])
+            else
+              null
+          } else
+            null
+        } else
+          null
+      } else
+        null
+    }
+  }
+
   def evalComposeNumeric[T](c: EvalContext, subexpr: AST)
     (g: (T) => Any)
     (implicit convT: NumericConversion[T]): () => Any = {
@@ -1219,26 +1247,49 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
         TString
 
+      case ("fet", rhs) =>
+        rhs.map(_.`type`) match {
+          case Array(TInt, TInt, TInt, TInt) => TStruct(("pFET", TDouble), ("orFET", TDouble), ("ciLowerFET", TDouble), ("ciUpperFET", TDouble))
+          case Array(TDouble, TDouble, TDouble, TDouble) => TStruct(("pFET", TDouble), ("orFET", TDouble), ("ciLowerFET", TDouble), ("ciUpperFET", TDouble))
+          case Array(TLong, TLong, TLong, TLong) => TStruct(("pFET", TDouble), ("orFET", TDouble), ("ciLowerFET", TDouble), ("ciUpperFET", TDouble))
+          case other =>
+            val nArgs = other.length
+            parseError(
+              s"""method `fet' expects 4 arguments of type Int or Double, e.g. fet(5,100,0,1000)
+                  |  Found $nArgs ${plural(nArgs, "argument")}${
+                if (nArgs > 0)
+                  s"of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
+                else ""
+              }""".stripMargin)
+        }
+
       case ("isDefined" | "isMissing" | "str" | "json", _) => parseError(s"`$fn' takes one argument")
       case _ => parseError(s"unknown function `$fn'")
     }
   }
 
-  def eval(c: EvalContext): () => Any = ((fn, args): @unchecked) match {
+  def eval(ec: EvalContext): () => Any = ((fn, args): @unchecked) match {
     case ("isMissing", Array(a)) =>
-      val f = a.eval(c)
+      val f = a.eval(ec)
       () => f() == null
     case ("isDefined", Array(a)) =>
-      val f = a.eval(c)
+      val f = a.eval(ec)
       () => f() != null
     case ("str", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
-      val f = a.eval(c)
+      val f = a.eval(ec)
       () => t.str(f())
     case ("json", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
-      val f = a.eval(c)
+      val f = a.eval(ec)
       () => compact(t.makeJSON(f()))
+    case ("fet", Array(a, b, c, d)) =>
+      AST.evalCompose[Int, Int, Int, Int](ec, a, b, c, d) { case (c1, c2, c3, c4) =>
+        if (c1 + c2 == 0 || c3 + c4 == 0 || c1 + c2 + c3 + c4 == 0)
+          fatal(s"got invalid argument to function `fet': fet($a, $b, $c, $d)")
+        val fet = FisherExactTest(c1, c2, c3, c4).result()
+        Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
+      }
   }
 }
 

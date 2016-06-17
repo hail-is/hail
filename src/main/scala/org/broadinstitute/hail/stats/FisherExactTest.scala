@@ -91,9 +91,17 @@ object FisherUtils {
 
 object FisherExactTest {
   def apply(a: Int, b: Int, c: Int, d: Int) = new FisherExactTest(a, b, c, d)
-  def apply(t: (Int, Int, Int, Int)) = new FisherExactTest(t._1, t._2, t._3, t._4)
-  def apply(a: Double, b: Double, c: Double, d: Double) = new FisherExactTest(a.toInt, b.toInt, c.toInt, d.toInt)
-  def apply(a: Array[Double]) = new FisherExactTest(a(0).toInt, a(1).toInt, a(2).toInt, a(3).toInt)
+  def apply(a: Double, b: Double, c: Double, d: Double): FisherExactTest = FisherExactTest(a.toInt, b.toInt, c.toInt, d.toInt)
+
+  def apply(a: Array[Double]): FisherExactTest = {
+    require(a.length == 4)
+    FisherExactTest(a(0).toInt, a(1).toInt, a(2).toInt, a(3).toInt)
+  }
+
+  def apply(a: Array[Int]): FisherExactTest = {
+    require(a.length == 4)
+    FisherExactTest(a(0), a(1), a(2), a(3))
+  }
 }
 
 class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
