@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.expr.{TInt, TDouble, TStruct}
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.ImputeSexPlink
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -8,17 +8,25 @@ object ImputeSex extends Command {
 
   class Options extends BaseOptions {
 
-    @Args4jOption(required = false, name = "-m", aliases = Array("--mafthreshold"), usage = "Minimum minor allele frequency threshold")
+    @Args4jOption(required = false, name = "-m", aliases = Array("--maf-threshold"),
+      usage = "Minimum minor allele frequency threshold")
     var mafThreshold: Double = 0.0
 
-    @Args4jOption(required = false, name = "-e", aliases = Array("--excludepar"), usage = "Exclude Pseudoautosomal regions")
+    @Args4jOption(required = false, name = "-e", aliases = Array("--exclude-par"),
+      usage = "Exclude Pseudoautosomal regions")
     var excludePAR: Boolean = false
 
-    @Args4jOption(required = false, name = "-x", aliases = Array("--femalethreshold"), usage = "Samples are called females if F < femaleThreshold (Default = 0.2)")
+    @Args4jOption(required = false, name = "-x", aliases = Array("--female-threshold"),
+      usage = "Samples are called females if F < femaleThreshold (Default = 0.2)")
     var fFemaleThreshold: Double = 0.2
 
-    @Args4jOption(required = false, name = "-y", aliases = Array("--malethreshold"), usage = "Samples are called males if F > maleThreshold (Default = 0.8)")
+    @Args4jOption(required = false, name = "-y", aliases = Array("--male-threshold"),
+      usage = "Samples are called males if F > maleThreshold (Default = 0.8)")
     var fMaleThreshold: Double = 0.8
+
+    @Args4jOption(required = false, name = "-p", aliases = Array("--pop-freq"),
+      usage = "Use a variant annotation for estimate of MAF rather than computing from the data")
+    var popFreq: String = _
   }
 
   def newOptions = new Options
@@ -33,10 +41,14 @@ object ImputeSex extends Command {
 
   def run(state: State, options: Options): State = {
 
-    val result = ImputeSexPlink.imputeSex(state.vds, options.mafThreshold, options.excludePAR)
-      .result(options.fFemaleThreshold, options.fMaleThreshold).collect().toMap
+    val result = ImputeSexPlink(state.vds,
+      options.mafThreshold,
+      options.excludePAR,
+      options.fMaleThreshold,
+      options.fFemaleThreshold,
+      Option(options.popFreq))
 
-    val signature = TStruct("F" -> TDouble, "E" -> TDouble, "O" -> TDouble, "N" -> TInt, "T" -> TInt, "imputedSex" -> TInt)
+    val signature = ImputeSexPlink.schema
 
     val (newSAS, insertSexCheck) = state.vds.saSignature.insert(signature, "imputesex")
     val newSampleAnnotations = state.vds.sampleIdsAndAnnotations
