@@ -47,8 +47,8 @@ object ImputeSexPlink {
             var nAlt = 0
             var nTot = 0
             for (g <- gs) {
-              g.gt.foreach { call =>
-                nAlt += call
+              g.nNonRefAlleles.foreach { c =>
+                nAlt += c
                 nTot += 2
               }
             }
