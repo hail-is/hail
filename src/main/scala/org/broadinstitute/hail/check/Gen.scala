@@ -75,7 +75,10 @@ object Gen {
 
   def shuffle[T](is: IndexedSeq[T]): Gen[IndexedSeq[T]] = {
     Gen { (p: Parameters) =>
-      p.rng.nextPermutation(is.size, is.size).map(is)
+      if (is.isEmpty)
+        is
+      else
+        p.rng.nextPermutation(is.size, is.size).map(is)
     }
   }
 

@@ -133,7 +133,8 @@ class GRMSuite extends SparkSuite {
     val grmNBinFile = tmpDir.createTempFile("test", ".grm.N.bin")
 
     Prop.check(forAll(VariantSampleMatrix.gen[Genotype](sc,
-      VSMSubGens(tGen = (v: Variant) => Genotype.genRealistic(v).map(g => g.filter(_.isCalled)), vGen = Variant.genPlinkCompatible))
+      VSMSubGens(tGen = (v: Variant) => Genotype.genRealistic(v).filter(_.isCalled),
+        vGen = Variant.genPlinkCompatible))
       // plink fails with fewer than 2 samples, no variants
       .filter(vsm => vsm.nSamples > 1 && vsm.nVariants > 0),
       Gen.oneOf("rel", "gcta-grm", "gcta-grm-bin")) {

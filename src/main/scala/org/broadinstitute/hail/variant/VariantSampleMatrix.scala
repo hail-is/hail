@@ -130,16 +130,14 @@ object VariantSampleMatrix {
   def genValues[T](g: Gen[T]): Gen[Iterable[T]] =
     Gen.buildableOf[Iterable[T], T](g)
 
-  def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[Gen[T]]): Gen[(Variant, Iterable[T])] =
+  def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         gg <- g(v);
-         values <- genValues[T](nSamples, gg))
+         values <- genValues[T](nSamples, g(v)))
       yield (v, values)
 
-  def genVariantValues[T](g: (Variant) => Gen[Gen[T]]): Gen[(Variant, Iterable[T])] =
+  def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
     for (v <- Variant.gen;
-         gg <- g(v);
-         values <- genValues[T](gg))
+         values <- genValues[T](g(v)))
       yield (v, values)
 
   def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
@@ -159,13 +157,12 @@ object VariantSampleMatrix {
          rows <- Gen.distinctBuildableOf[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
            for (v <- gens.vGen;
                 va <- gens.vaGen(vaSig);
-                tgen <- gens.tGen(v);
-                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, tgen))
+                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, gens.tGen(v)))
              yield (v, va, ts)))
       yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig), sc.parallelize(rows))
   }
 
-  def gen[T](sc: SparkContext, g: (Variant) => Gen[Gen[T]])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     gen(sc, VSMSubGens[T](tGen = g))
 }
 
@@ -179,7 +176,7 @@ case class VSMSubGens[T](
   vaGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
   globalGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
   vGen: Gen[Variant] = Variant.gen,
-  tGen: (Variant) => Gen[Gen[T]])
+  tGen: (Variant) => Gen[T])
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
   val rdd: RDD[(Variant, Annotation, Iterable[T])])

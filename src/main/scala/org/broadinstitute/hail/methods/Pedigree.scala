@@ -89,18 +89,31 @@ object Pedigree {
     completeTrios.groupBy(t => (t.dad, t.mom)).mapValues(_.map(_.kid)).force
 
   def gen(sampleIds: IndexedSeq[String]): Gen[Pedigree] = {
-    Gen.shuffle(sampleIds)
-      .map { is =>
-        val groups = is.grouped(3)
-        val trios = groups.map { g =>
-          val (kid, mom, dad) = (g(0),
-            if (g.length >= 2) Some(g(1)) else None,
-            if (g.length >= 3) Some(g(2)) else None)
-          Trio(kid, fam = None, mom = mom, dad = dad, sex = None, pheno = None)
+    Gen.parameterized { p =>
+      val rng = p.rng
+      Gen.shuffle(sampleIds)
+        .map { is =>
+          val groups = is.grouped(3)
+            .filter(_ => rng.nextUniform(0, 1) > 0.25)
+            .map { g =>
+              val r = rng.nextUniform(0, 1)
+              if (r < 0.10)
+                g.take(1)
+              if (r < 0.20)
+                g.take(2)
+              else
+                g
+            }
+          val trios = groups.map { g =>
+            val (kid, mom, dad) = (g(0),
+              if (g.length >= 2) Some(g(1)) else None,
+              if (g.length >= 3) Some(g(2)) else None)
+            Trio(kid, fam = None, mom = mom, dad = dad, sex = None, pheno = None)
+          }
+            .toArray
+          Pedigree(trios)
         }
-          .toArray
-        Pedigree(trios)
-      }
+    }
   }
 
   def genWithIds(): Gen[(IndexedSeq[String], Pedigree)] = {
