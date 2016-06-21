@@ -68,21 +68,21 @@ Identifier | Type | Description
 `v.altAllele`           | `AltAllele` | The alternate allele (schema below).  **Assumes biallelic.**
 `v.alt`                 | `String`    | Alternate allele sequence.  **Assumes biallelic.**
 
-**AltAllele:** `aa`
+**AltAllele:** `v.altAlleles[idx]` or `v.altAllele` (biallelic) 
 
 Identifier | Type | Description
 --- | :-: | ---
- `aa.ref`            | `String`  | reference allele sequence
- `aa.alt`            | `String`  | alternate allele sequence
- `aa.isSNP`          | `Boolean` | true if both `v.ref` and `v.alt` are single bases
- `aa.isMNP`          | `Boolean` | true if `v.ref` and `v.alt` are the same (>1) length
- `aa.isIndel`        | `Boolean` | true if `v.ref` and `v.alt` are not the same length
- `aa.isInsertion`    | `Boolean` | true if `v.ref` is shorter than `v.alt`
- `aa.isDeletion`     | `Boolean` | true if `v.ref` is longer than `v.alt`
- `aa.isComplex`      | `Boolean` | true if `v` is not an indel, but `v.ref` and `v.alt` length do not match
- `aa.isTransition`   | `Boolean` | true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
- `aa.isTransversion` | `Boolean` | true if the polymorphism is a purine-pyrimidine flip
- `aa.nMismatch`      | `Int`     | the total number of bases in `v.ref` and `v.alt` that do not match
+ `<altAllele>.ref`            | `String`  | reference allele sequence
+ `<altAllele>.alt`            | `String`  | alternate allele sequence
+ `<altAllele>.isSNP`          | `Boolean` | true if both `v.ref` and `v.alt` are single bases
+ `<altAllele>.isMNP`          | `Boolean` | true if `v.ref` and `v.alt` are the same (>1) length
+ `<altAllele>.isIndel`        | `Boolean` | true if `v.ref` and `v.alt` are not the same length
+ `<altAllele>.isInsertion`    | `Boolean` | true if `v.ref` is shorter than `v.alt`
+ `<altAllele>.isDeletion`     | `Boolean` | true if `v.ref` is longer than `v.alt`
+ `<altAllele>.isComplex`      | `Boolean` | true if `v` is not an indel, but `v.ref` and `v.alt` length do not match
+ `<altAllele>.isTransition`   | `Boolean` | true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
+ `<altAllele>.isTransversion` | `Boolean` | true if the polymorphism is a purine-pyrimidine flip
+ `<altAllele>.nMismatch`      | `Int`     | the total number of bases in `v.ref` and `v.alt` that do not match
 
 ____ 
  

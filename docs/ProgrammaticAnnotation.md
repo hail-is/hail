@@ -111,7 +111,7 @@ hail read -i my.vds \
 ```
 hail read -i my.vds \
  variantqc \
- annotatevariants expr -c 'va.info.AC = va.qc.MAC'
+ annotatevariants expr -c 'va.info.AC = va.qc.AC'
 ```
 
 ____
