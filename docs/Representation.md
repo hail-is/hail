@@ -117,4 +117,5 @@ Identifier | Type | Description
 `g.nNonRefAlleles`        | `Int`     | the number of called alternate alleles
 `g.pAB()`          | `Double`  | p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
 `g.fractionReadsRef` | `Double` | the ratio of ref reads to the sum of all *informative* reads
+`g.fakeRef`        | `Boolean` | true if this genotype was downcoded in `splitmulti`.  This can happen if a 1/2 call is split to 0/1, 0/1
  
