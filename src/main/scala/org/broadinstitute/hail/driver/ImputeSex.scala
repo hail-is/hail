@@ -12,9 +12,9 @@ object ImputeSex extends Command {
       usage = "Minimum minor allele frequency threshold")
     var mafThreshold: Double = 0.0
 
-    @Args4jOption(required = false, name = "-e", aliases = Array("--exclude-par"),
-      usage = "Exclude Pseudoautosomal regions")
-    var excludePAR: Boolean = false
+    @Args4jOption(required = false, name = "-i", aliases = Array("--include-par"),
+      usage = "Include Pseudoautosomal regions")
+    var includePAR: Boolean = false
 
     @Args4jOption(required = false, name = "-x", aliases = Array("--female-threshold"),
       usage = "Samples are called females if F < femaleThreshold (Default = 0.2)")
@@ -43,7 +43,7 @@ object ImputeSex extends Command {
 
     val result = ImputeSexPlink(state.vds,
       options.mafThreshold,
-      options.excludePAR,
+      options.includePAR,
       options.fMaleThreshold,
       options.fFemaleThreshold,
       Option(options.popFreq))

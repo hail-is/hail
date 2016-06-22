@@ -49,7 +49,7 @@ class ImputeSexSuite extends SparkSuite {
           val vcfOutputFile = fileRoot + ".vcf"
           val plinkSexCheckRoot = fileRoot
 
-          s = ImputeSex.run(s, Array("-m", "0.0"))
+          s = ImputeSex.run(s, Array("-m", "0.0", "--include-par"))
           s = ExportVCF.run(s, Array("-o", vcfOutputFile))
 
           s"plink --vcf $vcfOutputFile --const-fid --check-sex --silent --out $plinkSexCheckRoot" !

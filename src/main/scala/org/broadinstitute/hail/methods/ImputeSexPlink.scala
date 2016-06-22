@@ -26,11 +26,11 @@ object ImputeSexPlink {
   }
 
   def apply(vds: VariantDataset,
-    mafThreshold: Double,
-    excludePar: Boolean,
-    fMaleThreshold: Double,
-    fFemaleThreshold: Double,
-    popFrequencyExpr: Option[String]): Map[String, Annotation] = {
+            mafThreshold: Double,
+            includePar: Boolean,
+            fMaleThreshold: Double,
+            fFemaleThreshold: Double,
+            popFrequencyExpr: Option[String]): Map[String, Annotation] = {
 
     val query = popFrequencyExpr.map { code =>
       val (t, f) = vds.queryVA(code)
@@ -40,7 +40,12 @@ object ImputeSexPlink {
       }
     }
 
-    vds.filterVariants((v: Variant, va: Annotation, gs: Iterable[Genotype]) => (v.contig == "X" || v.contig == "23") && !(excludePar && v.inParX))
+    vds.filterVariants((v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+      if (!includePar)
+        (v.contig == "X" || v.contig == "23") && !v.inParX
+      else
+        v.contig == "X" || v.contig == "23"
+    )
       .mapAnnotations((v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
         query.map(_.apply(va).orNull)
           .getOrElse({

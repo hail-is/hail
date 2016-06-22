@@ -7,26 +7,26 @@ Hail contains an `imputesex` module which will calculate the inbreeding coeffici
 Short Flag | Long Flag | Description | Default
 --- | :-: | ---
 `-m <Double>` | `--maf-threshold <Double>` | Minimum variant minor allele frequency | 0.0
-`-e` | `--exclude-par` | Exclude variants in pseudo autosomal regions (HG19) | false
+`-i` | `--include-par` | Include variants in pseudo autosomal regions (HG19) | false
 `-x <Double>` | `--female-threshold <Double>` | If the inbreeding coefficient is less than `<Double>`, then sample is called as Female | 0.2
 `-y <Double>` | `--male-threshold <Double>` | If the inbreeding coefficient is greater than `<Double>`, then sample is called as Male | 0.8
 `-p <expression>` | `--pop-freq <expression>` | Population minor allele frequency (variant annotation expression, e.g. `va.exac.AF`) | *Compute from genotypes*
 
 ## Example `imputesex` command:
 ```
-hail read -i /path/to/file.vds imputesex -e -m 0.01 exportsamples -o /path/to/output.tsv -c "ID=s.id, F=sa.imputesex.F, ImputedSex=sa.imputesex.imputedSex"
+hail read -i /path/to/file.vds imputesex -m 0.01 exportsamples -o /path/to/output.tsv -c "ID=s.id, F=sa.imputesex.F, ImputedSex=sa.imputesex.imputedSex"
 ```
 
-To get the exact same answer as PLINK, make sure you split multi-allelic variants and use default arguments:
+To get the exact same answer as PLINK, make sure you split multi-allelic variants and use the flag `--include-par`:
 ```
-hail read -i /path/to/file.vds splitmulti imputesex
+hail read -i /path/to/file.vds splitmulti imputesex --include-par
 ```
 
 ## Implementation details:
 
 1. X chromosome variants are selected from the VDS: `v.contig == "X" || v.contig == "23"`
 2. Variants with a minor allele frequency less than the threshold given by `--mafthreshold` are removed
-3. Variants in the pseudoautosomal region `(X:60001-2699520) || (X:154931044-155260560)` are excluded if the `--excludepar` flag is set
+3. Variants in the pseudoautosomal region `(X:60001-2699520) || (X:154931044-155260560)` are included if the `--include-par` flag is set
 4. The minor allele frequency (maf) per variant is calculated
 5. For each variant and sample with a non-missing genotype call, `E`, the expected number of homozygotes (from population MAF), is computed as `1.0 - (2.0*maf*(1.0-maf))`
 6. For each variant and sample with a non-missing genotype call, `O`, the observed number of homozygotes, is computed as `0 = heterozygote; 1 = homozygote`
