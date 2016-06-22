@@ -6,13 +6,13 @@ import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant.{GenomicIndex, Variant}
 
 import scala.collection.mutable
 
-object VariantTableAnnotator extends TSVAnnotator {
+object VariantPositionAnnotator extends TSVAnnotator {
   def apply(sc: SparkContext, files: Array[String], vColumns: Array[String], declaredSig: Map[String, Type],
-    missing: String, delim: String): (RDD[(Variant, Annotation)], Type) = {
+    missing: String, delim: String): (RDD[(GenomicIndex, Annotation)], Type) = {
 
     val delimiter = unescapeString(delim)
 
@@ -31,17 +31,17 @@ object VariantTableAnnotator extends TSVAnnotator {
     }
 
     val (shortForm, vColIndices) = if (vColumns.length == 1) {
-      // format CHR:POS:REF:ALT
+      // format CHR:POS
       val variantIndex = vColumns.map(s => headerSplit.indexOf(s))
       variantIndex.foreach { i =>
         if(i < 0)
-        fatal(s"Could not find designated CHR:POS:REF:ALT column identifier `${vColumns.head}'")
+        fatal(s"Could not find designated CHR:POS column identifier `${vColumns.head}'")
       }
       (true, variantIndex)
     } else {
-      // format CHR  POS  REF  ALT
+      // CHR and POS are separate columns
       val variantIndex = vColumns.map(s => headerSplit.indexOf(s))
-      if (variantIndex(0) < 0 || variantIndex(1) < 0 || variantIndex(2) < 0 || variantIndex(3) < 0) {
+      if (variantIndex(0) < 0 || variantIndex(1) < 0) {
         val notFound = vColumns.flatMap(i => if (headerSplit.indexOf(i) < 0) Some(i) else None)
         fatal(s"Could not find designated identifier ${plural(notFound.length, "column")}: ${notFound.mkString(", ")}")
       }
@@ -69,28 +69,29 @@ object VariantTableAnnotator extends TSVAnnotator {
 
     val functions = buildParsers(missing, orderedSignatures)
 
-    val f: (mutable.ArrayBuilder[Annotation], Line) => (Variant, Annotation) = {
+    val f: (mutable.ArrayBuilder[Annotation], Line) => (GenomicIndex, Annotation) = {
       (ab, l) =>
         l.transform { line =>
           val lineSplit = line.value.split(delimiter)
           if (lineSplit.length != headerSplit.length)
             fatal(s"Expected ${headerSplit.length} fields, but got ${lineSplit.length}")
-          val variant = {
+          val index = {
             if (shortForm) {
-              // chr:pos:ref:alt
-              val Array(chr, pos, ref, alt) = lineSplit(vColIndices.head).split(":")
-              Variant(chr, pos.toInt, ref, alt)
+              // chr:pos
+              lineSplit(vColIndices.head).split(":") match {
+                case Array(chr, pos) => GenomicIndex(chr, pos.toInt)
+                case other => fatal(s"invalid genom position field: `${lineSplit(vColIndices.head)}'")
+              }
             } else {
               // long form
-              Variant(lineSplit(vColIndices(0)), lineSplit(vColIndices(1)).toInt,
-                lineSplit(vColIndices(2)), lineSplit(vColIndices(3)))
+              GenomicIndex(lineSplit(vColIndices(0)), lineSplit(vColIndices(1)).toInt)
             }
           }
           ab.clear()
           lineSplit.iterator.zip(functions.iterator)
             .foreach { case (field, fn) => fn(ab, field) }
           val res = ab.result()
-          (variant, Row.fromSeq(res))
+          (index, Row.fromSeq(res))
         }
     }
 

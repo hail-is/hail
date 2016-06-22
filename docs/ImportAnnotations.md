@@ -185,6 +185,7 @@ ____
 
 Hail currently supports annotating variants from seven sources:
  - [Text tables](#VariantTable)
+ - [Text tables, indexed by position (no ref/alt)](#VariantPos)
  - [JSON](#VariantJSON)
  - [interval list files](#IntervalList)
  - [UCSC bed files](#UCSCBed)
@@ -276,6 +277,22 @@ va: va.<identifier>
     exac: va.exac.<identifier>
         AC: Int
 ```
+
+____
+
+<a name="VariantPos"></a>
+### Text tables, indexed by position (no ref/alt)
+
+This module reads text tables which **do not** contain ref/alt columns.  Its mechanics are nearly identical to the `annotatevariants table` module above, with differences only in the command invocation and the `--vcolumns` argument (which takes 1/2 columns, instead of 1/4).
+
+**Command line arguments:**
+
+- `positions` Invoke this functionality (`annotatevariants positions <args>`)
+- `<files...>` specify the file or files to be read **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the fields read from the file, as a period-delimited path starting with `va` **(Required)**
+- `-v | --vcolumns <variantcols>` Either one column name (if Chr:Pos), or two comma-separated column identifiers **(Optional with default "Chromosome, Position")**
+- `-t | --types <typestring>` specify data types of fields, in a comma-delimited string of `name: Type` elements.  If a field is not found in this type map, it will be read and stored as a string **(Optional)**
+- `-m | --missing <missing-value>` specify identifiers to be treated as missing, in a comma-separated list **(Optional with default "NA")**
 
 ____
 
