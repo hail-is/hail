@@ -31,6 +31,7 @@ object ExportVariants extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val vas = vds.vaSignature
+    val hConf = vds.sparkContext.hadoopConfiguration
     val cond = options.condition
     val output = options.output
 
@@ -52,8 +53,10 @@ object ExportVariants extends Command {
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val (header, fs) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
+    val (header, fs) = if (cond.endsWith(".columns")) {
+      val (h, functions) = ExportTSV.parseColumnsFile(ec, cond, hConf)
+      (Some(h), functions)
+    }
     else
       Parser.parseExportArgs(cond, ec)
 
@@ -74,7 +77,7 @@ object ExportVariants extends Command {
           fs.iterator.foreachBetween { f => sb.tsvAppend(f()) }(() => sb.append("\t"))
           sb.result()
         }
-      }.writeTable(output, header)
+      }.writeTable(output, header.map(_.mkString("\t")))
 
     state
   }

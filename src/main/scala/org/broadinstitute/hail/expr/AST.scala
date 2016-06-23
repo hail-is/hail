@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.expr
 
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.analysis.HiveTypeCoercion.StringToIntegralCasts
 import org.apache.spark.sql.types._
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.Utils._
