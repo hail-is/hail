@@ -2,8 +2,13 @@ package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.check.Prop
+import org.broadinstitute.hail.driver.{AggregateIntervals, SplitMulti, State}
+import org.broadinstitute.hail.methods.LoadVCF
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.Utils._
 import org.testng.annotations.Test
+
+import scala.io.Source
 
 class IntervalListSuite extends SparkSuite {
 
@@ -102,5 +107,38 @@ class IntervalListSuite extends SparkSuite {
       }
     }
     p.check()
+  }
+
+  @Test def testAggregate() {
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val state = SplitMulti.run(State(sc, sqlContext, vds))
+    val tmp1 = tmpDir.createTempFile("output", ".tsv")
+    AggregateIntervals.run(state, Array(
+      "-i", "src/test/resources/exampleAnnotation1.interval_list",
+      "-o", tmp1,
+      "-c", "nSNP = variants.count(v.altAllele.isSNP), nIndel = variants.count(v.altAllele.isIndel), N = variants.count(true)"))
+
+    val variants = state
+      .vds
+      .variants
+      .collect()
+
+    readFile(tmp1, hadoopConf) { in =>
+
+      val Array(header, l1, l2) = Source.fromInputStream(in)
+        .getLines()
+        .toArray
+
+      val Array(_, _, _, nSnp1, nIndel1, n1) = l1.split("\t")
+      val Array(_, _, _, nSnp2, nIndel2, n2) = l2.split("\t")
+
+      assert(nSnp1.toInt == variants.count(v => v.start >= 1 && v.start <= 14000000 && v.altAllele.isSNP))
+      assert(nIndel1.toInt == variants.count(v => v.start >= 1 && v.start <= 14000000 && v.altAllele.isIndel))
+      assert(n1.toInt == variants.count(v => v.start >= 1 && v.start <= 14000000))
+
+      assert(nSnp2.toInt == variants.count(v => v.start >= 17000000 && v.start <= 18000000 && v.altAllele.isSNP))
+      assert(nIndel2.toInt == variants.count(v => v.start >= 17000000 && v.start <= 18000000 && v.altAllele.isIndel))
+      assert(n2.toInt == variants.count(v => v.start >= 17000000 && v.start <= 18000000))
+    }
   }
 }

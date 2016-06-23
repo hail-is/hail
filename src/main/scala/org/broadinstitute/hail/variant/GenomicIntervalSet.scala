@@ -7,10 +7,22 @@ import org.broadinstitute.hail.utils.{Interval, IntervalSet}
 
 case class GenomicIndex(contig: String, position: Int)
 
-case class GenomicInterval(contig: String, start: Int, end: Int) {
+case class GenomicInterval(contig: String, start: Int, end: Int) extends Ordered[GenomicInterval] {
   require(start <= end)
 
   def interval: Interval = Interval(start, end)
+
+  def compare(that: GenomicInterval): Int = {
+    var c = Variant.compareContig(contig, that.contig)
+    if (c != 0)
+      return c
+
+    c = start.compare(that.start)
+    if (c != 0)
+      return c
+
+    end.compare(that.end)
+  }
 }
 
 case class GenomicIntervalSet(trees: Map[String, IntervalSet]) extends Serializable {
@@ -27,6 +39,10 @@ case class GenomicIntervalSet(trees: Map[String, IntervalSet]) extends Serializa
     .getOrElse(Set.empty[GenomicInterval])
 
   def query(g: GenomicIndex): Set[GenomicInterval] = query(g.contig, g.position)
+
+  def intervals: Set[GenomicInterval] = trees.flatMap { case (contig, is) =>
+    is.intervals.map(i => GenomicInterval(contig, i.start, i.end))
+  }.toSet
 
   def write(filename: String, hConf: hadoop.conf.Configuration) {
     writeTextFile(filename, hConf) { fw =>
