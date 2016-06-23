@@ -4,6 +4,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Sample, Variant}
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -31,7 +32,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType) => requiresConversion(elementType)
-    case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant | TLocus => true
+    case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant | TLocus | TInterval => true
     case TStruct(fields) =>
       fields.exists(f => requiresConversion(f.`type`))
     case _ => false
@@ -87,6 +88,9 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         case TLocus =>
           val r = a.asInstanceOf[Row]
           Locus(r.getAs[String](0), r.getAs[Int](1))
+        case TInterval =>
+          val r = a.asInstanceOf[Row]
+          Interval(importAnnotation(r.get(0), TLocus).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus).asInstanceOf[Locus])
         case TStruct(fields) =>
           val r = a.asInstanceOf[Row]
           Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
@@ -115,6 +119,9 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case TAltAllele => AltAllele.schema
     case TVariant => Variant.schema
     case TLocus => Locus.schema
+    case TInterval => StructType(Array(
+      StructField("start", Locus.schema, nullable = false),
+      StructField("end", Locus.schema, nullable = false)))
     case TGenotype => Genotype.schema
     case TStruct(fields) =>
       if (fields.isEmpty)
@@ -151,6 +158,9 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         case TLocus =>
           val l = a.asInstanceOf[Locus]
           Row(l.contig, l.position)
+        case TInterval =>
+          val i = a.asInstanceOf[Interval[_]]
+          Row(exportAnnotation(i.start, TLocus), exportAnnotation(i.end, TLocus))
         case TStruct(fields) =>
           val r = a.asInstanceOf[Row]
           Annotation.fromSeq(r.toSeq.zip(fields).map {
@@ -180,6 +190,10 @@ case class JSONExtractVariant(contig: String,
     Variant(contig, start, ref, altAlleles.toArray)
 }
 
+case class JSONExtractInterval(start: Locus, end: Locus) {
+  def toInterval = Interval(start, end)
+}
+
 object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
   def jsonExtractVariant(t: Type, variantFields: String): Any => Option[Variant] = {
     val ec = EvalContext(Map(
@@ -188,16 +202,16 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     val fs: Array[(BaseType, () => Option[Any])] = Parser.parseExprs(variantFields, ec)
 
     if (fs.length != 4)
-      fatal(s"wrong number of variant field expressions: expected 4, got ${fs.length}")
+      fatal(s"wrong number of variant field expressions: expected 4, got ${ fs.length }")
 
     if (fs(0)._1 != TString)
-      fatal(s"wrong type for chromosome field: expected String, got ${fs(0)._1}")
+      fatal(s"wrong type for chromosome field: expected String, got ${ fs(0)._1 }")
     if (fs(1)._1 != TInt)
-      fatal(s"wrong type for pos field: expected Int, got ${fs(1)._1}")
+      fatal(s"wrong type for pos field: expected Int, got ${ fs(1)._1 }")
     if (fs(2)._1 != TString)
-      fatal(s"wrong type for ref field: expected String, got ${fs(2)._1}")
+      fatal(s"wrong type for ref field: expected String, got ${ fs(2)._1 }")
     if (fs(3)._1 != TArray(TString))
-      fatal(s"wrong type for alt field: expected Array[String], got ${fs(3)._1}")
+      fatal(s"wrong type for alt field: expected Array[String], got ${ fs(3)._1 }")
 
     (root: Annotation) => {
       ec.setAll(root)
@@ -261,6 +275,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         case TAltAllele => a.asInstanceOf[AltAllele].toJSON
         case TVariant => a.asInstanceOf[Variant].toJSON
         case TLocus => a.asInstanceOf[Locus].toJSON
+        case TInterval => a.asInstanceOf[Interval[Locus]].toJSON(TLocus.toJSON(_))
         case TStruct(fields) =>
           val row = a.asInstanceOf[Row]
           JObject(fields
@@ -328,6 +343,8 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         jv.extract[JSONExtractVariant].toVariant
       case (_, TLocus) =>
         jv.extract[Locus]
+      case (_, TInterval) =>
+        jv.extract[JSONExtractInterval].toInterval
       case (_, TGenotype) =>
         jv.extract[JSONExtractGenotype].toGenotype
 
@@ -361,6 +378,11 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case d: TDict => JsonMethods.compact(d.toJSON(a))
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
         case t: TStruct => JsonMethods.compact(t.toJSON(a))
+        case TInterval =>
+          val i = a.asInstanceOf[Interval[Locus]]
+          if (i.start.contig == i.end.contig)
+            s"${ i.start }-${ i.end.position }"
+          else s"${ i.start }-${ i.end }"
         case _ => a.toString
       }
     }
@@ -376,6 +398,17 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case TBoolean => a.toBoolean
       case TLocus => a.split(":") match {
         case Array(chr, pos) => Locus(chr, pos.toInt)
+      }
+      case TInterval => a.split("-") match {
+        case Array(start, end) =>
+          val startLocus = start.split(":") match {
+            case Array(chr, pos) => Locus(chr, pos.toInt)
+          }
+          val endLocus = end.split(":") match {
+            case Array(pos) => Locus(startLocus.contig, pos.toInt)
+            case Array(chr, pos) => Locus(chr, pos.toInt)
+          }
+          Interval(startLocus, endLocus)
       }
       case TVariant => a.split(":") match {
         case Array(chr, pos, ref, alt) => Variant(chr, pos.toInt, ref, alt.split(","))

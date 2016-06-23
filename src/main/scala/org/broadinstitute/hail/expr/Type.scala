@@ -6,7 +6,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotation, AnnotationPathException, _}
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, _}
-import org.broadinstitute.hail.utils.StringEscapeUtils
+import org.broadinstitute.hail.utils.{Interval, StringEscapeUtils}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
@@ -20,7 +20,7 @@ sealed abstract class BaseType extends Serializable {
 
 object Type {
   val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
-    TVariant, TAltAllele, TGenotype, TLocus)
+    TVariant, TAltAllele, TGenotype, TLocus, TInterval)
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)
@@ -333,6 +333,14 @@ case object TLocus extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
 
   override def genValue: Gen[Annotation] = Locus.gen
+}
+
+case object TInterval extends Type {
+  override def toString = "Interval"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
+
+  override def genValue: Gen[Annotation] = Interval.gen(Locus.gen)
 }
 
 case class Field(name: String, `type`: Type,

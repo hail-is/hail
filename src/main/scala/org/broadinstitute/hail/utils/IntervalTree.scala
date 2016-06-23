@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.utils
 
 import org.broadinstitute.hail.check._
+import org.json4s.JValue
+import org.json4s.JsonAST.JObject
 
 import scala.collection.mutable
 import scala.math.Ordering.Implicits._
@@ -23,6 +25,8 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
 
     ev.compare(end, that.end)
   }
+
+  def toJSON(f: (T) => JValue): JValue = JObject("start" -> f(start), "end" -> f(end))
 }
 
 object Interval {

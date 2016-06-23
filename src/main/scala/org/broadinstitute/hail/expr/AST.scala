@@ -6,6 +6,7 @@ import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.stats._
+import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.json4s.jackson.JsonMethods
 
@@ -283,12 +284,17 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TVariant, "inYPar") => TBoolean
       case (TVariant, "inXNonPar") => TBoolean
       case (TVariant, "inYNonPar") => TBoolean
+      case (TVariant, "locus") => TLocus
 
-      case (TLocus, "contig") => TString
-      case (TLocus, "position") => TInt
       // assumes biallelic
       case (TVariant, "alt") => TString
       case (TVariant, "altAllele") => TAltAllele
+
+      case (TLocus, "contig") => TString
+      case (TLocus, "position") => TInt
+
+      case (TInterval, "start") => TLocus
+      case (TInterval, "end") => TLocus
 
       case (TAltAllele, "ref") => TString
       case (TAltAllele, "alt") => TString
@@ -405,11 +411,18 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Variant](ec, lhs)(_.alt)
     case (TVariant, "altAllele") =>
       AST.evalCompose[Variant](ec, lhs)(_.altAllele)
+    case (TVariant, "locus") =>
+      AST.evalCompose[Variant](ec, lhs)(_.locus)
 
     case (TLocus, "contig") =>
       AST.evalCompose[Locus](ec, lhs)(_.contig)
     case (TLocus, "position") =>
       AST.evalCompose[Locus](ec, lhs)(_.position)
+
+    case (TInterval, "start") =>
+      AST.evalCompose[Interval[Locus]](ec, lhs)(_.start)
+    case (TInterval, "end") =>
+      AST.evalCompose[Interval[Locus]](ec, lhs)(_.end)
 
     case (TAltAllele, "ref") => AST.evalCompose[AltAllele](ec, lhs)(_.ref)
     case (TAltAllele, "alt") => AST.evalCompose[AltAllele](ec, lhs)(_.alt)
@@ -551,7 +564,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     }
     else
       parseError(s"declared array elements must be the same type (or numeric)." +
-        s"\n  Found: [${elements.map(_.`type`).mkString(", ")}]")
+        s"\n  Found: [${ elements.map(_.`type`).mkString(", ") }]")
   }
 
   def eval(ec: EvalContext): () => Any = {
@@ -605,22 +618,22 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     (fn, args) match {
       case ("isMissing", Array(a)) =>
         if (!a.`type`.isInstanceOf[Type])
-          parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
+          parseError(s"Got invalid argument `${ a.`type` } to function `$fn'")
         TBoolean
 
       case ("isDefined", Array(a)) =>
         if (!a.`type`.isInstanceOf[Type])
-          parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
+          parseError(s"Got invalid argument `${ a.`type` } to function `$fn'")
         TBoolean
 
       case ("str", Array(a)) =>
         if (!a.`type`.isInstanceOf[Type])
-          parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
+          parseError(s"Got invalid argument `${ a.`type` } to function `$fn'")
         TString
 
       case ("json", Array(a)) =>
         if (!a.`type`.isInstanceOf[Type])
-          parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
+          parseError(s"Got invalid argument `${ a.`type` } to function `$fn'")
         TString
 
       case ("Variant", _) =>
@@ -629,12 +642,11 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case Array(TString, TInt, TString, TString) => TVariant
           case Array(TString, TInt, TString, TArray(TString)) => TVariant
           case other => parseError(
-            s"""Got invalid arguments to variant constructor: (${other.mkString(", ")})
+            s"""Got invalid arguments to variant constructor: (${ other.mkString(", ") })
                 |  Acceptable formats:
                 |    (String) for CHR:POS:REF:ALT or CHR:POS:REF:ALT1,ALT2,...ALTN
                 |    (String, Int, String, String) for (chr, pos, ref, alt)
-                |    (String, Int, String, Array[String]) for (chr, pos, ref, alts)
-             """.stripMargin)
+                |    (String, Int, String, Array[String]) for (chr, pos, ref, alts)""".stripMargin)
         }
 
       case ("Locus", _) =>
@@ -642,11 +654,19 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case Array(TString) => TLocus
           case Array(TString, TInt) => TLocus
           case other => parseError(
-            s"""Got invalid arguments to locus constructor: (${other.mkString(", ")})
+            s"""Got invalid arguments to locus constructor: (${ other.mkString(", ") })
                 |  Acceptable formats:
                 |    (String) for CHR:POS
-                |    (String, Int) for (chr, pos)
-             """.stripMargin)
+                |    (String, Int) for (chr, pos)""".stripMargin)
+        }
+
+      case ("Interval", _) =>
+        args.map(_.`type`) match {
+          case (Array(TLocus, TLocus)) => TInterval
+          case other => parseError(
+            s"""Got invalid arguments to interval constructor: (${ other.mkString(", ") })
+                |  Acceptable format:
+                |    (Locus, Locus) for (start, end)""".stripMargin)
         }
 
 
@@ -657,9 +677,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
             val nArgs = other.length
             parseError(
               s"""method `hwe' expects 3 arguments of type Int, e.g. hwe(90,10,1)
-                  |  Found $nArgs ${plural(nArgs, "argument")}${
+                  |  Found $nArgs ${ plural(nArgs, "argument") }${
                 if (nArgs > 0)
-                  s"of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
+                  s"of ${ plural(nArgs, "type") } [${ other.mkString(", ") }]"
                 else ""
               }""".stripMargin)
         }
@@ -671,9 +691,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
             val nArgs = other.length
             parseError(
               s"""method `fet' expects 4 arguments of type Int, e.g. fet(5,100,0,1000)
-                  |  Found $nArgs ${plural(nArgs, "argument")}${
+                  |  Found $nArgs ${ plural(nArgs, "argument") }${
                 if (nArgs > 0)
-                  s" of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
+                  s" of ${ plural(nArgs, "type") } [${ other.mkString(", ") }]"
                 else ""
               }""".stripMargin)
         }
@@ -683,7 +703,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case Array(t1: TStruct, t2: TStruct) => (t1, t2)
           case other => parseError(
             s"""invalid arguments to `$fn'
-                |  Expected $fn(Struct, Struct), found $fn(${other.mkString(", ")})""".stripMargin)
+                |  Expected $fn(Struct, Struct), found $fn(${ other.mkString(", ") })""".stripMargin)
         }
 
         val (t, merger) = try {
@@ -691,10 +711,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         } catch {
           case f: FatalException => parseError(
             s"""invalid arguments for method `$fn'
-                |  ${f.getMessage}""".stripMargin)
+                |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
-                |  ${e.getClass.getName}: ${e.getMessage}""".stripMargin)
+                |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
         }
 
         store = merger
@@ -713,7 +733,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           parseError(
             s"""invalid arguments for method `$fn'
                 |  Expected 2 arguments: $fn(Array[Struct], identifiers...)
-                |  Found ${args.length} arguments""".stripMargin)
+                |  Found ${ args.length } arguments""".stripMargin)
         args.head.typecheck(ec)
         val t = args.head.`type` match {
           case TArray(t: TStruct) => t
@@ -726,7 +746,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case other =>
             parseError(
               s"""invalid arguments for method `$fn'
-                  |  Expected struct field identifier as the second argument, but found a `${other.getClass.getSimpleName}' expression
+                  |  Expected struct field identifier as the second argument, but found a `${ other.getClass.getSimpleName }' expression
                   |  Usage: $fn(Array[Struct], key identifier)""".stripMargin)
         }
 
@@ -738,10 +758,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
             `type` = TDict(newS)
           case Some(other) => parseError(
             s"""invalid arguments for method `$fn'
-                |  Expected key to be of type String, but field ${prettyIdentifier(key)} had type `$other'""".stripMargin)
+                |  Expected key to be of type String, but field ${ prettyIdentifier(key) } had type `$other'""".stripMargin)
           case None => parseError(
             s"""invalid arguments for method `$fn'
-                |  Struct did not contain the designated key `${prettyIdentifier(key)}'""".stripMargin)
+                |  Struct did not contain the designated key `${ prettyIdentifier(key) }'""".stripMargin)
         }
 
       case "select" | "drop" =>
@@ -750,7 +770,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           parseError(
             s"""too few arguments for method `$fn'
                 |  Expected 2 or more arguments: $fn(Struct, identifiers...)
-                |  Found ${args.length} ${plural(args.length, "argument")}""".stripMargin)
+                |  Found ${ args.length } ${ plural(args.length, "argument") }""".stripMargin)
         val (head, tail) = (args.head, args.tail)
         head.typecheck(ec)
         val struct = head.`type` match {
@@ -765,23 +785,23 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case other =>
             parseError(
               s"""invalid arguments for method `$fn'
-                  |  Expected struct field identifiers after the first position, but found a `${other.getClass.getSimpleName}' expression""".stripMargin)
+                  |  Expected struct field identifiers after the first position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
         }
         val duplicates = identifiers.duplicates()
         if (duplicates.nonEmpty)
           parseError(
             s"""invalid arguments for method `$fn'
-                |  Duplicate ${plural(duplicates.size, "identifier")} found: [ ${duplicates.map(prettyIdentifier).mkString(", ")} ]""".stripMargin)
+                |  Duplicate ${ plural(duplicates.size, "identifier") } found: [ ${ duplicates.map(prettyIdentifier).mkString(", ") } ]""".stripMargin)
 
         val (tNew, filterer) = try {
           struct.filter(identifiers.toSet, include = fn == "select")
         } catch {
           case f: FatalException => parseError(
             s"""invalid arguments for method `$fn'
-                |  ${f.getMessage}""".stripMargin)
+                |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
-                |  ${e.getClass.getName}: ${e.getMessage}""".stripMargin)
+                |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
         }
 
         store = filterer
@@ -840,6 +860,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           Locus(chr, pos)
         }
       }
+
+    case ("Interval", Array(start, end)) =>
+      AST.evalCompose[Locus, Locus](ec, start, end) { case (s, e) => Interval(s, e) }
 
     case ("hwe", Array(a, b, c)) =>
       AST.evalCompose[Int, Int, Int](ec, a, b, c) {
@@ -911,9 +934,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             val nArgs = other.length
             parseError(
               s"""method `$method' expects 2 arguments of type String, e.g. str.replace(" ", "_")
-                  |  Found $nArgs ${plural(nArgs, "argument")}${
+                  |  Found $nArgs ${ plural(nArgs, "argument") }${
                 if (nArgs > 0)
-                  s"of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
+                  s"of ${ plural(nArgs, "type") } [${ other.mkString(", ") }]"
                 else ""
               }""".stripMargin)
         }
@@ -928,7 +951,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))
         if (body.`type` != TBoolean)
-          parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${body.`type`}]")
+          parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${ body.`type` }]")
         `type` = it.elementType
 
       case (it: TIterable, "map", rhs) =>
@@ -957,7 +980,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))
         if (body.`type` != TBoolean)
-          parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${body.`type`}]")
+          parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${ body.`type` }]")
         `type` = it
 
       case (it: TIterable, "forall" | "exists", rhs) =>
@@ -969,7 +992,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))
         if (body.`type` != TBoolean)
-          parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${body.`type`}]")
+          parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${ body.`type` }]")
         `type` = TBoolean
 
       case (arr: TArray, "sort", rhs) =>
@@ -990,7 +1013,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, arr.elementType)))))
         if (!(body.`type`.isInstanceOf[TNumeric] || body.`type` == TString))
-          parseError(s"method `$method' expects a lambda function [param => T] with T of string or numeric type, got [param => ${body.`type`}]")
+          parseError(s"method `$method' expects a lambda function [param => T] with T of string or numeric type, got [param => ${ body.`type` }]")
         `type` = arr
 
       case (TDict(elementType), "mapvalues", rhs) =>
@@ -1015,8 +1038,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (types != Seq(TBoolean)) {
           //          val plural1 = if (expected.length > 1) "s" else ""
           val plural = if (types.length != 1) "s" else ""
-          parseError(s"method `$method' expects 1 argument of type (Boolean), but got ${types.length} argument$plural${
-            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+          parseError(s"method `$method' expects 1 argument of type (Boolean), but got ${ types.length } argument$plural${
+            if (types.nonEmpty) s" of type (${ types.mkString(", ") })."
             else "."
           }")
         }
@@ -1030,8 +1053,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (types != Seq(TBoolean)) {
           //          val plural1 = if (expected.length > 1) "s" else ""
           val plural = if (types.length != 1) "s" else ""
-          parseError(s"method `$method' expects 1 argument of type (Boolean), but got ${types.length} argument$plural${
-            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+          parseError(s"method `$method' expects 1 argument of type (Boolean), but got ${ types.length } argument$plural${
+            if (types.nonEmpty) s" of type (${ types.mkString(", ") })."
             else "."
           }")
         }
@@ -1044,8 +1067,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
         if (types.length != 1 || !types.head.isInstanceOf[TNumeric]) {
           val plural = if (types.length != 1) "s" else ""
-          parseError(s"method `$method' expects 1 argument of types (Numeric), but got ${types.length} argument$plural${
-            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+          parseError(s"method `$method' expects 1 argument of types (Numeric), but got ${ types.length } argument$plural${
+            if (types.nonEmpty) s" of type (${ types.mkString(", ") })."
             else "."
           }")
         }
@@ -1065,8 +1088,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
         if (types.length != 2 || types.head != TBoolean || !types(1).isInstanceOf[TNumeric]) {
           val plural = if (types.length != 1) "s" else ""
-          parseError(s"method `$method' expects 2 arguments of types (Boolean, Numeric), but got ${types.length} argument$plural${
-            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+          parseError(s"method `$method' expects 2 arguments of types (Boolean, Numeric), but got ${ types.length } argument$plural${
+            if (types.nonEmpty) s" of type (${ types.mkString(", ") })."
             else "."
           }")
         }
@@ -1086,14 +1109,14 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
         if (types.length != 2 || types.head != TBoolean) {
           val plural = if (types.length != 1) "s" else ""
-          parseError(s"method `$method' expected 2 arguments of types (Boolean, Any), but got ${types.length} argument$plural${
-            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+          parseError(s"method `$method' expected 2 arguments of types (Boolean, Any), but got ${ types.length } argument$plural${
+            if (types.nonEmpty) s" of type (${ types.mkString(", ") })."
             else "."
           }")
         }
         val t = types(1) match {
           case tws: Type => tws
-          case _ => parseError(s"method `$method' expects a standard type as its map argument, but got `${types(1)}'")
+          case _ => parseError(s"method `$method' expects a standard type as its map argument, but got `${ types(1) }'")
         }
 
         `type` = TArray(t)
@@ -1114,6 +1137,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
                 |  Expected type `$elementType' for `Set[$elementType]', but found `$t2'""".stripMargin)
         TBoolean
       case (TDict(_), "contains", Array(TString)) => TBoolean
+      case (TInterval, "contains", Array(TLocus)) => TBoolean
       case (TString, "split", Array(TString)) => TArray(TString)
 
       case (t: TNumeric, "min", Array(t2: TNumeric)) =>
@@ -1125,7 +1149,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         t
 
       case (t, _, _) =>
-        parseError(s"`no matching signature for `$method(${rhsTypes.mkString(", ")})' on `$t'")
+        parseError(s"`no matching signature for `$method(${ rhsTypes.mkString(", ") })' on `$t'")
     }
   }
 
@@ -1490,6 +1514,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (TDict(elementType), "contains", Array(a)) =>
       AST.evalCompose[Map[String, _], String](ec, lhs, a) { case (m, key) => m.contains(key) }
 
+    case (TInterval, "contains", Array(l)) =>
+      AST.evalCompose[Interval[Locus], Locus](ec, lhs, l) { case (interval, locus) => interval.contains(locus) }
+
     case (TString, "split", Array(a)) =>
       AST.evalCompose[String, String](ec, lhs, a) { case (s, p) => s.split(p): IndexedSeq[String] }
 
@@ -1696,7 +1723,7 @@ case class UnaryOp(posn: Position, operation: String, operand: AST) extends AST(
     case ("!", TBoolean) => TBoolean
 
     case (_, t) =>
-      parseError(s"invalid argument to unary `$operation': ${t.toString}")
+      parseError(s"invalid argument to unary `$operation': ${ t.toString }")
   }
 }
 
@@ -1708,7 +1735,7 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
 
     case _ =>
       parseError(
-        s""" invalid index expression: cannot index `${f.`type`}' with type `${idx.`type`}'
+        s""" invalid index expression: cannot index `${ f.`type` }' with type `${ idx.`type` }'
             |  Known index operations:
             |    Array indexed with Int: a[2]
             |    String indexed with Int: str[0] (Returns a character)
@@ -1728,7 +1755,7 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             ParserUtils.error(localPos,
-              s"""Tried to access index [$i] on array ${JsonMethods.compact(localT.toJSON(a))} of length ${a.length}
+              s"""Tried to access index [$i] on array ${ JsonMethods.compact(localT.toJSON(a)) } of length ${ a.length }
                   |  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)
                   |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct""".stripMargin)
           case e: Throwable => throw e
@@ -1753,12 +1780,12 @@ case class SliceArray(posn: Position, f: AST, idx1: Option[AST], idx2: Option[AS
         parseError(
           s"""invalid slice expression
               |  Expect (array[start:end],  array[:end], or array[start:]) where start and end are integers
-              |  Found [${idx1.map(_.`type`).getOrElse("")}:${idx2.map(_.`type`).getOrElse("")}]""".stripMargin)
+              |  Found [${ idx1.map(_.`type`).getOrElse("") }:${ idx2.map(_.`type`).getOrElse("") }]""".stripMargin)
       else
         t
     case _ => parseError(
       s"""invalid slice expression
-          |  Only arrays can be sliced.  Found slice operation on type `${f.`type`}'""".stripMargin)
+          |  Only arrays can be sliced.  Found slice operation on type `${ f.`type` }'""".stripMargin)
   }
 
   def eval(ec: EvalContext): () => Any = {
@@ -1795,7 +1822,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
   override def typecheckThis(ec: EvalContext): BaseType = {
     if (thenTree.`type` != elseTree.`type`)
-      parseError(s"expected same-type `then' and `else' clause, got `${thenTree.`type`}' and `${elseTree.`type`}'")
+      parseError(s"expected same-type `then' and `else' clause, got `${ thenTree.`type` }' and `${ elseTree.`type` }'")
     else
       thenTree.`type`
   }
