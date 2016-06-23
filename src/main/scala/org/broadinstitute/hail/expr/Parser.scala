@@ -62,9 +62,9 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(code: String, ec: EvalContext): (Option[String], Array[() => Option[Any]]) = {
+  def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[() => Option[Any]]) = {
     val (header, ts) = parseAll(export_args, code) match {
-      case Success(result, _) => result.asInstanceOf[(Option[String], Array[AST])]
+      case Success(result, _) => result.asInstanceOf[(Option[Array[String]], Array[AST])]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
@@ -75,6 +75,20 @@ object Parser extends JavaTokenParsers {
     }
 
     (header, fs)
+  }
+
+  def parseNamedArgs(code: String, ec: EvalContext): (Array[String], Array[() => Option[Any]]) = {
+    val args = parseAll(named_args, code) match {
+      case Success(result, _) => result.asInstanceOf[Array[(String, AST)]]
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+    val names = args.map(_._1)
+    val fns = args.map(_._2)
+    fns.foreach(_.typecheck(ec))
+    (names, fns.map { t =>
+      val f = t.eval(ec)
+      () => Option(f())
+    })
   }
 
   def parseAnnotationArgs(code: String, ec: EvalContext): (Array[(List[String], Type, () => Option[Any])]) = {
