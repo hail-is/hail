@@ -2,41 +2,32 @@ package org.broadinstitute.hail.io.annotators
 
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Interval, IntervalList}
+import org.broadinstitute.hail.variant._
 
 object IntervalListAnnotator {
-  def apply(filename: String, hConf: hadoop.conf.Configuration): (IntervalList, Type) = {
+  def apply(filename: String, hConf: hadoop.conf.Configuration): (GenomicIntervalSet, Option[(Type, Map[GenomicInterval, Annotation])]) = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
-    readLines(filename, hConf) { lines =>
+    val stringAnno = readLines(filename, hConf) { lines =>
 
       if (lines.isEmpty)
-      fatal("empty interval file")
+        fatal("empty interval file")
 
       val firstLine = lines.next()
-      val (getString, signature) = firstLine.value match {
-        case IntervalList.intervalRegex(contig, start_str, end_str) => (false, TBoolean)
-        case line if line.split("""\s+""").length == 5 => (true, TString)
+      firstLine.value match {
+        case GenomicIntervalSet.intervalRegex(contig, start_str, end_str) => false
+        case line if line.split("""\s+""").length == 5 => true
         case _ => fatal("unsupported interval list format")
       }
+    }
 
-      val iList = IntervalList((Iterator(firstLine) ++ lines)
-        .map { l => l.transform { line =>
-          if (getString) {
-            val Array(contig, start, end, direction, target) = line.value.split("""\s+""")
-            Interval(contig, start.toInt, end.toInt, Some(target))
-          } else {
-            line.value match {
-              case IntervalList.intervalRegex(contig, start_str, end_str) =>
-                Interval(contig, start_str.toInt, end_str.toInt, Some(true))
-              case _ => fatal("Inconsistent interval file")
-            }
-          }
-        }
-        }.toTraversable)
-
-      (iList, signature)
+    if (stringAnno) {
+      val (gis, m) = GenomicIntervalSet.readWithMap(filename, hConf)
+      (gis, Some(TString, m))
+    } else {
+      (GenomicIntervalSet.read(filename, hConf), None)
     }
   }
 }
