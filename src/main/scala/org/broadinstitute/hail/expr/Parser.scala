@@ -199,11 +199,11 @@ object Parser extends JavaTokenParsers {
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
     }
 
-  def export_args: Parser[(Option[String], Array[AST])] =
+  def export_args: Parser[(Option[Array[String]], Array[AST])] =
   // FIXME | not backtracking properly.  Why?
     args ^^ { a => (None, a) } |||
       named_args ^^ { a =>
-        (Some(a.map(_._1).mkString("\t")), a.map(_._2))
+        (Some(a.map(_._1)), a.map(_._2))
       }
 
   def named_args: Parser[Array[(String, AST)]] =
