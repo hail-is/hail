@@ -69,6 +69,7 @@ Identifier | Type | Description
 `v.inYNonPar`           |  `Boolean`  | true if chromosome is Y and start is not in pseudo-autosomal region of Y
 `v.altAllele`           | `AltAllele` | The alternate allele (schema below).  **Assumes biallelic.**
 `v.alt`                 | `String`    | Alternate allele sequence.  **Assumes biallelic.**
+`v.locus`               | `Locus`     | Chromosomal locus (chr, pos) of this variant
 
 **AltAllele:** `v.altAlleles[idx]` or `v.altAllele` (biallelic) 
 
@@ -85,6 +86,20 @@ Identifier | Type | Description
  `<altAllele>.isTransition`   | `Boolean` | true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
  `<altAllele>.isTransversion` | `Boolean` | true if the polymorphism is a purine-pyrimidine flip
  `<altAllele>.nMismatch`      | `Int`     | the total number of bases in `v.ref` and `v.alt` that do not match
+
+**Locus:** `v.locus` or `Locus(chr, pos)`
+
+Identifier | Type | Description
+--- | :-: | ---
+`<locus>.contig`   |  `String` |  String representation of contig
+`<locus>.position` |  `Int`    |  Chromosomal position
+
+**Interval:** `Interval(locus1, locus2)`
+
+Identifier | Type | Description
+--- | :-: | ---
+`<interval>.start` |  `Locus` | `Locus` object (see above) at the start of the interval (inclusive)
+`<interval>.end`   |  `Locus` | `Locus` object (see above) at the end of the interval (exclusive)
 
 ____ 
  

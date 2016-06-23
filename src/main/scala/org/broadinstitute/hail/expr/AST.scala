@@ -6,6 +6,7 @@ import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.stats._
+import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.json4s.jackson.JsonMethods
 
@@ -283,12 +284,17 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TVariant, "inYPar") => TBoolean
       case (TVariant, "inXNonPar") => TBoolean
       case (TVariant, "inYNonPar") => TBoolean
+      case (TVariant, "locus") => TLocus
 
-      case (TLocus, "contig") => TString
-      case (TLocus, "position") => TInt
       // assumes biallelic
       case (TVariant, "alt") => TString
       case (TVariant, "altAllele") => TAltAllele
+
+      case (TLocus, "contig") => TString
+      case (TLocus, "position") => TInt
+
+      case (TInterval, "start") => TLocus
+      case (TInterval, "end") => TLocus
 
       case (TAltAllele, "ref") => TString
       case (TAltAllele, "alt") => TString
@@ -406,11 +412,18 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Variant](ec, lhs)(_.alt)
     case (TVariant, "altAllele") =>
       AST.evalCompose[Variant](ec, lhs)(_.altAllele)
+    case (TVariant, "locus") =>
+      AST.evalCompose[Variant](ec, lhs)(_.locus)
 
     case (TLocus, "contig") =>
       AST.evalCompose[Locus](ec, lhs)(_.contig)
     case (TLocus, "position") =>
       AST.evalCompose[Locus](ec, lhs)(_.position)
+
+    case (TInterval, "start") =>
+      AST.evalCompose[Interval[Locus]](ec, lhs)(_.start)
+    case (TInterval, "end") =>
+      AST.evalCompose[Interval[Locus]](ec, lhs)(_.end)
 
     case (TAltAllele, "ref") => AST.evalCompose[AltAllele](ec, lhs)(_.ref)
     case (TAltAllele, "alt") => AST.evalCompose[AltAllele](ec, lhs)(_.alt)
@@ -635,8 +648,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                 |  Acceptable formats:
                 |    (String) for CHR:POS:REF:ALT or CHR:POS:REF:ALT1,ALT2,...ALTN
                 |    (String, Int, String, String) for (chr, pos, ref, alt)
-                |    (String, Int, String, Array[String]) for (chr, pos, ref, alts)
-             """.stripMargin)
+                |    (String, Int, String, Array[String]) for (chr, pos, ref, alts)""".stripMargin)
         }
 
       case ("Locus", _) =>
@@ -647,8 +659,16 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
             s"""Got invalid arguments to locus constructor: (${ other.mkString(", ") })
                 |  Acceptable formats:
                 |    (String) for CHR:POS
-                |    (String, Int) for (chr, pos)
-             """.stripMargin)
+                |    (String, Int) for (chr, pos)""".stripMargin)
+        }
+
+      case ("Interval", _) =>
+        args.map(_.`type`) match {
+          case (Array(TLocus, TLocus)) => TInterval
+          case other => parseError(
+            s"""Got invalid arguments to interval constructor: (${ other.mkString(", ") })
+                |  Acceptable format:
+                |    (Locus, Locus) for (start, end)""".stripMargin)
         }
 
 
@@ -870,6 +890,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           Locus(chr, pos)
         }
       }
+
+    case ("Interval", Array(start, end)) =>
+      AST.evalCompose[Locus, Locus](ec, start, end) { case (s, e) => Interval(s, e) }
 
     case ("hwe", Array(a, b, c)) =>
       AST.evalCompose[Int, Int, Int](ec, a, b, c) {
@@ -1157,6 +1180,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
                 |  Expected type `$elementType' for `Set[$elementType]', but found `$t2'""".stripMargin)
         TBoolean
       case (TDict(_), "contains", Array(TString)) => TBoolean
+      case (TInterval, "contains", Array(TLocus)) => TBoolean
       case (TString, "split", Array(TString)) => TArray(TString)
 
       case (t: TNumeric, "min", Array(t2: TNumeric)) =>
@@ -1532,6 +1556,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
     case (TDict(elementType), "contains", Array(a)) =>
       AST.evalCompose[Map[String, _], String](ec, lhs, a) { case (m, key) => m.contains(key) }
+
+    case (TInterval, "contains", Array(l)) =>
+      AST.evalCompose[Interval[Locus], Locus](ec, lhs, l) { case (interval, locus) => interval.contains(locus) }
 
     case (TString, "split", Array(a)) =>
       AST.evalCompose[String, String](ec, lhs, a) { case (s, p) => s.split(p): IndexedSeq[String] }
