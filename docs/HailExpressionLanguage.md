@@ -125,6 +125,8 @@ Identifier | Description
 `s` | Sample
 `sa` | Sample annotations
 `g` | Genotype
+`global` | Global annotations
+
 
 ____
 
@@ -134,6 +136,8 @@ Identifier | Description
 :-: | ---
 `s` | Sample
 `sa` | Sample annotations
+`global` | Global annotations
+
 
 ____
 
@@ -143,6 +147,8 @@ Identifier | Description
 :-: | ---
 `v` | Variant
 `va` | Variant annotations
+`global` | Global annotations
+
 
 ### Count
 
