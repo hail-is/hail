@@ -1,8 +1,9 @@
 package org.broadinstitute.hail.variant
 
-import org.testng.annotations.Test
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.check.Prop
+import org.broadinstitute.hail.utils._
+import org.testng.annotations.Test
 
 class IntervalListSuite extends SparkSuite {
 
