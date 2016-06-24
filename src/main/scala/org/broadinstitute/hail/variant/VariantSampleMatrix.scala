@@ -7,7 +7,7 @@ import org.kududb.spark.kudu._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.{SparkContext, SparkEnv, TaskContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
@@ -287,23 +287,28 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def head(n: Long): VariantSampleMatrix[T] = {
 
     info("Getting 1st partition")
+    val mergeResult = (index: Int, taskResult: Int) => taskResult
+    var nVariantsPerPartition = 0
+     rdd.sparkContext.runJob(rdd,
+      (tc: TaskContext, it: Iterator[(Variant, Annotation, Iterable[T])]) => it.size,
+      Seq[Int](1),
+      (index: Int, size: Int) => nVariantsPerPartition = size
+    )
 
-    var rddHead = rdd
+    /**var rddHead = rdd
       .mapPartitionsWithIndex((idx, iter) => if (idx == 0) iter else Iterator())
-      .coalesce(1)(null)
+      .coalesce(1)(null)**/
 
-    val nVariantsPerPartition = rddHead.count()
+    //val nVariantsPerPartition = rddHead.count()
     val nPartitions = math.ceil(n.toDouble/nVariantsPerPartition).toInt
 
     info("%d variants per partitions -> %d partitions".format(nVariantsPerPartition,nPartitions))
 
-    if(nVariantsPerPartition < n){
-      rddHead = rdd
+
+      val rddHead = rdd
         .mapPartitionsWithIndex((idx, iter) => if (idx < nPartitions) iter else Iterator())
         .coalesce(nPartitions)(null)
-    }
 
-    val x = rdd.take(5)
 
     copy(rdd = rddHead.sample(withReplacement = false, n.toDouble/(nVariantsPerPartition*nPartitions), 1))
   }
