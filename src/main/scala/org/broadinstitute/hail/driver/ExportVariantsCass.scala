@@ -85,19 +85,17 @@ object ExportVariantsCass extends Command {
     val ec = EvalContext(symTab)
     val a = ec.a
 
-    val (header, fs) = Parser.parseExportArgs(cond, ec)
-
+    val (header, fs) = Parser.parseNamedArgs(cond, ec)
     if (header.isEmpty)
       fatal("column names required in condition")
 
-    val columns = header.get.split("\t")
     val address = options.address
 
     val query =
       s"""
          |INSERT INTO ${options.table}
-         |(chrom, pos, ref, alt, ${columns.mkString(", ")})
-         |VALUES (?, ?, ?, ?, ${columns.map(_ => "?").mkString(", ")});
+         |(chrom, pos, ref, alt, ${header.mkString(", ")})
+         |VALUES (?, ?, ?, ?, ${header.map(_ => "?").mkString(", ")});
       """.stripMargin
 
     vds.variantsAndAnnotations
