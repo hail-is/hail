@@ -286,7 +286,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def head(n: Long): VariantSampleMatrix[T] = {
 
-    info("Getting 1st partition")
     val mergeResult = (index: Int, taskResult: Int) => taskResult
     var nVariantsPerPartition = 0
      rdd.sparkContext.runJob(rdd,
@@ -295,22 +294,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       (index: Int, size: Int) => nVariantsPerPartition = size
     )
 
-    /**var rddHead = rdd
-      .mapPartitionsWithIndex((idx, iter) => if (idx == 0) iter else Iterator())
-      .coalesce(1)(null)**/
-
-    //val nVariantsPerPartition = rddHead.count()
     val nPartitions = math.ceil(n.toDouble/nVariantsPerPartition).toInt
 
-    info("%d variants per partitions -> %d partitions".format(nVariantsPerPartition,nPartitions))
-
-
-      val rddHead = rdd
-        .mapPartitionsWithIndex((idx, iter) => if (idx < nPartitions) iter else Iterator())
+    copy(rdd
+        .mapPartitionsWithIndex((idx, iter) =>
+          if (idx < nPartitions) if(idx == nPartitions-1) iter.take((n % nVariantsPerPartition).toInt) else iter else Iterator())
         .coalesce(nPartitions)(null)
-
-
-    copy(rdd = rddHead.sample(withReplacement = false, n.toDouble/(nVariantsPerPartition*nPartitions), 1))
+    )
   }
 
   def mapValues[U](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
