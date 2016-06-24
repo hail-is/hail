@@ -67,6 +67,7 @@ object ToplevelCommands {
   register(GRM)
   register(GQByDP)
   register(GQHist)
+  register(Head)
   register(ImportAnnotations)
   register(ImportVCF)
   register(ImputeSex)

@@ -16,7 +16,7 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{AccumulableParam, Partitioner, SparkContext}
+import org.apache.spark._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -324,6 +324,53 @@ class RichSparkContext(val sc: SparkContext) extends AnyVal {
       .map(l => WithContext(l, TextContext(l, file, None)))
 }
 
+class HeadRDD[T](prev: RDD[T], num: Int, exact: Boolean)(implicit tct: ClassTag[T]) extends RDD[T](prev) {
+
+  private var nLastPart = 0
+  private var lastPart = 0
+
+  def getPartitions: Array[Partition] = {
+    val buf = new mutable.ArrayBuffer[Int]
+
+    buf ++= prev.sparkContext.runJob(prev, (it: Iterator[T]) => it.length, Seq(0))
+    if (exact || buf.length == 0) {
+      while (buf.sum < num && buf.length < prev.partitions.length) {
+        buf ++= prev.sparkContext.runJob(prev, (it: Iterator[T]) => it.length,
+          buf.length to
+            buf.length +
+              (if (buf.sum > 0) math.min(((num - buf.sum) / (buf.sum / buf.length).toDouble).ceil.toInt, prev.partitions.length)
+              else 1)
+        )
+      }
+
+      def f(n: Int, i: Int): Unit = {
+        if (n + buf(i) > num) {
+          lastPart = i
+          nLastPart = num - n
+        } else {
+          f(n + buf(i), i + 1)
+        }
+      }
+
+      f(0, 0)
+      firstParent.partitions
+        .take(lastPart + 1)
+        .zipWithIndex
+        .filter({ case (p, pi) => buf(pi) > 0 })
+        .map(_._1)
+    } else {
+      lastPart = math.min((num + buf.sum - 1) / buf.sum, prev.partitions.length)
+      nLastPart = Int.MaxValue
+      firstParent.partitions.take(lastPart + 1)
+    }
+  }
+
+  def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    if (split.index == lastPart)  firstParent.iterator(split, context).take(nLastPart)
+    else  firstParent.iterator(split, context)
+  }
+}
+
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
@@ -367,6 +414,14 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       hadoopDelete(tmpFileName, hConf, recursive = true)
     }
   }
+
+  def head(n: Int, exact: Boolean)(implicit tct: ClassTag[T]): RDD[T] = {
+    if (n == 0)
+      r.sparkContext.emptyRDD[T]
+    else
+      new HeadRDD(r, n, exact)
+  }
+
 }
 
 class SpanningIterator[K, V](val it: Iterator[(K, V)]) extends Iterator[(K, Iterable[V])] {
