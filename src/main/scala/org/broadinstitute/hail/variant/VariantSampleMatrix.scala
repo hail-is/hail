@@ -284,6 +284,30 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
     copy(rdd = rdd.sample(withReplacement = false, fraction, 1))
 
+  def head(n: Long): VariantSampleMatrix[T] = {
+
+    info("Getting 1st partition")
+
+    var rddHead = rdd
+      .mapPartitionsWithIndex((idx, iter) => if (idx == 0) iter else Iterator())
+      .coalesce(1)(null)
+
+    val nVariantsPerPartition = rddHead.count()
+    val nPartitions = math.ceil(n.toDouble/nVariantsPerPartition).toInt
+
+    info("%d variants per partitions -> %d partitions".format(nVariantsPerPartition,nPartitions))
+
+    if(nVariantsPerPartition < n){
+      rddHead = rdd
+        .mapPartitionsWithIndex((idx, iter) => if (idx < nPartitions) iter else Iterator())
+        .coalesce(nPartitions)(null)
+    }
+
+    val x = rdd.take(5)
+
+    copy(rdd = rddHead.sample(withReplacement = false, n.toDouble/(nVariantsPerPartition*nPartitions), 1))
+  }
+
   def mapValues[U](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     mapValuesWithAll((v, va, s, sa, g) => f(g))
   }
