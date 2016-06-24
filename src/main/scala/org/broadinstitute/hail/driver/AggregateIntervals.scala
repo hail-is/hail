@@ -57,11 +57,10 @@ object AggregateIntervals extends Command {
     ec.set(1, vds.globalAnnotation)
     aggregationEC.set(2, vds.globalAnnotation)
 
-    val (h, fs) = if (cond.endsWith(".columns"))
+    val (header, fs) = if (cond.endsWith(".columns"))
       ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
     else
-      Parser.parseExportArgs(cond, ec)
-    val header = h.get.split("\t")
+      Parser.parseNamedArgs(cond, ec)
 
     if (header.isEmpty)
       fatal("this module requires one or more named expr arguments")
