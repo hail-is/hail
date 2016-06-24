@@ -30,7 +30,7 @@ object AnnotateVariantsIntervals extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val (iList, signature) = IntervalListAnnotator(options.input, state.hadoopConf)
-    val annotated = vds.annotateInvervals(iList, signature,
+    val annotated = vds.annotateIntervals(iList, signature,
       Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
     state.copy(vds = annotated)
   }

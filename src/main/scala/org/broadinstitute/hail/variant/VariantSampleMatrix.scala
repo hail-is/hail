@@ -29,7 +29,7 @@ object VariantSampleMatrix {
   }
 
   private def readMetadata(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false,
-                          requireParquetSuccess: Boolean = true): VariantMetadata = {
+    requireParquetSuccess: Boolean = true): VariantMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
@@ -135,7 +135,7 @@ object VariantSampleMatrix {
   }
 
   def readKudu(sqlContext: SQLContext, dirname: String, tableName: String,
-      master: String): VariantDataset = {
+    master: String): VariantDataset = {
 
     val metadata = readMetadata(sqlContext, dirname, skipGenotypes = false,
       requireParquetSuccess = false)
@@ -154,7 +154,8 @@ object VariantSampleMatrix {
         val genotypeStream = GenotypeStream(variant, Some(r.getAs[Int]("genotypes_byte_len")), b)
         (variant, (annotations, genotypeStream))
       })
-    }).spanByKey().map(kv => { // combine variant rows with different sample groups (no shuffle)
+    }).spanByKey().map(kv => {
+      // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
       val annotations = kv._2.head._1 // just use first annotation
       val genotypes = kv._2.flatMap(_._2) // combine genotype streams
@@ -376,8 +377,16 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, va, gs) => p(v, va, gs) })
 
-  def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
-    filterVariants((v, va, gs) => ilist.contains(v.contig, v.start))
+  def filterIntervals(gis: GenomicIntervalSet, keep: Boolean = true): VariantSampleMatrix[T] = {
+    val gisBc = sparkContext.broadcast(gis)
+    filterVariants { (v, va, gs) =>
+      val inInterval = gisBc.value.contains(v.contig, v.start)
+      if (keep)
+        inInterval
+      else
+        !inInterval
+    }
+  }
 
   def dropSamples(): VariantSampleMatrix[T] =
     copy(sampleIds = IndexedSeq.empty[String],
@@ -570,14 +579,30 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def annotateInvervals(iList: IntervalList, signature: Type, path: List[String]): VariantSampleMatrix[T] = {
-    val (newSignature, inserter) = insertVA(signature, path)
-    val booleanSignature = newSignature == TBoolean
-    val newRDD = if (booleanSignature)
-      rdd.map { case (v, va, gs) => (v, inserter(va, Some(iList.contains(v.contig, v.start))), gs) }
-    else
-      rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
-    copy(rdd = newRDD, vaSignature = newSignature)
+  def annotateIntervals(is: GenomicIntervalSet,
+    arg: Option[(Type, Map[GenomicInterval, Annotation])],
+    path: List[String]): VariantSampleMatrix[T] = {
+
+    val isBc = sparkContext.broadcast(is)
+    arg match {
+      case Some((sig, m)) =>
+        val (newSignature, inserter) = insertVA(sig, path)
+        val mBc = sparkContext.broadcast(m)
+        copy(rdd = rdd.map { case (v, va, gs) =>
+          val queries = isBc.value.query(v.contig, v.start)
+          val toIns = if (queries.isEmpty)
+            None
+          else
+            Some(m(queries.head))
+          (v, inserter(va, toIns), gs)
+        },
+          vaSignature = newSignature)
+
+      case None =>
+        val (newSignature, inserter) = insertVA(TBoolean, path)
+        copy(rdd = rdd.map { case (v, va, gs) => (v, inserter(va, Some(isBc.value.contains(v.contig, v.start))), gs) },
+          vaSignature = newSignature)
+    }
   }
 
   def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: Type,
@@ -689,7 +714,7 @@ class RichVDS(vds: VariantDataset) {
       StructField("gs", GenotypeStream.schema, nullable = false)
     ))
 
-  private def writeMetadata(sqlContext: SQLContext, dirname: String,compress: Boolean = true) = {
+  private def writeMetadata(sqlContext: SQLContext, dirname: String, compress: Boolean = true) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -749,8 +774,8 @@ class RichVDS(vds: VariantDataset) {
   }
 
   def writeKudu(sqlContext: SQLContext, dirname: String, tableName: String,
-                master: String, vcfSeqDict: String, rowsPerPartition: Int,
-                sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
+    master: String, vcfSeqDict: String, rowsPerPartition: Int,
+    sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
 
     writeMetadata(sqlContext, dirname, compress)
 
@@ -802,7 +827,7 @@ class RichVDS(vds: VariantDataset) {
 
     val kuduContext = new KuduContext(master)
     df.write
-      .options(Map("kudu.master"-> master, "kudu.table"-> tableName))
+      .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
       .mode("append").kudu
 
     println("Written to Kudu")
