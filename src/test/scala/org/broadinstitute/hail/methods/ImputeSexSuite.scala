@@ -40,7 +40,7 @@ class ImputeSexSuite extends SparkSuite {
 
         s = SplitMulti.run(s, Array.empty[String])
         s = VariantQC.run(s, Array[String]())
-        s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.MAC > 0"))
+        s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.AC > 0"))
 
         if (s.vds.nSamples < 5 || s.vds.nVariants < 5) {
           true
@@ -68,7 +68,8 @@ class ImputeSexSuite extends SparkSuite {
           val result = mergeResults.map { case (sample, (data1, data2)) =>
 
             val (plink_sex, plink_f) = data1.map { case (sex, f) => (sex, f) }.get
-            val (hail_sex: Option[Int], hail_f: Option[Double]) = data2.map { case (sex, f) => (sex, f) }.get
+            val (hail_sex, hail_f) = data2.map { case (sex, f) => (sex.map(_.asInstanceOf[Int]),
+              f.map(_.asInstanceOf[Double])) }.get
 
             val resultSex = plink_sex == hail_sex
             val resultF = if (plink_f.isDefined && hail_f.isDefined) math.abs(plink_f.get - hail_f.get) < 1e-3 else plink_f == hail_f
