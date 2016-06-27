@@ -1,11 +1,11 @@
 package org.broadinstitute.hail
 
-import org.apache.spark.rdd.RDD
 import scala.language.implicitConversions
-import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
 
 package object variant {
   type VariantDataset = VariantSampleMatrix[Genotype]
+
+  case class GenomicIndex(contig: String, position: Int)
 
   class RichIterableGenotype(val it: Iterable[Genotype]) extends AnyVal {
     def toGenotypeStream(v: Variant, compress: Boolean): GenotypeStream =

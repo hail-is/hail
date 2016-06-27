@@ -112,8 +112,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
 
     val sampleList1 = Array("foo1", "foo2", "foo3", "foo4")
-    val sampleList2 = Array("C1046::HG02024","C1046::HG02025","C1046::HG02026",
-      "C1047::HG00731","C1047::HG00732","C1047::HG00733","C1048::HG02024")
+    val sampleList2 = Array("C1046::HG02024", "C1046::HG02025", "C1046::HG02026",
+      "C1047::HG00731", "C1047::HG00732", "C1047::HG00733", "C1048::HG02024")
     val sampleList3 = s.vds.sampleIds.toArray
 
     val fileRoot = tmpDir.createTempFile(prefix = "sampleListAnnotator")
@@ -129,14 +129,14 @@ class ImportAnnotationsSuite extends SparkSuite {
     val (_, querier2) = s.vds.querySA("sa.test2")
     val (_, querier3) = s.vds.querySA("sa.test3")
 
-    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier1(sa).get == false})
-    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier3(sa).get == true})
-    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier2(sa).get == sampleList2.contains(sample)})
+    assert(s.vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier1(sa).get == false })
+    assert(s.vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier3(sa).get == true })
+    assert(s.vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier2(sa).get == sampleList2.contains(sample) })
   }
 
   @Test def testVariantTSVAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
+    val state = SplitMulti.run(State(sc, sqlContext, vds))
 
     val fileMap = readFile("src/test/resources/variantAnnotations.tsv", sc.hadoopConfiguration) { reader =>
       Source.fromInputStream(reader)
@@ -177,7 +177,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
   @Test def testVCFAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
+    val state = SplitMulti.run(State(sc, sqlContext, vds))
 
     val anno1 = AnnotateVariants.run(state, Array("vcf", "src/test/resources/sampleInfoOnly.vcf", "--root", "va.other"))
 
@@ -202,7 +202,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
   @Test def testBedIntervalAnnotator() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = Cache.run(SplitMulti.run(State(sc, sqlContext, vds), noArgs), noArgs)
+    val state = Cache.run(SplitMulti.run(State(sc, sqlContext, vds)))
 
     val bed1r = AnnotateVariants.run(state, Array("bed", "-i", "src/test/resources/example1.bed", "-r", "va.test"))
     val bed2r = AnnotateVariants.run(state, Array("bed", "-i", "src/test/resources/example2.bed", "-r", "va.test"))
@@ -279,7 +279,8 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val jsonSchema = "Struct { Rand1: Double, Rand2: Double, Gene: String, contig: String, start: Int, ref: String, alt: String }"
     // FIXME better way to array-ify
-    val vFields = """root.contig, root.start, root.ref, root.alt.split("/")"""
+    val vFields =
+      """root.contig, root.start, root.ref, root.alt.split("/")"""
 
     s = ImportAnnotations.run(s0,
       Array("json", "src/test/resources/importAnnot.json", "--vfields", vFields, "-t", jsonSchema))
@@ -295,7 +296,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
   @Test def testAnnotateSamples() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
+    val state = SplitMulti.run(State(sc, sqlContext, vds))
 
     val annoMap = vds.sampleIds.map(id => (id, 5))
       .toMap
@@ -310,7 +311,27 @@ class ImportAnnotationsSuite extends SparkSuite {
         case (s, i) =>
           assert(q(vds2.sampleAnnotations(i)) == Some(5))
       }
+  }
 
+  @Test def testPositions() {
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
+    var state = State(sc, sqlContext, vds)
+    state = SplitMulti.run(state)
+
+
+    val byPosition = AnnotateVariants.run(state,
+      Array("positions",
+        "src/test/resources/sample2_va_positions.tsv",
+        "-t", "Rand1:Double,Rand2:Double",
+        "-r", "va.stuff"))
+
+    val byVariant = AnnotateVariants.run(state,
+      Array("table",
+        "src/test/resources/sample2_va_nomulti.tsv",
+        "-t", "Rand1:Double,Rand2:Double",
+        "-r", "va.stuff"))
+
+    assert(byPosition.vds.same(byVariant.vds))
   }
 }
 

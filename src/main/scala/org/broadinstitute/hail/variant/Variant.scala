@@ -175,6 +175,8 @@ case class Variant(contig: String,
   require(start >= 0, s"created a variant with negative position: `${this.toString}'")
   require(!ref.isEmpty, s"created a variant with an empty ref string: `${this.toString}'")
 
+  def index: GenomicIndex = GenomicIndex(contig, start)
+
   def nAltAlleles: Int = altAlleles.length
 
   def isBiallelic: Boolean = nAltAlleles == 1

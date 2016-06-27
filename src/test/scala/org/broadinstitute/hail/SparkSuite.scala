@@ -12,7 +12,6 @@ import org.apache.hadoop
 class SparkSuite extends TestNGSuite {
   var sc: SparkContext = null
   var sqlContext: SQLContext = null
-  val noArgs: Array[String] = Array.empty[String]
 
   def hadoopConf: hadoop.conf.Configuration =
     sc.hadoopConfiguration
