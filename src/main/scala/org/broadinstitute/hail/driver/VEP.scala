@@ -243,11 +243,11 @@ object VEP extends Command {
       fatal("property `hail.vep.location' required")
 
     val cacheDir = properties.getProperty("hail.vep.cache_dir")
-    if (location == null)
+    if (cacheDir == null)
       fatal("property `hail.vep.cache_dir' required")
 
     val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
-    if (location == null)
+    if (humanAncestor == null)
       fatal("property `hail.vep.human_ancestor' required")
 
     val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
