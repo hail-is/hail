@@ -24,7 +24,7 @@ class PipelineSuite extends SparkSuite {
       "-o", mendelBase))
     s = Count.run(s, Array.empty[String])
 
-    s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.MAF > 0.01 && va.qc.MAF < 0.99"))
+    s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.AF > 0.01 && va.qc.AF < 0.99"))
 
     s = PCA.run(s, Array("-o", pcaFile))
 

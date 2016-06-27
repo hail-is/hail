@@ -57,8 +57,8 @@ Additionally, users can import annotations from a variety of files, or define ne
 Identifier | Type | Description
 --- | :-: | ---
 `callRate` | `Double` | Fraction of samples with called genotypes
-`MAF` | `Double` | Calculated minor allele frequency (q)
-`MAC` | `   Int` | Count of alternate alleles
+`AF` | `Double` | Calculated alternate allele frequency (q)
+`AC` | `   Int` | Count of alternate alleles
 `rHeterozygosity` | `Double` | Proportion of heterozygotes
 `rHetHomVar` | `Double` | Ratio of heterozygotes to homozygous alternates
 `rExpectedHetFrequency` | `Double` | Expected rHeterozygosity based on HWE

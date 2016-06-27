@@ -86,7 +86,7 @@ It is also possible to export without identifiers, which will result in a file w
 exportsamples -c 's.id, sa.qc.rTiTv' -o file.tsv
 ```
 ```
-exportvariants -c 'v,va.pass,va.qc.MAF' -o file.tsv
+exportvariants -c 'v,va.pass,va.qc.AF' -o file.tsv
 ```
 ```
 exportgenotypes -c 'v,s.id,g.gq' -o file.tsv
