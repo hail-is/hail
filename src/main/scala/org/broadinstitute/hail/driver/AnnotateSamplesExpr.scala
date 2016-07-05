@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.Inserter
+import org.broadinstitute.hail.annotations.{Annotation, Inserter}
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.Aggregators
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -31,42 +31,31 @@ object AnnotateSamplesExpr extends Command {
 
     val cond = options.condition
     val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, vds.saSignature),
+      "g" -> (4, TGenotype),
+      "global" -> (5, vds.globalSignature)))
 
     val symTab = Map(
-      "s" ->(0, TSample),
-      "sa" ->(1, vds.saSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, TAggregable(aggregationEC)))
+      "s" -> (0, TSample),
+      "sa" -> (1, vds.saSignature),
+      "global" -> (2, vds.globalSignature),
+      "gs" -> (-1, TAggregable(aggregationEC)))
 
     val ec = EvalContext(symTab)
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val parsed = Parser.parseAnnotationArgs(cond, ec)
-
-    val keyedSignatures = parsed.map { case (ids, t, f) =>
-      if (ids.head != "sa")
-        fatal(s"Path must start with `sa', got `${ids.mkString(".")}'")
-      val sig = t match {
-        case tws: Type => tws
-        case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
-      }
-      (ids.tail, sig)
-    }
-    val computations = parsed.map(_._3)
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Annotation.SAMPLE_HEAD)
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
+    val finalType = parseTypes.foldLeft(vds.saSignature) { case (sas, (ids, signature)) =>
 
-      val (s, i) = v.insertSA(signature, ids)
+      val (s, i) = sas.insert(signature, ids)
       inserterBuilder += i
-      v.copy(saSignature = s)
+      s
     }
     val inserters = inserterBuilder.result()
 
@@ -74,20 +63,20 @@ object AnnotateSamplesExpr extends Command {
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
-    val newAnnotations = vdsAddedSigs.sampleIdsAndAnnotations.map { case (s, sa) =>
+    val newAnnotations = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
 
       ec.setAll(s, sa)
 
       sampleAggregationOption.foreach(f => f.apply(s))
 
-      val queries = computations.map(_ ())
-      var newSA = sa
-      queries.indices.foreach { i =>
-        newSA = inserters(i)(newSA, queries(i))
-      }
-      newSA
+      fns.zip(inserters)
+        .foldLeft(sa) { case (sa, (fn, inserter)) =>
+          inserter(sa, fn())
+        }
     }
-    val annotated = vdsAddedSigs.copy(sampleAnnotations = newAnnotations)
-    state.copy(vds = annotated)
+    state.copy(vds = vds.copy(
+      sampleAnnotations = newAnnotations,
+      saSignature = finalType
+    ))
   }
 }

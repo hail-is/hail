@@ -1,8 +1,10 @@
 package org.broadinstitute.hail.expr
 
+import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
 
+import scala.io.Source
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -60,6 +62,16 @@ object Parser extends JavaTokenParsers {
       }
   }
 
+  def parseIdentifierList(code: String): Array[String] = {
+    if (code.matches("""\s*"""))
+      Array.empty[String]
+    else
+      parseAll(identifierList, code) match {
+        case Success(result, _) => result
+        case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+      }
+  }
+
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
@@ -70,53 +82,92 @@ object Parser extends JavaTokenParsers {
     }
 
     ts.foreach(_.typecheck(ec))
-    val fs = ts.map { ast =>
-      val f = ast.eval(ec)
-      ast.`type` match {
-        case t: Type => (t, () => Option(f()))
-        case bt => fatal(s"invalid export type: `$bt'")
+    val fs = ts.map { t =>
+      val f = t.eval(ec)
+      (t.`type` match {
+        case t: Type => t
+        case bt => fatal(s"""tried to export invalid type `$bt'""")
+      }, () => Option(f()))
+    }
+
+    (header, fs)
+  }
+
+  def parseColumnsFile(
+    ec: EvalContext,
+    path: String,
+    hConf: hadoop.conf.Configuration): (Array[String], Array[(Type, () => Option[Any])]) = {
+    val pairs = readFile(path, hConf) { reader =>
+      Source.fromInputStream(reader)
+        .getLines()
+        .filter(!_.isEmpty)
+        .map { line =>
+          val cols = line.split("\t")
+          if (cols.length != 2)
+            fatal("invalid .columns file.  Include 2 columns, separated by a tab")
+          (cols(0), cols(1))
+        }.toArray
+    }
+
+    val header = pairs.map(_._1)
+    val fs = pairs.map { case (_, e) =>
+      val (bt, f) = parse(e, ec)
+      bt match {
+        case t: Type => (t, f)
+        case _ => fatal(
+          s"""invalid export expression resulting in unprintable type `$bt'
+              |  Offending expression: `$e'
+             """.stripMargin)
       }
     }
 
     (header, fs)
   }
 
-  def parseNamedArgs(code: String, ec: EvalContext): (Array[String], Array[() => Option[Any]]) = {
+  def parseNamedArgs(code: String, ec: EvalContext): (Array[(String, Type, () => Option[Any])]) = {
     val args = parseAll(named_args, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(String, AST)]]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
-    val names = args.map(_._1)
-    val fns = args.map(_._2)
-    fns.foreach(_.typecheck(ec))
-    (names, fns.map { t =>
-      val f = t.eval(ec)
-      () => Option(f())
-    })
+    args.map { case (id, ast) =>
+      ast.typecheck(ec)
+      val t = ast.`type` match {
+        case t: Type => t
+        case _ => fatal(
+          s"""invalid export expression resulting in unprintable type `${ast.`type`}'""".stripMargin)
+      }
+      val f = ast.eval(ec)
+      (id, t, () => Option(f()))
+    }
   }
 
-  def parseAnnotationArgs(code: String, ec: EvalContext): (Array[(List[String], Type, () => Option[Any])]) = {
+  def parseAnnotationArgs(code: String, ec: EvalContext, expectedHead: String): (Array[(List[String], Type)], Array[() => Option[Any]]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(List[String], AST)]]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
     def checkType(l: List[String], t: BaseType): Type = {
-      t match {
-        case tws: Type => tws
-        case _ => fatal(
-          s"""Annotations must be stored as types with schema.
-              |  Got invalid type `$t' from the result of `${l.mkString(".")}'""".stripMargin)
-      }
+      if (l.head == expectedHead)
+        t match {
+          case t: Type => t
+          case _ => fatal(
+            s"""Annotations must be stored as types with schema.
+                |  Got invalid type `$t' from the result of `${l.mkString(".")}'""".stripMargin)
+        } else fatal(
+        s"""invalid annotation path `${l.map(prettyIdentifier).mkString(".")}'
+            |  Path should begin with `$expectedHead'
+           """.stripMargin)
     }
 
-    arr.map {
+    val all = arr.map {
       case (path, ast) =>
         ast.typecheck(ec)
         val t = checkType(path, ast.`type`)
         val f = ast.eval(ec)
-        (path, t, () => Option(f()))
+        ((path.tail, t), () => Option(f()))
     }
+    (all.map(_._1), all.map(_._2))
   }
 
   def parseAnnotationRoot(code: String, root: String): List[String] = {
@@ -240,6 +291,10 @@ object Parser extends JavaTokenParsers {
   def tsvIdentifier: Parser[String] = backtickLiteral | """[^\s\p{Cntrl}=,]+""".r
 
   def identifier = backtickLiteral | ident
+
+  def identifierList: Parser[Array[String]] = rep1sep(identifier, ",") ^^ {
+    _.toArray
+  }
 
   def args: Parser[Array[AST]] =
     repsep(expr, ",") ^^ {

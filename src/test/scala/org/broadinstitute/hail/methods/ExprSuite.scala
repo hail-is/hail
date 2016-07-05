@@ -5,7 +5,7 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
-import org.broadinstitute.hail.variant.Genotype
+import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -310,6 +310,9 @@ class ExprSuite extends SparkSuite {
     TestUtils.interceptFatal("invalid arguments for method `drop'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,b,c,d,e) """))
 
+    assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
+    assert(eval[Variant]("""Variant("1", 1, "A", ["T", "G"])""").contains(Variant("1", 1, "A", Array("T", "G"))))
+    assert(eval[Boolean]("""let v = Variant("1", 1, "A", "T") in Variant(str(v)) == v""").contains(true))
 
     // FIXME catch parse errors
     assert(eval(""" "\``\''" """) == eval(""" "``''" """))

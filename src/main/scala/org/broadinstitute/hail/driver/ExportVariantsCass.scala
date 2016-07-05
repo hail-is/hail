@@ -132,35 +132,27 @@ object ExportVariantsCass extends Command {
     val qualifiedTable = keyspace + "." + table
 
     val vSymTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vas))
+      "v" -> (0, TVariant),
+      "va" -> (1, vas))
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
 
-    val vparsed = Parser.parseAnnotationArgs(vCond, vEC)
-      .map { case (name, t, f) =>
-        assert(name.tail == Nil)
-        (name.head, t, f)
-      }
+    val vparsed = Parser.parseNamedArgs(vCond, vEC)
 
     val gSymTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vas),
-      "s" ->(2, TSample),
-      "sa" ->(3, sas),
-      "g" ->(4, TGenotype))
+      "v" -> (0, TVariant),
+      "va" -> (1, vas),
+      "s" -> (2, TSample),
+      "sa" -> (3, sas),
+      "g" -> (4, TGenotype))
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
-    val gparsed = Parser.parseAnnotationArgs(gCond, gEC)
-      .map { case (name, t, f) =>
-        assert(name.tail == Nil)
-        (name.head, t, f)
-      }
+    val gparsed = Parser.parseNamedArgs(gCond, gEC)
 
     val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vas))
+      "v" -> (0, TVariant),
+      "va" -> (1, vas))
     val ec = EvalContext(symTab)
     val a = ec.a
 

@@ -3,10 +3,10 @@ package org.broadinstitute.hail.expr
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.{Annotation, _}
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 import org.json4s._
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 abstract class AnnotationImpex[T, A] {
   // FIXME for now, schema must be specified on import
@@ -28,7 +28,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         c
     }.mkString
   }
-  
+
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType) => requiresConversion(elementType)
     case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant => true
@@ -274,13 +274,13 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
       case (JInt(x), TDouble) => x.toDouble
       case (JInt(x), TString) => x.toString
       case (JDouble(x), TDouble) => x
-      case (JDouble(x), TFloat) => x.toFloat
-      case (JString(x), TString) => x
-      case (JString(x), TChar) => x
       case (JString("Infinity"), TDouble) => Double.PositiveInfinity
       case (JString("-Infinity"), TDouble) => Double.NegativeInfinity
       case (JString("Infinity"), TFloat) => Float.PositiveInfinity
       case (JString("-Infinity"), TFloat) => Float.NegativeInfinity
+      case (JDouble(x), TFloat) => x.toFloat
+      case (JString(x), TString) => x
+      case (JString(x), TChar) => x
       case (JString(x), TInt) =>
         x.toInt
       case (JString(x), TDouble) =>
@@ -332,5 +332,61 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         null
     }
   }
+}
 
+object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
+
+  private val sb = new StringBuilder
+
+  // Tables have no schema
+  def exportType(t: Type): Unit = ()
+
+  def exportAnnotation(a: Annotation, t: Type): String = {
+    if (a == null)
+      "NA"
+    else {
+      t match {
+        case TDouble => a.asInstanceOf[Double].formatted("%.4e")
+        case TString => a.asInstanceOf[String]
+        case d: TDict => JsonMethods.compact(d.toJSON(a))
+        case it: TIterable => JsonMethods.compact(it.toJSON(a))
+        case t: TStruct => JsonMethods.compact(t.toJSON(a))
+        case _ => a.toString
+      }
+    }
+  }
+
+  def importAnnotation(a: String, t: Type): Annotation = {
+    (t: @unchecked) match {
+      case TString => a
+      case TInt => a.toInt
+      case TLong => a.toLong
+      case TFloat => a.toFloat
+      case TDouble => a.toDouble
+      case TBoolean => a.toBoolean
+      case TVariant => a.split(":") match {
+        case Array(chr, pos, ref, alt) => Variant(chr, pos.toInt, ref, alt.split(","))
+      }
+      case TAltAllele => a.split("/") match {
+        case Array(ref, alt) => AltAllele(ref, alt)
+      }
+      case TGenotype => a.split(":").map(x => if (x == "." || x == "./.") None else Some(x)) match {
+        case Array(gtStr, adStr, dpStr, gqStr, plStr) =>
+          val gt = gtStr.map { gt =>
+            val Array(gti, gtj) = gt.split("/").map(_.toInt)
+            Genotype.gtIndex(gti, gtj)
+          }
+          val ad = adStr.map(_.split(",").map(_.toInt))
+          val dp = dpStr.map(_.toInt)
+          val gq = gqStr.map(_.toInt)
+          val pl = plStr.map(_.split(",").map(_.toInt))
+          Genotype(gt, ad, dp, gq, pl, false)
+      }
+      case TChar => a
+      case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case t: TStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+    }
+  }
 }

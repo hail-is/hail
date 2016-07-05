@@ -40,10 +40,6 @@ object LinearRegressionCommand extends Command {
       "sa" -> (1, vds.saSignature))
 
     val ec = EvalContext(symTab)
-    val sb = new StringBuilder
-    vds.saSignature.pretty(sb, 0, true)
-
-    val a = ec.a
 
     def toDouble(t: BaseType, code: String): Any => Double = t match {
       case TInt => _.asInstanceOf[Int].toDouble
@@ -57,16 +53,14 @@ object LinearRegressionCommand extends Command {
     val (yT, yQ) = Parser.parse(options.ySA, ec)
     val yToDouble = toDouble(yT, options.ySA)
     val ySA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      a(0) = s
-      a(1) = sa
+      ec.setAll(s, sa)
       yQ().map(yToDouble)
     }
 
     val (covT, covQ) = Parser.parseExprs(options.covSA, ec).unzip
     val covToDouble = (covT, options.covSA.split(",").map(_.trim)).zipped.map(toDouble)
     val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      a(0) = s
-      a(1) = sa
+      ec.setAll(s, sa)
       (covQ.map(_()), covToDouble).zipped.map(_.map(_))
     }
 

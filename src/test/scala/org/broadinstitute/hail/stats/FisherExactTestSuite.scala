@@ -96,7 +96,7 @@ class FisherExactTestSuite extends SparkSuite {
           phenotypes.foreach{case (sample, p) => w.write(s"$sample\t$p\n")}
         }
 
-        s = AnnotateSamplesTable.run(s, Array("-i", phenotypeFile, "-r", "sa.pheno"))
+        s = AnnotateSamplesTable.run(s, Array("-i", phenotypeFile, "-r", "sa.pheno", "-e", "Sample"))
 
         s = AnnotateVariantsExpr.run(s, Array("-c", """va.macCase = gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHomVar)"""))
         s = AnnotateVariantsExpr.run(s, Array("-c", """va.majCase = gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHomRef)"""))

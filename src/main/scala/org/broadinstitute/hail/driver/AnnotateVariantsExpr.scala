@@ -50,40 +50,28 @@ object AnnotateVariantsExpr extends Command {
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val parsed = Parser.parseAnnotationArgs(cond, ec)
-
-    val keyedSignatures = parsed.map { case (ids, t, f) =>
-      if (ids.head != "va")
-        fatal(s"Path must start with `va', got `${ids.mkString(".")}'")
-      val sig = t match {
-        case tws: Type => tws
-        case _ => fatal(s"got an invalid type `$t' from the result of `${ids.mkString(".")}'")
-      }
-      (ids.tail, sig)
-    }
-    val computations = parsed.map(_._3)
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Annotation.VARIANT_HEAD)
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
-      val (s, i) = v.insertVA(signature, ids)
+    val finalType = parseTypes.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
+      val (s, i) = vas.insert(signature, ids)
       inserterBuilder += i
-      v.copy(vaSignature = s)
+      s
     }
     val inserters = inserterBuilder.result()
 
     val aggregateOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
-    val annotated = vdsAddedSigs.mapAnnotations { case (v, va, gs) =>
+    val annotated = vds.mapAnnotations { case (v, va, gs) =>
       ec.setAll(v, va)
 
       aggregateOption.foreach(f => f(v, va, gs))
 
-      var newVA = va
-      computations.indices.foreach { i =>
-        newVA = inserters(i)(newVA, computations(i)())
-      }
-      newVA
-    }
+      fns.zip(inserters)
+        .foldLeft(va) { case (va, (fn, inserter)) =>
+          inserter(va, fn())
+        }
+    }.copy(vaSignature = finalType)
     state.copy(vds = annotated)
   }
 

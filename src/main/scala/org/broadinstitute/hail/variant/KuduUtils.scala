@@ -6,16 +6,18 @@ import htsjdk.samtools.SAMSequenceDictionary
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr.{AnnotationImpex, SparkAnnotationImpex}
 import org.broadinstitute.hail.expr
-import org.kududb.{ColumnSchema, Schema, Type}
+import org.broadinstitute.hail.expr.{AnnotationImpex, SparkAnnotationImpex}
 import org.kududb.client.{CreateTableOptions, KuduClient}
+import org.kududb.{ColumnSchema, Schema, Type}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 object KuduAnnotationImpex extends AnnotationImpex[DataType, Any] {
+  def supportsType(t: expr.Type): Boolean = true
+
   def exportType(t: expr.Type): DataType = flatten(SparkAnnotationImpex.exportType(t))
 
   def exportAnnotation(a: Annotation, t: expr.Type): Any = flatten(SparkAnnotationImpex.exportAnnotation(a, t), t)

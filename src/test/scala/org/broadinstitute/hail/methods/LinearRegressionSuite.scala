@@ -19,12 +19,14 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
+      "-e", "Sample",
       "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
+      "-e", "Sample",
       "--types", "Pheno: Double",
       "--missing", "0"))
 
@@ -118,6 +120,7 @@ class LinearRegressionSuite extends SparkSuite {
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
       "--types", "Pheno: Int",
+      "-e", "Sample",
       "--missing", "0"))
 
     s = LinearRegressionCommand.run(s, Array(
@@ -187,6 +190,7 @@ class LinearRegressionSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
+      "-e", "Sample",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamplesFam.run(s, Array(
@@ -269,6 +273,7 @@ class LinearRegressionSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
+      "-e", "Sample",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamplesFam.run(s, Array(
@@ -353,11 +358,13 @@ class LinearRegressionSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
+      "-e", "Sample",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
+      "-e", "Sample",
       "--types", "Pheno: String",
       "--missing", "0"))
 
@@ -378,11 +385,13 @@ class LinearRegressionSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.cov",
       "--root", "sa.cov",
+      "-e", "Sample",
       "--types", "Cov1: Double, Cov2: String"))
 
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/linearRegression.pheno",
       "--root", "sa.pheno",
+      "-e", "Sample",
       "--types", "Pheno: Double",
       "--missing", "0"))
 
