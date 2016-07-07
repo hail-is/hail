@@ -493,7 +493,7 @@ object Genotype {
         rawWeights(i) = p.rng.nextUniform(0d, 1d)
       }
       val alleleFrequencies = rawWeights.map(_ / rawWeights.sum)
-      for (gt <- Gen.option(Gen.choose2WithWeights(alleleFrequencies)
+      for (gt <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
         .map { case (gti, gtj) => gtIndexWithSwap(gti, gtj) }, callRate);
            ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
              Gen.choose(0, 50)));

@@ -7,6 +7,7 @@ import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
 
 import scala.collection.mutable
+import scala.math.Numeric.Implicits._
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value

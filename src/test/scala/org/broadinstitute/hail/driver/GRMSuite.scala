@@ -6,7 +6,7 @@ import breeze.linalg.DenseMatrix
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Prop}
-import org.broadinstitute.hail.variant.{Genotype, VSMSubGens, Variant, VariantSampleMatrix}
+import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.{SparkSuite, TempDir}
 import org.testng.annotations.Test
 
@@ -133,8 +133,7 @@ class GRMSuite extends SparkSuite {
     val grmNBinFile = tmpDir.createTempFile("test", ".grm.N.bin")
 
     Prop.check(forAll(VariantSampleMatrix.gen[Genotype](sc,
-      VSMSubGens(tGen = (v: Variant) => Genotype.genRealistic(v).filter(_.isCalled),
-        vGen = Variant.genPlinkCompatible))
+      VDSGens.realistic.copy(tGen = Genotype.genRealistic(_).filter(_.isCalled)))
       // plink fails with fewer than 2 samples, no variants
       .filter(vsm => vsm.nSamples > 1 && vsm.nVariants > 0),
       Gen.oneOf("rel", "gcta-grm", "gcta-grm-bin")) {

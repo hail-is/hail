@@ -147,36 +147,73 @@ object VariantSampleMatrix {
     genVariantValues(nSamples, Genotype.gen)
 
   def gen[T](sc: SparkContext,
-    gens: VSMSubGens[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    for (vaSig <- gens.vaSigGen;
-         saSig <- gens.saSigGen;
-         globalSig <- gens.globalSigGen;
-         sampleIds <- gens.sampleIdGen;
-         global <- gens.globalGen(globalSig);
-         saValues <- gens.saGen(sampleIds.length, saSig);
+    gen: VSMSubGen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
+    for (vaSig <- gen.vaSigGen;
+         saSig <- gen.saSigGen;
+         globalSig <- gen.globalSigGen;
+         sampleIds <- gen.sampleIdGen;
+         global <- gen.globalGen(globalSig);
+         saValues <- gen.saGen(sampleIds.length, saSig);
          rows <- Gen.distinctBuildableOf[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
-           for (v <- gens.vGen;
-                va <- gens.vaGen(vaSig);
-                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, gens.tGen(v)))
+           for (v <- gen.vGen;
+                va <- gen.vaGen(vaSig);
+                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, gen.tGen(v)))
              yield (v, va, ts)))
       yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig), sc.parallelize(rows))
   }
-
-  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
-    gen(sc, VSMSubGens[T](tGen = g))
 }
 
-case class VSMSubGens[T](
-  sampleIdGen: Gen[IndexedSeq[String]] = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
-  saSigGen: Gen[Type] = Type.genArb,
-  vaSigGen: Gen[Type] = Type.genArb,
-  globalSigGen: Gen[Type] = Type.genArb,
-  saGen: (Int, Type) => Gen[IndexedSeq[Annotation]] = (nSamples: Int, t: Type) =>
-    Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(t.genValue)),
-  vaGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
-  globalGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
-  vGen: Gen[Variant] = Variant.gen,
-  tGen: (Variant) => Gen[T])
+abstract class VSMSubGen[T] {
+  def sampleIdGen: Gen[IndexedSeq[String]]
+
+  def saSigGen: Gen[Type]
+
+  def vaSigGen: Gen[Type]
+
+  def globalSigGen: Gen[Type]
+
+  def saGen: (Int, Type) => Gen[IndexedSeq[Annotation]]
+
+  def vaGen: (Type) => Gen[Annotation]
+
+  def globalGen: (Type) => Gen[Annotation]
+
+  def vGen: Gen[Variant]
+
+  def tGen: (Variant) => Gen[T]
+}
+
+object VDSGens {
+  case class Realistic(
+    sampleIdGen: Gen[IndexedSeq[String]] = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
+    saSigGen: Gen[Type] = Type.genArb,
+    vaSigGen: Gen[Type] = Type.genArb,
+    globalSigGen: Gen[Type] = Type.genArb,
+    saGen: (Int, Type) => Gen[IndexedSeq[Annotation]] = (nSamples: Int, t: Type) =>
+      Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(t.genValue)),
+    vaGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
+    globalGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
+    vGen: Gen[Variant] = Variant.genPlinkCompatible,
+    tGen: (Variant) => Gen[Genotype] = Genotype.genRealistic
+  ) extends VSMSubGen[Genotype]
+
+  case class Random(
+    sampleIdGen: Gen[IndexedSeq[String]] = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
+    saSigGen: Gen[Type] = Type.genArb,
+    vaSigGen: Gen[Type] = Type.genArb,
+    globalSigGen: Gen[Type] = Type.genArb,
+    saGen: (Int, Type) => Gen[IndexedSeq[Annotation]] = (nSamples: Int, t: Type) =>
+      Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(t.genValue)),
+    vaGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
+    globalGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
+    vGen: Gen[Variant] = Variant.gen,
+    tGen: (Variant) => Gen[Genotype] = Genotype.gen
+  ) extends VSMSubGen[Genotype]
+
+  def random = Random()
+
+  def realistic = Realistic()
+}
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
   val rdd: RDD[(Variant, Annotation, Iterable[T])])

@@ -1,10 +1,10 @@
 package org.broadinstitute.hail.check
 
 import org.apache.commons.math3.random._
-import org.broadinstitute.hail.Utils._
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
+import scala.math.Numeric.Implicits._
 
 object Parameters {
   val default = Parameters(new RandomDataGenerator(), 100, 100)
@@ -82,39 +82,22 @@ object Gen {
     }
   }
 
-  def chooseWithWeights(weights: Array[Double]): Gen[Int] = {
-    assert(weights.forall(x => 0 <= x && x <= 1) && D_==(weights.sum, 1))
-    val cumulativeWeights = Array.fill[Double](weights.length)(0)
-    weights
-      .zipWithIndex
-      .foldLeft(0d)({ case (sum, (element, i)) =>
-        cumulativeWeights(i) = sum + element
-        sum + element
-      })
-    Gen { (p: Parameters) =>
-      val d = p.rng.nextUniform(0, 1)
-      val ind = cumulativeWeights.indexWhere(_ >= d)
-      if (ind < 0) weights.length else ind
-    }
-  }
+  def chooseWithWeights(weights: Array[Double]): Gen[Int] =
+    frequency(weights.zipWithIndex.map { case (w, i) => (w, Gen.const(i)) }: _*)
 
-  def choose2WithWeights(weights: Array[Double]): Gen[(Int, Int)] =
-    zip(chooseWithWeights(weights), chooseWithWeights(weights))
-
-  def frequency[T](wxs: (Int, Gen[T])*): Gen[T] = {
+  def frequency[T, U](wxs: (T, Gen[U])*)(implicit ev: T => scala.math.Numeric[T]#Ops): Gen[U] = {
     assert(wxs.nonEmpty)
 
-    val running = new Array[Int](wxs.length)
-    running(0) = 0
+    val running = Array.fill[Double](wxs.length)(0d)
     for (i <- 1 until wxs.length)
-      running(i) = running(i - 1) + wxs(i - 1)._1
+      running(i) = running(i - 1) + wxs(i - 1)._1.toDouble
 
-    val outOf = running.last + wxs.last._1
+    val outOf = running.last + wxs.last._1.toDouble
 
     Gen { (p: Parameters) =>
-      val v = p.rng.getRandomGenerator.nextInt(outOf)
-      val t = java.util.Arrays.binarySearch(running, v)
-      val j = if (t < 0) -t - 2 else t
+      val v = p.rng.getRandomGenerator.nextDouble * outOf.toDouble
+      val t = running.indexWhere(x => x >= v) - 1
+      val j = if (t < 0) running.length - 1 else t
       assert(j >= 0 && j < wxs.length)
       assert(v >= running(j)
         && (j == wxs.length - 1 || v < running(j + 1)))
