@@ -63,11 +63,11 @@ object FilterVariantsList extends Command {
         rdd =
           if (keep)
             in
-              .join(variants)
+              .joinDistinct(variants)
               .map { case (v, ((va, gs), _)) => (v, va, gs) }
           else
             in
-              .leftOuterJoin(variants)
+              .leftOuterJoinDistinct(variants)
               .flatMap {
                 case (v, ((va, gs), Some(_))) =>
                   None

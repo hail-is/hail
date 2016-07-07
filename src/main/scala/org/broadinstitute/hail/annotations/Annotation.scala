@@ -59,6 +59,12 @@ object Annotation {
           x.toDouble
       case (JBool(x), TBoolean) => x
 
+      case (JObject(a), TDict(elementType)) =>
+        a.map { case (key, value) =>
+          (key, fromJson(value, elementType, parent))
+        }
+          .toMap
+
       case (JObject(jfields), t: TStruct) =>
         if (t.size == 0)
           Annotation.empty

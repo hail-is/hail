@@ -21,7 +21,7 @@ object TestRDDBuilder {
   val plDefault = 120
   val plMax = 1800
 
-  val defaultMAF = 0.25
+  val defaultAF = 0.25
 
   val defaultRef = "A"
   val defaultAlt = "T"
@@ -44,8 +44,8 @@ object TestRDDBuilder {
   def pullGT(): Int = {
     // pulls a genotype call according to HWE and defaultMAF
     val pull = Random.nextFloat()
-    val homVarThreshold = defaultMAF * defaultMAF
-    val hetThreshold = homVarThreshold + 2 * defaultMAF * (1 - defaultMAF)
+    val homVarThreshold = defaultAF * defaultAF
+    val hetThreshold = homVarThreshold + 2 * defaultAF * (1 - defaultAF)
     pull match {
       case x if x < homVarThreshold => 2
       case x if x < hetThreshold => 1

@@ -154,6 +154,25 @@ class VSMSuite extends SparkSuite {
     p.check()
   }
 
+  @Test(enabled = false) def testKuduReadWrite() {
+
+    val vcf = "src/test/resources/multipleChromosomes.vcf"
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array(vcf))
+    s = SplitMulti.run(s) // Kudu doesn't support multi-allelic yet
+
+    val table = "variants_test"
+    val master = "quickstart.cloudera"
+    hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
+
+    s = WriteKudu.run(s, Array("-o", "/tmp/foo.vds", "-t", table, "-m", master,
+      "--vcf-seq-dict", vcf, "--rows-per-partition", "300000000", "--drop"))
+
+    val s2 = ReadKudu.run(s, Array("-i", "/tmp/foo.vds", "-t", table, "-m", master))
+
+    assert(s.vds.same(s2.vds))
+  }
+
   @Test def testFilterSamples() {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()

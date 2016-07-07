@@ -14,7 +14,7 @@ case class Interval(contig: String, start: Int, end: Int, identifier: Option[Ann
 
 object IntervalList {
 
-  val intervalRegex = """([^:]*):(\d+)-(\d+)""".r
+  val intervalRegex = """([^:]*)[:\t](\d+)[\-\t](\d+)""".r
 
   def apply(intervals: Traversable[Interval]): IntervalList = {
     val m = mutable.Map[String, TreeMap[Int, (Int, Option[Annotation])]]()
@@ -39,8 +39,9 @@ object IntervalList {
                   // FIXME proper input error handling
                   assert(direction == "+" || direction == "-")
                   Interval(contig, start.toInt, end.toInt)
+
                 case _ => fatal("invalid interval format" +
-                  "\n  expected: `chr:start-end' or `chr  start  end  strand  target' (tab-separated)")
+                  "\n  expected: `chr:start-end' or `chr  start  end  strand  target' (tab-separated) or `chr  start  end' (tab-separated)")
               }
             }
           })

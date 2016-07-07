@@ -1,6 +1,6 @@
 # Linear Regression
 
-The `linreg` command computes, for each variant, the p-value of the t-test for the genotype coefficient of the linear function of best fit from sample genotype and covariates to
+The `linreg` command computes, for each variant, statistics of the t-test for the genotype coefficient of the linear function of best fit from sample genotype and covariates to
 quantitative phenotype or case-control status.
 
 Command line options:

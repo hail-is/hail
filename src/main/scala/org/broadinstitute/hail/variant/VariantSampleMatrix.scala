@@ -1,15 +1,19 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
+import java.util
 
+import org.kududb.spark.kudu._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StructField, StructType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.vcf.BufferedLineIterator
+import org.kududb.spark.kudu.KuduContext
 
 import scala.io.Source
 import scala.language.implicitConversions
@@ -24,7 +28,8 @@ object VariantSampleMatrix {
     new VariantSampleMatrix(metadata, rdd)
   }
 
-  def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
+  private def readMetadata(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false,
+                          requireParquetSuccess: Boolean = true): VariantMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
@@ -71,7 +76,7 @@ object VariantSampleMatrix {
         }
       }
 
-    if (!hadoopExists(hConf, pqtSuccess))
+    if (requireParquetSuccess && !hadoopExists(hConf, pqtSuccess))
       fatal("corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
 
     if (!hadoopExists(hConf, vaSchema, saSchema, globalSchema))
@@ -96,9 +101,14 @@ object VariantSampleMatrix {
     }
 
 
-    val metadata = VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
+    VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
       saSignature, vaSignature, globalSignature, wasSplit)
+  }
 
+  def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
+
+    val metadata = readMetadata(sqlContext, dirname, skipGenotypes)
+    val vaSignature = metadata.vaSignature
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
@@ -122,6 +132,35 @@ object VariantSampleMatrix {
             if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
             row.getGenotypeStream(v, 2))
         })
+  }
+
+  def readKudu(sqlContext: SQLContext, dirname: String, tableName: String,
+      master: String): VariantDataset = {
+
+    val metadata = readMetadata(sqlContext, dirname, skipGenotypes = false,
+      requireParquetSuccess = false)
+
+    val df = sqlContext.read.options(
+      Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
+    val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = df.rdd.mapPartitions(iter => {
+      val ser = SparkEnv.get.serializer.newInstance()
+      iter.map(r => {
+        val variant = Variant(r.getAs[String]("contig"), r.getAs[Int]("start"),
+          r.getAs[String]("ref"), r.getAs[String]("alt"))
+        val annotations = Annotation.empty // TODO: deserialize annotations
+        val bb = r.getAs[ByteBuffer]("genotypes")
+        val b = new Array[Byte](bb.remaining)
+        bb.get(b)
+        val genotypeStream = GenotypeStream(variant, Some(r.getAs[Int]("genotypes_byte_len")), b)
+        (variant, (annotations, genotypeStream))
+      })
+    }).spanByKey().map(kv => { // combine variant rows with different sample groups (no shuffle)
+      val variant = kv._1
+      val annotations = kv._2.head._1 // just use first annotation
+      val genotypes = kv._2.flatMap(_._2) // combine genotype streams
+      (variant, annotations, genotypes)
+    })
+    new VariantSampleMatrix[Genotype](metadata, rdd)
   }
 
   def genValues[T](nSamples: Int, g: Gen[T]): Gen[Iterable[T]] =
@@ -577,7 +616,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     path: List[String]): VariantSampleMatrix[T] = {
     val (newSignature, inserter) = insertVA(signature, path)
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
-      .leftOuterJoin(otherRDD)
+      .leftOuterJoinDistinct(otherRDD)
       .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
@@ -670,6 +709,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     globalSignature.insert(sig, path)
   }
 
+  override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
 }
 
 // FIXME AnyVal Scala 2.11
@@ -681,7 +721,7 @@ class RichVDS(vds: VariantDataset) {
       StructField("gs", GenotypeStream.schema, nullable = false)
     ))
 
-  def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
+  private def writeMetadata(sqlContext: SQLContext, dirname: String,compress: Boolean = true) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -720,6 +760,10 @@ class RichVDS(vds: VariantDataset) {
         ss.close()
       }
     }
+  }
+
+  def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
+    writeMetadata(sqlContext, dirname, compress)
 
     val vaSignature = vds.vaSignature
     val vaRequiresConversion = vaSignature.requiresConversion
@@ -734,6 +778,66 @@ class RichVDS(vds: VariantDataset) {
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
+  }
+
+  def writeKudu(sqlContext: SQLContext, dirname: String, tableName: String,
+                master: String, vcfSeqDict: String, rowsPerPartition: Int,
+                sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
+
+    writeMetadata(sqlContext, dirname, compress)
+
+    val hConf = sqlContext.sparkContext.hadoopConfiguration
+    val headerLines = readFile(vcfSeqDict, hConf) { s =>
+      Source.fromInputStream(s)
+        .getLines()
+        .takeWhile { line => line(0) == '#' }
+        .toArray
+    }
+    val codec = new htsjdk.variant.vcf.VCFCodec()
+    val seqDict = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+      .getHeaderValue
+      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+      .getSequenceDictionary
+    if (drop) {
+      KuduUtils.dropTable(master, tableName)
+      Thread.sleep(10 * 1000) // wait to avoid overwhelming Kudu service queue
+    }
+    KuduUtils.createTableIfNecessary(master, tableName, seqDict, rowsPerPartition)
+
+    val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = vds.rdd
+    val rowRdd = rdd.map {
+      case (v, va, gs) =>
+        val stream = gs.toGenotypeStream(v, compress)
+        Row(
+          KuduUtils.normalizeContig(v.contig),
+          v.start,
+          v.ref,
+          v.allele(1), // TODO: remove biallelic assumption
+          sampleGroup,
+          v.contig,
+          new Array[Byte](0), // TODO: serialize annotations
+          stream.decompLenOption.get,
+          stream.a
+        )
+    }
+    val schema = StructType(List(
+      StructField("contig_norm", StringType, nullable = false),
+      StructField("start", IntegerType, nullable = false),
+      StructField("ref", StringType, nullable = false),
+      StructField("alt", StringType, nullable = false),
+      StructField("sample_group", StringType, nullable = false),
+      StructField("contig", StringType, nullable = false),
+      StructField("annotations", BinaryType, nullable = true),
+      StructField("genotypes_byte_len", IntegerType, nullable = true),
+      StructField("genotypes", BinaryType, nullable = true)))
+    val df = sqlContext.createDataFrame(rowRdd, schema)
+
+    val kuduContext = new KuduContext(master)
+    df.write
+      .options(Map("kudu.master"-> master, "kudu.table"-> tableName))
+      .mode("append").kudu
+
+    println("Written to Kudu")
   }
 
   def eraseSplit: VariantDataset = {

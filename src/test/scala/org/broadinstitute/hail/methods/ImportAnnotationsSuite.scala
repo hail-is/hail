@@ -71,8 +71,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamCaseControl.fam"))
     val m = qMap("sa.fam", s)
 
-    assert(m("A").contains(Annotation("Newton", "C", "D", true, false)))
-    assert(m("B").contains(Annotation("Turing", "C", "D", false, true)))
+    assert(m("A").contains(Annotation("Newton", "C", "D", false, false)))
+    assert(m("B").contains(Annotation("Turing", "C", "D", true, true)))
     assert(m("C").contains(Annotation(null, null, null, null, null)))
     assert(m("D").contains(Annotation(null, null, null, null, null)))
     assert(m("E").contains(Annotation(null, null, null, null, null)))
@@ -86,8 +86,8 @@ class ImportAnnotationsSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("fam", "-i", "src/test/resources/importFamQPheno.fam", "-q"))
     val m1 = qMap("sa.fam", s)
 
-    assert(m1("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
-    assert(m1("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
+    assert(m1("A").contains(Annotation("Newton", "C", "D", false, 1.0)))
+    assert(m1("B").contains(Annotation("Turing", "C", "D", true, 2.0)))
     assert(m1("C").contains(Annotation(null, null, null, null, 0.0)))
     assert(m1("D").contains(Annotation(null, null, null, null, -9.0)))
     assert(m1("E").contains(Annotation(null, null, null, null, null)))
@@ -98,13 +98,40 @@ class ImportAnnotationsSuite extends SparkSuite {
       Array("fam", "-i", "src/test/resources/importFamQPheno.space.m9.fam", "-q", "-d", "\\\\s+", "-m", "-9", "-r", "sa.ped"))
     val m2 = qMap("sa.ped", s)
 
-    assert(m2("A").contains(Annotation("Newton", "C", "D", true, 1.0)))
-    assert(m2("B").contains(Annotation("Turing", "C", "D", false, 2.0)))
+    assert(m2("A").contains(Annotation("Newton", "C", "D", false, 1.0)))
+    assert(m2("B").contains(Annotation("Turing", "C", "D", true, 2.0)))
     assert(m2("C").contains(Annotation(null, null, null, null, 0.0)))
     assert(m2("D").contains(Annotation(null, null, null, null, null)))
     assert(m2("E").contains(Annotation(null, null, null, null, 3.0)))
     assert(m2("F").isEmpty)
 
+  }
+
+  @Test def testSampleListAnnotator() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+
+    val sampleList1 = Array("foo1", "foo2", "foo3", "foo4")
+    val sampleList2 = Array("C1046::HG02024","C1046::HG02025","C1046::HG02026",
+      "C1047::HG00731","C1047::HG00732","C1047::HG00733","C1048::HG02024")
+    val sampleList3 = s.vds.sampleIds.toArray
+
+    val fileRoot = tmpDir.createTempFile(prefix = "sampleListAnnotator")
+    writeTable(fileRoot + "file1.txt", sc.hadoopConfiguration, sampleList1)
+    writeTable(fileRoot + "file2.txt", sc.hadoopConfiguration, sampleList2)
+    writeTable(fileRoot + "file3.txt", sc.hadoopConfiguration, sampleList3)
+
+    s = AnnotateSamples.run(s, Array("list", "-i", fileRoot + "file1.txt", "-r", "sa.test1"))
+    s = AnnotateSamples.run(s, Array("list", "-i", fileRoot + "file2.txt", "-r", "sa.test2"))
+    s = AnnotateSamples.run(s, Array("list", "-i", fileRoot + "file3.txt", "-r", "sa.test3"))
+
+    val (_, querier1) = s.vds.querySA("sa.test1")
+    val (_, querier2) = s.vds.querySA("sa.test2")
+    val (_, querier3) = s.vds.querySA("sa.test3")
+
+    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier1(sa).get == false})
+    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier3(sa).get == true})
+    assert(s.vds.sampleIdsAndAnnotations.forall{case (sample, sa) => querier2(sa).get == sampleList2.contains(sample)})
   }
 
   @Test def testVariantTSVAnnotator() {

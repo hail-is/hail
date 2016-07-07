@@ -44,7 +44,7 @@ class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {
       val r = f(v1)
       if (!r) {
         println(s"""! ${prefix}Falsified after $i passed tests.""")
-        println("> ARG_0: $v1")
+        println(s"> ARG_0: $v1")
         assert(r)
       }
     }
@@ -61,8 +61,8 @@ class GenProp2[T1, T2](g1: Gen[T1], g2: Gen[T2], f: (T1, T2) => Boolean) extends
       val r = f(v1, v2)
       if (!r) {
         println(s"! ${prefix}Falsified after $i passed tests.")
-        println("> ARG_0: $v1")
-        println("> ARG_1: $v2")
+        println(s"> ARG_0: $v1")
+        println(s"> ARG_1: $v2")
         assert(r)
       }
     }
@@ -80,9 +80,9 @@ class GenProp3[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], f: (T1, T2, T3
       val r = f(v1, v2, v3)
       if (!r) {
         println(s"! ${prefix}Falsified after $i passed tests.")
-        println("> ARG_0: $v1")
-        println("> ARG_1: $v2")
-        println("> ARG_2: $v3")
+        println(s"> ARG_0: $v1")
+        println(s"> ARG_1: $v2")
+        println(s"> ARG_2: $v3")
         assert(r)
       }
     }

@@ -38,7 +38,7 @@ object BedAnnotator {
           .filter(l => !l.value.isEmpty)
           .map { l => l.transform { line =>
             val arr = line.value.split("""\s+""")
-            Interval(arr(0), arr(1).toInt, arr(2).toInt,
+            Interval(arr(0), arr(1).toInt + 1, arr(2).toInt, //transform BED 0-based coordinates to Hail/VCF 1-based coordinates
               if (getString)
                 Some(arr(3))
               else

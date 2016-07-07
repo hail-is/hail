@@ -45,11 +45,10 @@ object ExportVariantsSolr extends Command {
     val ec = EvalContext(symTab)
     val a = ec.a
 
-    val (header, fs) = Parser.parseExportArgs(cond, ec)
+    val (header, fs) = Parser.parseNamedArgs(cond, ec)
     if (header.isEmpty)
       fatal("column names required in condition")
 
-    val columns = header.get.split("\t")
     val url = options.url
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
@@ -65,7 +64,7 @@ object ExportVariantsSolr extends Command {
         document.addField("ref", v.ref)
         document.addField("pos", v.alt) */
 
-        fs.zip(columns).foreach { case (f, col) =>
+        fs.zip(header).foreach { case (f, col) =>
           a(0) = v
           a(1) = va
           document.addField(col, f().asInstanceOf[AnyRef])
