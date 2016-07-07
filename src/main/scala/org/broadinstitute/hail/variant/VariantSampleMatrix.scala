@@ -1,9 +1,7 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
-import java.util
 
-import org.kududb.spark.kudu._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -13,7 +11,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.vcf.BufferedLineIterator
-import org.kududb.spark.kudu.KuduContext
+import org.kududb.spark.kudu.{KuduContext, _}
 
 import scala.io.Source
 import scala.language.implicitConversions
