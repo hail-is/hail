@@ -13,20 +13,20 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithTwoCov() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
       "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.pheno",
-      "--root", "sa.pheno",
+      "-i", "src/test/resources/regressionLinear.pheno",
       "-e", "Sample",
+      "--root", "sa.pheno",
       "--types", "Pheno: Double",
       "--missing", "0"))
 
@@ -112,15 +112,15 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithNoCov() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.pheno",
+      "-i", "src/test/resources/regressionLinear.pheno",
+      "-e", "Sample",
       "--root", "sa.pheno",
       "--types", "Pheno: Int",
-      "-e", "Sample",
       "--missing", "0"))
 
     s = LinearRegressionCommand.run(s, Array(
@@ -183,18 +183,18 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithImportFamBoolean() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
-      "--root", "sa.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
+      "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamplesFam.run(s, Array(
-      "-i", "src/test/resources/linearRegression.fam"))
+      "-i", "src/test/resources/regressionLinear.fam"))
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.fam.isCase",
@@ -266,18 +266,18 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithImportFam() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
-      "--root", "sa.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
+      "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamplesFam.run(s, Array(
-      "-i", "src/test/resources/linearRegression.fam",
+      "-i", "src/test/resources/regressionLinear.fam",
       "-q",
       "-m", "0"))
 
@@ -351,20 +351,20 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testNonNumericPheno() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
-      "--root", "sa.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
+      "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.pheno",
-      "--root", "sa.pheno",
+      "-i", "src/test/resources/regressionLinear.pheno",
       "-e", "Sample",
+      "--root", "sa.pheno",
       "--types", "Pheno: String",
       "--missing", "0"))
 
@@ -378,20 +378,20 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testNonNumericCov() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
-      "--root", "sa.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
+      "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: String"))
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.pheno",
-      "--root", "sa.pheno",
+      "-i", "src/test/resources/regressionLinear.pheno",
       "-e", "Sample",
+      "--root", "sa.pheno",
       "--types", "Pheno: Double",
       "--missing", "0"))
 

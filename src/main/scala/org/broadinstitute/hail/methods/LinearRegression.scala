@@ -103,8 +103,6 @@ class LinRegBuilder extends Serializable {
 }
 
 object LinearRegression {
-  def name = "LinearRegression"
-
   def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]]): LinearRegression = {
     require(cov.forall(_.rows == y.size))
 

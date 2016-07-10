@@ -1,6 +1,7 @@
 package org.broadinstitute.hail
 
 import org.apache.commons.math3.distribution.HypergeometricDistribution
+import org.apache.commons.math3.special.Gamma
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr.{TDouble, TInt, TStruct}
 import org.broadinstitute.hail.utils._
@@ -314,5 +315,17 @@ package object stats {
     }
 
     Array(Option(pvalue), oddsRatioEstimate, confInterval._1, confInterval._2)
+  }
+
+  // This implementation avoids the round-off error truncation issue in
+  // org.apache.commons.math3.distribution.ChiSquaredDistribution,
+  // which computes the CDF with regularizedGammaP and p = 1 - CDF.
+  def chiSquaredTail(df: Double, x: Double) = Gamma.regularizedGammaQ(df / 2, x / 2)
+
+  def uninitialized[T]: T = {
+    class A {
+      var x: T = _
+    }
+    (new A).x
   }
 }

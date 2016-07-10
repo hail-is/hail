@@ -48,6 +48,7 @@ Additionally, users can import annotations from a variety of files, or define ne
  - [`importgen`](#importgen) -- rsID and variant ID
  - [`importvcf`](#importvcf) -- INFO field from VCF
  - [`linreg`](#linreg) -- linear regression test statistics
+ - [`logreg`](#logreg) -- logistic regression test statistics
  - [`splitmulti`](#splitmulti) -- information on whether a variant was originally multi-allelic
  - [`variantqc`](#variantqc) -- variant qc summary statistics
  - [`vep`](#vep) -- Variant Effect Predictor output
