@@ -172,8 +172,12 @@ object VEP extends Command {
     "variant_class" -> TString)
 
   def printContext(w: (String) => Unit) {
-    w("##fileformat=VCFv4.1")
-    w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
+    w("##fileformat=VCFv4.1\n")
+    w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\n")
+  }
+
+  def printSep(w: (String) => Unit) {
+    w("\n")
   }
 
   def printElement(w: (String) => Unit, v: Variant) {
@@ -299,7 +303,8 @@ object VEP extends Command {
         .flatMap(_.iterator.pipe(pb,
           printContext,
           printElement,
-          _ => ())
+          _ => (),
+          printSep)
           .map { s =>
             val a = Annotation.fromJson(parse(s), vepSignature, "<root>")
             val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])

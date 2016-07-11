@@ -65,6 +65,8 @@ object ToplevelCommands {
   register(FilterVariants)
   register(GenDataset)
   register(Grep)
+  register(GroupTest)
+  register(GroupTestSKATO)
   register(GRM)
   register(GQByDP)
   register(GQHist)
