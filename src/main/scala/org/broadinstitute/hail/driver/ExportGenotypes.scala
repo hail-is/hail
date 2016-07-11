@@ -1,11 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable.ArrayBuffer
 
 object ExportGenotypes extends Command {
 

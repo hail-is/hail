@@ -2,7 +2,7 @@ package org.broadinstitute.hail.io.annotators
 
 import org.apache.hadoop
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 

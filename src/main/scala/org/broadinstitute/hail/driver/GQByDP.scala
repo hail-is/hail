@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.methods.GQByDPBins
 import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import sys.process._
 import scala.language.postfixOps
 

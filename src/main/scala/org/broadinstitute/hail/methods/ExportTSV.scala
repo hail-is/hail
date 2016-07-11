@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.hadoop
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 
 import scala.io.Source

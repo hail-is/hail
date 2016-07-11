@@ -5,7 +5,7 @@ import org.apache.solr.common.SolrInputDocument
 import org.broadinstitute.hail.expr.{EvalContext, Parser, TArray, TVariant}
 
 import scala.collection.JavaConverters._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable

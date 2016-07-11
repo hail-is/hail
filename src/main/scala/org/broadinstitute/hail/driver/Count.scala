@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import java.text.NumberFormat
 import java.util.Locale
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object Count extends Command {

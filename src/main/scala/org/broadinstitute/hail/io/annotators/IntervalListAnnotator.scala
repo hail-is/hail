@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.io.annotators
 
 import org.apache.hadoop
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.{Interval, IntervalList}
 

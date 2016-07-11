@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.testng.annotations.Test
 
 class AggregatorSuite extends SparkSuite {

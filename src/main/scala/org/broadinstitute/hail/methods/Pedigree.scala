@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.hadoop
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.Phenotype.{Case, Control, Phenotype}
 import org.broadinstitute.hail.variant.Sex.{Female, Male, Sex}
 import org.broadinstitute.hail.variant.{Phenotype, Sex}

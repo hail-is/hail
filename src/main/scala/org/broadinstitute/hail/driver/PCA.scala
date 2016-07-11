@@ -1,12 +1,12 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.RangePartitioner
+import org.apache.spark.mllib.linalg.{Vector => SVector}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.methods.SamplePCA
-import org.broadinstitute.hail.variant.Variant
-import org.apache.spark.mllib.linalg.{Vector => SVector}
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.Utils._
+
 
 object PCA extends Command {
   def name = "pca"

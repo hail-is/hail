@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.io.annotators
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 

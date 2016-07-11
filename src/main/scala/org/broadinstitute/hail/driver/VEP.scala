@@ -5,9 +5,9 @@ import java.util.Properties
 
 import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._

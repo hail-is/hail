@@ -1,11 +1,9 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.driver.{SampleQC, VariantQC}
+import org.broadinstitute.hail.utils._
 import org.testng.annotations.Test
-import org.broadinstitute.hail.utils.TestRDDBuilder
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.driver.VariantQC
-import org.broadinstitute.hail.driver.SampleQC
 
 class gqDpStatsSuite extends SparkSuite {
   @Test def test() {
@@ -32,19 +30,16 @@ class gqDpStatsSuite extends SparkSuite {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(0).asInstanceOf[Option[Double]].apply,
 //          variantMeans(v.start),a(1).asInstanceOf[Option[Double]].apply, variantDevs(v.start)))
-
-
-
-        simpleAssert(D_==(a.dpSC.mean, variantMeans(v.start - 1)))
-        simpleAssert(D_==(a.dpSC.stdev, variantDevs(v.start - 1)))
+        assert(D_==(a.dpSC.mean, variantMeans(v.start - 1)))
+        assert(D_==(a.dpSC.stdev, variantDevs(v.start - 1)))
     }
 
       dpSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        simpleAssert(D_==(a.dpSC.mean, sampleMeans(samplePositionMap(s))))
-        simpleAssert(D_==(a.dpSC.stdev, sampleDevs(samplePositionMap(s))))
+        assert(D_==(a.dpSC.mean, sampleMeans(samplePositionMap(s))))
+        assert(D_==(a.dpSC.stdev, sampleDevs(samplePositionMap(s))))
     }
 
     // now test GQ
@@ -56,17 +51,16 @@ class gqDpStatsSuite extends SparkSuite {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
 //          .asInstanceOf[Double], variantDevs(v.start)))
-
-        simpleAssert(D_==(a.gqSC.mean, variantMeans(v.start - 1)))
-        simpleAssert(D_==(a.gqSC.stdev, variantDevs(v.start - 1)))
+        assert(D_==(a.gqSC.mean, variantMeans(v.start - 1)))
+        assert(D_==(a.gqSC.stdev, variantDevs(v.start - 1)))
     }
 
     gqSampleR.foreach {
       case (s, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
 //          .asInstanceOf[Double], sampleDevs(s)))
-        simpleAssert(D_==(a.gqSC.mean, sampleMeans(samplePositionMap(s))))
-        simpleAssert(D_==(a.gqSC.stdev, sampleDevs(samplePositionMap(s))))
+        assert(D_==(a.gqSC.mean, sampleMeans(samplePositionMap(s))))
+        assert(D_==(a.gqSC.stdev, sampleDevs(samplePositionMap(s))))
     }
   }
 }

@@ -6,7 +6,7 @@ import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 import sys.process._
 import scala.language._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.variant._

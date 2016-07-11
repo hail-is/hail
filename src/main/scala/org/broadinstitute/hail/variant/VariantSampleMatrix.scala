@@ -8,7 +8,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{SparkContext, SparkEnv}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._

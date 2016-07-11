@@ -1,9 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 

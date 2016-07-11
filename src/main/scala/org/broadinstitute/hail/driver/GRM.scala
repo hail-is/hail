@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import java.io.DataOutputStream
 import breeze.linalg.DenseMatrix
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.methods.ToStandardizedIndexedRowMatrix
 import org.kohsuke.args4j.{Option => Args4jOption}
 
