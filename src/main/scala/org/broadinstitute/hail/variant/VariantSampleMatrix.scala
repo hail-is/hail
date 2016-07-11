@@ -27,7 +27,7 @@ object VariantSampleMatrix {
   }
 
   private def readMetadata(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false,
-                          requireParquetSuccess: Boolean = true): VariantMetadata = {
+    requireParquetSuccess: Boolean = true): VariantMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
@@ -133,7 +133,7 @@ object VariantSampleMatrix {
   }
 
   def readKudu(sqlContext: SQLContext, dirname: String, tableName: String,
-      master: String): VariantDataset = {
+    master: String): VariantDataset = {
 
     val metadata = readMetadata(sqlContext, dirname, skipGenotypes = false,
       requireParquetSuccess = false)
@@ -152,7 +152,8 @@ object VariantSampleMatrix {
         val genotypeStream = GenotypeStream(variant, Some(r.getAs[Int]("genotypes_byte_len")), b)
         (variant, (annotations, genotypeStream))
       })
-    }).spanByKey().map(kv => { // combine variant rows with different sample groups (no shuffle)
+    }).spanByKey().map(kv => {
+      // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
       val annotations = kv._2.head._1 // just use first annotation
       val genotypes = kv._2.flatMap(_._2) // combine genotype streams
@@ -161,95 +162,52 @@ object VariantSampleMatrix {
     new VariantSampleMatrix[Genotype](metadata, rdd)
   }
 
-  def genValues[T](nSamples: Int, g: Gen[T]): Gen[Iterable[T]] =
-    Gen.buildableOfN[Iterable[T], T](nSamples, g)
-
-  def genValues[T](g: Gen[T]): Gen[Iterable[T]] =
-    Gen.buildableOf[Iterable[T], T](g)
-
-  def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
-    for (v <- Variant.gen;
-         values <- genValues[T](nSamples, g(v)))
-      yield (v, values)
-
-  def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
-    for (v <- Variant.gen;
-         values <- genValues[T](g(v)))
-      yield (v, values)
-
-  def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
-    genVariantValues(Genotype.gen)
-
-  def genVariantGenotypes(nSamples: Int): Gen[(Variant, Iterable[Genotype])] =
-    genVariantValues(nSamples, Genotype.gen)
-
   def gen[T](sc: SparkContext,
-    gen: VSMSubGen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    for (vaSig <- gen.vaSigGen;
-         saSig <- gen.saSigGen;
-         globalSig <- gen.globalSigGen;
-         sampleIds <- gen.sampleIdGen;
-         global <- gen.globalGen(globalSig);
-         saValues <- gen.saGen(sampleIds.length, saSig);
-         rows <- Gen.distinctBuildableOf[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
-           for (v <- gen.vGen;
-                va <- gen.vaGen(vaSig);
-                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, gen.tGen(v)))
-             yield (v, va, ts)))
+    gen: VSMSubgen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    gen.gen(sc)
+}
+
+case class VSMSubgen[T](
+  sampleIdGen: Gen[IndexedSeq[String]],
+  saSigGen: Gen[Type],
+  vaSigGen: Gen[Type],
+  globalSigGen: Gen[Type],
+  saGen: (Int, Type) => Gen[IndexedSeq[Annotation]],
+  vaGen: (Type) => Gen[Annotation],
+  globalGen: (Type) => Gen[Annotation],
+  vGen: Gen[Variant],
+  tGen: (Variant) => Gen[T]) {
+
+  def gen(sc: SparkContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    for (vaSig <- vaSigGen;
+      saSig <- saSigGen;
+      globalSig <- globalSigGen;
+      sampleIds <- sampleIdGen;
+      global <- globalGen(globalSig);
+      saValues <- saGen(sampleIds.length, saSig);
+      rows <- Gen.distinctBuildableOf[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
+        for (v <- vGen;
+          va <- vaGen(vaSig);
+          ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, tGen(v)))
+          yield (v, va, ts)))
       yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig), sc.parallelize(rows))
-  }
 }
 
-abstract class VSMSubGen[T] {
-  def sampleIdGen: Gen[IndexedSeq[String]]
-
-  def saSigGen: Gen[Type]
-
-  def vaSigGen: Gen[Type]
-
-  def globalSigGen: Gen[Type]
-
-  def saGen: (Int, Type) => Gen[IndexedSeq[Annotation]]
-
-  def vaGen: (Type) => Gen[Annotation]
-
-  def globalGen: (Type) => Gen[Annotation]
-
-  def vGen: Gen[Variant]
-
-  def tGen: (Variant) => Gen[T]
-}
-
-object VDSGens {
-  case class Realistic(
-    sampleIdGen: Gen[IndexedSeq[String]] = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
-    saSigGen: Gen[Type] = Type.genArb,
-    vaSigGen: Gen[Type] = Type.genArb,
-    globalSigGen: Gen[Type] = Type.genArb,
-    saGen: (Int, Type) => Gen[IndexedSeq[Annotation]] = (nSamples: Int, t: Type) =>
+object VSMSubgen {
+  val random = VSMSubgen[Genotype](
+    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
+    saSigGen = Type.genArb,
+    vaSigGen = Type.genArb,
+    globalSigGen = Type.genArb,
+    saGen = (nSamples: Int, t: Type) =>
       Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(t.genValue)),
-    vaGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
-    globalGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
-    vGen: Gen[Variant] = Variant.genPlinkCompatible,
-    tGen: (Variant) => Gen[Genotype] = Genotype.genRealistic
-  ) extends VSMSubGen[Genotype]
+    vaGen = (t: Type) => t.genValue,
+    globalGen = (t: Type) => t.genValue,
+    vGen = Variant.gen,
+    tGen = Genotype.gen)
 
-  case class Random(
-    sampleIdGen: Gen[IndexedSeq[String]] = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
-    saSigGen: Gen[Type] = Type.genArb,
-    vaSigGen: Gen[Type] = Type.genArb,
-    globalSigGen: Gen[Type] = Type.genArb,
-    saGen: (Int, Type) => Gen[IndexedSeq[Annotation]] = (nSamples: Int, t: Type) =>
-      Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(t.genValue)),
-    vaGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
-    globalGen: (Type) => Gen[Annotation] = (t: Type) => t.genValue,
-    vGen: Gen[Variant] = Variant.gen,
-    tGen: (Variant) => Gen[Genotype] = Genotype.gen
-  ) extends VSMSubGen[Genotype]
-
-  def random = Random()
-
-  def realistic = Realistic()
+  val realistic = random.copy(
+    tGen = Genotype.genRealistic)
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
@@ -719,7 +677,7 @@ class RichVDS(vds: VariantDataset) {
       StructField("gs", GenotypeStream.schema, nullable = false)
     ))
 
-  private def writeMetadata(sqlContext: SQLContext, dirname: String,compress: Boolean = true) = {
+  private def writeMetadata(sqlContext: SQLContext, dirname: String, compress: Boolean = true) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -779,8 +737,8 @@ class RichVDS(vds: VariantDataset) {
   }
 
   def writeKudu(sqlContext: SQLContext, dirname: String, tableName: String,
-                master: String, vcfSeqDict: String, rowsPerPartition: Int,
-                sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
+    master: String, vcfSeqDict: String, rowsPerPartition: Int,
+    sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
 
     writeMetadata(sqlContext, dirname, compress)
 
@@ -832,7 +790,7 @@ class RichVDS(vds: VariantDataset) {
 
     val kuduContext = new KuduContext(master)
     df.write
-      .options(Map("kudu.master"-> master, "kudu.table"-> tableName))
+      .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
       .mode("append").kudu
 
     println("Written to Kudu")

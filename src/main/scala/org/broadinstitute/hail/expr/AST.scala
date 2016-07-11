@@ -7,7 +7,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.stats.LeveneHaldane
-import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant, VariantSubgen}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 

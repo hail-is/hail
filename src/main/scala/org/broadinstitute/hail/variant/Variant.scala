@@ -133,32 +133,7 @@ object Variant {
     }
   }
 
-  def genVariants(nVariants: Int): Gen[Array[Variant]] =
-    Gen.buildableOfN[Array[Variant], Variant](nVariants, gen)
-
-  def gen: Gen[Variant] =
-    for (contig <- Gen.identifier;
-      start <- Gen.posInt;
-      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10)));
-      alleles <- Gen.distinctBuildableOfN[Array[String], String](
-        nAlleles,
-        Gen.frequency((10, genDNAString),
-          (1, Gen.const("*")))) if alleles(0) != "*") yield {
-      val ref = alleles(0)
-      Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
-    }
-
-  def genPlinkCompatible: Gen[Variant] =
-    for (contig <- Gen.oneOfSeq((1 to 22).map(_.toString));
-         start <- Gen.posInt;
-         nAlleles <- Gen.const(2);
-         alleles <- Gen.distinctBuildableOfN[Array[String], String](
-           nAlleles,
-           Gen.frequency((10, genDNAString),
-             (1, Gen.const("*")))) if alleles(0) != "*") yield {
-      val ref = alleles(0)
-      Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
-    }
+  def gen: Gen[Variant] = VariantSubgen.random.gen
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
 
@@ -178,16 +153,38 @@ object Variant {
         .map(s => AltAllele.fromRow(s)))
 }
 
-case class VariantSubGens(
-  contigGen: Gen[String] = Gen.identifier,
-  startGen: Gen[Int] = Gen.posInt,
-  nAlleleGen: Gen[Int] = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
-  allelesGen: (String, Int) => Gen[Array[String]] = (ref: String, nAlleles: Int) =>
-    Gen.distinctBuildableOfN[Array[String], String](
-    nAlleles,
-    Gen.frequency((10, genDNAString),
-      (1, Gen.const("*")))).filter(_(0) != "*")
-)
+object VariantSubgen {
+  val random = VariantSubgen(
+    contigGen = Gen.identifier,
+    startGen = Gen.posInt,
+    nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
+    refGen = genDNAString,
+    altGen = Gen.frequency((10, genDNAString),
+      (1, Gen.const("*"))))
+
+  val plinkCompatible = random.copy(
+    contigGen = Gen.choose(1, 22).map(_.toString)
+  )
+}
+
+case class VariantSubgen(
+  contigGen: Gen[String],
+  startGen: Gen[Int],
+  nAllelesGen: Gen[Int],
+  refGen: Gen[String],
+  altGen: Gen[String]) {
+
+  def gen: Gen[Variant] =
+    for (contig <- contigGen;
+      start <- startGen;
+      nAlleles <- nAllelesGen;
+      ref <- refGen;
+      altAlleles <- Gen.distinctBuildableOfN[Array[String], String](
+        nAlleles,
+        altGen)
+        .filter(!_.contains(ref))) yield
+      Variant(contig, start, ref, altAlleles.tail.map(alt => AltAllele(ref, alt)))
+}
 
 case class Variant(contig: String,
   start: Int,

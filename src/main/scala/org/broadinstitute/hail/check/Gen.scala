@@ -89,8 +89,11 @@ object Gen {
     assert(wxs.nonEmpty)
 
     val running = Array.fill[Double](wxs.length)(0d)
-    for (i <- 1 until wxs.length)
-      running(i) = running(i - 1) + wxs(i - 1)._1.toDouble
+    for (i <- 1 until wxs.length) {
+      val w = wxs(i - 1)._1.toDouble
+      assert(w >= 0d)
+      running(i) = running(i - 1) + w
+    }
 
     val outOf = running.last + wxs.last._1.toDouble
 
