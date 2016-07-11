@@ -1,11 +1,10 @@
 package org.broadinstitute.hail.variant
 
 import net.jpountz.lz4.LZ4Factory
-import org.apache.spark.sql.types.StructType
-import org.broadinstitute.hail.ByteIterator
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
+
 import scala.collection.mutable
 
 // FIXME use zipWithIndex

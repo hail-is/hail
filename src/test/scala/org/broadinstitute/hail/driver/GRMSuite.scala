@@ -1,19 +1,18 @@
 package org.broadinstitute.hail.driver
 
-import java.io.{DataInputStream, File}
-import java.net.URI
+import java.io.DataInputStream
 
 import breeze.linalg.DenseMatrix
-import org.broadinstitute.hail.{SparkSuite, TempDir}
-import org.broadinstitute.hail.check.{Gen, Prop}
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.{Gen, Prop}
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{Genotype, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 import scala.io.Source
-import sys.process._
 import scala.language.postfixOps
+import scala.sys.process._
 
 class GRMSuite extends SparkSuite {
   def loadIDFile(file: String): Array[String] = {

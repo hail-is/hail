@@ -2,7 +2,7 @@ package org.broadinstitute.hail.vcf
 
 import htsjdk.variant.variantcontext.VariantContext
 import org.apache.spark.Accumulable
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.{VCFReport, VCFSettings}

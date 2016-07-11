@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import breeze.linalg._
 import org.apache.commons.math3.distribution.TDistribution
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._

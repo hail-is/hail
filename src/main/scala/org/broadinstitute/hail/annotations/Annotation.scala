@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.annotations
 
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._

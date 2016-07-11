@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.variant.GenotypeType._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{GenotypeType, Genotype}
 import org.kohsuke.args4j.{Option => Args4jOption}
 

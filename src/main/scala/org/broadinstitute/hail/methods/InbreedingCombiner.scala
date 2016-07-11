@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.variant.Genotype
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 class InbreedingCombiner extends Serializable {
   var nCalled = 0

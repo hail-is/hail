@@ -1,12 +1,10 @@
 package org.broadinstitute.hail.variant
 
-import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check._
+import org.broadinstitute.hail.utils._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 

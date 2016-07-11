@@ -1,15 +1,13 @@
 package org.broadinstitute.hail.methods
 
-import java.net.URI
-
-import org.broadinstitute.hail.{SparkSuite, TempDir}
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.testng.annotations.Test
 
 import scala.io.Source
-import sys.process._
 import scala.language._
+import scala.sys.process._
 
 class ExportPlinkSuite extends SparkSuite {
 

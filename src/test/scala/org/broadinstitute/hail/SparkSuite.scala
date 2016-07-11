@@ -1,13 +1,15 @@
 package org.broadinstitute.hail
 
 import java.io.File
+
+import org.apache.hadoop
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{SparkConf, SparkContext}
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.utils._
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.{BeforeClass, AfterClass}
-import org.apache.hadoop
+import org.testng.annotations.{AfterClass, BeforeClass}
 
 class SparkSuite extends TestNGSuite {
   var sc: SparkContext = null

@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.spark.SparkException
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test

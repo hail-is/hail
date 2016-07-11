@@ -8,7 +8,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.collection.JavaConverters._
 import org.apache.hadoop
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 case class Interval(contig: String, start: Int, end: Int, identifier: Option[Annotation] = None)
 

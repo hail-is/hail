@@ -1,10 +1,11 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.{FatalException, SparkSuite}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.driver.{RenameSamples, ImportVCF, State}
+import org.broadinstitute.hail.driver.{ImportVCF, RenameSamples, State}
+import org.broadinstitute.hail.utils._
 import org.testng.annotations.Test
+
 import scala.collection.mutable
 
 class RenameSamplesSuite extends SparkSuite {

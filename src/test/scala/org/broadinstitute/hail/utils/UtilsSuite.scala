@@ -1,11 +1,7 @@
 package org.broadinstitute.hail.utils
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.SpanningIterator
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-
-import org.broadinstitute.hail.Utils._
 
 class UtilsSuite extends SparkSuite {
   @Test def testD_==() {

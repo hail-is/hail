@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.broadinstitute.hail.variant.{Variant, VariantDataset}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 object ToStandardizedIndexedRowMatrix {
   def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {

@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.expr
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position

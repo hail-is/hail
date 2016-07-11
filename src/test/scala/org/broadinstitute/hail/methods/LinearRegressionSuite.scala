@@ -1,10 +1,10 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.TestUtils._
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Querier
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.utils.TestUtils._
 import org.broadinstitute.hail.variant.Variant
 import org.testng.annotations.Test
 

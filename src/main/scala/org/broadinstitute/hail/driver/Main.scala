@@ -6,9 +6,8 @@ import java.util.Properties
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.sql.SQLContext
-import org.broadinstitute.hail.FatalException
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.VCFReport
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{CmdLineException, CmdLineParser, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
