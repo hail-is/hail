@@ -461,12 +461,12 @@ object Genotype {
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-         ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
-           Gen.choose(0, m)));
-         dp <- Gen.option(Gen.choose(0, m));
-         gq <- Gen.option(Gen.choose(0, 10000));
-         pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-           Gen.choose(0, m)))) yield {
+      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
+        Gen.choose(0, m)));
+      dp <- Gen.option(Gen.choose(0, m));
+      gq <- Gen.option(Gen.choose(0, 10000));
+      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
+        Gen.choose(0, m)))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
@@ -486,43 +486,40 @@ object Genotype {
   }
 
   def genRealistic(v: Variant): Gen[Genotype] = {
-    Gen.parameterized { p =>
-      val callRate = p.rng.nextUniform(0d, 1d)
-      val rawWeights = Array.fill[Double](v.nAlleles)(0)
-      for (i <- rawWeights.indices) {
-        rawWeights(i) = p.rng.nextUniform(0d, 1d)
-      }
-      val alleleFrequencies = rawWeights.map(_ / rawWeights.sum)
-      for (gt <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
+    for (callRate <- Gen.choose(0d, 1d);
+      alleleFrequencies <- Gen.buildableOfN[Array[Double], Double](v.nAlleles, Gen.choose(1e-6, 1d))  // avoid divison by 0
+        .map { rawWeights =>
+          val sum = rawWeights.sum
+          rawWeights.map(_ / sum)
+        };
+      gt <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
         .map { case (gti, gtj) => gtIndexWithSwap(gti, gtj) }, callRate);
-           ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
-             Gen.choose(0, 50)));
-           dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d));
-           pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes, Gen.choose(0, 1000)).map { arr =>
-             gt match {
-               case Some(i) =>
-                 arr(i) = 0
-                 arr
-               case None =>
-                 val min = arr.min
-                 arr.map(_ - min)
-             }
-           });
-           gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
-      ) yield {
-        Genotype(gt, ad, dp, gq, pl)
-      }
-    }
+      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
+        Gen.choose(0, 50)));
+      dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d));
+      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes, Gen.choose(0, 1000)).map { arr =>
+        gt match {
+          case Some(i) =>
+            arr(i) = 0
+            arr
+          case None =>
+            val min = arr.min
+            arr.map(_ - min)
+        }
+      });
+      gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
+    ) yield
+      Genotype(gt, ad, dp, gq, pl)
   }
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-         g <- gen(v))
+      g <- gen(v))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-         g <- gen(v))
+      g <- gen(v))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)

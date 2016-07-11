@@ -6,7 +6,7 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
-import org.broadinstitute.hail.variant.{Genotype, VDSGens, VariantSampleMatrix}
+import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
@@ -94,7 +94,7 @@ class ExportVcfSuite extends SparkSuite {
     val s = State(sc, sqlContext, null)
     val out = tmpDir.createTempFile("foo", ".vcf")
     val out2 = tmpDir.createTempFile("foo2", ".vcf")
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VDSGens.random)) { (vsm: VariantSampleMatrix[Genotype]) =>
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vsm: VariantSampleMatrix[Genotype]) =>
       hadoopDelete("/tmp/foo.vcf", sc.hadoopConfiguration, recursive = true)
       ExportVCF.run(s.copy(vds = vsm), Array("-o", out))
       val vsm2 = ImportVCF.run(s, Array(out)).vds
