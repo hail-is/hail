@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.variant.Phenotype.{Case, Control, Phenotype}
 import org.broadinstitute.hail.variant.Sex.{Female, Male, Sex}
 import org.broadinstitute.hail.variant.{Phenotype, Sex}
@@ -86,6 +87,40 @@ object Pedigree {
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
   def nuclearFams(completeTrios: Array[CompleteTrio]): Map[(String, String), Array[String]] =
     completeTrios.groupBy(t => (t.dad, t.mom)).mapValues(_.map(_.kid)).force
+
+  def gen(sampleIds: IndexedSeq[String]): Gen[Pedigree] = {
+    Gen.parameterized { p =>
+      val rng = p.rng
+      Gen.shuffle(sampleIds)
+        .map { is =>
+          val groups = is.grouped(3)
+            .filter(_ => rng.nextUniform(0, 1) > 0.25)
+            .map { g =>
+              val r = rng.nextUniform(0, 1)
+              if (r < 0.10)
+                g.take(1)
+              if (r < 0.20)
+                g.take(2)
+              else
+                g
+            }
+          val trios = groups.map { g =>
+            val (kid, mom, dad) = (g(0),
+              if (g.length >= 2) Some(g(1)) else None,
+              if (g.length >= 3) Some(g(2)) else None)
+            Trio(kid, fam = None, mom = mom, dad = dad, sex = None, pheno = None)
+          }
+            .toArray
+          Pedigree(trios)
+        }
+    }
+  }
+
+  def genWithIds(): Gen[(IndexedSeq[String], Pedigree)] = {
+    for (ids <- Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier);
+         ped <- gen(ids))
+      yield (ids, ped)
+  }
 }
 
 case class Pedigree(trios: Array[Trio]) {
@@ -120,7 +155,7 @@ case class Pedigree(trios: Array[Trio]) {
   }
 
   // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
-  def write(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]) {
+  def write(filename: String, hConf: hadoop.conf.Configuration) {
     def sampleIdOrElse(s: Option[String]) = s.getOrElse("0")
     def toLine(t: Trio): String =
       t.fam.getOrElse("0") + "\t" + t.kid + "\t" + sampleIdOrElse(t.dad) + "\t" +

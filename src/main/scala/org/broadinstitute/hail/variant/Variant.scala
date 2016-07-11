@@ -7,6 +7,7 @@ import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
 
 import scala.collection.mutable
+import scala.math.Numeric.Implicits._
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
@@ -132,21 +133,7 @@ object Variant {
     }
   }
 
-  def genVariants(nVariants: Int): Gen[Array[Variant]] =
-    Gen.buildableOfN[Array[Variant], Variant](nVariants, gen)
-
-  def gen: Gen[Variant] =
-    // FIXME temporary to make plink happy, see: https://github.com/broadinstitute/hail/issues/229
-    for (contig <- Gen.oneOfSeq((1 to 22).map(_.toString));
-      start <- Gen.posInt;
-      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10)));
-      alleles <- Gen.distinctBuildableOfN[Array[String], String](
-        nAlleles,
-        Gen.frequency((10, genDNAString),
-          (1, Gen.const("*")))) if alleles(0) != "*") yield {
-      val ref = alleles(0)
-      Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
-    }
+  def gen: Gen[Variant] = VariantSubgen.random.gen
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
 
@@ -164,6 +151,39 @@ object Variant {
       r.getAs[String](2),
       r.getAs[mutable.WrappedArray[Row]](3)
         .map(s => AltAllele.fromRow(s)))
+}
+
+object VariantSubgen {
+  val random = VariantSubgen(
+    contigGen = Gen.identifier,
+    startGen = Gen.posInt,
+    nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
+    refGen = genDNAString,
+    altGen = Gen.frequency((10, genDNAString),
+      (1, Gen.const("*"))))
+
+  val plinkCompatible = random.copy(
+    contigGen = Gen.choose(1, 22).map(_.toString)
+  )
+}
+
+case class VariantSubgen(
+  contigGen: Gen[String],
+  startGen: Gen[Int],
+  nAllelesGen: Gen[Int],
+  refGen: Gen[String],
+  altGen: Gen[String]) {
+
+  def gen: Gen[Variant] =
+    for (contig <- contigGen;
+      start <- startGen;
+      nAlleles <- nAllelesGen;
+      ref <- refGen;
+      altAlleles <- Gen.distinctBuildableOfN[Array[String], String](
+        nAlleles,
+        altGen)
+        .filter(!_.contains(ref))) yield
+      Variant(contig, start, ref, altAlleles.tail.map(alt => AltAllele(ref, alt)))
 }
 
 case class Variant(contig: String,

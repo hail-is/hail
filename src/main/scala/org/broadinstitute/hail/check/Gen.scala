@@ -4,6 +4,7 @@ import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
+import scala.math.Numeric.Implicits._
 
 object Parameters {
   val default = Parameters(new RandomDataGenerator(), 100, 100)
@@ -72,20 +73,34 @@ object Gen {
     p.rng.nextUniform(min, max, true)
   }
 
-  def frequency[T](wxs: (Int, Gen[T])*): Gen[T] = {
+  def shuffle[T](is: IndexedSeq[T]): Gen[IndexedSeq[T]] = {
+    Gen { (p: Parameters) =>
+      if (is.isEmpty)
+        is
+      else
+        p.rng.nextPermutation(is.size, is.size).map(is)
+    }
+  }
+
+  def chooseWithWeights(weights: Array[Double]): Gen[Int] =
+    frequency(weights.zipWithIndex.map { case (w, i) => (w, Gen.const(i)) }: _*)
+
+  def frequency[T, U](wxs: (T, Gen[U])*)(implicit ev: T => scala.math.Numeric[T]#Ops): Gen[U] = {
     assert(wxs.nonEmpty)
 
-    val running = new Array[Int](wxs.length)
-    running(0) = 0
-    for (i <- 1 until wxs.length)
-      running(i) = running(i - 1) + wxs(i - 1)._1
+    val running = Array.fill[Double](wxs.length)(0d)
+    for (i <- 1 until wxs.length) {
+      val w = wxs(i - 1)._1.toDouble
+      assert(w >= 0d)
+      running(i) = running(i - 1) + w
+    }
 
-    val outOf = running.last + wxs.last._1
+    val outOf = running.last + wxs.last._1.toDouble
 
     Gen { (p: Parameters) =>
-      val v = p.rng.getRandomGenerator.nextInt(outOf)
-      val t = java.util.Arrays.binarySearch(running, v)
-      val j = if (t < 0) -t - 2 else t
+      val v = p.rng.getRandomGenerator.nextDouble * outOf.toDouble
+      val t = running.indexWhere(x => x >= v) - 1
+      val j = if (t < 0) running.length - 1 else t
       assert(j >= 0 && j < wxs.length)
       assert(v >= running(j)
         && (j == wxs.length - 1 || v < running(j + 1)))

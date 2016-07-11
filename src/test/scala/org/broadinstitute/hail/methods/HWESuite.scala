@@ -24,7 +24,7 @@ class HWESuite extends SparkSuite {
   }
 
   @Test def testExpr() {
-    val p = Prop.forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen(_))) { vds: VariantDataset =>
+    val p = Prop.forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds: VariantDataset =>
       val s = SplitMulti.run(State(sc, sqlContext, vds))
       val s2 = VariantQC.run(s)
       val s3 = AnnotateVariantsExpr.run(s2, Array("-c", "va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)"))
