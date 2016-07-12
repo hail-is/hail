@@ -44,7 +44,7 @@ class SparkSuite extends TestNGSuite {
     sqlContext = new org.apache.spark.sql.SQLContext(sc)
 
     sc.hadoopConfiguration.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
+      "org.apache.hadoop.io.compress.DefaultCodec,org.seqdoop.hadoop_bam.util.BGZFCodec,org.apache.hadoop.io.compress.GzipCodec")
 
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)

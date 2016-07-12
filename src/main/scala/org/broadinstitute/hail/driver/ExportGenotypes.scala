@@ -54,8 +54,10 @@ object ExportGenotypes extends Command {
 
     val ec = EvalContext(symTab)
 
-    val (header, fs) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(ec, cond, sc.hadoopConfiguration)
+    val (header, fs) = if (cond.endsWith(".columns")) {
+      val (h, functions) = ExportTSV.parseColumnsFile(ec, cond, sc.hadoopConfiguration)
+      (Some(h), functions)
+    }
     else
       Parser.parseExportArgs(cond, ec)
 
@@ -93,7 +95,7 @@ object ExportGenotypes extends Command {
           }
           sb.result()
         }
-    }.writeTable(output, header)
+    }.writeTable(output, header.map(_.mkString("\t")))
 
     state
   }

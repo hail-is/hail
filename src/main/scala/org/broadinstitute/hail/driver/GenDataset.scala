@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix}
+import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, VariantSampleMatrix}
 
 object GenDataset extends Command {
 
@@ -8,7 +8,7 @@ object GenDataset extends Command {
 
   def newOptions = new Options
 
-  def name = "gendataset"
+  def name = "gen"
 
   def description = "Generate random dataset"
 
@@ -20,6 +20,6 @@ object GenDataset extends Command {
 
   def run(state: State, options: Options): State = {
     state.copy(
-      vds = VariantSampleMatrix.gen(state.sc, Genotype.gen).sample())
+      vds = VSMSubgen.realistic.gen(state.sc).sample())
   }
 }

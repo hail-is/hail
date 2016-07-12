@@ -1,14 +1,16 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.check.Prop._
 import org.testng.annotations.Test
+
 
 class PedigreeSuite extends SparkSuite {
   @Test def test() {
     val vds = LoadVCF(sc, "src/test/resources/pedigree.vcf")
     val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
     val f = tmpDir.createTempFile("pedigree", ".fam")
-    ped.write(f, sc.hadoopConfiguration, vds.sampleIds) // FIXME: this is not right
+    ped.write(f, sc.hadoopConfiguration)
     val pedwr = Pedigree.read(f, sc.hadoopConfiguration, vds.sampleIds)
     assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in pedigree.vcf
 
@@ -38,5 +40,17 @@ class PedigreeSuite extends SparkSuite {
 
     // FIXME: How to test
     // ped.writeSummary("/tmp/pedigree.sumfam", sc.hadoopConfiguration)
+  }
+
+  @Test def generated() {
+
+    val p = forAll(Pedigree.genWithIds()) { case (ids: IndexedSeq[String], ped: Pedigree) =>
+      val f = tmpDir.createTempFile(extension = ".fam")
+      ped.write(f, hadoopConf)
+      val ped2 = Pedigree.read(f, hadoopConf, ids)
+      (ped.trios: IndexedSeq[Trio]) == (ped2.trios: IndexedSeq[Trio])
+    }
+
+    p.check()
   }
 }

@@ -29,7 +29,7 @@ class ExportSuite extends SparkSuite {
     assert(sb.result() == "5.1240e+00")
 
     ExportSamples.run(postSampleQC, Array("-o", exportSamplesFile, "-c",
-      "sampleID=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
+      "Sample=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
         "nHet=sa.qc.nHet,nHomVar=sa.qc.nHomVar,nSNP=sa.qc.nSNP,nInsertion=sa.qc.nInsertion," +
         "nDeletion=sa.qc.nDeletion,nSingleton=sa.qc.nSingleton,nTransition=sa.qc.nTransition," +
         "nTransversion=sa.qc.nTransversion,dpMean=sa.qc.dpMean,dpStDev=sa.qc.dpStDev," +
@@ -56,7 +56,7 @@ class ExportSuite extends SparkSuite {
     val postVariantQC = VariantQC.run(state, Array.empty[String])
 
     ExportVariants.run(postVariantQC, Array("-o", exportVariantsFile, "-c",
-      "Chrom=v.contig,Pos=v.start,Ref=v.ref,Alt=v.alt,callRate=va.qc.callRate,MAC=va.qc.MAC,MAF=va.qc.MAF," +
+      "Chrom=v.contig,Pos=v.start,Ref=v.ref,Alt=v.alt,callRate=va.qc.callRate,AC=va.qc.AC,AF=va.qc.AF," +
         "nCalled=va.qc.nCalled,nNotCalled=va.qc.nNotCalled," +
         "nHomRef=va.qc.nHomRef,nHet=va.qc.nHet,nHomVar=va.qc.nHomVar,dpMean=va.qc.dpMean,dpStDev=va.qc.dpStDev," +
         "gqMean=va.qc.gqMean,gqStDev=va.qc.gqStDev," +
