@@ -9,6 +9,22 @@ import org.json4s._
 import scala.collection.mutable
 import scala.math.Numeric.Implicits._
 
+object Contig {
+  def compare(lhs: String, rhs: String): Int = {
+    if (lhs.forall(_.isDigit)) {
+      if (rhs.forall(_.isDigit)) {
+        lhs.toInt.compare(rhs.toInt)
+      } else
+        -1
+    } else {
+      if (rhs.forall(_.isDigit))
+        1
+      else
+        lhs.compare(rhs)
+    }
+  }
+}
+
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
   // FIXME add "*"
@@ -119,20 +135,6 @@ object Variant {
     nAlleles * (nAlleles + 1) / 2
   }
 
-  def compareContig(lhs: String, rhs: String): Int = {
-    if (lhs.forall(_.isDigit)) {
-      if (rhs.forall(_.isDigit)) {
-        lhs.toInt.compare(rhs.toInt)
-      } else
-        -1
-    } else {
-      if (rhs.forall(_.isDigit))
-        1
-      else
-        lhs.compare(rhs)
-    }
-  }
-
   def gen: Gen[Variant] = VariantSubgen.random.gen
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
@@ -216,6 +218,8 @@ case class Variant(contig: String,
 
   def nGenotypes = Variant.nGenotypes(nAlleles)
 
+  def locus: Locus = Locus(contig, start)
+
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
   def inParX: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
@@ -236,7 +240,7 @@ case class Variant(contig: String,
       Auto
 
   def compare(that: Variant): Int = {
-    var c = Variant.compareContig(contig, that.contig)
+    var c = Contig.compare(contig, that.contig)
     if (c != 0)
       return c
 
