@@ -4,11 +4,12 @@ import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.broadinstitute.hail.variant._
 
 object BedAnnotator {
   def apply(filename: String,
-    hConf: hadoop.conf.Configuration): (GenomicIntervalSet, Option[(Type, Map[GenomicInterval, Annotation])]) = {
+    hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], Annotation])]) = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     readLines(filename, hConf) { lines =>
@@ -35,20 +36,24 @@ object BedAnnotator {
         val m = dataLines
           .filter(l => !l.value.isEmpty)
           .map(l => l.transform { line =>
-            val arr = line.value.split("""\s+""")
-            (GenomicInterval(arr(0), arr(1).toInt + 1, arr(2).toInt), arr(3)) //transform BED 0-based coordinates to Hail/VCF 1-based coordinates
+            val Array(chrom, strStart, strEnd, value) = line.value.split("""\s+""")
+            // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
+            (Interval(Locus(chrom, strStart.toInt + 1),
+              Locus(chrom, strEnd.toInt + 1)),
+              value)
           })
           .toMap
-        val t = GenomicIntervalSet(m.keySet)
+        val t = IntervalTree(m.keys.toArray)
         (t, Some(TString, m))
       } else {
-        val t = GenomicIntervalSet(dataLines
+        val t = IntervalTree(dataLines
           .filter(l => !l.value.isEmpty)
           .map(l => l.transform { line =>
-            val arr = line.value.split("""\s+""")
-            GenomicInterval(arr(0), arr(1).toInt + 1, arr(2).toInt) //transform BED 0-based coordinates to Hail/VCF 1-based coordinates
-          })
-          .toSet)
+            val Array(chrom, strStart, strEnd) = line.value.split("""\s+""")
+            // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
+            Interval(Locus(chrom, strStart.toInt + 1),
+              Locus(chrom, strEnd.toInt + 1))
+          }))
         (t, None)
       }
     }
