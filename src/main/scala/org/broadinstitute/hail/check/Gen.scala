@@ -214,12 +214,24 @@ object Gen {
     p.rng.getRandomGenerator.nextBoolean()
   }
 
-  def arbInt: Gen[Int] = Gen { p => p.rng.getRandomGenerator.nextInt() }
+  def arbInt: Gen[Int] = {
+    val g = Gen { p => p.rng.getRandomGenerator.nextInt() }
+    Gen.frequency((10, Gen.const(0)), (10, Gen.const(1)), (10, Gen.const(-1)), (70, g))
+  }
 
-  def arbLong: Gen[Long] = Gen { p => p.rng.getRandomGenerator.nextLong() }
+  def arbLong: Gen[Long] = {
+    val g = Gen { p => p.rng.getRandomGenerator.nextLong() }
+    Gen.frequency((10, Gen.const(0L)), (10, Gen.const(1L)), (10, Gen.const(-1)), (70, g))
+  }
 
-  def arbDouble: Gen[Double] = Gen { p =>
-    p.rng.nextUniform(Double.MinValue, Double.MaxValue, true)
+  def arbDouble: Gen[Double] = {
+    val gBig = Gen { p =>
+      p.rng.nextUniform(Double.MinValue, Double.MaxValue, true)
+    }
+    val gSmall = Gen { p =>
+      p.rng.nextUniform(-1000, 1000, true)
+    }
+    Gen.frequency((10, Gen.const(0d)), (10, Gen.const(1d)), (10, Gen.const(-1d)), (35, gBig), (35, gSmall))
   }
 
   def zip[T1](g1: Gen[T1]): Gen[T1] = g1
