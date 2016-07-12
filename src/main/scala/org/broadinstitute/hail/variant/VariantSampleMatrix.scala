@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.{PartitionedDataFrameReader, Row, SQLContext}
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
@@ -135,7 +135,7 @@ object VariantSampleMatrix {
     val metadata = readMetadata(sqlContext, dirname)
     val vaSignature = metadata.vaSignature
 
-    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
+    val df = sqlContext.readPartitioned.parquet(dirname + "/rdd.parquet")
 
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
     val isDosage = metadata.isDosage
