@@ -7,9 +7,10 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.stats.LeveneHaldane
-import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant, VariantSubgen}
+import org.broadinstitute.hail.utils.StringEscapeUtils
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -96,11 +97,19 @@ object Type {
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
         genArb.resize(size - 1).map(TDict),
-        Gen.buildableOf[Array[(String, Type)], (String, Type)](
+        Gen.buildableOf[Array[(String, Type, Map[String, String])], (String, Type, Map[String, String])](
           Gen.zip(Gen.identifier,
-            genArb))
+            genArb,
+            Gen.option(
+              Gen.buildableOf[Map[String, String], (String, String)](
+                Gen.zip(Gen.arbString.filter(s => !s.isEmpty), Gen.arbString)))
+              .map(o => o.getOrElse(Map.empty[String, String]))))
           .filter(fields => fields.map(_._1).areDistinct())
-          .map(fields => TStruct(fields: _*)))
+          .map(fields => TStruct(fields
+            .iterator
+            .zipWithIndex
+            .map { case ((k, t, m), i) => Field(k, t, i, m) }
+            .toIndexedSeq)))
   }
 
   def genArb: Gen[Type] = Gen.sized(genSized)
@@ -165,6 +174,10 @@ abstract class Type extends BaseType {
   }
 
   def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean = false) {
+    sb.append(toString)
+  }
+
+  def compact(sb: StringBuilder, printAttrs: Boolean = false) {
     sb.append(toString)
   }
 
@@ -349,12 +362,18 @@ case class TArray(elementType: Type) extends TIterable {
     sb.append("]")
   }
 
+  override def compact(sb: StringBuilder, printAttrs: Boolean = false) {
+    sb.append("Array[")
+    elementType.compact(sb, printAttrs)
+    sb += ']'
+  }
+
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
 
   def schema = ArrayType(elementType.schema)
 
-  override def str(a: Annotation): String = compact(makeJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(makeJSON(a))
 
 
   def selfMakeJSON(a: Annotation): JValue = {
@@ -398,7 +417,13 @@ case class TSet(elementType: Type) extends TIterable {
     sb.append("]")
   }
 
-  override def str(a: Annotation): String = compact(makeJSON(a))
+  override def compact(sb: StringBuilder, printAttrs: Boolean = false) {
+    sb.append("Set[")
+    elementType.compact(sb, printAttrs)
+    sb.append("]")
+  }
+
+  override def str(a: Annotation): String = JsonMethods.compact(makeJSON(a))
 
   def selfMakeJSON(a: Annotation): JValue = {
     val arr = a.asInstanceOf[Set[Any]]
@@ -436,6 +461,12 @@ case class TDict(elementType: Type) extends Type {
     sb.append("]")
   }
 
+  override def compact(sb: StringBuilder, printAttrs: Boolean) {
+    sb.append("Dict[")
+    elementType.compact(sb, printAttrs)
+    sb.append("]")
+  }
+
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) => k.isInstanceOf[String] && elementType.typeCheck(v) })
 
@@ -443,7 +474,7 @@ case class TDict(elementType: Type) extends Type {
     StructField("key", StringType, nullable = false),
     StructField("value", elementType.schema))))
 
-  override def str(a: Annotation): String = compact(makeJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(makeJSON(a))
 
   def selfMakeJSON(a: Annotation): JValue = {
     val m = a.asInstanceOf[Map[_, _]]
@@ -597,14 +628,30 @@ case class Field(name: String, `type`: Type,
     if (printAttrs) {
       if (attrs.nonEmpty)
         sb += '\n'
-      attrs.foreachBetween { attr =>
+      attrs.foreachBetween { case (k, v) =>
         sb.append(" " * (indent + 2))
         sb += '@'
-        sb.append(prettyIdentifier(attr._1))
+        sb.append(prettyIdentifier(k))
         sb.append("=\"")
-        sb.append(escapeString(attr._2))
+        sb.append(StringEscapeUtils.escapeString(v))
         sb += '"'
       }(() => sb += '\n')
+    }
+  }
+
+  def compact(sb: StringBuilder, printAttrs: Boolean) {
+    sb.append(prettyIdentifier(name))
+    sb.append(":")
+    `type`.compact(sb, printAttrs)
+    if (printAttrs) {
+      attrs.foreach { case (k, v) =>
+        sb += '@'
+        sb.append(prettyIdentifier(k))
+        sb += '='
+        sb += '"'
+        sb.append(StringEscapeUtils.escapeString(v))
+        sb += '"'
+      }
     }
   }
 }
@@ -808,6 +855,20 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
+  override def compact(sb: StringBuilder, printAttrs: Boolean = false) {
+    if (size == 0)
+      sb.append("Empty")
+    else {
+      sb.append("Struct{")
+      fields.foreachBetween(f => {
+        f.compact(sb, printAttrs)
+      })(() => {
+        sb += ','
+      })
+      sb += '}'
+    }
+  }
+
   override def typeCheck(a: Any): Boolean =
     if (fields.isEmpty)
       a == null
@@ -826,7 +887,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         })
   }
 
-  override def str(a: Annotation): String = compact(makeJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(makeJSON(a))
 
   def selfMakeJSON(a: Annotation): JValue = {
     val row = a.asInstanceOf[Row]
@@ -1440,7 +1501,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("json", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(ec)
-      () => compact(t.makeJSON(f()))
+      () => JsonMethods.compact(t.makeJSON(f()))
     case ("hwe", Array(a, b, c)) =>
       AST.evalCompose[Int, Int, Int](ec, a, b, c) { case (nHomRef, nHet, nHomVar) =>
         if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -2182,7 +2243,7 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             ParserUtils.error(localPos,
-              s"Tried to access index [$i] on array ${compact(localT.makeJSON(a))} of length ${a.length}" +
+              s"Tried to access index [$i] on array ${JsonMethods.compact(localT.makeJSON(a))} of length ${a.length}" +
                 s"\n  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)" +
                 s"\n  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct")
           case e: Throwable => throw e

@@ -47,7 +47,11 @@ object Annotation {
       case (JInt(x), TDouble) => x.toDouble
       case (JInt(x), TString) => x.toString
       case (JDouble(x), TDouble) => x
+      case (JString("Infinity"), TDouble) => Double.PositiveInfinity
+      case (JString("-Infinity"), TDouble) => Double.NegativeInfinity
       case (JDouble(x), TFloat) => x.toFloat
+      case (JString("Infinity"), TFloat) => Float.PositiveInfinity
+      case (JString("-Infinity"), TFloat) => Float.NegativeInfinity
       case (JString(x), TString) => x
       case (JString(x), TChar) => x
       case (JString(x), TInt) =>
@@ -95,6 +99,7 @@ object Annotation {
 
       case (JArray(a), TSet(elementType)) =>
         a.iterator.map(jv2 => fromJson(jv2, elementType, parent + ".<array>")).toSet[Any]
+
 
       case _ =>
         warn(s"Can't convert json value $jv to signature $t for $parent.")

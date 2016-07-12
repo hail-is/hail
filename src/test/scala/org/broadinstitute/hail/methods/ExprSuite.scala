@@ -4,10 +4,12 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
-
 
 class ExprSuite extends SparkSuite {
 
@@ -174,6 +176,15 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
 
+    assert(eval[String](""" "\t\t\t" """).contains("\t\t\t"))
+    assert(eval[String](""" "\"\"\"" """).contains("\"\"\""))
+    assert(eval[String](""" "```" """).contains("```"))
+    val badInput1 = intercept[FatalException](eval[String](" \"aaa\t\t\taaa\" "))
+    assert(badInput1.getMessage.contains("invalid character in string literal: `\\t'"))
+
+    val badInput2 = intercept[FatalException](eval[String](" (\"\f\f\f\") "))
+    assert(badInput2.getMessage.contains("invalid character in string literal: `\\f"))
+
     assert(eval[String](""" "a b c d".replace(" ", "_") """).contains("a_b_c_d"))
     assert(eval[String](" \"a\\tb\".replace(\"\\t\", \"_\") ").contains("a_b"))
     assert(eval[String](""" "a    b  c    d".replace("\\s+", "_") """).contains("a_b_c_d"))
@@ -270,14 +281,39 @@ class ExprSuite extends SparkSuite {
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
       sb.clear()
-      t.pretty(sb, 0)
+      t.compact(sb, true)
       val res = sb.result()
+//      println(res)
+      val parsed = Parser.parseType(res)
+//      sb.clear()
+//      parsed.compact(sb, true)
+//      val res2 = sb.result()
+//      println(res2)
+//      val parsed2 = Parser.parseType(res2)
+//      sb.clear()
+//      parsed2.compact(sb, true)
+//      println(sb.result())
+      t == parsed
+    })
+    check(forAll { (t: Type) =>
+      sb.clear()
+      t.pretty(sb, 0, true)
+      val res = sb.result()
+//      println(res)
       val parsed = Parser.parseType(res)
       t == parsed
     })
+
   }
 
   @Test def testJSON() {
+    check(forAll { (t: Type) =>
+      val a = t.genValue.sample()
+      val json = t.makeJSON(a)
+      val string = compact(json)
+      a == Annotation.fromJson(parse(string), t, "")
+    })
+
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()
       val json = t.makeJSON(a)
@@ -294,4 +330,11 @@ class ExprSuite extends SparkSuite {
     })
   }
 
+  @Test def testEscaping() {
+    val p = forAll { (s: String) =>
+      s == unescapeString(escapeString(s))
+    }
+
+    p.check(count = 1000)
+  }
 }
