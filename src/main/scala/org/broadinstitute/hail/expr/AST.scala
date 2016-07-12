@@ -96,18 +96,14 @@ object Type {
       Gen.oneOfGen(genScalar,
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
-        <<<<<<< HEAD
-          Gen.buildableOf[Array[(String, Type, Map[String, String])], (String, Type, Map[String, String])](
-            =======
-              genArb.resize(size - 1).map(TDict),
-        Gen.buildableOf[Array[(String, Type)], (String, Type)](
-          >>>>>>> origin / master
-            Gen.zip(Gen.identifier,
-              genArb,
-              Gen.option(
-                Gen.buildableOf[Map[String, String], (String, String)](
-                  Gen.zip(Gen.arbString.filter(s => !s.isEmpty), Gen.arbString)))
-                .map(o => o.getOrElse(Map.empty[String, String]))))
+        genArb.resize(size - 1).map(TDict),
+        Gen.buildableOf[Array[(String, Type, Map[String, String])], (String, Type, Map[String, String])](
+          Gen.zip(Gen.identifier,
+            genArb,
+            Gen.option(
+              Gen.buildableOf[Map[String, String], (String, String)](
+                Gen.zip(Gen.arbString.filter(s => !s.isEmpty), Gen.arbString)))
+              .map(o => o.getOrElse(Map.empty[String, String]))))
           .filter(fields => fields.map(_._1).areDistinct())
           .map(fields => TStruct(fields
             .iterator
@@ -465,6 +461,12 @@ case class TDict(elementType: Type) extends Type {
     sb.append("]")
   }
 
+  override def compact(sb: StringBuilder, printAttrs: Boolean) {
+    sb.append("Dict[")
+    elementType.compact(sb, printAttrs)
+    sb.append("]")
+  }
+
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) => k.isInstanceOf[String] && elementType.typeCheck(v) })
 
@@ -472,7 +474,7 @@ case class TDict(elementType: Type) extends Type {
     StructField("key", StringType, nullable = false),
     StructField("value", elementType.schema))))
 
-  override def str(a: Annotation): String = compact(makeJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(makeJSON(a))
 
   def selfMakeJSON(a: Annotation): JValue = {
     val m = a.asInstanceOf[Map[_, _]]

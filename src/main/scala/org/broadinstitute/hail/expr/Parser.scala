@@ -295,9 +295,7 @@ object Parser extends JavaTokenParsers {
 
   def structDeclaration: Parser[Array[(String, AST)]] = "{" ~> repsep(structField, ",") <~ "}" ^^ (_.toArray)
 
-  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ { case id ~ _ ~ ast =>
-    (id.substring(1, id.length - 1), ast)
-  }
+  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ { case id ~ _ ~ ast => (id, ast) }
 
   def indexStruct: Parser[(String, AST)] = "index" ~ "(" ~ expr ~ "," ~ identifier ~ ")" ^^ {
     case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key, ast)

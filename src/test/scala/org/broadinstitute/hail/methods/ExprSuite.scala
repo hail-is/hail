@@ -176,7 +176,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
 
-<<<<<<< HEAD
     assert(eval[String](""" "\t\t\t" """).contains("\t\t\t"))
     assert(eval[String](""" "\"\"\"" """).contains("\"\"\""))
     assert(eval[String](""" "```" """).contains("```"))
@@ -186,7 +185,6 @@ class ExprSuite extends SparkSuite {
     val badInput2 = intercept[FatalException](eval[String](" (\"\f\f\f\") "))
     assert(badInput2.getMessage.contains("invalid character in string literal: `\\f"))
 
-=======
     assert(eval[String](""" "a b c d".replace(" ", "_") """).contains("a_b_c_d"))
     assert(eval[String](" \"a\\tb\".replace(\"\\t\", \"_\") ").contains("a_b"))
     assert(eval[String](""" "a    b  c    d".replace("\\s+", "_") """).contains("a_b_c_d"))
@@ -237,7 +235,6 @@ class ExprSuite extends SparkSuite {
     ))
     assert(eval[Boolean](""" index(structArray, f2).contains("B") """).contains(true))
     assert(eval[Boolean](""" index(structArray, f2).contains("E") """).contains(false))
->>>>>>> origin/master
     // FIXME catch parse errors
   }
 

@@ -28,7 +28,7 @@ object VariantSampleMatrix {
     new VariantSampleMatrix(metadata, rdd)
   }
 
-  private def readMetadata(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false,
+  private def readMetadata(sqlContext: SQLContext, dirname: String,
     requireParquetSuccess: Boolean = true): VariantMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
@@ -88,19 +88,19 @@ object VariantSampleMatrix {
 
     val globalAnnotation = Annotation.fromJson(getAndCastJSON[JValue]("global annotation", "_"), globalSignature, "global")
 
-    if (!hadoopExists(hConf, pqtSuccess))
+    if (!hadoopExists(hConf, pqtSuccess) && requireParquetSuccess)
       fatal("corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
 
     val ids = sampleInfo.map(_._1)
     val annotations = sampleInfo.map(_._2)
 
-    val metadata = VariantMetadata(ids, annotations, globalAnnotation,
+    VariantMetadata(ids, annotations, globalAnnotation,
       saSignature, vaSignature, globalSignature, wasSplit)
   }
 
   def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
 
-    val metadata = readMetadata(sqlContext, dirname, skipGenotypes)
+    val metadata = readMetadata(sqlContext, dirname)
     val vaSignature = metadata.vaSignature
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
@@ -130,7 +130,7 @@ object VariantSampleMatrix {
   def readKudu(sqlContext: SQLContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
-    val metadata = readMetadata(sqlContext, dirname, skipGenotypes = false,
+    val metadata = readMetadata(sqlContext, dirname,
       requireParquetSuccess = false)
 
     val df = sqlContext.read.options(
