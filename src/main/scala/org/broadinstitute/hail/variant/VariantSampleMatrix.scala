@@ -10,6 +10,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.broadinstitute.hail.vcf.BufferedLineIterator
 import org.kududb.spark.kudu.{KuduContext, _}
 
@@ -364,10 +365,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, va, gs) => p(v, va, gs) })
 
-  def filterIntervals(gis: GenomicIntervalSet, keep: Boolean = true): VariantSampleMatrix[T] = {
+  def filterIntervals(gis: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
     val gisBc = sparkContext.broadcast(gis)
     filterVariants { (v, va, gs) =>
-      val inInterval = gisBc.value.contains(v.contig, v.start)
+      val inInterval = gisBc.value.contains(v.locus)
       if (keep)
         inInterval
       else
@@ -566,8 +567,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def annotateIntervals(is: GenomicIntervalSet,
-    arg: Option[(Type, Map[GenomicInterval, Annotation])],
+  def annotateIntervals(is: IntervalTree[Locus],
+    arg: Option[(Type, Map[Interval[Locus], Annotation])],
     path: List[String]): VariantSampleMatrix[T] = {
 
     val isBc = sparkContext.broadcast(is)
@@ -576,7 +577,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         val (newSignature, inserter) = insertVA(sig, path)
         val mBc = sparkContext.broadcast(m)
         copy(rdd = rdd.map { case (v, va, gs) =>
-          val queries = isBc.value.query(v.contig, v.start)
+          val queries = isBc.value.query(v.locus)
           val toIns = if (queries.isEmpty)
             None
           else
@@ -587,7 +588,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
       case None =>
         val (newSignature, inserter) = insertVA(TBoolean, path)
-        copy(rdd = rdd.map { case (v, va, gs) => (v, inserter(va, Some(isBc.value.contains(v.contig, v.start))), gs) },
+        copy(rdd = rdd.map { case (v, va, gs) => (v, inserter(va, Some(isBc.value.contains(Locus(v.contig, v.start)))), gs) },
           vaSignature = newSignature)
     }
   }
