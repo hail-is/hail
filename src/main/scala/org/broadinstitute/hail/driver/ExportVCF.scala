@@ -105,14 +105,9 @@ object ExportVCF extends Command {
         sb.append(f.attr("Number").getOrElse(infoNumber(f.`type`)))
         sb.append(",Type=")
         sb.append(infoType(f.`type`))
-        f.attr("Description") match {
-          case Some(d) =>
-            sb.append(",Description=\"")
-            sb.append(d)
-            sb += '"'
-          case None =>
-        }
-        sb.append(">\n")
+        sb.append(",Description=\"")
+        sb.append(f.attr("Description").getOrElse(""))
+        sb.append("\">\n")
       })
 
       if (options.append != null) {

@@ -128,4 +128,24 @@ class ExportVcfSuite extends SparkSuite {
 
     assert(lines1 == lines2)
   }
+
+  @Test def testGeneratedInfo() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
+
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va.info.AC = va.info.AC, va.info.another = 5"))
+
+    val out = tmpDir.createTempFile("export", ".vcf")
+    ExportVCF.run(s, Array("-o", out))
+
+    readFile(out, hadoopConf) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .filter(_.startsWith("##INFO"))
+        .foreach { line =>
+          assert(line.contains("Description="))
+        }
+    }
+
+  }
 }
