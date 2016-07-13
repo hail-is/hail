@@ -111,7 +111,7 @@ object VariantSampleMatrix {
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
-    val vaRequiresConversion = vaSignature.requiresConversion
+    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
     if (skipGenotypes)
       new VariantSampleMatrix[Genotype](
@@ -119,7 +119,7 @@ object VariantSampleMatrix {
           sampleAnnotations = IndexedSeq.empty[Annotation]),
         df.select("variant", "annotations")
           .map(row => (row.getVariant(0),
-            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
+            if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
             Iterable.empty[Genotype])))
     else
       new VariantSampleMatrix(
@@ -128,7 +128,7 @@ object VariantSampleMatrix {
           val v = row.getVariant(0)
 
           (v,
-            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
+            if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
             row.getGenotypeStream(v, 2))
         })
   }
@@ -747,13 +747,13 @@ class RichVDS(vds: VariantDataset) {
     writeMetadata(sqlContext, dirname, compress)
 
     val vaSignature = vds.vaSignature
-    val vaRequiresConversion = vaSignature.requiresConversion
+    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
     val rowRDD = vds.rdd
       .map {
         case (v, va, gs) =>
           Row.fromSeq(Array(v.toRow,
-            if (vaRequiresConversion) vaSignature.makeSparkWritable(va) else va,
+            if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
             gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
