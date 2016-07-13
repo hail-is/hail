@@ -49,13 +49,13 @@ object AnnotateVariantsJSON extends Command {
 
     val t = Parser.parseType(options.`type`)
 
-    val extractVariant = Annotation.jsonExtractVariant(t, options.variantFields)
+    val extractVariant = JSONAnnotationImpex.jsonExtractVariant(t, options.variantFields)
 
     val jsonRDD =
       sc.union(files.map { f =>
         sc.textFile(f)
           .map { line =>
-            Annotation.fromJson(parse(line), t, "<root>")
+            JSONAnnotationImpex.importAnnotation(parse(line), t, "<root>")
           }
       })
         .flatMap { va =>

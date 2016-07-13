@@ -12,28 +12,28 @@ import org.testng.annotations.Test
 class ExprSuite extends SparkSuite {
 
   @Test def exprTest() {
-    val symTab = Map("i" ->(0, TInt),
-      "j" ->(1, TInt),
-      "d" ->(2, TDouble),
-      "d2" ->(3, TDouble),
-      "s" ->(4, TString),
-      "s2" ->(5, TString),
-      "a" ->(6, TArray(TInt)),
-      "m" ->(7, TInt),
-      "as" ->(8, TArray(TStruct(("a", TInt),
+    val symTab = Map("i" -> (0, TInt),
+      "j" -> (1, TInt),
+      "d" -> (2, TDouble),
+      "d2" -> (3, TDouble),
+      "s" -> (4, TString),
+      "s2" -> (5, TString),
+      "a" -> (6, TArray(TInt)),
+      "m" -> (7, TInt),
+      "as" -> (8, TArray(TStruct(("a", TInt),
         ("b", TString)))),
-      "gs" ->(9, TStruct(("noCall", TGenotype),
+      "gs" -> (9, TStruct(("noCall", TGenotype),
         ("homRef", TGenotype),
         ("het", TGenotype),
         ("homVar", TGenotype),
         ("hetNonRef35", TGenotype))),
-      "t" ->(10, TBoolean),
-      "f" ->(11, TBoolean),
-      "mb" ->(12, TBoolean),
-      "is" ->(13, TString),
-      "iset" ->(14, TSet(TInt)),
-      "genedict" ->(15, TDict(TInt)),
-      "structArray" ->(16, TArray(TStruct(
+      "t" -> (10, TBoolean),
+      "f" -> (11, TBoolean),
+      "mb" -> (12, TBoolean),
+      "is" -> (13, TString),
+      "iset" -> (14, TSet(TInt)),
+      "genedict" -> (15, TDict(TInt)),
+      "structArray" -> (16, TArray(TStruct(
         ("f1", TInt),
         ("f2", TString),
         ("f3", TInt)))))
@@ -227,32 +227,6 @@ class ExprSuite extends SparkSuite {
     // FIXME catch parse errors
   }
 
-  @Test def testAssign() {
-    val t1 = TStruct.empty
-
-    val (t2, insb) = t1.insert(TInt, "a", "b")
-    val (t3, insc) = t2.insert(TDouble, "a", "c")
-
-    val (tb, assb) = t3.assign("a", "b")
-    assert(tb == TInt)
-
-    val (tc, assc) = t3.assign("a", "c")
-    assert(tc == TDouble)
-
-    val qc = t3.query("a", "c")
-
-    val v1 = Annotation.empty
-    val v2 = insb(v1, Some(5))
-    val v3 = insc(v2, Some(7.2))
-
-    assert(qc(assc(v3, Some(-3.2))).contains(-3.2))
-    assert(qc(assc(v3, None)).isEmpty)
-
-    val v5 = assc(Annotation.empty, Some(6.7))
-
-    assert(qc(v5).contains(6.7))
-  }
-
   @Test def testParseTypes() {
     val s1 = "SIFT_Score: Double, Age: Int"
     val s2 = ""
@@ -280,8 +254,8 @@ class ExprSuite extends SparkSuite {
   @Test def testJSON() {
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()
-      val json = t.makeJSON(a)
-      a == Annotation.fromJson(json, t, "")
+      val json = t.toJSON(a)
+      a == JSONAnnotationImpex.importAnnotation(json, t)
     })
   }
 
@@ -290,7 +264,8 @@ class ExprSuite extends SparkSuite {
       val sb = new StringBuilder
       t.pretty(sb, 0)
       val a = t.genValue.sample()
-      t.makeSparkReadable(t.makeSparkWritable(a)) == a
+      JSONAnnotationImpex.importAnnotation(
+        JSONAnnotationImpex.exportAnnotation(a, t), t) == a
     })
   }
 
