@@ -18,6 +18,17 @@ abstract class AnnotationImpex[T, A] {
 }
 
 object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
+  val invalidCharacters = " ,;{}()\n\t=".toSet
+
+  def escapeColumnName(name: String): String = {
+    name.map { c =>
+      if (invalidCharacters.contains(c))
+        "_"
+      else
+        c
+    }.mkString
+  }
+  
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType) => requiresConversion(elementType)
     case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant => true
@@ -107,10 +118,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       else
         StructType(fields
           .map(f =>
-            // FIXME
-            StructField(f.name, f.`type`.schema)
-            // StructField(f.index.toString, f.`type`.schema)
-          ))
+            StructField(escapeColumnName(f.name), f.`type`.schema)))
   }
 
   def exportAnnotation(a: Annotation, t: Type): Any = {
