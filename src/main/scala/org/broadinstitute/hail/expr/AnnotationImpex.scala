@@ -26,6 +26,22 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case _ => false
   }
 
+  def importType(t: DataType): Type = t match {
+    case BooleanType => TBoolean
+    case IntegerType => TInt
+    case LongType => TLong
+    case FloatType => TFloat
+    case DoubleType => TDouble
+    case StringType => TString
+    case BinaryType => TBinary
+    case ArrayType(elementType, _) => TArray(importType(elementType))
+    case StructType(fields) =>
+      TStruct(fields.zipWithIndex
+        .map { case (f, i) =>
+          (f.name, importType(f.dataType))
+        }: _*)
+  }
+
   def importAnnotation(a: Any, t: Type): Annotation = {
     if (a == null)
       null
@@ -74,6 +90,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case TDouble => DoubleType
     case TString => StringType
     case TChar => StringType
+    case TBinary => BinaryType
     case TArray(elementType) => ArrayType(exportType(elementType))
     case TSet(elementType) => ArrayType(exportType(elementType))
     case TDict(elementType) =>
@@ -90,8 +107,9 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       else
         StructType(fields
           .map(f =>
-            // FIXME StructField(f.name, f.`type`.schema)
-            StructField(f.index.toString, f.`type`.schema)
+            // FIXME
+            StructField(f.name, f.`type`.schema)
+            // StructField(f.index.toString, f.`type`.schema)
           ))
   }
 

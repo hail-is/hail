@@ -8,6 +8,8 @@ import org.broadinstitute.hail.ByteIterator
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr.{TBinary, TInt, TStruct, Type}
+
 import scala.collection.mutable
 
 // FIXME use zipWithIndex
@@ -90,6 +92,9 @@ object GenotypeStream {
       StructField("bytes", BinaryType, nullable = false)
     ))
   }
+
+  def t: Type = TStruct("decompLen" -> TInt,
+    "bytes" -> TBinary)
 
   def fromRow(v: Variant, row: Row): GenotypeStream = {
 

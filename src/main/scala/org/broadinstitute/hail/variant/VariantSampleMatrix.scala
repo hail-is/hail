@@ -133,6 +133,11 @@ object VariantSampleMatrix {
         })
   }
 
+  def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.t,
+    "annotations" -> vaSignature,
+    "gs" -> GenotypeStream.t,
+    "sample_group" -> TString)
+
   def readKudu(sqlContext: SQLContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
@@ -142,30 +147,24 @@ object VariantSampleMatrix {
 
     val df = sqlContext.read.options(
       Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
-    val schema: StructType = makeSchemaForKudu(vaSignature)
-    val flattenedSchema: StructType = KuduUtils.flatten(schema)
+
+    val rowType = kuduRowType(vaSignature)
+    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
 
     // Kudu key fields are always first, so we have to reorder the fields we get back
     // to be in the column order for the flattened schema *before* we unflatten
-    val indices: Array[Int] = flattenedSchema.fields.zipWithIndex.map({
-      case (field, rowIdx) => df.schema.fieldIndex(field.name)
-    })
-    val reorderedRowRDD: RDD[Row] = df.map(row => KuduUtils.reorder(row, indices))
+    val indices: Array[Int] = schema.fields.zipWithIndex.map { case (field, rowIdx) =>
+      df.schema.fieldIndex(field.name)
+    }
 
-    val unflattenedRowRDD: RDD[Row] = reorderedRowRDD.map(row => KuduUtils.unflatten(row, schema))
-
-    val vaRequiresConversion = vaSignature.requiresConversion
-
-    val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = unflattenedRowRDD.mapPartitions(iter => {
-      iter.map(row => {
-        val v = row.getVariant(0)
-
-        (v,
-          (if (vaRequiresConversion) vaSignature.makeSparkReadable(row.getAs[Annotation](1))
-          else row.getAs[Annotation](1),
-          row.getGenotypeStream(v, 2)))
-      })
-    }).spanByKey().map(kv => {
+    val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = df.map { row =>
+      val importedRow = KuduAnnotationImpex.importAnnotation(
+        KuduAnnotationImpex.reorder(row, indices), rowType).asInstanceOf[Row]
+      val v = importedRow.getVariant(0)
+      (v,
+        (importedRow.get(1),
+          importedRow.getGenotypeStream(v, 2)))
+    }.spanByKey().map(kv => {
       // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
       val annotations = kv._2.head._1 // just use first annotation
@@ -637,7 +636,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def queryVA(code: String): (BaseType, Querier) = {
 
-    val st = Map(Annotation.VARIANT_HEAD ->(0, vaSignature))
+    val st = Map(Annotation.VARIANT_HEAD -> (0, vaSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -653,7 +652,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def querySA(code: String): (BaseType, Querier) = {
 
-    val st = Map(Annotation.SAMPLE_HEAD ->(0, saSignature))
+    val st = Map(Annotation.SAMPLE_HEAD -> (0, saSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -668,7 +667,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def queryGlobal(path: String): (BaseType, Option[Annotation]) = {
-    val st = Map(Annotation.GLOBAL_HEAD ->(0, globalSignature))
+    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -791,19 +790,20 @@ class RichVDS(vds: VariantDataset) {
     writeMetadata(sqlContext, dirname, compress)
 
     val vaSignature = vds.vaSignature
-    val vaRequiresConversion = vaSignature.requiresConversion
 
+    val rowType = VariantSampleMatrix.kuduRowType(vaSignature)
     val rowRDD = vds.rdd
-      .map {
-        case (v, va, gs) =>
-          Row.fromSeq(Array(v.toRow,
-            if (vaRequiresConversion) vaSignature.makeSparkWritable(va) else va,
-            gs.toGenotypeStream(v, compress).toRow, sampleGroup))
+      .map { case (v, va, gs) =>
+        KuduAnnotationImpex.exportAnnotation(Annotation(
+          v.toRow,
+          va,
+          gs.toGenotypeStream(v, compress).toRow,
+          sampleGroup), rowType).asInstanceOf[Row]
       }
-    val schema: StructType = makeSchemaForKudu()
-    val flattenedSchema: StructType = KuduUtils.flatten(schema)
-    val flattenedRowRDD = rowRDD.map(row => KuduUtils.flatten(row, schema))
-    val df = sqlContext.createDataFrame(flattenedRowRDD, flattenedSchema)
+
+    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
+    println(s"schema = $schema")
+    val df = sqlContext.createDataFrame(rowRDD, schema)
 
     val kuduContext = new KuduContext(master)
     if (drop) {
@@ -826,8 +826,8 @@ class RichVDS(vds: VariantDataset) {
 
       val keys = Seq("variant__contig", "variant__start", "variant__ref",
         "variant__altAlleles_0__alt", "sample_group")
-      kuduContext.createTable(tableName, flattenedSchema, keys,
-        KuduUtils.createTableOptions(flattenedSchema, keys, seqDict, rowsPerPartition))
+      kuduContext.createTable(tableName, schema, keys,
+        KuduUtils.createTableOptions(schema, keys, seqDict, rowsPerPartition))
     }
     df.write
       .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
