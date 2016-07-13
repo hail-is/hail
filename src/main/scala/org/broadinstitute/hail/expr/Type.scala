@@ -84,15 +84,6 @@ abstract class Type extends BaseType {
       (signature, (a, toIns) => toIns.orNull)
   }
 
-  def assign(fields: String*): (Type, Assigner) = assign(fields.toList)
-
-  def assign(path: List[String]): (Type, Assigner) = {
-    if (path.nonEmpty)
-      throw new AnnotationPathException()
-
-    (this, (a, toAssign) => toAssign.orNull)
-  }
-
   def query(fields: String*): Querier = query(fields.toList)
 
   def query(path: List[String]): Querier = {
@@ -467,30 +458,6 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         }
       }
       (newSignature, inserter)
-    }
-  }
-
-  override def assign(path: List[String]): (Type, Assigner) = {
-    if (path.isEmpty)
-      (this, (a, toAssign) => toAssign.orNull)
-    else {
-      val key = path.head
-      val localSize = fields.size
-      selfField(key) match {
-        case Some(f) =>
-          val (assignType, subAssigner) = f.`type`.assign(path.tail)
-          val i = f.index
-          (assignType, { (a, toAssign) =>
-            val r = if (a != null)
-              a.asInstanceOf[Row]
-            else
-              Row.fromSeq(Array.fill[Any](localSize)(null))
-            r(i) = subAssigner(r(i), toAssign)
-            r
-          })
-        case None =>
-          throw new AnnotationPathException()
-      }
     }
   }
 

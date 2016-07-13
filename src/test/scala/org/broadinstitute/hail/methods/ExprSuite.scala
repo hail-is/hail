@@ -227,32 +227,6 @@ class ExprSuite extends SparkSuite {
     // FIXME catch parse errors
   }
 
-  @Test def testAssign() {
-    val t1 = TStruct.empty
-
-    val (t2, insb) = t1.insert(TInt, "a", "b")
-    val (t3, insc) = t2.insert(TDouble, "a", "c")
-
-    val (tb, assb) = t3.assign("a", "b")
-    assert(tb == TInt)
-
-    val (tc, assc) = t3.assign("a", "c")
-    assert(tc == TDouble)
-
-    val qc = t3.query("a", "c")
-
-    val v1 = Annotation.empty
-    val v2 = insb(v1, Some(5))
-    val v3 = insc(v2, Some(7.2))
-
-    assert(qc(assc(v3, Some(-3.2))).contains(-3.2))
-    assert(qc(assc(v3, None)).isEmpty)
-
-    val v5 = assc(Annotation.empty, Some(6.7))
-
-    assert(qc(v5).contains(6.7))
-  }
-
   @Test def testParseTypes() {
     val s1 = "SIFT_Score: Double, Age: Int"
     val s2 = ""
