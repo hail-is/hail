@@ -248,7 +248,7 @@ object Main {
     hadoopConf.setInt("mapreduce.input.fileinputformat.split.minsize", options.blockSize * 1024*1024)
 
     hadoopConf.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
+      "org.apache.hadoop.io.compress.DefaultCodec,org.seqdoop.hadoop_bam.util.BGZFCodec,org.apache.hadoop.io.compress.GzipCodec")
 
     val accessKeyID = System.getenv("AWS_ACCESS_KEY_ID")
     if (accessKeyID != null) {

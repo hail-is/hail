@@ -6,11 +6,11 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
-import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix}
+import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
+
 import scala.language.postfixOps
 import scala.sys.process._
-
 import scala.io.Source
 
 class ExportVcfSuite extends SparkSuite {
@@ -94,7 +94,7 @@ class ExportVcfSuite extends SparkSuite {
     val s = State(sc, sqlContext, null)
     val out = tmpDir.createTempFile("foo", ".vcf")
     val out2 = tmpDir.createTempFile("foo2", ".vcf")
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vsm: VariantSampleMatrix[Genotype]) =>
       hadoopDelete("/tmp/foo.vcf", sc.hadoopConfiguration, recursive = true)
       ExportVCF.run(s.copy(vds = vsm), Array("-o", out))
       val vsm2 = ImportVCF.run(s, Array(out)).vds
@@ -103,7 +103,7 @@ class ExportVcfSuite extends SparkSuite {
       vsm2.same(vsm3)
     }
 
-    p.check
+    p.check()
   }
 
   @Test def testPPs() {
@@ -127,5 +127,25 @@ class ExportVcfSuite extends SparkSuite {
     }
 
     assert(lines1 == lines2)
+  }
+
+  @Test def testGeneratedInfo() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
+
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va.info.AC = va.info.AC, va.info.another = 5"))
+
+    val out = tmpDir.createTempFile("export", ".vcf")
+    ExportVCF.run(s, Array("-o", out))
+
+    readFile(out, hadoopConf) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .filter(_.startsWith("##INFO"))
+        .foreach { line =>
+          assert(line.contains("Description="))
+        }
+    }
+
   }
 }
