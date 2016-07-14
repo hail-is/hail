@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.annotations.Annotation
@@ -12,20 +11,19 @@ import java.io.{FileInputStream, IOException}
 import java.util.Properties
 import scala.collection.JavaConverters._
 import scala.util.Random
+import scala.language.existentials
 
 object GroupTestSKATO extends Command {
 
   class Options extends BaseOptions {
 
-    @Args4jOption(required = true, name = "-k", aliases = Array("--group-keys"),
-      usage = "comma-separated list of annotations to be used as grouping variable(s) (must be attribute of va)")
-    var groupKeys: String = _
+    //Input parameters
+    @Args4jOption(required = true, name = "-k", aliases = Array("--group-key"),
+      usage = "annotation to be used as grouping variable (must be attribute of va)")
+    var groupKey: String = _
 
-    @Args4jOption(required = true, name = "--config", usage = "SKAT-O configuration file")
-    var config: String = _
-
-    @Args4jOption(name = "--block-size", usage = "# of Groups per SKAT-O invocation")
-    var blockSize = 1000
+    @Args4jOption(required = false, name = "--splat", usage = "expand out --group-key that are lists, sets, or arrays")
+    var splat: Boolean = false
 
     @Args4jOption(required = false, name = "-q", aliases = Array("--quantitative"), usage = "y is a quantitative phenotype")
     var quantitative: Boolean = false
@@ -36,14 +34,25 @@ object GroupTestSKATO extends Command {
     @Args4jOption(required = false, name = "-c", aliases = Array("--covariates"), usage = "Covariate sample annotations, comma-separated")
     var covSA: String = ""
 
+
+    // Configuration options
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "path of output tsv")
     var output: String = _
+
+    @Args4jOption(required = true, name = "--config", usage = "SKAT-O configuration file")
+    var config: String = _
+
+    @Args4jOption(name = "--block-size", usage = "# of Groups per SKAT-O invocation")
+    var blockSize = 1000
 
     @Args4jOption(required = false, name = "--seed", usage = "number to set random seed to [default=1]")
     var seed: Int = 1
 
     @Args4jOption(required = false, name = "--random-seed", usage = "use a random seed")
     var randomize: Boolean = false
+
+    @Args4jOption(required = false, name = "-d", usage = "seperator to use when outputting group keys with more than one item in tsv file")
+    var groupNameSep: String = ","
 
 
     //SKAT_Null_Model options
@@ -95,19 +104,21 @@ object GroupTestSKATO extends Command {
 
   def name = "grouptest skato"
 
-  def description = "Run SKAT-O on groups"
+  def description = "Run SKAT-O on groups specified by a variant annotation"
 
   def supportsMultiallelic = false
 
   def requiresVDS = true
 
-  val skatoSignature = TArray(TStruct(
-    "groupName" -> TString,
+  val skatoElementSignature = TStruct(
+    "groupName" -> TInt,
     "pValue" -> TDouble,
     "pValueNoAdj" -> TDouble,
     "nMarker" -> TInt,
     "nMarkerTest" -> TInt
-  ))
+  )
+
+  val skatoSignature = TArray(skatoElementSignature)
 
   val header = "groupName\tpValue\tpValueNoAdj\tnMarker\tnMarkerTest"
 
@@ -138,6 +149,8 @@ object GroupTestSKATO extends Command {
     val missingCutoff = options.missingCutoff
     val estimateMAF = options.estimateMAF
     val quantitative = options.quantitative
+    val splat = options.splat
+    val groupNameSep = options.groupNameSep
 
     val R = properties.getProperty("hail.skato.Rscript", "/usr/bin/Rscript")
     val skatoScript = properties.getProperty("hail.skato.script", "src/dist/scripts/skato.r")
@@ -180,11 +193,10 @@ object GroupTestSKATO extends Command {
       case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
     }
 
-    val queriers = options.groupKeys.split(",").map{vds.queryVA(_)._2}
-
     val symTab = Map(
-      "s" -> (0, TSample),
-      "sa" -> (1, vds.saSignature))
+      "s" ->(0, TSample),
+      "sa" ->(1, vds.saSignature),
+      "va" -> (2, vds.vaSignature))
 
     val ec = EvalContext(symTab)
     val a = ec.a
@@ -203,14 +215,14 @@ object GroupTestSKATO extends Command {
     val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
       a(1) = sa
-      (covQ.map(_()), covToDouble).zipped.map(_.map(_))
+      (covQ.map(_ ()), covToDouble).zipped.map(_.map(_))
     }
     val nCovar = covT.size
 
     val (yDefined, covDefined, samplesDefined) =
       (ySA, covSA, sampleIds)
         .zipped
-        .filter( (y, c, s) => y.isDefined && c.forall(_.isDefined))
+        .filter((y, c, s) => y.isDefined && c.forall(_.isDefined))
 
     if (samplesDefined.length < 1) {
       val sb = new StringBuilder()
@@ -230,26 +242,28 @@ object GroupTestSKATO extends Command {
 
     val ySABC = state.sc.broadcast(ySA)
     val covSABC = state.sc.broadcast(covSA)
+    val splatBC = state.sc.broadcast(options.splat)
 
     def printContext(w: (String) => Unit) = {
-      val y = pretty(JArray(ySABC.value.map{y => if (y.isDefined) JDouble(y.get) else JNull}.toList))
-      val cov = pretty(JArray(covSABC.value.map{cov => JArray(cov.map{c => if (c.isDefined) JDouble(c.get) else JNull}.toList)}.toList))
+      val y = pretty(JArray(ySABC.value.map { y => if (y.isDefined) JDouble(y.get) else JNull }.toList))
+      val cov = pretty(JArray(covSABC.value.map { cov => JArray(cov.map { c => if (c.isDefined) JDouble(c.get) else JNull }.toList) }.toList))
       val covString = if (nCovar > 0) s""""COV":$cov,""" else ""
-      w( s"""{"yType":"$yType",
-             |"nResampling":$nResampling,
-             |"typeResampling":"$typeResampling",
-             |"adjustment":$adjustment,
-             |"kernel":"$kernel",
-             |"method":"$method",
-             |"weightsBeta":[$weightsBeta],
-             |"imputeMethod":"$imputeMethod",
-             |"rCorr":[$rCorr],
-             |"missingCutoff":$missingCutoff,
-             |"estimateMAF":$estimateMAF,
-             |"seed":$seed,
-             |"Y":$y,
-             |$covString
-             |"groups":{""".stripMargin)
+      w(
+        s"""{"yType":"$yType",
+            |"nResampling":$nResampling,
+            |"typeResampling":"$typeResampling",
+            |"adjustment":$adjustment,
+            |"kernel":"$kernel",
+            |"method":"$method",
+            |"weightsBeta":[$weightsBeta],
+            |"imputeMethod":"$imputeMethod",
+            |"rCorr":[$rCorr],
+            |"missingCutoff":$missingCutoff,
+            |"estimateMAF":$estimateMAF,
+            |"seed":$seed,
+            |"Y":$y,
+            |$covString
+            |"groups":{""".stripMargin)
     }
 
     def printSep(w: (String) => Unit) = {
@@ -260,25 +274,79 @@ object GroupTestSKATO extends Command {
       w("}}")
     }
 
-    def printElement(w: (String) => Unit, g: (IndexedSeq[Any], Iterable[Iterable[Int]])) = {
+    def printElement(w: (String) => Unit, g: (Any, Iterable[Iterable[Int]])) = {
       val a = JArray(g._2.map(a => JArray(a.map(JInt(_)).toList)).toList)
-      w(s""""${g._1.map(_.toString).mkString(",")}":${pretty(a)}""")
+      w( s""""${g._1}":${pretty(a)}""")
     }
 
-    val groups = vds.rdd.map{case (v, va, gs) =>
-      (queriers.map{_(va).get}.toIndexedSeq, gs.map{g => g.nNonRefAlleles.getOrElse(9)}) //FIXME: Expand out arrays
-    }.groupByKey().persist(StorageLevel.MEMORY_AND_DISK) // FIXME: Remove None/null groups and duplicate variants
+    val (baseType, querier) = vds.queryVA(options.groupKey)
 
-    groups.mapPartitions{ it =>
+
+    if (options.splat) {
+      baseType match {
+        case t: TIterable =>
+        case _ => fatal(s"Cannot use --splat with group-key that is not an array or set. Found type $baseType")
+      }
+    }
+
+    val groups = vds.rdd.flatMap { case (v, va, gs) =>
+      val key = querier(va)
+      val genotypes = gs.map { g => g.nNonRefAlleles.getOrElse(9) } //SKAT-O null value is +9
+      key match {
+        case Some(x) =>
+          if (splat) {
+            val xIterable = baseType match {
+              case t: TArray => x.asInstanceOf[IndexedSeq[_]]
+              case t: TSet => x.asInstanceOf[Set[_]]
+              case _ => fatal(s"Must be iterable. Found type $baseType")
+            }
+            for (k <- xIterable) yield (k, genotypes)
+          }
+          else {
+            Some((x, genotypes))
+          }
+        case None => None
+      }
+    }.groupByKey().persist(StorageLevel.MEMORY_AND_DISK) // FIXME: Remove duplicate variants
+
+    val q1 = skatoElementSignature.query("groupName")
+    val q2 = skatoElementSignature.query("pValue")
+    val q3 = skatoElementSignature.query("pValueNoAdj")
+    val q4 = skatoElementSignature.query("nMarker")
+    val q5 = skatoElementSignature.query("nMarkerTest")
+
+
+    groups.mapPartitions { it =>
       val pb = new java.lang.ProcessBuilder(cmd.toList.asJava)
+      val sb = new StringBuilder
 
       it.grouped(localBlockSize)
-        .flatMap{_.iterator
-          .pipe(pb, printContext, printElement, printFooter, printSep)
-          .map{result =>
-            val a = Annotation.fromJson(parse(result), skatoSignature, "<root>")
-            a.asInstanceOf[IndexedSeq[Any]].map(_.asInstanceOf[Row].mkString("\t")).mkString("\n")
-          }
+        .flatMap {
+          group =>
+            val keys = group.map(_._1).toIndexedSeq
+            group.zipWithIndex.map { case ((k, gss), ind) => (ind, gss) }
+              .iterator
+              .pipe(pb, printContext, printElement, printFooter, printSep)
+              .map { result =>
+                val a = Annotation.fromJson(parse(result), skatoSignature, "<root>")
+                a.asInstanceOf[IndexedSeq[_]]
+                  .sortBy(a => q1(a).get.asInstanceOf[Int])
+                  .zipWithIndex
+                  .foreachBetween({ case (a, i) =>
+                    val realName = keys(i)
+                    sb.tsvAppend(realName, groupNameSep)
+                    sb += '\t'
+                    sb.tsvAppend(q2(a))
+                    sb += '\t'
+                    sb.tsvAppend(q3(a))
+                    sb += '\t'
+                    sb.tsvAppend(q4(a))
+                    sb += '\t'
+                    sb.tsvAppend(q5(a))
+                    sb += '\t'
+                  })(() => sb += '\n')
+                sb.result()
+              }
         }
     }.writeTable(options.output, Some(header), deleteTmpFiles = true)
 

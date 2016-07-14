@@ -45,14 +45,14 @@ weightsBeta <- as.numeric(strsplit(opt$`weights-beta`,",")[[1]])
 
 set.seed(seed)
 
-Generate_SSD_SetID(paste(plinkRoot, ".bed", sep=""), 
+suppressWarnings(Generate_SSD_SetID(paste(plinkRoot, ".bed", sep=""), 
                    paste(plinkRoot, ".bim", sep=""),
                    paste(plinkRoot, ".fam", sep=""),
                    setID,
                    ssdFile,
-                   infoFile)
+                   infoFile))
 
-SSD.INFO <- Open_SSD(ssdFile, infoFile)
+SSD.INFO <- suppressWarnings(Open_SSD(ssdFile, infoFile))
 
 isBinary <- TRUE
 if (phenoType == "C") {
@@ -71,7 +71,7 @@ if (nCovar > 0) {
   }
   obj <- suppressWarnings(SKAT_Null_Model(Y ~ X, out_type=phenoType, n.Resampling = opt$`n-resampling`, type.Resampling = opt$`type-resampling`, Adjustment = !opt$`no-adjustment`))
 } else {
-  PHENO <- Read_Plink_FAM(paste(plinkRoot, ".fam", sep=""), Is.binary=isBinary)
+  PHENO <- suppressWarnings(Read_Plink_FAM(paste(plinkRoot, ".fam", sep=""), Is.binary=isBinary))
   Y <- PHENO$Phenotype  
   obj <- suppressWarnings(SKAT_Null_Model(Y ~ 1, out_type=phenoType, n.Resampling = opt$`n-resampling`, type.Resampling = opt$`type-resampling`, Adjustment = !opt$`no-adjustment`))
 }

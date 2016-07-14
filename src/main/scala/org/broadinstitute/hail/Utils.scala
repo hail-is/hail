@@ -209,6 +209,8 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         seen += x
     dups.toSet
   }
+
+  def cross[S](j: Traversable[S]) = for {x <- i; y <- j} yield (x, y)
 }
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
@@ -508,7 +510,7 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
-  def tsvAppend(a: Any) {
+  def tsvAppend(a: Any, sep: String = ",") {
     a match {
       case null | None => sb.append("NA")
       case Some(x) => tsvAppend(x)
@@ -527,7 +529,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
           if (first)
             first = false
           else
-            sb += ','
+            sb.append(sep)
           tsvAppend(x)
         }
       case arr: Array[_] =>
@@ -536,7 +538,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
           if (first)
             first = false
           else
-            sb += ','
+            sb.append(sep)
           tsvAppend(x)
         }
       case _ => sb.append(a)
@@ -615,14 +617,8 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
         val out = new PrintWriter(proc.getOutputStream)
 
         printHeader(out.print)
-        it.foreach { x =>
-          if (it.hasNext) {
-            printElement(out.print, x)
-            printSep(out.print)
-          } else
-            printElement(out.print, x)
-        }
-        printFooter(out.println)
+        it.foreachBetween(x => printElement(out.print, x))(() => printSep(out.print))
+        printFooter(out.print)
         out.close()
       }
     }.start()
@@ -721,7 +717,7 @@ object TempDir {
         hadoopMkdir(dirname, hConf)
 
         val fs = hadoopFS(tmpdir, hConf)
-        fs.deleteOnExit(new hadoop.fs.Path(dirname))
+        //fs.deleteOnExit(new hadoop.fs.Path(dirname))
 
         return new TempDir(dirname)
       } catch {

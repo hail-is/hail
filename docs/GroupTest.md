@@ -2,7 +2,7 @@
   
 ## SKAT-O
  
-SKAT-O is not implemented natively in Hail. Instead, we use the SKAT package in R to run SKAT-O as described [here](https://cran.r-project.org/web/packages/SKAT/vignettes/SKAT.pdf).
+To run SKAT-O, use the command `grouptest skato`. SKAT-O is not implemented natively in Hail. Instead, we use the SKAT package in R to run SKAT-O as described [here](https://cran.r-project.org/web/packages/SKAT/vignettes/SKAT.pdf).
 
 ### Requirements
 1. [R installed ( > 2.13.0 )](https://www.r-project.org)
@@ -18,48 +18,28 @@ hail.skato.Rscript /usr/bin/Rscript
 hail.skato.script /path/to/hail/src/dist/scripts/skato.r
 ```
 
-### Implementation Details
-
-**All Hail variants and samples in the variant dataset at the time of calling `grouptest skato` are included in the SKAT-O test** 
-
-1. Hail groups variants together by the keys specified by the `-k | --group-keys` command line option.
-2. Duplicate variants are removed (one is randomly chosen). // FIXME: To-do item
-3. The phenotype vector and covariate matrix are constructed from the command-line options `-y` and `-c | --covariates` respectively. 
-4. Genotype vectors are constructed using the value in `g.nNonRefAlleles`
-5. The following R commands are run:
-
-```
-# 1. Run Null Model
-## No covariates specified
-obj <- SKAT_Null_Model(Y ~ 1, ... )
-
-## Covariates specified (X)
-obj <- SKAT_Null_Model(Y ~ X, ... )
-
-# 2. Run SKAT once per group with genotype matrix (Z) and result of null model
-SKAT(Z, obj, ... )
-
-# Y is the phenotype vector (coded as 0/1 for dichotomous variable and NA for missing value)
-# ... are optional parameters such as impute.method, r.corr, etc.
-```
-
-
 ### Running SKATO in Hail
 
 **Example Command:**
 ```
-
+hail importvcf /path/to/file.vcf \
+variantqc \
+vep --config /path/to/vep.properties \
+filtervariants expr --keep -c 'va.qc.AF < 0.01 && va.qc.AC > 0' \
+annotatesamples table -i /path/to/sampleAnnotations.txt -r sa.pheno \
+grouptest skato -k "let x = va.vep.transcript_consequences.map(csq => csq.gene_id).toSet in if (x.size == 0) NA: Set[String] else x" -y "sa.pheno.Phenotype" -c "sa.pheno.PC1,sa.pheno.PC2" -o /path/to/skatoOutput.tsv 
 ```
 
 **Input Specification:**
 
 Flag | Description | Required | Default
 :-: | ---
-`-k | --group-keys` | Comma-separated list of annotations to be used as grouping variable(s) (must be attribute of `va`) | True | |
+`-k | --group-key` | annotation to be used as grouping variable (must be attribute of `va` or `v`) | True | |
 `-q | --quantitative` | y is a quantitative phenotype | False | False
 `-y` | Response sample annotation (must be attribute of `sa`) | True | |
 `-c | --covariates` | Covariate sample annotations, comma-separated (must be attribute of `sa`) | False | |
 `-o | --output` | Path of output .tsv file | True | |
+`--splat` | expand out group keys that are sets or arrays (example: Set(GeneA, GeneB) will result in two tests instead of one test | False | False |
 
 **Configuration Options:**
 
@@ -69,6 +49,7 @@ Flag | Description | Required | Default
 `--block-size` | # of groups tested per invocation | False | 1000
 `--seed` | Number to set seed to in R | False | 1
 `--random-seed` | Use a random seed. Overrides `--seed` if set to True | False | False
+`-d` | Delimiter for group names with multiple elements in output file | False | ","
 
 **SKAT Null Model Options:**
 
@@ -119,3 +100,37 @@ group_5 0.607   0.582   8       2
 
 - If the number of markers tested is 0, SKAT-O returns a P-value of 1.0
 - Results are not sorted by groupName
+- An empty set or array as the group key will produce an empty string as the groupName
+
+### Implementation Details
+
+**All Hail variants and samples in the variant dataset at the time of calling `grouptest skato` are included in the SKAT-O test** 
+
+1. Hail groups variants together by the keys specified by the `-k | --group-keys` command line option.
+2. Duplicate variants are removed (one is randomly chosen). // FIXME: To-do item
+3. The phenotype vector and covariate matrix are constructed from the command-line options `-y` and `-c | --covariates` respectively. 
+4. Genotype vectors are constructed using the value in `g.nNonRefAlleles`
+5. The following R commands are run:
+
+```
+# 1. Run Null Model
+## No covariates specified
+obj <- SKAT_Null_Model(Y ~ 1, ... )
+
+## Covariates specified (X)
+obj <- SKAT_Null_Model(Y ~ X, ... )
+
+# 2. Run SKAT once per group with genotype matrix (Z) and result of null model
+SKAT(Z, obj, ... )
+
+# Y is the phenotype vector (coded as 0/1 for dichotomous variable and NA for missing value)
+# ... are optional parameters such as impute.method, r.corr, etc.
+```
+
+**Caveats**
+
+Hail will not return the same answer as SKAT-O from PLINK files:
+
+ * when variants have a minor allele frequency (MAF) of 0.5. This is because SKAT-O cannot know which allele is the reference allele from .bim files. Therefore, in Hail, the genotype vector codes reference allele homozygotes as 0 while in SKAT-O from PLINK files, the genotype vector codes these as 2.
+ * when using the `--estimate-maf 2` option if variants have a MAF equal to 0.5 after filtering samples with missing phenotypes and/or covariates. (see above)
+ * when using the `--impute-method random` option.

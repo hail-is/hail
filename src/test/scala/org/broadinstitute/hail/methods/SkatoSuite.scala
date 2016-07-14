@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check._
@@ -7,14 +9,36 @@ import org.broadinstitute.hail.check.Prop._
 import org.testng.annotations.Test
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.driver._
+import scala.collection.mutable
 import sys.process._
 import scala.language._
 
 class SkatoSuite extends SparkSuite {
 
+  val testVepSignature = TStruct("transcript_consequences" -> TArray(TStruct("lof_flag" -> TBoolean, "gene_id" -> TString)))
+  val sampleSignature = TStruct("phenotype" -> TBoolean)
+
+  def writeConfig(file: String) = writeTextFile(file, sc.hadoopConfiguration) { w =>
+    w.write("hail.skato.Rscript Rscript\n")
+    w.write("hail.skato.script src/dist/scripts/skato.r\n")
+  }
+
+  def genAnnotation(genes: Array[String]) = for (flag <- Gen.arbBoolean; gene <- Gen.oneOfSeq(genes)) yield Annotation(flag, gene)
+  def genAnnotations(n: Int, genes: Array[String]) = Gen.buildableOfN[IndexedSeq[Annotation], Annotation](n, genAnnotation(genes))
+  def genVariantAnnotation(genes: Array[String]) = for (n <- Gen.choose(0, 10); va <- genAnnotations(n, genes)) yield va
   def dichotomousPhenotype(nSamples: Int) = Gen.buildableOfN(nSamples, Gen.option(Gen.arbBoolean, 0.95))
   def quantitativePhenotype(nSamples: Int) = Gen.buildableOfN(nSamples, Gen.option(Gen.choose(-0.5, 0.5), 0.95))
   def covariateMatrix(nSamples: Int, numCovar: Int) = Gen.buildableOfN(numCovar, quantitativePhenotype(nSamples))
+
+  def readResults(file: String) = {
+    readLines(file, sc.hadoopConfiguration) { lines =>
+      lines.drop(1).map { l => l.transform { line =>
+        val Array(groupName, pValue, pValueNoAdj, nMarkers, nMarkersTested) = line.value.split( """\t""")
+        groupName
+      }
+      }.toArray
+    }
+  }
 
   object Spec extends Properties("SKAT-O") {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
@@ -38,8 +62,8 @@ class SkatoSuite extends SparkSuite {
                        missingCutoff <- Gen.choose(0.1, 0.6);
                        weightsBeta <- Gen.buildableOfN(2, Gen.choose(1, 25));
                        estimateMAF <- Gen.oneOf(1, 2)
-    )
-      yield (vds, blockSize, quantitative, nCovar, nGroups,
+
+    ) yield (vds, blockSize, quantitative, nCovar, nGroups,
         y, x, seed, rCorr, imputeMethod, kernel, nResampling,
         typeResampling, noAdjustment, method, missingCutoff, weightsBeta, estimateMAF)
 
@@ -195,11 +219,8 @@ class SkatoSuite extends SparkSuite {
           }
           s = AnnotateVariants.run(s, Array("table", variantAnnotations, "-r", "va.groups", "-v", "Variant"))
 
-          // Run SKAT-O command
-          writeTextFile(configSkato, sc.hadoopConfiguration) { w =>
-            w.write("hail.skato.Rscript Rscript\n")
-            w.write("hail.skato.script src/dist/scripts/skato.r\n")
-          }
+          // Run SKAT-O command from Hail
+          writeConfig(configSkato)
 
           var cmd = collection.mutable.ArrayBuffer("-k", "va.groups.Group", "--block-size", blockSize.toString,
             "-y", "sa.pheno.Phenotype", "--config", configSkato, "-o", hailOutputFile, "--seed", seed.toString,
@@ -249,7 +270,7 @@ class SkatoSuite extends SparkSuite {
 
               val h2 = h match {
                 case None => (Double.NaN, 0, 0)
-                case Some(res) => (if (res._1 == "null") -9.0 else res._1.toDouble, if (res._2 == "null") 0 else res._2.toInt, if (res._3 == "null") 0 else res._3.toInt)
+                case Some(res) => (if (res._1 == "NA") -9.0 else res._1.toDouble, if (res._2 == "NA") 0 else res._2.toInt, if (res._3 == "NA") 0 else res._3.toInt)
               }
 
               if (p2 == h2)
@@ -268,9 +289,95 @@ class SkatoSuite extends SparkSuite {
           }
         }
       }
+
+    def compositeAnnotationGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
+                                      nGroups <- Gen.choose(1, 10);
+                                      genes <- Gen.buildableOfN[Array[String], String](nGroups, Gen.arbString);
+                                      phenotypes <- dichotomousPhenotype(vds.nSamples);
+                                      annotations <- Gen.buildableOfN[Array[Annotation], Annotation](vds.nVariants.toInt, genVariantAnnotation(genes));
+                                      annotType <- Gen.oneOf("Set", "Array")
+    ) yield (vds, annotations, genes, phenotypes, annotType)
+
+    property("handle splat") =
+      forAll(compositeAnnotationGen) {case (vds, annotations, genes, phenotypes, annotType) =>
+        val tmpOutput = tmpDir.createTempFile("splatTest")
+        val variantAnnotations = vds.variants.zip(sc.parallelize(annotations)).map{case (v, va) => (v, Annotation(va))}
+        val phenotypeMap = vds.sampleIds.zip(phenotypes.map{case p => Annotation(p.orNull)}).toMap
+
+        val groupKeyQueryString =
+          if (annotType == "Set")
+            s"let x = va.vep.transcript_consequences.map(csq => csq.gene_id).toSet in if (x.size == 0) NA: Set[String] else x"
+          else
+            s"let x = va.vep.transcript_consequences.map(csq => csq.gene_id) in if (x.length == 0) NA: Array[String] else x"
+
+        val splatResults = tmpOutput + ".splat.tsv"
+        val noSplatResults = tmpOutput + ".nosplat.tsv"
+        val configFile = tmpOutput + ".config"
+
+        var s = State(sc, sqlContext, vds
+          .annotateVariants(variantAnnotations, testVepSignature, List("vep"))
+          .annotateSamples(phenotypeMap, sampleSignature, List("pheno")))
+        s = SplitMulti.run(s, Array.empty[String])
+
+        val nNonMissingPheno = phenotypes.count(_.isDefined)
+        val nVariants = s.vds.nVariants
+
+        writeConfig(tmpOutput + ".config")
+
+        val cmdNoSplat = mutable.ArrayBuffer("--config", configFile ,
+          "-k", groupKeyQueryString,
+          "-y","sa.pheno.phenotype"
+        )
+        val cmdSplat = mutable.ArrayBuffer("--config", configFile,
+          "-k", groupKeyQueryString,
+          "-y","sa.pheno.phenotype"
+        )
+
+        cmdNoSplat += "-o"
+        cmdNoSplat += noSplatResults
+
+        cmdSplat += "-o"
+        cmdSplat += splatResults
+        cmdSplat += "--splat"
+
+        if (nNonMissingPheno == 0 || nVariants == 0) {
+          try {
+            s = GroupTestSKATO.run(s, cmdNoSplat.result().toArray)
+            s = GroupTestSKATO.run(s, cmdSplat.result().toArray)
+            false
+          } catch {
+            case e: FatalException => true
+            case _:Throwable => false
+          }
+        } else {
+          s = GroupTestSKATO.run(s, cmdNoSplat.result().toArray)
+          s = GroupTestSKATO.run(s, cmdSplat.result().toArray)
+
+          val (baseType, querier) = s.vds.queryVA(groupKeyQueryString)
+
+          val (nSplatGroupsAnswer, nNoSplatGroupsAnswer) = baseType match {
+            case _: TSet =>
+              val trueGroups = s.vds.rdd.flatMap{case (v, va, gs) => querier(va)}.map(_.asInstanceOf[Set[String]]).collect()
+              val nSplatGroupsAnswer = trueGroups.foldLeft(Set.empty[String])((comb, s) => comb.union(s)).size
+              val nNoSplatGroupsAnswer = trueGroups.toSet.size
+              (nSplatGroupsAnswer, nNoSplatGroupsAnswer)
+            case _: TArray =>
+              val trueGroups = s.vds.rdd.flatMap{case (v, va, gs) => querier(va)}.map(_.asInstanceOf[IndexedSeq[String]]).collect()
+              val nSplatGroupsAnswer = trueGroups.foldLeft(Set.empty[String])((comb, s) => comb.union(s.toSet)).size
+              val nNoSplatGroupsAnswer = trueGroups.toSet.size
+              (nSplatGroupsAnswer, nNoSplatGroupsAnswer)
+            case _ => fatal(s"Can't test type $baseType for splat")
+          }
+
+          val nSplatGroupsOutput = readResults(splatResults).length
+          val nNoSplatGroupOutput = readResults(noSplatResults).length
+
+          nSplatGroupsAnswer == nSplatGroupsOutput && nNoSplatGroupsAnswer == nNoSplatGroupsAnswer && nSplatGroupsAnswer <= genes.length
+        }
+      }
   }
 
   @Test def testSKATO() {
-    Spec.check()
+    Spec.check(count = 25)
   }
 }
