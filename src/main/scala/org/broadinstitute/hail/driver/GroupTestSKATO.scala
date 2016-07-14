@@ -1,17 +1,19 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.annotations.Annotation
-import org.json4s._
-import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.Utils._
-import org.json4s.jackson.JsonMethods._
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
+
+import org.apache.spark.storage.StorageLevel
+import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr._
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+import org.kohsuke.args4j.{Option => Args4jOption}
+
 import scala.collection.JavaConverters._
-import scala.util.Random
 import scala.language.existentials
+import scala.util.Random
+
 
 object GroupTestSKATO extends Command {
 
@@ -328,7 +330,7 @@ object GroupTestSKATO extends Command {
               .iterator
               .pipe(pb, printContext, printElement, printFooter, printSep)
               .map { result =>
-                val a = Annotation.fromJson(parse(result), skatoSignature, "<root>")
+                val a = JSONAnnotationImpex.importAnnotation(parse(result), skatoSignature, "<root>")
                 a.asInstanceOf[IndexedSeq[_]]
                   .sortBy(a => q1(a).get.asInstanceOf[Int])
                   .zipWithIndex

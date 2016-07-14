@@ -1,17 +1,20 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.{FatalException, SparkSuite}
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.check._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
-import org.testng.annotations.Test
-import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.check._
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.testng.annotations.Test
+
 import scala.collection.mutable
-import sys.process._
 import scala.language._
+import scala.math.Numeric.Implicits._
+import scala.sys.process._
+
 
 class SkatoSuite extends SparkSuite {
 
@@ -41,7 +44,7 @@ class SkatoSuite extends SparkSuite {
   }
 
   object Spec extends Properties("SKAT-O") {
-    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
+    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
                        blockSize: Int <- Gen.choose(1, 1000);
                        quantitative: Boolean <- Gen.arbBoolean;
                        nCovar: Int <- Gen.choose(0, 5);
@@ -50,7 +53,8 @@ class SkatoSuite extends SparkSuite {
                        x <- covariateMatrix(vds.nSamples, nCovar);
                        seed <- Gen.arbInt;
                        nRho <- Gen.choose(1, 10);
-                       rCorr <- Gen.frequency((3, Gen.buildableOfN[Array[Double], Double](1, Gen.const[Double](0.0))),
+                       rCorr <- Gen.frequency(
+                         (3, Gen.buildableOfN[Array[Double], Double](1, Gen.const[Double](0.0))),
                          (3, Gen.buildableOfN[Array[Double], Double](1, Gen.const[Double](1.0))),
                          (3, Gen.distinctBuildableOfN[Array[Double], Double](nRho, Gen.choose(0.0, 1.0))));
                        imputeMethod <- Gen.oneOf("fixed", "bestguess"); //cannot test random because order of groups not identical between PLINK and Hail
@@ -144,7 +148,7 @@ class SkatoSuite extends SparkSuite {
           val adjustString = if (noAdjustment) "--no-adjustment" else ""
           val yType = if (quantitative) "C" else "D"
 
-          val plinkCommand = s"""Rscript src/test/resources/testSkatoPlink.R
+          val plinkCommand = s"""Rscript src/test/resources/testSkatoPlink.r
                                  |--plink-root $plinkRoot
                                  |--covariates $covarFile
                                  |--setid $setID
@@ -290,7 +294,7 @@ class SkatoSuite extends SparkSuite {
         }
       }
 
-    def compositeAnnotationGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _);
+    def compositeAnnotationGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
                                       nGroups <- Gen.choose(1, 10);
                                       genes <- Gen.buildableOfN[Array[String], String](nGroups, Gen.arbString);
                                       phenotypes <- dichotomousPhenotype(vds.nSamples);
