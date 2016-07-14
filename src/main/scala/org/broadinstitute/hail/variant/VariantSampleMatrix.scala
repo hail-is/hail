@@ -133,27 +133,38 @@ object VariantSampleMatrix {
         })
   }
 
+  def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.t,
+    "annotations" -> vaSignature,
+    "gs" -> GenotypeStream.t,
+    "sample_group" -> TString)
+
   def readKudu(sqlContext: SQLContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
     val metadata = readMetadata(sqlContext, dirname, skipGenotypes = false,
       requireParquetSuccess = false)
+    val vaSignature = metadata.vaSignature
 
     val df = sqlContext.read.options(
       Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
-    val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = df.rdd.mapPartitions(iter => {
-      val ser = SparkEnv.get.serializer.newInstance()
-      iter.map(r => {
-        val variant = Variant(r.getAs[String]("contig"), r.getAs[Int]("start"),
-          r.getAs[String]("ref"), r.getAs[String]("alt"))
-        val annotations = Annotation.empty // TODO: deserialize annotations
-        val bb = r.getAs[ByteBuffer]("genotypes")
-        val b = new Array[Byte](bb.remaining)
-        bb.get(b)
-        val genotypeStream = GenotypeStream(variant, Some(r.getAs[Int]("genotypes_byte_len")), b)
-        (variant, (annotations, genotypeStream))
-      })
-    }).spanByKey().map(kv => {
+
+    val rowType = kuduRowType(vaSignature)
+    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
+
+    // Kudu key fields are always first, so we have to reorder the fields we get back
+    // to be in the column order for the flattened schema *before* we unflatten
+    val indices: Array[Int] = schema.fields.zipWithIndex.map { case (field, rowIdx) =>
+      df.schema.fieldIndex(field.name)
+    }
+
+    val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = df.map { row =>
+      val importedRow = KuduAnnotationImpex.importAnnotation(
+        KuduAnnotationImpex.reorder(row, indices), rowType).asInstanceOf[Row]
+      val v = importedRow.getVariant(0)
+      (v,
+        (importedRow.get(1),
+          importedRow.getGenotypeStream(v, 2)))
+    }.spanByKey().map(kv => {
       // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
       val annotations = kv._2.head._1 // just use first annotation
@@ -162,6 +173,14 @@ object VariantSampleMatrix {
     })
     new VariantSampleMatrix[Genotype](metadata, rdd)
   }
+
+  private def makeSchemaForKudu(vaSignature: Type): StructType =
+    StructType(Array(
+      StructField("variant", Variant.schema, nullable = false),
+      StructField("annotations", vaSignature.schema, nullable = false),
+      StructField("gs", GenotypeStream.schema, nullable = false),
+      StructField("sample_group", StringType, nullable = false)
+    ))
 
   def gen[T](sc: SparkContext,
     gen: VSMSubgen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
@@ -617,7 +636,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def queryVA(code: String): (BaseType, Querier) = {
 
-    val st = Map(Annotation.VARIANT_HEAD ->(0, vaSignature))
+    val st = Map(Annotation.VARIANT_HEAD -> (0, vaSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -633,7 +652,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def querySA(code: String): (BaseType, Querier) = {
 
-    val st = Map(Annotation.SAMPLE_HEAD ->(0, saSignature))
+    val st = Map(Annotation.SAMPLE_HEAD -> (0, saSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -648,7 +667,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def queryGlobal(path: String): (BaseType, Option[Annotation]) = {
-    val st = Map(Annotation.GLOBAL_HEAD ->(0, globalSignature))
+    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -701,6 +720,9 @@ class RichVDS(vds: VariantDataset) {
       StructField("annotations", vds.vaSignature.schema, nullable = false),
       StructField("gs", GenotypeStream.schema, nullable = false)
     ))
+
+  def makeSchemaForKudu(): StructType =
+    makeSchema().add(StructField("sample_group", StringType, nullable = false))
 
   private def writeMetadata(sqlContext: SQLContext, dirname: String, compress: Boolean = true) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
@@ -767,53 +789,46 @@ class RichVDS(vds: VariantDataset) {
 
     writeMetadata(sqlContext, dirname, compress)
 
-    val hConf = sqlContext.sparkContext.hadoopConfiguration
-    val headerLines = readFile(vcfSeqDict, hConf) { s =>
-      Source.fromInputStream(s)
-        .getLines()
-        .takeWhile { line => line(0) == '#' }
-        .toArray
-    }
-    val codec = new htsjdk.variant.vcf.VCFCodec()
-    val seqDict = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
-      .getHeaderValue
-      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
-      .getSequenceDictionary
+    val vaSignature = vds.vaSignature
+
+    val rowType = VariantSampleMatrix.kuduRowType(vaSignature)
+    val rowRDD = vds.rdd
+      .map { case (v, va, gs) =>
+        KuduAnnotationImpex.exportAnnotation(Annotation(
+          v.toRow,
+          va,
+          gs.toGenotypeStream(v, compress).toRow,
+          sampleGroup), rowType).asInstanceOf[Row]
+      }
+
+    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
+    println(s"schema = $schema")
+    val df = sqlContext.createDataFrame(rowRDD, schema)
+
+    val kuduContext = new KuduContext(master)
     if (drop) {
       KuduUtils.dropTable(master, tableName)
       Thread.sleep(10 * 1000) // wait to avoid overwhelming Kudu service queue
     }
-    KuduUtils.createTableIfNecessary(master, tableName, seqDict, rowsPerPartition)
+    if (!KuduUtils.tableExists(master, tableName)) {
+      val hConf = sqlContext.sparkContext.hadoopConfiguration
+      val headerLines = readFile(vcfSeqDict, hConf) { s =>
+        Source.fromInputStream(s)
+          .getLines()
+          .takeWhile { line => line(0) == '#' }
+          .toArray
+      }
+      val codec = new htsjdk.variant.vcf.VCFCodec()
+      val seqDict = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+        .getHeaderValue
+        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+        .getSequenceDictionary
 
-    val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = vds.rdd
-    val rowRdd = rdd.map {
-      case (v, va, gs) =>
-        val stream = gs.toGenotypeStream(v, compress)
-        Row(
-          KuduUtils.normalizeContig(v.contig),
-          v.start,
-          v.ref,
-          v.allele(1), // TODO: remove biallelic assumption
-          sampleGroup,
-          v.contig,
-          new Array[Byte](0), // TODO: serialize annotations
-          stream.decompLenOption.get,
-          stream.a
-        )
+      val keys = Seq("variant__contig", "variant__start", "variant__ref",
+        "variant__altAlleles_0__alt", "sample_group")
+      kuduContext.createTable(tableName, schema, keys,
+        KuduUtils.createTableOptions(schema, keys, seqDict, rowsPerPartition))
     }
-    val schema = StructType(List(
-      StructField("contig_norm", StringType, nullable = false),
-      StructField("start", IntegerType, nullable = false),
-      StructField("ref", StringType, nullable = false),
-      StructField("alt", StringType, nullable = false),
-      StructField("sample_group", StringType, nullable = false),
-      StructField("contig", StringType, nullable = false),
-      StructField("annotations", BinaryType, nullable = true),
-      StructField("genotypes_byte_len", IntegerType, nullable = true),
-      StructField("genotypes", BinaryType, nullable = true)))
-    val df = sqlContext.createDataFrame(rowRdd, schema)
-
-    val kuduContext = new KuduContext(master)
     df.write
       .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
       .mode("append").kudu

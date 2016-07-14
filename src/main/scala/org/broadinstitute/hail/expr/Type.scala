@@ -111,6 +111,14 @@ abstract class Type extends BaseType {
   def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
 }
 
+case object TBinary extends Type {
+  override def toString = "Binary"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Array[Byte]]
+
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Array[Byte], Byte](Gen.arbByte)
+}
+
 case object TBoolean extends Type with Parsable {
   override def toString = "Boolean"
 

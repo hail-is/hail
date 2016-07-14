@@ -4,6 +4,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.expr._
 import org.json4s._
 
 import scala.collection.mutable
@@ -40,6 +41,9 @@ object AltAllele {
   val schema: StructType = StructType(Array(
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
+
+  val t: TStruct = TStruct("ref" -> TString,
+    "alt" -> TString)
 
   def fromRow(r: Row): AltAllele =
     AltAllele(r.getString(0), r.getString(1))
@@ -147,12 +151,19 @@ object Variant {
       StructField("altAlleles", ArrayType(AltAllele.schema, containsNull = false),
         nullable = false)))
 
+  val t: TStruct =
+    TStruct("contig" -> TString,
+      "start" -> TInt,
+      "ref" -> TString,
+      "altAlleles" -> TArray(AltAllele.t))
+
   def fromRow(r: Row) =
     Variant(r.getAs[String](0),
       r.getAs[Int](1),
       r.getAs[String](2),
-      r.getAs[mutable.WrappedArray[Row]](3)
-        .map(s => AltAllele.fromRow(s)))
+      r.getSeq[Row](3)
+        .map(s => AltAllele.fromRow(s))
+        .toArray)
 }
 
 object VariantSubgen {

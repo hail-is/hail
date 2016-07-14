@@ -214,6 +214,8 @@ object Gen {
     p.rng.getRandomGenerator.nextBoolean()
   }
 
+  def arbByte: Gen[Byte] = Gen { p => p.rng.getRandomGenerator.nextInt().toByte }
+
   def arbInt: Gen[Int] = Gen { p => p.rng.getRandomGenerator.nextInt() }
 
   def arbLong: Gen[Long] = Gen { p => p.rng.getRandomGenerator.nextLong() }

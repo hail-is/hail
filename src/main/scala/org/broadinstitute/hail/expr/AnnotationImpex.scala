@@ -18,12 +18,39 @@ abstract class AnnotationImpex[T, A] {
 }
 
 object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
+  val invalidCharacters = " ,;{}()\n\t=".toSet
+
+  def escapeColumnName(name: String): String = {
+    name.map { c =>
+      if (invalidCharacters.contains(c))
+        "_"
+      else
+        c
+    }.mkString
+  }
+  
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType) => requiresConversion(elementType)
     case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant => true
     case TStruct(fields) =>
       fields.exists(f => requiresConversion(f.`type`))
     case _ => false
+  }
+
+  def importType(t: DataType): Type = t match {
+    case BooleanType => TBoolean
+    case IntegerType => TInt
+    case LongType => TLong
+    case FloatType => TFloat
+    case DoubleType => TDouble
+    case StringType => TString
+    case BinaryType => TBinary
+    case ArrayType(elementType, _) => TArray(importType(elementType))
+    case StructType(fields) =>
+      TStruct(fields.zipWithIndex
+        .map { case (f, i) =>
+          (f.name, importType(f.dataType))
+        }: _*)
   }
 
   def importAnnotation(a: Any, t: Type): Annotation = {
@@ -74,6 +101,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case TDouble => DoubleType
     case TString => StringType
     case TChar => StringType
+    case TBinary => BinaryType
     case TArray(elementType) => ArrayType(exportType(elementType))
     case TSet(elementType) => ArrayType(exportType(elementType))
     case TDict(elementType) =>
@@ -90,9 +118,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       else
         StructType(fields
           .map(f =>
-            // FIXME StructField(f.name, f.`type`.schema)
-            StructField(f.index.toString, f.`type`.schema)
-          ))
+            StructField(escapeColumnName(f.name), f.`type`.schema)))
   }
 
   def exportAnnotation(a: Annotation, t: Type): Any = {

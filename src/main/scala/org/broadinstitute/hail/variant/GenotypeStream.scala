@@ -1,11 +1,15 @@
 package org.broadinstitute.hail.variant
 
+import java.nio.ByteBuffer
+
 import net.jpountz.lz4.LZ4Factory
 import org.apache.spark.sql.types.StructType
 import org.broadinstitute.hail.ByteIterator
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr.{TBinary, TInt, TStruct, Type}
+
 import scala.collection.mutable
 
 // FIXME use zipWithIndex
@@ -85,16 +89,26 @@ object GenotypeStream {
   def schema: StructType = {
     StructType(Array(
       StructField("decompLen", IntegerType, nullable = true),
-      StructField("bytes", ArrayType(ByteType), nullable = false)
+      StructField("bytes", BinaryType, nullable = false)
     ))
   }
 
+  def t: Type = TStruct("decompLen" -> TInt,
+    "bytes" -> TBinary)
+
   def fromRow(v: Variant, row: Row): GenotypeStream = {
 
+    val bytes: Array[Byte] = if (row.get(1).isInstanceOf[Array[Byte]]) {
+      row.getAs[Array[Byte]](1)
+    } else {
+      val bb: ByteBuffer = row.getAs[ByteBuffer](1)
+      val b: Array[Byte] = Array.ofDim[Byte](bb.remaining())
+      bb.get(b)
+      b
+    }
     GenotypeStream(v,
       row.getAsOption[Int](0),
-      row.getAs[mutable.WrappedArray[Byte]](1)
-        .toArray)
+      bytes)
   }
 }
 
