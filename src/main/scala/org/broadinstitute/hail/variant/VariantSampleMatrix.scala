@@ -284,24 +284,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
     copy(rdd = rdd.sample(withReplacement = false, fraction, 1))
 
-  def head(n: Long): VariantSampleMatrix[T] = {
-
-    val mergeResult = (index: Int, taskResult: Int) => taskResult
-    var nVariantsPerPartition = 0
-     rdd.sparkContext.runJob(rdd,
-      (tc: TaskContext, it: Iterator[(Variant, Annotation, Iterable[T])]) => it.size,
-      Seq[Int](1),
-      (index: Int, size: Int) => nVariantsPerPartition = size
-    )
-
-    val nPartitions = math.ceil(n.toDouble/nVariantsPerPartition).toInt
-
-    copy(rdd
-        .mapPartitionsWithIndex((idx, iter) =>
-          if (idx < nPartitions) if(idx == nPartitions-1) iter.take((n % nVariantsPerPartition).toInt) else iter else Iterator())
-        .coalesce(nPartitions)(null)
-    )
-  }
+  def head(n: Int): VariantSampleMatrix[T] =
+    copy(rdd = rdd.head(n))
 
   def mapValues[U](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     mapValuesWithAll((v, va, s, sa, g) => f(g))

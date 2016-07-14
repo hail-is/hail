@@ -16,7 +16,7 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{AccumulableParam, SparkContext, Partitioner, SparkEnv, TaskContext}
+import org.apache.spark._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -327,6 +327,27 @@ class RichSparkContext(val sc: SparkContext) extends AnyVal {
       .map(l => Line(l, None, file))
 }
 
+class HeadRDD[T](prev: RDD[T], num: Int)(implicit tct: ClassTag[T]) extends RDD[T](prev) {
+  def getPartitions: Array[Partition] = {
+    Array(new Partition {
+      def index = 0
+    })
+  }
+  
+  def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    val buf = new mutable.ArrayBuffer[T]
+
+    def f(i: Int): Unit =
+      if (buf.size < num) {
+        buf ++= prev.compute(prev.partitions(i), context).take(num - buf.size)
+        f(i + 1)
+      }
+    f(0)
+
+    buf.iterator
+  }
+}
+
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
@@ -365,6 +386,13 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = false)
       hadoopDelete(tmpFileName, hConf, recursive = true)
     }
+  }
+
+  def head(n: Int)(implicit tct: ClassTag[T]): RDD[T] = {
+    if (n == 0)
+      r.sparkContext.emptyRDD[T]
+    else
+      new HeadRDD(r, n)
   }
 }
 
@@ -452,10 +480,10 @@ class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
     r.mapPartitions(p => new SpanningIterator(p))
 
   def leftOuterJoinDistinct[W](other: RDD[(K, W)])
-                              (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
 
   def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
-                              (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null)= {
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       val w = pair._2.headOption
       pair._1.map((_, w))
@@ -463,10 +491,10 @@ class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
   }
 
   def joinDistinct[W](other: RDD[(K, W)])
-                     (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
 
   def joinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
-                     (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null)= {
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       for (v <- pair._1.iterator; w <- pair._2.iterator.take(1)) yield (v, w)
     }
