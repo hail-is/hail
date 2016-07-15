@@ -1235,23 +1235,25 @@ object Utils extends Logging {
   def D_epsilon(a: Double, b: Double, tolerance: Double = 1.0E-6): Double =
     math.max(java.lang.Double.MIN_NORMAL, tolerance * math.max(math.abs(a), math.abs(b)))
 
-  def D_==(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    math.abs(a - b) <= D_epsilon(a, b, tolerance)
+  def D_==(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
+      a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
+  }
 
-  def D_!=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    math.abs(a - b) > D_epsilon(a, b, tolerance)
+  def D_!=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
+      !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
+  }
 
   def D_<(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    a - b < -D_epsilon(a, b, tolerance)
+    !(a == b) && a - b < -D_epsilon(a, b, tolerance)
 
   def D_<=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    a - b <= D_epsilon(a, b, tolerance)
+    (a == b) || a - b <= D_epsilon(a, b, tolerance)
 
   def D_>(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    a - b > D_epsilon(a, b, tolerance)
+    !(a == b) && a - b > D_epsilon(a, b, tolerance)
 
   def D_>=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    a - b >= -D_epsilon(a, b, tolerance)
+    (a == b) || a - b >= -D_epsilon(a, b, tolerance)
 
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a

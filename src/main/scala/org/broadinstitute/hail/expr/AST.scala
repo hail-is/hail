@@ -1503,7 +1503,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       AST.evalCompose[Int, Int, Int, Int](ec, a, b, c, d) { case (c1, c2, c3, c4) =>
         if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
           fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
-        val fet = FisherExactTest(c1, c2, c3, c4).result()
+        val fet = FisherExactTest(c1, c2, c3, c4)
         Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
       }
 

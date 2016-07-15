@@ -1,15 +1,19 @@
-package org.broadinstitute.hail.stats
+package org.broadinstitute.hail
 
 import org.apache.commons.math3.distribution.HypergeometricDistribution
-import org.broadinstitute.hail.Utils.{fatal, divOption}
+import org.broadinstitute.hail.Utils._
 
-object FisherUtils {
-  //based on C code in R source code called zeroin.c
+package object stats {
+
   def uniroot(fn: Double => Double, min: Double, max: Double, tolerance: Double = 1.220703e-4): Option[Double] = {
+    // based on C code in R source code called zeroin.c
+    // https://github.com/wch/r-source/blob/e5b21d0397c607883ff25cca379687b86933d730/src/library/stats/src/zeroin.c
+
+    require(min < max, "interval start must be larger than end")
+
     var a = min
     var b = max
     var c = min
-    require(a < b, "interval start must be larger than end")
 
     var fa: Double = fn(a)
     var fb: Double = fn(b)
@@ -84,64 +88,50 @@ object FisherUtils {
         }
       }
 
-      None //No value found within threshold with 1000 iterations
+      None // No value found within threshold with 1000 iterations
     }
   }
-}
 
-object FisherExactTest {
-  def apply(a: Int, b: Int, c: Int, d: Int) = new FisherExactTest(a, b, c, d)
-  def apply(a: Double, b: Double, c: Double, d: Double): FisherExactTest = FisherExactTest(a.toInt, b.toInt, c.toInt, d.toInt)
-  def apply(a: Long, b: Long, c: Long, d: Long): FisherExactTest = FisherExactTest(a.toInt, b.toInt, c.toInt, d.toInt)
+  def FisherExactTest(a: Int, b: Int, c: Int, d: Int,
+                      oddsRatio: Double = 1d, confidence_level: Double = 0.95,
+                      alternative: String = "two.sided"): Array[Option[Double]] = {
 
-  def apply(a: Array[Double]): FisherExactTest = {
-    require(a.length == 4)
-    FisherExactTest(a(0).toInt, a(1).toInt, a(2).toInt, a(3).toInt)
-  }
-
-  def apply(a: Array[Int]): FisherExactTest = {
-    require(a.length == 4)
-    FisherExactTest(a(0), a(1), a(2), a(3))
-  }
-}
-
-class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
-  private val popSize = a + b + c + d
-  private val numSuccessPopulation = a + c
-  private val sampleSize = a + b
-  private val numSuccessSample = a
-
-  require(a >= 0 && b >= 0 && c >= 0 && d >= 0)
-
-  private val low = math.max(0, (a + b) - (b + d))
-  private val high = math.min(a + b, a + c)
-  private val support = (low to high).toArray
-
-  import FisherUtils._
-
-  def result(oddsRatio: Double = 1d, confidence_level: Double = 0.95, alternative: String = "two.sided"): Array[Option[Double]] = {
+    if (!(a >= 0 && b >= 0 && c >= 0 && d >= 0))
+      fatal(s"All inputs must be >= 0. Found [$a, $b, $c, $d]")
 
     if (confidence_level < 0d || confidence_level > 1d)
       fatal("Confidence level must be between 0 and 1")
+
     if (oddsRatio < 0d)
       fatal("Odds ratio must be between 0 and Inf")
+
     if (alternative != "greater" && alternative != "less" && alternative != "two.sided")
       fatal("Did not recognize test type string. Use one of greater, less, two.sided")
+
+    val popSize = a + b + c + d
+    val numSuccessPopulation = a + c
+    val sampleSize = a + b
+    val numSuccessSample = a
 
     if (!(popSize > 0 && sampleSize > 0 && sampleSize < popSize))
       return Array(None, None, None, None)
 
+    val low = math.max(0, (a + b) - (b + d))
+    val high = math.min(a + b, a + c)
+    val support = (low to high).toArray
+
     val hgd = new HypergeometricDistribution(null, popSize, numSuccessPopulation, sampleSize)
+    val epsilon = 2.220446e-16
 
     def dhyper(k: Int, logProb: Boolean = false): Double = {
       if (logProb) hgd.logProbability(k) else hgd.probability(k)
     }
 
-    def logdc = support.map(dhyper(_, logProb = true))
+    val logdc = support.map(dhyper(_, logProb = true))
 
     def dnhyper(ncp: Double): Array[Double] = {
       var d = logdc.zipWithIndex.map { case (hr, i) => hr + math.log(ncp) * i }
-      d = d.map { case dens => math.exp(dens - d.max) }
+      d = d.map (dens => math.exp(dens - d.max))
       d.map(_ / d.sum)
     }
 
@@ -169,8 +159,8 @@ class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
       } else {
         dnhyper(ncp)
           .zipWithIndex
-          .filter { case (d, i) => if (upper_tail) support(i) >= q else support(i) <= q }
-          .map { case (d, i) => d }
+          .filter { case (dbl, i) => if (upper_tail) support(i) >= q else support(i) <= q }
+          .map { case (dbl, i) => dbl }
           .sum
       }
     }
@@ -198,9 +188,9 @@ class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
       else {
         val mu = mnhyper(1.0)
         if (mu > x)
-          uniroot(unirootMnHyper(d => d, x) _, 0.0, 1.0)
+          uniroot(unirootMnHyper(d => d, x), 0.0, 1.0)
         else if (mu < x)
-          uniroot(unirootMnHyper(d => 1 / d, x) _, 2.220446e-16, 1d).flatMap(inverse)
+          uniroot(unirootMnHyper(d => 1 / d, x), epsilon, 1d).flatMap(inverse)
         else
           Option(1d)
       }
@@ -212,9 +202,9 @@ class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
       else {
         val p = pnhyper(x, 1, upper_tail = true)
         if (p > alpha)
-          uniroot(unirootPnHyper(d => d, x, true, alpha)_, 0d, 1d)
+          uniroot(unirootPnHyper(d => d, x, upper_tail = true, alpha), 0d, 1d)
         else if (p < alpha)
-          uniroot(unirootPnHyper(d => 1 / d, x, true, alpha) _, 2.220446e-16, 1d).flatMap(inverse)
+          uniroot(unirootPnHyper(d => 1 / d, x, upper_tail = true, alpha), epsilon, 1d).flatMap(inverse)
         else
           Option(1d)
       }
@@ -227,9 +217,9 @@ class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
       else {
         val p = pnhyper(x, 1)
         if (p < alpha)
-          uniroot(unirootPnHyper(d => d, x, false, alpha)_, 0d, 1d)
+          uniroot(unirootPnHyper(d => d, x, upper_tail = false, alpha), 0d, 1d)
         else if (p > alpha)
-          uniroot(unirootPnHyper(d => 1 / d, x, false, alpha) _, 2.220446e-16, 1d).flatMap(inverse)
+          uniroot(unirootPnHyper(d => 1 / d, x, upper_tail = false, alpha), epsilon, 1d).flatMap(inverse)
         else
           Option(1d)
       }
@@ -248,12 +238,7 @@ class FisherExactTest(a: Int, b: Int, c: Int, d: Int) {
           val d = dnhyper(oddsRatio)
           d.filter(_ <= d(numSuccessSample - low) * relErr).sum
         }
-
-      case _ => throw new IllegalArgumentException("didn't recognize option for alternative. Use one of [less, greater, two.sided]")
     }
-
-    if (pvalue < 0d || pvalue > 1.000000000002)
-      fatal(s"pvalue not valid probability: $pvalue")
 
     val oddsRatioEstimate = mle(numSuccessSample)
 
