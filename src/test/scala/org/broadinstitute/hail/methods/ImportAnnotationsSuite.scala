@@ -218,7 +218,7 @@ class ImportAnnotationsSuite extends SparkSuite {
         case (v, va) =>
           assert(v.start <= 14000000 ||
             v.start >= 17000000 ||
-            q1(va).isEmpty)
+            q1(va).contains(false))
       }
 
     bed2r.vds.variantsAndAnnotations

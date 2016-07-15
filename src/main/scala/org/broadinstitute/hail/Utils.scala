@@ -5,6 +5,7 @@ import java.net.URI
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
+import htsjdk.samtools.util.BlockCompressedStreamConstants
 import org.apache.commons.lang.StringEscapeUtils
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
@@ -20,10 +21,10 @@ import org.apache.spark.{AccumulableParam, SparkContext, Partitioner, SparkEnv, 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
-import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import org.broadinstitute.hail.utils.RichRow
 import org.broadinstitute.hail.variant.Variant
+import org.seqdoop.hadoop_bam.util.BGZFCodec
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.mutable.ListBuffer
@@ -957,7 +958,7 @@ object Utils extends Logging {
 
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
-    val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
+    val isBGZF = codec.exists(_.isInstanceOf[BGZFCodec])
 
     val srcFileStatuses = srcFilenames.flatMap(f => hadoopGlobAndSort(f, hConf))
     require(srcFileStatuses.forall {
@@ -967,23 +968,19 @@ object Utils extends Logging {
     val outputStream = destFS.create(destPath)
 
     try {
-      var i = 0
-      while (i < srcFileStatuses.length) {
-        val fileStatus = srcFileStatuses(i)
-        val lenAdjust: Long = if (isBGzip && i < srcFileStatuses.length - 1)
-          -28
-        else
-          0
+      srcFileStatuses.foreach { fileStatus =>
         val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
         val inputStream = srcFS.open(fileStatus.getPath)
         try {
           copyBytes(inputStream, outputStream,
-            fileStatus.getLen + lenAdjust,
+            fileStatus.getLen,
             false)
         } finally {
           inputStream.close()
         }
-        i += 1
+      }
+      if (isBGZF) {
+        outputStream.write(BlockCompressedStreamConstants.EMPTY_GZIP_BLOCK)
       }
     } finally {
       outputStream.close()

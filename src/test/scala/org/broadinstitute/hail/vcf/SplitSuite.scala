@@ -4,7 +4,7 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver.{SplitMulti, State}
 import org.broadinstitute.hail.methods.LoadVCF
-import org.broadinstitute.hail.variant.{Genotype, VariantSampleMatrix, VariantDataset, Variant}
+import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.check.Prop._
 import org.testng.annotations.Test
@@ -14,7 +14,7 @@ class SplitSuite extends SparkSuite {
 
   object Spec extends Properties("MultiSplit") {
     property("fakeRef implies wasSplit") =
-      forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vds: VariantDataset) =>
+      forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vds: VariantDataset) =>
         var s = State(sc, sqlContext, vds)
         s = SplitMulti.run(s, Array[String]())
         val wasSplitQuerier = s.vds.vaSignature.query("wasSplit")

@@ -34,7 +34,7 @@ class ImputeSexSuite extends SparkSuite {
   object Spec extends Properties("ImputeSex") {
 
     property("hail generates same results as PLINK v1.9") =
-      forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { case (vds: VariantSampleMatrix[Genotype]) =>
+      forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { case (vds: VariantSampleMatrix[Genotype]) =>
 
         var s = State(sc, sqlContext).copy(vds = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "X"), va, gs) }))
 

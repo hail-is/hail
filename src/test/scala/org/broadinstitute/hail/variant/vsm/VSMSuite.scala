@@ -144,14 +144,14 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testReadWrite() {
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, Genotype.gen _)) { (vsm: VariantSampleMatrix[Genotype]) =>
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vsm: VariantSampleMatrix[Genotype]) =>
       val f = tmpDir.createTempFile(extension = ".vds")
       vsm.write(sqlContext, f)
       val vsm2 = VariantSampleMatrix.read(sqlContext, f)
       vsm2.same(vsm)
     }
 
-    p.check
+    p.check()
   }
 
   @Test(enabled = false) def testKuduReadWrite() {

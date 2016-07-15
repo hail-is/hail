@@ -47,13 +47,13 @@ object AnnotateSamplesJSON extends Command {
 
     val t = Parser.parseType(options.`type`)
 
-    val extractSample = Annotation.jsonExtractSample(t, options.sample)
+    val extractSample = JSONAnnotationImpex.jsonExtractSample(t, options.sample)
 
     val sampleAnnot =
       sc.union(files.map { f =>
         sc.textFile(f)
           .map { line =>
-            Annotation.fromJson(parse(line), t, "<root>")
+            JSONAnnotationImpex.importAnnotation(parse(line), t)
           }
       })
         .flatMap { sa =>

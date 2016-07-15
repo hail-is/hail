@@ -1,10 +1,10 @@
-
- - Added `imputesex` which imputes the sex from variant data using the same method as PLINK. [see docs for details](docs/ImputeSex.md)
- 
-____
  
  - Added expr function `fet` to calculate p-values using Fisher's Exact Test.  Invoke this with `fet(count1, count2, count3, count4)` [see docs for details](docs/HailExpressionLanguage.md)
 
+____
+
+ - Added `imputesex` which imputes the sex from variant data using the same method as PLINK. [see docs for details](docs/ImputeSex.md)
+ 
 ____
 
  - renamed MAC -> AC and MAF -> AF in the `variantqc` module

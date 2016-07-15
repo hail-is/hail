@@ -14,7 +14,7 @@ Short Flag | Long Flag | Description | Default
 
 ## Example `imputesex` command:
 ```
-hail read -i /path/to/file.vds imputesex -m 0.01 exportsamples -o /path/to/output.tsv -c "ID=s.id, F=sa.imputesex.F, ImputedSex=sa.imputesex.imputedSex"
+hail read -i /path/to/file.vds imputesex -m 0.01 exportsamples -o /path/to/output.tsv -c "ID=s.id, Fstat=sa.imputesex.Fstat, ImputedSex=sa.imputesex.isFemale"
 ```
 
 To get the exact same answer as PLINK, make sure you split multi-allelic variants and use the flag `--include-par`:
