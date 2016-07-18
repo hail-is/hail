@@ -238,7 +238,10 @@ package object stats {
           val d = dnhyper(oddsRatio)
           d.filter(_ <= d(numSuccessSample - low) * relErr).sum
         }
+      case _ => fatal("didn't recognize option for alternative. Use one of [less, greater, two.sided]")
     }
+
+    assert(pvalue >= 0d && pvalue <= 1.000000000002)
 
     val oddsRatioEstimate = mle(numSuccessSample)
 
