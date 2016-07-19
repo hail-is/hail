@@ -155,7 +155,7 @@ object Parser extends JavaTokenParsers {
     or_expr
 
   def if_expr: Parser[AST] =
-    withPos("if") ~ ("(" ~> expr <~ ")") ~ expr ~ ("else" ~> expr) ^^ { case ifx ~ cond ~ thenTree ~ elseTree =>
+    withPos("if") ~ expr ~ expr ~ ("else" ~> expr) ^^ { case ifx ~ cond ~ thenTree ~ elseTree =>
       If(ifx.pos, cond, thenTree, elseTree)
     }
 
