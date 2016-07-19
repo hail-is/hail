@@ -160,14 +160,14 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.json4s:json4s-jackson_2.10:.*'))
         include(dependency('org.json4s:json4s-ast_2.10:.*'))
 
-        include(dependency('org.testng:testng:.*'))
-        include(dependency('com.beust:jcommander:.*'))
-        include(dependency('org.scalatest:scalatest_' + scalaMajorVersion + ':.*'))
-
         include(dependency('org.apache.solr:solr-solrj:.*'))
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('org.kududb:kudu-client:.*'))
         include(dependency('org.kududb:kudu-spark_2.10:.*'))
+
+        include(dependency('org.testng:testng:.*'))
+        include(dependency('com.beust:jcommander:.*'))
+        include(dependency('org.scalatest:scalatest_' + scalaMajorVersion + ':.*'))
     }
 }
 

@@ -98,14 +98,17 @@ object GenotypeStream {
 
   def fromRow(v: Variant, row: Row): GenotypeStream = {
 
-    val bytes: Array[Byte] = if (row.get(1).isInstanceOf[Array[Byte]]) {
-      row.getAs[Array[Byte]](1)
-    } else {
-      val bb: ByteBuffer = row.getAs[ByteBuffer](1)
-      val b: Array[Byte] = Array.ofDim[Byte](bb.remaining())
-      bb.get(b)
-      b
+    val bytes: Array[Byte] = row.get(1) match {
+      case ab: Array[Byte] =>
+        ab
+      case sb: Seq[Byte] =>
+        sb.toArray[Byte]
+      case bb: ByteBuffer =>
+        val b: Array[Byte] = Array.ofDim[Byte](bb.remaining())
+        bb.get(b)
+        b
     }
+
     GenotypeStream(v,
       row.getAsOption[Int](0),
       bytes)
