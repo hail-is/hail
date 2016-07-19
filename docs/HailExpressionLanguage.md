@@ -262,6 +262,20 @@ Compute statistics on number of singletons stratified by case/control:
 
 ```
 
+### Collect
+
+```
+    <aggregable>.collect( <Boolean expression> , <Any expression> )
+```
+
+`collect` is an aggregator that allows a set of elements of an aggregator to be collected into an `Array`.  For example, one can collect the list of non-ref sample IDs per variant with the following:
+
+```
+    annotatevariants expr -c 'va.hetSamples = gs.collect(g.isCalledNonRef, s)'
+```
+
+The above reads, "where the genotype is called non-reference, collect the sample id".  This returns an `Array[String]`.  If instead of `gs.collect(g.isCalledNonRef, s)` we had written `gs.collect(g.isCalled NonRef, g)`, we would have returned an `Array[Genotype]`.
+
 ### Examples
 
 #### Filtering
