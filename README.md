@@ -19,6 +19,7 @@ involved in Hail development, email hail@broadinstitute.org.
  - [PCA](docs/PCA.md)
  - [Annotating with the Variant Effect Predictor](docs/VEP.md)
  - [Filtering](docs/Filtering.md)
+ - [Querying using SQL](docs/SQL.md)
  - [Linear regression](docs/LinearRegression.md)
  - [Mendel errors](docs/MendelErrors.md)
  - [Exporting to TSV](docs/ExportTSV.md)
