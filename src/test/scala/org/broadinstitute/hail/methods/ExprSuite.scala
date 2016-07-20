@@ -283,16 +283,7 @@ class ExprSuite extends SparkSuite {
       sb.clear()
       t.compact(sb, true)
       val res = sb.result()
-//      println(res)
       val parsed = Parser.parseType(res)
-//      sb.clear()
-//      parsed.compact(sb, true)
-//      val res2 = sb.result()
-//      println(res2)
-//      val parsed2 = Parser.parseType(res2)
-//      sb.clear()
-//      parsed2.compact(sb, true)
-//      println(sb.result())
       t == parsed
     })
     check(forAll { (t: Type) =>
