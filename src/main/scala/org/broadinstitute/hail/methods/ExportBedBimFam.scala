@@ -39,4 +39,42 @@ object ExportBedBimFam {
   def makeFamRow(s: String): String = {
     s"0\t$s\t0\t0\t0\t-9"
   }
+
+  def makeFamRow(famID : String, s: String, patID: String, matID: String, sex: String, pheno: String): String = {
+    s"$famID\t$s\t$patID\t$matID\t$sex\t$pheno"
+  }
+
+/**
+  //Create family row for case/control
+  def makeFamRow(famID: Option[String], sID: String, patID: Option[String], matID: Option[String], isFemale: Option[Boolean], isCase: Option[Boolean]): String = {
+    val phenoString = isCase match{
+      case Some(c) => if(c) "2" else "1"
+      case None => defaultPheno
+    }
+    makeFamRow(famID,sID,patID,matID,isFemale,phenoString)
+  }
+
+  //Create family row for quantitative phenotype
+  /**def makeFamRow(famID: Option[String], sID: String, patID: Option[String], matID: Option[String], isFemale: Option[Boolean], qPheno: Option[Double]): String = {
+    val phenoString = qPheno match{
+      case Some(pheno) => pheno.toString //Todo: Not sure what precision should be used here
+      case None => defaultPheno
+    }
+    makeFamRow(famID,sID,patID,matID,isFemale,phenoString)
+  }**/
+
+  private def makeFamRow(famID: Option[Any], sID: String, patID: Option[Any], matID: Option[Any], isFemale: Option[Boolean], phenoString: Option[Any]): String = {
+    "%s\t%s\t%s\t%s\t%d\t%s".format(
+      famID.getOrElse(defaultFam).toString,
+      sID,
+      patID.getOrElse(defaultPatID).toString,
+      matID.getOrElse(defaultMatID).toString,
+      isFemale match{
+        case Some(female) => if(female) 2 else 1
+        case None => defaultSex
+      },
+      phenoString
+    )
+  }
+**/
 }
