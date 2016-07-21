@@ -65,16 +65,19 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[() => Option[Any]]) = {
+  def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[(Type, () => Option[Any])]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[Array[String]], Array[AST])]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
     ts.foreach(_.typecheck(ec))
-    val fs = ts.map { t =>
-      val f = t.eval(ec)
-      () => Option(f())
+    val fs = ts.map { ast =>
+      val f = ast.eval(ec)
+      ast.`type` match {
+        case t: Type => (t, () => Option(f()))
+        case bt => fatal(s"invalid export type: `$bt'")
+      }
     }
 
     (header, fs)

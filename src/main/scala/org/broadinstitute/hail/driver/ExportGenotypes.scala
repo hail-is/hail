@@ -19,6 +19,10 @@ object ExportGenotypes extends Command {
       usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
 
+    @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
+      usage = "Write the types of parse expressions to a file at the given path")
+    var typesFile: String = _
+
     @Args4jOption(name = "--print-ref", usage = "print reference genotypes")
     var printRef: Boolean = false
 
@@ -46,20 +50,39 @@ object ExportGenotypes extends Command {
     val sas = vds.saSignature
 
     val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vas),
-      "s" ->(2, TSample),
-      "sa" ->(3, sas),
-      "g" ->(4, TGenotype))
+      "v" -> (0, TVariant),
+      "va" -> (1, vas),
+      "s" -> (2, TSample),
+      "sa" -> (3, sas),
+      "g" -> (4, TGenotype))
 
     val ec = EvalContext(symTab)
 
-    val (header, fs) = if (cond.endsWith(".columns")) {
+    val (header, parseResults) = if (cond.endsWith(".columns")) {
       val (h, functions) = ExportTSV.parseColumnsFile(ec, cond, sc.hadoopConfiguration)
       (Some(h), functions)
     }
     else
       Parser.parseExportArgs(cond, ec)
+
+    Option(options.typesFile).foreach { file =>
+      writeTextFile(file, sc.hadoopConfiguration) { out =>
+        val sb = new StringBuilder
+        val sb2 = new StringBuilder
+        header
+          .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
+          .zip(parseResults)
+          .iterator
+          .foreachBetween { case (name, (t, f)) =>
+            sb.append(prettyIdentifier(name))
+            sb.append(" : ")
+            sb2.clear()
+            t.pretty(sb2, 0, true)
+            sb.append(sb2.result().replace('\n', ' '))
+          }(() => sb.append(",\n"))
+        out.write(sb.result())
+      }
+    }
 
     val a = ec.a
 
@@ -73,6 +96,8 @@ object ExportGenotypes extends Command {
 
     val filterF: Genotype => Boolean =
       g => (!g.isHomRef || localPrintRef) && (!g.isNotCalled || localPrintMissing)
+
+    val fs = parseResults.map(_._2)
 
     val lines = vds.mapPartitionsWithAll { it =>
       val sb = new StringBuilder()

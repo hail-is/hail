@@ -16,6 +16,11 @@ object ExportSamples extends Command {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
+
+    @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
+      usage = "Write the types of parse expressions to a file at the given path")
+    var typesFile: String = _
+
   }
 
   def newOptions = new Options
@@ -36,29 +41,48 @@ object ExportSamples extends Command {
     val output = options.output
 
     val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, vds.saSignature),
+      "g" -> (4, TGenotype),
+      "global" -> (5, vds.globalSignature)))
 
     val symTab = Map(
-      "s" ->(0, TSample),
-      "sa" ->(1, vds.saSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, TAggregable(aggregationEC)))
+      "s" -> (0, TSample),
+      "sa" -> (1, vds.saSignature),
+      "global" -> (2, vds.globalSignature),
+      "gs" -> (-1, TAggregable(aggregationEC)))
 
     val ec = EvalContext(symTab)
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val (header, fs) = if (cond.endsWith(".columns")) {
+    val (header, parseResults) = if (cond.endsWith(".columns")) {
       val (h, functions) = ExportTSV.parseColumnsFile(ec, cond, hConf)
       (Some(h), functions)
     }
     else
       Parser.parseExportArgs(cond, ec)
+
+    Option(options.typesFile).foreach { file =>
+      writeTextFile(file, hConf) { out =>
+        val sb = new StringBuilder
+        val sb2 = new StringBuilder
+        header
+          .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
+          .zip(parseResults)
+          .iterator
+          .foreachBetween { case (name, (t, f)) =>
+            sb.append(prettyIdentifier(name))
+            sb.append(" : ")
+            sb2.clear()
+            t.pretty(sb2, 0, true)
+            sb.append(sb2.result().replace('\n', ' '))
+          }(() => sb.append(",\n"))
+        out.write(sb.result())
+      }
+    }
 
     val aggregatorA = aggregationEC.a
 
@@ -66,6 +90,7 @@ object ExportSamples extends Command {
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
+    val fs = parseResults.map(_._2)
     val sb = new StringBuilder()
     val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
       sb.clear()

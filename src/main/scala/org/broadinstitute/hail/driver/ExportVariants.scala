@@ -16,6 +16,11 @@ object ExportVariants extends Command {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
+
+    @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
+      usage = "Write the types of parse expressions to a file at the given path")
+    var typesFile: String = _
+
   }
 
   def newOptions = new Options
@@ -53,16 +58,37 @@ object ExportVariants extends Command {
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val (header, fs) = if (cond.endsWith(".columns")) {
+    val (header, parseResults) = if (cond.endsWith(".columns")) {
       val (h, functions) = ExportTSV.parseColumnsFile(ec, cond, hConf)
       (Some(h), functions)
     }
     else
       Parser.parseExportArgs(cond, ec)
 
+    Option(options.typesFile).foreach { file =>
+      writeTextFile(file, hConf) { out =>
+        val sb = new StringBuilder
+        val sb2 = new StringBuilder
+        header
+          .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
+          .zip(parseResults)
+          .iterator
+          .foreachBetween{ case (name, (t, f)) =>
+            sb.append(prettyIdentifier(name))
+            sb.append(" : ")
+            sb2.clear()
+            t.pretty(sb2, 0, true)
+            sb.append(sb2.result().replace('\n', ' '))
+          }(() => sb.append(",\n"))
+        out.write(sb.result())
+      }
+    }
+
     val variantAggregations = Aggregators.buildVariantaggregations(vds, aggregationEC)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
+
+    val fs = parseResults.map(_._2)
 
     vds.rdd
       .mapPartitions { it =>
