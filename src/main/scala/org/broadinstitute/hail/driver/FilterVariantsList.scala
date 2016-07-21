@@ -52,27 +52,21 @@ object FilterVariantsList extends Command {
           }.value
         }
 
-    val isDosage = vds.isDosage
-
-    val in = vds.rdd
-      .map { case (v, (va, gs)) => (v, (va, gs.toGenotypeStream(v, isDosage, compress = false))) }
-
     state.copy(
       vds = vds.copy(
-        rdd =
-          if (keep)
-            in
-              .joinDistinct(variants)
-              .map { case (v, ((va, gs), _)) => (v, (va, gs)) }
-          else
-            in
-              .leftOuterJoinDistinct(variants)
-              .flatMap {
-                case (v, ((va, gs), Some(_))) =>
-                  None
-                case (v, ((va, gs), None)) =>
-                  Some((v, (va, gs)))
+        rdd = vds.rdd
+          .orderedLeftJoinDistinct(variants.toOrderedRDD(_.locus))
+          .mapPartitions({ it =>
+            it.flatMap { case (v, ((va, gs), o)) =>
+              o match {
+                case Some(_) =>
+                  if (keep) Some((v, (va, gs))) else None
+                case None =>
+                  if (keep) None else Some((v, (va, gs)))
               }
+            }
+          }, preservesPartitioning = true)
+          .toOrderedRDD(_.locus)
       ))
   }
 }

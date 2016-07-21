@@ -3,7 +3,7 @@ package org.broadinstitute.hail.io
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.check.{Gen, Properties}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.SparkSuite
@@ -72,7 +72,8 @@ class LoadBgenSuite extends SparkSuite {
   }
 
   object Spec extends Properties("ImportBGEN") {
-    val compGen = for (vds <- VariantSampleMatrix.gen(sc, VSMSubgen.dosage) if vds.nVariants != 0;
+    val compGen = for (vds <- VariantSampleMatrix.gen(sc,
+      VSMSubgen.dosage.copy(vGen = VSMSubgen.dosage.vGen.map(v => v.copy(contig = "01")))) if vds.nVariants != 0;
       nPartitions <- choose(1, 10))
       yield (vds, nPartitions)
 
@@ -82,9 +83,7 @@ class LoadBgenSuite extends SparkSuite {
     property("import generates same output as export") =
       forAll(compGen) { case (vds, nPartitions) =>
 
-        val vdsRemapped = vds.copy(rdd = vds.rdd.map { case (v, (va, gs)) => (v.copy(contig = "01"), (va, gs)) })
-
-        assert(vdsRemapped.rdd.forall { case (v, (va, gs)) =>
+        assert(vds.rdd.forall { case (v, (va, gs)) =>
           gs.flatMap(_.dosage).flatten.forall(d => d >= 0.0 && d <= 1.0)
         })
 
@@ -101,7 +100,7 @@ class LoadBgenSuite extends SparkSuite {
         hadoopDelete(sampleFile, sc.hadoopConfiguration, recursive = true)
         hadoopDelete(qcToolLogFile, sc.hadoopConfiguration, recursive = true)
 
-        var s = State(sc, sqlContext, vdsRemapped)
+        var s = State(sc, sqlContext, vds)
         s = SplitMulti.run(s, Array[String]())
         s = RenameSamples.run(s, Array("-i", sampleRenameFile))
 

@@ -44,7 +44,7 @@ object PlinkLoader {
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def parseFam(filename: String, ffConfig: FamFileConfig,
-               hConf: hadoop.conf.Configuration): (IndexedSeq[(String, Annotation)], Type) = {
+    hConf: hadoop.conf.Configuration): (IndexedSeq[(String, Annotation)], Type) = {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
@@ -107,11 +107,11 @@ object PlinkLoader {
   }
 
   private def parseBed(bedPath: String,
-                       sampleIds: IndexedSeq[String],
-                       sampleAnnotations: IndexedSeq[Annotation],
-                       sampleAnnotationSignature: Type,
-                       variants: Array[(Variant, String)],
-                       sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
+    sampleIds: IndexedSeq[String],
+    sampleAnnotations: IndexedSeq[Annotation],
+    sampleAnnotationSignature: Type,
+    variants: Array[(Variant, String)],
+    sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
 
     val nSamples = sampleIds.length
     val variantsBc = sc.broadcast(variants)
@@ -124,7 +124,7 @@ object PlinkLoader {
       case (lw, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
         (v, (Annotation(rsId), vr.getGS))
-    }
+    }.toOrderedRDD(_.locus)
 
     VariantSampleMatrix(VariantMetadata(
       sampleIds = sampleIds,
@@ -137,7 +137,7 @@ object PlinkLoader {
   }
 
   def apply(bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-            sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
+    sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, sc.hadoopConfiguration)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)

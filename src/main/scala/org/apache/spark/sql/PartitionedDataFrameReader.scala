@@ -2,8 +2,12 @@ package org.apache.spark.sql
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.sql.execution.datasources.parquet.{ParquetRelation, PartitionedParquetRelation}
+import org.apache.spark.sql.execution.datasources.parquet.PartitionedParquetRelation
 
+/**
+  * Copied and slightly modified from org.apache.spark.sql.DataFrameReader, version 1.5.0
+  * Changed to call PartitionedParquetRelation instead of ParquetRelation
+  */
 class PartitionedDataFrameReader(sqlContext: SQLContext) extends DataFrameReader(sqlContext) {
   override def parquet(paths: String*): DataFrame = {
     if (paths.isEmpty) {

@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.io
 
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
@@ -8,7 +9,7 @@ import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
 import org.broadinstitute.hail.io.vcf.LoadVCF
-import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, VariantSampleMatrix}
+import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -61,46 +62,33 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsOrig = LoadVCF(sc, vcfFile, nPartitions = Some(10))
     val stateOrig = State(sc, sqlContext, vdsOrig)
+    println(vdsOrig.rdd.partitions.length)
 
     ExportVCF.run(stateOrig, Array("-o", outFile))
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
     val stateNew = State(sc, sqlContext, vdsNew)
 
-    case class Coordinate(contig: String, start: Int, ref: String, alt: String) extends Ordered[Coordinate] {
-      def compare(that: Coordinate) = {
-        if (this.contig != that.contig)
-          this.contig.compareTo(that.contig)
-        else if (this.start != that.start)
-          this.start.compareTo(that.start)
-        else if (this.ref != that.ref)
-          this.ref.compareTo(that.ref)
-        else
-          this.alt.compareTo(that.alt)
-      }
-    }
-    val coordinates: Array[Coordinate] = readFile(outFile, stateNew.hadoopConf) { s =>
+    assert(readFile(outFile, stateNew.hadoopConf) { s =>
       Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty && line(0) != '#')
-        .map(line => line.split("\t")).take(5).map(a => new Coordinate(a(0), a(1).toInt, a(3), a(4))).toArray
-    }
-
-    val sortedCoordinates = coordinates.sortWith { case (c1, c2) => c1.compare(c2) < 0 }
-
-    assert(sortedCoordinates.sameElements(coordinates))
+        .map(line => line.split("\t")).take(5).map(a => Variant(a(0), a(1).toInt, a(3), a(4))).toArray
+    }.isSorted)
   }
 
   @Test def testReadWrite() {
     val s = State(sc, sqlContext, null)
     val out = tmpDir.createTempFile("foo", ".vcf.bgz")
     val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random), Gen.choose(1, 10)) { case (vds, nPar) =>
-      hadoopDelete("/tmp/foo.vcf", sc.hadoopConfiguration, recursive = true)
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random), Gen.choose(1, 10), Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
+      hadoopDelete(out, sc.hadoopConfiguration, recursive = true)
+      hadoopDelete(out2, sc.hadoopConfiguration, recursive = true)
       ExportVCF.run(s.copy(vds = vds), Array("-o", out))
-      val vsm2 = ImportVCF.run(s, Array(out, "-n", nPar.toString)).vds
+      val vsm2 = ImportVCF.run(s, Array(out, "-n", nPar1.toString)).vds
       ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
-      val vsm3 = ImportVCF.run(s, Array(out2, "-n", nPar.toString)).vds
+      val vsm3 = ImportVCF.run(s, Array(out2, "-n", nPar1.toString)).vds
+
       vsm2.same(vsm3)
     }
 

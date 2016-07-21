@@ -1,19 +1,19 @@
 package org.broadinstitute.hail.variant.vsm
 
 import org.apache.commons.math3.random.RandomDataGenerator
-import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.io.vcf.LoadVCF
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics
+import org.apache.commons.math3.stat.regression.SimpleRegression
+import org.apache.spark.rdd.{OrderedRDD, RDD}
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.check.{Gen, Parameters}
+import org.broadinstitute.hail.check.Parameters
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics
-import org.apache.commons.math3.stat.regression.SimpleRegression
 
 import scala.collection.mutable
 import scala.language.postfixOps
@@ -70,57 +70,57 @@ class VSMSuite extends SparkSuite {
     val va2 = r2
     val va3 = r3
 
-    val rdd1: RDD[(Variant, (Annotation, Iterable[Genotype]))] = sc.parallelize(Seq((v1, (va1,
+    val rdd1 = sc.parallelize(Seq((v1, (va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2)))),
       (v2, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1))))))
+          Genotype(1)))))).toOrderedRDD(_.locus)
 
     // differ in variant
-    val rdd2: RDD[(Variant, (Annotation, Iterable[Genotype]))] = sc.parallelize(Seq((v1, (va1,
+    val rdd2 = sc.parallelize(Seq((v1, (va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2)))),
       (v3, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1))))))
+          Genotype(1)))))).toOrderedRDD(_.locus)
 
     // differ in genotype
-    val rdd3: RDD[(Variant, (Annotation, Iterable[Genotype]))] = sc.parallelize(Seq((v1, (va1,
+    val rdd3 = sc.parallelize(Seq((v1, (va1,
       Iterable(Genotype(),
         Genotype(1),
         Genotype(2)))),
       (v2, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1))))))
+          Genotype(1)))))).toOrderedRDD(_.locus)
 
     // for mdata2
-    val rdd4: RDD[(Variant, (Annotation, Iterable[Genotype]))] = sc.parallelize(Seq((v1, (va1,
+    val rdd4 = sc.parallelize(Seq((v1, (va1,
       Iterable(Genotype(),
         Genotype(0)))),
       (v2, (va2, Iterable(
         Genotype(0),
-        Genotype(0))))))
+        Genotype(0)))))).toOrderedRDD(_.locus)
 
     // differ in number of variants
-    val rdd5: RDD[(Variant, (Annotation, Iterable[Genotype]))] = sc.parallelize(Seq((v1, (va1,
+    val rdd5 = sc.parallelize(Seq((v1, (va1,
       Iterable(Genotype(),
-        Genotype(0))))))
+        Genotype(0)))))).toOrderedRDD(_.locus)
 
     // differ in annotations
-    val rdd6: RDD[(Variant, (Annotation, Iterable[Genotype]))] = sc.parallelize(Seq((v1, (va1,
+    val rdd6 = sc.parallelize(Seq((v1, (va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2)))),
       (v2, (va3,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1))))))
+          Genotype(1)))))).toOrderedRDD(_.locus)
 
     val vdss = Array(new VariantDataset(mdata1, rdd1),
       new VariantDataset(mdata1, rdd2),
@@ -137,7 +137,7 @@ class VSMSuite extends SparkSuite {
       new VariantDataset(mdata1, rdd6))
 
     for (i <- vdss.indices;
-         j <- vdss.indices) {
+      j <- vdss.indices) {
       if (i == j)
         assert(vdss(i) == vdss(j))
       else
@@ -267,12 +267,12 @@ class VSMSuite extends SparkSuite {
     val statsBySize = sizes.map(size => (size, spaceStatsOf(() => vsmOfSize(size))))
 
     println("xs = " + sizes)
-    println("mins = " + statsBySize.map { case (_,stats) => stats.getMin})
-    println("maxs = " + statsBySize.map { case (_,stats) => stats.getMax})
-    println("means = " + statsBySize.map { case (_,stats) => stats.getMean})
+    println("mins = " + statsBySize.map { case (_, stats) => stats.getMin })
+    println("maxs = " + statsBySize.map { case (_, stats) => stats.getMax })
+    println("means = " + statsBySize.map { case (_, stats) => stats.getMean })
 
     val sr = new SimpleRegression
-    statsBySize.foreach {case (size, stats) => sr.addData(size, stats.getMean)}
+    statsBySize.foreach { case (size, stats) => sr.addData(size, stats.getMean) }
 
     println("R² = " + sr.getRSquare)
 

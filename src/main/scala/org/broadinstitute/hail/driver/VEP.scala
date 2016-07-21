@@ -3,12 +3,11 @@ package org.broadinstitute.hail.driver
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
-import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Genotype, Variant}
+import org.broadinstitute.hail.variant._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -199,7 +198,7 @@ object VEP extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    
+
     val root = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
 
     val rootType =
@@ -208,9 +207,9 @@ object VEP extends Command {
           val r = t == vepSignature
           if (!r) {
             if (options.force)
-              warn(s"type for ${options.root} does not match vep signature, overwriting.")
+              warn(s"type for ${ options.root } does not match vep signature, overwriting.")
             else
-              warn(s"type for ${options.root} does not match vep signature.")
+              warn(s"type for ${ options.root } does not match vep signature.")
           }
           r
         }
@@ -229,7 +228,7 @@ object VEP extends Command {
       p
     } catch {
       case e: IOException =>
-        fatal(s"could not open file: ${e.getMessage}")
+        fatal(s"could not open file: ${ e.getMessage }")
     }
 
     val perl = properties.getProperty("hail.vep.perl", "perl")
@@ -272,81 +271,48 @@ object VEP extends Command {
 
     val inputQuery = vepSignature.query("input")
 
-    val isDosage = vds.isDosage
-
-
-    val kvRDD = vds.rdd.map { case (v, (a, gs)) =>
-      (v, (a, gs.toGenotypeStream(v, isDosage, compress = false)))
-    }.persist(StorageLevel.MEMORY_AND_DISK)
-
-    val repartRDD =
-      kvRDD
-        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotation, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-        .persist(StorageLevel.MEMORY_AND_DISK)
-
     val localBlockSize = options.blockSize
 
-    val annotations = repartRDD.mapPartitions { it =>
-      val pb = new ProcessBuilder(cmd.toList.asJava)
-      val env = pb.environment()
-      if (perl5lib != null)
-        env.put("PERL5LIB", perl5lib)
-      if (path != null)
-        env.put("PATH", path)
+    val annotations = vds.rdd.mapValues { case (va, gs) => va }
+      .mapPartitions({ it =>
+        val pb = new ProcessBuilder(cmd.toList.asJava)
+        val env = pb.environment()
+        if (perl5lib != null)
+          env.put("PERL5LIB", perl5lib)
+        if (path != null)
+          env.put("PATH", path)
 
-      val r = it.filter { case (v, (va, gs)) =>
-        rootQuery.flatMap(q => q(va)).isEmpty
-      }
-        .map { case (v, _) => v }
-        .grouped(localBlockSize)
-        .flatMap(_.iterator.pipe(pb,
-          printContext,
-          printElement,
-          _ => ())
-          .map { s =>
-            val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
-            val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
-            (v, a)
-          })
-        .toArray
-        .sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
-      r.iterator
-    }.persist(StorageLevel.MEMORY_AND_DISK)
+        val r = it.filter { case (v, va) =>
+          rootQuery.flatMap(q => q(va)).isEmpty
+        }
+          .map { case (v, _) => v }
+          .grouped(localBlockSize)
+          .flatMap(_.iterator.pipe(pb,
+            printContext,
+            printElement,
+            _ => ())
+            .map { s =>
+              val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
+              val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
+              (v, a)
+            })
+          .toArray
+          .sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
+        r.iterator
+      }, preservesPartitioning = true)
+      .persist(StorageLevel.MEMORY_AND_DISK)
 
-    info(s"vep: annotated ${annotations.count()} variants")
+    info(s"vep: annotated ${ annotations.count() } variants")
 
     val (newVASignature, insertVEP) = vds.vaSignature.insert(vepSignature, root)
 
-    val newRDD = repartRDD
-      .zipPartitions(annotations) { case (it, ita) =>
-
-        new Iterator[(Variant, (Annotation, Iterable[Genotype]))] {
-          var p: (Variant, Annotation) = null
-
-          def hasNext = {
-            val r = it.hasNext
-            assert(r || !ita.hasNext)
-            r
+    val newRDD = vds.rdd
+      .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
+        left.sortedLeftJoinDistinct(right)
+          .map { case (v, ((va, gs), vaVep)) =>
+            (v, (vaVep.map(a => insertVEP(va, Some(a))).getOrElse(va), gs))
           }
-
-          def next(): (Variant, (Annotation, Iterable[Genotype])) = {
-            var (v, (va, gs)) = it.next()
-
-            if (p == null
-              && ita.hasNext)
-              p = ita.next()
-
-            assert(p == null || v <= p._1)
-
-            if (p != null && v == p._1) {
-              val va2 = insertVEP(va, Some(p._2))
-              p = null
-              (v, (va2, gs))
-            } else
-              (v, (va, gs))
-          }
-        }
-      }
+      }.toOrderedRDD(_.locus)
 
     val newVDS = vds.copy(rdd = newRDD,
       vaSignature = newVASignature)

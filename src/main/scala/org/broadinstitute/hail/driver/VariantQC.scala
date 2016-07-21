@@ -14,19 +14,19 @@ import scala.collection.mutable
 object VariantQCCombiner {
   val header =
     "callRate\t" +
-    "AC\t" +
-    "AF\t" +
-    "nCalled\t" +
-    "nNotCalled\t" +
-    "nHomRef\t" +
-    "nHet\t" +
-    "nHomVar\t" +
-    "dpMean\tdpStDev\t" +
-    "gqMean\tgqStDev\t" +
-    "nNonRef\t" +
-    "rHeterozygosity\t" +
-    "rHetHomVar\t" +
-    "rExpectedHetFrequency\tpHWE"
+      "AC\t" +
+      "AF\t" +
+      "nCalled\t" +
+      "nNotCalled\t" +
+      "nHomRef\t" +
+      "nHet\t" +
+      "nHomVar\t" +
+      "dpMean\tdpStDev\t" +
+      "gqMean\tgqStDev\t" +
+      "nNonRef\t" +
+      "rHeterozygosity\t" +
+      "rHetHomVar\t" +
+      "rExpectedHetFrequency\tpHWE"
 
   val signature = TStruct(
     "callRate" -> TDouble,
@@ -248,17 +248,13 @@ object VariantQC extends Command {
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature, "qc")
     state.copy(
       vds = vds.copy(
-        rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
-          // if upstream operation is a recomputed shuffle, order of elements may disagree
-          val ia = it.toArray.sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
-          val ja = jt.toArray.sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
-
-          ia.iterator.zip(ja.iterator).map { case ((v, (va, gs)), (v2, comb)) =>
+        rdd = vds.rdd.zipPartitions(r, preservesPartitioning = true) { case (it, jt) =>
+          it.zip(jt).map { case ((v, (va, gs)), (v2, comb)) =>
             assert(v == v2)
             (v, (insertQC(va, Some(comb.asAnnotation)), gs))
           }
-        },
-        vaSignature = newVAS)
+        }.toOrderedRDD(_.locus), vaSignature = newVAS)
     )
   }
+
 }
