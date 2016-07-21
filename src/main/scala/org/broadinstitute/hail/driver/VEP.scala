@@ -301,7 +301,7 @@ object VEP extends Command {
           printElement,
           _ => ())
           .map { s =>
-            val a = Annotation.fromJson(parse(s), vepSignature, "<root>")
+            val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
             val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
             (v, a)
           })

@@ -1,9 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.io.annotators.IntervalListAnnotator
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object FilterVariantsIntervals extends Command {
@@ -40,11 +38,8 @@ object FilterVariantsIntervals extends Command {
 
     val cond = options.input
     val keep = options.keep
-    val ilist = IntervalList.read(options.input, state.hadoopConf)
-    val ilistBc = state.sc.broadcast(ilist)
-    val p = (v: Variant, va: Annotation, _: Iterable[Genotype]) =>
-      Filter.keepThis(ilistBc.value.contains(v.contig, v.start), keep)
+    val gis = IntervalListAnnotator.read(options.input, state.hadoopConf)
 
-    state.copy(vds = vds.filterVariants(p))
+    state.copy(vds = vds.filterIntervals(gis, options.keep))
   }
 }

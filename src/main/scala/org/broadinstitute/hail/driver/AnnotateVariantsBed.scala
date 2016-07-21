@@ -28,9 +28,9 @@ object AnnotateVariantsBed extends Command {
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    val (iList, signature) = BedAnnotator(options.input, state.hadoopConf)
+    val (t, o) = BedAnnotator(options.input, state.hadoopConf)
     state.copy(
-      vds = state.vds.annotateInvervals(iList, signature,
+      vds = state.vds.annotateIntervals(t, o,
         Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)))
   }
 }

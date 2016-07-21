@@ -161,7 +161,7 @@ class AnnotationsSuite extends SparkSuite {
     vds = vds.mapAnnotations((v, va, gs) => i1(va, Some(toAdd)))
       .copy(vaSignature = s1)
     assert(vds.vaSignature.schema ==
-      StructType(Array(StructField("0", IntegerType))))
+      StructType(Array(StructField("I1", IntegerType))))
 
     val q1 = vds.queryVA("va.I1")._2
     assert(vds.variantsAndAnnotations
@@ -176,8 +176,8 @@ class AnnotationsSuite extends SparkSuite {
       .copy(vaSignature = s2)
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", IntegerType),
-        StructField("1", StringType))))
+        StructField("I1", IntegerType),
+        StructField("S1", StringType))))
 
     val q2 = vds.queryVA("va.S1")._2
     assert(vds.variantsAndAnnotations
@@ -193,11 +193,11 @@ class AnnotationsSuite extends SparkSuite {
       .copy(vaSignature = s3)
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", StructType(Array(
-          StructField("0", IntegerType, nullable = true),
-          StructField("1", IntegerType, nullable = true)
+        StructField("I1", StructType(Array(
+          StructField("I2", IntegerType, nullable = true),
+          StructField("I3", IntegerType, nullable = true)
         )), nullable = true),
-        StructField("1", StringType))))
+        StructField("S1", StringType))))
 
     val q3 = vds.queryVA("va.I1")._2
     val q4 = vds.queryVA("va.I1.I2")._2
@@ -218,13 +218,13 @@ class AnnotationsSuite extends SparkSuite {
       .copy(vaSignature = s4)
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", toAdd3Sig.schema),
-        StructField("1", StringType),
-        StructField("2", StructType(Array(
-          StructField("0", StructType(Array(
-            StructField("0", StructType(Array(
-              StructField("0", StructType(Array(
-                StructField("0", StringType))))))))))))))))
+        StructField("I1", toAdd3Sig.schema),
+        StructField("S1", StringType),
+        StructField("a", StructType(Array(
+          StructField("b", StructType(Array(
+            StructField("c", StructType(Array(
+              StructField("d", StructType(Array(
+                StructField("e", StringType))))))))))))))))
 
     val q6 = vds.queryVA("va.a.b.c.d.e")._2
     assert(vds.variantsAndAnnotations
@@ -240,14 +240,14 @@ class AnnotationsSuite extends SparkSuite {
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", toAdd3Sig.schema),
-        StructField("1", StringType),
-        StructField("2", StructType(Array(
-          StructField("0", StructType(Array(
-            StructField("0", StructType(Array(
-              StructField("0", StructType(Array(
-                StructField("0", StringType)))),
-              StructField("1", StringType)))))))))))))
+        StructField("I1", toAdd3Sig.schema),
+        StructField("S1", StringType),
+        StructField("a", StructType(Array(
+          StructField("b", StructType(Array(
+            StructField("c", StructType(Array(
+              StructField("d", StructType(Array(
+                StructField("e", StringType)))),
+              StructField("f", StringType)))))))))))))
     val q7 = vds.queryVA("va.a.b.c.f")._2
     assert(vds.variantsAndAnnotations
       .collect()
@@ -262,13 +262,13 @@ class AnnotationsSuite extends SparkSuite {
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", toAdd3Sig.schema),
-        StructField("1", StringType),
-        StructField("2", StructType(Array(
-          StructField("0", StructType(Array(
-            StructField("0", StructType(Array(
-              StructField("0", StringType),
-              StructField("1", StringType)))))))))))))
+        StructField("I1", toAdd3Sig.schema),
+        StructField("S1", StringType),
+        StructField("a", StructType(Array(
+          StructField("b", StructType(Array(
+            StructField("c", StructType(Array(
+              StructField("d", StringType),
+              StructField("f", StringType)))))))))))))
 
     val q8 = vds.queryVA("va.a.b.c.d")._2
     assert(vds.variantsAndAnnotations
@@ -283,14 +283,14 @@ class AnnotationsSuite extends SparkSuite {
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", toAdd3Sig.schema),
-        StructField("1", StringType),
-        StructField("2", StructType(Array(
-          StructField("0", StructType(Array(
-            StructField("0", StructType(Array(
-              StructField("0", StringType),
-              StructField("1", StringType))))))),
-          StructField("1", StringType)))))))
+        StructField("I1", toAdd3Sig.schema),
+        StructField("S1", StringType),
+        StructField("a", StructType(Array(
+          StructField("b", StructType(Array(
+            StructField("c", StructType(Array(
+              StructField("d", StringType),
+              StructField("f", StringType))))))),
+          StructField("c", StringType)))))))
     val q9 = vds.queryVA("va.a.c")._2
     assert(vds.variantsAndAnnotations
       .collect()
@@ -302,10 +302,10 @@ class AnnotationsSuite extends SparkSuite {
       .copy(vaSignature = s8)
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", toAdd3Sig.schema),
-        StructField("1", StringType),
-        StructField("2", StructType(Array(
-          StructField("0", StringType)))))))
+        StructField("I1", toAdd3Sig.schema),
+        StructField("S1", StringType),
+        StructField("a", StructType(Array(
+          StructField("c", StringType)))))))
     val q10 = vds.queryVA("va.a")._2
     assert(vds.variantsAndAnnotations
       .collect()
@@ -318,8 +318,8 @@ class AnnotationsSuite extends SparkSuite {
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", toAdd3Sig.schema),
-        StructField("1", StringType))))
+        StructField("I1", toAdd3Sig.schema),
+        StructField("S1", StringType))))
 
     assert(vds.variantsAndAnnotations
       .collect()
@@ -332,7 +332,7 @@ class AnnotationsSuite extends SparkSuite {
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
-        StructField("0", StringType))))
+        StructField("S1", StringType))))
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => va == Annotation("test") })

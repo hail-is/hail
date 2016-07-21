@@ -2,12 +2,14 @@ package org.broadinstitute.hail.io.annotators
 
 import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Interval, IntervalList}
+import org.broadinstitute.hail.utils.{Interval, IntervalTree}
+import org.broadinstitute.hail.variant._
 
 object BedAnnotator {
   def apply(filename: String,
-    hConf: hadoop.conf.Configuration): (IntervalList, Type) = {
+    hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], Annotation])]) = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     readLines(filename, hConf) { lines =>
@@ -28,26 +30,32 @@ object BedAnnotator {
         .value
         .split("""\s+""")
 
-      val (getString, signature) = if (next.length < 4)
-        (false, TBoolean)
-      else
-        (true, TString)
+      val getString = next.length >= 4
 
-      val intervalList = IntervalList(
-        dataLines
+      if (getString) {
+        val m = dataLines
           .filter(l => !l.value.isEmpty)
-          .map { l => l.transform { line =>
-            val arr = line.value.split("""\s+""")
-            Interval(arr(0), arr(1).toInt + 1, arr(2).toInt, //transform BED 0-based coordinates to Hail/VCF 1-based coordinates
-              if (getString)
-                Some(arr(3))
-              else
-                Some(true))
-          }
-          }
-          .toTraversable)
-
-      (intervalList, signature)
+          .map(l => l.transform { line =>
+            val Array(chrom, strStart, strEnd, value) = line.value.split("""\s+""")
+            // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
+            (Interval(Locus(chrom, strStart.toInt + 1),
+              Locus(chrom, strEnd.toInt + 1)),
+              value)
+          })
+          .toMap
+        val t = IntervalTree(m.keys.toArray)
+        (t, Some(TString, m))
+      } else {
+        val t = IntervalTree(dataLines
+          .filter(l => !l.value.isEmpty)
+          .map(l => l.transform { line =>
+            val Array(chrom, strStart, strEnd) = line.value.split("""\s+""")
+            // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
+            Interval(Locus(chrom, strStart.toInt + 1),
+              Locus(chrom, strEnd.toInt + 1))
+          }))
+        (t, None)
+      }
     }
   }
 }
