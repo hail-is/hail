@@ -9,6 +9,8 @@ object Arbitrary {
   implicit def arbBoolean: Arbitrary[Boolean] = new Arbitrary(
     Gen.oneOf(true, false))
 
+  implicit def arbByte: Arbitrary[Byte] = new Arbitrary(Gen.arbByte)
+
   implicit def arbInt: Arbitrary[Int] = new Arbitrary(
     Gen.oneOfGen(Gen.oneOf(Int.MinValue, -1, 0, 1, Int.MaxValue),
       Gen.choose(-100, 100),
@@ -28,6 +30,8 @@ object Arbitrary {
 
   implicit def arbBuildableOf[C, T](implicit a: Arbitrary[T], cbf: CanBuildFrom[Nothing, T, C]): Arbitrary[C] =
     Arbitrary(Gen.buildableOf[C, T](a.arbitrary))
+
+  def arbitrary[T](implicit arb: Arbitrary[T]): Gen[T] = arb.arbitrary
 }
 
 class Arbitrary[T](val arbitrary: Gen[T])

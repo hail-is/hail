@@ -5,12 +5,8 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.stats.LeveneHaldane
-import org.broadinstitute.hail.utils.StringEscapeUtils
-import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
-import org.json4s._
-import org.json4s.jackson.JsonMethods
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
-import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer

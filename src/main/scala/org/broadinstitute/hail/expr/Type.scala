@@ -4,12 +4,12 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotation, AnnotationPathException, _}
-import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.check.Arbitrary._
+import org.broadinstitute.hail.check.{Gen, _}
 import org.broadinstitute.hail.utils.StringEscapeUtils
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.JsonMethods._
 
 import scala.reflect.ClassTag
 
@@ -131,7 +131,7 @@ case object TBinary extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Array[Byte]]
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[Array[Byte], Byte](Gen.arbByte)
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Array[Byte], Byte](arbitrary[Byte])
 }
 
 case object TBoolean extends Type with Parsable {
@@ -141,7 +141,7 @@ case object TBoolean extends Type with Parsable {
 
   def parse(s: String): Annotation = s.toBoolean
 
-  override def genValue: Gen[Annotation] = Gen.arbBoolean
+  override def genValue: Gen[Annotation] = arbitrary[Boolean]
 }
 
 case object TChar extends Type {
@@ -150,7 +150,7 @@ case object TChar extends Type {
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
     && a.asInstanceOf[String].length == 1)
 
-  override def genValue: Gen[Annotation] = Gen.arbString
+  override def genValue: Gen[Annotation] = arbitrary[String]
     .filter(_.nonEmpty)
     .map(s => s.substring(0, 1))
 }
@@ -189,7 +189,7 @@ case object TInt extends TIntegral with Parsable {
 
   def parse(s: String): Annotation = s.toInt
 
-  override def genValue: Gen[Annotation] = Gen.arbInt
+  override def genValue: Gen[Annotation] = arbitrary[Int]
 }
 
 case object TLong extends TIntegral with Parsable {
@@ -203,7 +203,7 @@ case object TLong extends TIntegral with Parsable {
 
   def parse(s: String): Annotation = s.toLong
 
-  override def genValue: Gen[Annotation] = Gen.arbLong
+  override def genValue: Gen[Annotation] = arbitrary[Long]
 }
 
 case object TFloat extends TNumeric with Parsable {
@@ -215,7 +215,7 @@ case object TFloat extends TNumeric with Parsable {
 
   def parse(s: String): Annotation = s.toFloat
 
-  override def genValue: Gen[Annotation] = Gen.arbDouble.map(_.toFloat)
+  override def genValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 }
 
 case object TDouble extends TNumeric with Parsable {
@@ -227,7 +227,7 @@ case object TDouble extends TNumeric with Parsable {
 
   def parse(s: String): Annotation = s.toDouble
 
-  override def genValue: Gen[Annotation] = Gen.arbDouble
+  override def genValue: Gen[Annotation] = arbitrary[Double]
 }
 
 case object TString extends Type with Parsable {
@@ -237,7 +237,7 @@ case object TString extends Type with Parsable {
 
   def parse(s: String): Annotation = s
 
-  override def genValue: Gen[Annotation] = Gen.arbString
+  override def genValue: Gen[Annotation] = arbitrary[String]
 }
 
 
@@ -320,7 +320,7 @@ case class TDict(elementType: Type) extends Type {
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[Map[String, Annotation], (String, Annotation)](
-    Gen.zip(Gen.arbString, elementType.genValue))
+    Gen.zip(arbitrary[String], elementType.genValue))
 }
 
 case object TSample extends Type {
