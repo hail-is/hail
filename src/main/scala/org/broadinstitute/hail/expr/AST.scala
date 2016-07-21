@@ -862,7 +862,13 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     val rhsTypes = args.map(_.`type`)
     (lhs.`type`, method, rhsTypes) match {
       case (TArray(TString), "mkString", Array(TString)) => TString
-      case (TSet(elementType), "contains", Array(TString)) => TBoolean
+      case (TSet(elementType), "contains", Array(t2)) =>
+        if (elementType != t2)
+          parseError(
+            s"""method `contains' takes an argument of the same type as the set.
+               |  Expected type `$elementType' for `Set[$elementType]', but found `$t2'
+             """.stripMargin)
+        TBoolean
       case (TDict(_), "contains", Array(TString)) => TBoolean
       case (TString, "split", Array(TString)) => TArray(TString)
 
