@@ -3,8 +3,6 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.io.annotators._
-import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.json4s.jackson.JsonMethods._
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
@@ -13,9 +11,9 @@ import scala.collection.JavaConverters._
 object AnnotateVariantsJSON extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
+    @Args4jOption(required = true, name = "-t", aliases = Array("--types"),
       usage = "Type of JSON")
-    var `type`: String = ""
+    var `type`: String = _
 
     @Args4jOption(required = true, name = "-r", aliases = Array("--root"),
       usage = "Period-delimited path starting with `va'")

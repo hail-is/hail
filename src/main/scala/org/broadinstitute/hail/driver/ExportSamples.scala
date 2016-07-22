@@ -68,18 +68,15 @@ object ExportSamples extends Command {
     Option(options.typesFile).foreach { file =>
       writeTextFile(file, hConf) { out =>
         val sb = new StringBuilder
-        val sb2 = new StringBuilder
         header
           .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
           .zip(parseResults)
           .iterator
           .foreachBetween { case (name, (t, f)) =>
             sb.append(prettyIdentifier(name))
-            sb.append(" : ")
-            sb2.clear()
-            t.pretty(sb2, 0, true)
-            sb.append(sb2.result().replace('\n', ' '))
-          }(() => sb.append(",\n"))
+            sb.append(":")
+            t.pretty(sb, printAttrs = true, compact = true)
+          }(() => sb.append(","))
         out.write(sb.result())
       }
     }
@@ -90,7 +87,6 @@ object ExportSamples extends Command {
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
-    val fs = parseResults.map(_._2)
     val sb = new StringBuilder()
     val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
       sb.clear()
@@ -99,8 +95,8 @@ object ExportSamples extends Command {
 
       sampleAggregationOption.foreach(f => f.apply(s))
 
-      var first = true
-      fs.iterator.foreachBetween(f => sb.tsvAppend(f()))(() => sb += '\t')
+      parseResults.iterator
+        .foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
       sb.result()
     }
 

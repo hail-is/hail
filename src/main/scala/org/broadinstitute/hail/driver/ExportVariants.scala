@@ -41,17 +41,17 @@ object ExportVariants extends Command {
     val output = options.output
 
     val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, vds.saSignature),
+      "g" -> (4, TGenotype),
+      "global" -> (5, vds.globalSignature)))
     val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, TAggregable(aggregationEC)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "global" -> (2, vds.globalSignature),
+      "gs" -> (-1, TAggregable(aggregationEC)))
 
 
     val ec = EvalContext(symTab)
@@ -68,18 +68,15 @@ object ExportVariants extends Command {
     Option(options.typesFile).foreach { file =>
       writeTextFile(file, hConf) { out =>
         val sb = new StringBuilder
-        val sb2 = new StringBuilder
         header
           .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
           .zip(parseResults)
           .iterator
-          .foreachBetween{ case (name, (t, f)) =>
+          .foreachBetween { case (name, (t, f)) =>
             sb.append(prettyIdentifier(name))
-            sb.append(" : ")
-            sb2.clear()
-            t.pretty(sb2, 0, true)
-            sb.append(sb2.result().replace('\n', ' '))
-          }(() => sb.append(",\n"))
+            sb.append(":")
+            t.pretty(sb, printAttrs = true, compact = true)
+          }(() => sb.append(","))
         out.write(sb.result())
       }
     }
@@ -88,19 +85,18 @@ object ExportVariants extends Command {
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
-    val fs = parseResults.map(_._2)
-
     vds.rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
         it.map { case (v, va, gs) =>
 
-          variantAggregations.foreach { f => f(v, va, gs)}
+          variantAggregations.foreach { f => f(v, va, gs) }
           sb.clear()
 
           ec.setAll(v, va)
 
-          fs.iterator.foreachBetween { f => sb.tsvAppend(f()) }(() => sb.append("\t"))
+          parseResults.iterator
+            .foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
           sb.result()
         }
       }.writeTable(output, header.map(_.mkString("\t")))

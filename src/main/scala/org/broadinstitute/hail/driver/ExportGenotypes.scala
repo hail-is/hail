@@ -1,11 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.mutable.ArrayBuffer
 
 object ExportGenotypes extends Command {
 
@@ -68,23 +67,18 @@ object ExportGenotypes extends Command {
     Option(options.typesFile).foreach { file =>
       writeTextFile(file, sc.hadoopConfiguration) { out =>
         val sb = new StringBuilder
-        val sb2 = new StringBuilder
         header
           .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
           .zip(parseResults)
           .iterator
           .foreachBetween { case (name, (t, f)) =>
             sb.append(prettyIdentifier(name))
-            sb.append(" : ")
-            sb2.clear()
-            t.pretty(sb2, 0, true)
-            sb.append(sb2.result().replace('\n', ' '))
-          }(() => sb.append(",\n"))
+            sb.append(":")
+            t.pretty(sb, printAttrs = true, compact = true)
+          }(() => sb.append(","))
         out.write(sb.result())
       }
     }
-
-    val a = ec.a
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 
@@ -97,27 +91,15 @@ object ExportGenotypes extends Command {
     val filterF: Genotype => Boolean =
       g => (!g.isHomRef || localPrintRef) && (!g.isNotCalled || localPrintMissing)
 
-    val fs = parseResults.map(_._2)
-
     val lines = vds.mapPartitionsWithAll { it =>
       val sb = new StringBuilder()
       it
         .filter { case (v, va, s, sa, g) => filterF(g) }
         .map { case (v, va, s, sa, g) =>
-          a(0) = v
-          a(1) = va
-          a(2) = s
-          a(3) = sa
-          a(4) = g
+          ec.setAll(v, va, s, sa, g)
           sb.clear()
-          var first = true
-          fs.foreach { f =>
-            if (first)
-              first = false
-            else
-              sb += '\t'
-            sb.tsvAppend(f())
-          }
+          parseResults.iterator
+            .foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
           sb.result()
         }
     }.writeTable(output, header.map(_.mkString("\t")))
