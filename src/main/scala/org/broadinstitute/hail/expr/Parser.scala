@@ -313,7 +313,7 @@ object Parser extends JavaTokenParsers {
         val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
         ParserUtils.error(newPos,
           s"""invalid character in backtick identifier: `${
-            escapeUnprintable(toSearch.charAt(m.start).toString)
+            escapeString(toSearch.charAt(m.start).toString, backticked = true)
           }'""")
       }
 
@@ -328,7 +328,7 @@ object Parser extends JavaTokenParsers {
         val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
         ParserUtils.error(newPos,
           s"""invalid character in string literal: `${
-            escapeUnprintable(toSearch.charAt(m.start).toString)
+            escapeString(toSearch.charAt(m.start).toString)
           }'""")
       }
 

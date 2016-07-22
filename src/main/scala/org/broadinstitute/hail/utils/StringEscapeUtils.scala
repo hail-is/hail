@@ -8,58 +8,6 @@ object StringEscapeUtils {
 
   def hex(ch: Char): String = Integer.toHexString(ch).toUpperCase(Locale.ENGLISH)
 
-  def escapeUnprintable(str: String): String = escapeUnprintable(str, new StringBuilder(capacity = str.length * 2))
-
-  def escapeUnprintable(str: String, sb: StringBuilder): String = {
-    sb.clear()
-
-    var sz: Int = 0
-    sz = str.length
-    var i: Int = 0
-    while (i < sz) {
-      {
-        val ch: Char = str.charAt(i)
-        if (ch > 0xfff) {
-          sb.append("\\u" + hex(ch))
-        } else if (ch > 0xff) {
-          sb.append("\\u0" + hex(ch))
-        } else if (ch > 0x7f) {
-          sb.append("\\u00" + hex(ch))
-        } else if (ch < 32) {
-          ch match {
-            case '\b' =>
-              sb += '\\'
-              sb += 'b'
-            case '\n' =>
-              sb += '\\'
-              sb += 'n'
-            case '\t' =>
-              sb += '\\'
-              sb += 't'
-            case '\f' =>
-              sb += '\\'
-              sb += 'f'
-            case '\r' =>
-              sb += '\\'
-              sb += 'r'
-            case _ =>
-              if (ch > 0xf) {
-                sb.append("\\u00" + hex(ch))
-              }
-              else {
-                sb.append("\\u000" + hex(ch))
-              }
-          }
-        }
-        else {
-          sb.append(ch)
-        }
-      }
-      i += 1
-    }
-    sb.result()
-  }
-
   def escapeString(str: String, backticked: Boolean = false): String =
     escapeString(str, new StringBuilder(capacity = str.length * 2), backticked)
 
@@ -70,63 +18,61 @@ object StringEscapeUtils {
     sz = str.length
     var i: Int = 0
     while (i < sz) {
-      {
-        val ch: Char = str.charAt(i)
-        if (ch > 0xfff) {
-          sb.append("\\u" + hex(ch))
-        } else if (ch > 0xff) {
-          sb.append("\\u0" + hex(ch))
-        } else if (ch > 0x7f) {
-          sb.append("\\u00" + hex(ch))
-        } else if (ch < 32) {
+      val ch: Char = str.charAt(i)
+      if (ch > 0xfff) {
+        sb.append("\\u" + hex(ch))
+      } else if (ch > 0xff) {
+        sb.append("\\u0" + hex(ch))
+      } else if (ch > 0x7f) {
+        sb.append("\\u00" + hex(ch))
+      } else if (ch < 32) {
+        ch match {
+          case '\b' =>
+            sb += '\\'
+            sb += 'b'
+          case '\n' =>
+            sb += '\\'
+            sb += 'n'
+          case '\t' =>
+            sb += '\\'
+            sb += 't'
+          case '\f' =>
+            sb += '\\'
+            sb += 'f'
+          case '\r' =>
+            sb += '\\'
+            sb += 'r'
+          case _ =>
+            if (ch > 0xf) {
+              sb.append("\\u00" + hex(ch))
+            }
+            else {
+              sb.append("\\u000" + hex(ch))
+            }
+        }
+      } else {
+        if (backticked)
           ch match {
-            case '\b' =>
+            case '`' =>
               sb += '\\'
-              sb += 'b'
-            case '\n' =>
-              sb += '\\'
-              sb += 'n'
-            case '\t' =>
-              sb += '\\'
-              sb += 't'
-            case '\f' =>
-              sb += '\\'
-              sb += 'f'
-            case '\r' =>
-              sb += '\\'
-              sb += 'r'
-            case _ =>
-              if (ch > 0xf) {
-                sb.append("\\u00" + hex(ch))
-              }
-              else {
-                sb.append("\\u000" + hex(ch))
-              }
-          }
-        } else {
-          if (backticked)
-            ch match {
-              case '`' =>
-                sb += '\\'
-                sb += '`'
-              case '\\' =>
-                sb += '\\'
-                sb += '\\'
-              case _ =>
-                sb.append(ch)
-            } else ch match {
-            case '\'' =>
-              sb += '\\'
-              sb += '\''
-            case '\"' =>
-              sb += '\\'
-              sb += '\"'
+              sb += '`'
             case '\\' =>
               sb += '\\'
               sb += '\\'
             case _ =>
               sb.append(ch)
-          }
+          } else ch match {
+          case '\'' =>
+            sb += '\\'
+            sb += '\''
+          case '\"' =>
+            sb += '\\'
+            sb += '\"'
+          case '\\' =>
+            sb += '\\'
+            sb += '\\'
+          case _ =>
+            sb.append(ch)
         }
       }
       i += 1

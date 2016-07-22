@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.TestRDDBuilder
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
 class FilterSuite extends SparkSuite {
@@ -171,8 +171,8 @@ class FilterSuite extends SparkSuite {
     val s2 = FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`weird name \\t test` > 500"))
     assert(s2.vds.nVariants == vds.nVariants)
 
-    val e = intercept[FatalException](FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`bad\\input` == 5")))
-    assert(e.getMessage.contains("invalid character in backtick identifier: `\\'"))
+    TestUtils.interceptFatal("invalid character in backtick identifier")(
+      FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`bad\\input` == 5")))
   }
 
   @Test def testPAB() {

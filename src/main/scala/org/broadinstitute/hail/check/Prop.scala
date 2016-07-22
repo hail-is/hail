@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.check
 
 import scala.collection.mutable.ArrayBuffer
+import scala.util.Random
 
 abstract class Prop {
   def apply(p: Parameters, name: Option[String] = None): Unit
@@ -12,7 +13,7 @@ abstract class Prop {
       if (!System.getProperty("hail.randomize", "false").toBoolean)
         System.getProperty("hail.seed", "1").toInt
       else
-        Gen { p => p.rng.getRandomGenerator.nextInt() }.sample()
+        Random.nextInt()
     }
 
     println(s"Using a seed of [$seed] for testing.")
@@ -27,7 +28,7 @@ abstract class Prop {
       if (!random && !System.getProperty("hail.randomize", "false").toBoolean)
         seed.getOrElse(System.getProperty("hail.seed", "1").toInt).toLong
       else
-        Gen { p => p.rng.getRandomGenerator.nextInt() }.sample()
+        Random.nextInt()
     }
 
     println(s"Using a seed of [$seed2] for testing.")
