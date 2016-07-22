@@ -45,7 +45,7 @@ object MendelErrors {
       case (HomRef, HomRef,    Het,  Auto) => 2  // Kid is Het
       case (HomVar, HomVar,    Het,  Auto) => 1
       case (HomRef, HomRef, HomVar,  Auto) => 5  // Kid is HomVar
-      case (HomRef,     ] _, HomVar,  Auto) => 3
+      case (HomRef,      _, HomVar,  Auto) => 3
       case (     _, HomRef, HomVar,  Auto) => 4
       case (HomVar, HomVar, HomRef,  Auto) => 8  // Kid is HomRef
       case (HomVar,      _, HomRef,  Auto) => 6
