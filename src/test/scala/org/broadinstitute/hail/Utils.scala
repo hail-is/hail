@@ -6,6 +6,12 @@ object TestUtils {
 
   def interceptFatal(regex: String)(f: => Any) {
     val thrown = intercept[FatalException](f)
-    assert(regex.r.findFirstIn(thrown.getMessage).isDefined)
+    val p = regex.r.findFirstIn(thrown.getMessage).isDefined
+    if (!p)
+      println(
+        s"""expected fatal exception with pattern `$regex'
+           |  Found `${thrown.getMessage}'
+         """.stripMargin)
+    assert(p)
   }
 }

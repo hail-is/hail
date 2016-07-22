@@ -6,7 +6,6 @@ import java.net.URI
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
 import htsjdk.samtools.util.BlockCompressedStreamConstants
-import org.apache.commons.lang.StringEscapeUtils
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
@@ -17,23 +16,23 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{AccumulableParam, SparkContext, Partitioner, SparkEnv, TaskContext}
+import org.apache.spark.{AccumulableParam, Partitioner, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
-import org.broadinstitute.hail.utils.RichRow
+import org.broadinstitute.hail.utils.{RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
 import org.seqdoop.hadoop_bam.util.BGZFCodec
 import org.slf4j.{Logger, LoggerFactory}
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.Random
-import scala.collection.JavaConverters._
 
 final class ByteIterator(val a: Array[Byte]) {
   var i: Int = 0
@@ -77,6 +76,7 @@ final class ByteIterator(val a: Array[Byte]) {
     x
   }
 }
+
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
   def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
@@ -453,10 +453,10 @@ class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
     r.mapPartitions(p => new SpanningIterator(p))
 
   def leftOuterJoinDistinct[W](other: RDD[(K, W)])
-                              (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
 
   def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
-                              (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null)= {
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       val w = pair._2.headOption
       pair._1.map((_, w))
@@ -464,10 +464,10 @@ class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
   }
 
   def joinDistinct[W](other: RDD[(K, W)])
-                     (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
 
   def joinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
-                     (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null)= {
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       for (v <- pair._1.iterator; w <- pair._2.iterator.take(1)) yield (v, w)
     }
@@ -1288,12 +1288,8 @@ object Utils extends Logging {
     if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
-      s"`${escapeString(str)}`"
+      s"`${StringEscapeUtils.escapeString(str, backticked = true)}`"
   }
-
-  def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
-
-  def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
 
   def uriPath(uri: String): String = new URI(uri).getPath
 }

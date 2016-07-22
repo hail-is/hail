@@ -6,7 +6,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.stats.LeveneHaldane
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
-import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -643,7 +643,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("json", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(ec)
-      () => compact(t.toJSON(f()))
+      () => JsonMethods.compact(t.toJSON(f()))
     case ("hwe", Array(a, b, c)) =>
       AST.evalCompose[Int, Int, Int](ec, a, b, c) { case (nHomRef, nHet, nHomVar) =>
         if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -1434,9 +1434,9 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             ParserUtils.error(localPos,
-              s"Tried to access index [$i] on array ${compact(localT.toJSON(a))} of length ${a.length}" +
-                s"\n  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)" +
-                s"\n  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct")
+              s"""Tried to access index [$i] on array ${JsonMethods.compact(localT.toJSON(a))} of length ${a.length}
+                  |  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)
+                  |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct""".stripMargin)
           case e: Throwable => throw e
         })
 
