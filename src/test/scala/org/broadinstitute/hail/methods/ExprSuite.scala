@@ -179,11 +179,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[String](""" "\t\t\t" """).contains("\t\t\t"))
     assert(eval[String](""" "\"\"\"" """).contains("\"\"\""))
     assert(eval[String](""" "```" """).contains("```"))
-    val badInput1 = intercept[FatalException](eval[String](" \"aaa\t\t\taaa\" "))
-    assert(badInput1.getMessage.contains("invalid character in string literal: `\\t'"))
 
-    val badInput2 = intercept[FatalException](eval[String](" (\"\f\f\f\") "))
-    assert(badInput2.getMessage.contains("invalid character in string literal: `\\f"))
+    assert(eval[String](""" "\t" """) == eval[String]("\"\t\""))
 
     assert(eval[String](""" "a b c d".replace(" ", "_") """).contains("a_b_c_d"))
     assert(eval[String](" \"a\\tb\".replace(\"\\t\", \"_\") ").contains("a_b"))
@@ -255,14 +252,14 @@ class ExprSuite extends SparkSuite {
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
       sb.clear()
-      t.compact(sb, true)
+      t.pretty(sb, compact = true, printAttrs = true)
       val res = sb.result()
       val parsed = Parser.parseType(res)
       t == parsed
     })
     check(forAll { (t: Type) =>
       sb.clear()
-      t.pretty(sb, 0, true)
+      t.pretty(sb, printAttrs = true)
       val res = sb.result()
       //      println(res)
       val parsed = Parser.parseType(res)

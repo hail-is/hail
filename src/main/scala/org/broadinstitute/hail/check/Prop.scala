@@ -12,7 +12,7 @@ abstract class Prop {
       if (!System.getProperty("hail.randomize", "false").toBoolean)
         System.getProperty("hail.seed", "1").toInt
       else
-        Gen.arbInt.sample()
+        Gen { p => p.rng.getRandomGenerator.nextInt() }.sample()
     }
 
     println(s"Using a seed of [$seed] for testing.")
@@ -27,7 +27,7 @@ abstract class Prop {
       if (!random && !System.getProperty("hail.randomize", "false").toBoolean)
         seed.getOrElse(System.getProperty("hail.seed", "1").toInt).toLong
       else
-        Gen.arbInt.sample()
+        Gen { p => p.rng.getRandomGenerator.nextInt() }.sample()
     }
 
     println(s"Using a seed of [$seed2] for testing.")
@@ -108,7 +108,9 @@ class Properties(val name: String) extends Prop {
 }
 
 object Prop {
-  def check(p: Prop) { p.check() }
+  def check(p: Prop) {
+    p.check()
+  }
 
   def forAll[T1](g1: Gen[T1])(p: (T1) => Boolean): Prop =
     new GenProp1(g1, p)

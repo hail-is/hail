@@ -303,11 +303,11 @@ object Parser extends JavaTokenParsers {
   }
 
   def backtickLiteral: Parser[String] =
-    ("`" + """([^\p{Cntrl}\\`]|\\[\\bfnrt`]|\\u[a-fA-F0-9]{4})*""" + "`").r ^^
-      (s => unescapeBackticked(s.substring(1, s.length - 1))) |
+    ("`" + """([^\\`]|\\[\\bfnrt`]|\\u[a-fA-F0-9]{4})*""" + "`").r ^^
+      (s => unescapeString(s.substring(1, s.length - 1))) |
       withPos(("`" + ".*".r + "`").r) ^^ { r =>
         val toSearch = r.x.substring(1, r.x.length - 1)
-        val matches = """[\p{Cntrl}]|[^\\][\\'"bfnrt`]""".r.findFirstMatchIn(toSearch)
+        val matches = """\\[^\\bfnrt`]""".r.findFirstMatchIn(toSearch)
         assert(matches.isDefined)
         val m = matches.get
         val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
@@ -318,11 +318,11 @@ object Parser extends JavaTokenParsers {
       }
 
   override def stringLiteral: Parser[String] =
-    ("\"" + """([^"'\p{Cntrl}\\]|\\[\\"'bfnrt]|\\u[a-fA-F0-9]{4})*""" + "\"").r ^^
+    ("\"" + """([^"'\\]|\\[\\"'bfnrt]|\\u[a-fA-F0-9]{4})*""" + "\"").r ^^
       (s => unescapeString(s.substring(1, s.length - 1))) |
       withPos(("\"" + ".*".r + "\"").r) ^^ { r =>
         val toSearch = r.x.substring(1, r.x.length - 1)
-        val matches = """[\p{Cntrl}]|[^\\][\\'"bfnrt`]""".r.findFirstMatchIn(toSearch)
+        val matches = """\\[^\\'"bfnrt]""".r.findFirstMatchIn(toSearch)
         assert(matches.isDefined)
         val m = matches.get
         val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)

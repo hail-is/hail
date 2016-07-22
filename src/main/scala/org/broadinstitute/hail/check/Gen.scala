@@ -187,14 +187,6 @@ object Gen {
     b.result()
   }
 
-  def arbString: Gen[String] = Gen { (p: Parameters) =>
-    val s = p.rng.getRandomGenerator.nextInt(12)
-    val b = new StringBuilder()
-    for (i <- 0 until s)
-      b += randomOneOf(p.rng, printableChars)
-    b.result()
-  }
-
   def option[T](g: Gen[T], someFraction: Double = 0.8): Gen[Option[T]] = Gen { (p: Parameters) =>
     if (p.rng.getRandomGenerator.nextDouble < someFraction)
       Some(g(p))
@@ -208,26 +200,6 @@ object Gen {
 
   def posInt: Gen[Int] = Gen { (p: Parameters) =>
     p.rng.getRandomGenerator.nextInt(Int.MaxValue - 1) + 1
-  }
-
-  def arbBoolean: Gen[Boolean] = Gen { p =>
-    p.rng.getRandomGenerator.nextBoolean()
-  }
-
-  def arbByte: Gen[Byte] = Gen { p =>
-    p.rng.getRandomGenerator.nextInt().toByte
-  }
-
-  def arbInt: Gen[Int] = Gen { p =>
-    p.rng.getRandomGenerator.nextInt()
-  }
-
-  def arbLong: Gen[Long] = Gen { p =>
-    p.rng.getRandomGenerator.nextLong()
-  }
-
-  def arbDouble: Gen[Double] = Gen { p =>
-    p.rng.nextUniform(Double.MinValue, Double.MaxValue, true)
   }
 
   def zip[T1](g1: Gen[T1]): Gen[T1] = g1

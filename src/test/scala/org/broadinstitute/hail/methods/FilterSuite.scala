@@ -171,8 +171,8 @@ class FilterSuite extends SparkSuite {
     val s2 = FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`weird name \\t test` > 500"))
     assert(s2.vds.nVariants == vds.nVariants)
 
-    val e = intercept[FatalException](FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`bad\tinput` == 5")))
-    assert(e.getMessage.contains("invalid character in backtick identifier: `\\t'"))
+    val e = intercept[FatalException](FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`bad\\input` == 5")))
+    assert(e.getMessage.contains("invalid character in backtick identifier: `\\'"))
   }
 
   @Test def testPAB() {

@@ -21,8 +21,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
-import org.broadinstitute.hail.utils.RichRow
-import org.broadinstitute.hail.utils.StringEscapeUtils
+import org.broadinstitute.hail.utils.{RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
 import org.seqdoop.hadoop_bam.util.BGZFCodec
 import org.slf4j.{Logger, LoggerFactory}
@@ -77,7 +76,6 @@ final class ByteIterator(val a: Array[Byte]) {
     x
   }
 }
-
 
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
@@ -455,10 +453,10 @@ class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
     r.mapPartitions(p => new SpanningIterator(p))
 
   def leftOuterJoinDistinct[W](other: RDD[(K, W)])
-                              (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
 
   def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
-                              (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null)= {
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       val w = pair._2.headOption
       pair._1.map((_, w))
@@ -466,10 +464,10 @@ class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
   }
 
   def joinDistinct[W](other: RDD[(K, W)])
-                     (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
 
   def joinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
-                     (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null)= {
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
     r.cogroup(other, partitioner).flatMapValues { pair =>
       for (v <- pair._1.iterator; w <- pair._2.iterator.take(1)) yield (v, w)
     }
@@ -1290,7 +1288,7 @@ object Utils extends Logging {
     if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
-      s"`${StringEscapeUtils.escapeBackticked(str)}`"
+      s"`${StringEscapeUtils.escapeString(str, backticked = true)}`"
   }
 
   def uriPath(uri: String): String = new URI(uri).getPath

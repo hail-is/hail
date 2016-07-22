@@ -41,7 +41,7 @@ object Type {
             genArb,
             Gen.option(
               Gen.buildableOf[Map[String, String], (String, String)](
-                Gen.zip(Gen.arbString.filter(s => !s.isEmpty), Gen.arbString)))
+                Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])))
               .map(o => o.getOrElse(Map.empty[String, String]))))
           .filter(fields => fields.map(_._1).areDistinct())
           .map(fields => TStruct(fields
@@ -104,11 +104,7 @@ abstract class Type extends BaseType {
       a => Option(a)
   }
 
-  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean = false) {
-    sb.append(toString)
-  }
-
-  def compact(sb: StringBuilder, printAttrs: Boolean = false) {
+  def pretty(sb: StringBuilder, indent: Int = 0, printAttrs: Boolean = false, compact: Boolean = false) {
     sb.append(toString)
   }
 
@@ -254,16 +250,10 @@ abstract class TIterable extends Type {
 case class TArray(elementType: Type) extends TIterable {
   override def toString = s"Array[$elementType]"
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Array[")
-    elementType.pretty(sb, indent, printAttrs)
+    elementType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
-  }
-
-  override def compact(sb: StringBuilder, printAttrs: Boolean = false) {
-    sb.append("Array[")
-    elementType.compact(sb, printAttrs)
-    sb += ']'
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
@@ -281,15 +271,9 @@ case class TSet(elementType: Type) extends TIterable {
   def typeCheck(a: Any): Boolean =
     a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck))
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Set[")
-    elementType.pretty(sb, indent, printAttrs)
-    sb.append("]")
-  }
-
-  override def compact(sb: StringBuilder, printAttrs: Boolean = false) {
-    sb.append("Set[")
-    elementType.compact(sb, printAttrs)
+    elementType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
   }
 
@@ -302,15 +286,9 @@ case class TSet(elementType: Type) extends TIterable {
 case class TDict(elementType: Type) extends Type {
   override def toString = s"Dict[$elementType]"
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Dict[")
-    elementType.pretty(sb, indent, printAttrs)
-    sb.append("]")
-  }
-
-  override def compact(sb: StringBuilder, printAttrs: Boolean) {
-    sb.append("Dict[")
-    elementType.compact(sb, printAttrs)
+    elementType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
   }
 
@@ -360,35 +338,25 @@ case class Field(name: String, `type`: Type,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 
-  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
-    sb.append(" " * indent)
-    sb.append(prettyIdentifier(name))
-    sb.append(": ")
-    `type`.pretty(sb, indent, printAttrs)
+  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
+    if (compact) {
+      sb.append(prettyIdentifier(name))
+      sb.append(":")
+    } else {
+      sb.append(" " * indent)
+      sb.append(prettyIdentifier(name))
+      sb.append(": ")
+    }
+    `type`.pretty(sb, indent, printAttrs, compact)
     if (printAttrs) {
-      if (attrs.nonEmpty)
-        sb += '\n'
-      attrs.foreachBetween { case (k, v) =>
-        sb.append(" " * (indent + 2))
+      attrs.foreach { case (k, v) =>
+        if (!compact) {
+          sb += '\n'
+          sb.append(" " * (indent + 2))
+        }
         sb += '@'
         sb.append(prettyIdentifier(k))
         sb.append("=\"")
-        sb.append(StringEscapeUtils.escapeString(v))
-        sb += '"'
-      }(() => sb += '\n')
-    }
-  }
-
-  def compact(sb: StringBuilder, printAttrs: Boolean) {
-    sb.append(prettyIdentifier(name))
-    sb.append(":")
-    `type`.compact(sb, printAttrs)
-    if (printAttrs) {
-      attrs.foreach { case (k, v) =>
-        sb += '@'
-        sb.append(prettyIdentifier(k))
-        sb += '='
-        sb += '"'
         sb.append(StringEscapeUtils.escapeString(v))
         sb += '"'
       }
@@ -553,35 +521,31 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def toString = if (size == 0) "Empty" else "Struct"
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
     if (size == 0)
       sb.append("Empty")
     else {
-      sb.append("Struct {")
-      sb += '\n'
-      fields.foreachBetween(f => {
-        f.pretty(sb, indent + 4, printAttrs)
-      })(() => {
-        sb += ','
+      if (compact) {
+        sb.append("Struct{")
+        fields.foreachBetween(f => {
+          f.pretty(sb, indent, printAttrs, compact)
+        })(() => {
+          sb += ','
+        })
+        sb += '}'
+      } else {
+        sb.append("Struct {")
         sb += '\n'
-      })
-      sb += '\n'
-      sb.append(" " * indent)
-      sb += '}'
-    }
-  }
-
-  override def compact(sb: StringBuilder, printAttrs: Boolean = false) {
-    if (size == 0)
-      sb.append("Empty")
-    else {
-      sb.append("Struct{")
-      fields.foreachBetween(f => {
-        f.compact(sb, printAttrs)
-      })(() => {
-        sb += ','
-      })
-      sb += '}'
+        fields.foreachBetween(f => {
+          f.pretty(sb, indent + 4, printAttrs, compact)
+        })(() => {
+          sb += ','
+          sb += '\n'
+        })
+        sb += '\n'
+        sb.append(" " * indent)
+        sb += '}'
+      }
     }
   }
 
