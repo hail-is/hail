@@ -14,9 +14,8 @@ class TDTSuite extends SparkSuite {
     // ctrl shift P -- show type
     // CMD R -- run
 
-    //val vds2 = LoadVCF(sc, "src/test/resources/tdt_test3_6.vcf")
-    //val vds2 = LoadVCF(sc, "/Users/jackkosmicki/Documents/SchizophreniaASD/fake_vcfTest3_6_fixed.vcf")
-    val vds2 = LoadVCF(sc, "/Users/jackkosmicki/Documents/SchizophreniaASD/fake_vcf_forTDT_testing.vcf")
+    val vds2 = LoadVCF(sc, "src/test/resources/fake_vcf_forTDT_testing.vcf")
+    //val vds2 = LoadVCF(sc, "/Users/jackkosmicki/Documents/SchizophreniaASD/fake_vcf_forTDT_testing.vcf")
     val ped2 = Pedigree.read("src/test/resources/tdt_ped_test3_6.fam", sc.hadoopConfiguration, vds2.sampleIds)
     println(ped2.completeTrios.length)
     println(ped2.completeTrios(0))
