@@ -1497,8 +1497,6 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
   override def typecheckThis(ec: EvalContext): BaseType = {
-    thenTree.typecheck(ec)
-    elseTree.typecheck(ec)
     if (thenTree.`type` != elseTree.`type`)
       parseError(s"expected same-type `then' and `else' clause, got `${thenTree.`type`}' and `${elseTree.`type`}'")
     else

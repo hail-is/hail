@@ -232,6 +232,37 @@ class ExprSuite extends SparkSuite {
     ))
     assert(eval[Boolean](""" index(structArray, f2).contains("B") """).contains(true))
     assert(eval[Boolean](""" index(structArray, f2).contains("E") """).contains(false))
+
+    // caused exponential loop previously
+    assert(eval[Boolean](
+      """
+        |if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else true
+      """.stripMargin).contains(true))
     // FIXME catch parse errors
   }
 
