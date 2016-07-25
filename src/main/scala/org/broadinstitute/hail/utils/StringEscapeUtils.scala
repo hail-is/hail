@@ -51,23 +51,20 @@ object StringEscapeUtils {
             }
         }
       } else {
-        if (backticked)
-          ch match {
-            case '`' =>
+        ch match {
+          case '"' =>
+            if (backticked)
+              sb += '"'
+            else {
+              sb += '\\'
+              sb += '\"'
+            }
+          case '`' =>
+            if (backticked) {
               sb += '\\'
               sb += '`'
-            case '\\' =>
-              sb += '\\'
-              sb += '\\'
-            case _ =>
-              sb.append(ch)
-          } else ch match {
-          case '\'' =>
-            sb += '\\'
-            sb += '\''
-          case '\"' =>
-            sb += '\\'
-            sb += '\"'
+            } else
+              sb += '`'
           case '\\' =>
             sb += '\\'
             sb += '\\'
@@ -116,7 +113,7 @@ object StringEscapeUtils {
         ch match {
           case '\\' => sb += '\\'
           case '\'' => sb += '\''
-          case '\"' => sb += '\"'
+          case '"' => sb += '"'
           case '`' => sb += '`'
           case 'r' => sb += '\r'
           case 'f' => sb += '\f'

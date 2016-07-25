@@ -186,6 +186,13 @@ class ExprSuite extends SparkSuite {
     assert(eval[String](" \"a\\tb\".replace(\"\\t\", \"_\") ").contains("a_b"))
     assert(eval[String](""" "a    b  c    d".replace("\\s+", "_") """).contains("a_b_c_d"))
 
+    // quoting '` optional in strings
+    assert(eval[String](""" "\"\'\`" """).contains(""""'`"""))
+    assert(eval[String](""" "\"'`" """).contains(""""'`"""))
+
+    // quoting "' optional in literal identifiers
+    assert(eval[Int]("""let `\"\'\`` = 5 in `"'\``""").contains(5))
+
     assert(eval[String]("""NA: String""").isEmpty)
     assert(eval[String]("""NA: Int""").isEmpty)
     assert(eval[String]("""NA: Array[Int]""").isEmpty)
