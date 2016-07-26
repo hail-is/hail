@@ -292,10 +292,6 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
 // FIXME AnyVal in Scala 2.11
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
-
-  def areDistinct() = a.toIterable.areDistinct()
-
-  def duplicates(): Set[T] = a.toIterable.duplicates()
 }
 
 class RichOrderedArray[T: Ordering](a: Array[T]) {
@@ -767,6 +763,8 @@ object Utils extends Logging {
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
+
+  implicit def toRichIterable[T](a: Array[T]): RichIterable[T] = new RichIterable(a)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
     new RichArrayBuilderOfByte(t)

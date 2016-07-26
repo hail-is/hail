@@ -223,6 +223,8 @@ case object TDouble extends TNumeric with Parsable {
 
   def parse(s: String): Annotation = s.toDouble
 
+  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.4e")
+
   override def genValue: Gen[Annotation] = arbitrary[Double]
 }
 
