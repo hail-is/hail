@@ -277,7 +277,6 @@ object Parser extends JavaTokenParsers {
       withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
       withPos(arrayDeclaration) ^^ (r => ArrayConstructor(r.pos, r.x)) |
       withPos(structDeclaration) ^^ (r => StructConstructor(r.pos, r.x.map(_._1), r.x.map(_._2))) |
-      withPos(indexStruct) ^^ (r => IndexStruct(r.pos, r.x._1, r.x._2)) |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
@@ -295,12 +294,7 @@ object Parser extends JavaTokenParsers {
 
   def structDeclaration: Parser[Array[(String, AST)]] = "{" ~> repsep(structField, ",") <~ "}" ^^ (_.toArray)
 
-  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ { case id ~ _ ~ ast => (id, ast) }
-
-  def indexStruct: Parser[(String, AST)] = "index" ~ "(" ~ expr ~ "," ~ identifier ~ ")" ^^ {
-    case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key, ast)
-    //    case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key.substring(1, key.length - 1), ast)
-  }
+  def structField: Parser[(String, AST)] = (identifier ~ ":" ~ expr) ^^ { case id ~ _ ~ ast => (id, ast) }
 
   def backtickLiteral: Parser[String] =
     """`([^\\`]|\\[\\bfnrt'"`]|\\u[a-fA-F0-9]{4})*`""".r ^^

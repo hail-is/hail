@@ -519,6 +519,89 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     TStruct(newFields)
   }
 
+  def merge(other: TStruct): (TStruct, Merger) = {
+
+    val intersect = fields.map(_.name)
+      .toSet
+      .intersect(other.fields.map(_.name).toSet)
+
+    if (intersect.nonEmpty)
+      fatal(
+        s"""invalid merge operation: same-name ${plural(intersect.size, "field")}:
+            |  [ ${intersect.map(s => prettyIdentifier(s)).mkString(", ")} ]""".stripMargin)
+
+    val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)))
+
+    val size1 = size
+    val size2 = other.size
+    val targetSize = newStruct.size
+    val merger = (a1: Annotation, a2: Annotation) => {
+      if (a1 == null && a2 == null)
+        Annotation.empty
+      else {
+        val s1 = Option(a1).map(_.asInstanceOf[Row].toSeq)
+          .getOrElse(Seq.fill[Any](size)(null))
+        val s2 = Option(a2).map(_.asInstanceOf[Row].toSeq)
+          .getOrElse(Seq.fill[Any](size)(null))
+        val newValues = s1 ++ s2
+        assert(newValues.size == targetSize)
+        Annotation.fromSeq(newValues)
+      }
+    }
+
+    (newStruct, merger)
+  }
+
+  def filter(set: Set[String], include: Boolean = true): (TStruct, Filterer) = {
+    val notFound = set.filter { name => selfField(name).isEmpty }
+    if (notFound.nonEmpty)
+      fatal(
+        s"""Tried to filter struct with undiscovered ${
+          plural(notFound.size, s"field ${prettyIdentifier(notFound.head)}", s"fields [ ${notFound.map(prettyIdentifier).mkString(", ")} ]")
+        }
+            |  Struct fields: [ ${fields.map(f => prettyIdentifier(f.name)).mkString(", ")} ]""".stripMargin)
+
+    val fn = (f: Field) =>
+      if (include)
+        set.contains(f.name)
+      else
+        !set.contains(f.name)
+    filter(fn)
+  }
+
+  def filter(f: (Field) => Boolean): (TStruct, Filterer) = {
+    val included = fields.map(f)
+
+    val newFields = fields.zip(included)
+      .flatMap { case (field, incl) =>
+        if (incl)
+          Some(field.name -> field.`type`)
+        else
+          None
+      }
+
+    val newSize = newFields.size
+
+    val filterer = (a: Annotation) =>
+      if (a == null)
+        a
+      else if (newSize == 0)
+        Annotation.empty
+      else {
+        val r = a.asInstanceOf[Row]
+        val newValues = included.zipWithIndex
+          .flatMap { case (incl, i) =>
+            if (incl)
+              Some(r.get(i))
+            else None
+          }
+        assert(newValues.length == newSize)
+        Annotation.fromSeq(newValues)
+      }
+
+    (TStruct(newFields: _*), filterer)
+  }
+
   override def toString = if (size == 0) "Empty" else "Struct"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {

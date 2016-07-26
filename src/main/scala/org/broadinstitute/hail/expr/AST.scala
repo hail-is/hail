@@ -2,6 +2,7 @@ package org.broadinstitute.hail.expr
 
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
+import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.stats.LeveneHaldane
@@ -549,40 +550,9 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
   def eval(ec: EvalContext): () => Any = throw new UnsupportedOperationException
 }
 
-case class IndexStruct(posn: Position, key: String, body: AST) extends AST(posn, body) {
-  var deleter: Deleter = null
-  var querier: Querier = null
-
-  override def typecheckThis(): BaseType = {
-    val s = body.`type` match {
-      case TArray(t: TStruct) => t
-      case error => parseError(s"Got invalid argument `$error' to function `index'.  Expected Array[Struct]")
-    }
-    s.getOption(key) match {
-      case Some(TString) =>
-        querier = s.query(key)
-        val (newS, d) = s.delete(key)
-        deleter = d
-        TDict(newS)
-      case Some(other) => parseError(s"Got invalid key type `$other' to function `index'.  Key must be of type `String'.")
-      case None => parseError(s"""Struct did not contain the designated key "$key". """)
-    }
-  }
-
-  def eval(ec: EvalContext): () => Any = {
-    val localDeleter = deleter
-    val localQuerier = querier
-    // FIXME: warn for duplicate keys?
-    AST.evalCompose[IndexedSeq[_]](ec, body) { is =>
-      is.filter(_ != null)
-        .map(_.asInstanceOf[Row])
-        .flatMap(r => localQuerier(r).map(x => (x, localDeleter(r))))
-        .toMap
-    }
-  }
-}
-
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
+  var storage: Any = null
+
   override def typecheckThis(): BaseType = {
     (fn, args) match {
       case ("isMissing", Array(a)) =>
@@ -619,13 +589,114 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
               }""".stripMargin)
         }
 
-      case ("index", rhs) =>
-        parseError(s"Got invalid arguments (${rhs.map(_.`type`).mkString(", ")}) to function `$fn'." +
-          s"\n  Expected arguments (Array[Struct], <field identifier>) e.g. `index(global.gene_info, gene_id)'")
+      case ("merge", rhs) =>
+        val (t1, t2) = args.map(_.`type`) match {
+          case Array(t1: TStruct, t2: TStruct) => (t1, t2)
+          case other => parseError(
+            s"""invalid arguments to `$fn'
+                |  Expected $fn(Struct, Struct), found $fn(${other.mkString(", ")})""".stripMargin)
+        }
+
+        val (t, merger) = try {
+          t1.merge(t2)
+        } catch {
+          case f: FatalException => parseError(f.getMessage)
+          case e: Throwable => throw e
+        }
+
+        storage = merger
+        t
 
       case ("isDefined" | "isMissing" | "str" | "json", _) => parseError(s"`$fn' takes one argument")
 
       case _ => parseError(s"unknown function `$fn'")
+    }
+  }
+
+  override def typecheck(ec: EvalContext) {
+
+    def getIdentifiers(asts: Array[AST]): Array[String] = asts.map {
+      case SymRef(_, id) => id
+      case other =>
+        parseError(
+          s"""invalid arguments for method `$fn'
+              |  Expected struct field identifiers after the first position, but found a `${other.getClass.getSimpleName}' expression""".stripMargin)
+    }
+
+    fn match {
+
+      case "index" =>
+        if (args.length != 2)
+          parseError(
+            s"""invalid arguments for method `$fn'
+                |  Expected 2 arguments: $fn(Array[Struct], identifiers...)
+                |  Found ${args.length} arguments""".stripMargin)
+        args.head.typecheck(ec)
+        val t = args.head.`type` match {
+          case TArray(t: TStruct) => t
+          case error => parseError(
+            s"""invalid arguments for method `$fn'
+                |  Expected Array[Struct] as first argument, found `$error'""".stripMargin)
+        }
+        val key = args(1) match {
+          case SymRef(_, id) => id
+          case other =>
+            parseError(
+              s"""invalid arguments for method `$fn'
+                  |  Expected struct field identifier as the second argument, but found a `${other.getClass.getSimpleName}' expression
+                  |  Usage: $fn(Array[Struct], key identifier)""".stripMargin)
+        }
+
+        t.getOption(key) match {
+          case Some(TString) =>
+            val querier = t.query(key)
+            val (newS, deleter) = t.delete(key)
+            storage = (querier, deleter)
+            `type` = TDict(newS)
+          case Some(other) => parseError(
+            s"""invalid arguments for method `$fn'
+                |  Expected key to be of type String, but field ${prettyIdentifier(key)} had type `$other'""".stripMargin)
+          case None => parseError(
+            s"""invalid arguments for method `$fn'
+                |  Struct did not contain the designated key `${prettyIdentifier(key)}'""".stripMargin)
+        }
+
+      case "select" | "drop" =>
+        val usage = s"""Usage: `$fn'(Struct, identifiers...)"""
+        if (args.length < 2)
+          parseError(
+            s"""too few arguments for method `$fn'
+                |  Expected 2 or more arguments: $fn(Struct, identifiers...)
+                |  Found ${args.length} ${plural(args.length, "argument")}""".stripMargin)
+        val (head, tail) = (args.head, args.tail)
+        head.typecheck(ec)
+        val struct = head.`type` match {
+          case t: TStruct => t
+          case other => parseError(
+            s"""method `$fn' expects a Struct argument in the first position
+                |  Expected: $fn(Struct, ...)
+                |  Found: $fn($other, ...)""".stripMargin)
+        }
+        val identifiers = getIdentifiers(tail)
+        val duplicates = identifiers.duplicates()
+        if (duplicates.nonEmpty)
+          parseError(
+            s"""invalid arguments for method `$fn'
+                |  Duplicate ${plural(duplicates.size, "identifier")} found: [ ${duplicates.map(prettyIdentifier).mkString(", ")} ]""".stripMargin)
+
+        val (tNew, filterer) = try {
+          struct.filter(identifiers.toSet, include = fn == "select")
+        } catch {
+          case f: FatalException => parseError(
+            s"""invalid arguments for method `$fn'
+                |  ${f.getMessage}""".stripMargin)
+          case e: Throwable => throw e
+        }
+
+        storage = filterer
+        `type` = tNew
+
+      case _ => super.typecheck(ec)
     }
   }
 
@@ -645,21 +716,40 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val f = a.eval(ec)
       () => JsonMethods.compact(t.toJSON(f()))
     case ("hwe", Array(a, b, c)) =>
-      AST.evalCompose[Int, Int, Int](ec, a, b, c) { case (nHomRef, nHet, nHomVar) =>
-        if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
-          fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
-        val n = nHomRef + nHet + nHomVar
-        val nAB = nHet
-        val nA = nAB + 2 * nHomRef.min(nHomVar)
+      AST.evalCompose[Int, Int, Int](ec, a, b, c) {
+        case (nHomRef, nHet, nHomVar) =>
+          if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
+            fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
+          val n = nHomRef + nHet + nHomVar
+          val nAB = nHet
+          val nA = nAB + 2 * nHomRef.min(nHomVar)
 
-        val LH = LeveneHaldane(n, nA)
-        Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
+          val LH = LeveneHaldane(n, nA)
+          Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
       }
-    case ("index", Array(toIndex, key)) =>
-      val keyF = key.eval(ec)
-      val f = toIndex.eval(ec)
+
+    case ("merge", Array(struct1, struct2)) =>
+      val f1 = struct1.eval(ec)
+      val f2 = struct2.eval(ec)
+      val merger = storage.asInstanceOf[Merger]
       () => {
-        val k = keyF()
+        merger(f1(), f2())
+      }
+
+    case ("select" | "drop", Array(struct, _*)) =>
+      val filterer = storage.asInstanceOf[Filterer]
+      AST.evalCompose[Annotation](ec, struct) { s =>
+        filterer(s)
+      }
+
+    case ("index", Array(structArray, _)) =>
+      val (querier, deleter) = storage.asInstanceOf[(Querier, Deleter)]
+      // FIXME: warn for duplicate keys?
+      AST.evalCompose[IndexedSeq[_]](ec, structArray) { is =>
+        is.filter(_ != null)
+          .map(_.asInstanceOf[Row])
+          .flatMap(r => querier(r).map(x => (x, deleter(r))))
+          .toMap
       }
   }
 }
@@ -866,7 +956,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (elementType != t2)
           parseError(
             s"""method `contains' takes an argument of the same type as the set.
-               |  Expected type `$elementType' for `Set[$elementType]', but found `$t2'
+                |  Expected type `$elementType' for `Set[$elementType]', but found `$t2'
              """.stripMargin)
         TBoolean
       case (TDict(_), "contains", Array(TString)) => TBoolean

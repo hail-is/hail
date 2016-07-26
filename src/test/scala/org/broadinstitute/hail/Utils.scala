@@ -10,8 +10,7 @@ object TestUtils {
     if (!p)
       println(
         s"""expected fatal exception with pattern `$regex'
-           |  Found `${thrown.getMessage}'
-         """.stripMargin)
+           |  Found: ${thrown.getMessage}""".stripMargin)
     assert(p)
   }
 }

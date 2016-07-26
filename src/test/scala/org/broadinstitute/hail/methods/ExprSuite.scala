@@ -6,7 +6,7 @@ import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.broadinstitute.hail.variant.Genotype
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
@@ -207,11 +207,11 @@ class ExprSuite extends SparkSuite {
     intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
     intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
 
-    val (t, r) = evalWithType[Annotation](""" {"field1": 1, "field2": 2 } """)
+    val (t, r) = evalWithType[Annotation](""" {field1: 1, field2: 2 } """)
     assert(r.contains(Annotation(1, 2)))
     assert(t == TStruct(("field1", TInt), ("field2", TInt)))
 
-    val (t2, r2) = evalWithType[Annotation](""" {"field1": 1, "asdasd": "Hello" } """)
+    val (t2, r2) = evalWithType[Annotation](""" {field1: 1, asdasd: "Hello" } """)
     assert(r2.contains(Annotation(1, "Hello")))
     assert(t2 == TStruct(("field1", TInt), ("asdasd", TString)))
 
@@ -270,6 +270,40 @@ class ExprSuite extends SparkSuite {
         |else if (false) false
         |else true
       """.stripMargin).contains(true))
+
+    assert(eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true}) """).contains(Annotation(1, 2, false, true)))
+    assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, {c: false, d: true}) """).contains(Annotation(null, null, false, true)))
+    assert(eval[Annotation]("""merge({a: 1, b: 2}, NA: Struct{c: Boolean, d: Boolean}) """).contains(Annotation(1, 2, null, null)))
+    assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, NA: Struct{c: Boolean, d: Boolean}) """).isEmpty)
+    TestUtils.interceptFatal("invalid merge operation: same-name fields")(
+      eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true, a: 1, b: 0}) """).contains(Annotation(1, 2, false, true)))
+    TestUtils.interceptFatal("invalid arguments to `merge'")(
+      eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}) """).isEmpty)
+    TestUtils.interceptFatal("invalid arguments to `merge'")(
+      eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, 5) """).isEmpty)
+
+    assert(eval[Annotation](""" select({a:1,b:2}, a) """).contains(Annotation(1)))
+    assert(eval[Boolean](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,`\tweird\t`) == drop(x, c) """).contains(true))
+    TestUtils.interceptFatal("too few arguments for method `select'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, 5,6,7) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'\\s+Duplicate identifiers found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,a,b,c,c) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'\\s+Tried to filter struct with undiscovered fields")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,c,d,e) """))
+
+    assert(eval[Annotation](""" drop({a:1,b:2}, a) """).contains(Annotation(2)))
+    TestUtils.interceptFatal("too few arguments for method `drop'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, 5,6,7) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Duplicate identifiers found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,a,b,c,c) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Tried to filter struct with undiscovered fields")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,b,c,d,e) """))
+
+
     // FIXME catch parse errors
   }
 
