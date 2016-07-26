@@ -327,24 +327,46 @@ class RichSparkContext(val sc: SparkContext) extends AnyVal {
       .map(l => Line(l, None, file))
 }
 
-class HeadRDD[T](prev: RDD[T], num: Int)(implicit tct: ClassTag[T]) extends RDD[T](prev) {
+class HeadRDD[T](prev: RDD[T], num: Int, exact: Boolean)(implicit tct: ClassTag[T]) extends RDD[T](prev) {
+
+  private var nLastPart = 0
+  private var lastPart = 0
+
   def getPartitions: Array[Partition] = {
-    Array(new Partition {
-      def index = 0
-    })
+    val buf = new mutable.ArrayBuffer[Partition]
+
+    var nvp = prev.sparkContext.runJob(prev,(it: Iterator[T]) => it.size, Seq(0))
+    if(exact) {
+      while (nvp.sum < num && nvp.size < prev.partitions.length) {
+        nvp = nvp ++ prev.sparkContext.runJob(prev, (it: Iterator[T]) => it.size,
+          Range(nvp.length,
+            nvp.length +
+              math.min(((num - nvp.sum) / (nvp.sum / nvp.length).toDouble).ceil.toInt, prev.partitions.length)))
+      }
+
+      def f(n: Int, i: Int): Unit = {
+        if (n + nvp(i) > num) {
+          lastPart = i
+          nLastPart = num - n
+        } else {
+          f(n + nvp(i), i + 1)
+        }
+      }
+      f(0, 0)
+    }else{
+      lastPart = math.min((num / nvp.sum.toDouble).ceil.toInt, prev.partitions.length)
+      nLastPart = Int.MaxValue
+    }
+    firstParent.partitions.take(lastPart+1)
   }
   
   def compute(split: Partition, context: TaskContext): Iterator[T] = {
-    val buf = new mutable.ArrayBuffer[T]
 
-    def f(i: Int): Unit =
-      if (buf.size < num) {
-        buf ++= prev.compute(prev.partitions(i), context).take(num - buf.size)
-        f(i + 1)
-      }
-    f(0)
-
-    buf.iterator
+    if(split.index == lastPart ){
+      firstParent.iterator(split,context).take(nLastPart)
+    }else{
+      firstParent.iterator(split,context)
+    }
   }
 }
 
@@ -388,11 +410,11 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
   }
 
-  def head(n: Int)(implicit tct: ClassTag[T]): RDD[T] = {
+  def head(n: Int, exact: Boolean)(implicit tct: ClassTag[T]): RDD[T] = {
     if (n == 0)
       r.sparkContext.emptyRDD[T]
     else
-      new HeadRDD(r, n)
+      new HeadRDD(r, n, exact)
   }
 }
 

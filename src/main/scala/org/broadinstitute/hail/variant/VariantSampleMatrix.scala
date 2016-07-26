@@ -284,8 +284,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
     copy(rdd = rdd.sample(withReplacement = false, fraction, 1))
 
-  def head(n: Int): VariantSampleMatrix[T] =
-    copy(rdd = rdd.head(n))
+  def head(n: Int, exact: Boolean): VariantSampleMatrix[T] =
+    copy(rdd = rdd.head(n,exact))
 
   def mapValues[U](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     mapValuesWithAll((v, va, s, sa, g) => f(g))
