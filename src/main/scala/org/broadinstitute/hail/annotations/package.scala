@@ -1,7 +1,5 @@
 package org.broadinstitute.hail
 
-import org.broadinstitute.hail.expr._
-
 package object annotations {
 
   class AnnotationPathException(msg: String = "") extends Exception(msg)
@@ -15,4 +13,6 @@ package object annotations {
   type Inserter = (Annotation, Option[Any]) => Annotation
 
   type Assigner = (Annotation, Option[Any]) => Annotation
+
+  type Merger = (Annotation, Annotation) => Annotation
 }

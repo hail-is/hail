@@ -60,11 +60,6 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - size: `set.size` -- returns the number of elements in the set as an integer
      - isEmpty: `set.isEmpty` -- returns true if the set contains 0 elements
      - equals: `set1 == set2` -- returns true if both sets contain the same elements
-     - plus: `set1 + elem` -- adds `elem` to `set1` and returns the new set
-     - minus: `set1 - elem` -- removes `elem` from `set1` (if it is present) and returns the new set
-     - union: `set1.union(set2)` -- returns a new set with all elements in `set1` or `set2`
-     - intersect: `set1.intersect(set2)` -- returns a new set with all elements in both `set1` and `set2`
-     - diff: `set1.diff(set2)` -- returns a new set with all elements not shared between `set1` and `set2`
      - min: `set.min` -- valid only for numeric sets, returns the minimum value
      - max: `set.max` -- valid only for numeric sets, returns the minimum value
      - find: `set.find(v => expr)` -- Returns the first non-missing element of `set` for which `expr` is true.  If no element satisfies the predicate, `find` returns NA.
@@ -100,6 +95,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
             Now the following equality is true:
             
                 global.gene_dict["gene1"] == {"PLI": 0.998, "hits_in_exac": 1}
+      - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
+      - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
 
 
 **Note:**
