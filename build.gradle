@@ -72,7 +72,7 @@ dependencies {
     compile 'org.json4s:json4s-jackson_2.10:3.2.10'
     compile 'org.json4s:json4s-ast_2.10:3.2.10'
 
-    compile 'org.apache.solr:solr-solrj:5.5.0'
+    compile 'org.apache.solr:solr-solrj:6.0.1'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
 
     testCompile 'org.testng:testng:6.8.21'
@@ -115,8 +115,9 @@ tasks.withType(ShadowJar) {
     baseName = project.name + '-all'
     mergeServiceFiles()
     zip64 true
-    // conflict with version of math3 in default Hadoop/Spark install
+    // conflict with version in default Hadoop/Spark install
     relocate 'org.apache.commons.math3', 'org.broadinstitute.hail.relocated.org.apache.commons.math3'
+    relocate 'org.apache.http', 'org.broadinstitute.hail.relocated.org.apache.http'
 }
 
 shadowJar {
@@ -136,7 +137,16 @@ shadowJar {
         include(dependency('org.json4s:json4s-jackson_2.10:.*'))
         include(dependency('org.json4s:json4s-ast_2.10:.*'))
 
+        // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
+        include(dependency('org.apache.httpcomponents:httpclient:.*'))
+        include(dependency('org.apache.httpcomponents:httpcore:.*'))
+        include(dependency('org.apache.httpcomponents:httpmime:.*'))
+        include(dependency('org.apache.zookeeper:zookeeper:.*'))
+        include(dependency('org.codehaus.woodstox:stax2-api:.*'))
+        include(dependency('org.codehaus.woodstox:woodstox-core-asl:.*'))
+        include(dependency('org.noggit:noggit:.*'))
+
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('org.kududb:kudu-client:.*'))
         include(dependency('org.kududb:kudu-spark_2.10:.*'))
@@ -160,7 +170,20 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.json4s:json4s-jackson_2.10:.*'))
         include(dependency('org.json4s:json4s-ast_2.10:.*'))
 
+        include(dependency('org.testng:testng:.*'))
+        include(dependency('com.beust:jcommander:.*'))
+        include(dependency('org.scalatest:scalatest_' + scalaMajorVersion + ':.*'))
+
+        // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
+        include(dependency('org.apache.httpcomponents:httpclient:.*'))
+        include(dependency('org.apache.httpcomponents:httpcore:.*'))
+        include(dependency('org.apache.httpcomponents:httpmime:.*'))
+        include(dependency('org.apache.zookeeper:zookeeper:.*'))
+        include(dependency('org.codehaus.woodstox:stax2-api:.*'))
+        include(dependency('org.codehaus.woodstox:woodstox-core-asl:.*'))
+        include(dependency('org.noggit:noggit:.*'))
+
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('org.kududb:kudu-client:.*'))
         include(dependency('org.kududb:kudu-spark_2.10:.*'))
@@ -189,7 +212,3 @@ task testJar(type: Jar) {
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
-
-compileScala {
-    scalaCompileOptions.useAnt = false
-}
