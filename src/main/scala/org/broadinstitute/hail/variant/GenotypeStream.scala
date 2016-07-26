@@ -101,8 +101,8 @@ object GenotypeStream {
     val bytes: Array[Byte] = row.get(1) match {
       case ab: Array[Byte] =>
         ab
-      case sb: Seq[Byte] =>
-        sb.toArray[Byte]
+      case sb: Seq[_] =>
+        sb.asInstanceOf[Seq[Byte]].toArray
       case bb: ByteBuffer =>
         val b: Array[Byte] = Array.ofDim[Byte](bb.remaining())
         bb.get(b)

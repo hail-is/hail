@@ -197,7 +197,7 @@ object ExportVariantsSolr extends Command with Serializable {
           vEC.setAll(v, va)
           f().foreach(x => documentAddField(document, name, t, x))
         }
-        
+
         gs.iterator.zipWithIndex.foreach { case (g, i) =>
           if (g.isCalled && !g.isHomRef) {
             val s = sampleIdsBc.value(i)

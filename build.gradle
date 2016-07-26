@@ -37,8 +37,13 @@ String sparkVersion = System.getProperty("hail.sparkversion","1.5.0")
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
 
+compileJava {
+    options.compilerArgs << "-Xlint:all" << "-Werror"
+}
+
 compileScala {
-    scalaCompileOptions.additionalParameters = ["-feature"]
+    // scalaCompileOptions.compilerArgs << "-Xfatal-warnings"
+    scalaCompileOptions.additionalParameters = ["-feature", "-Xfatal-warnings"]
     // scalaCompileOptions.forkOptions.jvmArgs = ['-XX:MaxPermSize=512m']
 }
 
