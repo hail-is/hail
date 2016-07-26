@@ -42,9 +42,9 @@ object ImputeSexPlink {
 
     vds.filterVariants((v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
       if (!includePar)
-        (v.contig == "X" || v.contig == "23") && !v.inParX
+        v.inXNonPar
       else
-        v.contig == "X" || v.contig == "23"
+        v.contig == "X" || v.contig == "23" || v.contig == "25"
     )
       .mapAnnotations((v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
         query.map(_.apply(va).orNull)
