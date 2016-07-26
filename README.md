@@ -1,5 +1,7 @@
 # Hail
 
+[![Join the chat at https://gitter.im/broadinstitute/hail](https://badges.gitter.im/broadinstitute/hail.svg)](https://gitter.im/broadinstitute/hail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Hail is a framework for scalable genetic data analysis.  Hail is
 pre-alpha software and under active development.  Hail is written in
 Scala (mostly) and uses Apache [Spark](http://spark.apache.org/) and
