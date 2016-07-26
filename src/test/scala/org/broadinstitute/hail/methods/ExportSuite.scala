@@ -142,7 +142,7 @@ class ExportSuite extends SparkSuite {
 
     ExportVariants.run(s, Array("-o", tmp1,
     "-t", tmp2,
-    "-c", """{"v": str(v), "va": va}"""))
+    "-c", """{v: str(v), va: va}"""))
 
     val preVDS = s.vds
 
