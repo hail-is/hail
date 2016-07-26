@@ -65,19 +65,10 @@ object ExportGenotypes extends Command {
       Parser.parseExportArgs(cond, ec)
 
     Option(options.typesFile).foreach { file =>
-      writeTextFile(file, sc.hadoopConfiguration) { out =>
-        val sb = new StringBuilder
-        header
-          .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
-          .zip(parseResults)
-          .iterator
-          .foreachBetween { case (name, (t, f)) =>
-            sb.append(prettyIdentifier(name))
-            sb.append(":")
-            t.pretty(sb, printAttrs = true, compact = true)
-          }(() => sb.append(","))
-        out.write(sb.result())
-      }
+      val typeInfo = header
+        .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
+        .zip(parseResults.map(_._1))
+      ExportTSV.exportTypes(file, state.hadoopConf, typeInfo)
     }
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
@@ -98,8 +89,7 @@ object ExportGenotypes extends Command {
         .map { case (v, va, s, sa, g) =>
           ec.setAll(v, va, s, sa, g)
           sb.clear()
-          parseResults.iterator
-            .foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
+          parseResults.foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
           sb.result()
         }
     }.writeTable(output, header.map(_.mkString("\t")))

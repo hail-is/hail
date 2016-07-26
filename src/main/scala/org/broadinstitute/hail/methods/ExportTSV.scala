@@ -28,12 +28,26 @@ object ExportTSV {
     val header = pairs.map(_._1)
     val fs = pairs.map { case (_, e) =>
       val (bt, f) = Parser.parse(e, ec)
-        bt match {
-          case t: Type => (t, f)
-          case _ => fatal(s"invalid export type: `$bt'")
-        }
+      bt match {
+        case t: Type => (t, f)
+        case _ => fatal(s"invalid export type: `$bt'")
+      }
     }
 
     (header, fs)
   }
+
+  def exportTypes(filename: String, hConf: hadoop.conf.Configuration, info: Array[(String, Type)]) {
+    val sb = new StringBuilder
+    writeTextFile(filename, hConf) { out =>
+      info.foreachBetween { case (name, t) =>
+        sb.append(prettyIdentifier(name))
+        sb.append(":")
+        t.pretty(sb, printAttrs = true, compact = true)
+      }(() => sb.append(","))
+
+    out.write(sb.result())
+    }
+  }
+
 }

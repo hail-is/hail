@@ -66,19 +66,10 @@ object ExportVariants extends Command {
       Parser.parseExportArgs(cond, ec)
 
     Option(options.typesFile).foreach { file =>
-      writeTextFile(file, hConf) { out =>
-        val sb = new StringBuilder
-        header
-          .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
-          .zip(parseResults)
-          .iterator
-          .foreachBetween { case (name, (t, f)) =>
-            sb.append(prettyIdentifier(name))
-            sb.append(":")
-            t.pretty(sb, printAttrs = true, compact = true)
-          }(() => sb.append(","))
-        out.write(sb.result())
-      }
+      val typeInfo = header
+        .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
+        .zip(parseResults.map(_._1))
+      ExportTSV.exportTypes(file, state.hadoopConf, typeInfo)
     }
 
     val variantAggregations = Aggregators.buildVariantaggregations(vds, aggregationEC)
@@ -95,8 +86,7 @@ object ExportVariants extends Command {
 
           ec.setAll(v, va)
 
-          parseResults.iterator
-            .foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
+          parseResults.foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
           sb.result()
         }
       }.writeTable(output, header.map(_.mkString("\t")))
