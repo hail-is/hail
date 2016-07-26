@@ -521,20 +521,21 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   def merge(other: TStruct): (TStruct, Merger) = {
 
-    val intersect = fields.map(_.name)
-      .toSet
+    val intersect = fields.map(_.name).toSet
       .intersect(other.fields.map(_.name).toSet)
 
     if (intersect.nonEmpty)
       fatal(
-        s"""invalid merge operation: same-name ${plural(intersect.size, "field")}:
-            |  [ ${intersect.map(s => prettyIdentifier(s)).mkString(", ")} ]""".stripMargin)
+        s"""invalid merge operation: same-name ${plural(intersect.size, "field")}: [ ${
+          intersect.map(s => prettyIdentifier(s)).mkString(", ")
+        } ]""".stripMargin)
 
     val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)))
 
     val size1 = size
     val size2 = other.size
     val targetSize = newStruct.size
+
     val merger = (a1: Annotation, a2: Annotation) => {
       if (a1 == null && a2 == null)
         Annotation.empty
@@ -552,14 +553,14 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     (newStruct, merger)
   }
 
-  def filter(set: Set[String], include: Boolean = true): (TStruct, Filterer) = {
-    val notFound = set.filter { name => selfField(name).isEmpty }
+  def filter(set: Set[String], include: Boolean = true): (TStruct, Deleter) = {
+    val notFound = set.filter(name => selfField(name).isEmpty).map(prettyIdentifier)
     if (notFound.nonEmpty)
       fatal(
-        s"""Tried to filter struct with undiscovered ${
-          plural(notFound.size, s"field ${prettyIdentifier(notFound.head)}", s"fields [ ${notFound.map(prettyIdentifier).mkString(", ")} ]")
-        }
-            |  Struct fields: [ ${fields.map(f => prettyIdentifier(f.name)).mkString(", ")} ]""".stripMargin)
+        s"""invalid struct filter operation: ${
+          plural(notFound.size, s"field ${notFound.head}", s"fields [ ${notFound.mkString(", ")} ]")
+        } not found
+            |  Existing struct fields: [ ${fields.map(f => prettyIdentifier(f.name)).mkString(", ")} ]""".stripMargin)
 
     val fn = (f: Field) =>
       if (include)
@@ -569,7 +570,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     filter(fn)
   }
 
-  def filter(f: (Field) => Boolean): (TStruct, Filterer) = {
+  def filter(f: (Field) => Boolean): (TStruct, Deleter) = {
     val included = fields.map(f)
 
     val newFields = fields.zip(included)

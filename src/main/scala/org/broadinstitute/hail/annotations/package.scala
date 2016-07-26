@@ -8,8 +8,6 @@ package object annotations {
 
   type Deleter = (Annotation) => Annotation
 
-  type Filterer = (Annotation) => Annotation
-
   type Querier = (Annotation) => Option[Any]
 
   type Inserter = (Annotation, Option[Any]) => Annotation

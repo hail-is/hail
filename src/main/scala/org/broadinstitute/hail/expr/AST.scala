@@ -488,7 +488,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
   override def typecheckThis(ec: EvalContext): Type = {
     if (elements.isEmpty)
-      parseError("Hail does not currently support declaring empty arrays.")
+      parseError("invalid array constructor: no values")
     elements.foreach(_.typecheck(ec))
     val types: Set[Type] = elements.map(_.`type`)
       .map {
@@ -551,7 +551,7 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
-  var storage: Any = null
+  var store: Any = null
 
   override def typecheckThis(): BaseType = {
     (fn, args) match {
@@ -600,11 +600,15 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         val (t, merger) = try {
           t1.merge(t2)
         } catch {
-          case f: FatalException => parseError(f.getMessage)
-          case e: Throwable => throw e
+          case f: FatalException => parseError(
+            s"""invalid arguments for method `$fn'
+                |  ${f.getMessage}""".stripMargin)
+          case e: Throwable => parseError(
+            s"""invalid arguments for method `$fn'
+                |  ${e.getClass.getName}: ${e.getMessage}""".stripMargin)
         }
 
-        storage = merger
+        store = merger
         t
 
       case ("isDefined" | "isMissing" | "str" | "json", _) => parseError(s"`$fn' takes one argument")
@@ -614,17 +618,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   }
 
   override def typecheck(ec: EvalContext) {
-
-    def getIdentifiers(asts: Array[AST]): Array[String] = asts.map {
-      case SymRef(_, id) => id
-      case other =>
-        parseError(
-          s"""invalid arguments for method `$fn'
-              |  Expected struct field identifiers after the first position, but found a `${other.getClass.getSimpleName}' expression""".stripMargin)
-    }
-
     fn match {
-
       case "index" =>
         if (args.length != 2)
           parseError(
@@ -651,7 +645,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case Some(TString) =>
             val querier = t.query(key)
             val (newS, deleter) = t.delete(key)
-            storage = (querier, deleter)
+            store = (querier, deleter)
             `type` = TDict(newS)
           case Some(other) => parseError(
             s"""invalid arguments for method `$fn'
@@ -677,7 +671,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                 |  Expected: $fn(Struct, ...)
                 |  Found: $fn($other, ...)""".stripMargin)
         }
-        val identifiers = getIdentifiers(tail)
+        val identifiers = tail.map {
+          case SymRef(_, id) => id
+          case other =>
+            parseError(
+              s"""invalid arguments for method `$fn'
+                  |  Expected struct field identifiers after the first position, but found a `${other.getClass.getSimpleName}' expression""".stripMargin)
+        }
         val duplicates = identifiers.duplicates()
         if (duplicates.nonEmpty)
           parseError(
@@ -690,10 +690,12 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case f: FatalException => parseError(
             s"""invalid arguments for method `$fn'
                 |  ${f.getMessage}""".stripMargin)
-          case e: Throwable => throw e
+          case e: Throwable => parseError(
+            s"""invalid arguments for method `$fn'
+                |  ${e.getClass.getName}: ${e.getMessage}""".stripMargin)
         }
 
-        storage = filterer
+        store = filterer
         `type` = tNew
 
       case _ => super.typecheck(ec)
@@ -731,19 +733,19 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("merge", Array(struct1, struct2)) =>
       val f1 = struct1.eval(ec)
       val f2 = struct2.eval(ec)
-      val merger = storage.asInstanceOf[Merger]
+      val merger = store.asInstanceOf[Merger]
       () => {
         merger(f1(), f2())
       }
 
     case ("select" | "drop", Array(struct, _*)) =>
-      val filterer = storage.asInstanceOf[Filterer]
+      val filterer = store.asInstanceOf[Deleter]
       AST.evalCompose[Annotation](ec, struct) { s =>
         filterer(s)
       }
 
     case ("index", Array(structArray, _)) =>
-      val (querier, deleter) = storage.asInstanceOf[(Querier, Deleter)]
+      val (querier, deleter) = store.asInstanceOf[(Querier, Deleter)]
       // FIXME: warn for duplicate keys?
       AST.evalCompose[IndexedSeq[_]](ec, structArray) { is =>
         is.filter(_ != null)
@@ -956,8 +958,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (elementType != t2)
           parseError(
             s"""method `contains' takes an argument of the same type as the set.
-                |  Expected type `$elementType' for `Set[$elementType]', but found `$t2'
-             """.stripMargin)
+                |  Expected type `$elementType' for `Set[$elementType]', but found `$t2'""".stripMargin)
         TBoolean
       case (TDict(_), "contains", Array(TString)) => TBoolean
       case (TString, "split", Array(TString)) => TArray(TString)
@@ -1505,10 +1506,9 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
       parseError(
         s""" invalid index expression: cannot index `${f.`type`}' with type `${idx.`type`}'
             |  Known index operations:
-            |    Array with Int: a[0]
-            |    String[Int] (Returns a character)
-            |    Dict[String]
-         """.stripMargin)
+            |    Array indexed with Int: a[2]
+            |    String indexed with Int: str[0] (Returns a character)
+            |    Dict indexed with String: genes["PCSK9"]""".stripMargin)
   }
 
   def eval(ec: EvalContext): () => Any = ((f.`type`, idx.`type`): @unchecked) match {
@@ -1546,12 +1546,15 @@ case class SliceArray(posn: Position, f: AST, idx1: Option[AST], idx2: Option[AS
   override def typecheckThis(): BaseType = f.`type` match {
     case (t: TArray) =>
       if (idx1.exists(_.`type` != TInt) || idx2.exists(_.`type` != TInt))
-        parseError(s"invalid slice expression.  " +
-          s"Expect (array[start:end] || array[:end] || array[start:]) where start and end are integers, " +
-          s"but got [${idx1.map(_.`type`).getOrElse("")}:${idx2.map(_.`type`).getOrElse("")}]")
+        parseError(
+          s"""invalid slice expression
+             |  Expect (array[start:end],  array[:end], or array[start:]) where start and end are integers
+             |  Found [${idx1.map(_.`type`).getOrElse("")}:${idx2.map(_.`type`).getOrElse("")}]""".stripMargin)
       else
         t
-    case _ => parseError(s"invalid slice expression.  Only arrays can be sliced, tried to slice type `${f.`type`}'")
+    case _ => parseError(
+      s"""invalid slice expression
+         |  Only arrays can be sliced.  Found slice operation on type `${f.`type`}'""".stripMargin)
   }
 
   def eval(ec: EvalContext): () => Any = {

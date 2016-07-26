@@ -290,7 +290,7 @@ class ExprSuite extends SparkSuite {
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, 5,6,7) """))
     TestUtils.interceptFatal("invalid arguments for method `select'\\s+Duplicate identifiers found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,a,b,c,c) """))
-    TestUtils.interceptFatal("invalid arguments for method `select'\\s+Tried to filter struct with undiscovered fields")(
+    TestUtils.interceptFatal("invalid arguments for method `select'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,c,d,e) """))
 
     assert(eval[Annotation](""" drop({a:1,b:2}, a) """).contains(Annotation(2)))
@@ -300,7 +300,7 @@ class ExprSuite extends SparkSuite {
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, 5,6,7) """))
     TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Duplicate identifiers found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,a,b,c,c) """))
-    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Tried to filter struct with undiscovered fields")(
+    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,b,c,d,e) """))
 
 
