@@ -29,7 +29,7 @@ object AnnotateSamplesFam extends Command {
       usage = "Identifier to be treated as missing (for case-control, in addition to `0', `-9', and non-numeric)")
     var missing: String = "NA"
 
-    @Args4jOption(required = false, name = "-implicit", aliases = Array("--implicit-parents"),
+    @Args4jOption(required = false, name = "--implicit-parents",
       usage = "Add information to parents that do not have a line in the fam file but are listed as parent of a child")
     var load_implicit: Boolean = false
   }
