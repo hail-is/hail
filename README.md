@@ -1,89 +1,49 @@
 # Hail
 
-## Table of Contents
+[![Join the chat at https://gitter.im/broadinstitute/hail](https://badges.gitter.im/broadinstitute/hail.svg)](https://gitter.im/broadinstitute/hail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-1. [Representation](docs/Representation.md)
-2. [Hail's expression language](docs/HailExpressionLanguage.md)
-2. [Importing](docs/Importing.md)
-3. [Splitting Multiallelic Variants](docs/Splitmulti.md)
-4. [Renaming Samples](docs/RenameSamples.md)
-5. [Annotating Samples or Variants](docs/ImportAnnotations.md)
-5. [Quality Control](docs/QC.md)
-6. [PCA](docs/PCA.md)
-7. [Annotating with the Variant Effect Predictor](docs/VEP.md)
-7. [Filtering](docs/Filtering.md)
-8. [Linear regression](docs/LinearRegression.md)
-9. [Mendel errors](docs/MendelErrors.md)
-10. [Exporting to TSV](docs/ExportTSV.md)
-11. [Exporting to VCF](docs/ExportVCF.md)
-12. [Exporting to Plink](docs/ExportPlink.md)
-13. [Persist](docs/Persist.md)
+Hail is a framework for scalable genetic data analysis.  Hail is
+pre-alpha software and under active development.  Hail is written in
+Scala (mostly) and uses Apache [Spark](http://spark.apache.org/) and
+other Apache Hadoop projects.  If you are interested in getting
+involved in Hail development, email hail@broadinstitute.org.
 
-## Tools
+## Documentation
 
-We use the following development tools:
- - git
- - Scala
- - Gradle for build management
- - TestNG for testing
- - Travis-CI for automated testing
- - Jacoco for code coverage
- - args4j for command line parsing
- - htsjdk for VCF parsing
- - Spark
- - Apache Commons libraries
- - IntelliJ (but you can use whatever editor you want)
+ - [Building](docs/Building.md)
+ - [Representation](docs/Representation.md)
+ - [Hail's expression language](docs/HailExpressionLanguage.md)
+ - [Importing](docs/Importing.md)
+ - [Splitting Multiallelic Variants](docs/Splitmulti.md)
+ - [Renaming Samples](docs/RenameSamples.md)
+ - [Annotating Samples or Variants](docs/ImportAnnotations.md)
+ - [Quality Control](docs/QC.md)
+ - [PCA](docs/PCA.md)
+ - [Annotating with the Variant Effect Predictor](docs/VEP.md)
+ - [Filtering](docs/Filtering.md)
+ - [Querying using SQL](docs/SQL.md)
+ - [Linear regression](docs/LinearRegression.md)
+ - [Mendel errors](docs/MendelErrors.md)
+ - [Exporting to TSV](docs/ExportTSV.md)
+ - [Exporting to VCF](docs/ExportVCF.md)
+ - [Exporting to Plink](docs/ExportPlink.md)
+ - [Persist](docs/Persist.md)
 
-For development, you only need to install git and gradle.  Gradle
-handles the other dependencies.  On OSX, you can install gradle with
-`brew install gradle`.
+## Roadmap
 
-## Terminology
+Here is a rough list of features currently planned or under
+development:
 
- - .vds: A .vds directory stores a `VariantDataset`, hail's internal
-representation of the information in a .vcf file.  It is stored
-(mostly) as parquet files.  You can use the hail `write` command to
-create a .vds file from a a .vcf\[.bgz\] file.
-
-## Building
-
-To build hail, just do:
-
-```
-~/hail $ gradle installDist
-```
-
-This will populate `build/install` with an installation of hail.  Then
-you can directly run `build/install/hail/bin/hail`.
-
-## Running
-
-To run the tests, do:
-
-```
-~/hail $ gradle check
-```
-
-To generate a code coverage report and view it, do:
-
-```
-~/hail $ gradle coverage
-~/hail $ open build/build/reports/coverage/index.html
-```
-
-To convert a .vcf.gz to a .vds, do:
-
-```
-~/hail $ ./build/install/hail/bin/hail importvcf src/test/resources/sample.vcf.gz write -o ~/sample.vds
-```
-
-`sample.vcf.gz` is a 182KB test `.vcf.gz` with a hundred or so samples
-and variants.  This creates `~/sample.vds`.
-
-To run sampleqc, do:
-
-```
-~/hail $ ./build/install/hail/bin/hail read -i ~/sample.vds sampleqc -o ~/sampleqc.tsv
-```
-
-For more options and commands, do `hail -h`.
+ - generalized query language
+ - better interoperability with other Hadoop projects
+ - kinship estimation from GRM
+ - LMM
+ - burden tests, SKAT
+ - logistic regression
+ - dosage
+ - posterior (PP)
+ - LD pruning
+ - sex check
+ - TDT
+ - BGEN
+ - Kaitlin Samocha's de novo caller

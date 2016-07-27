@@ -310,7 +310,7 @@ object SampleQC extends Command {
           sb += '\t'
           comb.emit(sb)
           sb.result()
-        }, Some("sampleID\t" + SampleQCCombiner.header))
+        }, Some("Sample\t" + SampleQCCombiner.header))
     }
 
     val (newSAS, insertQC) = vds.saSignature.insert(SampleQCCombiner.signature, "qc")

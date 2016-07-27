@@ -87,7 +87,7 @@ class LoadBgenSuite extends SparkSuite {
   }
 
   object Spec extends Properties("ImportBGEN") {
-    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, Genotype.genDosage _);
+    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
                        nPartitions: Int <- choose(1, 10)) yield (vds, nPartitions)
 
     val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
@@ -101,13 +101,13 @@ class LoadBgenSuite extends SparkSuite {
         val vdsRemapped = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "01"), va, gs) })
 
         assert(vdsRemapped.rdd.map { case (v, va, gs) =>
-          gs.map { case g =>
+          gs.forall{ case g =>
             g.dosage.forall(ad =>
               ad.forall { case d =>
                 d >= 0.0 && d <= 1.0
               }
             )
-          }.fold(true)(_ && _)
+          }
         }.fold(true)(_ && _))
 
         val fileRoot = tmpDir.createTempFile(prefix = "testImportBgen")

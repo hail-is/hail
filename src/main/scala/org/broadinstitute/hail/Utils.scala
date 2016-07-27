@@ -5,26 +5,29 @@ import java.net.URI
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
-import org.apache.commons.lang.StringEscapeUtils
+import htsjdk.samtools.util.BlockCompressedStreamConstants
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
+import org.apache.spark.Partitioner._
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{AccumulableParam, SparkContext}
+import org.apache.spark.{AccumulableParam, Partitioner, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
-import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
-import org.broadinstitute.hail.utils.RichRow
+import org.broadinstitute.hail.utils.{RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
+import org.seqdoop.hadoop_bam.util.BGZFCodec
 import org.slf4j.{Logger, LoggerFactory}
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
@@ -73,6 +76,7 @@ final class ByteIterator(val a: Array[Byte]) {
     x
   }
 }
+
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
   def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
@@ -281,15 +285,13 @@ class RichIteratorOfByte(val i: Iterator[Byte]) extends AnyVal {
     x
   }
   */
+
+
 }
 
 // FIXME AnyVal in Scala 2.11
 class RichArray[T](a: Array[T]) {
   def index: Map[T, Int] = a.zipWithIndex.toMap
-
-  def areDistinct() = a.toIterable.areDistinct()
-
-  def duplicates(): Set[T] = a.toIterable.duplicates()
 }
 
 class RichOrderedArray[T: Ordering](a: Array[T]) {
@@ -363,6 +365,40 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 }
 
+class SpanningIterator[K, V](val it: Iterator[(K, V)]) extends Iterator[(K, Iterable[V])] {
+  val bit = it.buffered
+  var n: Option[(K, Iterable[V])] = None
+
+  override def hasNext: Boolean = {
+    if (n.isDefined) return true
+    n = computeNext
+    n.isDefined
+  }
+
+  override def next(): ((K, Iterable[V])) = {
+    val result = n.get
+    n = None
+    result
+  }
+
+  def computeNext: (Option[(K, Iterable[V])]) = {
+    var k: Option[K] = None
+    val span: ListBuffer[V] = ListBuffer()
+    while (bit.hasNext) {
+      if (k.isEmpty) {
+        val (k_, v_) = bit.next
+        k = Some(k_)
+        span += v_
+      } else if (bit.head._1 == k.get) {
+        span += bit.next._2
+      } else {
+        return Some((k.get, span))
+      }
+    }
+    k.map((_, span))
+  }
+}
+
 class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
     val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
@@ -403,6 +439,33 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName + ".header", hConf, recursive = false)
       hadoopDelete(tmpFileName, hConf, recursive = true)
+    }
+  }
+}
+
+class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
+
+  def spanByKey()(implicit kct: ClassTag[K], vct: ClassTag[V]): RDD[(K, Iterable[V])] =
+    r.mapPartitions(p => new SpanningIterator(p))
+
+  def leftOuterJoinDistinct[W](other: RDD[(K, W)])
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(r, other))
+
+  def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
+    r.cogroup(other, partitioner).flatMapValues { pair =>
+      val w = pair._2.headOption
+      pair._1.map((_, w))
+    }
+  }
+
+  def joinDistinct[W](other: RDD[(K, W)])
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(r, other))
+
+  def joinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
+    r.cogroup(other, partitioner).flatMapValues { pair =>
+      for (v <- pair._1.iterator; w <- pair._2.iterator.take(1)) yield (v, w)
     }
   }
 }
@@ -522,6 +585,40 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
         g()
       f(elem)
     }
+  }
+
+  def pipe(pb: ProcessBuilder,
+    printHeader: (String => Unit) => Unit,
+    printElement: (String => Unit, T) => Unit,
+    printFooter: (String => Unit) => Unit): Iterator[String] = {
+
+    val command = pb.command().asScala.mkString(" ")
+
+    val proc = pb.start()
+
+    // Start a thread to print the process's stderr to ours
+    new Thread("stderr reader for " + command) {
+      override def run() {
+        for (line <- Source.fromInputStream(proc.getErrorStream).getLines) {
+          System.err.println(line)
+        }
+      }
+    }.start()
+
+    // Start a thread to feed the process input from our parent's iterator
+    new Thread("stdin writer for " + command) {
+      override def run() {
+        val out = new PrintWriter(proc.getOutputStream)
+
+        printHeader(out.println)
+        it.foreach(x => printElement(out.println, x))
+        printFooter(out.println)
+        out.close()
+      }
+    }.start()
+
+    // Return an iterator that read lines from the process's stdout
+    Source.fromInputStream(proc.getInputStream).getLines()
   }
 }
 
@@ -660,9 +757,14 @@ object Utils extends Logging {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
+  implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K],
+    vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
+
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
+
+  implicit def toRichIterable[T](a: Array[T]): RichIterable[T] = new RichIterable(a)
 
   implicit def toRichArrayBuilderOfByte(t: mutable.ArrayBuilder[Byte]): RichArrayBuilderOfByte =
     new RichArrayBuilderOfByte(t)
@@ -860,7 +962,7 @@ object Utils extends Logging {
 
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
-    val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
+    val isBGZF = codec.exists(_.isInstanceOf[BGZFCodec])
 
     val srcFileStatuses = srcFilenames.flatMap(f => hadoopGlobAndSort(f, hConf))
     require(srcFileStatuses.forall {
@@ -870,23 +972,19 @@ object Utils extends Logging {
     val outputStream = destFS.create(destPath)
 
     try {
-      var i = 0
-      while (i < srcFileStatuses.length) {
-        val fileStatus = srcFileStatuses(i)
-        val lenAdjust: Long = if (isBGzip && i < srcFileStatuses.length - 1)
-          -28
-        else
-          0
+      srcFileStatuses.foreach { fileStatus =>
         val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
         val inputStream = srcFS.open(fileStatus.getPath)
         try {
           copyBytes(inputStream, outputStream,
-            fileStatus.getLen + lenAdjust,
+            fileStatus.getLen,
             false)
         } finally {
           inputStream.close()
         }
-        i += 1
+      }
+      if (isBGZF) {
+        outputStream.write(BlockCompressedStreamConstants.EMPTY_GZIP_BLOCK)
       }
     } finally {
       outputStream.close()
@@ -1202,12 +1300,8 @@ object Utils extends Logging {
     if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
-      s"`${escapeString(str)}`"
+      s"`${StringEscapeUtils.escapeString(str, backticked = true)}`"
   }
-
-  def escapeString(str: String): String = StringEscapeUtils.escapeJava(str)
-
-  def unescapeString(str: String): String = StringEscapeUtils.unescapeJava(str)
 
   def uriPath(uri: String): String = new URI(uri).getPath
 

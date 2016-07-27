@@ -12,6 +12,10 @@ Each of these modules has multiple run modes, which are specified with the first
 ```
 
 ```
+<...> annotatesamples json <args>
+```
+
+```
 <...> annotatevariants expr <args>
 ```
 
@@ -25,6 +29,7 @@ Hail currently supports annotating samples from:
  - [text tables](#SampleTable)
  - [programmatic commands](#SampleProg)
  - [Plink .fam files](#Fam)
+ - [list of samples](#SampleList)
 
 ____
 
@@ -127,7 +132,7 @@ ____
 <a name="Fam"></a>
 ### Plink .fam files
 
-For convenience, Hail provides a simple command to import sample annotations from [Plink .fam files](https://www.cog-genomics.org/plink2/formats#fam).
+For convenience, Hail provides a simple command to import sample annotations from [Plink .fam files](https://www.cog-genomics.org/plink2/formats#fam). For case-control phenotypes, Hail assumes `1` means control and `2` means case.
 
  - `fam` Invoke this functionality (`annotatesamples fam <args>`)
  - `-i | --input <filename>` path of .fam file
@@ -144,7 +149,7 @@ will add sample annotations for family ID, paternal ID, maternal ID, sex, and ca
 
 `annotatesamples fam -i myStudy.fam -q`
 
-will interpret the phenotype as quantitative instead. The annotation names, types, and missing values are shown below, assuming the default root `sa.fam`
+will interpret the phenotype as quantitative instead. The annotation names, types, and missing values are shown below, assuming the default root `sa.fam`.
 
 Field | Annotation | Type | Missing
 ---|---|---|---
@@ -152,7 +157,7 @@ Family ID | `sa.fam.famID` | String | `0`
 Sample ID | `s` | String |
 Paternal ID | `sa.fam.patID` | String | `0`
 Maternal ID | `sa.fam.matID` | String | `0`
-Sex | `sa.fam.isMale` | Boolean | `0`
+Sex | `sa.fam.isFemale` | Boolean | `0`
 Case-control phenotype | `sa.fam.isCase` | Boolean | `0`, `-9`, non-numeric, and -m arg if given
 Quantitative phenotype | `sa.fam.qPheno` |Double |  either `NA` or -m arg if given
 
@@ -162,11 +167,25 @@ If the .fam file is delimited by whitespace other than tabs (e.g., spaces), use 
 
 ____
 
+<a name="SampleList"></a>
+### List of samples
+
+This module expects a text file with one column corresponding to the sample id `s.id`. A Boolean (true/false) annotation is added to sample annotations corresponding to a sample id's presence and absence in the input list of samples.
+
+**Command line arguments:**
+
+- `list` Invoke this functionality (`annotatesamples list <args>`)
+- `-i | --input <path-to-file>` specify the file path **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the new Boolean annotation, as a period-delimited path starting with `sa` **(Required)**
+
+____
+
 <a name="AnnoVar"></a>
 ## Annotating Variants
 
 Hail currently supports annotating variants from seven sources:
  - [Text tables](#VariantTable)
+ - [JSON](#VariantJSON)
  - [interval list files](#IntervalList)
  - [UCSC bed files](#UCSCBed)
  - [VCFs (info field, filters, qual)](#VCF)
@@ -260,6 +279,19 @@ va: va.<identifier>
 
 ____
 
+<a name="VariantJSON"></a>
+### JSON
+
+This module annotates variants from JSON files, one JSON object per line.  Variants are keyed by four expressions computing the chromosome (String), position (Int), ref (String) and alts (Array[String]) per JSON object.  The entire JSON object is written to the variant annotations at the specified root.  Multiple files can be read in one command, but they must agree in their file format.
+
+**Command line arguments:**
+
+- `json` Invoke this functionality (`annotatevariants json <args>`)
+- `<files...>` specify the file or files to be read **(Required)**
+- `-r | --root <root>` specify the annotation path in which to place the data read from the file, as a period-delimited path starting with `va` **(Required)**
+- `-v | --vfields <variantcols>` Four comma-delimited expressions computing the chromosome (String), position (Int), ref (String) and alts (Array[String]) **(Required)**
+- `-t | --type <typestring>` type of the JSON objects  **(Required)**
+
 <a name="IntervalList"></a>
 ### Interval list files (.interval_list[.gz])
 
@@ -343,6 +375,9 @@ ____
 
 
 UCSC bed files [(see the website for spec)](https://genome.ucsc.edu/FAQ/FAQformat.html#format1) function similarly to .interval_list files, with a slightly different format.  Like interval list files, bed files can produce either a string or boolean annotation, depending on the presence of the 4th column (the target).
+
+Bed files are on a 0-based coordinate system while VCF files are on a 1-based coordinate system as described on Page 2 of [the SAM file spec](https://samtools.github.io/hts-specs/SAMv1.pdf). Hail will transform the Bed coordinates as the following:
+ `Bed: [start, end) => Hail: [start + 1, end]`. 
 
 **Command line arguments:**
 

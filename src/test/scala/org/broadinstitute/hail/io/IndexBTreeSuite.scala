@@ -1,18 +1,20 @@
 package org.broadinstitute.hail.io
 
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
-import org.broadinstitute.hail.SparkSuite
 import org.testng.annotations.Test
+
 import scala.language.implicitConversions
+import scala.math.Numeric.Implicits._
 
 class IndexBTreeSuite extends SparkSuite {
 
   object Spec extends Properties("BTree") {
 
-    val arraySizeGenerator = for (depth: Int <- frequency[Int]((4,const(1)),(5,const(2)),(1,const(3)));
+    val arraySizeGenerator = for (depth: Int <- frequency((4,const(1)),(5,const(2)),(1,const(3)));
                               arraySize: Int <- choose(math.max(1, math.pow(10, (depth - 1) * math.log10(1024)).toInt),
                                 math.min(1100000,math.pow(10, depth * math.log10(1024)).toInt))) yield (depth, arraySize)
 

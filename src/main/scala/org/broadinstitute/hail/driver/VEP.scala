@@ -3,25 +3,33 @@ package org.broadinstitute.hail.driver
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
+import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant.{Genotype, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-import scala.collection.mutable
+import scala.collection.JavaConverters._
 
 object VEP extends Command {
 
   class Options extends BaseOptions {
+    @Args4jOption(name = "--block-size", usage = "Variants per VEP invocation")
+    var blockSize = 1000
+
     @Args4jOption(required = true, name = "--config", usage = "VEP configuration file")
     var config: String = _
 
     @Args4jOption(name = "-r", aliases = Array("--root"), usage = "Variant annotation path to store VEP output")
     var root: String = "va.vep"
+
+    @Args4jOption(name = "--force", usage = "Force VEP annotation from scratch")
+    var force: Boolean = false
+
   }
 
   def newOptions = new Options
@@ -168,7 +176,7 @@ object VEP extends Command {
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(v: Variant, w: (String) => Unit) {
+  def printElement(w: (String) => Unit, v: Variant) {
     val sb = new StringBuilder()
     sb.append(v.contig)
     sb += '\t'
@@ -191,11 +199,27 @@ object VEP extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+    
+    val root = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
 
-    val root = options.root.split("\\.").toList
-    if (root.isEmpty
-      || root.head != "va")
-      fatal("root must begin with `va.'")
+    val rootType =
+      vds.vaSignature.getOption(root)
+        .filter { t =>
+          val r = t == vepSignature
+          if (!r) {
+            if (options.force)
+              warn(s"type for ${options.root} does not match vep signature, overwriting.")
+            else
+              warn(s"type for ${options.root} does not match vep signature.")
+          }
+          r
+        }
+
+    if (rootType.isEmpty && !options.force)
+      fatal("for performance, you should annotate variants with pre-computed VEP annotations.  Cowardly refusing to VEP annotate from scratch.  Use --force to override.")
+
+    val rootQuery = rootType
+      .map(_ => vds.vaSignature.query(root))
 
     val properties = try {
       val p = new Properties()
@@ -210,25 +234,20 @@ object VEP extends Command {
 
     val perl = properties.getProperty("hail.vep.perl", "perl")
 
-    val env = mutable.Map.empty[String, String]
     val perl5lib = properties.getProperty("hail.vep.perl5lib")
-    if (perl5lib != null)
-      env += ("PERL5LIB" -> perl5lib)
 
     val path = properties.getProperty("hail.vep.path")
-    if (path != null)
-      env += ("PATH" -> path)
 
     val location = properties.getProperty("hail.vep.location")
     if (location == null)
       fatal("property `hail.vep.location' required")
 
     val cacheDir = properties.getProperty("hail.vep.cache_dir")
-    if (location == null)
+    if (cacheDir == null)
       fatal("property `hail.vep.cache_dir' required")
 
     val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
-    if (location == null)
+    if (humanAncestor == null)
       fatal("property `hail.vep.human_ancestor' required")
 
     val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
@@ -237,48 +256,93 @@ object VEP extends Command {
 
     val cmd = Array(
       perl,
-      s"${location}",
+      s"$location",
       "--format", "vcf",
       "--json",
       "--everything",
       "--allele_number",
       "--no_stats",
       "--cache", "--offline",
-      "--dir", s"${cacheDir}",
-      "--fasta", s"${cacheDir}/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
+      "--dir", s"$cacheDir",
+      "--fasta", s"$cacheDir/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
       "--minimal",
       "--assembly", "GRCh37",
-      "--plugin", s"LoF,human_ancestor_fa:${humanAncestor},filter_position:0.05,min_intron_size:15,conservation_file:${conservationFile}",
+      "--plugin", s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile",
       "-o", "STDOUT")
-
-    log.info(s"vep env: ${env.map { case (k, v) => s"$k=$v" }.mkString(";")}")
-    log.info(s"vep command: ${cmd.mkString(" ")}")
 
     val inputQuery = vepSignature.query("input")
 
-    val annotations = vds.rdd
-      .map { case (v, va, gs) => v }
-      .pipe(cmd,
-        env,
-        printContext,
-        printElement)
-      .map { jv =>
-        val a = Annotation.fromJson(parse(jv), vepSignature, "<root>")
-        val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
-        (v, a)
-      }.persist(StorageLevel.MEMORY_AND_DISK)
+    val kvRDD = vds.rdd.map { case (v, a, gs) =>
+      (v, (a, gs.toGenotypeStream(v, compress = false)))
+    }.persist(StorageLevel.MEMORY_AND_DISK)
 
-    val (newVASignature, insertVEP) = vds.vaSignature.insert(vepSignature, root.tail)
+    val repartRDD =
+      kvRDD
+        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotation, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
+        .persist(StorageLevel.MEMORY_AND_DISK)
 
-    val newRDD = vds.rdd
+    val localBlockSize = options.blockSize
+
+    val annotations = repartRDD.mapPartitions { it =>
+      val pb = new ProcessBuilder(cmd.toList.asJava)
+      val env = pb.environment()
+      if (perl5lib != null)
+        env.put("PERL5LIB", perl5lib)
+      if (path != null)
+        env.put("PATH", path)
+
+      val r = it.filter { case (v, (va, gs)) =>
+        rootQuery.flatMap(q => q(va)).isEmpty
+      }
+        .map { case (v, _) => v }
+        .grouped(localBlockSize)
+        .flatMap(_.iterator.pipe(pb,
+          printContext,
+          printElement,
+          _ => ())
+          .map { s =>
+            val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
+            val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
+            (v, a)
+          })
+        .toArray
+        .sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
+      r.iterator
+    }.persist(StorageLevel.MEMORY_AND_DISK)
+
+    info(s"vep: annotated ${annotations.count()} variants")
+
+    val (newVASignature, insertVEP) = vds.vaSignature.insert(vepSignature, root)
+
+    val newRDD = repartRDD
       .zipPartitions(annotations) { case (it, ita) =>
-        val its = it.toArray.sortWith { case ((v1, _, _), (v2, _, _)) => v1 < v2 }
-        val itas = ita.toArray.sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
-        its.iterator.zip(itas.iterator)
-          .map { case ((v1, va, gs), (v2, vep)) =>
-            assert(v1 == v2)
-            (v1, insertVEP(va, Some(vep)), gs)
+
+        new Iterator[(Variant, Annotation, Iterable[Genotype])] {
+          var p: (Variant, Annotation) = null
+
+          def hasNext = {
+            val r = it.hasNext
+            assert(r || !ita.hasNext)
+            r
           }
+
+          def next(): (Variant, Annotation, Iterable[Genotype]) = {
+            var (v, (va, gs)) = it.next()
+
+            if (p == null
+              && ita.hasNext)
+              p = ita.next()
+
+            assert(p == null || v <= p._1)
+
+            if (p != null && v == p._1) {
+              val va2 = insertVEP(va, Some(p._2))
+              p = null
+              (v, va2, gs)
+            } else
+              (v, va, gs)
+          }
+        }
       }
 
     val newVDS = vds.copy(rdd = newRDD,
@@ -286,4 +350,5 @@ object VEP extends Command {
 
     state.copy(vds = newVDS)
   }
+
 }

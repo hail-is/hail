@@ -41,10 +41,6 @@ class GTPair(val p: Int) extends AnyVal {
     (if (j != 0) 1 else 0) + (if (k != 0) 1 else 0)
 }
 
-object Foo {
-  def f[T](i: Iterable[T], j: Iterable[T]) = i.zip(j)
-}
-
 class Genotype(private val _gt: Int,
   private val _ad: Array[Int],
   private val _dp: Int,
@@ -321,7 +317,7 @@ object Genotype {
         m2 = pl(i)
       i += 1
     }
-    assert(m == 0)
+    assert(m == 0, s"$m, $m2, [${pl.mkString(",")}]")
     m2
   }
 
@@ -501,7 +497,6 @@ object Genotype {
   def genDosage(v: Variant): Gen[Genotype] = {
 
     for (pl <- Gen.option(Gen.buildableOfN[Array[Double], Double](v.nGenotypes, Gen.choose(0.0, 1.0)))) yield {
-
       val plInt = pl.map{ pla => pla.map{case d: Double => ((d / pla.sum) * 32768.0).round.toInt}}
       val gt = plInt.map{pla => if (pla.count(_ == pla.max) != 1) -1 else pla.indexOf(pla.max)}
 
@@ -521,6 +516,13 @@ object Genotype {
     }
   }
 
+  def gtIndexWithSwap(i: Int, j: Int): Int = {
+    if (j < i)
+      gtIndex(j, i)
+    else
+      gtIndex(i, j)
+  }
+
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
@@ -528,12 +530,15 @@ object Genotype {
         Gen.choose(0, m)));
       dp <- Gen.option(Gen.choose(0, m));
       gq <- Gen.option(Gen.choose(0, 10000));
-      pl <- Gen.frequency((5,Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-        Gen.choose(0, m)))),(5,Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-        Gen.choose(0, 100)))))) yield {
+      pl <- Gen.oneOfGen(
+        Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes, Gen.choose(0, m))),
+        Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes, Gen.choose(0, 100)))
+      )
+    ) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
+
       pl.foreach { pla =>
         val m = pla.min
         var i = 0
@@ -542,6 +547,7 @@ object Genotype {
           i += 1
         }
       }
+
       val g = Genotype(gt, ad,
         dp.map(_ + ad.map(_.sum).getOrElse(0)), gq, pl)
       g.check(v)
@@ -549,14 +555,41 @@ object Genotype {
     }
   }
 
+  def genRealistic(v: Variant): Gen[Genotype] = {
+    for (callRate <- Gen.choose(0d, 1d);
+      alleleFrequencies <- Gen.buildableOfN[Array[Double], Double](v.nAlleles, Gen.choose(1e-6, 1d))  // avoid divison by 0
+        .map { rawWeights =>
+          val sum = rawWeights.sum
+          rawWeights.map(_ / sum)
+        };
+      gt <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
+        .map { case (gti, gtj) => gtIndexWithSwap(gti, gtj) }, callRate);
+      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
+        Gen.choose(0, 50)));
+      dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d));
+      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes, Gen.choose(0, 1000)).map { arr =>
+        gt match {
+          case Some(i) =>
+            arr(i) = 0
+            arr
+          case None =>
+            val min = arr.min
+            arr.map(_ - min)
+        }
+      });
+      gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
+    ) yield
+      Genotype(gt, ad, dp, gq, pl)
+  }
+
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- Gen.frequency((5, gen(v)),(5, genDosage(v))))
+      g <- Gen.oneOfGen(gen(v), genDosage(v)))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-         g <- gen(v))
+      g <- gen(v))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)

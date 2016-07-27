@@ -16,6 +16,11 @@ object ExportSamples extends Command {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
+
+    @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
+      usage = "Write the types of parse expressions to a file at the given path")
+    var typesFile: String = _
+
   }
 
   def newOptions = new Options
@@ -36,29 +41,36 @@ object ExportSamples extends Command {
     val output = options.output
 
     val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, vds.saSignature),
+      "g" -> (4, TGenotype),
+      "global" -> (5, vds.globalSignature)))
 
     val symTab = Map(
-      "s" ->(0, TSample),
-      "sa" ->(1, vds.saSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, TAggregable(aggregationEC)))
+      "s" -> (0, TSample),
+      "sa" -> (1, vds.saSignature),
+      "global" -> (2, vds.globalSignature),
+      "gs" -> (-1, TAggregable(aggregationEC)))
 
     val ec = EvalContext(symTab)
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val (header, fs) = if (cond.endsWith(".columns"))
-      ExportTSV.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
+    val (header, parseResults) = if (cond.endsWith(".columns")) {
+      val (h, functions) = ExportTSV.parseColumnsFile(ec, cond, hConf)
+      (Some(h), functions)
+    }
     else
       Parser.parseExportArgs(cond, ec)
 
-    val aggregatorA = aggregationEC.a
+    Option(options.typesFile).foreach { file =>
+      val typeInfo = header
+        .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
+        .zip(parseResults.map(_._1))
+      ExportTSV.exportTypes(file, state.hadoopConf, typeInfo)
+    }
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
@@ -72,12 +84,11 @@ object ExportSamples extends Command {
 
       sampleAggregationOption.foreach(f => f.apply(s))
 
-      var first = true
-      fs.iterator.foreachBetween(f => sb.tsvAppend(f()))(() => sb += '\t')
+      parseResults.foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
       sb.result()
     }
 
-    writeTable(output, hConf, lines, header)
+    writeTable(output, hConf, lines, header.map(_.mkString("\t")))
 
     state
   }

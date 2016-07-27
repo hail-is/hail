@@ -13,7 +13,11 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 
 object VariantQCCombiner {
-  val header = "callRate\tMAC\tMAF\tnCalled\t" +
+  val header =
+    "callRate\t" +
+    "AC\t" +
+    "AF\t" +
+    "nCalled\t" +
     "nNotCalled\t" +
     "nHomRef\t" +
     "nHet\t" +
@@ -28,8 +32,8 @@ object VariantQCCombiner {
 
   val signature = TStruct(
     "callRate" -> TDouble,
-    "MAC" -> TInt,
-    "MAF" -> TDouble,
+    "AC" -> TInt,
+    "AF" -> TDouble,
     "nCalled" -> TInt,
     "nNotCalled" -> TInt,
     "nHomRef" -> TInt,
@@ -145,11 +149,11 @@ class VariantQCCombiner extends Serializable {
     val nCalled = nHomRef + nHet + nHomVar
 
     val callRate = divOption(nCalled, nCalled + nNotCalled)
-    val mac = nHet + 2 * nHomVar
+    val ac = nHet + 2 * nHomVar
 
     sb.tsvAppend(callRate)
     sb += '\t'
-    sb.append(mac)
+    sb.append(ac)
     sb += '\t'
     // MAF
     val refAlleles = nHomRef * 2 + nHet
@@ -199,7 +203,7 @@ class VariantQCCombiner extends Serializable {
   }
 
   def asAnnotation: Annotation = {
-    val maf = {
+    val af = {
       val refAlleles = nHomRef * 2 + nHet
       val altAlleles = nHomVar * 2 + nHet
       divOption(altAlleles, refAlleles + altAlleles)
@@ -208,13 +212,13 @@ class VariantQCCombiner extends Serializable {
     val nCalled = nHomRef + nHet + nHomVar
     val hwe = HWEStats
     val callrate = divOption(nCalled, nCalled + nNotCalled)
-    val mac = nHet + 2 * nHomVar
+    val ac = nHet + 2 * nHomVar
     val info = InfoScoreCalculator
 
     Annotation(
       divNull(nCalled, nCalled + nNotCalled),
-      mac,
-      maf.getOrElse(null),
+      ac,
+      af.getOrElse(null),
       nCalled,
       nNotCalled,
       nHomRef,
