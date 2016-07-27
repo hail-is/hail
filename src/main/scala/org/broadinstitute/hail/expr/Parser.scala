@@ -6,8 +6,6 @@ import org.broadinstitute.hail.utils.StringEscapeUtils._
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
-case class SimplePosition(line: Int, column: Int, lineContents: String) extends Position
-
 object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
     val lineContents = pos.longString.split("\n").head
@@ -299,35 +297,40 @@ object Parser extends JavaTokenParsers {
 
   def structField: Parser[(String, AST)] = (identifier ~ ":" ~ expr) ^^ { case id ~ _ ~ ast => (id, ast) }
 
-  def backtickLiteral: Parser[String] =
-    """`([^\\`]|\\[\\bfnrt'"`]|\\u[a-fA-F0-9]{4})*`""".r ^^
-      (s => unescapeString(s.substring(1, s.length - 1))) |
-      withPos("`.*`".r) ^^ { r =>
-        val toSearch = r.x.substring(1, r.x.length - 1)
-        val matches = """\\[^\\bfnrt`]""".r.findFirstMatchIn(toSearch)
-        assert(matches.isDefined)
-        val m = matches.get
-        val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
-        ParserUtils.error(newPos,
-          s"""invalid character in backtick identifier: `${
-            escapeString(toSearch.charAt(m.start).toString, backticked = true)
-          }'""")
-      }
+  def advancePosition(pos: Position, delta: Int) = new Position {
+    def line = pos.line
 
-  override def stringLiteral: Parser[String] =
-    """"([^"\\]|\\[\\bfnrt'"`]|\\u[a-fA-F0-9]{4})*"""".r ^^
-      (s => unescapeString(s.substring(1, s.length - 1))) |
-      withPos("""".*"""".r) ^^ { r =>
-        val toSearch = r.x.substring(1, r.x.length - 1)
-        val matches = """\\[^\\"bfnrt'"`]""".r.findFirstMatchIn(toSearch)
-        assert(matches.isDefined)
-        val m = matches.get
-        val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
-        ParserUtils.error(newPos,
-          s"""invalid character in string literal: `${
-            escapeString(toSearch.charAt(m.start).toString)
-          }'""")
+    def column = pos.column + delta
+
+    def lineContents = pos.longString.split("\n").head
+  }
+
+  def quotedLiteral(delim: Char, what: String): Parser[String] =
+    withPos(s"$delim([^$delim\\\\]|\\\\.)*$delim".r) ^^ { s =>
+      try {
+        unescapeString(s.x.substring(1, s.x.length - 1))
+      } catch {
+        case e: Exception =>
+          val toSearch = s.x.substring(1, s.x.length - 1)
+          """\\[^\\"bfnrt'"`]""".r.findFirstMatchIn(toSearch) match {
+            case Some(m) =>
+              // + 1 for the opening "
+              ParserUtils.error(advancePosition(s.pos, m.start + 1),
+                s"""invalid escape character in $what: ${m.matched}""")
+
+            case None =>
+              // For safety.  Should never happen.
+              ParserUtils.error(s.pos, "invalid $what")
+          }
+
       }
+    } | withPos(s"$delim([^$delim\\\\]|\\\\.)*\\z".r) ^^ { s =>
+      ParserUtils.error(s.pos, s"unterminated $what")
+    }
+
+  def backtickLiteral: Parser[String] = quotedLiteral('`', "backtick identifier")
+
+  override def stringLiteral: Parser[String] = quotedLiteral('"', "string literal")
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>

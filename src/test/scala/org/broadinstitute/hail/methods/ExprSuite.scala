@@ -240,7 +240,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean](""" index(structArray, f2).contains("B") """).contains(true))
     assert(eval[Boolean](""" index(structArray, f2).contains("E") """).contains(false))
 
-    // caused exponential loop previously
+    // caused exponential blowup previously
     assert(eval[Boolean](
       """
         |if (false) false
@@ -305,6 +305,11 @@ class ExprSuite extends SparkSuite {
 
 
     // FIXME catch parse errors
+    assert(eval(""" "\``\''" """) == eval(""" "``''" """))
+    TestUtils.interceptFatal("""invalid escape character.*string.*\\a""")(eval[String](""" "this is bad \a" """))
+    TestUtils.interceptFatal("""unterminated string literal""")(eval[String](""" "unclosed string \" """))
+    TestUtils.interceptFatal("""invalid escape character.*backtick identifier.*\\i""")(eval[String](""" let `bad\identifier` = 0 in 0 """))
+    TestUtils.interceptFatal("""unterminated backtick identifier""")(eval[String](""" let `bad\identifier = 0 in 0 """))
   }
 
   @Test def testParseTypes() {

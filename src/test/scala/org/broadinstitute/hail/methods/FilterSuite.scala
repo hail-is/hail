@@ -171,7 +171,7 @@ class FilterSuite extends SparkSuite {
     val s2 = FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`weird name \\t test` > 500"))
     assert(s2.vds.nVariants == vds.nVariants)
 
-    TestUtils.interceptFatal("invalid character in backtick identifier")(
+    TestUtils.interceptFatal("invalid escape character.*backtick identifier.*\\\\i")(
       FilterVariantsExpr.run(state, Array("--keep", "-c", "va.`bad\\input` == 5")))
   }
 
