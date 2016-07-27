@@ -15,7 +15,8 @@ class AggregatorSuite extends SparkSuite {
     s = AnnotateVariants.run(s, Array("expr", "-c",
       "va.test.callrate = gs.fraction(g.isCalled), va.test.AC = gs.stats(g.nNonRefAlleles).sum, " +
         "va.test.AF = gs.stats(g.nNonRefAlleles).sum.toDouble / gs.count(g.isCalled) / 2.0, " +
-        "va.test.gqstats = gs.stats(g.gq), va.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
+        "va.test.gqstats = gs.stats(g.gq), va.test.gqhetstats = gs.statsif(g.isHet, g.gq), " +
+        "va.lowGqGts = gs.collect(g.gq < 60, g)"))
 
     val qCallRate = s.vds.queryVA("va.test.callrate")._2
     val qCallRateQC = s.vds.queryVA("va.qc.callRate")._2
@@ -29,6 +30,7 @@ class AggregatorSuite extends SparkSuite {
     val gqStatsStDevQC = s.vds.queryVA("va.qc.gqStDev")._2
     val gqStatsHetMean = s.vds.queryVA("va.test.gqhetstats.mean")._2
     val gqStatsHetStDev = s.vds.queryVA("va.test.gqhetstats.stdev")._2
+    val lowGqGts = s.vds.queryVA("va.lowGqGts")._2
 
     s.vds.rdd.collect()
       .foreach {
@@ -55,6 +57,9 @@ class AggregatorSuite extends SparkSuite {
           assert(gqStatsHetStDev(va).zip(Option(gqSC.stdev)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
+
+          val lowGqGtsData = gs.filter(_.gq.exists(_ < 60))
+          assert(lowGqGts(va).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
 
       }
   }

@@ -1,6 +1,15 @@
+
  
  - Added expr function `fet` to calculate p-values using Fisher's Exact Test.  Invoke this with `fet(count1, count2, count3, count4)` [see docs for details](docs/HailExpressionLanguage.md)
 
+____
+
+Added struct operations `merge`, `drop`, and `select`.
+Usage:
+
+  - `merge(struct1, struct2)` will result in one struct with every field from the two.  Duplicate field identifiers throws an error.
+  - `drop` and `select` take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
+  
 ____
 
  - Added `imputesex` which imputes the sex from variant data using the same method as PLINK. [see docs for details](docs/ImputeSex.md)

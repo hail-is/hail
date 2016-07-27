@@ -4,6 +4,7 @@ import org.apache.hadoop
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 
 import scala.collection.mutable
 

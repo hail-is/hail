@@ -4,10 +4,12 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.{Annotation, AnnotationPathException, _}
-import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.check.Arbitrary._
+import org.broadinstitute.hail.check.{Gen, _}
+import org.broadinstitute.hail.utils.StringEscapeUtils
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.JsonMethods
 
 import scala.reflect.ClassTag
 
@@ -34,12 +36,21 @@ object Type {
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
         genArb.resize(size - 1).map(TDict),
-        Gen.buildableOf[Array[(String, Type)], (String, Type)](
+        Gen.buildableOf[Array[(String, Type, Map[String, String])], (String, Type, Map[String, String])](
           Gen.zip(Gen.identifier,
-            genArb))
+            genArb,
+            Gen.option(
+              Gen.buildableOf[Map[String, String], (String, String)](
+                Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])))
+              .map(o => o.getOrElse(Map.empty[String, String]))))
           .filter(fields => fields.map(_._1).areDistinct())
-          .map(fields => TStruct(fields: _*)))
+          .map(fields => TStruct(fields
+            .iterator
+            .zipWithIndex
+            .map { case ((k, t, m), i) => Field(k, t, i, m) }
+            .toIndexedSeq)))
   }
+
 
   def genArb: Gen[Type] = Gen.sized(genSized)
 
@@ -93,7 +104,7 @@ abstract class Type extends BaseType {
       a => Option(a)
   }
 
-  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean = false) {
+  def pretty(sb: StringBuilder, indent: Int = 0, printAttrs: Boolean = false, compact: Boolean = false) {
     sb.append(toString)
   }
 
@@ -116,7 +127,7 @@ case object TBinary extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Array[Byte]]
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[Array[Byte], Byte](Gen.arbByte)
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Array[Byte], Byte](arbitrary[Byte])
 }
 
 case object TBoolean extends Type with Parsable {
@@ -126,7 +137,7 @@ case object TBoolean extends Type with Parsable {
 
   def parse(s: String): Annotation = s.toBoolean
 
-  override def genValue: Gen[Annotation] = Gen.arbBoolean
+  override def genValue: Gen[Annotation] = arbitrary[Boolean]
 }
 
 case object TChar extends Type {
@@ -135,7 +146,7 @@ case object TChar extends Type {
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
     && a.asInstanceOf[String].length == 1)
 
-  override def genValue: Gen[Annotation] = Gen.arbString
+  override def genValue: Gen[Annotation] = arbitrary[String]
     .filter(_.nonEmpty)
     .map(s => s.substring(0, 1))
 }
@@ -174,7 +185,7 @@ case object TInt extends TIntegral with Parsable {
 
   def parse(s: String): Annotation = s.toInt
 
-  override def genValue: Gen[Annotation] = Gen.arbInt
+  override def genValue: Gen[Annotation] = arbitrary[Int]
 }
 
 case object TLong extends TIntegral with Parsable {
@@ -188,7 +199,7 @@ case object TLong extends TIntegral with Parsable {
 
   def parse(s: String): Annotation = s.toLong
 
-  override def genValue: Gen[Annotation] = Gen.arbLong
+  override def genValue: Gen[Annotation] = arbitrary[Long]
 }
 
 case object TFloat extends TNumeric with Parsable {
@@ -200,7 +211,7 @@ case object TFloat extends TNumeric with Parsable {
 
   def parse(s: String): Annotation = s.toFloat
 
-  override def genValue: Gen[Annotation] = Gen.arbDouble.map(_.toFloat)
+  override def genValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 }
 
 case object TDouble extends TNumeric with Parsable {
@@ -212,7 +223,9 @@ case object TDouble extends TNumeric with Parsable {
 
   def parse(s: String): Annotation = s.toDouble
 
-  override def genValue: Gen[Annotation] = Gen.arbDouble
+  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.4e")
+
+  override def genValue: Gen[Annotation] = arbitrary[Double]
 }
 
 case object TString extends Type with Parsable {
@@ -222,7 +235,7 @@ case object TString extends Type with Parsable {
 
   def parse(s: String): Annotation = s
 
-  override def genValue: Gen[Annotation] = Gen.arbString
+  override def genValue: Gen[Annotation] = arbitrary[String]
 }
 
 
@@ -239,16 +252,16 @@ abstract class TIterable extends Type {
 case class TArray(elementType: Type) extends TIterable {
   override def toString = s"Array[$elementType]"
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Array[")
-    elementType.pretty(sb, indent, printAttrs)
+    elementType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
 
-  override def str(a: Annotation): String = compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq[Annotation], Annotation](
     elementType.genValue)
@@ -260,13 +273,13 @@ case class TSet(elementType: Type) extends TIterable {
   def typeCheck(a: Any): Boolean =
     a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck))
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Set[")
-    elementType.pretty(sb, indent, printAttrs)
+    elementType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
   }
 
-  override def str(a: Annotation): String = compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set[Annotation], Annotation](
     elementType.genValue)
@@ -275,19 +288,19 @@ case class TSet(elementType: Type) extends TIterable {
 case class TDict(elementType: Type) extends Type {
   override def toString = s"Dict[$elementType]"
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Dict[")
-    elementType.pretty(sb, indent, printAttrs)
+    elementType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) => k.isInstanceOf[String] && elementType.typeCheck(v) })
 
-  override def str(a: Annotation): String = compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[Map[String, Annotation], (String, Annotation)](
-    Gen.zip(Gen.arbString, elementType.genValue))
+    Gen.zip(arbitrary[String], elementType.genValue))
 }
 
 case object TSample extends Type {
@@ -327,22 +340,28 @@ case class Field(name: String, `type`: Type,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 
-  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
-    sb.append(" " * indent)
-    sb.append(prettyIdentifier(name))
-    sb.append(": ")
-    `type`.pretty(sb, indent, printAttrs)
+  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
+    if (compact) {
+      sb.append(prettyIdentifier(name))
+      sb.append(":")
+    } else {
+      sb.append(" " * indent)
+      sb.append(prettyIdentifier(name))
+      sb.append(": ")
+    }
+    `type`.pretty(sb, indent, printAttrs, compact)
     if (printAttrs) {
-      if (attrs.nonEmpty)
-        sb += '\n'
-      attrs.foreachBetween { attr =>
-        sb.append(" " * (indent + 2))
+      attrs.foreach { case (k, v) =>
+        if (!compact) {
+          sb += '\n'
+          sb.append(" " * (indent + 2))
+        }
         sb += '@'
-        sb.append(prettyIdentifier(attr._1))
+        sb.append(prettyIdentifier(k))
         sb.append("=\"")
-        sb.append(escapeString(attr._2))
+        sb.append(StringEscapeUtils.escapeString(v))
         sb += '"'
-      }(() => sb += '\n')
+      }
     }
   }
 }
@@ -502,23 +521,117 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     TStruct(newFields)
   }
 
+  def merge(other: TStruct): (TStruct, Merger) = {
+
+    val intersect = fields.map(_.name).toSet
+      .intersect(other.fields.map(_.name).toSet)
+
+    if (intersect.nonEmpty)
+      fatal(
+        s"""invalid merge operation: same-name ${plural(intersect.size, "field")}: [ ${
+          intersect.map(s => prettyIdentifier(s)).mkString(", ")
+        } ]""".stripMargin)
+
+    val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)))
+
+    val size1 = size
+    val size2 = other.size
+    val targetSize = newStruct.size
+
+    val merger = (a1: Annotation, a2: Annotation) => {
+      if (a1 == null && a2 == null)
+        Annotation.empty
+      else {
+        val s1 = Option(a1).map(_.asInstanceOf[Row].toSeq)
+          .getOrElse(Seq.fill[Any](size)(null))
+        val s2 = Option(a2).map(_.asInstanceOf[Row].toSeq)
+          .getOrElse(Seq.fill[Any](size)(null))
+        val newValues = s1 ++ s2
+        assert(newValues.size == targetSize)
+        Annotation.fromSeq(newValues)
+      }
+    }
+
+    (newStruct, merger)
+  }
+
+  def filter(set: Set[String], include: Boolean = true): (TStruct, Deleter) = {
+    val notFound = set.filter(name => selfField(name).isEmpty).map(prettyIdentifier)
+    if (notFound.nonEmpty)
+      fatal(
+        s"""invalid struct filter operation: ${
+          plural(notFound.size, s"field ${notFound.head}", s"fields [ ${notFound.mkString(", ")} ]")
+        } not found
+            |  Existing struct fields: [ ${fields.map(f => prettyIdentifier(f.name)).mkString(", ")} ]""".stripMargin)
+
+    val fn = (f: Field) =>
+      if (include)
+        set.contains(f.name)
+      else
+        !set.contains(f.name)
+    filter(fn)
+  }
+
+  def filter(f: (Field) => Boolean): (TStruct, Deleter) = {
+    val included = fields.map(f)
+
+    val newFields = fields.zip(included)
+      .flatMap { case (field, incl) =>
+        if (incl)
+          Some(field.name -> field.`type`)
+        else
+          None
+      }
+
+    val newSize = newFields.size
+
+    val filterer = (a: Annotation) =>
+      if (a == null)
+        a
+      else if (newSize == 0)
+        Annotation.empty
+      else {
+        val r = a.asInstanceOf[Row]
+        val newValues = included.zipWithIndex
+          .flatMap { case (incl, i) =>
+            if (incl)
+              Some(r.get(i))
+            else None
+          }
+        assert(newValues.length == newSize)
+        Annotation.fromSeq(newValues)
+      }
+
+    (TStruct(newFields: _*), filterer)
+  }
+
   override def toString = if (size == 0) "Empty" else "Struct"
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean) {
+  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
     if (size == 0)
       sb.append("Empty")
     else {
-      sb.append("Struct {")
-      sb += '\n'
-      fields.foreachBetween(f => {
-        f.pretty(sb, indent + 4, printAttrs)
-      })(() => {
-        sb += ','
+      if (compact) {
+        sb.append("Struct{")
+        fields.foreachBetween(f => {
+          f.pretty(sb, indent, printAttrs, compact)
+        })(() => {
+          sb += ','
+        })
+        sb += '}'
+      } else {
+        sb.append("Struct {")
         sb += '\n'
-      })
-      sb += '\n'
-      sb.append(" " * indent)
-      sb += '}'
+        fields.foreachBetween(f => {
+          f.pretty(sb, indent + 4, printAttrs, compact)
+        })(() => {
+          sb += ','
+          sb += '\n'
+        })
+        sb += '\n'
+        sb.append(" " * indent)
+        sb += '}'
+      }
     }
   }
 
@@ -529,7 +642,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       a.isInstanceOf[Row] &&
         a.asInstanceOf[Row].toSeq.zip(fields).forall { case (v, f) => f.`type`.typeCheck(v) }
 
-  override def str(a: Annotation): String = compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genValue: Gen[Annotation] = {
     if (size == 0)

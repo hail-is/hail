@@ -4,10 +4,12 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.broadinstitute.hail.variant.Genotype
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
-
 
 class ExprSuite extends SparkSuite {
 
@@ -174,9 +176,22 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
 
+    assert(eval[String](""" "\t\t\t" """).contains("\t\t\t"))
+    assert(eval[String](""" "\"\"\"" """).contains("\"\"\""))
+    assert(eval[String](""" "```" """).contains("```"))
+
+    assert(eval[String](""" "\t" """) == eval[String]("\"\t\""))
+
     assert(eval[String](""" "a b c d".replace(" ", "_") """).contains("a_b_c_d"))
     assert(eval[String](" \"a\\tb\".replace(\"\\t\", \"_\") ").contains("a_b"))
     assert(eval[String](""" "a    b  c    d".replace("\\s+", "_") """).contains("a_b_c_d"))
+
+    // quoting '` optional in strings
+    assert(eval[String](""" "\"\'\`" """).contains(""""'`"""))
+    assert(eval[String](""" "\"'`" """).contains(""""'`"""))
+
+    // quoting "' optional in literal identifiers
+    assert(eval[Int]("""let `\"\'\`` = 5 in `"'\``""").contains(5))
 
     assert(eval[String]("""NA: String""").isEmpty)
     assert(eval[String]("""NA: Int""").isEmpty)
@@ -192,11 +207,11 @@ class ExprSuite extends SparkSuite {
     intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
     intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
 
-    val (t, r) = evalWithType[Annotation](""" {"field1": 1, "field2": 2 } """)
+    val (t, r) = evalWithType[Annotation](""" {field1: 1, field2: 2 } """)
     assert(r.contains(Annotation(1, 2)))
     assert(t == TStruct(("field1", TInt), ("field2", TInt)))
 
-    val (t2, r2) = evalWithType[Annotation](""" {"field1": 1, "asdasd": "Hello" } """)
+    val (t2, r2) = evalWithType[Annotation](""" {field1: 1, asdasd: "Hello" } """)
     assert(r2.contains(Annotation(1, "Hello")))
     assert(t2 == TStruct(("field1", TInt), ("asdasd", TString)))
 
@@ -224,6 +239,71 @@ class ExprSuite extends SparkSuite {
     ))
     assert(eval[Boolean](""" index(structArray, f2).contains("B") """).contains(true))
     assert(eval[Boolean](""" index(structArray, f2).contains("E") """).contains(false))
+
+    // caused exponential loop previously
+    assert(eval[Boolean](
+      """
+        |if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else if (false) false
+        |else true
+      """.stripMargin).contains(true))
+
+    assert(eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true}) """).contains(Annotation(1, 2, false, true)))
+    assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, {c: false, d: true}) """).contains(Annotation(null, null, false, true)))
+    assert(eval[Annotation]("""merge({a: 1, b: 2}, NA: Struct{c: Boolean, d: Boolean}) """).contains(Annotation(1, 2, null, null)))
+    assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, NA: Struct{c: Boolean, d: Boolean}) """).isEmpty)
+    TestUtils.interceptFatal("invalid merge operation: same-name fields")(
+      eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true, a: 1, b: 0}) """).contains(Annotation(1, 2, false, true)))
+    TestUtils.interceptFatal("invalid arguments to `merge'")(
+      eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}) """).isEmpty)
+    TestUtils.interceptFatal("invalid arguments to `merge'")(
+      eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, 5) """).isEmpty)
+
+    assert(eval[Annotation](""" select({a:1,b:2}, a) """).contains(Annotation(1)))
+    assert(eval[Boolean](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,`\tweird\t`) == drop(x, c) """).contains(true))
+    TestUtils.interceptFatal("too few arguments for method `select'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, 5,6,7) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'\\s+Duplicate identifiers found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,a,b,c,c) """))
+    TestUtils.interceptFatal("invalid arguments for method `select'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,c,d,e) """))
+
+    assert(eval[Annotation](""" drop({a:1,b:2}, a) """).contains(Annotation(2)))
+    TestUtils.interceptFatal("too few arguments for method `drop'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, 5,6,7) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Duplicate identifiers found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,a,b,c,c) """))
+    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
+      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,b,c,d,e) """))
+
+
     // FIXME catch parse errors
   }
 
@@ -244,14 +324,30 @@ class ExprSuite extends SparkSuite {
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
       sb.clear()
-      t.pretty(sb, 0)
+      t.pretty(sb, compact = true, printAttrs = true)
       val res = sb.result()
       val parsed = Parser.parseType(res)
       t == parsed
     })
+    check(forAll { (t: Type) =>
+      sb.clear()
+      t.pretty(sb, printAttrs = true)
+      val res = sb.result()
+      //      println(res)
+      val parsed = Parser.parseType(res)
+      t == parsed
+    })
+
   }
 
   @Test def testJSON() {
+    check(forAll { (t: Type) =>
+      val a = t.genValue.sample()
+      val json = t.toJSON(a)
+      val string = compact(json)
+      a == JSONAnnotationImpex.importAnnotation(parse(string), t, "")
+    })
+
     check(forAll { (t: Type) =>
       val a = t.genValue.sample()
       val json = t.toJSON(a)
@@ -269,4 +365,11 @@ class ExprSuite extends SparkSuite {
     })
   }
 
+  @Test def testEscaping() {
+    val p = forAll { (s: String) =>
+      s == unescapeString(escapeString(s))
+    }
+
+    p.check(count = 1000)
+  }
 }

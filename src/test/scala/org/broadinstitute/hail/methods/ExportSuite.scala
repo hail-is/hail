@@ -46,6 +46,8 @@ class ExportSuite extends SparkSuite {
       Source.fromInputStream(s)
         .getLines().toSet
     }
+    println(sExportOutput.toArray.sorted.toSeq)
+    println(sQcOutput.toArray.sorted.toSeq)
 
     assert(sQcOutput == sExportOutput)
 
@@ -102,7 +104,7 @@ class ExportSuite extends SparkSuite {
     s = ExportSamples.run(s, Array("-o", f2, "-c",
       "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS**** = s.id, ANOTHERTHING=s.id"))
     s = ExportSamples.run(s, Array("-o", f3, "-c",
-      "`I have some spaces and tabs\there` = s.id,`more weird stuff here`=s.id"))
+      "`I have some spaces and tabs\\there` = s.id,`more weird stuff here`=s.id"))
     readFile(f, sc.hadoopConfiguration) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
@@ -129,5 +131,29 @@ class ExportSuite extends SparkSuite {
     // this should run without errors
     val f = tmpDir.createTempFile("samples", ".tsv")
     s = ExportSamples.run(s, Array("-o", f, "-c", "computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)"))
+  }
+
+  @Test def testTypes() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    s = SplitMulti.run(s, Array.empty[String])
+    val tmp1 = tmpDir.createTempFile("export", ".out")
+    val tmp2 = tmpDir.createTempFile("export", ".types")
+
+    ExportVariants.run(s, Array("-o", tmp1,
+    "-t", tmp2,
+    "-c", """{v: str(v), va: va}"""))
+
+    val preVDS = s.vds
+
+    val t = readFile(tmp2, s.hadoopConf)(in => Source.fromInputStream(in).mkString.substring(3))
+
+    s = AnnotateVariantsJSON.run(s, Array(tmp1,
+    "-v", """root.v.split(":")[0], root.v.split(":")[1].toInt, root.v.split(":")[2], [root.v.split(":")[3]]""",
+    "-r", "va.tmp",
+    "-t", t))
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va = va.tmp.va"))
+
+    assert(s.vds.same(preVDS))
   }
 }

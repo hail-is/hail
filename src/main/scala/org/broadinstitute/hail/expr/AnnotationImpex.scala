@@ -277,6 +277,10 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
       case (JDouble(x), TFloat) => x.toFloat
       case (JString(x), TString) => x
       case (JString(x), TChar) => x
+      case (JString("Infinity"), TDouble) => Double.PositiveInfinity
+      case (JString("-Infinity"), TDouble) => Double.NegativeInfinity
+      case (JString("Infinity"), TFloat) => Float.PositiveInfinity
+      case (JString("-Infinity"), TFloat) => Float.NegativeInfinity
       case (JString(x), TInt) =>
         x.toInt
       case (JString(x), TDouble) =>

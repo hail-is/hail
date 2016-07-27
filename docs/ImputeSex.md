@@ -5,7 +5,7 @@ Hail contains an `imputesex` module which will calculate the inbreeding coeffici
 ## Command line options:
 
 Short Flag | Long Flag | Description | Default
---- | :-: | ---
+--- | :-: | --- | ---
 `-m <Double>` | `--maf-threshold <Double>` | Minimum variant minor allele frequency | 0.0
 `-i` | `--include-par` | Include variants in pseudo autosomal regions (HG19) | false
 `-x <Double>` | `--female-threshold <Double>` | If the inbreeding coefficient is less than `<Double>`, then sample is called as Female | 0.2
@@ -42,7 +42,7 @@ Identifier | Type | Description
 --- | :-: | ---
 `isFemale` | `Boolean` | True if the imputed sex is female, false if male, missing if undetermined
 `Fstat` | `Double` | Inbreeding coefficient
-`nVariants` | `Int` | Total number of variants considered
+`nTotal` | `Int` | Total number of variants considered
 `nCalled` | `Int` | Number of variants with a genotype call
 `expectedHoms` | `Double` | Expected number of homozygotes
 `observedHoms` | `Double` | Observed number of homozygotes

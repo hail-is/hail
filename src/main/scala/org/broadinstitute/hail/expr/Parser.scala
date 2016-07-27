@@ -1,9 +1,12 @@
 package org.broadinstitute.hail.expr
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
+
+case class SimplePosition(line: Int, column: Int, lineContents: String) extends Position
 
 object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
@@ -62,16 +65,19 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[() => Option[Any]]) = {
+  def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[(Type, () => Option[Any])]) = {
     val (header, ts) = parseAll(export_args, code) match {
       case Success(result, _) => result.asInstanceOf[(Option[Array[String]], Array[AST])]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
     ts.foreach(_.typecheck(ec))
-    val fs = ts.map { t =>
-      val f = t.eval(ec)
-      () => Option(f())
+    val fs = ts.map { ast =>
+      val f = ast.eval(ec)
+      ast.`type` match {
+        case t: Type => (t, () => Option(f()))
+        case bt => fatal(s"invalid export type: `$bt'")
+      }
     }
 
     (header, fs)
@@ -233,11 +239,9 @@ object Parser extends JavaTokenParsers {
       _.toArray
     }
 
-  def tsvIdentifier: Parser[String] = tickIdentifier | """[^\s\p{Cntrl}=,]+""".r
+  def tsvIdentifier: Parser[String] = backtickLiteral | """[^\s\p{Cntrl}=,]+""".r
 
-  def tickIdentifier: Parser[String] = """`[^`]+`""".r ^^ { i => i.substring(1, i.length - 1) }
-
-  def identifier = tickIdentifier | ident
+  def identifier = backtickLiteral | ident
 
   def args: Parser[Array[AST]] =
     repsep(expr, ",") ^^ {
@@ -267,26 +271,15 @@ object Parser extends JavaTokenParsers {
       }
     }
 
-  // """"([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r
-  def evalStringLiteral(lit: String): String = {
-    assert(lit.head == '"' && lit.last == '"')
-    val r = """\\[\\'"bfnrt]""".r
-    // replacement does backslash expansion
-    r.replaceAllIn(lit.tail.init, _.matched)
-  }
-
   def primary_expr: Parser[AST] =
     withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       // FIXME L suffix
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
-      withPos(""""([^"\p{Cntrl}\\]|\\[\\'"bfnrt])*"""".r) ^^ { r =>
-        Const(r.pos, evalStringLiteral(r.x), TString)
-      } |
+      withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString) } |
       withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
       withPos(arrayDeclaration) ^^ (r => ArrayConstructor(r.pos, r.x)) |
       withPos(structDeclaration) ^^ (r => StructConstructor(r.pos, r.x.map(_._1), r.x.map(_._2))) |
-      withPos(indexStruct) ^^ (r => IndexStruct(r.pos, r.x._1, r.x._2)) |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
@@ -304,21 +297,42 @@ object Parser extends JavaTokenParsers {
 
   def structDeclaration: Parser[Array[(String, AST)]] = "{" ~> repsep(structField, ",") <~ "}" ^^ (_.toArray)
 
-  def structField: Parser[(String, AST)] = (stringLiteral ~ ":" ~ expr) ^^ { case id ~ _ ~ ast =>
-    (id.substring(1, id.length - 1), ast)
-  }
+  def structField: Parser[(String, AST)] = (identifier ~ ":" ~ expr) ^^ { case id ~ _ ~ ast => (id, ast) }
 
-  def indexStruct: Parser[(String, AST)] = "index" ~ "(" ~ expr ~ "," ~ identifier ~ ")" ^^ {
-    case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key, ast)
-    //    case (_ ~ _ ~ ast ~ _ ~ key ~ _) => (key.substring(1, key.length - 1), ast)
-  }
+  def backtickLiteral: Parser[String] =
+    """`([^\\`]|\\[\\bfnrt'"`]|\\u[a-fA-F0-9]{4})*`""".r ^^
+      (s => unescapeString(s.substring(1, s.length - 1))) |
+      withPos("`.*`".r) ^^ { r =>
+        val toSearch = r.x.substring(1, r.x.length - 1)
+        val matches = """\\[^\\bfnrt`]""".r.findFirstMatchIn(toSearch)
+        assert(matches.isDefined)
+        val m = matches.get
+        val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
+        ParserUtils.error(newPos,
+          s"""invalid character in backtick identifier: `${
+            escapeString(toSearch.charAt(m.start).toString, backticked = true)
+          }'""")
+      }
+
+  override def stringLiteral: Parser[String] =
+    """"([^"\\]|\\[\\bfnrt'"`]|\\u[a-fA-F0-9]{4})*"""".r ^^
+      (s => unescapeString(s.substring(1, s.length - 1))) |
+      withPos("""".*"""".r) ^^ { r =>
+        val toSearch = r.x.substring(1, r.x.length - 1)
+        val matches = """\\[^\\"bfnrt'"`]""".r.findFirstMatchIn(toSearch)
+        assert(matches.isDefined)
+        val m = matches.get
+        val newPos = SimplePosition(r.pos.line, r.pos.column + m.start + 1, r.pos.longString)
+        ParserUtils.error(newPos,
+          s"""invalid character in string literal: `${
+            escapeString(toSearch.charAt(m.start).toString)
+          }'""")
+      }
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>
-      (unescapeString(name), {
-        val unescaped = unescapeString(desc)
-        unescaped.substring(1, unescaped.length - 1)
-      })
+      //    ("@" ~> (identifier <~ "=")) ~ stringLiteral("\"" ~> "[^\"]".r <~ "\"") ^^ { case name ~ desc =>
+      (name, desc)
     }
 
   def type_field: Parser[(String, Type, Map[String, String])] =

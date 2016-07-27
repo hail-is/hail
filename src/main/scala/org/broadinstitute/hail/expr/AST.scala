@@ -2,11 +2,12 @@ package org.broadinstitute.hail.expr
 
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
+import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
-import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -514,7 +515,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
   override def typecheckThis(ec: EvalContext): Type = {
     if (elements.isEmpty)
-      parseError("Hail does not currently support declaring empty arrays.")
+      parseError("invalid array constructor: no values")
     elements.foreach(_.typecheck(ec))
     val types: Set[Type] = elements.map(_.`type`)
       .map {
@@ -576,40 +577,9 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
   def eval(ec: EvalContext): () => Any = throw new UnsupportedOperationException
 }
 
-case class IndexStruct(posn: Position, key: String, body: AST) extends AST(posn, body) {
-  var deleter: Deleter = null
-  var querier: Querier = null
-
-  override def typecheckThis(): BaseType = {
-    val s = body.`type` match {
-      case TArray(t: TStruct) => t
-      case error => parseError(s"Got invalid argument `$error' to function `index'.  Expected Array[Struct]")
-    }
-    s.getOption(key) match {
-      case Some(TString) =>
-        querier = s.query(key)
-        val (newS, d) = s.delete(key)
-        deleter = d
-        TDict(newS)
-      case Some(other) => parseError(s"Got invalid key type `$other' to function `index'.  Key must be of type `String'.")
-      case None => parseError(s"""Struct did not contain the designated key "$key". """)
-    }
-  }
-
-  def eval(ec: EvalContext): () => Any = {
-    val localDeleter = deleter
-    val localQuerier = querier
-    // FIXME: warn for duplicate keys?
-    AST.evalCompose[IndexedSeq[_]](ec, body) { is =>
-      is.filter(_ != null)
-        .map(_.asInstanceOf[Row])
-        .flatMap(r => localQuerier(r).map(x => (x, localDeleter(r))))
-        .toMap
-    }
-  }
-}
-
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
+  var store: Any = null
+
   override def typecheckThis(): BaseType = {
     (fn, args) match {
       case ("isMissing", Array(a)) =>
@@ -660,13 +630,116 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
               }""".stripMargin)
         }
 
-      case ("index", rhs) =>
-        parseError(s"Got invalid arguments (${rhs.map(_.`type`).mkString(", ")}) to function `$fn'." +
-          s"\n  Expected arguments (Array[Struct], <field identifier>) e.g. `index(global.gene_info, gene_id)'")
+      case ("merge", rhs) =>
+        val (t1, t2) = args.map(_.`type`) match {
+          case Array(t1: TStruct, t2: TStruct) => (t1, t2)
+          case other => parseError(
+            s"""invalid arguments to `$fn'
+                |  Expected $fn(Struct, Struct), found $fn(${other.mkString(", ")})""".stripMargin)
+        }
+
+        val (t, merger) = try {
+          t1.merge(t2)
+        } catch {
+          case f: FatalException => parseError(
+            s"""invalid arguments for method `$fn'
+                |  ${f.getMessage}""".stripMargin)
+          case e: Throwable => parseError(
+            s"""invalid arguments for method `$fn'
+                |  ${e.getClass.getName}: ${e.getMessage}""".stripMargin)
+        }
+
+        store = merger
+        t
 
       case ("isDefined" | "isMissing" | "str" | "json", _) => parseError(s"`$fn' takes one argument")
 
       case _ => parseError(s"unknown function `$fn'")
+    }
+  }
+
+  override def typecheck(ec: EvalContext) {
+    fn match {
+      case "index" =>
+        if (args.length != 2)
+          parseError(
+            s"""invalid arguments for method `$fn'
+                |  Expected 2 arguments: $fn(Array[Struct], identifiers...)
+                |  Found ${args.length} arguments""".stripMargin)
+        args.head.typecheck(ec)
+        val t = args.head.`type` match {
+          case TArray(t: TStruct) => t
+          case error => parseError(
+            s"""invalid arguments for method `$fn'
+                |  Expected Array[Struct] as first argument, found `$error'""".stripMargin)
+        }
+        val key = args(1) match {
+          case SymRef(_, id) => id
+          case other =>
+            parseError(
+              s"""invalid arguments for method `$fn'
+                  |  Expected struct field identifier as the second argument, but found a `${other.getClass.getSimpleName}' expression
+                  |  Usage: $fn(Array[Struct], key identifier)""".stripMargin)
+        }
+
+        t.getOption(key) match {
+          case Some(TString) =>
+            val querier = t.query(key)
+            val (newS, deleter) = t.delete(key)
+            store = (querier, deleter)
+            `type` = TDict(newS)
+          case Some(other) => parseError(
+            s"""invalid arguments for method `$fn'
+                |  Expected key to be of type String, but field ${prettyIdentifier(key)} had type `$other'""".stripMargin)
+          case None => parseError(
+            s"""invalid arguments for method `$fn'
+                |  Struct did not contain the designated key `${prettyIdentifier(key)}'""".stripMargin)
+        }
+
+      case "select" | "drop" =>
+        val usage = s"""Usage: `$fn'(Struct, identifiers...)"""
+        if (args.length < 2)
+          parseError(
+            s"""too few arguments for method `$fn'
+                |  Expected 2 or more arguments: $fn(Struct, identifiers...)
+                |  Found ${args.length} ${plural(args.length, "argument")}""".stripMargin)
+        val (head, tail) = (args.head, args.tail)
+        head.typecheck(ec)
+        val struct = head.`type` match {
+          case t: TStruct => t
+          case other => parseError(
+            s"""method `$fn' expects a Struct argument in the first position
+                |  Expected: $fn(Struct, ...)
+                |  Found: $fn($other, ...)""".stripMargin)
+        }
+        val identifiers = tail.map {
+          case SymRef(_, id) => id
+          case other =>
+            parseError(
+              s"""invalid arguments for method `$fn'
+                  |  Expected struct field identifiers after the first position, but found a `${other.getClass.getSimpleName}' expression""".stripMargin)
+        }
+        val duplicates = identifiers.duplicates()
+        if (duplicates.nonEmpty)
+          parseError(
+            s"""invalid arguments for method `$fn'
+                |  Duplicate ${plural(duplicates.size, "identifier")} found: [ ${duplicates.map(prettyIdentifier).mkString(", ")} ]""".stripMargin)
+
+        val (tNew, filterer) = try {
+          struct.filter(identifiers.toSet, include = fn == "select")
+        } catch {
+          case f: FatalException => parseError(
+            s"""invalid arguments for method `$fn'
+                |  ${f.getMessage}""".stripMargin)
+          case e: Throwable => parseError(
+            s"""invalid arguments for method `$fn'
+                |  ${e.getClass.getName}: ${e.getMessage}""".stripMargin)
+        }
+
+        store = filterer
+        `type` = tNew
+
+      case _ => super.typecheck(ec)
     }
   }
 
@@ -687,18 +760,19 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("json", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(ec)
-      () => compact(t.toJSON(f()))
+      () => JsonMethods.compact(t.toJSON(f()))
 
     case ("hwe", Array(a, b, c)) =>
-      AST.evalCompose[Int, Int, Int](ec, a, b, c) { case (nHomRef, nHet, nHomVar) =>
-        if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
-          fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
-        val n = nHomRef + nHet + nHomVar
-        val nAB = nHet
-        val nA = nAB + 2 * nHomRef.min(nHomVar)
+      AST.evalCompose[Int, Int, Int](ec, a, b, c) {
+        case (nHomRef, nHet, nHomVar) =>
+          if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
+            fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
+          val n = nHomRef + nHet + nHomVar
+          val nAB = nHet
+          val nA = nAB + 2 * nHomRef.min(nHomVar)
 
-        val LH = LeveneHaldane(n, nA)
-        Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
+          val LH = LeveneHaldane(n, nA)
+          Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
       }
 
     case ("fet", Array(a, b, c, d)) =>
@@ -709,11 +783,28 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
       }
 
-    case ("index", Array(toIndex, key)) =>
-      val keyF = key.eval(ec)
-      val f = toIndex.eval(ec)
+    case ("merge", Array(struct1, struct2)) =>
+      val f1 = struct1.eval(ec)
+      val f2 = struct2.eval(ec)
+      val merger = store.asInstanceOf[Merger]
       () => {
-        val k = keyF()
+        merger(f1(), f2())
+      }
+
+    case ("select" | "drop", Array(struct, _*)) =>
+      val filterer = store.asInstanceOf[Deleter]
+      AST.evalCompose[Annotation](ec, struct) { s =>
+        filterer(s)
+      }
+
+    case ("index", Array(structArray, _)) =>
+      val (querier, deleter) = store.asInstanceOf[(Querier, Deleter)]
+      // FIXME: warn for duplicate keys?
+      AST.evalCompose[IndexedSeq[_]](ec, structArray) { is =>
+        is.filter(_ != null)
+          .map(_.asInstanceOf[Row])
+          .flatMap(r => querier(r).map(x => (x, deleter(r))))
+          .toMap
       }
   }
 }
@@ -888,6 +979,25 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", t),
           ("max", t), ("nNotMissing", TLong), ("sum", sumT))
 
+      case (agg: TAggregable, "collect", rhs) =>
+        rhs.foreach(_.typecheck(agg.ec))
+        val types = rhs.map(_.`type`)
+          .toSeq
+
+        if (types.length != 2 || types.head != TBoolean) {
+          val plural = if (types.length != 1) "s" else ""
+          parseError(s"method `$method' expected 2 arguments of types (Boolean, Any), but got ${types.length} argument$plural${
+            if (types.nonEmpty) s" of type (${types.mkString(", ")})."
+            else "."
+          }")
+        }
+        val t = types(1) match {
+          case tws: Type => tws
+          case _ => parseError(s"method `$method' expects a standard type as its map argument, but got `${types(1)}'")
+        }
+
+        `type` = TArray(t)
+
       case _ =>
         super.typecheck(ec)
     }
@@ -897,7 +1007,12 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     val rhsTypes = args.map(_.`type`)
     (lhs.`type`, method, rhsTypes) match {
       case (TArray(TString), "mkString", Array(TString)) => TString
-      case (TSet(elementType), "contains", Array(TString)) => TBoolean
+      case (TSet(elementType), "contains", Array(t2)) =>
+        if (elementType != t2)
+          parseError(
+            s"""method `contains' takes an argument of the same type as the set.
+                |  Expected type `$elementType' for `Set[$elementType]', but found `$t2'""".stripMargin)
+        TBoolean
       case (TDict(_), "contains", Array(TString)) => TBoolean
       case (TString, "split", Array(TString)) => TArray(TString)
 
@@ -921,7 +1036,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       localA += null
       val bodyFn = body.eval(ec.copy(st = ec.st + (param -> (localIdx, returnType))))
 
-      AST.evalCompose[Iterable[_]](ec, lhs) { case s =>
+      AST.evalCompose[Iterable[_]](ec, lhs) { s =>
         s.find { elt =>
           localA(localIdx) = elt
           val r = bodyFn()
@@ -937,14 +1052,14 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       (returnType: @unchecked) match {
         case TArray(_) =>
-          AST.evalCompose[IndexedSeq[_]](ec, lhs) { case is =>
+          AST.evalCompose[IndexedSeq[_]](ec, lhs) { is =>
             is.map { elt =>
               localA(localIdx) = elt
               bodyFn()
             }
           }
         case TSet(_) =>
-          AST.evalCompose[Set[_]](ec, lhs) { case s =>
+          AST.evalCompose[Set[_]](ec, lhs) { s =>
             s.map { elt =>
               localA(localIdx) = elt
               bodyFn()
@@ -960,7 +1075,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       (returnType: @unchecked) match {
         case TArray(_) =>
-          AST.evalCompose[IndexedSeq[_]](ec, lhs) { case is =>
+          AST.evalCompose[IndexedSeq[_]](ec, lhs) { is =>
             is.filter { elt =>
               localA(localIdx) = elt
               val r = bodyFn()
@@ -968,7 +1083,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             }
           }
         case TSet(_) =>
-          AST.evalCompose[Set[_]](ec, lhs) { case s =>
+          AST.evalCompose[Set[_]](ec, lhs) { s =>
             s.filter { elt =>
               localA(localIdx) = elt
               val r = bodyFn()
@@ -983,7 +1098,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       localA += null
       val bodyFn = body.eval(ec.copy(st = ec.st + (param -> (localIdx, returnType))))
 
-      AST.evalCompose[Iterable[_]](ec, lhs) { case is =>
+      AST.evalCompose[Iterable[_]](ec, lhs) { is =>
         is.forall { elt =>
           localA(localIdx) = elt
           val r = bodyFn()
@@ -997,7 +1112,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       localA += null
       val bodyFn = body.eval(ec.copy(st = ec.st + (param -> (localIdx, returnType))))
 
-      AST.evalCompose[Iterable[_]](ec, lhs) { case is =>
+      AST.evalCompose[Iterable[_]](ec, lhs) { is =>
         is.exists { elt =>
           localA(localIdx) = elt
           val r = bodyFn()
@@ -1011,7 +1126,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       localA += null
       val bodyFn = body.eval(ec.copy(st = ec.st + (param -> (localIdx, returnType))))
 
-      AST.evalCompose[Map[_, _]](ec, lhs) { case m =>
+      AST.evalCompose[Map[_, _]](ec, lhs) { m =>
         m.mapValues { elt =>
           localA(localIdx) = elt
           bodyFn()
@@ -1036,10 +1151,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
       val combOp: (Any, Any) => Any = _.asInstanceOf[Long] + _.asInstanceOf[Long]
       localFunctions += ((() => 0L, seqOp, combOp, localIdx))
-      AST.evalCompose[Any](ec, lhs) {
-        case a =>
-          localA(localIdx)
-      }
+      AST.evalCompose[Any](ec, lhs) { a => localA(localIdx) }
 
     case (agg, "fraction", Array(rhs)) =>
       val newContext = agg.asInstanceOf[TAggregable].ec
@@ -1065,10 +1177,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         (() => (0L, 0L), so, co)
       }
       localFunctions += ((zv, seqOp, combOp, localIdx))
-      AST.evalCompose[Any](ec, lhs) {
-        case a =>
-          val (num: Long, denom: Long) = localA(localIdx)
-          divNull(num.toDouble, denom)
+      AST.evalCompose[Any](ec, lhs) { a =>
+        val (num: Long, denom: Long) = localA(localIdx)
+        divNull(num.toDouble, denom)
       }
 
 
@@ -1120,7 +1231,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
       localFunctions += ((() => new StatCounter, seqOp, combOp, localIdx))
-      AST.evalCompose[Any](ec, lhs) { case a => getOp(localA(localIdx)) }
+      AST.evalCompose[Any](ec, lhs) { a => getOp(localA(localIdx)) }
 
     case (returnType, "statsif", Array(condition, computation)) =>
       val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
@@ -1172,7 +1283,35 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }
 
       localFunctions += ((() => new StatCounter, seqOp, combOp, localIdx))
-      AST.evalCompose[Any](ec, lhs) { case a => getOp(localA(localIdx)) }
+      AST.evalCompose[Any](ec, lhs) { a => getOp(localA(localIdx)) }
+
+    case (returnType, "collect", Array(condition, computation)) =>
+      val newContext = lhs.`type`.asInstanceOf[TAggregable].ec
+      val localIdx = newContext.a.length
+      val localA = newContext.a
+      localA += null
+      val conditionFn = condition.eval(newContext)
+      val fn = computation.eval(newContext)
+      val localFunctions = newContext.aggregationFunctions
+      val seqOp: (Any) => Any =
+        (arr) => {
+          val ab = arr.asInstanceOf[ArrayBuffer[Any]]
+          if (conditionFn().asInstanceOf[Boolean]) {
+            val comp = fn()
+            if (comp != null)
+              ab += comp
+          }
+          ab
+        }
+      val combOp: (Any, Any) => Any = (a, b) => {
+        val ab1 = a.asInstanceOf[ArrayBuffer[Any]]
+        val ab2 = b.asInstanceOf[ArrayBuffer[Any]]
+        ab1 ++= ab2
+        ab1
+      }
+
+      localFunctions += ((() => new ArrayBuffer[Any], seqOp, combOp, localIdx))
+      AST.evalCompose[Any](ec, lhs) { a => localA(localIdx).asInstanceOf[ArrayBuffer[Any]].toIndexedSeq }
 
     case (_, "orElse", Array(a)) =>
       val f1 = lhs.eval(ec)
@@ -1420,10 +1559,9 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
       parseError(
         s""" invalid index expression: cannot index `${f.`type`}' with type `${idx.`type`}'
             |  Known index operations:
-            |    Array with Int: a[0]
-            |    String[Int] (Returns a character)
-            |    Dict[String]
-         """.stripMargin)
+            |    Array indexed with Int: a[2]
+            |    String indexed with Int: str[0] (Returns a character)
+            |    Dict indexed with String: genes["PCSK9"]""".stripMargin)
   }
 
   def eval(ec: EvalContext): () => Any = ((f.`type`, idx.`type`): @unchecked) match {
@@ -1439,9 +1577,9 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             ParserUtils.error(localPos,
-              s"Tried to access index [$i] on array ${compact(localT.toJSON(a))} of length ${a.length}" +
-                s"\n  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)" +
-                s"\n  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct")
+              s"""Tried to access index [$i] on array ${JsonMethods.compact(localT.toJSON(a))} of length ${a.length}
+                  |  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)
+                  |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct""".stripMargin)
           case e: Throwable => throw e
         })
 
@@ -1461,12 +1599,15 @@ case class SliceArray(posn: Position, f: AST, idx1: Option[AST], idx2: Option[AS
   override def typecheckThis(): BaseType = f.`type` match {
     case (t: TArray) =>
       if (idx1.exists(_.`type` != TInt) || idx2.exists(_.`type` != TInt))
-        parseError(s"invalid slice expression.  " +
-          s"Expect (array[start:end] || array[:end] || array[start:]) where start and end are integers, " +
-          s"but got [${idx1.map(_.`type`).getOrElse("")}:${idx2.map(_.`type`).getOrElse("")}]")
+        parseError(
+          s"""invalid slice expression
+             |  Expect (array[start:end],  array[:end], or array[start:]) where start and end are integers
+             |  Found [${idx1.map(_.`type`).getOrElse("")}:${idx2.map(_.`type`).getOrElse("")}]""".stripMargin)
       else
         t
-    case _ => parseError(s"invalid slice expression.  Only arrays can be sliced, tried to slice type `${f.`type`}'")
+    case _ => parseError(
+      s"""invalid slice expression
+         |  Only arrays can be sliced.  Found slice operation on type `${f.`type`}'""".stripMargin)
   }
 
   def eval(ec: EvalContext): () => Any = {
@@ -1502,8 +1643,6 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
   override def typecheckThis(ec: EvalContext): BaseType = {
-    thenTree.typecheck(ec)
-    elseTree.typecheck(ec)
     if (thenTree.`type` != elseTree.`type`)
       parseError(s"expected same-type `then' and `else' clause, got `${thenTree.`type`}' and `${elseTree.`type`}'")
     else

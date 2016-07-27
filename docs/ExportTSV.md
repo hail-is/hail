@@ -10,6 +10,7 @@ These three export modules take a condition argument (`-c`) similar to [filterin
 Command line arguments: 
  - `-c <cond>, --condition <cond>` -- export expression (see below) or .columns file
  - `-o <file>, --output <file>` -- file path to which output should be written
+ - `-t <types-file>, --types <types-file>`, -- file path to export column types 
 
 ## Export modules
 
