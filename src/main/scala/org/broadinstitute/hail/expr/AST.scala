@@ -839,6 +839,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${body.`type`}]")
         `type` = TBoolean
 
+      case (arr: TArray, "sortBy", rhs) =>
+        lhs.typecheck(ec)
+        val (param, body) = rhs match {
+          case Array(Lambda(_, p, b)) => (p, b)
+          case _ => parseError(s"method `$method' expects a lambda function [param => T] with T of string or numeric type")
+        }
+        body.typecheck(ec.copy(st = ec.st + ((param, (-1, arr.elementType)))))
+        if (!(body.`type`.isInstanceOf[TNumeric] || body.`type` == TString))
+          parseError(s"method `$method' expects a lambda function [param => T] with T of string or numeric type, got [param => ${body.`type`}]")
+        `type` = arr
+
       case (TDict(elementType), "mapvalues", rhs) =>
         lhs.typecheck(ec)
         val (param, body) = rhs match {
@@ -852,7 +863,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           case error =>
             parseError(s"method `$method' expects a lambda function [param => Any], got invalid mapping [param => $error]")
         }
-
 
       case (agg: TAggregable, "count", rhs) =>
         rhs.foreach(_.typecheck(agg.ec))
@@ -1065,6 +1075,25 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           val r = bodyFn()
           r.asInstanceOf[Boolean]
         }
+      }
+
+    case (returnType, "sortBy", Array(Lambda(_, param, body))) =>
+      val localIdx = ec.a.length
+      val localA = ec.a
+      val ord = (body.`type`: @unchecked) match {
+        case TDouble => extendOrderingToNull[Double]
+        case TFloat => extendOrderingToNull[Float]
+        case TLong => extendOrderingToNull[Long]
+        case TInt => extendOrderingToNull[Int]
+        case TString => extendOrderingToNull[String]
+      }
+      localA += null
+      val bodyFn = body.eval(ec.copy(st = ec.st + (param -> (localIdx, returnType))))
+      AST.evalCompose[IndexedSeq[_]](ec, lhs) { arr =>
+        arr.sortBy { elt =>
+          localA(localIdx) = elt
+          bodyFn()
+        } (ord)
       }
 
     case (returnType, "mapvalues", Array(Lambda(_, param, body))) =>

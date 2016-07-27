@@ -53,7 +53,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - map: `arr.map(v => expr)` -- Returns a new array produced by applying `expr` to each element
      - filter: `arr.filter(v => expr)` -- Returns a new array subsetted to the elements where `expr` evaluated to true
      - exists: `arr.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
-     - forall: `arr.forall(v => expr)` -- returns a boolean which is true if the array is empty, or `expr` evaluates to `true` for **every** element
+     - forall: `arr.forall(v => expr)` -- Returns a boolean which is true if the array is empty, or `expr` evaluates to `true` for **every** element
+     - sortBy: `arr.sortBy(v => expr)` -- Returns a new array with the same elements sorted in ascending order according to the value of `expr`, which must be numerical or string. Elements with missing values are placed first.
  - Set Operations: 
  
      - contains: `set.contains(elem)` -- returns true if the element is contained in the array, otherwise false
