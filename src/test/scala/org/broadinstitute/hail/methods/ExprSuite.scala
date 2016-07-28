@@ -38,7 +38,8 @@ class ExprSuite extends SparkSuite {
       "structArray" -> (16, TArray(TStruct(
         ("f1", TInt),
         ("f2", TString),
-        ("f3", TInt)))))
+        ("f3", TInt)))),
+      "a2" -> (17, TArray(TString)))
     val ec = EvalContext(symTab)
 
     val a = ec.a
@@ -66,6 +67,7 @@ class ExprSuite extends SparkSuite {
     a(16) = IndexedSeq(Annotation(1, "A", 2),
       Annotation(5, "B", 6),
       Annotation(10, "C", 10))
+    a(17) = IndexedSeq("a", "d", null, "c", "e", null, "d", "c")
 
     assert(a.length == symTab.size)
 
@@ -154,6 +156,11 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("s2.length").contains(62))
 
     assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
+
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(null, -1, 1, 2, 3, 3, 6, 8)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(null, 8, 6, 3, 3, 2, 1, -1)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""").contains(IndexedSeq(null, 1, 2, -1, 3, 3, 6, 8)))
+    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x)""").contains(IndexedSeq(null, null, "a", "c", "c", "d", "d", "e")))
 
     assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
       .contains("HELLO=-7, asdasd9"))

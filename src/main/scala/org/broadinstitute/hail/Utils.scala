@@ -1296,4 +1296,16 @@ object Utils extends Logging {
   }
 
   def uriPath(uri: String): String = new URI(uri).getPath
+
+  def extendOrderingToNull[T](implicit ord: Ordering[T]): Ordering[Any] = {
+    new Ordering[Any] {
+      def compare(a: Any, b: Any) =
+        (a, b) match {
+          case (null, null) => 0
+          case (null, _) => -1
+          case (_, null) => 1
+          case _ => ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
+        }
+    }
+  }
 }
