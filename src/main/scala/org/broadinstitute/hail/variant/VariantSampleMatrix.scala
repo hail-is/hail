@@ -540,7 +540,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     metadataSame &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
-        .map {
+        .forall {
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
             val annotationsSame = va1 == va2
             if (!annotationsSame)
@@ -554,7 +554,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
           case (v, _) =>
             println(s"Found unmatched variant $v")
             false
-        }.fold(true)(_ && _)
+        }
   }
 
   def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(

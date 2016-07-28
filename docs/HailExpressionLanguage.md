@@ -301,3 +301,33 @@ filtervariants expr --keep -c 'if (va.info.AC[va.aIndex]) == 1'
 ```
 
 See documentation on [exporting to TSV](ExportTSV.md) and [programmatic annotation](ProgrammaticAnnotation.md) for more examples of what Hail's language can do.
+
+<a name="statsFunctions"></a>
+## Statistical Functions
+
+### Fisher's Exact Test
+
+Hail's expression language exposes the `fet` function to calculate the p-value, Odds Ratio, and 95% Confidence Interval with Fisher's Exact Test for 2x2 tables. This implementation of FET is identical to the version implemented in [R](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html) with default parameters (two-sided, alpha = 0.05, null hypothesis is Odds Ratio = 1).
+
+The inputs to the `fet` function are 4 integers (must be greater than or equal to 0).
+```
+annotatevariants expr -c 'va.fet = fet(a.toInt, b.toInt, c.toInt, d.toInt)'
+```
+
+The outputs are 4 fields of type Double that are accessible from the annotation root specified on the left-hand side of the equation:
+ - `pValue`
+ - `oddsRatio`
+ - `ci95Lower`
+ - `ci95Upper`
+
+**Example Workflow to Perform a Single-Variant Association Test Using FET:**
+```
+annotatesamples table -i /path/my/annotations.tsv -r "sa.pheno"
+annotatevariants expr -c 'va.macCase = gs.count(sa.pheno.Pheno1 == "Case" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Case" && g.isHomVar)'
+annotatevariants expr -c 'va.majCase = gs.count(sa.pheno.Pheno1 == "Case" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Case" && g.isHomRef)'
+annotatevariants expr -c 'va.macControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Control" && g.isHomVar)'
+annotatevariants expr -c 'va.majControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Control" && g.isHomRef)'
+annotatevariants expr -c 'va.fet = fet(va.macCase.toInt, va.majCase.toInt, va.macControl.toInt, va.majControl.toInt)'
+filtervariants expr --keep -c 'va.fet.pValue < 1e-4'
+exportvariants -o /path/my/results.tsv -c 'v, va.macCase, va.majCase, va.macControl, va.majControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'
+```
