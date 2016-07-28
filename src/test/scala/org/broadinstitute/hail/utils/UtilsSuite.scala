@@ -82,6 +82,16 @@ class UtilsSuite extends SparkSuite {
     assert(join2.count() == 2)
   }
 
+  @Test def testForallExists() {
+    val rdd1 = sc.parallelize(Array(1, 2, 3, 4, 5))
+
+    assert(rdd1.forall(_ > 0))
+    assert(!rdd1.forall(_ <= 0))
+    assert(!rdd1.forall(_ < 3))
+    assert(rdd1.exists(_ > 4))
+    assert(!rdd1.exists(_ < 0))
+  }
+
   @Test def spanningIterator() = {
     assert(span(List()) == List())
     assert(span(List((1, "a"))) == List((1, List("a"))))

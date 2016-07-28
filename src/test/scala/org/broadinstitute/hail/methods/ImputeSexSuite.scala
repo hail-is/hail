@@ -65,7 +65,7 @@ class ImputeSexSuite extends SparkSuite {
 
           val mergeResults = plinkResult.fullOuterJoin(hailResult)
 
-          val result = mergeResults.map { case (sample, (data1, data2)) =>
+          val result = mergeResults.forall { case (sample, (data1, data2)) =>
 
             val (plink_sex, plink_f) = data1.map { case (sex, f) => (sex, f) }.get
             val (hail_sex, hail_f) = data2.map { case (sex, f) => (sex.map(_.asInstanceOf[Int]),
@@ -80,7 +80,7 @@ class ImputeSexSuite extends SparkSuite {
               println(s"$sample plink=${data1.getOrElse("NA")} hail=${data2.getOrElse("NA")} $resultSex $resultF")
               false
             }
-          }.fold(true)(_ && _)
+          }
 
           val countAnnotated = AnnotateVariantsExpr.run(s,
             Array("-c", "va.maf = gs.stats(g.nNonRefAlleles).sum / (gs.count(true) * 2)"))
