@@ -9,9 +9,10 @@
   - `importannotations json` and `annotatevariants json` are gone, because you can replicate the functionality with `table` commands
   - option `--code` added to all `table` commands, as well as `annotatevariants vds` and `annotatevariants vcf`.  This can be used as an alternative to `--root` to have more control over which annotations are selected and where they're going. 
   - new command-level documentation for all these commands.  See the launch pages for [**`annotatevariants`**](docs/commands/AnnotateVariants.md),  [**`annotatesamples`**](docs/commands/AnnotateSamples.md), and  [**`annotateglobal`**](docs/commands/AnnotateGlobal.md)
+
 ____
  
- - Added expr function `fet` to calculate p-values using Fisher's Exact Test.  Invoke this with `fet(count1, count2, count3, count4)` [see docs for details](docs/HailExpressionLanguage.md)
+Added expr function `fet` to calculate p-values using Fisher's Exact Test.  Invoke this with `fet(count1, count2, count3, count4)` [see docs for details](docs/HailExpressionLanguage.md)
 
 ____
 
