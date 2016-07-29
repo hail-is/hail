@@ -15,10 +15,11 @@ object IntervalListAnnotator {
     readLines(filename, hConf) { s =>
       val m = s
         .filter(line => !line.value.isEmpty && line.value(0) != '@')
-        .map(_.transform { line => line.value match {
-          case str => str.split("\t") match {
+        .map(_.map { line =>
+          line.split("\t") match {
             case Array(contig, start, end, direction, target) =>
-              assert(direction == "+" || direction == "-")
+              if (!(direction == "+" || direction == "-"))
+                fatal(s"expect `+' or `-' in the `direction' field, but found $direction")
               // interval list is 1-based, inclusive: [start, end]
               (Interval(Locus(contig, start.toInt),
                 Locus(contig, end.toInt + 1)), target)
@@ -28,9 +29,10 @@ object IntervalListAnnotator {
                 |  `chr  start  end' (tab-separated)
                 |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
               """.stripMargin)
+
           }
-        }
-        })
+        }.value
+        )
         .toMap
         .force
 
@@ -39,57 +41,60 @@ object IntervalListAnnotator {
   }
 
   def read(filename: String, hConf: hadoop.conf.Configuration): IntervalTree[Locus] = {
-    readLines(filename, hConf) { s =>
-      val intervals = s
-        .filter(line => !line.value.isEmpty && line.value(0) != '@')
-        .map(_.transform { line => line.value match {
-          case intervalRegex(contig, start_str, end_str) =>
-            // interval list is 1-based, inclusive: [start, end]
-            Interval(Locus(contig, start_str.toInt),
-              Locus(contig, end_str.toInt + 1))
-          case str => str.split("\t") match {
-            case Array(contig, start, end, direction, _) =>
-              assert(direction == "+" || direction == "-")
+    readLines(filename, hConf) {
+      s =>
+        val intervals = s
+          .filter(line => !line.value.isEmpty && line.value(0) != '@')
+          .map(_.map {
+            case intervalRegex(contig, start_str, end_str) =>
               // interval list is 1-based, inclusive: [start, end]
-              Interval(Locus(contig, start.toInt),
-                Locus(contig, end.toInt + 1))
-            case _ => fatal(
-              """invalid interval format.  Acceptable formats:
-                |  `chr:start-end'
-                |  `chr  start  end' (tab-separated)
-                |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
-              """.stripMargin)
-          }
-        }
-        })
-        .toArray
+              Interval(Locus(contig, start_str.toInt),
+                Locus(contig, end_str.toInt + 1))
+            case str => str.split("\t") match {
+              case Array(contig, start, end, direction, _) =>
+                if (!(direction == "+" || direction == "-"))
+                  fatal(s"expect `+' or `-' in the `direction' field, but found $direction")
+                // interval list is 1-based, inclusive: [start, end]
+                Interval(Locus(contig, start.toInt),
+                  Locus(contig, end.toInt + 1))
+              case _ => fatal(
+                """invalid interval format.  Acceptable formats:
+                  |  `chr:start-end'
+                  |  `chr  start  end' (tab-separated)
+                  |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
+                """.stripMargin)
+            }
+          }.value)
+          .toArray
 
-      IntervalTree(intervals)
+        IntervalTree(intervals)
     }
   }
 
   def write(it: IntervalTree[Locus], filename: String, hConf: hadoop.conf.Configuration) {
-    writeTextFile(filename, hConf) { fw =>
-      it.foreach { i =>
-        assert(i.start.contig == i.end.contig)
-        // interval list is 1-based, inclusive: [start, end]
-        fw.write(i.start.contig + ":" + i.start.position + "-" + (i.end.position - 1) + "\n")
-      }
+    writeTextFile(filename, hConf) {
+      fw =>
+        it.foreach { i =>
+          assert(i.start.contig == i.end.contig)
+          // interval list is 1-based, inclusive: [start, end]
+          fw.write(i.start.contig + ":" + i.start.position + "-" + (i.end.position - 1) + "\n")
+        }
     }
   }
 
   def apply(filename: String, hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], Annotation])]) = {
-    val stringAnno = readLines(filename, hConf) { lines =>
+    val stringAnno = readLines(filename, hConf) {
+      lines =>
 
-      if (lines.isEmpty)
-        fatal("empty interval file")
+        if (lines.isEmpty)
+          fatal("empty interval file")
 
-      val firstLine = lines.next()
-      firstLine.value match {
-        case intervalRegex(contig, start_str, end_str) => false
-        case line if line.split("""\s+""").length == 5 => true
-        case _ => fatal("unsupported interval list format")
-      }
+        val firstLine = lines.next()
+        firstLine.value match {
+          case intervalRegex(contig, start_str, end_str) => false
+          case line if line.split("""\s+""").length == 5 => true
+          case _ => fatal("unsupported interval list format")
+        }
     }
 
     if (stringAnno) {

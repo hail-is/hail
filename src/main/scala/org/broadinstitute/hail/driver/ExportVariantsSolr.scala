@@ -120,11 +120,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val vA = vEC.a
 
     // FIXME use custom parser with constraint on Solr field name
-    val vparsed = Parser.parseAnnotationArgs(vCond, vEC)
-      .map { case (name, t, f) =>
-        assert(name.tail == Nil)
-        (name.head, t, f)
-      }
+    val vparsed = Parser.parseNamedArgs(vCond, vEC)
 
     val gSymTab = Map(
       "v" ->(0, TVariant),
@@ -135,11 +131,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
-    val gparsed = Parser.parseAnnotationArgs(gCond, gEC)
-      .map { case (name, t, f) =>
-        assert(name.tail == Nil)
-        (name.head, t, f)
-      }
+    val gparsed = Parser.parseNamedArgs(gCond, gEC)
 
     val url = options.url
     val zkHost = options.zkHost

@@ -312,16 +312,16 @@ class RichOrderedSeq[T: Ordering](s: Seq[T]) {
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFilesLines(files: Array[String], f: String => Unit = s => (),
-    nPartitions: Int = sc.defaultMinPartitions): RDD[Line] = {
+    nPartitions: Int = sc.defaultMinPartitions): RDD[WithContext[String]] = {
     files.foreach(f)
     sc.union(
       files.map(file =>
         sc.textFileLines(file, nPartitions)))
   }
 
-  def textFileLines(file: String, nPartitions: Int = sc.defaultMinPartitions): RDD[Line] =
+  def textFileLines(file: String, nPartitions: Int = sc.defaultMinPartitions): RDD[WithContext[String]] =
     sc.textFile(file, nPartitions)
-      .map(l => Line(l, None, file))
+      .map(l => WithContext(l, TextContext(l, file, None)))
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
@@ -1072,29 +1072,47 @@ object Utils extends Logging {
     }
   }
 
-  case class Line(value: String, position: Option[Int], filename: String) {
-    def transform[T](f: Line => T): T = {
+  abstract class Context {
+    def wrapException(e: Exception): Nothing
+  }
+
+  case class TextContext(line: String, file: String, position: Option[Int]) extends Context {
+    def wrapException(e: Exception): Nothing = {
+      val msg = e match {
+        case _: FatalException => e.getMessage
+        case _ => s"caught $e"
+      }
+      val lineToPrint =
+        if (line.length > 62)
+          line.take(59) + "..."
+        else
+          line
+
+      log.error(
+        s"""
+           |$file${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
+           |  offending line: $line""".stripMargin)
+      fatal(
+        s"""
+           |$file${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
+           |  offending line: $lineToPrint""".stripMargin)
+    }
+  }
+
+  case class WithContext[T](value: T, source: Context) {
+    def map[U](f: T => U): WithContext[U] = {
       try {
-        f(this)
+        copy[U](value = f(value))
       } catch {
-        case e: Exception =>
-          val lineToPrint =
-            if (value.length > 62)
-              value.take(59) + "..."
-            else
-              value
-          val msg = if (e.isInstanceOf[FatalException])
-            e.getMessage
-          else
-            s"caught $e"
-          log.error(
-            s"""
-               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
-               |  offending line: $value""".stripMargin)
-          fatal(
-            s"""
-               |$filename${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
-               |  offending line: $lineToPrint""".stripMargin)
+        case e: Exception => source.wrapException(e)
+      }
+    }
+
+    def foreach(f: T => Unit) {
+      try {
+        f(value)
+      } catch {
+        case e: Exception => source.wrapException(e)
       }
     }
   }
@@ -1106,14 +1124,16 @@ object Utils extends Logging {
       str
   }
 
-  def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[Line] => T)): T = {
+  def readLines[T](filename: String, hConf: hadoop.conf.Configuration)(reader: (Iterator[WithContext[String]] => T)): T = {
     readFile[T](filename, hConf) {
       is =>
         val lines = Source.fromInputStream(is)
           .getLines()
           .zipWithIndex
           .map {
-            case (value, position) => Line(value, Some(position), filename)
+            case (value, position) =>
+              val source = TextContext(value, filename, Some(position))
+              WithContext(value, source)
           }
         reader(lines)
     }

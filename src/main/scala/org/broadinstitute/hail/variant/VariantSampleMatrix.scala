@@ -555,8 +555,44 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def same(that: VariantSampleMatrix[T]): Boolean = {
     val metadataSame = metadata == that.metadata
-    if (!metadataSame)
+    if (!metadataSame) {
       println("metadata were not the same")
+      if (vaSignature != that.vaSignature)
+        println(
+          s"""different va signature:
+             |  left:  ${vaSignature.toPrettyString(compact = true)}
+             |  right: ${that.vaSignature.toPrettyString(compact = true)}""".stripMargin)
+      if (saSignature != that.saSignature)
+        println(
+          s"""different sa signature:
+              |  left:  ${saSignature.toPrettyString(compact = true)}
+              |  right: ${that.saSignature.toPrettyString(compact = true)}""".stripMargin)
+      if (globalSignature != that.globalSignature)
+        println(
+          s"""different global signature:
+              |  left:  ${globalSignature.toPrettyString(compact = true)}
+              |  right: ${that.globalSignature.toPrettyString(compact = true)}""".stripMargin)
+      if (sampleIds != that.sampleIds)
+        println(
+          s"""different sample ids:
+              |  left:  $sampleIds
+              |  right: ${that.sampleIds}""".stripMargin)
+      if (sampleAnnotations != that.sampleAnnotations)
+        println(
+          s"""different sample annotations:
+              |  left:  $sampleAnnotations
+              |  right: ${that.sampleAnnotations}""".stripMargin)
+      if (sampleIds != that.sampleIds)
+        println(
+          s"""different global annotation:
+              |  left:  $globalAnnotation
+              |  right: ${that.globalAnnotation}""".stripMargin)
+      if (wasSplit != that.wasSplit)
+        println(
+          s"""different was split:
+              |  left:  $wasSplit
+              |  right: ${that.wasSplit}""".stripMargin)
+    }
     metadataSame &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
@@ -564,7 +600,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
             val annotationsSame = va1 == va2
             if (!annotationsSame)
-              println(s"annotations $va1, $va2 were not the same")
+              println(
+                s"""at variant `$v', annotations were not the same:
+                    |  $va1
+                    |  $va2
+                 """.stripMargin)
             val genotypesSame = (it1, it2).zipped.forall { case (g1, g2) =>
               if (g1 != g2)
                 println(s"genotypes $g1, $g2 were not the same")
@@ -632,20 +672,21 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     }
   }
 
-  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: Type,
-    path: List[String]): VariantSampleMatrix[T] = {
-    val (newSignature, inserter) = insertVA(signature, path)
+  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], newSignature: Type,
+    inserter: Inserter): VariantSampleMatrix[T] = {
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
       .leftOuterJoinDistinct(otherRDD)
       .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateSamples(annotations: Map[String, Annotation], signature: Type,
-    path: List[String]): VariantSampleMatrix[T] = {
+  def annotateSamples(annotations: Map[String, Annotation], signature: Type, path: List[String]): VariantSampleMatrix[T] = {
+    val (t, i) = insertSA(signature, path)
+    annotateSamples(annotations, t, i)
+  }
 
-    val (newSignature, inserter) = insertSA(signature, path)
-
+  def annotateSamples(annotations: Map[String, Annotation], newSignature: Type,
+    inserter: Inserter): VariantSampleMatrix[T] = {
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
       val sa = sampleAnnotations(i)
       inserter(sa, annotations.get(id))

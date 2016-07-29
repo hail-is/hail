@@ -35,25 +35,25 @@ object BedAnnotator {
       if (getString) {
         val m = dataLines
           .filter(l => !l.value.isEmpty)
-          .map(l => l.transform { line =>
-            val Array(chrom, strStart, strEnd, value) = line.value.split("""\s+""")
+          .map(l => l.map { line =>
+            val Array(chrom, strStart, strEnd, value) = line.split("""\s+""")
             // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
             (Interval(Locus(chrom, strStart.toInt + 1),
               Locus(chrom, strEnd.toInt + 1)),
               value)
-          })
+          }.value)
           .toMap
         val t = IntervalTree(m.keys.toArray)
         (t, Some(TString, m))
       } else {
         val t = IntervalTree(dataLines
           .filter(l => !l.value.isEmpty)
-          .map(l => l.transform { line =>
-            val Array(chrom, strStart, strEnd) = line.value.split("""\s+""")
+          .map(l => l.map { line =>
+            val Array(chrom, strStart, strEnd) = line.split("""\s+""")
             // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
             Interval(Locus(chrom, strStart.toInt + 1),
               Locus(chrom, strEnd.toInt + 1))
-          }))
+          }.value))
         (t, None)
       }
     }

@@ -14,22 +14,23 @@ import org.broadinstitute.hail.variant._
 
 class ImputeSexSuite extends SparkSuite {
 
-  def parsePlinkSexCheck(file: String): RDD[(String, (Option[Int], Option[Double]))] = sc.parallelize(readLines(file, sc.hadoopConfiguration)(_.drop(1).map(_.transform { line =>
-    val Array(fid, iid, pedsex, snpsex, status, f) = line.value.trim.split("\\s+")
-    val sex = snpsex match {
-      case "1" => Option(1)
-      case "2" => Option(2)
-      case _ => None
-    }
-    val fMod = f match {
-      case "nan" => None
-      case x:String => Option(x.toDouble)
-      case _ => throw new IllegalArgumentException
-    }
+  def parsePlinkSexCheck(file: String): RDD[(String, (Option[Int], Option[Double]))] =
+    sc.parallelize(readLines(file, sc.hadoopConfiguration)(_.drop(1).map(_.map { line =>
+      val Array(fid, iid, pedsex, snpsex, status, f) = line.trim.split("\\s+")
+      val sex = snpsex match {
+        case "1" => Option(1)
+        case "2" => Option(2)
+        case _ => None
+      }
+      val fMod = f match {
+        case "nan" => None
+        case x: String => Option(x.toDouble)
+        case _ => throw new IllegalArgumentException
+      }
 
-    (iid, (sex, fMod))
-  }
-  ).toIndexedSeq))
+      (iid, (sex, fMod))
+    }.value
+    ).toIndexedSeq))
 
   object Spec extends Properties("ImputeSex") {
 
@@ -69,7 +70,8 @@ class ImputeSexSuite extends SparkSuite {
 
             val (plink_sex, plink_f) = data1.map { case (sex, f) => (sex, f) }.get
             val (hail_sex, hail_f) = data2.map { case (sex, f) => (sex.map(_.asInstanceOf[Int]),
-              f.map(_.asInstanceOf[Double])) }.get
+              f.map(_.asInstanceOf[Double]))
+            }.get
 
             val resultSex = plink_sex == hail_sex
             val resultF = if (plink_f.isDefined && hail_f.isDefined) math.abs(plink_f.get - hail_f.get) < 1e-3 else plink_f == hail_f

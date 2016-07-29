@@ -186,9 +186,9 @@ object LoadVCF {
 
     val infoSignature = if (infoHeader.size > 0)
       Some(TStruct(infoHeader
-      .zipWithIndex
-      .map { case (line, i) => infoField(line, i) }
-      .toArray))
+        .zipWithIndex
+        .map { case (line, i) => infoField(line, i) }
+        .toArray))
     else None
 
 
@@ -225,32 +225,30 @@ object LoadVCF {
 
     val genotypes = sc.union(files2.map { file =>
       val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-      VCFReport.accumulators ::=(file, reportAcc)
+      VCFReport.accumulators ::= (file, reportAcc)
 
-      sc.textFile(file, nPartitions.getOrElse(sc.defaultMinPartitions))
-        .map(x => Line(x, None, file))
+      sc.textFileLines(file, nPartitions.getOrElse(sc.defaultMinPartitions))
         .mapPartitions { lines =>
           val codec = new htsjdk.variant.vcf.VCFCodec()
           val reader = vcf.HtsjdkRecordReader(headerLinesBc.value, codec)
-          lines.flatMap { l => l.transform { line =>
-            val lineValue = line.value
-            if (lineValue.isEmpty || lineValue(0) == '#')
+          lines.flatMap { l => l.map { line =>
+            if (line.isEmpty || line(0) == '#')
               None
-              else if (!lineRef(line.value).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
-                reportAcc += VCFReport.RefNonACGTN
+            else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
+              reportAcc += VCFReport.RefNonACGTN
+              None
+            } else {
+              val vc = codec.decode(line)
+              if (vc.isSymbolic) {
+                reportAcc += VCFReport.Symbolic
                 None
-              } else {
-                val vc = codec.decode(line.value)
-                if (vc.isSymbolic) {
-                  reportAcc += VCFReport.Symbolic
-                  None
-                } else
-                  Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value),
-                    settings))
-              }
+              } else
+                Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value),
+                  settings))
             }
+          }.value
           }
-          }
+        }
     })
 
     VariantSampleMatrix(VariantMetadata(sampleIds,

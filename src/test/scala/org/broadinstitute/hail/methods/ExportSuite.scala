@@ -141,17 +141,15 @@ class ExportSuite extends SparkSuite {
     val tmp2 = tmpDir.createTempFile("export", ".types")
 
     ExportVariants.run(s, Array("-o", tmp1,
-    "-t", tmp2,
-    "-c", """{v: str(v), va: va}"""))
+      "-t", tmp2,
+      "-c", "v = v, va = va"))
 
     val preVDS = s.vds
 
-    val t = readFile(tmp2, s.hadoopConf)(in => Source.fromInputStream(in).mkString.substring(3))
-
-    s = AnnotateVariantsJSON.run(s, Array(tmp1,
-    "-v", """root.v.split(":")[0], root.v.split(":")[1].toInt, root.v.split(":")[2], [root.v.split(":")[3]]""",
-    "-r", "va.tmp",
-    "-t", t))
+    s = AnnotateVariantsTable.run(s, Array(tmp1,
+      "-e", "v",
+      "-r", "va.tmp",
+      "-t", s"@$tmp2"))
     s = AnnotateVariantsExpr.run(s, Array("-c", "va = va.tmp.va"))
 
     assert(s.vds.same(preVDS))

@@ -11,6 +11,7 @@ class CaseControlCountSuite extends SparkSuite {
     s = AnnotateSamples.run(s, Array("table",
       "-i", "src/test/resources/casecontrolstatus.tsv",
       "--root", "sa",
+      "--sample-expr", "Sample",
       "--types", "case: Boolean"))
     s = CaseControlCount.run(s, Array[String]())
 

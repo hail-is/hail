@@ -35,6 +35,13 @@ object EvalContext {
 
     EvalContext(symTab, a, af)
   }
+
+  def apply(args: (String, Type)*): EvalContext = {
+    val st = args.zipWithIndex
+      .map { case ((name, t), i) => (name, (i, t)) }
+      .toMap
+    EvalContext(st)
+  }
 }
 
 trait NumericConversion[T] extends Serializable {
@@ -147,22 +154,22 @@ object AST extends Positional {
     }
   }
 
-  def evalCompose[T1, T2, T3, T4](c: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST, subexpr4: AST)
-                                 (g: (T1, T2, T3, T4) => Any): () => Any = {
-    val f1 = subexpr1.eval(c)
-    val f2 = subexpr2.eval(c)
-    val f3 = subexpr3.eval(c)
-    val f4 = subexpr4.eval(c)
+  def evalCompose[T1, T2, T3, T4](ec: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST, subexpr4: AST)
+    (g: (T1, T2, T3, T4) => Any): () => Any = {
+    val f1 = subexpr1.eval(ec)
+    val f2 = subexpr2.eval(ec)
+    val f3 = subexpr3.eval(ec)
+    val f4 = subexpr4.eval(ec)
     () => {
-      val x = f1()
-      if (x != null) {
-        val y = f2()
-        if (y != null) {
-          val z = f3()
-          if (z != null) {
-            val aa = f4()
-            if (aa != null)
-              g(x.asInstanceOf[T1], y.asInstanceOf[T2], z.asInstanceOf[T3], aa.asInstanceOf[T4])
+      val w = f1()
+      if (w != null) {
+        val x = f2()
+        if (x != null) {
+          val y = f3()
+          if (y != null) {
+            val z = f4()
+            if (z != null)
+              g(w.asInstanceOf[T1], x.asInstanceOf[T2], y.asInstanceOf[T3], z.asInstanceOf[T4])
             else
               null
           } else
@@ -602,8 +609,21 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           parseError(s"Got invalid argument `${a.`type`} to function `$fn'")
         TString
 
-      case ("hwe", rhs) =>
-        rhs.map(_.`type`) match {
+      case ("Variant", _) =>
+        args.map(_.`type`) match {
+          case Array(TString) => TVariant
+          case Array(TString, TInt, TString, TString) => TVariant
+          case Array(TString, TInt, TString, TArray(TString)) => TVariant
+          case other => parseError(
+            s"""Got invalid arguments to variant constructor: (${other.mkString(", ")})
+                |  Acceptable formats:
+                |    (String, Int, String, String) for (chr, pos, ref, alt)
+                |    (String, Int, String, Array[String]) for (chr, pos, ref, alts)
+             """.stripMargin)
+        }
+
+      case ("hwe", _) =>
+        args.map(_.`type`) match {
           case Array(TInt, TInt, TInt) => TStruct(("rExpectedHetFrequency", TDouble), ("pHWE", TDouble))
           case other =>
             val nArgs = other.length
@@ -761,6 +781,26 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(ec)
       () => JsonMethods.compact(t.toJSON(f()))
+
+    case ("Variant", _) =>
+      args match {
+        case Array(v) => AST.evalCompose[String](ec, v) { vString =>
+          val Array(chr, pos, ref, alts) = vString.split(":")
+          Variant(chr, pos.toInt, ref, alts.split(","))
+        }
+        case Array(chrAST, posAST, refAST, altAST) =>
+          (altAST.`type`: @unchecked) match {
+            case TString =>
+              AST.evalCompose[String, Int, String, String](ec, chrAST, posAST, refAST, altAST) {
+                case (chr, pos, ref, alt) =>
+                  Variant(chr, pos, ref, alt)
+              }
+            case TArray(_) => AST.evalCompose[String, Int, String, IndexedSeq[_]](ec, chrAST, posAST, refAST, altAST) {
+              case (chr, pos, ref, alts) =>
+                Variant(chr, pos, ref, alts.map(_.asInstanceOf[String]).toArray)
+            }
+          }
+      }
 
     case ("hwe", Array(a, b, c)) =>
       AST.evalCompose[Int, Int, Int](ec, a, b, c) {

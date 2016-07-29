@@ -2,11 +2,12 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.io.TextExporter
 import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object ExportGenotypes extends Command {
+object ExportGenotypes extends Command with TextExporter {
 
   class Options extends BaseOptions {
 
@@ -57,8 +58,8 @@ object ExportGenotypes extends Command {
 
     val ec = EvalContext(symTab)
 
-    val (header, parseResults) = if (cond.endsWith(".columns")) {
-      val (h, functions) = ExportTSV.parseColumnsFile(ec, cond, sc.hadoopConfiguration)
+    val (header, fs) = if (cond.endsWith(".columns")) {
+      val (h, functions) = Parser.parseColumnsFile(ec, cond, sc.hadoopConfiguration)
       (Some(h), functions)
     }
     else
@@ -66,9 +67,9 @@ object ExportGenotypes extends Command {
 
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
-        .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
-        .zip(parseResults.map(_._1))
-      ExportTSV.exportTypes(file, state.hadoopConf, typeInfo)
+        .getOrElse(fs.indices.map(i => s"_$i").toArray)
+        .zip(fs.map(_._1))
+      exportTypes(file, state.hadoopConf, typeInfo)
     }
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
@@ -89,7 +90,10 @@ object ExportGenotypes extends Command {
         .map { case (v, va, s, sa, g) =>
           ec.setAll(v, va, s, sa, g)
           sb.clear()
-          parseResults.foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
+
+          fs.foreachBetween { case (t, f) =>
+            sb.append(f().map(TableAnnotationImpex.exportAnnotation(_, t)).getOrElse("NA"))
+          }(() => sb += '\t')
           sb.result()
         }
     }.writeTable(output, header.map(_.mkString("\t")))

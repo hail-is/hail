@@ -11,7 +11,7 @@ import scala.collection.mutable
 object SampleFamAnnotator {
   //Matches decimal numbers, including scientific notation
   val numericRegex =
-    """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
+  """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def apply(filename: String, delim: String, isQuantitative: Boolean, missing: String,
     hConf: hadoop.conf.Configuration): (Map[String, Annotation], Type) = {
@@ -28,8 +28,8 @@ object SampleFamAnnotator {
       val kidSet = mutable.Set[String]()
 
       val m = lines.map {
-        _.transform { line =>
-          val split = line.value.split(delimiter)
+        _.map { line =>
+          val split = line.split(delimiter)
           if (split.length != 6)
             fatal(s"Malformed .fam file: expected 6 fields, got ${split.length}")
           val Array(fam, kid, dad, mom, isFemale, pheno) = split
@@ -67,7 +67,7 @@ object SampleFamAnnotator {
               }
 
           (kid, Annotation(fam1, dad1, mom1, isFemale1, pheno1))
-        }
+        }.value
       }.toMap
       (m, signature)
     }

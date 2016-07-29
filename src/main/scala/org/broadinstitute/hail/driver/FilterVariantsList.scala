@@ -2,8 +2,6 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -43,8 +41,8 @@ object FilterVariantsList extends Command {
     val variants: RDD[(Variant, Unit)] =
       vds.sparkContext.textFileLines(options.input)
         .map {
-          _.transform { line =>
-            val fields = line.value.split(":")
+          _.map { line =>
+            val fields = line.split(":")
             if (fields.length != 4)
               fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
             val ref = fields(2)
@@ -52,7 +50,7 @@ object FilterVariantsList extends Command {
               fields(1).toInt,
               ref,
               fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
-          }
+          }.value
         }
 
     val in = vds.rdd

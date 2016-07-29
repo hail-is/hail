@@ -15,4 +15,6 @@ package object annotations {
   type Assigner = (Annotation, Option[Any]) => Annotation
 
   type Merger = (Annotation, Annotation) => Annotation
+
+  type Filterer = (Annotation) => Annotation
 }

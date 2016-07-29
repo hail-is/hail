@@ -2,10 +2,11 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.io.TextExporter
 import org.broadinstitute.hail.methods._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object ExportSamples extends Command {
+object ExportSamples extends Command with TextExporter {
 
   class Options extends BaseOptions {
 
@@ -58,8 +59,8 @@ object ExportSamples extends Command {
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val (header, parseResults) = if (cond.endsWith(".columns")) {
-      val (h, functions) = ExportTSV.parseColumnsFile(ec, cond, hConf)
+    val (header, fs) = if (cond.endsWith(".columns")) {
+      val (h, functions) = Parser.parseColumnsFile(ec, cond, hConf)
       (Some(h), functions)
     }
     else
@@ -67,9 +68,9 @@ object ExportSamples extends Command {
 
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
-        .getOrElse(parseResults.indices.map(i => s"_$i").toArray)
-        .zip(parseResults.map(_._1))
-      ExportTSV.exportTypes(file, state.hadoopConf, typeInfo)
+        .getOrElse(fs.indices.map(i => s"_$i").toArray)
+        .zip(fs.map(_._1))
+      exportTypes(file, state.hadoopConf, typeInfo)
     }
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
@@ -84,7 +85,10 @@ object ExportSamples extends Command {
 
       sampleAggregationOption.foreach(f => f.apply(s))
 
-      parseResults.foreachBetween { case (t, f) => sb.append(f().map(t.str).getOrElse("NA")) }(() => sb += '\t')
+      var first = true
+      fs.foreachBetween { case (t, f) =>
+        sb.append(f().map(TableAnnotationImpex.exportAnnotation(_, t)).getOrElse("NA"))
+      }(() => sb += '\t')
       sb.result()
     }
 
