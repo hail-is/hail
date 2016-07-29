@@ -939,11 +939,21 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${body.`type`}]")
         `type` = TBoolean
 
+      case (arr: TArray, "sort", rhs) =>
+        lhs.typecheck(ec)
+        rhs match {
+          case Array() =>
+          case Array(Const(_, _, TBoolean)) =>
+          case _ => parseError(s"method `$method' expects at most one Boolean parameter")
+        }
+        `type` = arr
+
       case (arr: TArray, "sortBy", rhs) =>
         lhs.typecheck(ec)
         val (param, body) = rhs match {
           case Array(Lambda(_, p, b)) => (p, b)
-          case _ => parseError(s"method `$method' expects a lambda function [param => T] with T of string or numeric type")
+          case Array(Lambda(_, p, b), Const(_, _, TBoolean)) => (p, b)
+          case _ => parseError(s"method `$method' expects a lambda function [param => T] and at most one Boolean parameter")
         }
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, arr.elementType)))))
         if (!(body.`type`.isInstanceOf[TNumeric] || body.`type` == TString))
@@ -1177,16 +1187,48 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
       }
 
-    case (returnType, "sortBy", Array(Lambda(_, param, body))) =>
+    case (returnType, "sort", rhs) =>
+      val ascending = (rhs: @unchecked) match {
+        case Array() => true
+        case Array(Const(_, asc, _)) => asc.asInstanceOf[Boolean]
+      }
+      val baseOrd = (returnType: @unchecked) match {
+        case TArray(TDouble) => Ordering.Double
+        case TArray(TFloat) => Ordering.Float
+        case TArray(TLong) => Ordering.Long
+        case TArray(TInt) => Ordering.Int
+        case TArray(TString) => Ordering.String
+      }
+      val ord = extendOrderingToNull(
+        if (ascending)
+          baseOrd
+        else
+          baseOrd.reverse
+      )
+      AST.evalCompose[IndexedSeq[_]](ec, lhs) { arr =>
+        arr.sorted(ord)
+      }
+
+    case (returnType, "sortBy", rhs) =>
+      val ascending = (rhs: @unchecked) match {
+        case Array(_) => true
+        case Array(_, Const(_, asc, _)) => asc.asInstanceOf[Boolean]
+      }
+      val Lambda(_, param, body) = rhs(0)
+      val baseOrd = (body.`type`: @unchecked) match {
+        case TDouble => Ordering.Double
+        case TFloat => Ordering.Float
+        case TLong => Ordering.Long
+        case TInt => Ordering.Int
+        case TString => Ordering.String
+      }
+      val ord = extendOrderingToNull(
+        if (ascending)
+          baseOrd
+        else
+          baseOrd.reverse)
       val localIdx = ec.a.length
       val localA = ec.a
-      val ord = (body.`type`: @unchecked) match {
-        case TDouble => extendOrderingToNull[Double]
-        case TFloat => extendOrderingToNull[Float]
-        case TLong => extendOrderingToNull[Long]
-        case TInt => extendOrderingToNull[Int]
-        case TString => extendOrderingToNull[String]
-      }
       localA += null
       val bodyFn = body.eval(ec.copy(st = ec.st + (param -> (localIdx, returnType))))
       AST.evalCompose[IndexedSeq[_]](ec, lhs) { arr =>

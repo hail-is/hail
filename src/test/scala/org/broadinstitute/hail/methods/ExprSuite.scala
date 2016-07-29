@@ -157,10 +157,51 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
 
-    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(null, -1, 1, 2, 3, 3, 6, 8)))
-    assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(null, 8, 6, 3, 3, 2, 1, -1)))
-    assert(eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""").contains(IndexedSeq(null, 1, 2, -1, 3, 3, 6, 8)))
-    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x)""").contains(IndexedSeq(null, null, "a", "c", "c", "d", "d", "e")))
+    assert(eval[IndexedSeq[_]]("""a.sort()""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
+    assert(eval[IndexedSeq[_]]("""a.sort(true)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
+    assert(eval[IndexedSeq[_]]("""a.sort(false)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
+
+    assert(eval[IndexedSeq[_]]("""a2.sort()""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
+    assert(eval[IndexedSeq[_]]("""a2.sort(true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
+    assert(eval[IndexedSeq[_]]("""a2.sort(false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
+
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort(0)"""))
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort("asdasd")"""))
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort(true, true)"""))
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort(null)"""))
+    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sort(asdasd)"""))
+
+
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""").contains(IndexedSeq(1, 2, -1, 3, 3, 6, 8, null)))
+
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x, true)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x, false)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
+
+    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
+    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
+    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
+
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(0)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(0, true)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, 0)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, "asdasd")"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, true, true)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, null)"""))
+    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+      eval[IndexedSeq[_]]("""a.sortBy(x => x, asdasd)"""))
 
     assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
       .contains("HELLO=-7, asdasd9"))
