@@ -13,7 +13,14 @@ object SampleFamAnnotator {
   val numericRegex =
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
-  def apply(filename: String, delim: String, isQuantitative: Boolean, missing: String,
+  val famID = "famID"
+  val patID = "patID"
+  val matID = "matID"
+  val isFemale = "isFemale"
+  val isCase = "isCase"
+  val qPheno = "qPheno"
+
+  def apply(filename: String, delim: String, isQuantitative: Boolean, missing: String, load_implicit: Boolean,
     hConf: hadoop.conf.Configuration): (Map[String, Annotation], Type) = {
     readLines(filename, hConf) { lines =>
       if (lines.isEmpty)
@@ -21,9 +28,9 @@ object SampleFamAnnotator {
 
       val delimiter = unescapeString(delim)
 
-      val phenoSig = if (isQuantitative) ("qPheno", TDouble) else ("isCase", TBoolean)
+      val phenoSig = if (isQuantitative) (qPheno, TDouble) else (isCase, TBoolean)
 
-      val signature = TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isFemale", TBoolean), phenoSig)
+      val signature = TStruct((famID, TString), (patID, TString), (matID, TString), (isFemale, TBoolean), phenoSig)
 
       val kidSet = mutable.Set[String]()
 
@@ -66,10 +73,27 @@ object SampleFamAnnotator {
                 case _ => null
               }
 
-          (kid, Annotation(fam1, dad1, mom1, isFemale1, pheno1))
+          (kid, (fam1, dad1, mom1, isFemale1, pheno1))
         }
       }.toMap
-      (m, signature)
+
+      if(load_implicit){
+        def defaultParentVals(fam1: String, sex: Boolean) : (String, String, String, Any, Any) = {
+          (fam1,null,null,sex,null)
+        }
+        //Add parents annotations
+        val parents = m.flatMap({
+          case (kid, (fam1, dad1, mom1, isFemale1, pheno1)) =>
+            List((dad1,false),(mom1,true)).filter({x => !kidSet.contains(x._1)}).map({
+              case(id,sex) => (id,defaultParentVals(fam1,sex))
+            })
+        })
+
+        ((m ++ parents).mapValues({x => Annotation(x._1,x._2,x._3,x._4,x._5)}), signature)
+      }else{
+        (m.mapValues({x => Annotation(x._1,x._2,x._3,x._4,x._5)}), signature)
+      }
+
     }
   }
 }

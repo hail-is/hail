@@ -28,6 +28,10 @@ object AnnotateSamplesFam extends Command {
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = "Identifier to be treated as missing (for case-control, in addition to `0', `-9', and non-numeric)")
     var missing: String = "NA"
+
+    @Args4jOption(required = false, name = "--implicit-parents",
+      usage = "Add information to parents that do not have a line in the fam file but are listed as parent of a child")
+    var load_implicit: Boolean = false
   }
 
   def newOptions = new Options
@@ -51,7 +55,7 @@ object AnnotateSamplesFam extends Command {
     val delimiter = options.delimiter
     val isQuantitative = options.isQuantitative
 
-    val (m, signature) = SampleFamAnnotator(input, delimiter, isQuantitative, options.missing, state.hadoopConf)
+    val (m, signature) = SampleFamAnnotator(input, delimiter, isQuantitative, options.missing, options.load_implicit, state.hadoopConf)
     val annotated = vds.annotateSamples(m, signature, Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
     state.copy(vds = annotated)
   }

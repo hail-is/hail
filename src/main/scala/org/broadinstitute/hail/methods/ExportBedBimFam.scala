@@ -39,4 +39,9 @@ object ExportBedBimFam {
   def makeFamRow(s: String): String = {
     s"0\t$s\t0\t0\t0\t-9"
   }
+
+  def makeFamRow(famID : String, s: String, patID: String, matID: String, sex: String, pheno: String): String = {
+    s"$famID\t$s\t$patID\t$matID\t$sex\t$pheno"
+  }
+
 }
