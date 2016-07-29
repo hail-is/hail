@@ -1,7 +1,5 @@
 package org.broadinstitute.hail.driver
 
-import java.time._
-
 import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
@@ -73,7 +71,6 @@ object ExportVCF extends Command {
       val sb = new StringBuilder()
 
       sb.append("##fileformat=VCFv4.2\n")
-      sb.append(s"##fileDate=${LocalDate.now}\n")
       // FIXME add Hail version
       if (exportPP)
         sb.append(
