@@ -5,7 +5,7 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.stats.LeveneHaldane
+import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
 import org.json4s.jackson.JsonMethods
 
@@ -139,6 +139,33 @@ object AST extends Positional {
           if (z != null)
             g(x.asInstanceOf[T1], y.asInstanceOf[T2], z.asInstanceOf[T3])
           else
+            null
+        } else
+          null
+      } else
+        null
+    }
+  }
+
+  def evalCompose[T1, T2, T3, T4](c: EvalContext, subexpr1: AST, subexpr2: AST, subexpr3: AST, subexpr4: AST)
+                                 (g: (T1, T2, T3, T4) => Any): () => Any = {
+    val f1 = subexpr1.eval(c)
+    val f2 = subexpr2.eval(c)
+    val f3 = subexpr3.eval(c)
+    val f4 = subexpr4.eval(c)
+    () => {
+      val x = f1()
+      if (x != null) {
+        val y = f2()
+        if (y != null) {
+          val z = f3()
+          if (z != null) {
+            val aa = f4()
+            if (aa != null)
+              g(x.asInstanceOf[T1], y.asInstanceOf[T2], z.asInstanceOf[T3], aa.asInstanceOf[T4])
+            else
+              null
+          } else
             null
         } else
           null
@@ -592,6 +619,20 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
               }""".stripMargin)
         }
 
+      case ("fet", rhs) =>
+        rhs.map(_.`type`) match {
+          case Array(TInt, TInt, TInt, TInt) => TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble))
+          case other =>
+            val nArgs = other.length
+            parseError(
+              s"""method `fet' expects 4 arguments of type Int, e.g. fet(5,100,0,1000)
+                  |  Found $nArgs ${plural(nArgs, "argument")}${
+                if (nArgs > 0)
+                  s" of ${plural(nArgs, "type")} [${other.mkString(", ")}]"
+                else ""
+              }""".stripMargin)
+        }
+
       case ("merge", rhs) =>
         val (t1, t2) = args.map(_.`type`) match {
           case Array(t1: TStruct, t2: TStruct) => (t1, t2)
@@ -709,17 +750,21 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("isMissing", Array(a)) =>
       val f = a.eval(ec)
       () => f() == null
+
     case ("isDefined", Array(a)) =>
       val f = a.eval(ec)
       () => f() != null
+
     case ("str", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(ec)
       () => t.str(f())
+
     case ("json", Array(a)) =>
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(ec)
       () => JsonMethods.compact(t.toJSON(f()))
+
     case ("hwe", Array(a, b, c)) =>
       AST.evalCompose[Int, Int, Int](ec, a, b, c) {
         case (nHomRef, nHet, nHomVar) =>
@@ -731,6 +776,14 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
           val LH = LeveneHaldane(n, nA)
           Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
+      }
+
+    case ("fet", Array(a, b, c, d)) =>
+      AST.evalCompose[Int, Int, Int, Int](ec, a, b, c, d) { case (c1, c2, c3, c4) =>
+        if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
+          fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
+        val fet = FisherExactTest(c1, c2, c3, c4)
+        Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
       }
 
     case ("merge", Array(struct1, struct2)) =>
@@ -842,6 +895,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           parseError(s"method `$method' expects a lambda function [param => Boolean], got [param => ${body.`type`}]")
         `type` = TBoolean
 
+      case (arr: TArray, "sortBy", rhs) =>
+        lhs.typecheck(ec)
+        val (param, body) = rhs match {
+          case Array(Lambda(_, p, b)) => (p, b)
+          case _ => parseError(s"method `$method' expects a lambda function [param => T] with T of string or numeric type")
+        }
+        body.typecheck(ec.copy(st = ec.st + ((param, (-1, arr.elementType)))))
+        if (!(body.`type`.isInstanceOf[TNumeric] || body.`type` == TString))
+          parseError(s"method `$method' expects a lambda function [param => T] with T of string or numeric type, got [param => ${body.`type`}]")
+        `type` = arr
+
       case (TDict(elementType), "mapvalues", rhs) =>
         lhs.typecheck(ec)
         val (param, body) = rhs match {
@@ -855,7 +919,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           case error =>
             parseError(s"method `$method' expects a lambda function [param => Any], got invalid mapping [param => $error]")
         }
-
 
       case (agg: TAggregable, "count", rhs) =>
         rhs.foreach(_.typecheck(agg.ec))
@@ -1068,6 +1131,25 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           val r = bodyFn()
           r.asInstanceOf[Boolean]
         }
+      }
+
+    case (returnType, "sortBy", Array(Lambda(_, param, body))) =>
+      val localIdx = ec.a.length
+      val localA = ec.a
+      val ord = (body.`type`: @unchecked) match {
+        case TDouble => extendOrderingToNull[Double]
+        case TFloat => extendOrderingToNull[Float]
+        case TLong => extendOrderingToNull[Long]
+        case TInt => extendOrderingToNull[Int]
+        case TString => extendOrderingToNull[String]
+      }
+      localA += null
+      val bodyFn = body.eval(ec.copy(st = ec.st + (param -> (localIdx, returnType))))
+      AST.evalCompose[IndexedSeq[_]](ec, lhs) { arr =>
+        arr.sortBy { elt =>
+          localA(localIdx) = elt
+          bodyFn()
+        } (ord)
       }
 
     case (returnType, "mapvalues", Array(Lambda(_, param, body))) =>

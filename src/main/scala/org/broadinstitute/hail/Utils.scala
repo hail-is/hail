@@ -327,6 +327,10 @@ class RichSparkContext(val sc: SparkContext) extends AnyVal {
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
+  def forall(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(true)(_ && _)
+
+  def exists(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(false)(_ || _)
+
   def writeTable(filename: String, header: Option[String] = None, deleteTmpFiles: Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
     val tmpFileName = hadoopGetTemporaryFile(HailConfiguration.tmpDir, hConf)
@@ -1244,23 +1248,25 @@ object Utils extends Logging {
   def D_epsilon(a: Double, b: Double, tolerance: Double = 1.0E-6): Double =
     math.max(java.lang.Double.MIN_NORMAL, tolerance * math.max(math.abs(a), math.abs(b)))
 
-  def D_==(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    math.abs(a - b) <= D_epsilon(a, b, tolerance)
+  def D_==(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
+      a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
+  }
 
-  def D_!=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    math.abs(a - b) > D_epsilon(a, b, tolerance)
+  def D_!=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
+      !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
+  }
 
   def D_<(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    a - b < -D_epsilon(a, b, tolerance)
+    !(a == b) && a - b < -D_epsilon(a, b, tolerance)
 
   def D_<=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    a - b <= D_epsilon(a, b, tolerance)
+    (a == b) || a - b <= D_epsilon(a, b, tolerance)
 
   def D_>(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    a - b > D_epsilon(a, b, tolerance)
+    !(a == b) && a - b > D_epsilon(a, b, tolerance)
 
   def D_>=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
-    a - b >= -D_epsilon(a, b, tolerance)
+    (a == b) || a - b >= -D_epsilon(a, b, tolerance)
 
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
@@ -1305,15 +1311,15 @@ object Utils extends Logging {
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
-  class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
-    private def writeObject(out: ObjectOutputStream) {
-      out.defaultWriteObject()
-      value.write(out)
-    }
-
-    private def readObject(in: ObjectInputStream) {
-      value = new hadoop.conf.Configuration(false)
-      value.readFields(in)
+  def extendOrderingToNull[T](implicit ord: Ordering[T]): Ordering[Any] = {
+    new Ordering[Any] {
+      def compare(a: Any, b: Any) =
+        (a, b) match {
+          case (null, null) => 0
+          case (null, _) => -1
+          case (_, null) => 1
+          case _ => ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
+        }
     }
   }
 }

@@ -38,7 +38,8 @@ class ExprSuite extends SparkSuite {
       "structArray" -> (16, TArray(TStruct(
         ("f1", TInt),
         ("f2", TString),
-        ("f3", TInt)))))
+        ("f3", TInt)))),
+      "a2" -> (17, TArray(TString)))
     val ec = EvalContext(symTab)
 
     val a = ec.a
@@ -66,6 +67,7 @@ class ExprSuite extends SparkSuite {
     a(16) = IndexedSeq(Annotation(1, "A", 2),
       Annotation(5, "B", 6),
       Annotation(10, "C", 10))
+    a(17) = IndexedSeq("a", "d", null, "c", "e", null, "d", "c")
 
     assert(a.length == symTab.size)
 
@@ -155,6 +157,11 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
 
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(null, -1, 1, 2, 3, 3, 6, 8)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(null, 8, 6, 3, 3, 2, 1, -1)))
+    assert(eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""").contains(IndexedSeq(null, 1, 2, -1, 3, 3, 6, 8)))
+    assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x)""").contains(IndexedSeq(null, null, "a", "c", "c", "d", "d", "e")))
+
     assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
       .contains("HELLO=-7, asdasd9"))
 
@@ -240,7 +247,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean](""" index(structArray, f2).contains("B") """).contains(true))
     assert(eval[Boolean](""" index(structArray, f2).contains("E") """).contains(false))
 
-    // caused exponential loop previously
+    // caused exponential blowup previously
     assert(eval[Boolean](
       """
         |if (false) false
@@ -305,6 +312,11 @@ class ExprSuite extends SparkSuite {
 
 
     // FIXME catch parse errors
+    assert(eval(""" "\``\''" """) == eval(""" "``''" """))
+    TestUtils.interceptFatal("""invalid escape character.*string.*\\a""")(eval[String](""" "this is bad \a" """))
+    TestUtils.interceptFatal("""unterminated string literal""")(eval[String](""" "unclosed string \" """))
+    TestUtils.interceptFatal("""invalid escape character.*backtick identifier.*\\i""")(eval[String](""" let `bad\identifier` = 0 in 0 """))
+    TestUtils.interceptFatal("""unterminated backtick identifier""")(eval[String](""" let `bad\identifier = 0 in 0 """))
   }
 
   @Test def testParseTypes() {
