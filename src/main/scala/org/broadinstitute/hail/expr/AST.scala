@@ -279,8 +279,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TVariant, "nAlleles") => TInt
       case (TVariant, "isBiallelic") => TBoolean
       case (TVariant, "nGenotypes") => TInt
-      case (TVariant, "inParX") => TBoolean
-      case (TVariant, "inParY") => TBoolean
+      case (TVariant, "inXPar") => TBoolean
+      case (TVariant, "inYPar") => TBoolean
+      case (TVariant, "inXNonPar") => TBoolean
+      case (TVariant, "inYNonPar") => TBoolean
+
       // assumes biallelic
       case (TVariant, "alt") => TString
       case (TVariant, "altAllele") => TAltAllele
@@ -387,10 +390,14 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Variant](ec, lhs)(_.isBiallelic)
     case (TVariant, "nGenotypes") =>
       AST.evalCompose[Variant](ec, lhs)(_.nGenotypes)
-    case (TVariant, "inParX") =>
-      AST.evalCompose[Variant](ec, lhs)(_.inParX)
-    case (TVariant, "inParY") =>
-      AST.evalCompose[Variant](ec, lhs)(_.inParY)
+    case (TVariant, "inXPar") =>
+      AST.evalCompose[Variant](ec, lhs)(_.inXPar)
+    case (TVariant, "inYPar") =>
+      AST.evalCompose[Variant](ec, lhs)(_.inYPar)
+    case (TVariant, "inXNonPar") =>
+      AST.evalCompose[Variant](ec, lhs)(_.inXNonPar)
+    case (TVariant, "inYNonPar") =>
+      AST.evalCompose[Variant](ec, lhs)(_.inYNonPar)
     // assumes biallelic
     case (TVariant, "alt") =>
       AST.evalCompose[Variant](ec, lhs)(_.alt)

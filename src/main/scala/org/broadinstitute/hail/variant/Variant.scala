@@ -234,17 +234,23 @@ case class Variant(contig: String,
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
-  def inParX: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
+  def inXParPos: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
+  def inYParPos: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
 
-  def inParY: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
+  // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
+  def inXPar: Boolean = (contig == "X" || contig == "23" || contig == "25") && inXParPos
+  def inYPar: Boolean = (contig == "Y" || contig == "24") && inYParPos
+
+  def inXNonPar: Boolean = (contig == "X" || contig == "23" || contig == "25") && !inXParPos
+  def inYNonPar: Boolean = (contig == "Y" || contig == "24") && !inYParPos
 
   import CopyState._
 
   def copyState(sex: Sex.Sex): CopyState =
     if (sex == Sex.Male)
-      if (contig == "X" && !inParX)
+      if (inXNonPar)
         HemiX
-      else if (contig == "Y" && !inParY)
+      else if (inYNonPar)
         HemiY
       else
         Auto
