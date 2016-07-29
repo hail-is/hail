@@ -27,8 +27,7 @@ object VariantQCCombiner {
     "nNonRef\t" +
     "rHeterozygosity\t" +
     "rHetHomVar\t" +
-    "rExpectedHetFrequency\tpHWE\t" +
-    "infoScore"
+    "rExpectedHetFrequency\tpHWE"
 
   val signature = TStruct(
     "callRate" -> TDouble,
@@ -47,8 +46,7 @@ object VariantQCCombiner {
     "rHeterozygosity" -> TDouble,
     "rHetHomVar" -> TDouble,
     "rExpectedHetFrequency" -> TDouble,
-    "pHWE" -> TDouble,
-    "infoScore" -> TDouble)
+    "pHWE" -> TDouble)
 }
 
 class VariantQCCombiner extends Serializable {
@@ -89,12 +87,6 @@ class VariantQCCombiner extends Serializable {
       }
     }
 
-    g.dosage.foreach{a =>
-      e += a(1) + 2*a(2)
-      f += a(1) + 4*a(2)
-      N += a.sum
-    }
-
     this
   }
 
@@ -103,10 +95,6 @@ class VariantQCCombiner extends Serializable {
     nHomRef += that.nHomRef
     nHet += that.nHet
     nHomVar += that.nHomVar
-
-    e ++= that.e
-    f ++= that.f
-    N += that.N
 
     dpSC.merge(that.dpSC)
 
@@ -119,20 +107,6 @@ class VariantQCCombiner extends Serializable {
     sb.tsvAppend(someIf(sc.count > 0, sc.mean))
     sb += '\t'
     sb.tsvAppend(someIf(sc.count > 0, sc.stdev))
-  }
-
-  def InfoScoreCalculator: Option[Double] = {
-    //FIXME: Not correct formula for sex chromosomes or mitochondria
-    def thetaHat: Option[Double] = if (N != 0) Some(e.sum / (2*N)) else None
-
-    thetaHat.map{case t =>
-      assert(t >= 0.0 && t <= 1.0)
-
-      if (t == 1.0 || t == 0.0)
-        1.0
-      else
-        1.0 - ( e.zip(f).map{case (ei, fi) => fi - math.pow(ei, 2)}.sum / (2 * N * t * (1.0 - t)))
-    }
   }
 
   def HWEStats: (Option[Double], Double) = {
@@ -195,11 +169,6 @@ class VariantQCCombiner extends Serializable {
     sb += '\t'
     sb.tsvAppend(hwe._2)
     sb += '\t'
-
-    //Info score calculation
-    val info = InfoScoreCalculator
-    sb.tsvAppend(info)
-
   }
 
   def asAnnotation: Annotation = {
@@ -213,7 +182,6 @@ class VariantQCCombiner extends Serializable {
     val hwe = HWEStats
     val callrate = divOption(nCalled, nCalled + nNotCalled)
     val ac = nHet + 2 * nHomVar
-    val info = InfoScoreCalculator
 
     Annotation(
       divNull(nCalled, nCalled + nNotCalled),
@@ -232,8 +200,7 @@ class VariantQCCombiner extends Serializable {
       divNull(nHet, nHomRef + nHet + nHomVar),
       divNull(nHet, nHomVar),
       hwe._1.getOrElse(null),
-      hwe._2,
-      info.getOrElse(null))
+      hwe._2)
   }
 }
 

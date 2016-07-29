@@ -496,13 +496,13 @@ object Genotype {
 
   def genDosage(v: Variant): Gen[Genotype] = {
 
-    for (pl <- Gen.option(Gen.buildableOfN[Array[Double], Double](v.nGenotypes, Gen.choose(0.0, 1.0)))) yield {
-      val plInt = pl.map{ pla => pla.map{case d: Double => ((d / pla.sum) * 32768.0).round.toInt}}
-      val gt = plInt.map{pla => if (pla.count(_ == pla.max) != 1) -1 else pla.indexOf(pla.max)}
+    for (dx <- Gen.option(Gen.buildableOfN[Array[Double], Double](v.nGenotypes, Gen.choose(0.0, 1.0)))) yield {
+      val dxInt = dx.map{ dxa => dxa.map{case d: Double => ((d / dxa.sum) * 32768.0).round.toInt}}
+      val gt = dxInt.map{dxa => if (dxa.count(_ == dxa.max) != 1) -1 else dxa.indexOf(dxa.max)}
 
       var flags = 0
       flags = {
-        if (plInt.isDefined) {
+        if (dxInt.isDefined) {
           flagSetHasPL(flags)
           flagSetHasDosage(flags)
         }
@@ -510,7 +510,7 @@ object Genotype {
           flags
       }
 
-      val g = Genotype(gt = gt, pl = plInt, flags = flags)
+      val g = Genotype(gt = gt, pl = dxInt, flags = flags)
       g.check(v)
       g
     }

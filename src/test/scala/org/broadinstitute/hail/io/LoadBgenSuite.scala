@@ -24,22 +24,6 @@ class LoadBgenSuite extends SparkSuite {
     }.toLong
   }
 
-  def getInfoScoresFromQCTool(statsFile: String): RDD[(Any, Any)] = sc.parallelize(readLines(statsFile, sc.hadoopConfiguration)(_.map(_.transform { line =>
-    val Array(snpid, rsid, chromosome, position, a_allele, b_allele, minor_allele,
-    major_allele, aa, ab, bb, aa_calls, ab_calls, bb_calls,
-    maf, hwe, missing, missing_calls, information) = line.value.split("\\s+")
-    (snpid, information)
-  }
-  ).toArray.drop(1).map { case (s, i) => (s, Option((i.toDouble * 10000).round / 10000.0)) }))
-
-  def getInfoScoresFromSNPTest(statsFile: String): RDD[(Any, Any)] = sc.parallelize(readLines(statsFile, sc.hadoopConfiguration)(_.map(_.transform { line =>
-    if (!line.value.startsWith("#")) {
-      val x = line.value.split("\\s+")
-      (x(0), x(8).toDouble)
-    }
-  }
-  ).toArray.drop(1).map { case (s: String, i: Double) => (s, Option((i * 10000).round / 10000.0)) }))
-
   @Test def testGavinExample() {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
@@ -74,7 +58,7 @@ class LoadBgenSuite extends SparkSuite {
     val bgenAnnotations = bgenVDS.variantsAndAnnotations.map { case (v, va) => (varidBgenQuery(va).get, va) }
     val genAnnotations = genVDS.variantsAndAnnotations.map { case (v, va) => (varidGenQuery(va).get, va) }
 
-    assert(genAnnotations.fullOuterJoin(bgenAnnotations).map { case (varid, (va1, va2)) => if (va1 == va2) true else false }.fold(true)(_ && _))
+    assert(genAnnotations.fullOuterJoin(bgenAnnotations).forall { case (varid, (va1, va2)) => if (va1 == va2) true else false })
 
     val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidBgenQuery(va).get, s), gt) }
     val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidGenQuery(va).get, s), gt) }
@@ -84,10 +68,12 @@ class LoadBgenSuite extends SparkSuite {
       .foreach { case ((v, i), (gt1, gt2)) =>
         assert(gt1 == gt2)
       }
+
+    hadoopDelete(bgen + ".idx", sc.hadoopConfiguration, true)
   }
 
   object Spec extends Properties("ImportBGEN") {
-    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
+    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.dosage);
                        nPartitions: Int <- choose(1, 10)) yield (vds, nPartitions)
 
     val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
@@ -100,15 +86,15 @@ class LoadBgenSuite extends SparkSuite {
 
         val vdsRemapped = vds.copy(rdd = vds.rdd.map { case (v, va, gs) => (v.copy(contig = "01"), va, gs) })
 
-        assert(vdsRemapped.rdd.map { case (v, va, gs) =>
-          gs.forall{ case g =>
-            g.dosage.forall(ad =>
-              ad.forall { case d =>
+        assert(vdsRemapped.rdd.forall { case (v, va, gs) =>
+          gs.forall { case g =>
+            g.dosage.forall(dx =>
+              dx.forall { case d =>
                 d >= 0.0 && d <= 1.0
               }
             )
           }
-        }.fold(true)(_ && _))
+        })
 
         val fileRoot = tmpDir.createTempFile(prefix = "testImportBgen")
         val sampleFile = fileRoot + ".sample"
@@ -134,8 +120,6 @@ class LoadBgenSuite extends SparkSuite {
 
         s"src/test/resources/runExternalToolQuiet.sh $qcToolPath -force -g $genFile -s $sampleFile -og $bgenFile -log $qcToolLogFile" !
 
-        //s"src/test/resources/runExternalToolQuiet.sh $qcToolPath -force -g $genFile -snp-stats $statsFile -log $qcToolLogFile" !
-
         if (vds.nVariants == 0)
           try {
             s = IndexBGEN.run(s, Array("-n", nPartitions.toString, bgenFile))
@@ -148,6 +132,7 @@ class LoadBgenSuite extends SparkSuite {
         else {
           var q = IndexBGEN.run(State(sc, sqlContext, null), Array(bgenFile))
           q = ImportBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
+
           val importedVds = q.vds
 
           assert(importedVds.nSamples == origVds.nSamples)
@@ -160,29 +145,7 @@ class LoadBgenSuite extends SparkSuite {
           val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
           val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
 
-          originalFull.fullOuterJoin(importedFull).map { case ((v, i), (gt1, gt2)) =>
-            if (gt1 == gt2)
-              true
-            else {
-              println(gt1)
-              println(gt2)
-              if (gt1.isDefined && gt2.isDefined) {
-                val gt1x = gt1.get
-                val gt2x = gt2.get
-                if (gt1x.dosage.zip(gt2x.dosage).map { case (d1, d2) => d1.zip(d2) }
-                  .exists(_.forall { case (d1, d2) => math.abs(d1 - d2) <= 3.0e-4 })) {
-                  println(s"WARN Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
-                  true
-                } else {
-                  println(s"ERROR Not Same Genotype: v=$v i=$i $gt1 $gt2 ${gt1.get.flags} ${gt2.get.flags}")
-                  false
-                }
-              } else {
-                println(s"v=$v i=$i $gt1 $gt2")
-                false
-              }
-            }
-          }.fold(true)(_ && _)
+          originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (gt1, gt2)) => gt1 == gt2}
         }
       }
   }

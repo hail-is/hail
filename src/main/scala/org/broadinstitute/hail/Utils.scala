@@ -715,7 +715,7 @@ object TempDir {
         hadoopMkdir(dirname, hConf)
 
         val fs = hadoopFS(tmpdir, hConf)
-        fs.deleteOnExit(new hadoop.fs.Path(dirname))
+        //fs.deleteOnExit(new hadoop.fs.Path(dirname))
 
         return new TempDir(dirname)
       } catch {
@@ -1320,6 +1320,18 @@ object Utils extends Logging {
           case (_, null) => 1
           case _ => ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
         }
+    }
+  }
+
+  class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
+    private def writeObject(out: ObjectOutputStream) {
+      out.defaultWriteObject()
+      value.write(out)
+    }
+
+    private def readObject(in: ObjectInputStream) {
+      value = new hadoop.conf.Configuration(false)
+      value.readFields(in)
     }
   }
 }
