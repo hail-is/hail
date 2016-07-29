@@ -88,7 +88,7 @@ object ExportSamples extends Command with TextExporter {
       var first = true
       fs.foreachBetween { case (t, f) =>
         sb.append(f().map(TableAnnotationImpex.exportAnnotation(_, t)).getOrElse("NA"))
-      }(() => sb += '\t')
+      } { sb += '\t' }
       sb.result()
     }
 

@@ -93,7 +93,7 @@ object ExportGenotypes extends Command with TextExporter {
 
           fs.foreachBetween { case (t, f) =>
             sb.append(f().map(TableAnnotationImpex.exportAnnotation(_, t)).getOrElse("NA"))
-          }(() => sb += '\t')
+          } { sb += '\t' }
           sb.result()
         }
     }.writeTable(output, header.map(_.mkString("\t")))

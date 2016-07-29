@@ -520,7 +520,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
     if (intersect.nonEmpty)
       fatal(
-        s"""invalid merge operation: same-name ${plural(intersect.size, "field")}: [ ${
+        s"""invalid merge operation: same-name ${ plural(intersect.size, "field") }: [ ${
           intersect.map(s => prettyIdentifier(s)).mkString(", ")
         } ]""".stripMargin)
 
@@ -552,9 +552,9 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     if (notFound.nonEmpty)
       fatal(
         s"""invalid struct filter operation: ${
-          plural(notFound.size, s"field ${notFound.head}", s"fields [ ${notFound.mkString(", ")} ]")
+          plural(notFound.size, s"field ${ notFound.head }", s"fields [ ${ notFound.mkString(", ") } ]")
         } not found
-            |  Existing struct fields: [ ${fields.map(f => prettyIdentifier(f.name)).mkString(", ")} ]""".stripMargin)
+            |  Existing struct fields: [ ${ fields.map(f => prettyIdentifier(f.name)).mkString(", ") } ]""".stripMargin)
 
     val fn = (f: Field) =>
       if (include)
@@ -605,21 +605,12 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     else {
       if (compact) {
         sb.append("Struct{")
-        fields.foreachBetween(f => {
-          f.pretty(sb, indent, printAttrs, compact)
-        })(() => {
-          sb += ','
-        })
+        fields.foreachBetween(_.pretty(sb, indent, printAttrs, compact))(sb += ',')
         sb += '}'
       } else {
         sb.append("Struct {")
         sb += '\n'
-        fields.foreachBetween(f => {
-          f.pretty(sb, indent + 4, printAttrs, compact)
-        })(() => {
-          sb += ','
-          sb += '\n'
-        })
+        fields.foreachBetween(_.pretty(sb, indent + 4, printAttrs, compact))(sb.append(",\n"))
         sb += '\n'
         sb.append(" " * indent)
         sb += '}'
