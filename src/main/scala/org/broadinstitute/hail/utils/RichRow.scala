@@ -1,9 +1,12 @@
 package org.broadinstitute.hail.utils
 
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
+import org.broadinstitute.hail.variant.{CallStream, GenotypeStream, Variant}
+import org.broadinstitute.hail.Utils._
 import scala.collection.mutable
 import scala.language.implicitConversions
+
+//FIXME: Should implicit conversion to RichRow be here instead of Utils?
 
 class RichRow(r: Row) {
 
@@ -60,4 +63,17 @@ class RichRow(r: Row) {
   def getVariant(i: Int) = Variant.fromRow(r.getAs[Row](i))
 
   def getGenotypeStream(v: Variant, i: Int) = GenotypeStream.fromRow(v, r.getAs[Row](i))
+
+  def getCallStream(i: Int): CallStream = {
+    val ir = r.getAs[Row](i)
+    CallStream(ir.getByteArray(0), ir.getInt(1), ir.getBoolean(2))
+  }
+
+  def getByteArray(i: Int): Array[Byte] = {
+    r.getAs[Array[Byte]](i)
+  }
+
+  def getIntArray(i: Int): Array[Int] = {
+    r.getAs[Array[Int]](i)
+  }
 }

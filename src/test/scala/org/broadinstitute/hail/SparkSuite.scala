@@ -25,7 +25,7 @@ class SparkSuite extends TestNGSuite {
   }
 
   @BeforeClass
-  def startSpark() {
+  def beforeClass() {
     val conf = new SparkConf().setAppName("Hail.TestNG")
 
     val master = System.getProperty("hail.master")
@@ -38,7 +38,7 @@ class SparkSuite extends TestNGSuite {
     conf.set("spark.sql.parquet.compression.codec", "uncompressed")
 
     // FIXME KryoSerializer causes jacoco to throw IllegalClassFormatException exception
-    // conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     sc = new SparkContext(conf)
     sqlContext = new org.apache.spark.sql.SQLContext(sc)
@@ -55,7 +55,7 @@ class SparkSuite extends TestNGSuite {
   }
 
   @AfterClass(alwaysRun = true)
-  def stopSparkContext() {
+  def afterClass() {
     sc.stop()
 
     sc = null
