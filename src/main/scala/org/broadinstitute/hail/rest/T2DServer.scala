@@ -49,12 +49,12 @@ object T2DServer extends Command {
 
         (fieldNames.drop(1),
           lines.map {
-            _.transform { l =>
-              val lineSplit = l.value.split("\\t")
+            _.map { l =>
+              val lineSplit = l.split("\\t")
               if (lineSplit.length != nFields)
                 fatal(s"expected $nFields fields, but got ${lineSplit.length}")
               (lineSplit(0), lineSplit.drop(1).map(x => if (x == "NA") None else Some(x.toDouble))) // FIXME: add error checking
-            }
+            }.value
           }.toMap
         )
       }
