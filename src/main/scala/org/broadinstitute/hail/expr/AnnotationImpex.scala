@@ -4,7 +4,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.variant.{AltAllele, Genotype, Sample, Variant}
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Sample, Variant}
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -31,7 +31,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType) => requiresConversion(elementType)
-    case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant => true
+    case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant | TLocus => true
     case TStruct(fields) =>
       fields.exists(f => requiresConversion(f.`type`))
     case _ => false
@@ -84,6 +84,9 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Variant(r.getAs[String](0), r.getAs[Int](1), r.getAs[String](2),
             r.getAs[Seq[Row]](3).map(aa =>
               importAnnotation(aa, TAltAllele).asInstanceOf[AltAllele]).toArray)
+        case TLocus =>
+          val r = a.asInstanceOf[Row]
+          Locus(r.getAs[String](0), r.getAs[Int](1))
         case TStruct(fields) =>
           val r = a.asInstanceOf[Row]
           Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
@@ -111,6 +114,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case TSample => StringType
     case TAltAllele => AltAllele.schema
     case TVariant => Variant.schema
+    case TLocus => Locus.schema
     case TGenotype => Genotype.schema
     case TStruct(fields) =>
       if (fields.isEmpty)
@@ -144,6 +148,9 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         case TVariant =>
           val v = a.asInstanceOf[Variant]
           Row(v.contig, v.start, v.ref, v.altAlleles.map(aa => Row(aa.ref, aa.alt)))
+        case TLocus =>
+          val l = a.asInstanceOf[Locus]
+          Row(l.contig, l.position)
         case TStruct(fields) =>
           val r = a.asInstanceOf[Row]
           Annotation.fromSeq(r.toSeq.zip(fields).map {
@@ -253,6 +260,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         case TGenotype => a.asInstanceOf[Genotype].toJSON
         case TAltAllele => a.asInstanceOf[AltAllele].toJSON
         case TVariant => a.asInstanceOf[Variant].toJSON
+        case TLocus => a.asInstanceOf[Locus].toJSON
         case TStruct(fields) =>
           val row = a.asInstanceOf[Row]
           JObject(fields
@@ -318,6 +326,8 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         jv.extract[AltAllele]
       case (_, TVariant) =>
         jv.extract[JSONExtractVariant].toVariant
+      case (_, TLocus) =>
+        jv.extract[Locus]
       case (_, TGenotype) =>
         jv.extract[JSONExtractGenotype].toGenotype
 
@@ -364,6 +374,9 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case TFloat => a.toFloat
       case TDouble => a.toDouble
       case TBoolean => a.toBoolean
+      case TLocus => a.split(":") match {
+        case Array(chr, pos) => Locus(chr, pos.toInt)
+      }
       case TVariant => a.split(":") match {
         case Array(chr, pos, ref, alt) => Variant(chr, pos.toInt, ref, alt.split(","))
       }

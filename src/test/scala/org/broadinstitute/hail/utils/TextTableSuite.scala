@@ -17,6 +17,7 @@ class TextTableSuite extends SparkSuite {
     val intStrings = Seq("1", "0", "-1", "12312398", "-123098172398")
     val booleanStrings = Seq("true", "True", "TRUE", "false", "False", "FALSE")
     val variantStrings = Seq("1:1:A:T", "MT:12309123:A:*", "22:1201092:ATTTAC:T,TACC,*")
+    val locusStrings = Seq("MT:123123", "1:1", "GRCH12.1:151515", ".")
     val badVariantStrings = Seq("1:X:A:T", "1:1:*:T", "1:1:A", "1:1:A:T,", "1:1:AAAT:*A")
 
     doubleStrings.foreach(str => assert(str matches TextTableReader.doubleRegex))
@@ -36,6 +37,7 @@ class TextTableSuite extends SparkSuite {
     assert(TextTableReader.guessType(Seq("gene1", "gene2", "1230192"), ".") == Some(TString))
     assert(TextTableReader.guessType(Seq("1:1:A:T", ".", "1:1:A:AAA"), ".") == Some(TVariant))
     assert(TextTableReader.guessType(Seq("true", ".", "false"), ".") == Some(TBoolean))
+    assert(TextTableReader.guessType(locusStrings, ".") == Some(TLocus))
 
     val (schema, _) = TextTableReader.read(sc, Array("src/test/resources/variantAnnotations.tsv"),
       config = TextTableConfiguration().copy(impute = true))

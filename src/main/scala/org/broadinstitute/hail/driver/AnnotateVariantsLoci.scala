@@ -5,12 +5,12 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant.{Locus, Variant}
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 
-object AnnotateVariantsTable extends Command with JoinAnnotator {
+object AnnotateVariantsLoci extends Command with JoinAnnotator {
 
   class Options extends BaseOptions with TextTableOptions {
     @Argument(usage = "<files...>")
@@ -24,16 +24,16 @@ object AnnotateVariantsTable extends Command with JoinAnnotator {
       usage = "Use annotation expressions to join with the table (this argument or --root required)")
     var code: String = _
 
-    @Args4jOption(required = true, name = "-e", aliases = Array("--variant-expr"),
-      usage = "Specify an expression to construct a variant from the fields of the text table")
-    var vExpr: String = _
+    @Args4jOption(required = true, name = "-e", aliases = Array("--locus-expr"),
+      usage = "Specify an expression to construct a locus")
+    var locusExpr: String = _
   }
 
   def newOptions = new Options
 
-  def name = "annotatevariants table"
+  def name = "annotatevariants loci"
 
-  def description = "Annotate variants with delimited text file"
+  def description = "Annotate variants by locus (chromosome, position) with delimited text file"
 
   def supportsMultiallelic = true
 
@@ -62,16 +62,16 @@ object AnnotateVariantsTable extends Command with JoinAnnotator {
       buildInserter(code, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
     } else vds.insertVA(struct, Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD))
 
-    val variantQuery = struct.parseInStructScope[Variant](options.vExpr, TVariant)
+    val locusQuery = struct.parseInStructScope[Locus](options.locusExpr, TLocus)
 
-    val keyedRDD = rdd.flatMap {
+    val lociRDD = rdd.flatMap {
       _.map { a =>
-        variantQuery(a).map(v => (v, a))
+        locusQuery(a).map(l => (l, a))
       }.value
     }
 
     state.copy(vds = vds
       .withGenotypeStream()
-      .annotateVariants(keyedRDD, finalType, inserter))
+      .annotateLoci(lociRDD, finalType, inserter))
   }
 }

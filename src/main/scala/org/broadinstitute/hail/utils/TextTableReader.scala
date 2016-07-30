@@ -57,6 +57,7 @@ object TextTableReader {
   val intRegex = """^-?\d+$"""
   val doubleRegex = """^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$"""
   val variantRegex = """^.+:\d+:[ATGC]+:([ATGC]+|\*)(,([ATGC]+|\*))*$"""
+  val locusRegex = """^.+:\d+$"""
   val headToTake = 20
 
   def guessType(values: Seq[String], missing: String): Option[Type] = {
@@ -66,6 +67,7 @@ object TextTableReader {
 
     val booleanMatch = values.exists(value => value.matches(booleanRegex))
     val variantMatch = values.exists(value => value.matches(variantRegex))
+    val locusMatch = values.exists(value => value.matches(locusRegex))
     val doubleMatch = values.exists(value => value.matches(doubleRegex))
     val intMatch = values.exists(value => value.matches(intRegex))
 
@@ -73,6 +75,7 @@ object TextTableReader {
 
     val allBoolean = defined.forall(_.matches(booleanRegex))
     val allVariant = defined.forall(_.matches(variantRegex))
+    val allLocus = defined.forall(_.matches(locusRegex))
     val allDouble = defined.forall(_.matches(doubleRegex))
     val allInt = defined.forall(_.matches(intRegex))
 
@@ -82,6 +85,8 @@ object TextTableReader {
       Some(TBoolean)
     else if (allVariant && variantMatch)
       Some(TVariant)
+    else if (allLocus && locusMatch)
+      Some(TLocus)
     else if (allInt && intMatch)
       Some(TInt)
     else if (allDouble && doubleMatch)

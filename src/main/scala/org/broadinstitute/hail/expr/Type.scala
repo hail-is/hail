@@ -7,7 +7,7 @@ import org.broadinstitute.hail.annotations.{Annotation, AnnotationPathException,
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, _}
 import org.broadinstitute.hail.utils.StringEscapeUtils
-import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
@@ -20,7 +20,7 @@ sealed abstract class BaseType extends Serializable {
 
 object Type {
   val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
-    TVariant, TAltAllele, TGenotype)
+    TVariant, TAltAllele, TGenotype, TLocus)
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)
@@ -327,6 +327,14 @@ case object TVariant extends Type {
   override def genValue: Gen[Annotation] = Variant.gen
 }
 
+case object TLocus extends Type {
+  override def toString = "Locus"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
+
+  override def genValue: Gen[Annotation] = Locus.gen
+}
+
 case class Field(name: String, `type`: Type,
   index: Int,
   attrs: Map[String, String] = Map.empty) {
@@ -562,6 +570,18 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       else
         !set.contains(f.name)
     filter(fn)
+  }
+
+  def parseInStructScope[T](code: String, expected: Type): (Annotation) => Option[T] = {
+    val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val f = Parser.parse[T](code, ec, expected)
+
+    (a: Annotation) => {
+      Option(a).flatMap { annotation =>
+        ec.setAll(annotation.asInstanceOf[Row].toSeq: _*)
+        f()
+      }
+    }
   }
 
   def filter(f: (Field) => Boolean): (TStruct, Deleter) = {
