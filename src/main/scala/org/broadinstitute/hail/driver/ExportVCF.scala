@@ -152,7 +152,7 @@ object ExportVCF extends Command {
       sb.append(v.ref)
       sb += '\t'
       v.altAlleles.foreachBetween(aa =>
-        sb.append(aa.alt))(() => sb += ',')
+        sb.append(aa.alt))(sb += ',')
       sb += '\t'
 
       sb.append(qualQuery.flatMap(_ (a))
@@ -165,11 +165,7 @@ object ExportVCF extends Command {
         .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
-            f.foreachBetween { s =>
-              sb.append(s)
-            } { () =>
-              sb += ','
-            }
+            f.foreachBetween(s => sb.append(s))(sb += ',')
           else
             sb += '.'
         case None => sb += '.'
@@ -192,11 +188,11 @@ object ExportVCF extends Command {
                 if (f.`type` != TBoolean) {
                   sb += '='
                   v match {
-                    case i: Iterable[_] => i.foreachBetween { elem => sb.append(elem) } { () => sb.append(",") }
+                    case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(sb += ',')
                     case _ => sb.append(v)
                   }
                 }
-              } { () => sb += ';' }
+              } { sb += ';' }
           }
 
         case None =>

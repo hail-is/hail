@@ -89,7 +89,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     }
   }
 
-  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
+  def foreachBetween(f: (T) => Unit)(g: => Unit) {
     richIterator(i.iterator).foreachBetween(f)(g)
   }
 
@@ -580,14 +580,13 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     n == 1
   }
 
-  def foreachBetween(f: (T) => Unit)(g: () => Unit) {
-    var first = true
-    it.foreach { elem =>
-      if (first)
-        first = false
-      else
-        g()
-      f(elem)
+  def foreachBetween(f: (T) => Unit)(g: => Unit) {
+    if (it.hasNext) {
+      f(it.next())
+      while (it.hasNext) {
+        g
+        f(it.next())
+      }
     }
   }
 

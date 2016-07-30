@@ -12,7 +12,7 @@ trait TextExporter {
         sb.append(prettyIdentifier(name))
         sb.append(":")
         t.pretty(sb, printAttrs = true, compact = true)
-      }(() => sb.append(","))
+      } { sb += ',' }
 
       out.write(sb.result())
     }

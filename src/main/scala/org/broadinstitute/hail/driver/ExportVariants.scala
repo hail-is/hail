@@ -87,10 +87,9 @@ object ExportVariants extends Command with TextExporter {
 
           ec.setAll(v, va)
 
-          fs.foreachBetween {
-            case (t, f) =>
-              sb.append(f().map(TableAnnotationImpex.exportAnnotation(_, t)).getOrElse("NA"))
-          }(() => sb.append("\t"))
+          fs.foreachBetween { case (t, f) =>
+            sb.append(f().map(TableAnnotationImpex.exportAnnotation(_, t)).getOrElse("NA"))
+          } { sb.append("\t") }
           sb.result()
         }
       }.writeTable(output, header.map(_.mkString("\t")))
