@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.utils.richUtils
 
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
+import org.broadinstitute.hail.variant.{CallStream, GenotypeStream, Variant}
 
 import scala.collection.mutable
 
@@ -60,4 +60,17 @@ class RichRow(r: Row) {
   def getVariant(i: Int) = Variant.fromRow(r.getAs[Row](i))
 
   def getGenotypeStream(v: Variant, i: Int, isDosage: Boolean) = GenotypeStream.fromRow(v.nAlleles, isDosage, r.getAs[Row](i))
+
+  def getCallStream(i: Int): CallStream = {
+    val ir = r.getAs[Row](i)
+    CallStream(ir.getByteArray(0), ir.getInt(1), ir.getBoolean(2))
+  }
+
+  def getByteArray(i: Int): Array[Byte] = {
+    r.getAs[Array[Byte]](i)
+  }
+
+  def getIntArray(i: Int): Array[Int] = {
+    r.getAs[Array[Int]](i)
+  }
 }

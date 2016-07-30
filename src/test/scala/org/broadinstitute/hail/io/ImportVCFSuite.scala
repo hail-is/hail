@@ -34,6 +34,8 @@ class ImportVCFSuite extends SparkSuite {
     assert(LoadVCF.lineRef("20\t0\t.\t\t") == "")
 
     assert(LoadVCF.lineRef("\t\t\tabcd") == "abcd")
+
+    assert(LoadVCF(sc, "src/test/resources/sampleRefNonACGTN.vcf").rdd.count() == 1)
   }
 
   @Test def symbolicOrSV() {
@@ -134,4 +136,5 @@ class ImportVCFSuite extends SparkSuite {
     }
     assert(e.getMessage.contains("FatalException"))
   }
+
 }
