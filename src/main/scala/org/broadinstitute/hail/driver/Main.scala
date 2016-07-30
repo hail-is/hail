@@ -11,6 +11,8 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.methods.VCFReport
 import org.kohsuke.args4j.{CmdLineException, CmdLineParser, Option => Args4jOption}
 
+import org.broadinstitute.hail.rest.T2DServer
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -274,6 +276,14 @@ object Main {
 
     sc.stop()
     progressBar.stop()
+  }
+
+  {
+    import breeze.linalg._
+    import breeze.linalg.operators.{OpMulMatrix, BinaryRegistry}
+
+    implicitly[BinaryRegistry[DenseMatrix[Double], Vector[Double], OpMulMatrix.type, DenseVector[Double]]].register(
+      DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
   }
 
 }
