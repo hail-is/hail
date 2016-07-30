@@ -73,15 +73,15 @@ Variant             Consequence     DNAseSensitivity
 1:2091230:G:C       Synonymous      0.66
 ```
 
-This file contains one field to identify the variant and two data columns: one which encodes a string and one which encodes a double.  The command line should appear as:
+This file contains one field to identify the variant and two data columns: one which encodes a string and one which encodes a double.  Using the `--impute` option, we can avoid having to specify the `Variant` and `Double` types.  The command line should appear as:
 
 ```
 $ hail [read / import / previous commands] \
     annotatevariants table \
         file:///user/me/consequences.tsv.gz \
-        -t "DNAseSensitivity: Double" \
         -r va.varianteffects \
-        -v Variant
+        -e Variant
+        --impute
 ```
 
 This invocation will annotate variants with the following schema:
@@ -116,9 +116,9 @@ In this case, the variant is indicated by four columns, but the header does not 
 $ hail [read / import / previous commands] \
     annotatevariants table \
         file:///user/me/ExAC_Counts.tsv.gz \
-        -t "AC: Int" \
+        -t "AC: Int, Pos: Int" \
         -r va.exac \
-        -v "Chr,Pos,Ref,Alt"
+        -e "Variant(Chr,Pos,Ref,Alt)"
 ```
 
 And the schema:
