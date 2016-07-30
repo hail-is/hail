@@ -4,9 +4,26 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.expr._
 import org.json4s._
 
-import scala.collection.mutable
+import scala.math.Numeric.Implicits._
+
+object Contig {
+  def compare(lhs: String, rhs: String): Int = {
+    if (lhs.forall(_.isDigit)) {
+      if (rhs.forall(_.isDigit)) {
+        lhs.toInt.compare(rhs.toInt)
+      } else
+        -1
+    } else {
+      if (rhs.forall(_.isDigit))
+        1
+      else
+        lhs.compare(rhs)
+    }
+  }
+}
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
@@ -23,6 +40,9 @@ object AltAllele {
   val schema: StructType = StructType(Array(
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
+
+  val t: TStruct = TStruct("ref" -> TString,
+    "alt" -> TString)
 
   def fromRow(r: Row): AltAllele =
     AltAllele(r.getString(0), r.getString(1))
@@ -99,6 +119,8 @@ case class AltAllele(ref: String,
     ("ref", JString(ref)),
     ("alt", JString(alt))
   )
+
+  override def toString: String = s"$ref/$alt"
 }
 
 object Variant {
@@ -118,35 +140,7 @@ object Variant {
     nAlleles * (nAlleles + 1) / 2
   }
 
-  def compareContig(lhs: String, rhs: String): Int = {
-    if (lhs.forall(_.isDigit)) {
-      if (rhs.forall(_.isDigit)) {
-        lhs.toInt.compare(rhs.toInt)
-      } else
-        -1
-    } else {
-      if (rhs.forall(_.isDigit))
-        1
-      else
-        lhs.compare(rhs)
-    }
-  }
-
-  def genVariants(nVariants: Int): Gen[Array[Variant]] =
-    Gen.buildableOfN[Array[Variant], Variant](nVariants, gen)
-
-  def gen: Gen[Variant] =
-    // FIXME temporary to make plink happy, see: https://github.com/broadinstitute/hail/issues/229
-    for (contig <- Gen.oneOfSeq((1 to 22).map(_.toString));
-      start <- Gen.posInt;
-      nAlleles <- Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10)));
-      alleles <- Gen.distinctBuildableOfN[Array[String], String](
-        nAlleles,
-        Gen.frequency((10, genDNAString),
-          (1, Gen.const("*")))) if alleles(0) != "*") yield {
-      val ref = alleles(0)
-      Variant(contig, start, ref, alleles.tail.map(alt => AltAllele(ref, alt)))
-    }
+  def gen: Gen[Variant] = VariantSubgen.random.gen
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
 
@@ -158,12 +152,52 @@ object Variant {
       StructField("altAlleles", ArrayType(AltAllele.schema, containsNull = false),
         nullable = false)))
 
+  val t: TStruct =
+    TStruct("contig" -> TString,
+      "start" -> TInt,
+      "ref" -> TString,
+      "altAlleles" -> TArray(AltAllele.t))
+
   def fromRow(r: Row) =
     Variant(r.getAs[String](0),
       r.getAs[Int](1),
       r.getAs[String](2),
-      r.getAs[mutable.WrappedArray[Row]](3)
-        .map(s => AltAllele.fromRow(s)))
+      r.getSeq[Row](3)
+        .map(s => AltAllele.fromRow(s))
+        .toArray)
+}
+
+object VariantSubgen {
+  val random = VariantSubgen(
+    contigGen = Gen.identifier,
+    startGen = Gen.posInt,
+    nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
+    refGen = genDNAString,
+    altGen = Gen.frequency((10, genDNAString),
+      (1, Gen.const("*"))))
+
+  val plinkCompatible = random.copy(
+    contigGen = Gen.choose(1, 22).map(_.toString)
+  )
+}
+
+case class VariantSubgen(
+  contigGen: Gen[String],
+  startGen: Gen[Int],
+  nAllelesGen: Gen[Int],
+  refGen: Gen[String],
+  altGen: Gen[String]) {
+
+  def gen: Gen[Variant] =
+    for (contig <- contigGen;
+      start <- startGen;
+      nAlleles <- nAllelesGen;
+      ref <- refGen;
+      altAlleles <- Gen.distinctBuildableOfN[Array[String], String](
+        nAlleles,
+        altGen)
+        .filter(!_.contains(ref))) yield
+      Variant(contig, start, ref, altAlleles.tail.map(alt => AltAllele(ref, alt)))
 }
 
 case class Variant(contig: String,
@@ -172,8 +206,8 @@ case class Variant(contig: String,
   altAlleles: IndexedSeq[AltAllele]) extends Ordered[Variant] {
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
-  require(start >= 0, s"created a variant with negative position: `${this.toString}'")
-  require(!ref.isEmpty, s"created a variant with an empty ref string: `${this.toString}'")
+  require(start >= 0, s"invalid variant: negative position: `${this.toString}'")
+  require(!ref.isEmpty, s"invalid variant: empty contig: `${this.toString}'")
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -196,19 +230,27 @@ case class Variant(contig: String,
 
   def nGenotypes = Variant.nGenotypes(nAlleles)
 
+  def locus: Locus = Locus(contig, start)
+
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
-  def inParX: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
+  def inXParPos: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
+  def inYParPos: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
 
-  def inParY: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
+  // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
+  def inXPar: Boolean = (contig == "X" || contig == "23" || contig == "25") && inXParPos
+  def inYPar: Boolean = (contig == "Y" || contig == "24") && inYParPos
+
+  def inXNonPar: Boolean = (contig == "X" || contig == "23" || contig == "25") && !inXParPos
+  def inYNonPar: Boolean = (contig == "Y" || contig == "24") && !inYParPos
 
   import CopyState._
 
   def copyState(sex: Sex.Sex): CopyState =
     if (sex == Sex.Male)
-      if (contig == "X" && !inParX)
+      if (inXNonPar)
         HemiX
-      else if (contig == "Y" && !inParY)
+      else if (inYNonPar)
         HemiY
       else
         Auto
@@ -216,7 +258,7 @@ case class Variant(contig: String,
       Auto
 
   def compare(that: Variant): Int = {
-    var c = Variant.compareContig(contig, that.contig)
+    var c = Contig.compare(contig, that.contig)
     if (c != 0)
       return c
 

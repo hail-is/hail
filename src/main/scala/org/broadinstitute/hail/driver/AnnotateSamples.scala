@@ -7,6 +7,6 @@ object AnnotateSamples extends SuperCommand {
 
   register(AnnotateSamplesExpr)
   register(AnnotateSamplesFam)
-  register(AnnotateSamplesJSON)
   register(AnnotateSamplesTable)
+  register(AnnotateSamplesList)
 }

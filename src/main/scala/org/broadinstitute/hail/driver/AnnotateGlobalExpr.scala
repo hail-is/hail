@@ -33,44 +33,34 @@ object AnnotateGlobalExpr extends Command {
     val cond = options.condition
 
     val aggECV = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "global" ->(2, vds.globalSignature)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "global" -> (2, vds.globalSignature)))
     val aggECS = EvalContext(Map(
-      "s" ->(0, TSample),
-      "sa" ->(1, vds.saSignature),
-      "global" ->(2, vds.globalSignature)))
+      "s" -> (0, TSample),
+      "sa" -> (1, vds.saSignature),
+      "global" -> (2, vds.globalSignature)))
     val symTab = Map(
-      "global" ->(0, vds.globalSignature),
-      "variants" ->(-1, TAggregable(aggECV)),
-      "samples" ->(-1, TAggregable(aggECS)))
+      "global" -> (0, vds.globalSignature),
+      "variants" -> (-1, TAggregable(aggECV)),
+      "samples" -> (-1, TAggregable(aggECS)))
 
 
     val ec = EvalContext(symTab)
     aggECS.set(2, vds.globalAnnotation)
     aggECV.set(2, vds.globalAnnotation)
 
-    val parsed = expr.Parser.parseAnnotationArgs(cond, ec)
-
-    val keyedSignatures = parsed.map { case (ids, t, f) =>
-      if (ids.head != "global")
-        fatal(s"Path must start with `global', got `${ids.mkString(".")}'")
-      (ids.tail, t)
-    }
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Annotation.GLOBAL_HEAD)
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
 
-    val computations = parsed.map(_._3)
-
-    val vdsAddedSigs = keyedSignatures.foldLeft(vds) { case (v, (ids, signature)) =>
-      val (s, i) = v.insertGlobal(signature, ids)
+    val finalType = parseTypes.foldLeft(vds.globalSignature) { case (v, (ids, signature)) =>
+      val (s, i) = v.insert(signature, ids)
       inserterBuilder += i
-      v.copy(globalSignature = s)
+      s
     }
 
     val inserters = inserterBuilder.result()
-
-    val a = ec.a
 
     if (aggECV.aggregationFunctions.nonEmpty) {
       val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions(aggECV)
@@ -89,16 +79,17 @@ object AnnotateGlobalExpr extends Command {
       resOp(result)
     }
 
-    a(0) = vds.globalAnnotation
+    ec.set(0, vds.globalAnnotation)
 
     val ga = inserters
-      .zip(parsed.map(_._3()))
+      .zip(fns.map(_ ()))
       .foldLeft(vds.globalAnnotation) { case (a, (ins, res)) =>
         ins(a, res)
       }
 
-    state.copy(
-      vds = vdsAddedSigs.copy(globalAnnotation = ga)
+    state.copy(vds = vds.copy(
+      globalAnnotation = ga,
+      globalSignature = finalType)
     )
   }
 }

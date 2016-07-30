@@ -1,32 +1,20 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.io.annotators.GlobalTableAnnotator
+import org.broadinstitute.hail.utils.{TextTableOptions, TextTableReader}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object AnnotateGlobalTable extends Command {
+object AnnotateGlobalTable extends Command with JoinAnnotator {
 
-  class Options extends BaseOptions {
+  class Options extends BaseOptions with TextTableOptions {
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
       usage = "Path to file")
     var input: String = _
 
-    @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
-      usage = "Define types of fields in file")
-    var types: String = ""
-
     @Args4jOption(required = true, name = "-r", aliases = Array("--root"),
-      usage = "Argument is a period-delimited path starting with `global'")
+      usage = "Period-delimited path starting with `global'")
     var root: String = _
-
-    @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
-      usage = "Specify identifier to be treated as missing")
-    var missing: String = "NA"
-
-    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Field delimiter regex")
-    var delimiter: String = "\\t"
   }
 
   def newOptions = new Options
@@ -44,15 +32,17 @@ object AnnotateGlobalTable extends Command {
 
     val path = Parser.parseAnnotationRoot(options.root, Annotation.GLOBAL_HEAD)
 
-    val (result, signature) = GlobalTableAnnotator(options.input, state.hadoopConf,
-      Parser.parseAnnotationTypes(options.types), options.missing, options.delimiter)
+    val (struct, rdd) = TextTableReader.read(state.sc, Array(options.input), options.config)
+    val arrayType = TArray(struct)
 
+    val (finalType, inserter) = vds.insertGlobal(arrayType, Parser.parseAnnotationRoot(options.root, Annotation.GLOBAL_HEAD))
 
-    val (newGlobalSig, inserter) = vds.insertGlobal(signature, path)
+    val table = rdd
+      .map(_.value)
+      .collect(): IndexedSeq[Annotation]
 
     state.copy(vds = vds.copy(
-      globalAnnotation = inserter(vds.globalAnnotation, Some(result)),
-      globalSignature = newGlobalSig))
+      globalAnnotation = inserter(vds.globalAnnotation, Some(table)),
+      globalSignature = finalType))
   }
 }
-

@@ -3,28 +3,34 @@ package org.broadinstitute.hail.variant
 import java.nio.ByteBuffer
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StructField, StructType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.{Interval, IntervalTree}
+import org.broadinstitute.hail.vcf.BufferedLineIterator
+import org.kududb.spark.kudu.{KuduContext, _}
+import org.json4s.jackson.JsonMethods
+import org.json4s._
 
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 object VariantSampleMatrix {
-  final val magicNumber: Int = 0xe51e2c58
-  final val fileVersion: Int = 3
+  final val fileVersion: Int = 4
 
   def apply[T](metadata: VariantMetadata,
     rdd: RDD[(Variant, Annotation, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     new VariantSampleMatrix(metadata, rdd)
   }
 
-  def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
+
+  private def readMetadata(sqlContext: SQLContext, dirname: String,
+    requireParquetSuccess: Boolean = true): VariantMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
@@ -33,76 +39,98 @@ object VariantSampleMatrix {
     if (!hadoopExists(hConf, dirname))
       fatal(s"no VDS found at `$dirname'")
 
-    val vaSchema = dirname + "/va.schema"
-    val saSchema = dirname + "/sa.schema"
-    val globalSchema = dirname + "/global.schema"
+    val metadataFile = dirname + "/metadata.json.gz"
     val pqtSuccess = dirname + "/rdd.parquet/_SUCCESS"
-    val metadataFile = dirname + "/metadata.ser"
+
+    if (!hadoopExists(hConf, pqtSuccess) && requireParquetSuccess)
+      fatal(
+        s"""corrupt VDS: no parquet success indicator
+            |  Unexpected shutdown occurred during `write'
+            |  Recreate VDS.""".stripMargin)
 
     if (!hadoopExists(hConf, metadataFile))
-      fatal("corrupt VDS: no metadata.ser file.  Recreate VDS.")
+      fatal(
+        s"""corrupt or outdated VDS: invalid metadata
+            |  No `metadata.json.gz' file found in VDS directory
+            |  Recreate VDS with current version of Hail.""".stripMargin)
 
-    val (sampleIds, sampleAnnotations, globalAnnotation, wasSplit) =
-      readDataFile(dirname + "/metadata.ser", hConf) { dis =>
-        try {
-          val serializer = SparkEnv.get.serializer.newInstance()
-          val ds = serializer.deserializeStream(dis)
+    val json = try {
+      readFile(metadataFile, hConf)(
+        in => JsonMethods.parse(Source.fromInputStream(in).mkString)
+      )
+    } catch {
+      case e: Throwable => fatal(s"corrupt VDS: invalid metadata file: ${e.getMessage}.\n  " +
+        s"Recreate VDS with current version of Hail")
+    }
 
-          val m = ds.readObject[Int]
-          if (m != magicNumber)
-            fatal("Invalid VDS: invalid magic number")
+    val fields = json match {
+      case jo: JObject => jo.obj.toMap
+      case _ =>
+        fatal(
+          s"""corrupt VDS: invalid metadata value
+              |  Recreate VDS with current version of Hail.""".stripMargin)
+    }
 
-          val v = ds.readObject[Int]
-          if (v != fileVersion)
-            fatal("Old VDS version found")
-
-          val sampleIds = ds.readObject[IndexedSeq[String]]
-          val sampleAnnotations = ds.readObject[IndexedSeq[Annotation]]
-          val globalAnnotation = ds.readObject[Annotation]
-          val wasSplit = ds.readObject[Boolean]
-
-          ds.close()
-          (sampleIds, sampleAnnotations, globalAnnotation, wasSplit)
-
-        } catch {
-          case e: Exception =>
-            println(e)
-            fatal(s"Invalid VDS: ${e.getMessage}\n  Recreate with current version of Hail.")
-        }
+    def getAndCastJSON[T <: JValue](fname: String)(implicit tct: ClassTag[T]): T =
+      fields.get(fname) match {
+        case Some(t: T) => t
+        case Some(other) =>
+          fatal(
+            s"""corrupt VDS: invalid metadata
+                |  Expected `${tct.runtimeClass.getName}' in field `$fname', but got `${other.getClass.getName}'
+                |  Recreate VDS with current version of Hail.""".stripMargin)
+        case None =>
+          fatal(
+            s"""corrupt VDS: invalid metadata
+                |  Missing field `$fname'
+                |  Recreate VDS with current version of Hail.""".stripMargin)
       }
 
-    if (!hadoopExists(hConf, pqtSuccess))
-      fatal("corrupt VDS: no parquet success indicator, meaning a problem occurred during write.  Recreate VDS.")
+    val version = getAndCastJSON[JInt]("version").num
 
-    if (!hadoopExists(hConf, vaSchema, saSchema, globalSchema))
-      fatal("corrupt VDS: one or more .schema files missing.  Recreate VDS.")
+    if (version != VariantSampleMatrix.fileVersion)
+      fatal(
+        s"""Invalid VDS: old version [$version]
+            |  Recreate VDS with current version of Hail.
+         """.stripMargin)
+    val wasSplit = getAndCastJSON[JBool]("split").value
 
-    val vaSignature = readFile(dirname + "/va.schema", hConf) { dis =>
-      val schema = Source.fromInputStream(dis)
-        .mkString
-      Parser.parseType(schema)
-    }
+    val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
+    val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
+    val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
 
-    val saSignature = readFile(dirname + "/sa.schema", hConf) { dis =>
-      val schema = Source.fromInputStream(dis)
-        .mkString
-      Parser.parseType(schema)
-    }
+    val sampleInfoSchema = TStruct(("id", TString), ("annotation", saSignature))
+    val sampleInfo = getAndCastJSON[JArray]("sample_annotations")
+      .arr
+      .map {
+        case JObject(List(("id", JString(id)), ("annotation", jv: JValue))) =>
+          (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations"))
+        case other =>
+          fatal(
+            s"""corrupt VDS: invalid metadata
+                |  Invalid sample annotation metadata
+                |  Recreate VDS with current version of Hail.""".stripMargin)
+      }
+      .toArray
 
-    val globalSignature = readFile(dirname + "/global.schema", hConf) { dis =>
-      val schema = Source.fromInputStream(dis)
-        .mkString
-      Parser.parseType(schema)
-    }
+    val globalAnnotation = JSONAnnotationImpex.importAnnotation(getAndCastJSON[JValue]("global_annotation"),
+      globalSignature, "global")
 
+    val ids = sampleInfo.map(_._1)
+    val annotations = sampleInfo.map(_._2)
 
-    val metadata = VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
+    VariantMetadata(ids, annotations, globalAnnotation,
       saSignature, vaSignature, globalSignature, wasSplit)
+  }
 
+  def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
+
+    val metadata = readMetadata(sqlContext, dirname, skipGenotypes)
+    val vaSignature = metadata.vaSignature
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
-    val vaRequiresConversion = vaSignature.requiresConversion
+    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
     if (skipGenotypes)
       new VariantSampleMatrix[Genotype](
@@ -110,7 +138,7 @@ object VariantSampleMatrix {
           sampleAnnotations = IndexedSeq.empty[Annotation]),
         df.select("variant", "annotations")
           .map(row => (row.getVariant(0),
-            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
+            if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
             Iterable.empty[Genotype])))
     else
       new VariantSampleMatrix(
@@ -119,68 +147,107 @@ object VariantSampleMatrix {
           val v = row.getVariant(0)
 
           (v,
-            if (vaRequiresConversion) vaSignature.makeSparkReadable(row.get(1)) else row.get(1),
+            if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
             row.getGenotypeStream(v, 2))
         })
   }
 
-  def genValues[T](nSamples: Int, g: Gen[T]): Gen[Iterable[T]] =
-    Gen.buildableOfN[Iterable[T], T](nSamples, g)
+  def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.t,
+    "annotations" -> vaSignature,
+    "gs" -> GenotypeStream.t,
+    "sample_group" -> TString)
 
-  def genValues[T](g: Gen[T]): Gen[Iterable[T]] =
-    Gen.buildableOf[Iterable[T], T](g)
+  def readKudu(sqlContext: SQLContext, dirname: String, tableName: String,
+    master: String): VariantDataset = {
 
-  def genVariantValues[T](nSamples: Int, g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
-    for (v <- Variant.gen;
-         values <- genValues[T](nSamples, g(v)))
-      yield (v, values)
+    val metadata = readMetadata(sqlContext, dirname, requireParquetSuccess = false)
+    val vaSignature = metadata.vaSignature
 
-  def genVariantValues[T](g: (Variant) => Gen[T]): Gen[(Variant, Iterable[T])] =
-    for (v <- Variant.gen;
-         values <- genValues[T](g(v)))
-      yield (v, values)
+    val df = sqlContext.read.options(
+      Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
 
-  def genVariantGenotypes: Gen[(Variant, Iterable[Genotype])] =
-    genVariantValues(Genotype.gen)
+    val rowType = kuduRowType(vaSignature)
+    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
 
-  def genVariantGenotypes(nSamples: Int): Gen[(Variant, Iterable[Genotype])] =
-    genVariantValues(nSamples, Genotype.gen)
+    // Kudu key fields are always first, so we have to reorder the fields we get back
+    // to be in the column order for the flattened schema *before* we unflatten
+    val indices: Array[Int] = schema.fields.zipWithIndex.map { case (field, rowIdx) =>
+      df.schema.fieldIndex(field.name)
+    }
+
+    val rdd: RDD[(Variant, Annotation, Iterable[Genotype])] = df.map { row =>
+      val importedRow = KuduAnnotationImpex.importAnnotation(
+        KuduAnnotationImpex.reorder(row, indices), rowType).asInstanceOf[Row]
+      val v = importedRow.getVariant(0)
+      (v,
+        (importedRow.get(1),
+          importedRow.getGenotypeStream(v, 2)))
+    }.spanByKey().map(kv => {
+      // combine variant rows with different sample groups (no shuffle)
+      val variant = kv._1
+      val annotations = kv._2.head._1 // just use first annotation
+      val genotypes = kv._2.flatMap(_._2) // combine genotype streams
+      (variant, annotations, genotypes)
+    }
+
+    )
+    new VariantSampleMatrix[Genotype](metadata, rdd)
+  }
+
+  private def makeSchemaForKudu(vaSignature: Type): StructType =
+    StructType(Array(
+      StructField("variant", Variant.schema, nullable = false),
+      StructField("annotations", vaSignature.schema, nullable = false),
+      StructField("gs", GenotypeStream.schema, nullable = false),
+      StructField("sample_group", StringType, nullable = false)
+    ))
 
   def gen[T](sc: SparkContext,
-    sampleIds: Array[String],
-    variants: Array[Variant],
-    g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val nSamples = sampleIds.length
-    for (vaSig <- Type.genArb; saSig <- Type.genArb; globalSig <- Type.genArb;
-         saValues <- Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(saSig.genValue));
-         globalValue <- globalSig.genValue;
-         rows <- Gen.sequence[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
-           variants.map(v => Gen.zip(
-             Gen.const(v),
-             vaSig.genValue,
-             genValues(nSamples, g(v))))))
-      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, globalValue, saSig, vaSig, globalSig), sc.parallelize(rows))
-  }
+    gen: VSMSubgen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    gen.gen(sc)
+}
 
-  def gen[T](sc: SparkContext, g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val samplesVariantsGen =
-      for (sampleIds <- Gen.distinctBuildableOf[Array[String], String](Gen.identifier);
-           variants <- Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen))
-        yield (sampleIds, variants)
-    samplesVariantsGen.flatMap {
-      case (sampleIds, variants) => gen(sc, sampleIds, variants, g)
-    }
-  }
+case class VSMSubgen[T](
+  sampleIdGen: Gen[IndexedSeq[String]],
+  saSigGen: Gen[Type],
+  vaSigGen: Gen[Type],
+  globalSigGen: Gen[Type],
+  saGen: (Int, Type) => Gen[IndexedSeq[Annotation]],
+  vaGen: (Type) => Gen[Annotation],
+  globalGen: (Type) => Gen[Annotation],
+  vGen: Gen[Variant],
+  tGen: (Variant) => Gen[T]) {
 
-  def gen[T](sc: SparkContext, sampleIds: Array[String], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val variantsGen = Gen.distinctBuildableOf[Array[Variant], Variant](Variant.gen)
-    variantsGen.flatMap(variants => gen(sc, sampleIds, variants, g))
-  }
+  def gen(sc: SparkContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
+    for (vaSig <- vaSigGen;
+         saSig <- saSigGen;
+         globalSig <- globalSigGen;
+         sampleIds <- sampleIdGen;
+         global <- globalGen(globalSig);
+         saValues <- saGen(sampleIds.length, saSig);
+         rows <- Gen.distinctBuildableOf[Seq[(Variant, Annotation, Iterable[T])], (Variant, Annotation, Iterable[T])](
+           for (v <- vGen;
+                va <- vaGen(vaSig);
+                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, tGen(v)))
+             yield (v, va, ts)))
+      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig), sc.parallelize(rows))
+}
 
-  def gen[T](sc: SparkContext, variants: Array[Variant], g: (Variant) => Gen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] = {
-    val samplesGen = Gen.distinctBuildableOf[Array[String], String](Gen.identifier)
-    samplesGen.flatMap(sampleIds => gen(sc, sampleIds, variants, g))
-  }
+object VSMSubgen {
+  val random = VSMSubgen[Genotype](
+    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
+    saSigGen = Type.genArb,
+    vaSigGen = Type.genArb,
+    globalSigGen = Type.genArb,
+    saGen = (nSamples: Int, t: Type) =>
+      Gen.sequence[IndexedSeq[Annotation], Annotation](IndexedSeq.fill[Gen[Annotation]](nSamples)(t.genValue)),
+    vaGen = (t: Type) => t.genValue,
+    globalGen = (t: Type) => t.genValue,
+    vGen = Variant.gen,
+    tGen = Genotype.gen)
+
+  val realistic = random.copy(
+    tGen = Genotype.genRealistic)
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
@@ -337,8 +404,16 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, va, gs) => p(v, va, gs) })
 
-  def filterVariants(ilist: IntervalList): VariantSampleMatrix[T] =
-    filterVariants((v, va, gs) => ilist.contains(v.contig, v.start))
+  def filterIntervals(gis: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
+    val gisBc = sparkContext.broadcast(gis)
+    filterVariants { (v, va, gs) =>
+      val inInterval = gisBc.value.contains(v.locus)
+      if (keep)
+        inInterval
+      else
+        !inInterval
+    }
+  }
 
   def dropSamples(): VariantSampleMatrix[T] =
     copy(sampleIds = IndexedSeq.empty[String],
@@ -480,16 +555,56 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def same(that: VariantSampleMatrix[T]): Boolean = {
     val metadataSame = metadata == that.metadata
-    if (!metadataSame)
+    if (!metadataSame) {
       println("metadata were not the same")
+      if (vaSignature != that.vaSignature)
+        println(
+          s"""different va signature:
+             |  left:  ${vaSignature.toPrettyString(compact = true)}
+             |  right: ${that.vaSignature.toPrettyString(compact = true)}""".stripMargin)
+      if (saSignature != that.saSignature)
+        println(
+          s"""different sa signature:
+              |  left:  ${saSignature.toPrettyString(compact = true)}
+              |  right: ${that.saSignature.toPrettyString(compact = true)}""".stripMargin)
+      if (globalSignature != that.globalSignature)
+        println(
+          s"""different global signature:
+              |  left:  ${globalSignature.toPrettyString(compact = true)}
+              |  right: ${that.globalSignature.toPrettyString(compact = true)}""".stripMargin)
+      if (sampleIds != that.sampleIds)
+        println(
+          s"""different sample ids:
+              |  left:  $sampleIds
+              |  right: ${that.sampleIds}""".stripMargin)
+      if (sampleAnnotations != that.sampleAnnotations)
+        println(
+          s"""different sample annotations:
+              |  left:  $sampleAnnotations
+              |  right: ${that.sampleAnnotations}""".stripMargin)
+      if (sampleIds != that.sampleIds)
+        println(
+          s"""different global annotation:
+              |  left:  $globalAnnotation
+              |  right: ${that.globalAnnotation}""".stripMargin)
+      if (wasSplit != that.wasSplit)
+        println(
+          s"""different was split:
+              |  left:  $wasSplit
+              |  right: ${that.wasSplit}""".stripMargin)
+    }
     metadataSame &&
       rdd.map { case (v, va, gs) => (v, (va, gs)) }
         .fullOuterJoin(that.rdd.map { case (v, va, gs) => (v, (va, gs)) })
-        .map {
+        .forall {
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
             val annotationsSame = va1 == va2
             if (!annotationsSame)
-              println(s"annotations $va1, $va2 were not the same")
+              println(
+                s"""at variant `$v', annotations were not the same:
+                    |  $va1
+                    |  $va2
+                 """.stripMargin)
             val genotypesSame = (it1, it2).zipped.forall { case (g1, g2) =>
               if (g1 != g2)
                 println(s"genotypes $g1, $g2 were not the same")
@@ -499,7 +614,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
           case (v, _) =>
             println(s"Found unmatched variant $v")
             false
-        }.fold(true)(_ && _)
+        }
   }
 
   def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(
@@ -531,30 +646,47 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def annotateInvervals(iList: IntervalList, signature: Type, path: List[String]): VariantSampleMatrix[T] = {
-    val (newSignature, inserter) = insertVA(signature, path)
-    val booleanSignature = newSignature == TBoolean
-    val newRDD = if (booleanSignature)
-      rdd.map { case (v, va, gs) => (v, inserter(va, Some(iList.contains(v.contig, v.start))), gs) }
-    else
-      rdd.map { case (v, va, gs) => (v, inserter(va, iList.query(v.contig, v.start)), gs) }
-    copy(rdd = newRDD, vaSignature = newSignature)
+  def annotateIntervals(is: IntervalTree[Locus],
+    arg: Option[(Type, Map[Interval[Locus], Annotation])],
+    path: List[String]): VariantSampleMatrix[T] = {
+
+    val isBc = sparkContext.broadcast(is)
+    arg match {
+      case Some((sig, m)) =>
+        val (newSignature, inserter) = insertVA(sig, path)
+        val mBc = sparkContext.broadcast(m)
+        copy(rdd = rdd.map { case (v, va, gs) =>
+          val queries = isBc.value.query(v.locus)
+          val toIns = if (queries.isEmpty)
+            None
+          else
+            Some(m(queries.head))
+          (v, inserter(va, toIns), gs)
+        },
+          vaSignature = newSignature)
+
+      case None =>
+        val (newSignature, inserter) = insertVA(TBoolean, path)
+        copy(rdd = rdd.map { case (v, va, gs) => (v, inserter(va, Some(isBc.value.contains(Locus(v.contig, v.start)))), gs) },
+          vaSignature = newSignature)
+    }
   }
 
-  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], signature: Type,
-    path: List[String]): VariantSampleMatrix[T] = {
-    val (newSignature, inserter) = insertVA(signature, path)
+  def annotateVariants(otherRDD: RDD[(Variant, Annotation)], newSignature: Type,
+    inserter: Inserter): VariantSampleMatrix[T] = {
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
-      .leftOuterJoin(otherRDD)
+      .leftOuterJoinDistinct(otherRDD)
       .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateSamples(annotations: Map[String, Annotation], signature: Type,
-    path: List[String]): VariantSampleMatrix[T] = {
+  def annotateSamples(annotations: Map[String, Annotation], signature: Type, path: List[String]): VariantSampleMatrix[T] = {
+    val (t, i) = insertSA(signature, path)
+    annotateSamples(annotations, t, i)
+  }
 
-    val (newSignature, inserter) = insertSA(signature, path)
-
+  def annotateSamples(annotations: Map[String, Annotation], newSignature: Type,
+    inserter: Inserter): VariantSampleMatrix[T] = {
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
       val sa = sampleAnnotations(i)
       inserter(sa, annotations.get(id))
@@ -565,7 +697,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def queryVA(code: String): (BaseType, Querier) = {
 
-    val st = Map(Annotation.VARIANT_HEAD ->(0, vaSignature))
+    val st = Map(Annotation.VARIANT_HEAD -> (0, vaSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -581,7 +713,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def querySA(code: String): (BaseType, Querier) = {
 
-    val st = Map(Annotation.SAMPLE_HEAD ->(0, saSignature))
+    val st = Map(Annotation.SAMPLE_HEAD -> (0, saSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -596,7 +728,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def queryGlobal(path: String): (BaseType, Option[Annotation]) = {
-    val st = Map(Annotation.GLOBAL_HEAD ->(0, globalSignature))
+    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -638,6 +770,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     globalSignature.insert(sig, path)
   }
 
+  override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
 }
 
 // FIXME AnyVal Scala 2.11
@@ -649,7 +782,10 @@ class RichVDS(vds: VariantDataset) {
       StructField("gs", GenotypeStream.schema, nullable = false)
     ))
 
-  def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
+  def makeSchemaForKudu(): StructType =
+    makeSchema().add(StructField("sample_group", StringType, nullable = false))
+
+  private def writeMetadata(sqlContext: SQLContext, dirname: String, compress: Boolean = true) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -657,51 +793,109 @@ class RichVDS(vds: VariantDataset) {
     hadoopMkdir(dirname, hConf)
 
     val sb = new StringBuilder
-    writeTextFile(dirname + "/sa.schema", hConf) { out =>
-      vds.saSignature.pretty(sb, 0, printAttrs = true)
-      out.write(sb.result())
-    }
+
+    vds.saSignature.pretty(sb, printAttrs = true, compact = true)
+    val saSchemaString = sb.result()
 
     sb.clear()
-    writeTextFile(dirname + "/va.schema", hConf) { out =>
-      vds.vaSignature.pretty(sb, 0, printAttrs = true)
-      out.write(sb.result())
-    }
+    vds.vaSignature.pretty(sb, printAttrs = true, compact = true)
+    val vaSchemaString = sb.result()
 
     sb.clear()
-    writeTextFile(dirname + "/global.schema", hConf) { out =>
-      vds.globalSignature.pretty(sb, 0, printAttrs = true)
-      out.write(sb.result())
-    }
+    vds.globalSignature.pretty(sb, printAttrs = true, compact = true)
+    val globalSchemaString = sb.result()
 
-    writeDataFile(dirname + "/metadata.ser", hConf) {
-      dos => {
-        val serializer = SparkEnv.get.serializer.newInstance()
-        val ss = serializer.serializeStream(dos)
-        ss
-          .writeObject(VariantSampleMatrix.magicNumber)
-          .writeObject(VariantSampleMatrix.fileVersion)
-          .writeObject(vds.sampleIds)
-          .writeObject(vds.sampleAnnotations)
-          .writeObject(vds.globalAnnotation)
-          .writeObject(vds.wasSplit)
-        ss.close()
-      }
-    }
+    val sampleInfoSchema = TStruct(("id", TString), ("annotation", vds.saSignature))
+    val sampleInfoJson = JArray(
+      vds.sampleIdsAndAnnotations
+        .map { case (id, annotation) =>
+          JObject(List(("id", JString(id)), ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, vds.saSignature))))
+        }
+        .toList
+    )
+
+    val json = JObject(
+      ("version", JInt(VariantSampleMatrix.fileVersion)),
+      ("split", JBool(vds.wasSplit)),
+      ("sample_annotation_schema", JString(saSchemaString)),
+      ("variant_annotation_schema", JString(vaSchemaString)),
+      ("global_annotation_schema", JString(globalSchemaString)),
+      ("sample_annotations", sampleInfoJson),
+      ("global_annotation", JSONAnnotationImpex.exportAnnotation(vds.globalAnnotation, vds.globalSignature))
+    )
+
+    writeTextFile(dirname + "/metadata.json.gz", hConf)(_.write(JsonMethods.pretty(json)))
+  }
+
+  def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
+    writeMetadata(sqlContext, dirname, compress)
 
     val vaSignature = vds.vaSignature
-    val vaRequiresConversion = vaSignature.requiresConversion
+    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
     val rowRDD = vds.rdd
       .map {
         case (v, va, gs) =>
           Row.fromSeq(Array(v.toRow,
-            if (vaRequiresConversion) vaSignature.makeSparkWritable(va) else va,
+            if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
             gs.toGenotypeStream(v, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
+  }
+
+  def writeKudu(sqlContext: SQLContext, dirname: String, tableName: String,
+    master: String, vcfSeqDict: String, rowsPerPartition: Int,
+    sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
+
+    writeMetadata(sqlContext, dirname, compress)
+
+    val vaSignature = vds.vaSignature
+
+    val rowType = VariantSampleMatrix.kuduRowType(vaSignature)
+    val rowRDD = vds.rdd
+      .map { case (v, va, gs) =>
+        KuduAnnotationImpex.exportAnnotation(Annotation(
+          v.toRow,
+          va,
+          gs.toGenotypeStream(v, compress).toRow,
+          sampleGroup), rowType).asInstanceOf[Row]
+      }
+
+    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
+    println(s"schema = $schema")
+    val df = sqlContext.createDataFrame(rowRDD, schema)
+
+    val kuduContext = new KuduContext(master)
+    if (drop) {
+      KuduUtils.dropTable(master, tableName)
+      Thread.sleep(10 * 1000) // wait to avoid overwhelming Kudu service queue
+    }
+    if (!KuduUtils.tableExists(master, tableName)) {
+      val hConf = sqlContext.sparkContext.hadoopConfiguration
+      val headerLines = readFile(vcfSeqDict, hConf) { s =>
+        Source.fromInputStream(s)
+          .getLines()
+          .takeWhile { line => line(0) == '#' }
+          .toArray
+      }
+      val codec = new htsjdk.variant.vcf.VCFCodec()
+      val seqDict = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+        .getHeaderValue
+        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+        .getSequenceDictionary
+
+      val keys = Seq("variant__contig", "variant__start", "variant__ref",
+        "variant__altAlleles_0__alt", "sample_group")
+      kuduContext.createTable(tableName, schema, keys,
+        KuduUtils.createTableOptions(schema, keys, seqDict, rowsPerPartition))
+    }
+    df.write
+      .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
+      .mode("append").kudu
+
+    println("Written to Kudu")
   }
 
   def eraseSplit: VariantDataset = {

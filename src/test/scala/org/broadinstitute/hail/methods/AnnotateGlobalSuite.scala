@@ -16,9 +16,9 @@ class AnnotateGlobalSuite extends SparkSuite {
     s = VariantQC.run(s, Array.empty[String])
     s = SampleQC.run(s, Array.empty[String])
 
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.mafDist = variants.stats(va.qc.MAF), global.singStats = samples.count(sa.qc.nSingleton > 2)"))
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.anotherAnnotation.sumOver2 = global.mafDist.sum / 2"))
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.macDist = variants.stats(va.qc.MAC)"))
+    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.afDist = variants.stats(va.qc.AF), global.singStats = samples.count(sa.qc.nSingleton > 2)"))
+    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.anotherAnnotation.sumOver2 = global.afDist.sum / 2"))
+    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.acDist = variants.stats(va.qc.AC)"))
     s = AnnotateGlobal.run(s, Array("expr", "-c", "global.CRStats = samples.stats(sa.qc.callRate)"))
 
 
@@ -32,30 +32,30 @@ class AnnotateGlobalSuite extends SparkSuite {
 
     assert(qSingletonGlobal.contains(sCount))
 
-    val qMaf = vds.queryVA("va.qc.MAF")._2
-    val mafSC = vds.variantsAndAnnotations.map(_._2)
+    val qAF = vds.queryVA("va.qc.AF")._2
+    val afSC = vds.variantsAndAnnotations.map(_._2)
       .aggregate(new StatCounter())({ case (statC, va) =>
-        val maf = qMaf(va)
-        maf.foreach(o => statC.merge(o.asInstanceOf[Double]))
+        val af = qAF(va)
+        af.foreach(o => statC.merge(o.asInstanceOf[Double]))
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    assert(vds.queryGlobal("global.mafDist")._2
-      .contains(Annotation(mafSC.mean, mafSC.stdev, mafSC.min, mafSC.max, mafSC.count, mafSC.sum)))
+    assert(vds.queryGlobal("global.afDist")._2
+      .contains(Annotation(afSC.mean, afSC.stdev, afSC.min, afSC.max, afSC.count, afSC.sum)))
 
-    assert(vds.queryGlobal("global.anotherAnnotation.sumOver2")._2.contains(mafSC.sum / 2))
+    assert(vds.queryGlobal("global.anotherAnnotation.sumOver2")._2.contains(afSC.sum / 2))
 
-    val qMac = vds.queryVA("va.qc.MAC")._2
-    val macSC = vds.variantsAndAnnotations.map(_._2)
+    val qAC = vds.queryVA("va.qc.AC")._2
+    val acSC = vds.variantsAndAnnotations.map(_._2)
       .aggregate(new StatCounter())({ case (statC, va) =>
-        val mac = qMac(va)
-        mac.foreach(o => statC.merge(o.asInstanceOf[Int]))
+        val ac = qAC(va)
+        ac.foreach(o => statC.merge(o.asInstanceOf[Int]))
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    assert(vds.queryGlobal("global.macDist")._2
-      .contains(Annotation(macSC.mean, macSC.stdev, macSC.min.toInt,
-        macSC.max.toInt, macSC.count, macSC.sum.round.toInt)))
+    assert(vds.queryGlobal("global.acDist")._2
+      .contains(Annotation(acSC.mean, acSC.stdev, acSC.min.toInt,
+        acSC.max.toInt, acSC.count, acSC.sum.round.toInt)))
 
     val qCR = vds.querySA("sa.qc.callRate")._2
     val crSC = vds.sampleAnnotations

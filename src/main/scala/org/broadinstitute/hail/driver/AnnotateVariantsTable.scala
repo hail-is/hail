@@ -1,75 +1,79 @@
 package org.broadinstitute.hail.driver
 
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.io.annotators._
+import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.variant.Variant
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 
-object AnnotateVariantsTable extends Command {
+object AnnotateVariantsTable extends Command with JoinAnnotator {
 
-  class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
-      usage = "Define types of fields in annotations files")
-    var types: String = ""
-
-    @Args4jOption(required = true, name = "-r", aliases = Array("--root"),
-      usage = "Period-delimited path starting with `va'")
-    var root: String = _
-
-    @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
-      usage = "Specify identifier to be treated as missing")
-    var missingIdentifier: String = "NA"
-
-    @Args4jOption(required = false, name = "-v", aliases = Array("--vcolumns"),
-      usage = "Specify the column identifiers for chromosome, position, ref, and alt (in that order)")
-    var vCols: String = "Chromosome,Position,Ref,Alt"
-
-    @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-      usage = "Field delimiter regex")
-    var delimiter: String = "\\t"
-
+  class Options extends BaseOptions with TextTableOptions {
     @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
 
+    @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
+      usage = "Period-delimited path starting with `va' (this argument or --code required)")
+    var root: String = _
+
+    @Args4jOption(required = false, name = "-c", aliases = Array("--code"),
+      usage = "Use annotation expressions to join with the table (this argument or --root required)")
+    var code: String = _
+
+    @Args4jOption(required = true, name = "-e", aliases = Array("--variant-expr"),
+      usage = "Specify an expression to construct a variant from the fields of the text table")
+    var vExpr: String = _
   }
 
   def newOptions = new Options
 
   def name = "annotatevariants table"
 
-  def description = "Annotate variants with TSV file"
+  def description = "Annotate variants with delimited text file"
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic = true
 
   def requiresVDS = true
-
-  def parseColumns(s: String): Array[String] = {
-    val split = s.split(",").map(_.trim)
-    if (split.length != 4 && split.length != 1)
-      fatal(
-        s"""Cannot read chr, pos, ref, alt columns from `$s':
-            |  enter four comma-separated column identifiers for separate chr/pos/ref/alt columns, or
-            |  one column identifier for a single chr:pos:ref:alt column.""".stripMargin)
-    split
-  }
 
   def run(state: State, options: Options): State = {
 
     val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
+    if (files.isEmpty)
+      fatal("Arguments referred to no files")
 
     val vds = state.vds
-    val (rdd, signature) = VariantTableAnnotator(vds.sparkContext, files,
-      parseColumns(options.vCols),
-      Parser.parseAnnotationTypes(options.types),
-      options.missingIdentifier, options.delimiter)
-    val annotated = vds
-      .withGenotypeStream()
-      .annotateVariants(rdd, signature,
-        Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
 
-    state.copy(vds = annotated)
+    val (expr, code) = (Option(options.code), Option(options.root)) match {
+      case (Some(c), None) => (true, c)
+      case (None, Some(r)) => (false, r)
+      case _ => fatal("this module requires one of `--root' or `--code', but not both")
+    }
+
+    val (struct, rdd) = TextTableReader.read(state.sc, files, options.config)
+
+    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
+      val ec = EvalContext(Map(
+        "va" -> (0, vds.vaSignature),
+        "table" -> (1, struct)))
+      buildInserter(code, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
+    } else vds.insertVA(struct, Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD))
+
+    val tableEC = EvalContext(struct.fields.map(f => (f.name, f.`type`)): _*)
+    val variantFn = Parser.parse[Variant](options.vExpr, tableEC, TVariant)
+
+    val keyedRDD = rdd.flatMap {
+      _.map { a =>
+        tableEC.setAll(a.asInstanceOf[Row].toSeq: _*)
+        variantFn().map(v => (v, a))
+      }.value
+    }
+
+    state.copy(vds = vds
+      .withGenotypeStream()
+      .annotateVariants(keyedRDD, finalType, inserter))
   }
 }

@@ -10,6 +10,7 @@ These three export modules take a condition argument (`-c`) similar to [filterin
 Command line arguments: 
  - `-c <cond>, --condition <cond>` -- export expression (see below) or .columns file
  - `-o <file>, --output <file>` -- file path to which output should be written
+ - `-t <types-file>, --types <types-file>`, -- file path to export column types 
 
 ## Export modules
 
@@ -86,7 +87,7 @@ It is also possible to export without identifiers, which will result in a file w
 exportsamples -c 's.id, sa.qc.rTiTv' -o file.tsv
 ```
 ```
-exportvariants -c 'v,va.pass,va.qc.MAF' -o file.tsv
+exportvariants -c 'v,va.pass,va.qc.AF' -o file.tsv
 ```
 ```
 exportgenotypes -c 'v,s.id,g.gq' -o file.tsv
