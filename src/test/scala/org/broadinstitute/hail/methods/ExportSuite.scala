@@ -102,7 +102,7 @@ class ExportSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
     s = ExportSamples.run(s, Array("-o", f, "-c", "S.A.M.P.L.E.ID = s.id"))
     s = ExportSamples.run(s, Array("-o", f2, "-c",
-      "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS**** = s.id, ANOTHERTHING=s.id"))
+      "$$$I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS**** = s.id, ANOTHERTHING=s.id"))
     s = ExportSamples.run(s, Array("-o", f3, "-c",
       "`I have some spaces and tabs\\there` = s.id,`more weird stuff here`=s.id"))
     readFile(f, sc.hadoopConfiguration) { reader =>
@@ -113,7 +113,7 @@ class ExportSuite extends SparkSuite {
     readFile(f2, sc.hadoopConfiguration) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
-      assert(lines.next == "$$$YO_DAWG_I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS****\tANOTHERTHING")
+      assert(lines.next == "$$$I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS****\tANOTHERTHING")
     }
     readFile(f3, sc.hadoopConfiguration) { reader =>
       val lines = Source.fromInputStream(reader)
