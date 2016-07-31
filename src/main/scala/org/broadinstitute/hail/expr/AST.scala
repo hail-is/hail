@@ -6,7 +6,7 @@ import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.stats._
-import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
+import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
@@ -284,6 +284,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TVariant, "inXNonPar") => TBoolean
       case (TVariant, "inYNonPar") => TBoolean
 
+      case (TLocus, "contig") => TString
+      case (TLocus, "position") => TInt
       // assumes biallelic
       case (TVariant, "alt") => TString
       case (TVariant, "altAllele") => TAltAllele
@@ -403,6 +405,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[Variant](ec, lhs)(_.alt)
     case (TVariant, "altAllele") =>
       AST.evalCompose[Variant](ec, lhs)(_.altAllele)
+
+    case (TLocus, "contig") =>
+      AST.evalCompose[Locus](ec, lhs)(_.contig)
+    case (TLocus, "position") =>
+      AST.evalCompose[Locus](ec, lhs)(_.position)
 
     case (TAltAllele, "ref") => AST.evalCompose[AltAllele](ec, lhs)(_.ref)
     case (TAltAllele, "alt") => AST.evalCompose[AltAllele](ec, lhs)(_.alt)
@@ -624,10 +631,24 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           case other => parseError(
             s"""Got invalid arguments to variant constructor: (${other.mkString(", ")})
                 |  Acceptable formats:
+                |    (String) for CHR:POS:REF:ALT or CHR:POS:REF:ALT1,ALT2,...ALTN
                 |    (String, Int, String, String) for (chr, pos, ref, alt)
                 |    (String, Int, String, Array[String]) for (chr, pos, ref, alts)
              """.stripMargin)
         }
+
+      case ("Locus", _) =>
+        args.map(_.`type`) match {
+          case Array(TString) => TLocus
+          case Array(TString, TInt) => TLocus
+          case other => parseError(
+            s"""Got invalid arguments to locus constructor: (${other.mkString(", ")})
+                |  Acceptable formats:
+                |    (String) for CHR:POS
+                |    (String, Int) for (chr, pos)
+             """.stripMargin)
+        }
+
 
       case ("hwe", _) =>
         args.map(_.`type`) match {
@@ -809,6 +830,17 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           }
       }
 
+    case ("Locus", _) =>
+      args match {
+        case Array(locusAST) => AST.evalCompose[String](ec, locusAST) { locusString =>
+          val Array(chr, pos) = locusString.split(":")
+          Locus(chr, pos.toInt)
+        }
+        case Array(chrAST, posAST) => AST.evalCompose[String, Int](ec, chrAST, posAST) { case (chr, pos) =>
+          Locus(chr, pos)
+        }
+      }
+
     case ("hwe", Array(a, b, c)) =>
       AST.evalCompose[Int, Int, Int](ec, a, b, c) {
         case (nHomRef, nHet, nHomVar) =>
@@ -838,7 +870,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         merger(f1(), f2())
       }
 
-    case ("select" | "drop", Array(struct, _*)) =>
+    case ("select" | "drop", Array(struct, _ *)) =>
       val filterer = store.asInstanceOf[Deleter]
       AST.evalCompose[Annotation](ec, struct) { s =>
         filterer(s)
@@ -854,6 +886,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           .toMap
       }
   }
+
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
@@ -1235,7 +1268,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         arr.sortBy { elt =>
           localA(localIdx) = elt
           bodyFn()
-        } (ord)
+        }(ord)
       }
 
     case (returnType, "mapvalues", Array(Lambda(_, param, body))) =>
@@ -1719,13 +1752,13 @@ case class SliceArray(posn: Position, f: AST, idx1: Option[AST], idx2: Option[AS
       if (idx1.exists(_.`type` != TInt) || idx2.exists(_.`type` != TInt))
         parseError(
           s"""invalid slice expression
-             |  Expect (array[start:end],  array[:end], or array[start:]) where start and end are integers
-             |  Found [${idx1.map(_.`type`).getOrElse("")}:${idx2.map(_.`type`).getOrElse("")}]""".stripMargin)
+              |  Expect (array[start:end],  array[:end], or array[start:]) where start and end are integers
+              |  Found [${idx1.map(_.`type`).getOrElse("")}:${idx2.map(_.`type`).getOrElse("")}]""".stripMargin)
       else
         t
     case _ => parseError(
       s"""invalid slice expression
-         |  Only arrays can be sliced.  Found slice operation on type `${f.`type`}'""".stripMargin)
+          |  Only arrays can be sliced.  Found slice operation on type `${f.`type`}'""".stripMargin)
   }
 
   def eval(ec: EvalContext): () => Any = {

@@ -560,8 +560,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       if (vaSignature != that.vaSignature)
         println(
           s"""different va signature:
-             |  left:  ${vaSignature.toPrettyString(compact = true)}
-             |  right: ${that.vaSignature.toPrettyString(compact = true)}""".stripMargin)
+              |  left:  ${vaSignature.toPrettyString(compact = true)}
+              |  right: ${that.vaSignature.toPrettyString(compact = true)}""".stripMargin)
       if (saSignature != that.saSignature)
         println(
           s"""different sa signature:
@@ -677,6 +677,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val newRDD = rdd.map { case (v, va, gs) => (v, (va, gs)) }
       .leftOuterJoinDistinct(otherRDD)
       .map { case (v, ((va, gs), annotation)) => (v, inserter(va, annotation), gs) }
+    copy(rdd = newRDD, vaSignature = newSignature)
+  }
+
+  def annotateLoci(lociRDD: RDD[(Locus, Annotation)], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
+    val newRDD = rdd.map { case (v, va, gs) => (v.locus, (v, va, gs)) }
+      .leftOuterJoinDistinct(lociRDD)
+      .map { case (l, ((v, va, gs), annotation)) => (v, inserter(va, annotation), gs) }
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 

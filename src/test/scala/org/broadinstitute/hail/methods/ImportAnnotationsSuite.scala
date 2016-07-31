@@ -506,5 +506,29 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     p.check(count = 1)
   }
+
+  @Test def testPositions() {
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
+    var state = State(sc, sqlContext, vds)
+    state = SplitMulti.run(state)
+
+
+    val byPosition = AnnotateVariants.run(state,
+      Array("loci",
+        "src/test/resources/sample2_va_positions.tsv",
+        "-t", "Rand1:Double,Rand2:Double",
+        "-e", "Locus(Chromosome, Position.toInt)",
+        "-c", "va.stuff = select(table, Rand1, Rand2)"))
+
+    val byVariant = AnnotateVariants.run(state,
+      Array("table",
+        "src/test/resources/sample2_va_nomulti.tsv",
+        "-t", "Rand1:Double,Rand2:Double",
+        "-e", "Variant(Chromosome, Position.toInt, Ref, Alt)",
+        "-c", "va.stuff = select(table, Rand1, Rand2)"))
+
+    assert(byPosition.vds.same(byVariant.vds))
+
+  }
 }
 

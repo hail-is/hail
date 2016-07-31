@@ -56,14 +56,12 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
 
     } else vds.insertSA(struct, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
 
-    val tableEC = EvalContext(struct.fields.map(f => (f.name, f.`type`)): _*)
-    val sampleFn = Parser.parse[String](options.sampleExpr, tableEC, TString)
+    val sampleQuery = struct.parseInStructScope[String](options.sampleExpr, TString)
 
     val map = rdd
       .flatMap {
         _.map { a =>
-          tableEC.setAll(a.asInstanceOf[Row].toSeq: _*)
-          sampleFn().map(s => (s, a))
+          sampleQuery(a).map(s => (s, a))
         }.value
       }
       .collect()

@@ -415,6 +415,7 @@ object Parser extends JavaTokenParsers {
       "Sample" ^^ { _ => TSample } |
       "AltAllele" ^^ { _ => TAltAllele } |
       "Variant" ^^ { _ => TVariant } |
+      "Locus" ^^ { _ => TLocus } |
       "Genotype" ^^ { _ => TGenotype } |
       "String" ^^ { _ => TString } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
