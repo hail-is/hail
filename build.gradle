@@ -3,20 +3,20 @@ buildscript {
         mavenCentral()
         jcenter()
     }
-    dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
-    }
+}
+
+plugins {
+  id "com.gradle.build-scan" version "1.0"
+  id 'java'
+  id 'scala'
+  id 'idea'
+  id 'application'
+  id 'maven'
+  id 'jacoco'
+  id 'com.github.johnrengelman.shadow' version '1.2.3'
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-
-apply plugin: 'java'
-apply plugin: 'scala'
-apply plugin: 'idea'
-apply plugin: 'application'
-apply plugin: 'maven'
-apply plugin: 'jacoco'
-apply plugin: 'com.github.johnrengelman.shadow'
 
 repositories {
     mavenCentral()
@@ -24,6 +24,11 @@ repositories {
     maven {
         url "https://repository.cloudera.com/artifactory/cloudera-repos/" // kudu
     }
+}
+
+buildScan {
+    licenseAgreementUrl = 'https://gradle.com/terms-of-service'
+    licenseAgree = 'yes'
 }
 
 mainClassName = "org.broadinstitute.hail.driver.Main"
