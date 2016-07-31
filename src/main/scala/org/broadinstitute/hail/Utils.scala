@@ -1321,8 +1321,8 @@ object Utils extends Logging {
       def compare(a: Any, b: Any) =
         (a, b) match {
           case (null, null) => 0
-          case (null, _) => -1
-          case (_, null) => 1
+          case (null, _) => 1
+          case (_, null) => -1
           case _ => ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
         }
     }
