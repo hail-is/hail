@@ -2,7 +2,7 @@
 
 Several Hail commands provide the ability to perform a broad array of computations based on data structures exposed to the user.  
 
-**Supported comparisons and transformations:**
+## Expressions and operations
 
  - Conditionals: `if (p) a else b` -- The value of the conditional is the value of `a` or `b` depending on `p`.  If `p` is missing, the value of the conditional is missing.
  - Let: `let v1 = e1 and v2 = e2 and ... and vn = en in b` -- Bind variables `v1` through `vn` to result of evaluating the `ei`.  The value of the `let` is the value of `b`.  `v1` is visible in `e2` through `en`, etc.
@@ -20,7 +20,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - toInt: `i.toInt`
      - toFloat: `i.toFloat`
      - toLong: `i.toLong`
- - Numerical transformations:
+ - Numerical operations:
  
      - +, -, /, *, %: `a + b - c / d * e % f`
      - abs: `i.abs` -- returns the absolute value of `i`
@@ -274,9 +274,7 @@ Compute statistics on number of singletons stratified by case/control:
 
 The above reads, "where the genotype is called non-reference, collect the sample id".  This returns an `Array[String]`.  If instead of `gs.collect(g.isCalledNonRef, s)` we had written `gs.collect(g.isCalled NonRef, g)`, we would have returned an `Array[Genotype]`.
 
-### Examples
-
-#### Filtering
+## Filtering
 
 Filtering requires an expression that evaluates to a boolean.
 
@@ -306,29 +304,31 @@ See documentation on [exporting to TSV](ExportTSV.md) and [programmatic annotati
 <a name="statsFunctions"></a>
 ## Statistical Functions
 
-### Fisher's Exact Test
+### Fisher's exact test
 
-Hail's expression language exposes the `fet` function to calculate the p-value, Odds Ratio, and 95% Confidence Interval with Fisher's Exact Test for 2x2 tables. This implementation of FET is identical to the version implemented in [R](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html) with default parameters (two-sided, alpha = 0.05, null hypothesis is Odds Ratio = 1).
+Hail's expression language exposes the `fet` function to calculate the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for 2x2 tables. This implementation of FET is identical to the version implemented in [R](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html) with default parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
 
-The inputs to the `fet` function are 4 integers (must be greater than or equal to 0).
+The `fet` function takes four non-negative arguments of type Int.
 ```
-annotatevariants expr -c 'va.fet = fet(a.toInt, b.toInt, c.toInt, d.toInt)'
+annotatevariants expr -c 'va.fet = fet(a, b, c, d)'
 ```
 
-The outputs are 4 fields of type Double that are accessible from the annotation root specified on the left-hand side of the equation:
+The function adds four annotations of type Double to the annotation root specified on the left-hand side of the equation:
  - `pValue`
  - `oddsRatio`
  - `ci95Lower`
  - `ci95Upper`
+ 
+Note that the aggregator function `count` creates annotation of type Long, which must be converted to Int as in the workflow below. Caution: the maximum value of an Int is 2147483647. Converting a Long of larger value to Int will corrupt the value.
 
 **Example Workflow to Perform a Single-Variant Association Test Using FET:**
 ```
 annotatesamples table -i /path/my/annotations.tsv -r "sa.pheno"
-annotatevariants expr -c 'va.macCase = gs.count(sa.pheno.Pheno1 == "Case" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Case" && g.isHomVar)'
-annotatevariants expr -c 'va.majCase = gs.count(sa.pheno.Pheno1 == "Case" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Case" && g.isHomRef)'
-annotatevariants expr -c 'va.macControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Control" && g.isHomVar)'
-annotatevariants expr -c 'va.majControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Control" && g.isHomRef)'
-annotatevariants expr -c 'va.fet = fet(va.macCase.toInt, va.majCase.toInt, va.macControl.toInt, va.majControl.toInt)'
+annotatevariants expr -c 'va.minorCase = gs.count(sa.pheno.Pheno1 == "Case" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Case" && g.isHomVar)'
+annotatevariants expr -c 'va.majorCase = gs.count(sa.pheno.Pheno1 == "Case" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Case" && g.isHomRef)'
+annotatevariants expr -c 'va.minorControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Control" && g.isHomVar)'
+annotatevariants expr -c 'va.majorControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "Control" && g.isHomRef)'
+annotatevariants expr -c 'va.fet = fet(va.minorCase.toInt, va.majorCase.toInt, va.minorControl.toInt, va.majorControl.toInt)'
 filtervariants expr --keep -c 'va.fet.pValue < 1e-4'
-exportvariants -o /path/my/results.tsv -c 'v, va.macCase, va.majCase, va.macControl, va.majControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'
+exportvariants -o /path/my/results.tsv -c 'v, va.minorCase, va.majorCase, va.minorControl, va.majorControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'
 ```
