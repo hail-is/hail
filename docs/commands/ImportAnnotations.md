@@ -48,7 +48,7 @@ Load only specific annotations from the table:
 
 **Example 1**
 ```
-$ zcat ~/consequences.tsv.gz
+$ zcat ~/consequences.tsv.bgz
 Variant             Consequence     DNAseSensitivity
 1:2001020:A:T       Synonymous      0.86
 1:2014122:TTC:T     Frameshift      0.65
@@ -61,32 +61,33 @@ This file contains one field to identify the variant and two data columns: one w
 
 ```
 $ hail \
-    importannotations \
-        file:///user/tpot/consequences.tsv.gz \
-        -r va.varianteffects \
+    importannotations table \
+        consequences.tsv.bgz \
         -e Variant 
         --impute \
     write \
         -o /user/tpot/consequences.vds
 ```
 
-This invocation will annotate variants with the following schema:
+This invocation will produce a VDS with the following schema:
 
 ```
 Variant annotations:  
-va: va.<identifier>
-    <probably lots of other stuff here>
-    varianteffects: va.varianteffects.<identifier>
-        Consequence: String
-        DNAseSensitivity: Double
+va: Struct {
+    Variant: Variant
+    Consequence: String
+    DNAseSensitivity: Double
+}
 ```
+
+Notice that `Variant` will be added to variant annotations by default, duplicating it unnecessarily in the VDS.  In order to avoid this, you could add an argument to the `importannotations` command line: `--code 'va = drop(table, Variant)'`.  This will drop the 'Variant' field from the table `Struct`.
 
 ____
 
 **Example 2**
 
 ```
-$ zcat ~/ExAC_Counts.tsv.gz
+$ zcat ~/ExAC_Counts.tsv.bgz
 Chr  Pos        Ref     Alt     AC
 16   29501233   A       T       1
 16   29561200   TTTTT   T       15023
@@ -94,15 +95,22 @@ Chr  Pos        Ref     Alt     AC
 
 ```
 
-In this case, the variant is indicated by four columns, but the header does not match the default ("Chromosome, Position, Ref, Alt").  The proper command line is below:
+In this case, the variant is indicated by four columns instead of one, so we need to use the `Variant` expr constructor.  Additionally, since there is only one non-variant annotation, we may also want to let `va` be just that annotation (an integer referring to ExAC allele count).
 
 ```
 $ hail \
-    importannotations \
-        file:///user/tpot/ExAC_Counts.tsv.gz \
-        -t "AC: Int" \
+    importannotations table \
+        file:///user/tpot/ExAC_Counts.tsv.bgz \
+        -t "AC: Int, Pos: Int" \
         -c 'va = table.AC' \
         -e "Variant(Chr,Pos,Ref,Alt)" \
     write \
         -o /user/tpot/ExAC_Counts.vds
+```
+
+The schema:
+
+```
+Variant annotations:  
+va: Int
 ```
