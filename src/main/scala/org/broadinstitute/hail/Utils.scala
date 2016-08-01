@@ -715,7 +715,7 @@ object TempDir {
         hadoopMkdir(dirname, hConf)
 
         val fs = hadoopFS(tmpdir, hConf)
-        //fs.deleteOnExit(new hadoop.fs.Path(dirname))
+        fs.deleteOnExit(new hadoop.fs.Path(dirname))
 
         return new TempDir(dirname)
       } catch {

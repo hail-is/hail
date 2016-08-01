@@ -145,12 +145,48 @@ class LoadBgenSuite extends SparkSuite {
           val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
           val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, gt) => ((v, s), gt) }
 
-          originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (gt1, gt2)) => gt1 == gt2}
+          originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (gt1, gt2)) =>
+            if (gt1 == gt2)
+              true
+            else {
+              (gt1, gt2) match {
+                case (None, None) => true
+                case (None, Some(y)) =>
+                  println(s"ERROR: gts not equal; orig=${gt1} hail=${gt2}")
+                  false
+                case (Some(x), None) =>
+                  println(s"ERROR: gts not equal; orig=${gt1} hail=${gt2}")
+                  false
+                case (Some(x), Some(y)) =>
+
+                  if (x.dosage.get.zip(y.dosage.get).forall{case (dx, dy) => math.abs(dx - dy) <= 3e-4}) {
+                    if (x.gt == y.gt)
+                      true
+                    else {
+                      val maxDosageY = y.dosage.get.max
+                      if (y.dosage.get.count(d => d == maxDosageY) > 1 && y.dosage.get(x.gt.get) == maxDosageY) {
+                        println(s"WARN: gts unequal because no max dosage in imported dosage; orig=${gt1} hail=${gt2}")
+                        true
+                      } else if (x.gt.isEmpty) {
+                        println(s"WARN: gts unequal because original gt was None; orig=${gt1} hail=${gt2}")
+                        true
+                      } else {
+                        println(s"ERROR: gts not equal but dosages equal; orig=${gt1} hail=${gt2}")
+                        false
+                      }
+                    }
+                  } else {
+                    println(s"ERROR: dosages not equal; orig=${gt1} hail=${gt2}")
+                    false
+                  }
+              }
+            }
+          }
         }
       }
   }
 
   @Test def testBgenImportRandom() {
-    Spec.check(100, 100, Option(20))
+    Spec.check(100, 50, Option(20))
   }
 }
