@@ -43,7 +43,7 @@ object ExportPlink extends Command {
     val plinkVariantRDD = vds
       .rdd
       .map {
-        case (v, va, gs) =>
+        case (v, (va, gs)) =>
           (v, ExportBedBimFam.makeBedRow(gs))
       }
 

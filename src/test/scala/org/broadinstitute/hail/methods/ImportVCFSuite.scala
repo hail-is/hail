@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.spark.SparkException
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
@@ -90,7 +90,7 @@ class ImportVCFSuite extends SparkSuite {
 
     val anno = s.vds
       .rdd
-      .map { case (v, va, gs) => va }
+      .map { case (v, (va, gs)) => va }
       .collect()
       .head
 

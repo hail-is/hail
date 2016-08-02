@@ -166,7 +166,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     anno1.vds.rdd
       .collect()
       .foreach {
-        case (v, va, gs) =>
+        case (v, (va, gs)) =>
           val (rand1, rand2, gene) = fileMap(v)
           assert(q1(va).contains(Annotation(rand1.getOrElse(null), rand2.getOrElse(null), gene.getOrElse(null))))
       }
@@ -206,7 +206,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     anno1.vds.rdd.collect()
       .foreach {
-        case (v, va, gs) =>
+        case (v, (va, gs)) =>
           assert(q(va) == otherMap.get(v))
       }
   }

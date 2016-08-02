@@ -272,7 +272,7 @@ object VEP extends Command {
 
     val inputQuery = vepSignature.query("input")
 
-    val kvRDD = vds.rdd.map { case (v, a, gs) =>
+    val kvRDD = vds.rdd.map { case (v, (a, gs)) =>
       (v, (a, gs.toGenotypeStream(v, compress = false)))
     }.persist(StorageLevel.MEMORY_AND_DISK)
 
@@ -317,7 +317,7 @@ object VEP extends Command {
     val newRDD = repartRDD
       .zipPartitions(annotations) { case (it, ita) =>
 
-        new Iterator[(Variant, Annotation, Iterable[Genotype])] {
+        new Iterator[(Variant, (Annotation, Iterable[Genotype]))] {
           var p: (Variant, Annotation) = null
 
           def hasNext = {
@@ -326,7 +326,7 @@ object VEP extends Command {
             r
           }
 
-          def next(): (Variant, Annotation, Iterable[Genotype]) = {
+          def next(): (Variant, (Annotation, Iterable[Genotype])) = {
             var (v, (va, gs)) = it.next()
 
             if (p == null
@@ -338,9 +338,9 @@ object VEP extends Command {
             if (p != null && v == p._1) {
               val va2 = insertVEP(va, Some(p._2))
               p = null
-              (v, va2, gs)
+              (v, (va2, gs))
             } else
-              (v, va, gs)
+              (v, (va, gs))
           }
         }
       }

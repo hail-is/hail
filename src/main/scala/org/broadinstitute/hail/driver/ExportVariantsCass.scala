@@ -2,12 +2,12 @@ package org.broadinstitute.hail.driver
 
 import com.datastax.driver.core._
 import com.datastax.driver.core.querybuilder.QueryBuilder
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-import scala.collection.mutable
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 // FIXME add drop/create table option
 
@@ -188,7 +188,7 @@ object ExportVariantsCass extends Command {
         val vb = mutable.ArrayBuilder.make[AnyRef]
 
         val futures = it
-          .map { case (v, va, gs) =>
+          .map { case (v, (va, gs)) =>
             nb.clear()
             vb.clear()
 

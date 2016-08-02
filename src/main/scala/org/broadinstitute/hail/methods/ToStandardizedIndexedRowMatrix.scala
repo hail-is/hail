@@ -2,8 +2,8 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
-import org.broadinstitute.hail.variant.{Variant, VariantDataset}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.variant.{Variant, VariantDataset}
 
 object ToStandardizedIndexedRowMatrix {
   def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {
@@ -14,7 +14,7 @@ object ToStandardizedIndexedRowMatrix {
 
     val standardized = vds
       .rdd
-      .map { case (v, va, gs) =>
+      .map { case (v, (va, gs)) =>
         val (count, sum) = gs.foldLeft((0, 0)) { case ((c, s), g) =>
           g.nNonRefAlleles match {
             case Some(n) => (c + 1, s + n)

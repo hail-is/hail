@@ -3,11 +3,11 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.stats.LeveneHaldane
+import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -251,12 +251,12 @@ object VariantQC extends Command {
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(r) { case (it, jt) =>
           // if upstream operation is a recomputed shuffle, order of elements may disagree
-          val ia = it.toArray.sortWith { case ((v1, _, _), (v2, _, _)) => v1 < v2 }
+          val ia = it.toArray.sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
           val ja = jt.toArray.sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
 
-          ia.iterator.zip(ja.iterator).map { case ((v, va, gs), (v2, comb)) =>
+          ia.iterator.zip(ja.iterator).map { case ((v, (va, gs)), (v2, comb)) =>
             assert(v == v2)
-            (v, insertQC(va, Some(comb.asAnnotation)), gs)
+            (v, (insertQC(va, Some(comb.asAnnotation)), gs))
           }
         },
         vaSignature = newVAS)

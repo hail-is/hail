@@ -96,9 +96,9 @@ object LinearRegressionCommand extends Command {
     state.copy(
       vds = vds.copy(
         rdd = vds.rdd.zipPartitions(linreg.rdd) { case (it, jt) =>
-          it.zip(jt).map { case ((v, va, gs), (v2, comb)) =>
+          it.zip(jt).map { case ((v, (va, gs)), (v2, comb)) =>
             assert(v == v2)
-            (v, inserter(va, comb.map(_.toAnnotation)), gs)
+            (v, (inserter(va, comb.map(_.toAnnotation)), gs))
           }
         },
         vaSignature = newVAS

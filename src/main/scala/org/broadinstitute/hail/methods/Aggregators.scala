@@ -69,7 +69,7 @@ object Aggregators {
         baseArray.update(i, j, zeroVals(j)())
       }
 
-      val result = vds.rdd.treeAggregate(baseArray)({ case (arr, (v, va, gs)) =>
+      val result = vds.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
         aggregatorA(0) = v
         aggregatorA(1) = va
         gs.iterator

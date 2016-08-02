@@ -1,8 +1,8 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.variant.GenotypeType._
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.variant.{GenotypeType, Genotype}
+import org.broadinstitute.hail.variant.GenotypeType._
+import org.broadinstitute.hail.variant.{Genotype, GenotypeType}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object GQHistCombiner {
@@ -82,7 +82,7 @@ object GQHist extends Command {
 
     val vds = state.vds
 
-    val result = vds.rdd.map { case (v, va, gs) =>
+    val result = vds.rdd.map { case (v, (va, gs)) =>
       gs.aggregate(GQHistCombiner())((comb, g) =>
         comb.merge(g),
         (comb1, comb2) => comb1.merge(comb2))

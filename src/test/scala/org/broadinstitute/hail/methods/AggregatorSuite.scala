@@ -2,8 +2,8 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 
 class AggregatorSuite extends SparkSuite {
@@ -34,7 +34,7 @@ class AggregatorSuite extends SparkSuite {
 
     s.vds.rdd.collect()
       .foreach {
-        case (v, va, gs) =>
+        case (v, (va, gs)) =>
           assert(qCallRate(va) == qCallRateQC(va))
           assert(qAC(va) == qACQC(va))
           assert(qAF(va) == qAFQC(va))

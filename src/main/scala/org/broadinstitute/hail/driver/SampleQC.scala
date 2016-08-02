@@ -252,7 +252,7 @@ object SampleQC extends Command {
       .zip(
         vds
           .rdd
-          .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner))({ case (acc, (v, va, gs)) =>
+          .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner))({ case (acc, (v, (va, gs))) =>
             val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
             for ((g, i) <- gs.iterator.zipWithIndex)
               acc(i).merge(v, vIsSingleton, g)
