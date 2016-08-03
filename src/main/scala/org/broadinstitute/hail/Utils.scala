@@ -1279,7 +1279,7 @@ object Utils extends Logging {
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
   // ignore size; atomic, like String
-  def genDNAString: Gen[String] = Gen.buildableOf[String, Char](genBase)
+  def genDNAString: Gen[String] = Gen.stringOf(genBase)
     .resize(12)
     .filter(s => !s.isEmpty)
 

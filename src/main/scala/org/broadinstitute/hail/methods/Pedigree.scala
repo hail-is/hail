@@ -117,7 +117,7 @@ object Pedigree {
   }
 
   def genWithIds(): Gen[(IndexedSeq[String], Pedigree)] = {
-    for (ids <- Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier);
+    for (ids <- Gen.distinctBuildableOf(Gen.identifier);
          ped <- gen(ids))
       yield (ids, ped)
   }

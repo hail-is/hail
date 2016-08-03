@@ -2,6 +2,7 @@ package org.broadinstitute.hail.check
 
 import scala.collection.generic.CanBuildFrom
 import scala.math.Numeric.Implicits._
+import scala.language.higherKinds
 
 object Arbitrary {
   def apply[T](arbitrary: Gen[T]): Arbitrary[T] =
@@ -36,8 +37,8 @@ object Arbitrary {
     b.result()
   })))
 
-  implicit def arbBuildableOf[C, T](implicit a: Arbitrary[T], cbf: CanBuildFrom[Nothing, T, C]): Arbitrary[C] =
-    Arbitrary(Gen.buildableOf[C, T](a.arbitrary))
+  implicit def arbBuildableOf[C[_], T](implicit a: Arbitrary[T], cbf: CanBuildFrom[Nothing, T, C[T]]): Arbitrary[C[T]] =
+    Arbitrary(Gen.buildableOf(a.arbitrary))
 
   def arbitrary[T](implicit arb: Arbitrary[T]): Gen[T] = arb.arbitrary
 }
