@@ -30,7 +30,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    vcfSettings: VCFSettings): (Variant, Annotation, Iterable[Genotype]) = {
+    vcfSettings: VCFSettings): (Variant, (Annotation, Iterable[Genotype])) = {
 
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filters: Set[String] = {
@@ -76,7 +76,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     }
 
     if (vcfSettings.skipGenotypes)
-      return (v, va, Iterable.empty)
+      return (v, (va, Iterable.empty))
 
     val gb = new GenotypeBuilder(v)
 
@@ -204,7 +204,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         gsb.write(gb)
     }
 
-    (v, va, gsb.result())
+    (v, (va, gsb.result()))
   }
 }
 

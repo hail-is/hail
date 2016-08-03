@@ -3,12 +3,11 @@ package org.broadinstitute.hail.driver
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.schema.SchemaRequest
 import org.apache.solr.common.{SolrException, SolrInputDocument}
-import org.broadinstitute.hail.expr._
-
-import scala.collection.JavaConverters._
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.util.Random
 
@@ -181,7 +180,7 @@ object ExportVariantsSolr extends Command with Serializable {
 
     vds.rdd.foreachPartition { it =>
       val ab = mutable.ArrayBuilder.make[AnyRef]
-      val documents = it.map { case (v, va, gs) =>
+      val documents = it.map { case (v, (va, gs)) =>
 
         val document = new SolrInputDocument()
 

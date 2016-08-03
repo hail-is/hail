@@ -4,7 +4,7 @@ import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.utils.{TextTableConfiguration, TextTableOptions, TextTableReader}
+import org.broadinstitute.hail.utils.{TextTableOptions, TextTableReader}
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
@@ -64,7 +64,7 @@ object ImportAnnotationsTable extends Command with JoinAnnotator {
     val keyedRDD = rdd.flatMap {
       _.map { a =>
         ec.setAll(a.asInstanceOf[Row].toSeq: _*)
-        variantFn().map(v => (v, fn(null, Some(a)), Iterable.empty[Genotype]))
+        variantFn().map(v => (v, (fn(null, Some(a)), Iterable.empty[Genotype])))
       }.value
     }
 

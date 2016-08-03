@@ -54,7 +54,7 @@ object FilterVariantsList extends Command {
         }
 
     val in = vds.rdd
-      .map { case (v, va, gs) => (v, (va, gs.toGenotypeStream(v, compress = false))) }
+      .map { case (v, (va, gs)) => (v, (va, gs.toGenotypeStream(v, compress = false))) }
 
     state.copy(
       vds = vds.copy(
@@ -62,7 +62,7 @@ object FilterVariantsList extends Command {
           if (keep)
             in
               .joinDistinct(variants)
-              .map { case (v, ((va, gs), _)) => (v, va, gs) }
+              .map { case (v, ((va, gs), _)) => (v, (va, gs)) }
           else
             in
               .leftOuterJoinDistinct(variants)
@@ -70,7 +70,7 @@ object FilterVariantsList extends Command {
                 case (v, ((va, gs), Some(_))) =>
                   None
                 case (v, ((va, gs), None)) =>
-                  Some((v, va, gs))
+                  Some((v, (va, gs)))
               }
       ))
   }

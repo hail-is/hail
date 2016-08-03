@@ -64,9 +64,9 @@ object SplitMulti extends Command {
     it: Iterable[Genotype],
     propagateGQ: Boolean,
     compress: Boolean,
-    insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, Annotation, Iterable[Genotype])] = {
+    insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
     if (v.isBiallelic)
-      return Iterator((v, insertSplitAnnots(va, 0, false), it))
+      return Iterator((v, (insertSplitAnnots(va, 0, false), it)))
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(_._1.alt != "*")
@@ -127,7 +127,7 @@ object SplitMulti extends Command {
     splitVariants.iterator
       .zip(splitGenotypeStreamBuilders.iterator)
       .map { case ((v, ind), gsb) =>
-        (v, insertSplitAnnots(va, ind - 1, true), gsb.result())
+        (v, (insertSplitAnnots(va, ind - 1, true), gsb.result()))
       }
   }
 
@@ -162,7 +162,7 @@ object SplitMulti extends Command {
     val newVDS = state.vds.copy[Genotype](
       wasSplit = true,
       vaSignature = vas4,
-      rdd = vds.rdd.flatMap[(Variant, Annotation, Iterable[Genotype])] { case (v, va, it) =>
+      rdd = vds.rdd.flatMap[(Variant, (Annotation, Iterable[Genotype]))] { case (v, (va, it)) =>
         split(v, va, it,
           propagateGQ = propagateGQ,
           compress = !noCompress, { (va, index, wasSplit) =>

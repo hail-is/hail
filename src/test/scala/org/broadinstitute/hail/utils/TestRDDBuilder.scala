@@ -1,9 +1,10 @@
 package org.broadinstitute.hail.utils
 
-import scala.util.Random
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.annotations._
 import org.apache.spark.SparkContext
+import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.variant._
+
+import scala.util.Random
 
 object TestRDDBuilder {
 
@@ -123,7 +124,7 @@ object TestRDDBuilder {
           // FIXME gq
           b += Genotype(gt, ad, Some(dp), Some(gq), pl)
         }
-        (variant, Annotation.empty, b.result(): Iterable[Genotype])
+        (variant, (Annotation.empty, b.result(): Iterable[Genotype]))
     }
     VariantSampleMatrix(VariantMetadata(sampleList), streamRDD)
   }

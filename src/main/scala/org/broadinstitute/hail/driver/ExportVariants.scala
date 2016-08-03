@@ -80,7 +80,7 @@ object ExportVariants extends Command with TextExporter {
     vds.rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
-        it.map { case (v, va, gs) =>
+        it.map { case (v, (va, gs)) =>
 
           variantAggregations.foreach { f => f(v, va, gs) }
           sb.clear()

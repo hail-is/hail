@@ -28,7 +28,7 @@ object Count extends Command {
     val vds = state.vds
 
     val (nVariants, nCalledOption) = if (options.genotypes) {
-      val (nVar, nCalled) = vds.rdd.map { case (v, va, gs) =>
+      val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs)) =>
         (1L, gs.count(_.isCalled).toLong)
       }.fold((0L, 0L)) { (comb, x) =>
         (comb._1 + x._1, comb._2 + x._2)
