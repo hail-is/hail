@@ -31,6 +31,21 @@ involved in Hail development, email hail@broadinstitute.org.
  - [Exporting to Plink](docs/ExportPlink.md)
  - [Persist](docs/Persist.md)
 
+## Citing Hail
+
+If you use Hail for published work, please site both the software:
+
+ - Hail, [https://github.com/broadinstitute/hail](https://github.com/broadinstitute/hail)
+
+and the forthcoming manuscript describing Hail:
+
+ - Cotton Seed, Alex Bloemendal, Jonathan M Bloom, Jacqueline I Goldstein, Timothy Poterba.  Hail: An Open-Source Framework for Scalable Genetic Data Analysis.  In preparation.
+
+of the following paper which includes a brief introduction to Hail in
+the online methods:
+
+ - Andrea Ganna, Giulio Genovese, Daniel P Howrigan, Andrea Byrnes, Mitja Kurki, Seyedeh M Zekavat, Christopher W Whelan, Robert E Handsaker, Mart Kals, Alex Bloemendal, Jonathan M Bloom, Jacqueline I Goldstein, Timothy Poterba, Cotton Seed, Michel G Nivard, Pradeep Natarajan, Reedik Magi, Diane Gage, Elise B Robinson, Andres Metspalu, Veikko Salomaa, Jaana Suvisaari, Shaun M Purcell, Pamela Sklar, Sekar Kathiresan, Mark J Daly, Steven A McCarroll, Patrick F Sullivan, Aarno Palotie, Tonu Esko, Christina Hultman, Benjamin M Neale. _Ultra-rare disruptive and damaging mutations influence educational attainment in the general population_.  doi: http://dx.doi.org/10.1101/050195.
+
 ## Roadmap
 
 Here is a rough list of features currently planned or under
