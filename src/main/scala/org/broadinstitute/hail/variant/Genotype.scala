@@ -460,29 +460,28 @@ object Genotype {
 
   def gen(v: Variant): Gen[Genotype] = {
     val m = Int.MaxValue / (v.nAlleles + 1)
-    for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-      ad <- Gen.option(Gen.buildableOfN[Array, Int](v.nAlleles,
-        Gen.choose(0, m)));
+    for (gt <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
+      ad <- Gen.option(Gen.buildableOfN[Array, Int](v.nAlleles, Gen.choose(0, m)));
       dp <- Gen.option(Gen.choose(0, m));
       gq <- Gen.option(Gen.choose(0, 10000));
-      pl <- Gen.option(Gen.buildableOfN[Array, Int](v.nGenotypes,
-        Gen.choose(0, m)))) yield {
-      gt.foreach { gtx =>
-        pl.foreach { pla => pla(gtx) = 0 }
-      }
-      pl.foreach { pla =>
-        val m = pla.min
-        var i = 0
-        while (i < pla.length) {
-          pla(i) -= m
-          i += 1
+      pl <- Gen.option(Gen.buildableOfN[Array, Int](v.nGenotypes, Gen.choose(0, m))))
+      yield {
+        gt.foreach { gtx =>
+          pl.foreach { pla => pla(gtx) = 0 }
         }
+        pl.foreach { pla =>
+          val m = pla.min
+          var i = 0
+          while (i < pla.length) {
+            pla(i) -= m
+            i += 1
+          }
+        }
+        val g = Genotype(gt, ad,
+          dp.map(_ + ad.map(_.sum).getOrElse(0)), gq, pl)
+        g.check(v)
+        g
       }
-      val g = Genotype(gt, ad,
-        dp.map(_ + ad.map(_.sum).getOrElse(0)), gq, pl)
-      g.check(v)
-      g
-    }
   }
 
   def genRealistic(v: Variant): Gen[Genotype] = {
