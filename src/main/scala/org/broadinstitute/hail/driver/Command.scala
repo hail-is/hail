@@ -44,6 +44,7 @@ object ToplevelCommands {
         + cmd.description))
   }
 
+  register(AdaptivePCA)
   register(AnnotateSamples)
   register(AnnotateVariants)
   register(AnnotateGlobal)
