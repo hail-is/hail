@@ -58,7 +58,7 @@ object MendelErrors {
     }
   }
 
-  def apply(vds: VariantDataset, preTrios: Array[CompleteTrio]): MendelErrors = {
+  def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
 
     val trios = preTrios.filter(_.sex.isDefined)
     val nSamplesDiscarded = preTrios.size - trios.size
@@ -111,7 +111,7 @@ object MendelErrors {
   }
 }
 
-case class MendelErrors(trios:        Array[CompleteTrio],
+case class MendelErrors(trios:        IndexedSeq[CompleteTrio],
                         sampleIds:    IndexedSeq[String],
                         mendelErrors: RDD[MendelError]) {
 
