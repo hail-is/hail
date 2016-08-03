@@ -8,6 +8,10 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 object AnnotateVariantsIntervals extends Command {
 
   class Options extends BaseOptions {
+    @Args4jOption(required = false, name = "-a", aliases = Array("--all"),
+      usage = "When annotating with a value, annotate all values as a set")
+    var all: Boolean = false
+
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
       usage = "Interval file path")
     var input: String = _
@@ -23,15 +27,22 @@ object AnnotateVariantsIntervals extends Command {
 
   def description = "Annotate variants with interval list"
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic = true
 
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
+    val path = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
     val vds = state.vds
-    val (iList, signature) = IntervalListAnnotator(options.input, state.hadoopConf)
-    val annotated = vds.annotateIntervals(iList, signature,
-      Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
+    val all = options.all
+    val annotated = IntervalListAnnotator(options.input, state.hadoopConf) match {
+      case (is, Some((m, t))) =>
+        vds.annotateIntervals(is, m, t, all = all, path)
+
+      case (is, None) =>
+        vds.annotateIntervals(is, path)
+    }
+
     state.copy(vds = annotated)
   }
 }

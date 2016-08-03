@@ -8,6 +8,10 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 object AnnotateVariantsBed extends Command {
 
   class Options extends BaseOptions {
+    @Args4jOption(required = false, name = "-a", aliases = Array("--all"),
+      usage = "When annotating with a value, annotate all values as a set")
+    var all: Boolean = false
+
     @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
       usage = "Bed file path")
     var input: String = _
@@ -28,9 +32,17 @@ object AnnotateVariantsBed extends Command {
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    val (t, o) = BedAnnotator(options.input, state.hadoopConf)
-    state.copy(
-      vds = state.vds.annotateIntervals(t, o,
-        Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)))
+    val vds = state.vds
+    val all = options.all
+    val path = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
+    val newVDS = BedAnnotator(options.input, state.hadoopConf) match {
+      case (is, None) =>
+        vds.annotateIntervals(is, path)
+
+      case (is, Some((t, m))) =>
+        vds.annotateIntervals(is, t, m, all = all, path)
+    }
+
+    state.copy(vds = newVDS)
   }
 }

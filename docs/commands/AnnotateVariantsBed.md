@@ -6,6 +6,7 @@ This module is a subcommand of `annotatevariants`, and annotates intervals of va
 
 Argument | Shortcut | Default | Description
 :-:  | :-: |:-: | ---
+`--all` | `-a` | false | Annotate all matching values as Set[String]
 `--input <file>` | `-i` | **Required** | Path to file
 `--root <root>` | `-r` | **Required** | Annotation path root: period-delimited path starting with `va`
 
@@ -14,6 +15,10 @@ ____
 #### Description
 
 UCSC bed files can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (`chrom`, `chromStart`, and `chromEnd`).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a boolean annotation based on whether that variant was a member of any interval.
+
+If the `-a/--all` option is given and a fourth column is present, the
+annotation will be the set (possibly empty) of fourth column strings
+as a `Set[String]` for all intervals that overlap the given variant.
 
 ____
 

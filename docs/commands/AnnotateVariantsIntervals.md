@@ -6,6 +6,7 @@ This module is a subcommand of `annotatevariants`, and annotates intervals of va
 
 Argument | Shortcut | Default | Description
 :-:  | :-: |:-: | ---
+`--all` | `-a` | false | Annotate all matching values as Set[String]
 `--input <file>` | `-i` | **Required** | Path to file
 `--root <root>` | `-r` | **Required** | Annotation path root: period-delimited path starting with `va`
 
@@ -32,6 +33,10 @@ $ cat exons2.interval_list
 1   5600022 5601025 - gene2
 1   5610246 5610349 - gene2
 ```
+
+If the `-a/--all` option is given, the annotation will be the set
+(possibly empty) of fifth column strings (targets) as a `Set[String]`
+for all intervals that overlap the given variant.
 
 ____
 
