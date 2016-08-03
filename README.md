@@ -33,7 +33,7 @@ involved in Hail development, email hail@broadinstitute.org.
 
 ## Citing Hail
 
-If you use Hail for published work, please site both the software:
+If you use Hail for published work, please cite both the software:
 
  - Hail, [https://github.com/broadinstitute/hail](https://github.com/broadinstitute/hail)
 
