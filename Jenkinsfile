@@ -5,7 +5,13 @@ node {
   stage 'Build'
   def gradleHome = tool 'gradle'
   
-  sh "${gradleHome}/bin/gradle --stacktrace --info -Dscan clean test | tee test.log"
+  sh """
+#!/bin/bash
+
+set -o pipefail
+
+${gradleHome}/bin/gradle --stacktrace --info -Dscan clean test | tee test.log
+"""
   
   // update build description with build scan
   def output = readFile('test.log')
