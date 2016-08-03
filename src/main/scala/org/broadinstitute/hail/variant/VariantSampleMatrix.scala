@@ -59,7 +59,7 @@ object VariantSampleMatrix {
         in => JsonMethods.parse(Source.fromInputStream(in).mkString)
       )
     } catch {
-      case e: Throwable => fatal(s"corrupt VDS: invalid metadata file: ${e.getMessage}.\n  " +
+      case e: Throwable => fatal(s"corrupt VDS: invalid metadata file: ${ e.getMessage }.\n  " +
         s"Recreate VDS with current version of Hail")
     }
 
@@ -77,7 +77,7 @@ object VariantSampleMatrix {
         case Some(other) =>
           fatal(
             s"""corrupt VDS: invalid metadata
-                |  Expected `${tct.runtimeClass.getName}' in field `$fname', but got `${other.getClass.getName}'
+                |  Expected `${ tct.runtimeClass.getName }' in field `$fname', but got `${ other.getClass.getName }'
                 |  Recreate VDS with current version of Hail.""".stripMargin)
         case None =>
           fatal(
@@ -544,38 +544,38 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       if (vaSignature != that.vaSignature)
         println(
           s"""different va signature:
-              |  left:  ${vaSignature.toPrettyString(compact = true)}
-              |  right: ${that.vaSignature.toPrettyString(compact = true)}""".stripMargin)
+              |  left:  ${ vaSignature.toPrettyString(compact = true) }
+              |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
       if (saSignature != that.saSignature)
         println(
           s"""different sa signature:
-              |  left:  ${saSignature.toPrettyString(compact = true)}
-              |  right: ${that.saSignature.toPrettyString(compact = true)}""".stripMargin)
+              |  left:  ${ saSignature.toPrettyString(compact = true) }
+              |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
       if (globalSignature != that.globalSignature)
         println(
           s"""different global signature:
-              |  left:  ${globalSignature.toPrettyString(compact = true)}
-              |  right: ${that.globalSignature.toPrettyString(compact = true)}""".stripMargin)
+              |  left:  ${ globalSignature.toPrettyString(compact = true) }
+              |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
       if (sampleIds != that.sampleIds)
         println(
           s"""different sample ids:
               |  left:  $sampleIds
-              |  right: ${that.sampleIds}""".stripMargin)
+              |  right: ${ that.sampleIds }""".stripMargin)
       if (sampleAnnotations != that.sampleAnnotations)
         println(
           s"""different sample annotations:
               |  left:  $sampleAnnotations
-              |  right: ${that.sampleAnnotations}""".stripMargin)
+              |  right: ${ that.sampleAnnotations }""".stripMargin)
       if (sampleIds != that.sampleIds)
         println(
           s"""different global annotation:
               |  left:  $globalAnnotation
-              |  right: ${that.globalAnnotation}""".stripMargin)
+              |  right: ${ that.globalAnnotation }""".stripMargin)
       if (wasSplit != that.wasSplit)
         println(
           s"""different was split:
               |  left:  $wasSplit
-              |  right: ${that.wasSplit}""".stripMargin)
+              |  right: ${ that.wasSplit }""".stripMargin)
     }
     metadataSame &&
       rdd
@@ -631,31 +631,39 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def annotateIntervals(is: IntervalTree[Locus],
-    arg: Option[(Type, Map[Interval[Locus], Annotation])],
     path: List[String]): VariantSampleMatrix[T] = {
-
     val isBc = sparkContext.broadcast(is)
-    arg match {
-      case Some((sig, m)) =>
-        val (newSignature, inserter) = insertVA(sig, path)
-        val mBc = sparkContext.broadcast(m)
-        copy(rdd = rdd.map { case (v, (va, gs)) =>
-          val queries = isBc.value.query(v.locus)
-          val toIns = if (queries.isEmpty)
-            None
-          else
-            Some(m(queries.head))
-          (v, (inserter(va, toIns), gs))
-        },
-          vaSignature = newSignature)
+    val (newSignature, inserter) = insertVA(TBoolean, path)
+    copy(rdd = rdd.map { case (v, (va, gs)) =>
+      (v, (inserter(va, Some(isBc.value.contains(Locus(v.contig, v.start)))), gs))
+    },
+      vaSignature = newSignature)
+  }
 
-      case None =>
-        val (newSignature, inserter) = insertVA(TBoolean, path)
-        copy(rdd = rdd.map { case (v, (va, gs)) =>
-          (v, (inserter(va, Some(isBc.value.contains(Locus(v.contig, v.start)))), gs))
-        },
-          vaSignature = newSignature)
-    }
+  def annotateIntervals(is: IntervalTree[Locus],
+    t: Type,
+    m: Map[Interval[Locus], Annotation],
+    all: Boolean,
+    path: List[String]): VariantSampleMatrix[T] = {
+    val isBc = sparkContext.broadcast(is)
+
+    val mBc = sparkContext.broadcast(m)
+    val (newSignature, inserter) = insertVA(
+      if (all) TSet(t) else t,
+      path)
+    copy(rdd = rdd.map { case (v, (va, gs)) =>
+      val queries = isBc.value.query(v.locus)
+      val toIns = if (all)
+        Some(queries.map(mBc.value))
+      else {
+        if (queries.isEmpty)
+          None
+        else
+          Some(mBc.value(queries.head))
+      }
+      (v, (inserter(va, toIns), gs))
+    },
+      vaSignature = newSignature)
   }
 
   def annotateVariants(otherRDD: RDD[(Variant, Annotation)], newSignature: Type,

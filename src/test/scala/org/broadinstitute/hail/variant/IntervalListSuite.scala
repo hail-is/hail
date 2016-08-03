@@ -2,8 +2,11 @@ package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.check.{Gen, Prop}
+import org.broadinstitute.hail.driver.{AnnotateVariantsIntervals, ImportVCF, State}
+import org.broadinstitute.hail.expr.{TSet, TString}
 import org.broadinstitute.hail.io.annotators.IntervalListAnnotator
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.Utils._
 import org.testng.annotations.Test
 
 class IntervalListSuite extends SparkSuite {
@@ -101,5 +104,26 @@ class IntervalListSuite extends SparkSuite {
         inSet == inTree
     }
     p.check()
+  }
+
+  @Test def testAnnotateIntervalsAll() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
+    s = AnnotateVariantsIntervals.run(s, Array(
+      "-i", "src/test/resources/annotinterall.interval_list", "-a", "-r", "va.annot"))
+
+    val (t, q) = s.vds.queryVA("va.annot")
+    assert(t == TSet(TString))
+
+    s.vds.rdd.foreach { case (v, (va, gs)) =>
+      val a = q(va).get.asInstanceOf[Set[String]]
+
+      if (v.start == 17348324)
+        simpleAssert(a == Set("A", "B"))
+      else if (v.start >= 17333902 && v.start <= 17370919)
+        simpleAssert(a == Set("A"))
+      else
+        simpleAssert(a.isEmpty)
+    }
   }
 }
