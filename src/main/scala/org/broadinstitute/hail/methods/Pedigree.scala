@@ -80,12 +80,12 @@ object Pedigree {
       if (nSamplesDiscarded > 0)
         warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
 
-      Pedigree(trios)
+      new Pedigree(trios)
     }
   }
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
-  def nuclearFams(completeTrios: Array[CompleteTrio]): Map[(String, String), Array[String]] =
+  def nuclearFams(completeTrios: IndexedSeq[CompleteTrio]): Map[(String, String), IndexedSeq[String]] =
     completeTrios.groupBy(t => (t.dad, t.mom)).mapValues(_.map(_.kid)).force
 
   def gen(sampleIds: IndexedSeq[String]): Gen[Pedigree] = {
@@ -111,7 +111,7 @@ object Pedigree {
             Trio(kid, fam = None, mom = mom, dad = dad, sex = None, pheno = None)
           }
             .toArray
-          Pedigree(trios)
+          new Pedigree(trios)
         }
     }
   }
@@ -123,9 +123,9 @@ object Pedigree {
   }
 }
 
-case class Pedigree(trios: Array[Trio]) {
+class Pedigree(val trios: IndexedSeq[Trio]) {
 
-  def completeTrios: Array[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
+  def completeTrios: IndexedSeq[CompleteTrio] = trios.flatMap(_.toCompleteTrio)
 
   def samplePheno: Map[String, Option[Phenotype]] = trios.iterator.map(t => (t.kid, t.pheno)).toMap
 

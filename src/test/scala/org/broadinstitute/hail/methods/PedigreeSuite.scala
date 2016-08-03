@@ -12,7 +12,7 @@ class PedigreeSuite extends SparkSuite {
     val f = tmpDir.createTempFile("pedigree", ".fam")
     ped.write(f, sc.hadoopConfiguration)
     val pedwr = Pedigree.read(f, sc.hadoopConfiguration, vds.sampleIds)
-    assert(ped.trios.sameElements(pedwr.trios)) // this passes because all samples in .fam are in pedigree.vcf
+    assert(ped.trios == pedwr.trios) // this passes because all samples in .fam are in pedigree.vcf
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
     val sampleIndex = vds.sampleIds.zipWithIndex.toMap
