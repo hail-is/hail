@@ -6,7 +6,7 @@ import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.{TSet, TString}
 import org.broadinstitute.hail.io.annotators.IntervalListAnnotator
-import org.broadinstitute.hail.methods.LoadVCF
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.utils._
 import org.testng.annotations.Test
 

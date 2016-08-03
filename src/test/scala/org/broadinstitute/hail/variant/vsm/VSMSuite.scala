@@ -2,7 +2,7 @@ package org.broadinstitute.hail.variant.vsm
 
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
@@ -10,7 +10,6 @@ import org.broadinstitute.hail.check.{Gen, Parameters}
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.methods.LoadVCF
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics

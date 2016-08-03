@@ -1,8 +1,7 @@
 package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.check.{Arbitrary, Gen, Properties}
 import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
@@ -13,20 +12,23 @@ import scala.collection.mutable
 object GenotypeSuite {
   val ab = new mutable.ArrayBuilder.ofByte
 
-  def readWriteEqual(v: Variant, g: Genotype): Boolean = {
+  def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
     ab.clear()
 
-    val gb = new GenotypeBuilder(v)
+    val isDosage = g.isDosage
+    val gb = new GenotypeBuilder(nAlleles, isDosage)
+
     gb.set(g)
     gb.write(ab)
-    val g2 = Genotype.read(v, new ByteIterator(ab.result()))
-    //println(s"g = $g, g2 = $g2")
+    val g2 = Genotype.read(nAlleles, isDosage, new ByteIterator(ab.result()))
+    
     g == g2
   }
 
   object Spec extends Properties("Genotype") {
-    property("readWrite") = forAll[(Variant, Genotype)](Genotype.genVariantGenotype) { case (nAlleles, g) =>
-      readWriteEqual(nAlleles, g)
+
+    property("readWrite") = forAll[(Variant, Genotype)](Genotype.genVariantGenotype) { case (v, g) =>
+      readWriteEqual(v.nAlleles, g)
     }
 
     property("gt") = forAll { g: Genotype =>
@@ -46,7 +48,6 @@ object GenotypeSuite {
       Genotype.gtPairRecursive(i) == p
     }
   }
-
 }
 
 class GenotypeSuite extends TestNGSuite {
@@ -56,7 +57,7 @@ class GenotypeSuite extends TestNGSuite {
   val v = Variant("1", 1, "A", "T")
 
   def testReadWrite(g: Genotype) {
-    assert(readWriteEqual(v, g))
+    assert(readWriteEqual(v.nAlleles, g))
   }
 
   @Test def testGenotype() {
@@ -89,6 +90,6 @@ class GenotypeSuite extends TestNGSuite {
     assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(99), Some(Array(100, 0, 100))).pAB().get, 1.0))
     assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(99), Some(Array(200, 0, 100))).pAB().get, 0.423950))
 
-    Spec.check()
+    Spec.check(size = 100, count = 10000)
   }
 }

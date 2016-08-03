@@ -37,3 +37,4 @@ object Annotation {
 
   def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)
 }
+

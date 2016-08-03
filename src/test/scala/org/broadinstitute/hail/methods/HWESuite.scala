@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.stats.LeveneHaldane
 import org.testng.annotations.Test
 import org.broadinstitute.hail.check._

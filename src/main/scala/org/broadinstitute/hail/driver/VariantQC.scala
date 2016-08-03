@@ -9,7 +9,6 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.stats.LeveneHaldane
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
-
 import scala.collection.mutable
 
 object VariantQCCombiner {

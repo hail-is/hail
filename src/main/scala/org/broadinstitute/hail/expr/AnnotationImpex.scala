@@ -76,7 +76,8 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             Option(r.get(2)).map(_.asInstanceOf[Int]),
             Option(r.get(3)).map(_.asInstanceOf[Int]),
             Option(r.get(4)).map(_.asInstanceOf[Seq[Int]].toArray),
-            r.get(5).asInstanceOf[Boolean])
+            r.get(5).asInstanceOf[Boolean],
+            r.get(6).asInstanceOf[Boolean])
         case TAltAllele =>
           val r = a.asInstanceOf[Row]
           AltAllele(r.getAs[String](0), r.getAs[String](1))
@@ -148,7 +149,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             }.toIndexedSeq
         case TGenotype =>
           val g = a.asInstanceOf[Genotype]
-          Row(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.pl.map(_.toSeq).orNull, g.fakeRef)
+          Row(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.px.map(_.toSeq).orNull, g.fakeRef, g.isDosage)
         case TAltAllele =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
@@ -176,10 +177,11 @@ case class JSONExtractGenotype(
   ad: Option[Array[Int]],
   dp: Option[Int],
   gq: Option[Int],
-  pl: Option[Array[Int]],
-  fakeRef: Boolean) {
+  px: Option[Array[Int]],
+  fakeRef: Boolean,
+  isDosage: Boolean) {
   def toGenotype =
-    Genotype(gt, ad, dp, gq, pl, fakeRef)
+    Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
 }
 
 case class JSONExtractVariant(contig: String,
@@ -378,6 +380,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case d: TDict => JsonMethods.compact(d.toJSON(a))
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
         case t: TStruct => JsonMethods.compact(t.toJSON(a))
+        case TGenotype => JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(a, t))
         case TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
           if (i.start.contig == i.end.contig)
@@ -416,18 +419,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)
       }
-      case TGenotype => a.split(":").map(x => if (x == "." || x == "./.") None else Some(x)) match {
-        case Array(gtStr, adStr, dpStr, gqStr, plStr) =>
-          val gt = gtStr.map { gt =>
-            val Array(gti, gtj) = gt.split("/").map(_.toInt)
-            Genotype.gtIndex(gti, gtj)
-          }
-          val ad = adStr.map(_.split(",").map(_.toInt))
-          val dp = dpStr.map(_.toInt)
-          val gq = gqStr.map(_.toInt)
-          val pl = plStr.map(_.split(",").map(_.toInt))
-          Genotype(gt, ad, dp, gq, pl, false)
-      }
+      case TGenotype => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case TChar => a
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)

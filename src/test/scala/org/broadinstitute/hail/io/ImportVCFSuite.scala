@@ -1,8 +1,9 @@
-package org.broadinstitute.hail.methods
+package org.broadinstitute.hail.io
 
 import org.apache.spark.SparkException
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.io.vcf.{LoadVCF, VCFReport}
 import org.broadinstitute.hail.variant.Genotype
 import org.testng.annotations.Test
 

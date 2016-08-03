@@ -8,11 +8,12 @@ import org.testng.annotations.Test
 object GenotypeStreamSuite {
 
   object Spec extends Properties("GenotypeStream") {
+
     property("iterateBuild") = forAll(for (
       v <- Variant.gen;
-      gs <- Gen.buildableOf[Iterable, Genotype](Genotype.gen(v)))
-    yield (v, gs)) { case (v: Variant, it: Iterable[Genotype]) =>
-      val b = new GenotypeStreamBuilder(v)
+      gs <- Gen.buildableOf[Iterable, Genotype](Genotype.genExtreme(v.nAlleles)))
+      yield (v, gs)) { case (v: Variant, it: Iterable[Genotype]) =>
+      val b = new GenotypeStreamBuilder(v.nAlleles)
       b ++= it
       val gs = b.result()
       val a2 = gs.toArray

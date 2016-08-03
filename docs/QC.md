@@ -60,3 +60,5 @@ The below annotations can be accessed with `va.qc.<identifier>`
  - `rHetHomVar:            Double` -- Het/HomVar ratio across all samples
  - `dpMean:                Double` -- Depth mean across all samples
  - `dpStDev:               Double` -- Depth standard deviation across all samples
+ - `infoScore:             Double` -- Info score as calculated by IMPUTE, [see documentation here](https://mathgen.stats.ox.ac.uk/genetics_software/snptest/snptest.html#info_measures)
+
