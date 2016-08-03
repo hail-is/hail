@@ -14,6 +14,7 @@ Hail's output is designed to mirror Plink's own VCF conversion using the followi
 ```
 plink --vcf /path/to/file.vcf --make-bed --out sample --const-fid --keep-allele-order
 ```
+
 All differences between Hail's output and Plink's are enumerated below.
  - **.bed file**: equivalent within multiallelic split variant ordering
  - **.fam file**: agrees when Plink is run with `--const-fid` argument (FID is set to "0")

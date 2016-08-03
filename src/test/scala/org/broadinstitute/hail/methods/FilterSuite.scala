@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.utils.TestRDDBuilder
 import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test

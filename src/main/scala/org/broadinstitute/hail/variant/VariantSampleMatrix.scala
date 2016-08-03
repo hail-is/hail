@@ -10,8 +10,8 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.io.vcf.BufferedLineIterator
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
-import org.broadinstitute.hail.vcf.BufferedLineIterator
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.kududb.spark.kudu.{KuduContext, _}
@@ -93,7 +93,9 @@ object VariantSampleMatrix {
         s"""Invalid VDS: old version [$version]
             |  Recreate VDS with current version of Hail.
          """.stripMargin)
+
     val wasSplit = getAndCastJSON[JBool]("split").value
+    val isDosage = getAndCastJSON[JBool]("isDosage").value
 
     val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
     val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
@@ -120,7 +122,7 @@ object VariantSampleMatrix {
     val annotations = sampleInfo.map(_._2)
 
     VariantMetadata(ids, annotations, globalAnnotation,
-      saSignature, vaSignature, globalSignature, wasSplit)
+      saSignature, vaSignature, globalSignature, wasSplit, isDosage)
   }
 
   def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
@@ -131,6 +133,7 @@ object VariantSampleMatrix {
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
 
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
+    val isDosage = metadata.isDosage
 
     if (skipGenotypes)
       new VariantSampleMatrix[Genotype](
@@ -145,10 +148,9 @@ object VariantSampleMatrix {
         metadata,
         df.rdd.map { row =>
           val v = row.getVariant(0)
-
           (v,
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              row.getGenotypeStream(v, 2)))
+            row.getGenotypeStream(v, 2, isDosage)))
         })
   }
 
@@ -162,6 +164,7 @@ object VariantSampleMatrix {
 
     val metadata = readMetadata(sqlContext, dirname, requireParquetSuccess = false)
     val vaSignature = metadata.vaSignature
+    val isDosage = metadata.isDosage
 
     val df = sqlContext.read.options(
       Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
@@ -181,7 +184,7 @@ object VariantSampleMatrix {
       val v = importedRow.getVariant(0)
       (v,
         (importedRow.get(1),
-          importedRow.getGenotypeStream(v, 2)))
+          importedRow.getGenotypeStream(v, 2, metadata.isDosage)))
     }.spanByKey().map(kv => {
       // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
@@ -216,7 +219,8 @@ case class VSMSubgen[T](
   vaGen: (Type) => Gen[Annotation],
   globalGen: (Type) => Gen[Annotation],
   vGen: Gen[Variant],
-  tGen: (Variant) => Gen[T]) {
+  tGen: (Int) => Gen[T],
+  isDosage: Boolean = false) {
 
   def gen(sc: SparkContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (vaSig <- vaSigGen;
@@ -228,9 +232,9 @@ case class VSMSubgen[T](
          rows <- Gen.distinctBuildableOf[Seq[(Variant, (Annotation, Iterable[T]))], (Variant, (Annotation, Iterable[T]))](
            for (v <- vGen;
                 va <- vaGen(vaSig);
-                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, tGen(v)))
+                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, tGen(v.nAlleles)))
              yield (v, (va, ts))))
-      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig), sc.parallelize(rows))
+      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage), sc.parallelize(rows))
 }
 
 object VSMSubgen {
@@ -244,10 +248,13 @@ object VSMSubgen {
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genValue,
     vGen = Variant.gen,
-    tGen = Genotype.gen)
+    tGen = Genotype.genExtreme)
 
   val realistic = random.copy(
     tGen = Genotype.genRealistic)
+
+  val dosage = random.copy(
+    tGen = Genotype.genDosage, isDosage = true)
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
@@ -276,6 +283,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def wasSplit: Boolean = metadata.wasSplit
 
+  def isDosage: Boolean = metadata.isDosage
+
   def copy[U](rdd: RDD[(Variant, (Annotation, Iterable[U]))] = rdd,
     sampleIds: IndexedSeq[String] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
@@ -283,11 +292,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     saSignature: Type = saSignature,
     vaSignature: Type = vaSignature,
     globalSignature: Type = globalSignature,
-    wasSplit: Boolean = wasSplit)
+    wasSplit: Boolean = wasSplit,
+              isDosage: Boolean = isDosage)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](
       VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
-        saSignature, vaSignature, globalSignature, wasSplit), rdd)
+        saSignature, vaSignature, globalSignature, wasSplit, isDosage), rdd)
 
   def sparkContext: SparkContext = rdd.sparkContext
 
@@ -818,6 +828,7 @@ class RichVDS(vds: VariantDataset) {
     val json = JObject(
       ("version", JInt(VariantSampleMatrix.fileVersion)),
       ("split", JBool(vds.wasSplit)),
+      ("isDosage", JBool(vds.isDosage)),
       ("sample_annotation_schema", JString(saSchemaString)),
       ("variant_annotation_schema", JString(vaSchemaString)),
       ("global_annotation_schema", JString(globalSchemaString)),
@@ -834,12 +845,14 @@ class RichVDS(vds: VariantDataset) {
     val vaSignature = vds.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
+    val isDosage = vds.isDosage
+
     val rowRDD = vds.rdd
       .map {
         case (v, (va, gs)) =>
           Row.fromSeq(Array(v.toRow,
             if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-            gs.toGenotypeStream(v, compress).toRow))
+            gs.toGenotypeStream(v, isDosage, compress).toRow))
       }
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
@@ -853,6 +866,7 @@ class RichVDS(vds: VariantDataset) {
     writeMetadata(sqlContext, dirname, compress)
 
     val vaSignature = vds.vaSignature
+    val isDosage = vds.isDosage
 
     val rowType = VariantSampleMatrix.kuduRowType(vaSignature)
     val rowRDD = vds.rdd
@@ -860,7 +874,7 @@ class RichVDS(vds: VariantDataset) {
         KuduAnnotationImpex.exportAnnotation(Annotation(
           v.toRow,
           va,
-          gs.toGenotypeStream(v, compress).toRow,
+          gs.toGenotypeStream(v, isDosage, compress).toRow,
           sampleGroup), rowType).asInstanceOf[Row]
       }
 
@@ -914,8 +928,10 @@ class RichVDS(vds: VariantDataset) {
       vds
   }
 
-  def withGenotypeStream(compress: Boolean = false): VariantDataset =
+  def withGenotypeStream(compress: Boolean = false): VariantDataset = {
+    val isDosage = vds.isDosage
     vds.copy(rdd = vds.rdd.map { case (v, (va, gs)) =>
-      (v, (va, gs.toGenotypeStream(v, compress = compress)))
+      (v, (va, gs.toGenotypeStream(v, isDosage, compress = compress)))
     })
+  }
 }

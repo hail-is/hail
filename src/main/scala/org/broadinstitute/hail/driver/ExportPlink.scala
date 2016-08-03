@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.methods.ExportBedBimFam
+import org.broadinstitute.hail.io.plink.ExportBedBimFam
 import org.broadinstitute.hail.variant.Variant
 import org.kohsuke.args4j.{Option => Args4jOption}
 

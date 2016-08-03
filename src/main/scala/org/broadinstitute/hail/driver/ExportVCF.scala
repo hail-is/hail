@@ -212,8 +212,10 @@ object ExportVCF extends Command {
       }
     }
 
+    val isDosage = vds.isDosage
+
     val kvRDD = vds.rdd.map { case (v, (a, gs)) =>
-      (v, (a, gs.toGenotypeStream(v, compress = false)))
+      (v, (a, gs.toGenotypeStream(v, isDosage, compress = false)))
     }
     kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
     kvRDD

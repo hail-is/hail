@@ -272,8 +272,11 @@ object VEP extends Command {
 
     val inputQuery = vepSignature.query("input")
 
+    val isDosage = vds.isDosage
+
+
     val kvRDD = vds.rdd.map { case (v, (a, gs)) =>
-      (v, (a, gs.toGenotypeStream(v, compress = false)))
+      (v, (a, gs.toGenotypeStream(v, isDosage, compress = false)))
     }.persist(StorageLevel.MEMORY_AND_DISK)
 
     val repartRDD =

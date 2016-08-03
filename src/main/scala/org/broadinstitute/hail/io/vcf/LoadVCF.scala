@@ -1,4 +1,4 @@
-package org.broadinstitute.hail.methods
+package org.broadinstitute.hail.io.vcf
 
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
 import org.apache.spark.{Accumulable, SparkContext}
@@ -6,8 +6,6 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.vcf
-import org.broadinstitute.hail.vcf.BufferedLineIterator
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -91,6 +89,7 @@ object VCFReport {
     }
   }
 }
+
 
 object LoadVCF {
   def lineRef(s: String): String = {
@@ -230,7 +229,7 @@ object LoadVCF {
       sc.textFileLines(file, nPartitions.getOrElse(sc.defaultMinPartitions))
         .mapPartitions { lines =>
           val codec = new htsjdk.variant.vcf.VCFCodec()
-          val reader = vcf.HtsjdkRecordReader(headerLinesBc.value, codec)
+          val reader = HtsjdkRecordReader(headerLinesBc.value, codec)
           lines.flatMap { l => l.map { line =>
             if (line.isEmpty || line(0) == '#')
               None

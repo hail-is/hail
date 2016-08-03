@@ -31,7 +31,8 @@ case class VariantMetadata(
   saSignature: Type,
   vaSignature: Type,
   globalSignature: Type,
-  wasSplit: Boolean = false) {
+  wasSplit: Boolean = false,
+  isDosage: Boolean = false) {
 
   def nSamples: Int = sampleIds.length
 }

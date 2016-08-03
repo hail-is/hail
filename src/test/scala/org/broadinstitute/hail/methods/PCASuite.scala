@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.testng.annotations.Test
 
 class PCASuite extends SparkSuite {

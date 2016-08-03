@@ -449,6 +449,10 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
 
 class RichPairRDD[K, V](val r: RDD[(K, V)]) extends AnyVal {
 
+  def forall(p: ((K, V)) => Boolean)(implicit kct: ClassTag[K], vct: ClassTag[V]): Boolean = r.map(p).fold(true)(_ && _)
+
+  def exists(p: ((K, V)) => Boolean)(implicit kct: ClassTag[K], vct: ClassTag[V]): Boolean = r.map(p).fold(false)(_ || _)
+
   def spanByKey()(implicit kct: ClassTag[K], vct: ClassTag[V]): RDD[(K, Iterable[V])] =
     r.mapPartitions(p => new SpanningIterator(p))
 
@@ -899,6 +903,12 @@ object Utils extends Logging {
       is
   }
 
+  def hadoopGetFileSize(filename: String, hConf: hadoop.conf.Configuration): Long = {
+    val fs = hadoopFS(filename, hConf)
+    val hPath = new hadoop.fs.Path(filename)
+    fs.getFileStatus(hPath).getLen
+  }
+
   def hadoopExists(hConf: hadoop.conf.Configuration, files: String*): Boolean = {
     files.forall(filename => hadoopFS(filename, hConf).exists(new hadoop.fs.Path(filename)))
   }
@@ -1325,6 +1335,18 @@ object Utils extends Logging {
           case (_, null) => -1
           case _ => ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
         }
+    }
+  }
+
+  class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
+    private def writeObject(out: ObjectOutputStream) {
+      out.defaultWriteObject()
+      value.write(out)
+    }
+
+    private def readObject(in: ObjectInputStream) {
+      value = new hadoop.conf.Configuration(false)
+      value.readFields(in)
     }
   }
 }

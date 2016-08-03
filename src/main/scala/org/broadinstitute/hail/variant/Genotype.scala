@@ -7,6 +7,7 @@ import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.io.gen.GenUtils._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.json4s._
 
@@ -41,27 +42,30 @@ class GTPair(val p: Int) extends AnyVal {
 }
 
 class Genotype(private val _gt: Int,
-  private val _ad: Array[Int],
-  private val _dp: Int,
-  private val _gq: Int,
-  private val _pl: Array[Int],
-  val fakeRef: Boolean) extends Serializable {
+               private val _ad: Array[Int],
+               private val _dp: Int,
+               private val _gq: Int,
+               private val _px: Array[Int],
+               val fakeRef: Boolean,
+               val isDosage: Boolean) extends Serializable {
 
-  require(_gt >= -1, s"invalid _gt value: ${_gt}")
-  require(_dp >= -1, s"invalid _dp value: ${_dp}")
+  require(_gt >= -1, s"invalid _gt value: ${ _gt }")
+  require(_dp >= -1, s"invalid _dp value: ${ _dp }")
 
-  def check(v: Variant) {
-    assert(gt.forall(i => i >= 0 && i < v.nGenotypes))
-    assert(ad.forall(a => a.length == v.nAlleles))
-    assert(pl.forall(a => a.length == v.nGenotypes))
+  def check(nAlleles: Int) {
+    val nGenotypes = triangle(nAlleles)
+    assert(gt.forall(i => i >= 0 && i < nGenotypes))
+    assert(ad.forall(a => a.length == nAlleles))
+    assert(px.forall(a => a.length == nGenotypes))
   }
 
   def copy(gt: Option[Int] = this.gt,
-    ad: Option[Array[Int]] = this.ad,
-    dp: Option[Int] = this.dp,
-    gq: Option[Int] = this.gq,
-    pl: Option[Array[Int]] = this.pl,
-    fakeRef: Boolean = this.fakeRef): Genotype = Genotype(gt, ad, dp, gq, pl, fakeRef)
+           ad: Option[Array[Int]] = this.ad,
+           dp: Option[Int] = this.dp,
+           gq: Option[Int] = this.gq,
+           px: Option[Array[Int]] = this.px,
+           fakeRef: Boolean = this.fakeRef,
+           isDosage: Boolean = this.isDosage): Genotype = Genotype(gt, ad, dp, gq, pl, fakeRef, isDosage)
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
@@ -70,8 +74,10 @@ class Genotype(private val _gt: Int,
           || (_ad != null && g._ad != null && _ad.sameElements(g._ad))) &&
         _dp == g._dp &&
         _gq == g._gq &&
-        ((_pl == null && g._pl == null)
-          || (_pl != null && g._pl != null && _pl.sameElements(g._pl)))
+        fakeRef == g.fakeRef &&
+        isDosage == g.isDosage &&
+        ((!isDosage && ((_px == null && g._px == null) || (_px != null && g._px != null && _px.sameElements(g._px)))) ||
+          (isDosage && ((dosage.isEmpty && g.dosage.isEmpty) || (dosage.isDefined && g.dosage.isDefined && dosage.get.zip(g.dosage.get).forall { case (d1, d2) => math.abs(d1 - d2) <= 3.0e-4 }))))
 
     case _ => false
   }
@@ -82,8 +88,9 @@ class Genotype(private val _gt: Int,
       .append(util.Arrays.hashCode(_ad))
       .append(_dp)
       .append(_gq)
-      .append(util.Arrays.hashCode(_pl))
+      .append(util.Arrays.hashCode(_px))
       .append(fakeRef)
+      .append(isDosage)
       .toHashCode
 
   def gt: Option[Int] =
@@ -107,12 +114,35 @@ class Genotype(private val _gt: Int,
       None
 
   def gq: Option[Int] =
-    if (_gq >= 0)
+    if (_gq >= 0 && !isDosage)
       Some(_gq)
     else
       None
 
-  def pl: Option[Array[Int]] = Option(_pl)
+  def px: Option[Array[Int]] = {
+    if (_px != null)
+      Option(_px)
+    else
+      None
+  }
+
+  def pl: Option[Array[Int]] = {
+    if (_px == null)
+      None
+    else if (!isDosage)
+      Option(_px)
+    else
+      Option(Genotype.linearToPhredScale(_px))
+  }
+
+  def dosage: Option[Array[Double]] = {
+    if (_px == null)
+      None
+    else if (isDosage)
+      Option(_px.map {_ / 32768.0})
+    else
+      Option(Genotype.phredToLinearScale(_px))
+  }
 
   def isHomRef: Boolean = Genotype.isHomRef(_gt)
 
@@ -139,7 +169,7 @@ class Genotype(private val _gt: Int,
 
     b.append(gt.map { gt =>
       val p = Genotype.gtPair(gt)
-      s"${p.j}/${p.k}"
+      s"${ p.j }/${ p.k }"
     }.getOrElse("./."))
     b += ':'
     b.append(ad.map(_.mkString(",")).getOrElse("."))
@@ -148,8 +178,10 @@ class Genotype(private val _gt: Int,
     b += ':'
     b.append(gq.map(_.toString).getOrElse("."))
     b += ':'
-    b.append(pl.map(_.mkString(",")).getOrElse("."))
-
+    if (!isDosage)
+      b.append(pl.map(_.mkString(",")).getOrElse("."))
+    else
+      b.append(dosage.map(_.mkString(",")).getOrElse("."))
     b.result()
   }
 
@@ -168,20 +200,22 @@ class Genotype(private val _gt: Int,
     ("ad", ad.map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
     ("dp", dp.map(JInt(_)).getOrElse(JNull)),
     ("gq", gq.map(JInt(_)).getOrElse(JNull)),
-    ("pl", pl.map(pls => JArray(pls.map(JInt(_)).toList)).getOrElse(JNull)),
-    ("fakeRef", JBool(fakeRef)))
+    ("px", px.map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("fakeRef", JBool(fakeRef)),
+    ("isDosage", JBool(isDosage)))
 }
 
 object Genotype {
-  def apply(gtx: Int): Genotype = new Genotype(gtx, null, -1, -1, null, false)
+  def apply(gtx: Int): Genotype = new Genotype(gtx, null, -1, -1, null, false, false)
 
   def apply(gt: Option[Int] = None,
-    ad: Option[Array[Int]] = None,
-    dp: Option[Int] = None,
-    gq: Option[Int] = None,
-    pl: Option[Array[Int]] = None,
-    fakeRef: Boolean = false): Genotype = {
-    new Genotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), pl.map(_.toArray).orNull, fakeRef)
+            ad: Option[Array[Int]] = None,
+            dp: Option[Int] = None,
+            gq: Option[Int] = None,
+            px: Option[Array[Int]] = None,
+            fakeRef: Boolean = false,
+            isDosage: Boolean = false): Genotype = {
+    new Genotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull, fakeRef, isDosage)
   }
 
   def schema: DataType = StructType(Array(
@@ -189,8 +223,9 @@ object Genotype {
     StructField("ad", ArrayType(IntegerType)),
     StructField("dp", IntegerType),
     StructField("gq", IntegerType),
-    StructField("pl", ArrayType(IntegerType)),
-    StructField("fakeRef", BooleanType)))
+    StructField("px", ArrayType(IntegerType)),
+    StructField("fakeRef", BooleanType),
+    StructField("isDosage", BooleanType)))
 
   final val flagMultiHasGTBit = 0x1
   final val flagMultiGTRefBit = 0x2
@@ -241,7 +276,7 @@ object Genotype {
 
   def flagHasGQ(flags: Int): Boolean = (flags & flagHasGQBit) != 0
 
-  def flagHasPL(flags: Int): Boolean = (flags & flagHasPLBit) != 0
+  def flagHasPX(flags: Int): Boolean = (flags & flagHasPLBit) != 0
 
   def flagSetHasAD(flags: Int): Int = flags | flagHasADBit
 
@@ -249,7 +284,7 @@ object Genotype {
 
   def flagSetHasGQ(flags: Int): Int = flags | flagHasGQBit
 
-  def flagSetHasPL(flags: Int): Int = flags | flagHasPLBit
+  def flagSetHasPX(flags: Int): Int = flags | flagHasPLBit
 
   def flagSimpleAD(flags: Int): Boolean = (flags & flagSimpleADBit) != 0
 
@@ -267,6 +302,8 @@ object Genotype {
 
   def flagSetFakeRef(flags: Int): Int = flags | flagFakeRefBit
 
+  def flagUnsetFakeRef(flags: Int): Int = flags ^ flagFakeRefBit
+
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99
     var m2 = 99
@@ -279,10 +316,19 @@ object Genotype {
         m2 = pl(i)
       i += 1
     }
-    assert(m == 0, s"$m, $m2, [${pl.mkString(",")}]")
+    assert(m == 0, s"$m, $m2, [${ pl.mkString(",") }]")
     m2
   }
 
+  def linearToPhredScale(a: Array[Int]): Array[Int] = {
+    val x = a.map(phredConversionTable)
+    x.map{d => (d - x.min + 0.5).toInt}
+  }
+
+  def phredToLinearScale(a: Array[Int]): Array[Double] = {
+    val transformedProbs = a.map{case i => math.pow(10, i / -10.0)}
+    a.map{case i => math.pow(10, i / -10.0) / transformedProbs.sum}
+  }
 
   def isHomRef(gt: Int): Boolean = gt == 0
 
@@ -371,8 +417,8 @@ object Genotype {
 
   def gtIndex(p: GTPair): Int = gtIndex(p.j, p.k)
 
-  def read(v: Variant, a: ByteIterator): Genotype = {
-    val isBiallelic = v.isBiallelic
+  def read(nAlleles: Int, isDosage: Boolean, a: ByteIterator): Genotype = {
+    val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
 
@@ -387,7 +433,7 @@ object Genotype {
 
     val ad: Array[Int] =
       if (flagHasAD(flags)) {
-        val ada = new Array[Int](v.nAlleles)
+        val ada = new Array[Int](nAlleles)
         if (flagSimpleAD(flags)) {
           assert(gt >= 0)
           val p = Genotype.gtPair(gt)
@@ -414,41 +460,45 @@ object Genotype {
       } else
         -1 // None
 
-    val pl: Array[Int] =
-      if (flagHasPL(flags)) {
-        val pla = new Array[Int](v.nGenotypes)
+    val px: Array[Int] =
+      if (flagHasPX(flags)) {
+        val pxa = new Array[Int](triangle(nAlleles))
         if (gt >= 0) {
           var i = 0
           while (i < gt) {
-            pla(i) = a.readULEB128()
+            pxa(i) = a.readULEB128()
             i += 1
           }
           i += 1
-          while (i < pla.length) {
-            pla(i) = a.readULEB128()
+          while (i < pxa.length) {
+            pxa(i) = a.readULEB128()
             i += 1
           }
         } else {
           var i = 0
-          while (i < pla.length) {
-            pla(i) = a.readULEB128()
+          while (i < pxa.length) {
+            pxa(i) = a.readULEB128()
             i += 1
           }
         }
-        pla
+
+        if (isDosage && gt >= 0)
+          pxa(gt) = 32768 - pxa.sum //Assuming original int values summed to 32768 or 1.0 in probability*/
+
+        pxa
       } else
         null
 
     val gq: Int =
       if (flagHasGQ(flags)) {
         if (flagSimpleGQ(flags))
-          gqFromPL(pl)
+          gqFromPL(px)
         else
           a.readULEB128()
       } else
         -1
 
-    new Genotype(gt, ad, dp, gq, pl, flagFakeRef(flags))
+    new Genotype(gt, ad, dp, gq, px, flagFakeRef(flags), isDosage)
   }
 
   def gtIndexWithSwap(i: Int, j: Int): Int = {
@@ -458,18 +508,35 @@ object Genotype {
       gtIndex(i, j)
   }
 
-  def gen(v: Variant): Gen[Genotype] = {
-    val m = Int.MaxValue / (v.nAlleles + 1)
-    for (gt: Option[Int] <- Gen.option(Gen.choose(0, v.nGenotypes - 1));
-      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
-        Gen.choose(0, m)));
-      dp <- Gen.option(Gen.choose(0, m));
-      gq <- Gen.option(Gen.choose(0, 10000));
-      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes,
-        Gen.choose(0, m)))) yield {
+  def genDosage(nAlleles: Int): Gen[Genotype] = {
+    val nGenotypes = triangle(nAlleles)
+    for (dx <- Gen.option(Gen.buildableOfN[Array[Double], Double](nGenotypes, Gen.choose(0.0, 1.0)))) yield {
+      val dxInt = dx.map { dxa => dxa.map { case d: Double => ((d / dxa.sum) * 32768.0).round.toInt } }
+      val gt = dxInt.map { dxa => if (dxa.count(_ == dxa.max) != 1) -1 else dxa.indexOf(dxa.max) }
+
+      val g = Genotype(gt = gt, px = dxInt, isDosage = true)
+      g.check(nAlleles)
+      g
+    }
+  }
+
+  def genExtreme(nAlleles: Int): Gen[Genotype] = {
+    val m = Int.MaxValue / (nAlleles + 1)
+    val nGenotypes = triangle(nAlleles)
+    for (gt: Option[Int] <- Gen.option(Gen.choose(0, nGenotypes - 1));
+         ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](nAlleles,
+           Gen.choose(0, m)));
+         dp <- Gen.option(Gen.choose(0, m));
+         gq <- Gen.option(Gen.choose(0, 10000));
+         pl <- Gen.oneOfGen(
+           Gen.option(Gen.buildableOfN[Array[Int], Int](nGenotypes, Gen.choose(0, m))),
+           Gen.option(Gen.buildableOfN[Array[Int], Int](nGenotypes, Gen.choose(0, 100)))
+         )
+    ) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
+
       pl.foreach { pla =>
         val m = pla.min
         var i = 0
@@ -478,57 +545,59 @@ object Genotype {
           i += 1
         }
       }
+
       val g = Genotype(gt, ad,
         dp.map(_ + ad.map(_.sum).getOrElse(0)), gq, pl)
-      g.check(v)
+      g.check(nAlleles)
       g
     }
   }
 
-  def genRealistic(v: Variant): Gen[Genotype] = {
+  def genRealistic(nAlleles: Int): Gen[Genotype] = {
+    val nGenotypes = triangle(nAlleles)
     for (callRate <- Gen.choose(0d, 1d);
-      alleleFrequencies <- Gen.buildableOfN[Array[Double], Double](v.nAlleles, Gen.choose(1e-6, 1d))  // avoid divison by 0
-        .map { rawWeights =>
-          val sum = rawWeights.sum
-          rawWeights.map(_ / sum)
-        };
-      gt <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
-        .map { case (gti, gtj) => gtIndexWithSwap(gti, gtj) }, callRate);
-      ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nAlleles,
-        Gen.choose(0, 50)));
-      dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d));
-      pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](v.nGenotypes, Gen.choose(0, 1000)).map { arr =>
-        gt match {
-          case Some(i) =>
-            arr(i) = 0
-            arr
-          case None =>
-            val min = arr.min
-            arr.map(_ - min)
-        }
-      });
-      gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
+         alleleFrequencies <- Gen.buildableOfN[Array[Double], Double](nAlleles, Gen.choose(1e-6, 1d)) // avoid divison by 0
+           .map { rawWeights =>
+           val sum = rawWeights.sum
+           rawWeights.map(_ / sum)
+         };
+         gt <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
+           .map { case (gti, gtj) => gtIndexWithSwap(gti, gtj) }, callRate);
+         ad <- Gen.option(Gen.buildableOfN[Array[Int], Int](nAlleles,
+           Gen.choose(0, 50)));
+         dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d));
+         pl <- Gen.option(Gen.buildableOfN[Array[Int], Int](nGenotypes, Gen.choose(0, 1000)).map { arr =>
+           gt match {
+             case Some(i) =>
+               arr(i) = 0
+               arr
+             case None =>
+               val min = arr.min
+               arr.map(_ - min)
+           }
+         });
+         gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
     ) yield
       Genotype(gt, ad, dp, gq, pl)
   }
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- gen(v))
+         g <- Gen.oneOfGen(genExtreme(v.nAlleles), genRealistic(v.nAlleles), genDosage(v.nAlleles)))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-      g <- gen(v))
+         g <- Gen.oneOfGen(genExtreme(v.nAlleles), genRealistic(v.nAlleles), genDosage(v.nAlleles)))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
 }
 
-class GenotypeBuilder(v: Variant) {
-
-  val isBiallelic = v.isBiallelic
-  val nGenotypes = v.nGenotypes
+class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {
+  require(nAlleles > 0, s"tried to create genotype builder with $nAlleles ${ plural(nAlleles, "allele") }")
+  val isBiallelic = nAlleles == 2
+  val nGenotypes = triangle(nAlleles)
 
   var flags: Int = 0
 
@@ -536,7 +605,7 @@ class GenotypeBuilder(v: Variant) {
   private var ad: Array[Int] = _
   private var dp: Int = 0
   private var gq: Int = 0
-  private var pl: Array[Int] = _
+  private var px: Array[Int] = _
 
   def clear() {
     flags = 0
@@ -557,8 +626,8 @@ class GenotypeBuilder(v: Variant) {
   }
 
   def setAD(newAD: Array[Int]) {
-    if (newAD.length != v.nAlleles)
-      fatal(s"invalid AD field `${newAD.mkString(",")}': expected ${v.nAlleles} values, but got ${newAD.length}.")
+    if (newAD.length != nAlleles)
+      fatal(s"invalid AD field `${ newAD.mkString(",") }': expected $nAlleles values, but got ${ newAD.length }.")
     flags = Genotype.flagSetHasAD(flags)
     ad = newAD
   }
@@ -577,11 +646,11 @@ class GenotypeBuilder(v: Variant) {
     gq = newGQ
   }
 
-  def setPL(newPL: Array[Int]) {
-    if (newPL.length != nGenotypes)
-      fatal(s"invalid PL field `${newPL.mkString(",")}': expected $nGenotypes values, but got ${newPL.length}.")
-    flags = Genotype.flagSetHasPL(flags)
-    pl = newPL
+  def setPX(newPX: Array[Int]) {
+    if (newPX.length != nGenotypes)
+      fatal(s"invalid PL field `${ newPX.mkString(",") }': expected $nGenotypes values, but got ${ newPX.length }.")
+    flags = Genotype.flagSetHasPX(flags)
+    px = newPX
   }
 
   def setFakeRef() {
@@ -593,18 +662,18 @@ class GenotypeBuilder(v: Variant) {
     g.ad.foreach(setAD)
     g.dp.foreach(setDP)
     g.gq.foreach(setGQ)
-    g.pl.foreach(setPL)
+    g.px.foreach(setPX)
+
     if (g.fakeRef)
       setFakeRef()
   }
 
   def write(b: mutable.ArrayBuilder[Byte]) {
     val hasGT = Genotype.flagHasGT(isBiallelic, flags)
-
     val hasAD = Genotype.flagHasAD(flags)
     val hasDP = Genotype.flagHasDP(flags)
     val hasGQ = Genotype.flagHasGQ(flags)
-    val hasPL = Genotype.flagHasPL(flags)
+    val hasPX = Genotype.flagHasPX(flags)
 
     var j = 0
     var k = 0
@@ -632,8 +701,8 @@ class GenotypeBuilder(v: Variant) {
         flags = Genotype.flagSetSimpleDP(flags)
     }
 
-    if (hasPL && hasGQ) {
-      val gqFromPL = Genotype.gqFromPL(pl)
+    if (hasPX && hasGQ) {
+      val gqFromPL = Genotype.gqFromPL(px)
       if (gq == gqFromPL)
         flags = Genotype.flagSetSimpleGQ(flags)
     }
@@ -668,20 +737,20 @@ class GenotypeBuilder(v: Variant) {
         b.writeULEB128(dp)
     }
 
-    if (hasPL) {
+    if (hasPX) {
       if (hasGT) {
         var i = 0
         while (i < gt) {
-          b.writeULEB128(pl(i))
+          b.writeULEB128(px(i))
           i += 1
         }
         i += 1
-        while (i < pl.length) {
-          b.writeULEB128(pl(i))
+        while (i < px.length) {
+          b.writeULEB128(px(i))
           i += 1
         }
       } else
-        pl.foreach(b.writeULEB128)
+        px.foreach(b.writeULEB128)
     }
 
     if (hasGQ) {

@@ -1,11 +1,10 @@
-package org.broadinstitute.hail.vcf
+package org.broadinstitute.hail.io.vcf
 
 import htsjdk.variant.variantcontext.VariantContext
 import org.apache.spark.Accumulable
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.methods.{VCFReport, VCFSettings}
 import org.broadinstitute.hail.variant._
 
 import scala.collection.JavaConverters._
@@ -78,11 +77,12 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     if (vcfSettings.skipGenotypes)
       return (v, (va, Iterable.empty))
 
-    val gb = new GenotypeBuilder(v)
+    val gb = new GenotypeBuilder(v.nAlleles, false) //FIXME: make dependent on fields in genotypes; for now, assumes PLs
 
     // FIXME compress
     val noCall = Genotype()
-    val gsb = new GenotypeStreamBuilder(v, vcfSettings.compress)
+    val gsb = new GenotypeStreamBuilder(v.nAlleles, isDosage = false, compress = vcfSettings.compress)
+
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala
@@ -159,7 +159,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       }
 
       if (pl != null)
-        gb.setPL(pl)
+        gb.setPX(pl)
 
       if (g.hasGQ) {
         val gq = g.getGQ

@@ -108,6 +108,7 @@ Identifier | Type | Description
 `g.od`             | `Int`     | `od = dp - ad.sum`
 `g.gq`             | `Int`     | the difference between the two smallest PL entries
 `g.pl`          | `Array[Int]` | phred-scaled normalized genotype likelihood values
+`g.dosage`   | `Array[Double]` | the linear-scaled probabilities
 `g.isHomRef`       | `Boolean` | true if this call is `0/0`
 `g.isHet`          | `Boolean` | true if this call is heterozygous
 `g.isHetRef`       | `Boolean` | true if this call is `0/k` with `k>0`
@@ -120,4 +121,6 @@ Identifier | Type | Description
 `g.pAB()`          | `Double`  | p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
 `g.fractionReadsRef` | `Double` | the ratio of ref reads to the sum of all *informative* reads
 `g.fakeRef`        | `Boolean` | true if this genotype was downcoded in `splitmulti`.  This can happen if a 1/2 call is split to 0/1, 0/1
- 
+`g.isDosage` |`Boolean` | true if the data was imported from `importgen` or `importbgen`
+
+The conversion between `g.pl` (Phred-scaled likelihoods) and `g.dosage` (linear-scaled probabilities) assumes a uniform prior.

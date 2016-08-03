@@ -64,7 +64,9 @@ object SplitMulti extends Command {
     it: Iterable[Genotype],
     propagateGQ: Boolean,
     compress: Boolean,
+    isDosage: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
+
     if (v.isBiallelic)
       return Iterator((v, (insertSplitAnnots(va, 0, false), it)))
 
@@ -76,8 +78,8 @@ object SplitMulti extends Command {
         (Variant(v.contig, newStart, newRef, newAlt), i + 1)
       }.toArray
 
-    val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv) }
-    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv, compress) }
+    val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isDosage) }
+    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isDosage, compress) }
 
     for (g <- it) {
 
@@ -86,37 +88,68 @@ object SplitMulti extends Command {
       // svj corresponds to the ith allele of v
       for (((svj, i), j) <- splitVariants.iterator.zipWithIndex) {
         val gb = splitGenotypeBuilders(j)
-
         gb.clear()
-        g.gt.foreach { ggtx =>
-          val gtx = splitGT(ggtx, i)
-          gb.setGT(gtx)
 
-          val p = Genotype.gtPair(ggtx)
-          if (gtx != p.nNonRefAlleles)
-            gb.setFakeRef()
-        }
+        if (!isDosage) {
+          g.gt.foreach { ggtx =>
+            val gtx = splitGT(ggtx, i)
+            gb.setGT(gtx)
 
-        gadsum.foreach { case (gadx, sum) =>
-          // what bcftools does
-          // Array(gadx(0), gadx(i))
-          gb.setAD(Array(sum - gadx(i), gadx(i)))
-        }
+            val p = Genotype.gtPair(ggtx)
+            if (gtx != p.nNonRefAlleles)
+              gb.setFakeRef()
+          }
 
-        g.dp.foreach { dpx => gb.setDP(dpx) }
+          gadsum.foreach { case (gadx, sum) =>
+            // what bcftools does
+            // Array(gadx(0), gadx(i))
+            gb.setAD(Array(sum - gadx(i), gadx(i)))
+          }
 
-        if (propagateGQ)
-          g.gq.foreach { gqx => gb.setGQ(gqx) }
+          g.dp.foreach { dpx => gb.setDP(dpx) }
 
-        g.pl.foreach { gplx =>
-          val plx = gplx.iterator.zipWithIndex
-            .map { case (p, k) => (splitGT(k, i), p) }
-            .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
-          gb.setPL(plx)
+          if (propagateGQ)
+            g.gq.foreach { gqx => gb.setGQ(gqx) }
 
-          if (!propagateGQ) {
-            val gq = Genotype.gqFromPL(plx)
-            gb.setGQ(gq)
+          g.pl.foreach { gplx =>
+            val plx = gplx.iterator.zipWithIndex
+              .map { case (p, k) => (splitGT(k, i), p) }
+              .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
+            gb.setPX(plx)
+
+            if (!propagateGQ) {
+              val gq = Genotype.gqFromPL(plx)
+              gb.setGQ(gq)
+            }
+          }
+        } else {
+          val newdx = g.dosage.map { case gdx =>
+            val dx = gdx.iterator.zipWithIndex
+              .map { case (d, k) => (splitGT(k, i), d) }
+              .reduceByKeyToArray(3, 0.0)(_ + _)
+
+            gb.setPX(dx.map { case d => (d * 32768).toInt })
+            dx
+          }
+
+          val newgt = newdx match {
+            case Some(x) => {
+              val maxDosage = x.max
+              if (g.gt.isEmpty || (maxDosage < 0.5 && x.count { d: Double => math.abs(d - maxDosage) <= 3e-4 } != 1))
+                -1
+              else
+                x.indexOf(maxDosage)
+            }
+            case None => -1
+          }
+
+          if (newgt != -1)
+            gb.setGT(newgt)
+
+          g.gt.foreach { gtx =>
+            val p = Genotype.gtPair(gtx)
+            if (newgt != p.nNonRefAlleles && newgt != -1)
+              gb.setFakeRef()
           }
         }
 
@@ -145,6 +178,8 @@ object SplitMulti extends Command {
 
     val propagateGQ = options.propagateGQ
     val noCompress = options.noCompress
+    val isDosage = vds.isDosage
+
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
 
@@ -165,7 +200,8 @@ object SplitMulti extends Command {
       rdd = vds.rdd.flatMap[(Variant, (Annotation, Iterable[Genotype]))] { case (v, (va, it)) =>
         split(v, va, it,
           propagateGQ = propagateGQ,
-          compress = !noCompress, { (va, index, wasSplit) =>
+          compress = !noCompress,
+          isDosage, { (va, index, wasSplit) =>
             insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
           })
       })
