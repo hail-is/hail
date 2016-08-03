@@ -22,6 +22,7 @@ involved in Hail development, email hail@broadinstitute.org.
  - [Quality Control](docs/QC.md)
  - [PCA](docs/PCA.md)
  - [Annotating with the Variant Effect Predictor](docs/VEP.md)
+ - [Computing aggregate statistics on intervals](docs/commands/AggregateIntervals.md)
  - [Filtering](docs/Filtering.md)
  - [Querying using SQL](docs/SQL.md)
  - [Linear regression](docs/LinearRegression.md)

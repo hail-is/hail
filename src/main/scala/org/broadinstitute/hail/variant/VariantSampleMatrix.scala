@@ -12,9 +12,9 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.broadinstitute.hail.vcf.BufferedLineIterator
-import org.kududb.spark.kudu.{KuduContext, _}
-import org.json4s.jackson.JsonMethods
 import org.json4s._
+import org.json4s.jackson.JsonMethods
+import org.kududb.spark.kudu.{KuduContext, _}
 
 import scala.io.Source
 import scala.language.implicitConversions
@@ -27,7 +27,6 @@ object VariantSampleMatrix {
     rdd: RDD[(Variant, Annotation, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     new VariantSampleMatrix(metadata, rdd)
   }
-
 
   private def readMetadata(sqlContext: SQLContext, dirname: String,
     requireParquetSuccess: Boolean = true): VariantMetadata = {
@@ -125,7 +124,7 @@ object VariantSampleMatrix {
 
   def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
 
-    val metadata = readMetadata(sqlContext, dirname, skipGenotypes)
+    val metadata = readMetadata(sqlContext, dirname)
     val vaSignature = metadata.vaSignature
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
@@ -404,10 +403,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, va, gs) => p(v, va, gs) })
 
-  def filterIntervals(gis: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
-    val gisBc = sparkContext.broadcast(gis)
+  def filterIntervals(iList: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
+    val iListBc = sparkContext.broadcast(iList)
     filterVariants { (v, va, gs) =>
-      val inInterval = gisBc.value.contains(v.locus)
+      val inInterval = iListBc.value.contains(v.locus)
       if (keep)
         inInterval
       else
@@ -646,17 +645,17 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       })
   }
 
-  def annotateIntervals(is: IntervalTree[Locus],
+  def annotateIntervals(iList: IntervalTree[Locus],
     arg: Option[(Type, Map[Interval[Locus], Annotation])],
     path: List[String]): VariantSampleMatrix[T] = {
 
-    val isBc = sparkContext.broadcast(is)
+    val iListBc = sparkContext.broadcast(iList)
     arg match {
       case Some((sig, m)) =>
         val (newSignature, inserter) = insertVA(sig, path)
         val mBc = sparkContext.broadcast(m)
         copy(rdd = rdd.map { case (v, va, gs) =>
-          val queries = isBc.value.query(v.locus)
+          val queries = iListBc.value.query(v.locus)
           val toIns = if (queries.isEmpty)
             None
           else
@@ -667,7 +666,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
       case None =>
         val (newSignature, inserter) = insertVA(TBoolean, path)
-        copy(rdd = rdd.map { case (v, va, gs) => (v, inserter(va, Some(isBc.value.contains(Locus(v.contig, v.start)))), gs) },
+        copy(rdd = rdd.map { case (v, va, gs) => (v, inserter(va, Some(iListBc.value.contains(Locus(v.contig, v.start)))), gs) },
           vaSignature = newSignature)
     }
   }
