@@ -27,6 +27,11 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - signum: `i.signum` -- returns the sign of `i` (1, 0, or -1)
      - min: `i.min(j)` -- returns the minimum of `i` and `j`
      - max: `i.max(j)` -- returns the maximum of `i` and `j`
+     - log(x[, b]) -- log of `x` base `b`.  If `b` is not given, the natural log of `x`.
+     - log10(x) -- log of `x` base 10
+     - exp(x) -- exponential of `x`
+     - pow(b, e) -- `b` to the power `e`
+     - sqrt(x) -- the square root of `x`
  - String operations: 
  
      - apply: `str(index)` -- returns the character at `index`

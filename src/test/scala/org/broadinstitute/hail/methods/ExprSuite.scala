@@ -10,6 +10,7 @@ import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
+import org.broadinstitute.hail.TestUtils._
 
 class ExprSuite extends SparkSuite {
 
@@ -366,6 +367,18 @@ class ExprSuite extends SparkSuite {
     TestUtils.interceptFatal("""unterminated string literal""")(eval[String](""" "unclosed string \" """))
     TestUtils.interceptFatal("""invalid escape character.*backtick identifier.*\\i""")(eval[String](""" let `bad\identifier` = 0 in 0 """))
     TestUtils.interceptFatal("""unterminated backtick identifier""")(eval[String](""" let `bad\identifier = 0 in 0 """))
+
+    assert(D_==(eval[Double]("log(56.toLong)").get, math.log(56)))
+    assert(D_==(eval[Double]("exp(5.6)").get, math.exp(5.6)))
+    assert(D_==(eval[Double]("log10(5.6)").get, math.log10(5.6)))
+    assert(D_==(eval[Double]("log10(5.6)").get, eval[Double]("log(5.6, 10)").get))
+    assert(D_==(eval[Double]("log(5.6, 3.2)").get, 1.481120576298196))
+    assert(D_==(eval[Double]("sqrt(5.6)").get, math.sqrt(5.6)))
+    assert(D_==(eval[Double]("pow(2, 3)").get, 8.0))
+
+    interceptFatal("invalid arguments") {
+      eval[Double](""" log(Variant("22", 123, "A", "T")) """)
+    }
   }
 
   @Test def testParseTypes() {
