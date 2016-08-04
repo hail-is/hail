@@ -115,7 +115,7 @@ In this case, the locus is indicated by two chromosome / position columns.  The 
 
 ```
 $ hail [read / import / previous commands] \
-    annotatevariants table \
+    annotatevariants loci \
         file:///user/me/ExAC_Counts.tsv.gz \
         -t "AC: Int, Pos: Int" \
         -c "va.exac_AC = table.AC" \
