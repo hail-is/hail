@@ -144,6 +144,7 @@ tasks.withType(ShadowJar) {
     // conflict with version in default Hadoop/Spark install
     relocate 'org.apache.commons.math3', 'org.broadinstitute.hail.relocated.org.apache.commons.math3'
     relocate 'org.apache.http', 'org.broadinstitute.hail.relocated.org.apache.http'
+    relocate 'com.google.common', 'org.broadinstitute.hail.relocated.com.google.common'
 }
 
 shadowJar {
@@ -174,6 +175,7 @@ shadowJar {
         include(dependency('org.noggit:noggit:.*'))
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
+	include(dependency('com.google.guava:guava:.*'))
         include(dependency('org.kududb:kudu-client:.*'))
         include(dependency('org.kududb:kudu-spark_2.10:.*'))
     }
