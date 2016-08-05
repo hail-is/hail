@@ -75,7 +75,8 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             Option(r.get(2)).map(_.asInstanceOf[Int]),
             Option(r.get(3)).map(_.asInstanceOf[Int]),
             Option(r.get(4)).map(_.asInstanceOf[Seq[Int]].toArray),
-            r.get(5).asInstanceOf[Boolean])
+            r.get(5).asInstanceOf[Boolean],
+            r.get(6).asInstanceOf[Boolean])
         case TAltAllele =>
           val r = a.asInstanceOf[Row]
           AltAllele(r.getAs[String](0), r.getAs[String](1))
@@ -141,7 +142,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             }.toIndexedSeq
         case TGenotype =>
           val g = a.asInstanceOf[Genotype]
-          Row(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.pl.map(_.toSeq).orNull, g.fakeRef)
+          Row(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.px.map(_.toSeq).orNull, g.fakeRef, g.isDosage)
         case TAltAllele =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
@@ -166,10 +167,11 @@ case class JSONExtractGenotype(
   ad: Option[Array[Int]],
   dp: Option[Int],
   gq: Option[Int],
-  pl: Option[Array[Int]],
-  fakeRef: Boolean) {
+  px: Option[Array[Int]],
+  fakeRef: Boolean,
+  isDosage: Boolean) {
   def toGenotype =
-    Genotype(gt, ad, dp, gq, pl, fakeRef)
+    Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
 }
 
 case class JSONExtractVariant(contig: String,

@@ -1,14 +1,14 @@
-package org.broadinstitute.hail.vcf
+package org.broadinstitute.hail.io
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.driver.{SplitMulti, State}
-import org.broadinstitute.hail.methods.LoadVCF
-import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
-import org.broadinstitute.hail.check.Properties
-import org.broadinstitute.hail.check.Prop._
-import org.testng.annotations.Test
 import org.broadinstitute.hail.Utils.simpleAssert
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.driver.{SplitMulti, State}
+import org.broadinstitute.hail.io.vcf.LoadVCF
+import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import org.testng.annotations.Test
 
 class SplitSuite extends SparkSuite {
 

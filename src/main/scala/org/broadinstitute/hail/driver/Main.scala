@@ -8,7 +8,8 @@ import org.apache.spark._
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.methods.VCFReport
+import org.broadinstitute.hail.io.gen.GenReport
+import org.broadinstitute.hail.io.vcf.VCFReport
 import org.kohsuke.args4j.{CmdLineException, CmdLineParser, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
@@ -114,6 +115,7 @@ object Main {
     }
 
     VCFReport.report()
+    GenReport.report()
 
     // Thread.sleep(60*60*1000)
 
