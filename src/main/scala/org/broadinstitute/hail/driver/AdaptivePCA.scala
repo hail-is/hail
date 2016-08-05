@@ -30,6 +30,8 @@ object AdaptivePCA extends Command {
   def supportsMultiallelic = true
 
   def requiresVDS = true
+  
+  override def hidden = true // This command is for UNICORN, and is pretty useless to anyone outside UNICORN
 
   def run(state: State, options: Options): State = {
 
