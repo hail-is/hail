@@ -83,7 +83,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val m = mutable.Map.empty[String, AnyRef]
 
     // FIXME check type
-
+    
     m += "name" -> escapedName
     m += "type" -> toSolrType(t)
     m += "stored" -> true.asInstanceOf[AnyRef]

@@ -322,6 +322,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TIterable, "size") => TInt
       case (t: TIterable, "isEmpty") => TBoolean
       case (t: TIterable, "toSet") => TSet(t.elementType)
+      case (t: TIterable, "toArray") => TArray(t.elementType)
       case (t: TDict, "size") => TInt
       case (t: TDict, "isEmpty") => TBoolean
       case (TArray(elementType: TNumeric), "sum" | "min" | "max") => elementType
@@ -468,6 +469,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (t: TIterable, "size") => AST.evalCompose[Iterable[_]](ec, lhs)(_.size)
     case (t: TIterable, "isEmpty") => AST.evalCompose[Iterable[_]](ec, lhs)(_.isEmpty)
     case (t: TIterable, "toSet") => AST.evalCompose[Iterable[_]](ec, lhs)(_.toSet)
+    case (t: TIterable, "toArray") => AST.evalCompose[Iterable[_]](ec, lhs)(_.toSeq)
 
     case (t: TDict, "size") => AST.evalCompose[Map[_, _]](ec, lhs)(_.size)
     case (t: TDict, "isEmpty") => AST.evalCompose[Map[_, _]](ec, lhs)(_.isEmpty)
