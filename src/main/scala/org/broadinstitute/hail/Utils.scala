@@ -15,7 +15,7 @@ import org.apache.spark.Partitioner._
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{PartitionedDataFrameReader, Row, SQLContext}
 import org.apache.spark.{AccumulableParam, Partitioner, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
@@ -309,6 +309,9 @@ class RichOrderedSeq[T: Ordering](s: Seq[T]) {
   def isSorted: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ <= _)
 }
 
+class RichSQLContext(val sqlContext: SQLContext) extends AnyVal {
+  def readPartitioned: PartitionedDataFrameReader = new PartitionedDataFrameReader(sqlContext)
+}
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFilesLines(files: Array[String], f: String => Unit = s => (),
@@ -757,6 +760,8 @@ object Utils extends Logging {
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
   implicit def toRichSC(sc: SparkContext): RichSparkContext = new RichSparkContext(sc)
+
+  implicit def toRichSQLContext(sqlContext: SQLContext): RichSQLContext = new RichSQLContext(sqlContext)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
@@ -1254,11 +1259,11 @@ object Utils extends Logging {
     math.max(java.lang.Double.MIN_NORMAL, tolerance * math.max(math.abs(a), math.abs(b)))
 
   def D_==(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
-      a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
+    a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
   }
 
   def D_!=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
-      !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
+    !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
   }
 
   def D_<(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
