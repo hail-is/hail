@@ -193,7 +193,7 @@ case class VariantSubgen(
       start <- startGen;
       nAlleles <- nAllelesGen;
       ref <- refGen;
-      altAlleles <- Gen.distinctBuildableOfN[Array[String], String](
+      altAlleles <- Gen.distinctBuildableOfN[Array, String](
         nAlleles,
         altGen)
         .filter(!_.contains(ref))) yield
