@@ -83,7 +83,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val m = mutable.Map.empty[String, AnyRef]
 
     // FIXME check type
-    
+
     m += "name" -> escapedName
     m += "type" -> toSolrType(t)
     m += "stored" -> true.asInstanceOf[AnyRef]
@@ -96,7 +96,7 @@ object ExportVariantsSolr extends Command with Serializable {
 
   def documentAddField(document: SolrInputDocument, name: String, t: Type, value: Any) {
     if (t.isInstanceOf[TIterable]) {
-      value.asInstanceOf[Seq[_]].foreach { xi =>
+      value.asInstanceOf[Traversable[_]].foreach { xi =>
         document.addField(escapeSolrFieldName(name), xi)
       }
     } else
