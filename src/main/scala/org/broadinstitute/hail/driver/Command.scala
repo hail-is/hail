@@ -80,6 +80,7 @@ object ToplevelCommands {
   register(RenameSamples)
   register(Repartition)
   register(SampleQC)
+  register(TDTCommand)
   register(PrintSchema)
   register(ShowGlobalAnnotations)
   register(VariantQC)
