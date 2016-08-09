@@ -34,6 +34,9 @@ object Gen {
     a
   }
 
+  def getPartition(parts: Int) : Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts) }
+  def getSize : Gen[Int] = Gen { p => p.size }
+
   val printableChars = (0 to 127).map(_.toChar).filter(!_.isControl).toArray
   val identifierLeadingChars = (0 to 127).map(_.toChar)
     .filter(c => c == '_' || c.isLetter)
@@ -114,12 +117,25 @@ object Gen {
       s.filter(_ => p.rng.getRandomGenerator.nextDouble <= cutoff))
   }
 
-  def sequence[C, T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
+  def sequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
       val b = cbf()
       gs.foreach { g => b += g(p) }
       b.result()
     }
+
+  /**
+    * In general, for any Traversable type T and any Monad M, we may convert an {@code F[M[T]]} to an {@code M[F[T]]} by
+    * choosing to perform the actions in the order defined by the traversable. With {@code Gen} we must also consider
+    * the distribution of size. {@code uniformSequence} distributes the size uniformly across all elements of the
+    * traversable.
+    *
+    **/
+  def uniformSequence[C[_], T](gs : Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+    getPartition(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C,T])
+
+  private def resizeMany[T](gs : Traversable[Gen[T]], partition : Array[Int]): Iterable[Gen[T]] =
+    (gs.toIterable, partition).zipped.map((gen, size) => gen.resize(size))
 
   def stringOf[T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, String]): Gen[String] =
     unsafeBuildableOf(g)
@@ -253,5 +269,4 @@ class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
   }
 
   def filter(f: (T) => Boolean): Gen[T] = withFilter(f)
-
 }

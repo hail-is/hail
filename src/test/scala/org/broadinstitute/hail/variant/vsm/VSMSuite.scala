@@ -1,15 +1,20 @@
 package org.broadinstitute.hail.variant.vsm
 
+import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.check.{Gen, Parameters}
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.LoadVCF
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics
+import org.apache.commons.math3.stat.regression.SimpleRegression
 
 import scala.collection.mutable
 import scala.language.postfixOps
@@ -241,5 +246,38 @@ class VSMSuite extends SparkSuite {
     s2 = FilterSamplesAll.run(s)
 
     assert(s.vds.same(s2.vds))
+  }
+
+  @Test def testVSMGenIsLinearSpaceInSizeParameter() {
+    val minimumRSquareValue = 0.8
+    def vsmOfSize(size: Int): VariantSampleMatrix[Genotype] = {
+      val parameters = Parameters(new RandomDataGenerator(), size, 1)
+      VariantSampleMatrix.gen(sc, VSMSubgen.random).apply(parameters)
+    }
+    def spaceStatsOf[T](factory: () => T): SummaryStatistics = {
+      val sampleSize = 50
+      val memories = for (_ <- 0 until sampleSize) yield space(factory())._2
+
+      val stats = new SummaryStatistics
+      memories.foreach(x => stats.addValue(x.toDouble))
+      stats
+    }
+
+    val sizes = 2500 to 20000 by 2500
+
+    val statsBySize = sizes.map(size => (size, spaceStatsOf(() => vsmOfSize(size))))
+
+    println("xs = " + sizes)
+    println("mins = " + statsBySize.map { case (_,stats) => stats.getMin})
+    println("maxs = " + statsBySize.map { case (_,stats) => stats.getMax})
+    println("means = " + statsBySize.map { case (_,stats) => stats.getMean})
+
+    val sr = new SimpleRegression
+    statsBySize.foreach {case (size, stats) => sr.addData(size, stats.getMean)}
+
+    println("R² = " + sr.getRSquare)
+
+    assert(sr.getRSquare >= minimumRSquareValue,
+      "The VSM generator seems non-linear because the magnitude of the R coefficient is less than 0.9")
   }
 }

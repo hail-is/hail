@@ -647,10 +647,10 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def genValue: Gen[Annotation] = {
     if (size == 0)
-      Gen.const[Annotation](Annotation.empty)
+      Gen.const(Annotation.empty)
     else
-      Gen.sequence[IndexedSeq[Annotation], Annotation](
-        fields.map(f => f.`type`.genValue))
-        .map(a => Annotation(a: _*))
+      Gen.getSize.flatMap(fuel =>
+        if (size < fuel) Gen.const(Annotation.empty)
+        else Gen.uniformSequence(fields.map(f => f.`type`.genValue)).map(a => Annotation(a: _*)))
   }
 }
