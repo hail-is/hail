@@ -5,6 +5,7 @@ import org.apache.commons.math3.random._
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
 import scala.math.Numeric.Implicits._
+import scala.language.higherKinds
 
 object Parameters {
   val default = Parameters(new RandomDataGenerator(), 100, 100)
@@ -120,7 +121,16 @@ object Gen {
       b.result()
     }
 
-  def buildableOf[C, T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
+  def stringOf[T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, String]): Gen[String] =
+    unsafeBuildableOf(g)
+
+  def buildableOf[C[_], T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+    unsafeBuildableOf(g)
+
+  def buildableOf2[C[_,_], T, U](g: Gen[(T,U)])(implicit cbf: CanBuildFrom[Nothing, (T,U), C[T,U]]): Gen[C[T, U]] =
+    unsafeBuildableOf(g)
+
+  private def unsafeBuildableOf[C,T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
       val b = cbf()
       if (p.size == 0)
@@ -134,7 +144,7 @@ object Gen {
       }
     }
 
-  def distinctBuildableOf[C, T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
+  def distinctBuildableOf[C[_], T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
       val b = cbf()
       if (p.size == 0)
@@ -150,7 +160,7 @@ object Gen {
       }
     }
 
-  def buildableOfN[C, T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
+  def buildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
       val part = partition(p.rng, p.size, n)
       val b = cbf()
@@ -159,7 +169,7 @@ object Gen {
       b.result()
     }
 
-  def distinctBuildableOfN[C, T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
+  def distinctBuildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
       val part = partition(p.rng, p.size, n)
       val t: mutable.Set[T] = mutable.Set.empty[T]

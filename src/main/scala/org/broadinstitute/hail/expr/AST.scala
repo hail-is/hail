@@ -328,6 +328,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TIterable, "size") => TInt
       case (t: TIterable, "isEmpty") => TBoolean
       case (t: TIterable, "toSet") => TSet(t.elementType)
+      case (t: TIterable, "toArray") => TArray(t.elementType)
       case (t: TDict, "size") => TInt
       case (t: TDict, "isEmpty") => TBoolean
       case (TArray(elementType: TNumeric), "sum" | "min" | "max") => elementType
@@ -481,6 +482,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (t: TIterable, "size") => AST.evalCompose[Iterable[_]](ec, lhs)(_.size)
     case (t: TIterable, "isEmpty") => AST.evalCompose[Iterable[_]](ec, lhs)(_.isEmpty)
     case (t: TIterable, "toSet") => AST.evalCompose[Iterable[_]](ec, lhs)(_.toSet)
+    case (t: TIterable, "toArray") => AST.evalCompose[Iterable[_]](ec, lhs)(_.toSeq)
 
     case (t: TDict, "size") => AST.evalCompose[Map[_, _]](ec, lhs)(_.size)
     case (t: TDict, "isEmpty") => AST.evalCompose[Map[_, _]](ec, lhs)(_.isEmpty)
@@ -722,7 +724,35 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
       case ("isDefined" | "isMissing" | "str" | "json", _) => parseError(s"`$fn' takes one argument")
 
-      case _ => parseError(s"unknown function `$fn'")
+      case ("exp" | "log10" | "sqrt", _) => TDouble
+        args.map(_.`type`) match {
+          case Array(a: TNumeric) => TDouble
+          case other =>
+            parseError(
+              s"""invalid arguments in call to $fn: ${ other.mkString(", ") }.
+                  |  Expected exp(Double)""".stripMargin)
+        }
+
+      case ("pow", _) => TDouble
+        args.map(_.`type`) match {
+          case Array(a: TNumeric, b: TNumeric) => TDouble
+          case other =>
+            parseError(
+              s"""invalid arguments in call to $fn: ${ other.mkString(", ") }.
+                  |  Expected $fn(Double)""".stripMargin)
+        }
+
+      case ("log", _) => TDouble
+        args.map(_.`type`) match {
+          case Array(a: TNumeric) => TDouble
+          case Array(a: TNumeric, b: TNumeric) => TDouble
+          case other =>
+            parseError(
+              s"""invalid arguments in call to $fn: ${ other.mkString(", ") }.
+                  |  Expected either:
+                  |    $fn(Double)
+                  |    $fn(Double, Double)""".stripMargin)
+        }
     }
   }
 
@@ -908,6 +938,19 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           .flatMap(r => querier(r).map(x => (x, deleter(r))))
           .toMap
       }
+
+    case ("exp", Array(a)) =>
+      AST.evalComposeNumeric[Double](ec, a)(x => math.exp(x))
+    case ("pow", Array(a, b)) =>
+      AST.evalComposeNumeric[Double, Double](ec, a, b)((b, x) => math.pow(b, x))
+    case ("log", Array(a)) =>
+    AST.evalComposeNumeric[Double](ec, a)(x => math.log(x))
+    case ("log", Array(a, b)) =>
+      AST.evalComposeNumeric[Double, Double](ec, a, b)((x, b) => math.log(x) / math.log(b))
+    case ("log10", Array(a)) =>
+      AST.evalComposeNumeric[Double](ec, a)(x => math.log10(x))
+    case ("sqrt", Array(a)) =>
+      AST.evalComposeNumeric[Double](ec, a)(x => math.sqrt(x))
   }
 
 }

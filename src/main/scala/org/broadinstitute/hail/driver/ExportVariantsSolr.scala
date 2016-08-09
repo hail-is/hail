@@ -96,7 +96,7 @@ object ExportVariantsSolr extends Command with Serializable {
 
   def documentAddField(document: SolrInputDocument, name: String, t: Type, value: Any) {
     if (t.isInstanceOf[TIterable]) {
-      value.asInstanceOf[Seq[_]].foreach { xi =>
+      value.asInstanceOf[Traversable[_]].foreach { xi =>
         document.addField(escapeSolrFieldName(name), xi)
       }
     } else

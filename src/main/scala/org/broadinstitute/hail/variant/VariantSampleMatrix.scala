@@ -224,17 +224,17 @@ case class VSMSubgen[T](
          sampleIds <- sampleIdGen;
          global <- globalGen(globalSig);
          saValues <- saGen(sampleIds.length, saSig);
-         rows <- Gen.distinctBuildableOf[Seq[(Variant, (Annotation, Iterable[T]))], (Variant, (Annotation, Iterable[T]))](
+         rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
            for (v <- vGen;
                 va <- vaGen(vaSig);
-                ts <- Gen.buildableOfN[Iterable[T], T](sampleIds.length, tGen(v)))
+                ts <- Gen.buildableOfN[Iterable, T](sampleIds.length, tGen(v)))
              yield (v, (va, ts))))
       yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig), sc.parallelize(rows))
 }
 
 object VSMSubgen {
   val random = VSMSubgen[Genotype](
-    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq[String], String](Gen.identifier),
+    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
     saSigGen = Type.genArb,
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,

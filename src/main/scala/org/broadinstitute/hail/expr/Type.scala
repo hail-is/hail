@@ -32,11 +32,11 @@ object Type {
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
         genArb.resize(size - 1).map(TDict),
-        Gen.buildableOf[Array[(String, Type, Map[String, String])], (String, Type, Map[String, String])](
+        Gen.buildableOf[Array, (String, Type, Map[String, String])](
           Gen.zip(Gen.identifier,
             genArb,
             Gen.option(
-              Gen.buildableOf[Map[String, String], (String, String)](
+              Gen.buildableOf2[Map, String, String](
                 Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])))
               .map(o => o.getOrElse(Map.empty[String, String]))))
           .filter(fields => fields.map(_._1).areDistinct())
@@ -129,7 +129,7 @@ case object TBinary extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Array[Byte]]
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[Array[Byte], Byte](arbitrary[Byte])
+  override def genValue: Gen[Annotation] = Gen.buildableOf(arbitrary[Byte])
 }
 
 case object TBoolean extends Type {
@@ -255,8 +255,7 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq[Annotation], Annotation](
-    elementType.genValue)
+  override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq, Annotation](elementType.genValue)
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -273,8 +272,7 @@ case class TSet(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[Set[Annotation], Annotation](
-    elementType.genValue)
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Set,Annotation](elementType.genValue)
 }
 
 case class TDict(elementType: Type) extends Type {
@@ -291,8 +289,8 @@ case class TDict(elementType: Type) extends Type {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[Map[String, Annotation], (String, Annotation)](
-    Gen.zip(arbitrary[String], elementType.genValue))
+  override def genValue: Gen[Annotation] =
+    Gen.buildableOf2[Map, String, Annotation](Gen.zip(arbitrary[String], elementType.genValue))
 }
 
 case object TSample extends Type {

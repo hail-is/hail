@@ -10,7 +10,7 @@ object GenotypeStreamSuite {
   object Spec extends Properties("GenotypeStream") {
     property("iterateBuild") = forAll(for (
       v <- Variant.gen;
-      gs <- Gen.buildableOf[Iterable[Genotype], Genotype](Genotype.gen(v)))
+      gs <- Gen.buildableOf[Iterable, Genotype](Genotype.gen(v)))
     yield (v, gs)) { case (v: Variant, it: Iterable[Genotype]) =>
       val b = new GenotypeStreamBuilder(v)
       b ++= it

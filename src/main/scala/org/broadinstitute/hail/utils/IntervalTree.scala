@@ -73,8 +73,7 @@ object IntervalTree {
   }
 
   def gen[T: Ordering](tgen: Gen[T]): Gen[IntervalTree[T]] = {
-    Gen.buildableOf[Array[Interval[T]], Interval[T]](Interval.gen(tgen))
-      .map(intervals => IntervalTree(intervals))
+    Gen.buildableOf[Array, Interval[T]](Interval.gen(tgen)) map { IntervalTree(_) }
   }
 }
 
