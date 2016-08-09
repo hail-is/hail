@@ -1,27 +1,31 @@
-# Hail's expression language
+# Hail Expression Language
 
 Several Hail commands provide the ability to perform a broad array of computations based on data structures exposed to the user.  
 
-## Expressions and operations
+## Expressions and Operations
 
  - Conditionals: `if (p) a else b` -- The value of the conditional is the value of `a` or `b` depending on `p`.  If `p` is missing, the value of the conditional is missing.
- - Let: `let v1 = e1 and v2 = e2 and ... and vn = en in b` -- Bind variables `v1` through `vn` to result of evaluating the `ei`.  The value of the `let` is the value of `b`.  `v1` is visible in `e2` through `en`, etc.
- - Global comparisons: `a == b`, `a != b`
- - Boolean comparisons: `a || b`, `a && b`  Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without evaluating `b`.  If `a` is missing, `b` is evaluated and the comparison returns `true` if `b` is true, otherwise missing.
- - Missingness:
  
+ - Let: `let v1 = e1 and v2 = e2 and ... and vn = en in b` -- Bind variables `v1` through `vn` to result of evaluating the `ei`.  The value of the `let` is the value of `b`.  `v1` is visible in `e2` through `en`, etc.
+ 
+ - Global comparisons: `a == b`, `a != b`
+ 
+ - Boolean comparisons: `a || b`, `a && b`  Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without evaluating `b`.  If `a` is missing, `b` is evaluated and the comparison returns `true` if `b` is true, otherwise missing.
+ 
+ - Missingness: 
      - isMissing: `isMissing(a)` -- returns true if `a` is missing
      - isDefined: `isDefined(a)` -- returns true if `a` is defined
      - orElse: `a.OrElse(x)` -- return `a` if `a` is defined, otherwise `x`.  `x` is only evaluated if `a` is NA.
- - Numerical comparisons: `<`, `<=`, `>`, `>=`
- - Numerical conversions: 
  
+ - Numerical comparisons: `<`, `<=`, `>`, `>=`
+ 
+ - Numerical conversions:  
      - toDouble: `i.toDouble`
      - toInt: `i.toInt`
      - toFloat: `i.toFloat`
      - toLong: `i.toLong`
- - Numerical operations:
  
+ - Numerical operations: 
      - +, -, /, *, %: `a + b - c / d * e % f`
      - abs: `i.abs` -- returns the absolute value of `i`
      - signum: `i.signum` -- returns the sign of `i` (1, 0, or -1)
@@ -32,18 +36,19 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - exp(x) -- exponential of `x`
      - pow(b, e) -- `b` to the power `e`
      - sqrt(x) -- the square root of `x`
- - String operations: 
  
+ - String operations:  
      - apply: `str(index)` -- returns the character at `index`
      - length: `str.length` -- returns the length of the string
      - concatenate: `str1 + str2` -- returns the two strings joined start-to-end
      - split: `str.split(delimiter)` -- returns an array of strings, split on the given `delimiter` 
- - String conversions:
  
+ - String conversions: 
     - toInt: `str.toInt`
     - toDouble: `str.toDouble`
     - toLong: `str.toLong`
     - toFloat: `str.toFloat`
+    
  - Array Operations:
      - constructor: `[element1, element2, ...]` -- Create a new array from elements of the same type.
      - indexing: `arr[index]` -- get a value from the array, or NA if array or index is missing
@@ -61,8 +66,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - forall: `arr.forall(v => expr)` -- Returns a boolean which is true if the array is empty, or `expr` evaluates to `true` for **every** element
      - sort: `arr.sort([ascending])` -- Returns a new array with the same elements in ascending order according to their value, which must be numeric or string. For descending order, use `arr.sort(false)`. Missing elements are always placed at the end.
      - sortBy: `arr.sortBy(v => expr[,ascending])` -- Returns a new array with the same elements in ascending order according to the value of `expr`, which must be numeric or string. For descending order, use `arr.sortBy(v => expr, false)`. Elements with missing `expr` values are always placed at the end.
- - Set Operations: 
  
+ - Set Operations:  
      - contains: `set.contains(elem)` -- returns true if the element is contained in the array, otherwise false
      - size: `set.size` -- returns the number of elements in the set as an integer
      - isEmpty: `set.isEmpty` -- returns true if the set contains 0 elements
@@ -75,16 +80,14 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - exists: `set.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
      - forall: `set.forall(v => expr)` -- returns a boolean which is true if the set is empty, or `expr` evaluates to `true` for **every** element
 
- - Dict Operations:
- 
+ - Dict Operations: 
      - select: `dict[key]` -- returns the value keyed by the string `key`.  An example might be `global.genedict["SCN2A"]`.
      - contains: `dict.contains(key)` -- returns true if `dict` has key `key`, false otherwise.
      - mapValues: `dict.mapValues(x => expr)` -- returns a new dict with a transformation of the values
      - size: `dict.size` -- returns the number of key/value pairs
      - isEmpty: `dict.isEmpty` -- returns true if there is at least one key/value pairs
  
- - Struct Operations:
-        
+ - Struct Operations:        
      - constructor: `{"key1": 1, "key2": "Hello", "key3": 0.99, ...}` -- Create a new struct from specified field names and values in the format shown.
      - select: `struct.field` -- returns the value of the given field of a struct.  For example, `va.info.AC` selects the struct `info` from the struct `va`, and then selects the array `AC` from the struct `info`.  
      - index: `index(Array[Struct], fieldname)` -- returns a dictionary keyed by the string field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.  
@@ -102,6 +105,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
             Now the following equality is true:
             
                 global.gene_dict["gene1"] == {"PLI": 0.998, "hits_in_exac": 1}
+     
       - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
       - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
 
@@ -113,19 +117,15 @@ Several Hail commands provide the ability to perform a broad array of computatio
     - Interval: `Interval(startLocus, endLocus)`, where startLocus and endLocus are loci
 
 **Note:**
+
  - All variables and values are case sensitive
  - Missingness propagates up.  If any element in an expression is missing, the expression will evaluate to missing.  
 
-____
-
-<a name="aggregables"></a>
-## Aggregator functions
+## <a name="#aggregables"></a> Aggregator functions
 
 Hail's expression language exposes a number of 'aggregation' functions, which compute across rows or columns of the dataset.  These functions allow a user to replicate nearly all the of the statistics generated in `sampleqc` or `variantqc`, as well as compute an unrestricted set of new metrics.
 
 These functions can be used in modules that expose `gs` as a genotype row or column aggregable, or in `annotateglobal` to aggregate over `samples` or `variants`.  
-
-____
 
 **Namespace of `gs`:**
 
@@ -139,7 +139,6 @@ Identifier | Description
 `global` | Global annotations
 
 
-____
 
 **Namespace of `samples` in `annotateglobal`:**
 
@@ -150,7 +149,6 @@ Identifier | Description
 `global` | Global annotations
 
 
-____
 
 **Namespace of `variants` in `annotateglobal`:**
 
@@ -198,8 +196,6 @@ This can also be used to calculate statistics from sample/variant annotations in
     annotateglobal expr -c 'global.lowQualSamples = samples.count(sa.callrate < 0.95),
                   global.totalNSingleton = variants.count(va.isSingleton)'
 ```
-
-____
 
 ### Fraction
 
@@ -317,12 +313,12 @@ The below expression assumes a VDS was split from a VCF, and filters down to sit
 filtervariants expr --keep -c 'if (va.info.AC[va.aIndex]) == 1' 
 ```
 
-See documentation on [exporting to TSV](ExportTSV.md) and [programmatic annotation](ProgrammaticAnnotation.md) for more examples of what Hail's language can do.
+See documentation on [exporting to TSV](#ExportTSV) for more examples of what Hail's language can do.
 
-<a name="statsFunctions"></a>
-## Statistical Functions
 
-### Fisher's exact test
+## <a name="statsFunctions"></a> Statistical Functions
+
+### Fisher's Exact Test
 
 Hail's expression language exposes the `fet` function to calculate the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for 2x2 tables. This implementation of FET is identical to the version implemented in [R](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html) with default parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
 

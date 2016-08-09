@@ -7,8 +7,8 @@ who have ad hoc queries that they are able to express in SQL.
 Note that SQL access is _read-only_: it is not possible to write Hail datasets using 
 SQL at the current time.
 
-<a name="impala"></a>
-## Impala
+
+## <a name="impala"></a> Impala
 
 Each VDS should be registered in the Hive metastore to allow Impala to query it. 
 (Impala uses Hive's metastore to store table metadata.) This is done by creating an external table in Hive, the "external" part means that the data is managed by an entity outside Hive (and Impala). The table schema is read from the *_metadata* file in the VDS file 

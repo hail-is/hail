@@ -1,0 +1,77 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hail</title>
+  <meta name="description" content="Hail">
+  <link rel="stylesheet" href="css/pandocSampleTemplate.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+  <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+  <script src="js/buildDocs.js"></script>
+  <script> 
+    $(function(){
+      $("#Representation").load("html/docs/Representation.html");
+      $("#ImportingGenotypeData").load("html/docs/Importing.html");
+      $("#HailObjects").load("html/docs/HailObjectProperties.html");
+      $("#Annotations").load("html/docs/Annotations.html");    
+      $("#HailExpressionLanguage").load("html/docs/HailExpressionLanguage.html");
+      $("#Filtering").load("html/docs/Filtering.html");
+      $("#ExportingData").load("html/docs/ExportingData.html");
+      $("#ExportingTSV").load("html/docs/ExportTSV.html");
+      $("#SQL").load("html/docs/SQL.html");
+      $("#Building").load("html/docs/Building.html");
+      $("#GlobalOptions").load("html/docs/GlobalOptions.html");
+            
+
+      $.getJSON("resources/commandOptions.json", function(json) {
+        $.each(json.commands, function(commandName, data){ if (!data.hidden) {buildCommand(commandName, data)}});
+        $("div#GlobalOptions div.options").append(buildGlobalOptions('globalopt', json.global.options));
+      });
+    });
+    </script> 
+   
+</head>
+
+<body>  
+  <div id="TOC">
+    <h1>Table of Contents</h1>
+    <ul>      
+      <li><a href="#Representation">Data Representation</a></li>
+      <li><a href="#ImportingData">Importing Genotype Data</a></li>
+      <li><a href="#HailObjects">Hail Object Methods</a></li>
+      <ul id="toc-hailobjects">
+        <li><a href="#variant">Variant</a></li>
+        <li><a href="#altallele">AltAllele</a></li>
+        <li><a href="#locus">Locus</a></li>
+        <li><a href="#interval">Interval</a></li>
+        <li><a href="#sample">Sample</a></li>
+        <li><a href="#genotype">Genotype</a></li>
+      </ul>
+      <li><a href="#Annotations">Annotations</a></li>
+      <li><a href="#HailExpressionLanguage">Hail Expression Language</a></li>
+      <li><a href="#Filtering">Filtering Data</a></li>
+      <li><a href="#ExportingData">Exporting Genotype Data</a></li>
+      <li><a href="#ExportingTSV">Exporting Data to TSV</a></li>
+      <li><a href="#SQL">SQL</a></li>      
+      <li><a href="#Building">Building Hail</a></li>      
+      <li><a href="#GlobalOptions">Global Options</a></li>
+      <li>Commands:</li>
+      <ul id="toc-commands">
+      </ul>
+    </ul>
+  </div>
+  
+<div id="Representation"></div>
+<div id="ImportingGenotypeData"></div>
+<div id="HailObjects"></div>
+<div id="Annotations"></div>
+<div id="HailExpressionLanguage"></div>
+<div id="Filtering"></div>
+<div id="ExportingData"></div>
+<div id="ExportingTSV"></div>
+<div id="SQL"></div>
+<div id="Building"></div>
+<div id="GlobalOptions"></div>
+</body>
+</html>

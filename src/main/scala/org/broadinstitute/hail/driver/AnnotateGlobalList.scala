@@ -29,7 +29,7 @@ object AnnotateGlobalList extends Command {
 
   def name = "annotateglobal list"
 
-  def description = "Annotate global table from a text file"
+  def description = "Loads a text file as an `Array[String]` or `Set[String]` in the global annotations."
 
   def supportsMultiallelic = true
 

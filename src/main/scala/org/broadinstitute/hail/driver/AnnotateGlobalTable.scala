@@ -21,7 +21,7 @@ object AnnotateGlobalTable extends Command with JoinAnnotator {
 
   def name = "annotateglobal table"
 
-  def description = "Annotate global table from a text file with multiple columns"
+  def description = "Loads a text file by column as an `Array[Struct]` in global annotations."
 
   def supportsMultiallelic = true
 

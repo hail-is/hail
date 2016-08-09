@@ -243,3 +243,37 @@ task wrapper(type: Wrapper) {
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
+
+task setupDocs(type: Exec) {
+    commandLine 'mkdir', '-p', 'build/docs/js/', 'build/docs/html/', 'build/docs/resources/', 'build/docs/css/'
+}
+
+task runPandoc(type: Exec, dependsOn: setupDocs) {
+    args('docs', 'build/docs/html/')
+    executable 'src/test/resources/runPandoc.sh'
+}
+
+task runCommandsJson(type: JavaExec, dependsOn: ['setupDocs', 'classes']) {
+    main 'org.broadinstitute.hail.driver.Main'
+    args ('commandmeta', '-o', 'build/docs/resources/commandOptions.json')
+    classpath sourceSets.main.runtimeClasspath
+}
+
+task copyHtml(type: Copy) {
+    from 'docs/index.html'
+    into 'build/docs'
+}
+
+task copyCss(type: Copy) {
+    from 'docs/pandocSampleTemplate.css'
+    into 'build/docs/css'
+}
+
+task copyJavascript(type: Copy) {
+    from 'docs/buildDocs.js'
+    into 'build/docs/js'
+}
+
+task createDocs(dependsOn: ['setupDocs','runPandoc', 'runCommandsJson', 'copyHtml', 'copyCss', 'copyJavascript']) {
+
+}
