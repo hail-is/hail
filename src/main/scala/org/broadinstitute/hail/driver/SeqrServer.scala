@@ -16,14 +16,15 @@ import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import org.json4s._
 import org.json4s.jackson.Serialization
+import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.{read, write}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 case class SeqrRequest(page: Int,
   limit: Int,
-  sortBy: Option[Array[String]],
-  variantFilters: Option[Map[String, JValue]],
-  genotypeFilters: Option[Array[Map[String, JValue]]])
+  sort_by: Option[Array[String]],
+  variant_filters: Option[Map[String, JValue]],
+  genotype_filters: Option[Map[String, Map[String, JValue]]])
 
 case class SeqrResponse(is_error: Boolean,
   page: Option[Int],
@@ -41,24 +42,38 @@ class SeqrService(solr: SolrClient, cassSession: Session, cassKeyspace: String, 
   def process(req: SeqrRequest): SeqrResponse = {
     // println(req)
 
-    val q = req.variantFilters
-      .map(_.map { case (field, JObject(List(("eq", value)))) =>
-        s"+$field:${ value.values }"
+    val filters =
+      req.variant_filters.map(_.toArray).getOrElse(Array.empty) ++
+        req.genotype_filters
+          .map(_.toArray.flatMap { case (id, filt) =>
+            filt.map { case (k, v) =>
+              (id ++ "_" ++ k, v)
+            }
+          })
+          .getOrElse(Array.empty)
+    // println(filters.toSeq)
 
-      case (field, JObject(List(("range", JArray(List(from, to)))))) =>
-        s"+$field:[${ from.values } TO ${ to.values }]"
+    val q = if (filters.isEmpty)
+      "*:*"
+    else {
+      filters
+        .map { case (field, JObject(List(("eq", value)))) =>
+          s"+$field:${ value.values }"
 
-      case (field, JObject(List(("in", JArray(elems))))) =>
-        s"+$field:(${
-          elems
-            .map(_.values.toString)
-            .mkString(" OR ")
-        })"
-      }
-        .mkString(" "))
-      .getOrElse("*:*")
+        case (field, JObject(List(("range", JArray(List(from, to)))))) =>
+          s"+$field:[${ from.values } TO ${ to.values }]"
 
-    // println("q: ", q)
+        case (field, JObject(List(("in", JArray(elems))))) =>
+          s"+$field:(${
+            elems
+              .map(_.values.toString)
+              .mkString(" OR ")
+          })"
+        }
+        .mkString(" ")
+    }
+
+    println("q: ", q)
     var query = new SolrQuery(q)
 
     query.addField("chrom")
@@ -122,8 +137,8 @@ class SeqrService(solr: SolrClient, cassSession: Session, cassKeyspace: String, 
                   (typeArgs.get(0).getName: @unchecked) match {
                     case DataType.Name.INT =>
                       JArray(r.getList(i, classOf[java.lang.Integer]).asScala
-                          .map(v => JInt(v.toInt))
-                          .toList)
+                        .map(v => JInt(v.toInt))
+                        .toList)
                   }
 
                 // FIXME: handle Set
@@ -151,14 +166,27 @@ class SeqrService(solr: SolrClient, cassSession: Session, cassKeyspace: String, 
     case req@POST -> Root =>
       req.decode[String] { text =>
         // println(text)
-
         implicit val formats = Serialization.formats(NoTypeHints)
-
-        // implicit val formats = DefaultFormats // Brings in default date formats etc.
-        // val getStatsReq = parse(text).extract[GetStatsRequest]
-        var passback: Option[String] = None
         try {
-          val req = read[SeqrRequest](text)
+          // FIXME should be automatic
+          val knownKeys = Set("page",
+            "limit",
+            "sort_by",
+            "variant_filters",
+            "genotype_filters")
+
+          val json = parse(text)
+          (json: @unchecked) match {
+            case JObject(fields) =>
+              fields.foreach { case (id, _) =>
+                  if (!knownKeys.contains(id))
+                    throw new IllegalArgumentException(s"unknown field $id in request")
+              }
+          }
+
+          val req = json.extract[SeqrRequest]
+          // val req = read[SeqrRequest](text)
+
           val result = process(req)
           Ok(write(result))
             .putHeaders(`Content-Type`(`application/json`))
