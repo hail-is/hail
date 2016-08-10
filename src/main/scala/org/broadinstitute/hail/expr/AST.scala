@@ -13,6 +13,7 @@ import org.json4s.jackson.JsonMethods
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.{Position, Positional}
+import scala.language.existentials
 
 case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
 
@@ -82,7 +83,7 @@ object DoubleNumericConversion extends NumericConversion[Double] {
 object AST extends Positional {
   def promoteNumeric(t: TNumeric): BaseType = t
 
-  def promoteNumeric(lhs: TNumeric, rhs: TNumeric): BaseType =
+  def promoteNumeric(lhs: TNumeric, rhs: TNumeric): TNumeric =
     if (lhs == TDouble || rhs == TDouble)
       TDouble
     else if (lhs == TFloat || rhs == TFloat)
@@ -182,37 +183,37 @@ object AST extends Positional {
     }
   }
 
-  def evalComposeNumeric[T](ec: EvalContext, subexpr: AST)
-    (g: (T) => Any)
-    (implicit convT: NumericConversion[T]): () => Any = {
-    val f = subexpr.eval(ec)
-    () => {
-      val x = f()
-      if (x != null)
-        g(convT.to(x))
-      else
+  def evalNumeric[T](g: (T) => Any)(implicit conv: NumericConversion[T]): (Any) => Any = {
+    (a: Any) => {
+      if (a == null)
         null
+      else g(conv.to(a))
     }
   }
 
+  def evalComposeNumeric[T](ec: EvalContext, subexpr: AST)
+    (g: (T) => Any)
+    (implicit convT: NumericConversion[T]): () => Any = evalComposeThunkNumeric[T](g, subexpr.eval(ec))
+
+  def evalComposeThunkNumeric[T](g: (T) => Any, f: () => Any)(implicit conv: NumericConversion[T]): () => Any = {
+    () => evalNumeric[T](g).apply(f())
+  }
+
+  def evalNumeric[T1, T2](g: (T1, T2) => Any)(implicit conv1: NumericConversion[T1], conv2: NumericConversion[T2]): (Any, Any) => Any = {
+    (a1: Any, a2: Any) => {
+      if (a1 == null || a2 == null)
+        null
+      else g(conv1.to(a1), conv2.to(a2))
+    }
+  }
+
+  def evalComposeThunkNumeric[T1, T2](g: (T1, T2) => Any, f1: () => Any, f2: () => Any)(implicit conv1: NumericConversion[T1], conv2: NumericConversion[T2]): () => Any = {
+    () => evalNumeric[T1, T2](g).apply(f1(), f2())
+  }
 
   def evalComposeNumeric[T1, T2](ec: EvalContext, subexpr1: AST, subexpr2: AST)
     (g: (T1, T2) => Any)
-    (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = {
-    val f1 = subexpr1.eval(ec)
-    val f2 = subexpr2.eval(ec)
-    () => {
-      val x = f1()
-      if (x != null) {
-        val y = f2()
-        if (y != null)
-          g(convT1.to(x), convT2.to(y))
-        else
-          null
-      } else
-        null
-    }
-  }
+    (implicit convT1: NumericConversion[T1], convT2: NumericConversion[T2]): () => Any = evalComposeThunkNumeric[T1, T2](g, subexpr1.eval(ec), subexpr2.eval(ec))
 }
 
 case class Positioned[T](x: T) extends Positional
@@ -1613,6 +1614,39 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
       s.r.findFirstIn(t).isDefined
     }
 
+    case ("+" | "*" | "-" | "/", TArray(elementType)) =>
+      val f: (Any, Any) => Any = (operation, elementType) match {
+        case ("+", TDouble) => AST.evalNumeric[Double, Double](_ + _)
+        case ("+", TInt) => AST.evalNumeric[Int, Int](_ + _)
+        case ("+", TLong) => AST.evalNumeric[Long, Long](_ + _)
+        case ("+", TFloat) => AST.evalNumeric[Float, Float](_ + _)
+        case ("*", TDouble) => AST.evalNumeric[Double, Double](_ * _)
+        case ("*", TInt) => AST.evalNumeric[Int, Int](_ * _)
+        case ("*", TLong) => AST.evalNumeric[Long, Long](_ * _)
+        case ("*", TFloat) => AST.evalNumeric[Float, Float](_ * _)
+        case ("-", TDouble) => AST.evalNumeric[Double, Double](_ - _)
+        case ("-", TInt) => AST.evalNumeric[Int, Int](_ - _)
+        case ("-", TLong) => AST.evalNumeric[Long, Long](_ - _)
+        case ("-", TFloat) => AST.evalNumeric[Float, Float](_ - _)
+        case ("/", TDouble) => AST.evalNumeric[Double, Double](_ / _)
+      }
+
+      ((lhs.`type`, rhs.`type`): @unchecked) match {
+        case (TArray(_), TArray(_)) => AST.evalCompose[IndexedSeq[_], IndexedSeq[_]](ec, lhs, rhs) { case (left, right) =>
+          if (left.length != right.length) ParserUtils.error(posn,
+            s"""cannot apply operation `$operation' to arrays of unequal length
+                |  Left: ${ left.length } elements
+                |  Right: ${ right.length } elements""".stripMargin)
+          (left, right).zipped.map(f)
+        }
+        case (_, TArray(_)) => AST.evalCompose[Any, IndexedSeq[_]](ec, lhs, rhs) { case (num, arr) =>
+          arr.map(elem => f(num, elem))
+        }
+        case (TArray(_), _) => AST.evalCompose[IndexedSeq[_], Any](ec, lhs, rhs) { case (arr, num) =>
+          arr.map(elem => f(elem, num))
+        }
+      }
+
     case ("||", TBoolean) =>
       val f1 = lhs.eval(ec)
       val f2 = rhs.eval(ec)
@@ -1674,6 +1708,7 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case ("-", TDouble) => AST.evalComposeNumeric[Double, Double](ec, lhs, rhs)(_ - _)
     case ("*", TDouble) => AST.evalComposeNumeric[Double, Double](ec, lhs, rhs)(_ * _)
     case ("/", TDouble) => AST.evalComposeNumeric[Double, Double](ec, lhs, rhs)(_ / _)
+
   }
 
   override def typecheckThis(): BaseType = (lhs.`type`, operation, rhs.`type`) match {
@@ -1687,6 +1722,17 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
     case (lhsType: TNumeric, "-", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
     case (lhsType: TNumeric, "*", rhsType: TNumeric) => AST.promoteNumeric(lhsType, rhsType)
     case (lhsType: TNumeric, "/", rhsType: TNumeric) => TDouble
+
+    case (TArray(lhsType: TNumeric), "+" | "-" | "*", TArray(rhsType: TNumeric)) =>
+      TArray(AST.promoteNumeric(lhsType, rhsType))
+    case (TArray(lhsType: TNumeric), "/", TArray(rhsType: TNumeric)) => TArray(TDouble)
+
+    case (lhsType: TNumeric, "+" | "-" | "*", TArray(rhsType: TNumeric)) =>
+      TArray(AST.promoteNumeric(lhsType, rhsType))
+    case (lhsType: TNumeric, "/", TArray(rhsType: TNumeric)) => TArray(TDouble)
+    case (TArray(lhsType: TNumeric), "+" | "-" | "*", rhsType: TNumeric) =>
+      TArray(AST.promoteNumeric(lhsType, rhsType))
+    case (TArray(lhsType: TNumeric), "/", rhsType: TNumeric) => TArray(TDouble)
 
     case (lhsType, _, rhsType) =>
       parseError(s"invalid arguments to `$operation': ($lhsType, $rhsType)")
@@ -1844,7 +1890,10 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
     ec.st.get(symbol) match {
       case Some((_, t)) => t
       case None =>
-        parseError(s"symbol `$symbol' not found")
+        parseError(
+          s"""symbol `$symbol' not found
+              |  Available symbols:
+              |    ${ ec.st.map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }.mkString("\n    ") } """.stripMargin)
     }
   }
 }

@@ -385,6 +385,25 @@ class ExprSuite extends SparkSuite {
     assert(D_==(eval[Double]("sqrt(5.6)").get, math.sqrt(5.6)))
     assert(D_==(eval[Double]("pow(2, 3)").get, 8.0))
 
+    assert(eval[IndexedSeq[Int]]("""[1,2,3] + [2,3,4] """).contains(IndexedSeq(3, 5, 7)))
+    assert(eval[IndexedSeq[Int]]("""[1,2,3] - [2,3,4] """).contains(IndexedSeq(-1, -1, -1)))
+    assert(eval[IndexedSeq[Double]]("""[1,2,3] / [2,3,4] """).contains(IndexedSeq(.5, 2.toDouble / 3.toDouble, .75)))
+    assert(eval[IndexedSeq[Double]]("""1 / [2,3,4] """).contains(IndexedSeq(1.0 / 2.0, 1.0 / 3.0, 1.0 / 4.0)))
+    assert(eval[IndexedSeq[Double]]("""[2,3,4] / 2""").contains(IndexedSeq(1.0, 1.5, 2.0)))
+    assert(eval[IndexedSeq[Double]]("""[2,3,4] * 2.0""").contains(IndexedSeq(4.0, 6.0, 8.0)))
+    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] * 2.0""").contains(IndexedSeq(4.0, null, 8.0)))
+    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] * [2,NA: Int,4]""").contains(IndexedSeq(4.0, null, 16.0)))
+    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] + 2.0""").contains(IndexedSeq(4.0, null, 6.0)))
+    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] + [2,NA: Int,4]""").contains(IndexedSeq(4.0, null, 8.0)))
+    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] - 2.0""").contains(IndexedSeq(0.0, null, 2.0)))
+    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] - [2,NA: Int,4]""").contains(IndexedSeq(0.0, null, 0.0)))
+    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] / 2.0""").contains(IndexedSeq(1.0, null, 2.0)))
+    assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] / [2,NA: Int,4]""").contains(IndexedSeq(1.0, null, 1.0)))
+
+    TestUtils.interceptFatal("""cannot apply operation `\+' to arrays of unequal length""") {
+      eval[IndexedSeq[Int]]("""[1] + [2,3,4] """)
+    }
+
     interceptFatal("invalid arguments") {
       eval[Double](""" log(Variant("22", 123, "A", "T")) """)
     }
@@ -434,7 +453,7 @@ class ExprSuite extends SparkSuite {
   @Test def testImpexes() {
 
     val g = for {t <- Type.genArb
-                 a <- t.genValue} yield (t, a)
+      a <- t.genValue} yield (t, a)
 
     object Spec extends Properties("ImpEx") {
       property("json") = forAll(g) { case (t, a) =>
