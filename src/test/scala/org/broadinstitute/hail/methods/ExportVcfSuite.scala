@@ -3,15 +3,15 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
 import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
 
-import scala.language.postfixOps
-import scala.sys.process._
 import scala.io.Source
+import scala.language.postfixOps
 
 class ExportVcfSuite extends SparkSuite {
 
@@ -92,14 +92,14 @@ class ExportVcfSuite extends SparkSuite {
 
   @Test def testReadWrite() {
     val s = State(sc, sqlContext, null)
-    val out = tmpDir.createTempFile("foo", ".vcf")
-    val out2 = tmpDir.createTempFile("foo2", ".vcf")
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vsm: VariantSampleMatrix[Genotype]) =>
+    val out = tmpDir.createTempFile("foo", ".vcf.bgz")
+    val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random), Gen.choose(1, 10)) { case (vds, nPar) =>
       hadoopDelete("/tmp/foo.vcf", sc.hadoopConfiguration, recursive = true)
-      ExportVCF.run(s.copy(vds = vsm), Array("-o", out))
-      val vsm2 = ImportVCF.run(s, Array(out)).vds
+      ExportVCF.run(s.copy(vds = vds), Array("-o", out))
+      val vsm2 = ImportVCF.run(s, Array(out, "-n", nPar.toString)).vds
       ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
-      val vsm3 = ImportVCF.run(s, Array(out2)).vds
+      val vsm3 = ImportVCF.run(s, Array(out2, "-n", nPar.toString)).vds
       vsm2.same(vsm3)
     }
 

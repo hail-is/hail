@@ -73,10 +73,6 @@ dependencies {
     compile 'com.github.samtools:htsjdk:2.5.0'
     compile 'org.kududb:kudu-client:0.9.0'
     compile 'org.kududb:kudu-spark_2.10:0.9.0'
-    compile('org.seqdoop:hadoop-bam:7.6.0') {
-        exclude group: 'org.apache.hadoop'
-        exclude module: 'htsjdk'
-    }
 
     compile 'org.http4s:http4s-core_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-server_' + scalaMajorVersion + ':0.12.3'
@@ -157,7 +153,6 @@ shadowJar {
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
-        include(dependency('org.seqdoop:hadoop-bam:.*'))
 
         include(dependency('org.json4s:json4s-core_2.10:.*'))
         // include(dependency('org.json4s:json4s-native_2.10:.*'))
@@ -191,7 +186,6 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
-        include(dependency('org.seqdoop:hadoop-bam:.*'))
 
         include(dependency('org.json4s:json4s-core_2.10:.*'))
         // include(dependency('org.json4s:json4s-native_2.10:.*'))
