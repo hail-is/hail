@@ -5,7 +5,7 @@ import java.net.URI
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
-import htsjdk.samtools.util.BlockCompressedStreamConstants
+import org.apache.commons.lang.StringEscapeUtils
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
@@ -23,7 +23,6 @@ import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import org.broadinstitute.hail.utils.{RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
-import org.seqdoop.hadoop_bam.util.BGZFCodec
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.JavaConverters._
@@ -214,7 +213,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
   def writeULEB128(x0: Int) {
-    require(x0 >= 0, s"tried to write negative ULEB value `${x0}'")
+    require(x0 >= 0, s"tried to write negative ULEB value `${ x0 }'")
 
     var x = x0
     var more = true
@@ -360,7 +359,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     val (_, dt) = time {
       hadoopCopyMerge(filesToMerge, filename, hConf, deleteTmpFiles)
     }
-    info(s"while writing:\n    $filename\n  merge time: ${formatTime(dt)}")
+    info(s"while writing:\n    $filename\n  merge time: ${ formatTime(dt) }")
 
     if (deleteTmpFiles) {
       hadoopDelete(tmpFileName + ".header" + headerExt, hConf, recursive = false)
@@ -959,7 +958,7 @@ object Utils extends Logging {
 
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
-    val isBGZF = codec.exists(_.isInstanceOf[BGZFCodec])
+    val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
 
     val srcFileStatuses = srcFilenames.flatMap(f => hadoopGlobAndSort(f, hConf))
     require(srcFileStatuses.forall {
@@ -969,19 +968,23 @@ object Utils extends Logging {
     val outputStream = destFS.create(destPath)
 
     try {
-      srcFileStatuses.foreach { fileStatus =>
+      var i = 0
+      while (i < srcFileStatuses.length) {
+        val fileStatus = srcFileStatuses(i)
+        val lenAdjust: Long = if (isBGzip && i < srcFileStatuses.length - 1)
+          -28
+        else
+          0
         val srcFS = hadoopFS(fileStatus.getPath.toString, hConf)
         val inputStream = srcFS.open(fileStatus.getPath)
         try {
           copyBytes(inputStream, outputStream,
-            fileStatus.getLen,
+            fileStatus.getLen + lenAdjust,
             false)
         } finally {
           inputStream.close()
         }
-      }
-      if (isBGZF) {
-        outputStream.write(BlockCompressedStreamConstants.EMPTY_GZIP_BLOCK)
+        i += 1
       }
     } finally {
       outputStream.close()
@@ -1089,11 +1092,11 @@ object Utils extends Logging {
 
       log.error(
         s"""
-           |$file${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
+           |$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: $msg
            |  offending line: $line""".stripMargin)
       fatal(
         s"""
-           |$file${position.map(ln => ":" + (ln + 1)).getOrElse("")}: $msg
+           |$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: $msg
            |  offending line: $lineToPrint""".stripMargin)
     }
   }
@@ -1217,15 +1220,15 @@ object Utils extends Logging {
   def formatSpace(ds: Long) = {
     val absds = ds.abs
     if (absds < 1e3)
-      s"${ds}B"
+      s"${ ds }B"
     else if (absds < 1e6)
-      s"${ds.toDouble / 1e3}KB"
+      s"${ ds.toDouble / 1e3 }KB"
     else if (absds < 1e9)
-      s"${ds.toDouble / 1e6}MB"
+      s"${ ds.toDouble / 1e6 }MB"
     else if (absds < 1e12)
-      s"${ds.toDouble / 1e9}GB"
+      s"${ ds.toDouble / 1e9 }GB"
     else
-      s"${ds.toDouble / 1e12}TB"
+      s"${ ds.toDouble / 1e12 }TB"
   }
 
   def someIf[T](p: Boolean, x: => T): Option[T] =
@@ -1254,11 +1257,11 @@ object Utils extends Logging {
     math.max(java.lang.Double.MIN_NORMAL, tolerance * math.max(math.abs(a), math.abs(b)))
 
   def D_==(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
-      a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
+    a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
   }
 
   def D_!=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
-      !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
+    !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
   }
 
   def D_<(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
@@ -1311,7 +1314,7 @@ object Utils extends Logging {
     if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
     else
-      s"`${StringEscapeUtils.escapeString(str, backticked = true)}`"
+      s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
   }
 
   def uriPath(uri: String): String = new URI(uri).getPath
