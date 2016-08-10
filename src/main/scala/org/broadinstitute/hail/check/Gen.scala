@@ -8,7 +8,7 @@ import scala.math.Numeric.Implicits._
 import scala.language.higherKinds
 
 object Parameters {
-  val default = Parameters(new RandomDataGenerator(), 100, 100)
+  val default = Parameters(new RandomDataGenerator(), 1000, 10)
 }
 
 case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
@@ -20,6 +20,15 @@ case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
 }
 
 object Gen {
+
+  def squareOfAreaAtMostSize: Gen[(Int, Int)] =
+    for (s <- size;
+      sqrt = Math.sqrt(s).toInt;
+      l <- choose(0, sqrt);
+      w = if (l == 0) s else s / l;
+      coin <- choose(0.0, 1.0))
+      yield if (coin < 0.5) (l, w) else (w, l)
+
   // utility
   def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
     if (parts == 0)
@@ -34,8 +43,8 @@ object Gen {
     a
   }
 
-  def getPartition(parts: Int) : Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts) }
-  def getSize : Gen[Int] = Gen { p => p.size }
+  def partition(parts: Int) : Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts) }
+  def size : Gen[Int] = Gen { p => p.size }
 
   val printableChars = (0 to 127).map(_.toChar).filter(!_.isControl).toArray
   val identifierLeadingChars = (0 to 127).map(_.toChar)
@@ -132,7 +141,7 @@ object Gen {
     *
     **/
   def uniformSequence[C[_], T](gs : Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-    getPartition(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C,T])
+    partition(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C,T])
 
   private def resizeMany[T](gs : Traversable[Gen[T]], partition : Array[Int]): Iterable[Gen[T]] =
     (gs.toIterable, partition).zipped.map((gen, size) => gen.resize(size))
