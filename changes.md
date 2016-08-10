@@ -1,3 +1,7 @@
+Added command `aggregateintervals`.  [Documentation here](docs/AggregateIntervals.md)
+
+____
+
  - **Overhaul of `table` commands that parse text files.**
     - optional type imputation from the first twenty lines.
     - option `-s, --samplecol` in `annotatesamples table` has been replaced by `-e, --sample-expr`.  This no longer takes a column name, but instead takes an expr language transformation of the column names to produce the sample key.  This could still be a column name e.g. `-e Sample`, but it could also be something like `-e FID.split("_")[1]`. 

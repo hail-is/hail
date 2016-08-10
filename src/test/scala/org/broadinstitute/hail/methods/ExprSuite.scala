@@ -3,8 +3,11 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.utils.StringEscapeUtils._
+import org.broadinstitute.hail.variant.GenotypeSuite.Spec.{check => _}
 import org.broadinstitute.hail.variant.{Genotype, Locus, Variant}
 import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
 import org.json4s._
@@ -360,6 +363,11 @@ class ExprSuite extends SparkSuite {
     assert(eval[Locus]("""Locus("1:1")""").contains(Locus("1", 1)))
     assert(eval[Boolean]("""let l = Locus("1", 1) in Locus(str(l)) == l""").contains(true))
 
+    assert(eval[Interval[Locus]]("""Interval(Locus("1", 1), Locus("2", 2))""").contains(Interval(Locus("1", 1), Locus("2", 2))))
+    assert(eval[Locus](""" Interval(Locus("1", 1), Locus("2", 2)).start """).contains(Locus("1", 1)))
+    assert(eval[Locus](""" Interval(Locus("1", 1), Locus("2", 2)).end """).contains(Locus("2", 2)))
+    assert(eval[Boolean]("""Interval(Locus("1", 1), Locus("1", 3)).contains(Locus("1", 2)) """).contains(true))
+    assert(eval[Boolean]("""Interval(Locus("1", 1), Locus("1", 3)).contains(Locus("2", 2)) """).contains(false))
 
     // FIXME catch parse errors
     assert(eval(""" "\``\''" """) == eval(""" "``''" """))
@@ -414,36 +422,38 @@ class ExprSuite extends SparkSuite {
 
   }
 
-  @Test def testJSON() {
-    check(forAll { (t: Type) =>
-      val a = t.genValue.sample()
-      val json = t.toJSON(a)
-      val string = compact(json)
-      a == JSONAnnotationImpex.importAnnotation(parse(string), t, "")
-    })
-
-    check(forAll { (t: Type) =>
-      val a = t.genValue.sample()
-      val json = t.toJSON(a)
-      a == JSONAnnotationImpex.importAnnotation(json, t)
-    })
-  }
-
-  @Test def testReadWrite() {
-    check(forAll { (t: Type) =>
-      val sb = new StringBuilder
-      t.pretty(sb, 0)
-      val a = t.genValue.sample()
-      JSONAnnotationImpex.importAnnotation(
-        JSONAnnotationImpex.exportAnnotation(a, t), t) == a
-    })
-  }
-
   @Test def testEscaping() {
     val p = forAll { (s: String) =>
       s == unescapeString(escapeString(s))
     }
 
     p.check(count = 1000)
+  }
+
+  @Test def testImpexes() {
+
+    val g = for {t <- Type.genArb
+                 a <- t.genValue} yield (t, a)
+
+    object Spec extends Properties("ImpEx") {
+      property("json") = forAll(g) { case (t, a) =>
+        JSONAnnotationImpex.importAnnotation(JSONAnnotationImpex.exportAnnotation(a, t), t) == a
+      }
+
+      property("json-text") = forAll(g) { case (t, a) =>
+        val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
+        JSONAnnotationImpex.importAnnotation(parse(string), t) == a
+      }
+
+      property("table") = forAll(g.filter { case (t, a) => t != TDouble && a != null }) { case (t, a) =>
+        TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
+      }
+
+      property("spark") = forAll(g) { case (t, a) =>
+        SparkAnnotationImpex.importAnnotation(SparkAnnotationImpex.exportAnnotation(a, t), t) == a
+      }
+    }
+
+    Spec.check()
   }
 }

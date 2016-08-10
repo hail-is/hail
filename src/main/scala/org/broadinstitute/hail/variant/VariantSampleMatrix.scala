@@ -28,7 +28,6 @@ object VariantSampleMatrix {
     new VariantSampleMatrix(metadata, rdd)
   }
 
-
   private def readMetadata(sqlContext: SQLContext, dirname: String,
     requireParquetSuccess: Boolean = true): VariantMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
@@ -125,7 +124,7 @@ object VariantSampleMatrix {
 
   def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
 
-    val metadata = readMetadata(sqlContext, dirname, skipGenotypes)
+    val metadata = readMetadata(sqlContext, dirname)
     val vaSignature = metadata.vaSignature
 
     val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
@@ -390,10 +389,10 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) })
 
-  def filterIntervals(gis: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
-    val gisBc = sparkContext.broadcast(gis)
+  def filterIntervals(iList: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
+    val iListBc = sparkContext.broadcast(iList)
     filterVariants { (v, va, gs) =>
-      val inInterval = gisBc.value.contains(v.locus)
+      val inInterval = iListBc.value.contains(v.locus)
       if (keep)
         inInterval
       else
@@ -579,18 +578,21 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
               |  left:  $wasSplit
               |  right: ${ that.wasSplit }""".stripMargin)
     }
+    var printed = false
     metadataSame &&
       rdd
         .fullOuterJoin(that.rdd)
         .forall {
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
             val annotationsSame = va1 == va2
-            if (!annotationsSame)
+            if (!annotationsSame && !printed) {
               println(
                 s"""at variant `$v', annotations were not the same:
                     |  $va1
                     |  $va2
                  """.stripMargin)
+              printed = true
+            }
             val genotypesSame = (it1, it2).zipped.forall { case (g1, g2) =>
               if (g1 != g2)
                 println(s"genotypes $g1, $g2 were not the same")

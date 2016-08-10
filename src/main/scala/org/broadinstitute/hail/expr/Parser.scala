@@ -405,6 +405,7 @@ object Parser extends JavaTokenParsers {
 
   def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty } |
+      "Interval" ^^ { _ => TInterval } |
       "Boolean" ^^ { _ => TBoolean } |
       "Char" ^^ { _ => TChar } |
       "Int" ^^ { _ => TInt } |

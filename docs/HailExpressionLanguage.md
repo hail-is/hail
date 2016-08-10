@@ -105,6 +105,12 @@ Several Hail commands provide the ability to perform a broad array of computatio
       - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
       - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
 
+  - Object constructors:
+  
+    - Variant: `Variant(chr, pos, ref, alt)`, where chr, ref, are `String`, and `pos` is Int, and `alt` is either a `String` or `Array[String]`
+    - Variant: `Variant(str)`, where str is of the form `CHR:POS:REF:ALT` or `CHR:POS:REF:ALT1,ALT2...ALTN`
+    - Locus: `Locus(chr, pos)`, where chr is a `String` and pos is an `Int`
+    - Interval: `Interval(startLocus, endLocus)`, where startLocus and endLocus are loci
 
 **Note:**
  - All variables and values are case sensitive
@@ -130,6 +136,8 @@ Identifier | Description
 `s` | Sample
 `sa` | Sample annotations
 `g` | Genotype
+`global` | Global annotations
+
 
 ____
 
@@ -139,6 +147,8 @@ Identifier | Description
 :-: | ---
 `s` | Sample
 `sa` | Sample annotations
+`global` | Global annotations
+
 
 ____
 
@@ -148,6 +158,8 @@ Identifier | Description
 :-: | ---
 `v` | Variant
 `va` | Variant annotations
+`global` | Global annotations
+
 
 ### Count
 
