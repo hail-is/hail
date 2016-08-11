@@ -2,6 +2,11 @@ Added command `aggregateintervals`.  [Documentation here](docs/AggregateInterval
 
 ____
 
+  - Import from PLINK binary files (must be in SNP-major mode), GEN files, and BGEN files [see docs for details](docs/Importing.md)
+  
+  - Export to GEN file [see docs for details](docs/ExportGEN.md)
+ ____
+ 
  - **Overhaul of `table` commands that parse text files.**
     - optional type imputation from the first twenty lines.
     - option `-s, --samplecol` in `annotatesamples table` has been replaced by `-e, --sample-expr`.  This no longer takes a column name, but instead takes an expr language transformation of the column names to produce the sample key.  This could still be a column name e.g. `-e Sample`, but it could also be something like `-e FID.split("_")[1]`. 
@@ -17,6 +22,7 @@ ____
 ____
  
 Added expr function `fet` to calculate p-values using Fisher's Exact Test.  Invoke this with `fet(count1, count2, count3, count4)` [see docs for details](docs/HailExpressionLanguage.md)
+
 
 ____
 

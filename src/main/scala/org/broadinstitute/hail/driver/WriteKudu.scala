@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.vcf.BufferedLineIterator
+import org.broadinstitute.hail.io.vcf.BufferedLineIterator
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.io.Source

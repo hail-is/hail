@@ -4,6 +4,7 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.testng.annotations.Test
 
 class AggregatorSuite extends SparkSuite {

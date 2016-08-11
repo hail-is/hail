@@ -1,4 +1,4 @@
-package org.broadinstitute.hail.methods
+package org.broadinstitute.hail.io.plink
 
 import org.broadinstitute.hail.variant._
 

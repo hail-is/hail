@@ -1,4 +1,4 @@
-package org.broadinstitute.hail.methods
+package org.broadinstitute.hail.io
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
@@ -7,6 +7,7 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TStruct
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
 

@@ -53,8 +53,10 @@ object FilterVariantsList extends Command {
           }.value
         }
 
+    val isDosage = vds.isDosage
+
     val in = vds.rdd
-      .map { case (v, (va, gs)) => (v, (va, gs.toGenotypeStream(v, compress = false))) }
+      .map { case (v, (va, gs)) => (v, (va, gs.toGenotypeStream(v, isDosage, compress = false))) }
 
     state.copy(
       vds = vds.copy(

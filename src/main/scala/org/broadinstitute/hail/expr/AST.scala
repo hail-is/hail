@@ -259,6 +259,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TGenotype, "od") => TInt
       case (TGenotype, "gq") => TInt
       case (TGenotype, "pl") => TArray(TInt)
+      case (TGenotype, "dosage") => TArray(TDouble)
       case (TGenotype, "isHomRef") => TBoolean
       case (TGenotype, "isHet") => TBoolean
       case (TGenotype, "isHomVar") => TBoolean
@@ -271,6 +272,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (TGenotype, "pAB") => TDouble
       case (TGenotype, "fractionReadsRef") => TDouble
       case (TGenotype, "fakeRef") => TBoolean
+      case (TGenotype, "isDosage") => TBoolean
 
       case (TVariant, "contig") => TString
       case (TVariant, "start") => TInt
@@ -359,6 +361,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalFlatCompose[Genotype](ec, lhs)(_.gq)
     case (TGenotype, "pl") =>
       AST.evalFlatCompose[Genotype](ec, lhs)(g => g.pl.map(a => a: IndexedSeq[Int]))
+    case (TGenotype, "dosage") =>
+      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.dosage.map(a => a: IndexedSeq[Double]))
     case (TGenotype, "isHomRef") =>
       AST.evalCompose[Genotype](ec, lhs)(_.isHomRef)
     case (TGenotype, "isHet") =>
@@ -382,6 +386,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalFlatCompose[Genotype](ec, lhs)(_.fractionReadsRef())
     case (TGenotype, "fakeRef") =>
       AST.evalCompose[Genotype](ec, lhs)(_.fakeRef)
+    case (TGenotype, "isDosage") =>
+      AST.evalCompose[Genotype](ec, lhs)(_.isDosage)
 
     case (TVariant, "contig") =>
       AST.evalCompose[Variant](ec, lhs)(_.contig)

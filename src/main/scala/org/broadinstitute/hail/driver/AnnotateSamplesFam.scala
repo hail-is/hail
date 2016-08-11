@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr.Parser
-import org.broadinstitute.hail.io.annotators.SampleFamAnnotator
+import org.broadinstitute.hail.io.plink.{FamFileConfig, PlinkLoader}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AnnotateSamplesFam extends Command {
@@ -50,9 +50,18 @@ object AnnotateSamplesFam extends Command {
 
     val delimiter = options.delimiter
     val isQuantitative = options.isQuantitative
+    val ffConfig = FamFileConfig(options.isQuantitative, options.delimiter, options.missing)
 
-    val (m, signature) = SampleFamAnnotator(input, delimiter, isQuantitative, options.missing, state.hadoopConf)
-    val annotated = vds.annotateSamples(m, signature, Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
+    val (info, signature) = PlinkLoader.parseFam(input, ffConfig, state.hadoopConf)
+
+    val duplicateIds = info.map(_._1).duplicates().toArray
+    if (duplicateIds.nonEmpty) {
+      val n = duplicateIds.length
+      log.error(s"found $n duplicate sample ${plural(n, "id")}:\n  ${duplicateIds.mkString("\n  ")}")
+      fatal(s"found $n duplicate sample ${plural(n, "id")}:\n  ${truncate(duplicateIds.mkString(",")).mkString("\n  ")}")
+    }
+
+    val annotated = vds.annotateSamples(info.toMap, signature, Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
     state.copy(vds = annotated)
   }
 }
