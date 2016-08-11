@@ -90,15 +90,15 @@ object ExportVariantsCass extends Command {
     case TFloat => "float"
     case TDouble => "double"
     case TString => "text"
-    case TArray(elementType) =>
-      s"list<${toCassType(elementType)}>"
+    case TArray(elementType) => s"list<${toCassType(elementType)}>"
+    case TSet(elementType) => s"set<${toCassType(elementType)}>"
     case _ =>
-      // FIXME
-      fatal("")
+      fatal("unsupported type: $t")
   }
 
   def toCassValue(a: Any, t: Type): AnyRef = t match {
     case TArray(elementType) => a.asInstanceOf[Seq[_]].asJava
+    case TSet(elementType) => a.asInstanceOf[Set[_]].asJava
     case _ => a.asInstanceOf[AnyRef]
   }
 
