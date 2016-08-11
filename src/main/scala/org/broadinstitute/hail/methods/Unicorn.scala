@@ -10,6 +10,7 @@ class Unicorn() {
   def name = "UNICORN"
 
   type Stage1Dist = Map[Variant,(Double,Double)]
+  type cases = Seq[(Int,(Double,Double))]
 
   def alleleCountAnnotate(vds : VariantDataset, refName : String = "refCount", altName : String = "altCount") : VariantDataset = {
     val (t1,i1) = vds.vaSignature.insert(TInt,refName)
@@ -94,7 +95,7 @@ class Unicorn() {
     }).collect().toMap
   }
 
-  def stage1dist(data : VariantDataset, clusts : Seq[Set[String]]) : Seq[Stage1Dist] = {
+  def clusterWidePriors(data : VariantDataset, clusts : Seq[Set[String]]) : Seq[Stage1Dist] = {
     var vds = alleleCountAnnotate(data,refName = "globalRefCount",altName = "globalAltCount")
     var subvds : Array[VariantDataset] = Array.tabulate(clusts.size)((i : Int) => vds.filterSamples((name : String, A : Annotation) => clusts(i) contains name) )
     subvds = subvds map (g => alleleCountAnnotate(g))
@@ -110,11 +111,68 @@ class Unicorn() {
     posteriors
   }
 
-  def apply(data : VariantDataset, clusts : Seq[Set[String]]) : Unit = {
-    val nulldist = stage1dist(data,clusts)
-    // Stage 2 goes here!
-    // Pull in data annotated with clusters
-    // Association test
+  // Uses MCMC algorithm to compute posteriors on within-cluster GP
+  def fitGP(data : VariantDataset, priors : Seq[Stage1Dist]) : Unit = {
+    // Read in data & priors
+    // For each variant:
+    //   Generate Gaussian prior for allele frequency (Tracy 39-44)
+    //   Generate priors for phi
+    //   Make initial pull for phi and S
+    //   For each MCMC iteration (Tracy uses 6000):
+    //     d
+
     Unit
+  }
+
+  def betaMeanVariance(beta : (Double, Double)) : (Double,Double) = {
+    val (a,b) = beta
+    val mean = a / (a + b)
+    val variance = (a * b) / ((a + b) * (a + b) * (a + b + 1))
+    (mean,variance)
+  }
+
+  def nulldist(samples : cases, model : Seq[Stage1Dist]) : Map[Variant,(Double,Double)] = {
+    val n = samples.size.toDouble
+    val variants = model(0) mapValues (x => (0.0,0.0))
+    val modelParam : Seq[Map[Variant,(Double,Double)]] = model map ((m : Stage1Dist) => m mapValues betaMeanVariance)
+    val ybar = (samples foldLeft variants) ((acc,loc) => { 
+      val (clust,(pc1,pc2)) = loc
+      (acc.keys map ((k : Variant) => {
+         val (mean,variance) : (Double,Double) = modelParam(clust)(k)
+         val (aggregatemean,aggregatevariance) = acc(k)
+         val meanincrement = mean * 2 / n
+         val varianceincrement = ( (2 * mean * (1 - mean)) + (2 * variance)) / (n * n)
+         (k,(aggregatemean + meanincrement,aggregatevariance + varianceincrement)) } )).toMap 
+    } )
+    ybar 
+  }
+  
+  def chisqtop(x : Double) : Double = Gamma.regularizedGammaQ(0.5, x / 2)
+
+  // Assumes samples and vds describe the same dataset, and ref / alt alleles
+  // are the same in the cases as in the UNICORN controls 
+  // Assumes null dist is accurate and factors in missingness
+  def test(samples : cases, vds_samples : VariantDataset, nulldist : Map[Variant,(Double,Double)]) : Map[Variant,Option[Double]] = {
+    val vds = alleleCountAnnotate(vds_samples)
+    //val (_, refQuery) = vds.queryVA("va.refCount")
+    val (_, altQuery) = vds.queryVA("va.altCount")
+    val vam = vds.variantsAndAnnotations.collect().toMap
+    (vam.keys map ((v : Variant) => {
+      val va : Annotation = vam(v)
+      val altCount = altQuery(va) match { case Some(n : Int) => n.toDouble
+                                          case _ => 0.0 }
+      val Y = altCount / samples.size
+      if (! (nulldist contains v)) None else Some ( {
+        val (Ybar,Ybarvar) = nulldist(v)
+        val chisq = (Y - Ybar) * (Y - Ybar) / Ybarvar
+        chisqtop(chisq)
+        } )
+    } )).toMap
+  }
+
+  def apply(data : VariantDataset, clusts : Seq[Set[String]]) : Seq[Stage1Dist] = {
+    val stage1prior : Seq[Stage1Dist] = clusterWidePriors(data,clusts)
+    // Stage 2 goes here!
+    stage1prior
   }
 }

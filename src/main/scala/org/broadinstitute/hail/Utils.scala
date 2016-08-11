@@ -6,6 +6,7 @@ import java.net.URI
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
 import htsjdk.samtools.util.BlockCompressedStreamConstants
+import org.apache.commons.math3.special.Gamma
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
@@ -1290,4 +1291,8 @@ object Utils extends Logging {
   }
 
   def uriPath(uri: String): String = new URI(uri).getPath
+  
+  // Avoids the round-off error issue in org.apache.commons.math3.distribution.ChiSquaredDistribution,
+  // which computes 1 - (1 - this):
+  def chiSquaredTail(df: Double, x: Double) = Gamma.regularizedGammaQ(df / 2, x / 2)
 }
