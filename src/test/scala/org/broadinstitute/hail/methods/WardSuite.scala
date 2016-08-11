@@ -95,6 +95,23 @@ class WardSuite extends SparkSuite {
     assert(clust1_1 contains Set(0,1,2))
     assert(clust2_2 contains Set(0,1))
     assert(clust2_2 contains Set(2,3))
+
+    // Bigger test cases
+    /*val fileMap = readFile("src/test/resources/points1.tsv", sc.hadoopConfiguration) { reader =>
+      Source.fromInputStream(reader)
+        .getLines()
+        .filter(line => !line.startsWith("Sample"))
+        .map(line => {
+          val split = line.split("\t")
+          val f3 = split(2) match {
+            case "NA" => None
+            case x => Some(x.toInt)
+          }
+          (split(0), (Some(split(1)), f3))
+        })
+        .toMap
+    }*/
+
   }
 
 }
