@@ -6,6 +6,10 @@ import org.apache.spark.mllib.linalg.{Matrix, Matrices}
  * each step, merges clusters so as to minimize the increase in within-cluster 
  * sum-of-squares error.
  * 
+ * Implements it as a recursive nearest neighbor (RNN) algorithm with Lance-
+ * Williams updating, as described here:
+ * https://arxiv.org/pdf/1105.0121.pdf
+ *
  * Clustering n points on R^m takes roughly O(n^2 * m) to calculate the dist
  * matrix, plus O(n^2) for the clustering.
  */
