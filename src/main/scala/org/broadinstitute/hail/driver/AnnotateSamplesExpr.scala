@@ -35,18 +35,17 @@ object AnnotateSamplesExpr extends Command {
       "va" -> (1, vds.vaSignature),
       "s" -> (2, TSample),
       "sa" -> (3, vds.saSignature),
-      "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature)))
+      "global" -> (4, vds.globalSignature)))
 
     val symTab = Map(
       "s" -> (0, TSample),
       "sa" -> (1, vds.saSignature),
       "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, TAggregable(aggregationEC)))
+      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
 
     val ec = EvalContext(symTab)
     ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
+    aggregationEC.set(4, vds.globalAnnotation)
 
     val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Annotation.SAMPLE_HEAD)
 

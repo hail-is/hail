@@ -47,4 +47,3 @@ Hail makes the following assumptions about the genotype fields:
  - sum(AD) <= DP
 
 Internally, Hail preserves these invariants.  On import, Hail filters (sets to no-call) any genotype that violates these invariants and prints a warning message.
-

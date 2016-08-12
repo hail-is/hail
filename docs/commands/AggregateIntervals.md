@@ -57,7 +57,7 @@ $ hail
     aggregateintervals
         -i capture_intervals.txt
         -o out.txt
-        -c 'n_SNP = variants.count(v.altAllele.isSNP), n_indel = variants.count(v.altAllele.isIndel), n_total = variants.count(true)'
+        -c 'n_SNP = variants.filter(v => v.altAllele.isSNP).count(), n_indel = variants.filter(v => v.altAllele.isIndel).count(), n_total = variants.count()'
 ```
 
 This will write out the following file:
@@ -84,13 +84,13 @@ $ cat intervals.txt
 ```
 $ hail 
     read -i dataset.vds
-    annotatevariants expr -c 'va.n_calls = gs.count(g.isCalledNonRef)'
+    annotatevariants expr -c 'va.n_calls = gs.filter(g.isCalledNonRef).count()'
     aggregateintervals
         -i intervals.txt
         -o out.txt
-        -c 'LOF_CALLS = variants.statsif(va.consequence == "LOF", va.n_calls).sum,
-            MISSENSE_CALLS = variants.statsif(va.consequence == "missense", va.n_calls).sum,
-            SYN_CALLS = variants.statsif(va.consequence == "synonymous", va.n_calls).sum'
+        -c 'LOF_CALLS = variants.filter(v => va.consequence == "LOF").map(v => va.n_calls).sum(),
+            MISSENSE_CALLS = variants.filter(v => va.consequence == "missense").map(v => va.n_calls).sum(),
+            SYN_CALLS = variants.filter(v => va.consequence == "synonymous").map(v => va.n_calls).sum()'
 ```
 
 We will get something that looks like the following output:

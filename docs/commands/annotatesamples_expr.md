@@ -49,13 +49,13 @@ Identifier | Description
 
 <h4 class="example">Compute GQ statistics about heterozygotes, per sample</h4>
 ```
-annotatesamples expr -c 'sa.gqHetStats = gs.statsif(g.isHet, g.gq)'
+annotatesamples expr -c 'sa.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()'
 exportsamples -o out.txt -c 'sample = s, het_gq_mean = sa.gqHetStats.mean'
 ```
 
 <h4 class="example">Collect a list of genes with the number of singleton LOF calls per sample</h4>
 ```
-annotatevariants expr -c 'va.isSingleton = gs.stats(g.nNonRefAlleles).sum == 1'
-annotatesamples expr -c 'sa.LOF_genes = gs.collect(va.isSingleton && g.isHet && va.consequence == "LOF", va.gene)'
+annotatevariants expr -c 'va.isSingleton = gs.map(g => g.nNonRefAlleles).sum() == 1'
+annotatesamples expr -c 'sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet && va.consequence == "LOF").map(g => va.gene).collect()'
 ```
 </div>

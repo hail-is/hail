@@ -53,7 +53,7 @@ object ExportSamples extends Command with TextExporter {
       "s" -> (0, TSample),
       "sa" -> (1, vds.saSignature),
       "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, TAggregable(aggregationEC)))
+      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
 
     val ec = EvalContext(symTab)
     ec.set(2, vds.globalAnnotation)

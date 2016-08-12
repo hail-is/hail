@@ -36,7 +36,7 @@ that support multiallelics are:
  - `read`
  - `renamesamples`
  - `repartition`
- - `showannotations`
+ - `printschema`
  - `splitmulti`
  - `vep`
  - `write`

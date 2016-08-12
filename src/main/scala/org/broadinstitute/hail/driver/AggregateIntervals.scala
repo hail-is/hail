@@ -47,17 +47,16 @@ object AggregateIntervals extends Command {
     val sas = vds.saSignature
 
     val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "global" -> (2, vds.globalSignature)))
+      "va" -> (0, vds.vaSignature),
+      "global" -> (1, vds.globalSignature)))
     val symTab = Map(
       "interval" -> (0, TInterval),
       "global" -> (1, vds.globalSignature),
-      "variants" -> (-1, TAggregable(aggregationEC)))
+      "variants" -> (-1, BaseAggregable(aggregationEC, TVariant)))
 
     val ec = EvalContext(symTab)
     ec.set(1, vds.globalAnnotation)
-    aggregationEC.set(2, vds.globalAnnotation)
+    aggregationEC.set(1, vds.globalAnnotation)
 
     val (header, parseResults) = if (cond.endsWith(".columns")) {
       Parser.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
@@ -73,7 +72,7 @@ object AggregateIntervals extends Command {
 
     val zvf: () => Array[Any] = () => zVals.indices.map(zVals).toArray
 
-    val variantAggregations = Aggregators.buildVariantaggregations(vds, aggregationEC)
+    val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
 
     val iList = IntervalListAnnotator.read(options.input, sc.hadoopConfiguration)
     val iListBc = sc.broadcast(iList)

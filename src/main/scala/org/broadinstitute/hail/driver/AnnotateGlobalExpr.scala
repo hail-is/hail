@@ -33,22 +33,20 @@ object AnnotateGlobalExpr extends Command {
     val cond = options.condition
 
     val aggECV = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "global" -> (2, vds.globalSignature)))
+      "va" -> (0, vds.vaSignature),
+      "global" -> (1, vds.globalSignature)))
     val aggECS = EvalContext(Map(
-      "s" -> (0, TSample),
-      "sa" -> (1, vds.saSignature),
-      "global" -> (2, vds.globalSignature)))
+      "sa" -> (0, vds.saSignature),
+      "global" -> (1, vds.globalSignature)))
     val symTab = Map(
       "global" -> (0, vds.globalSignature),
-      "variants" -> (-1, TAggregable(aggECV)),
-      "samples" -> (-1, TAggregable(aggECS)))
+      "variants" -> (-1, BaseAggregable(aggECV, TVariant)),
+      "samples" -> (-1, BaseAggregable(aggECS, TSample)))
 
 
     val ec = EvalContext(symTab)
-    aggECS.set(2, vds.globalAnnotation)
-    aggECV.set(2, vds.globalAnnotation)
+    aggECS.set(1, vds.globalAnnotation)
+    aggECV.set(1, vds.globalAnnotation)
 
     val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Annotation.GLOBAL_HEAD)
 

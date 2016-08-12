@@ -1,16 +1,17 @@
 package org.broadinstitute.hail.stats
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.variant.VariantDataset
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.driver._
-import org.testng.annotations.Test
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.variant.{VariantDataset, _}
+import org.testng.annotations.Test
+
 import scala.language.postfixOps
 import scala.sys.process._
-import org.broadinstitute.hail.Utils._
+
 class FisherExactTestSuite extends SparkSuite {
 
   @Test def testPvalue() {
@@ -45,11 +46,11 @@ class FisherExactTestSuite extends SparkSuite {
 
 
         val rTwoSided = rResultTwoSided.split(" ").take(4)
-          .map {s => if (s == "Inf") Double.PositiveInfinity else if (s == "NaN") Double.NaN else s.toDouble }
+          .map { s => if (s == "Inf") Double.PositiveInfinity else if (s == "NaN") Double.NaN else s.toDouble }
         val rLess = rResultLess.split(" ").take(4)
-          .map {s => if (s == "Inf") Double.PositiveInfinity else if (s == "NaN") Double.NaN else s.toDouble }
+          .map { s => if (s == "Inf") Double.PositiveInfinity else if (s == "NaN") Double.NaN else s.toDouble }
         val rGreater = rResultGreater.split(" ").take(4)
-          .map {s => if (s == "Inf") Double.PositiveInfinity else if (s == "NaN") Double.NaN else s.toDouble }
+          .map { s => if (s == "Inf") Double.PositiveInfinity else if (s == "NaN") Double.NaN else s.toDouble }
 
         val hailTwoSided = FisherExactTest(a, b, c, d, alternative = "two.sided")
         val hailLess = FisherExactTest(a, b, c, d, alternative = "less")
@@ -81,7 +82,7 @@ class FisherExactTestSuite extends SparkSuite {
       forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vds: VariantDataset) =>
         var s = State(sc, sqlContext, vds)
         val sampleIds = vds.sampleIds
-        val phenotypes = sampleIds.zipWithIndex.map{case (sample, i) =>
+        val phenotypes = sampleIds.zipWithIndex.map { case (sample, i) =>
           if (i % 3 == 0)
             (sample, "ADHD")
           else if (i % 3 == 1)
@@ -90,18 +91,18 @@ class FisherExactTestSuite extends SparkSuite {
             (sample, "NA")
         }
 
-        val phenotypeFile = tmpDir.createTempFile("phenotypeAnnotation",".txt")
-        writeTextFile(phenotypeFile, sc.hadoopConfiguration){case w =>
+        val phenotypeFile = tmpDir.createTempFile("phenotypeAnnotation", ".txt")
+        writeTextFile(phenotypeFile, sc.hadoopConfiguration) { w =>
           w.write("Sample\tPheno1\n")
-          phenotypes.foreach{case (sample, p) => w.write(s"$sample\t$p\n")}
+          phenotypes.foreach { case (sample, p) => w.write(s"$sample\t$p\n") }
         }
 
         s = AnnotateSamplesTable.run(s, Array("-i", phenotypeFile, "-r", "sa.pheno", "-e", "Sample"))
 
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.macCase = gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHomVar)"""))
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.majCase = gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHomRef)"""))
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.macControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHomVar)"""))
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.majControl = gs.count(sa.pheno.Pheno1 == "Control" && g.isHet) + 2 * gs.count(sa.pheno.Pheno1 == "ADHD" && g.isHomRef)"""))
+        s = AnnotateVariantsExpr.run(s, Array("-c", """va.macCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar).count()"""))
+        s = AnnotateVariantsExpr.run(s, Array("-c", """va.majCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef).count()"""))
+        s = AnnotateVariantsExpr.run(s, Array("-c", """va.macControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar).count()"""))
+        s = AnnotateVariantsExpr.run(s, Array("-c", """va.majControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef).count()"""))
 
         s = AnnotateVariantsExpr.run(s, Array("-c", """va.fet = fet(va.macCase.toInt, va.majCase.toInt, va.macControl.toInt, va.majControl.toInt)"""))
 
@@ -115,7 +116,7 @@ class FisherExactTestSuite extends SparkSuite {
         val (_, q7) = s.vds.queryVA("va.fet.ci95Lower")
         val (_, q8) = s.vds.queryVA("va.fet.ci95Upper")
 
-        s.vds.variantsAndAnnotations.forall{case (v, va) =>
+        s.vds.variantsAndAnnotations.forall { case (v, va) =>
           val result = FisherExactTest(q1(va).get.asInstanceOf[Long].toInt, q2(va).get.asInstanceOf[Long].toInt,
             q3(va).get.asInstanceOf[Long].toInt, q4(va).get.asInstanceOf[Long].toInt)
           val annotationResult = Array(q5(va).asInstanceOf[Option[Double]], q6(va).asInstanceOf[Option[Double]],

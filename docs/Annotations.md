@@ -4,7 +4,7 @@ Annotations are a core aspect of data representation in Hail.  At their simplest
 
 Annotations are accessed using the key prefixes for sample, variants, and global, which are `sa`, `va`, `global` (**s**ample **a**nnotations and **v**ariant **a**nnotations).  Identifiers follow and layers of the annotation structure are delimited by periods.  Annotations nest arbitrarily, and while most come in the form of `va.pass` or `sa.qc.callRate`, some are more complicated like `va.vep.colocated_variants[<index>].aa_maf`.
 
-If at any time you want to know what annotations are stored within Hail, use the [`showannotations`](#showannotations) module.  This module will print the schema for both samples and variants in a readable form.
+If at any time you want to know what annotations are stored within Hail, use the [`printschema`](#printschema) module.  This module will print the schema for both samples and variants in a readable form.
 
 Additionally, users can import annotations from a variety of files, or define new annotations as functions of the exposed data structures. 
 

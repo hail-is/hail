@@ -56,7 +56,7 @@ object FilterVariantsExpr extends Command {
       "v" ->(0, TVariant),
       "va" ->(1, vds.vaSignature),
       "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, TAggregable(aggregationEC)))
+      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
 
 
     val ec = EvalContext(symTab)
@@ -65,7 +65,7 @@ object FilterVariantsExpr extends Command {
 
     val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
-    val aggregatorOption = Aggregators.buildVariantaggregations(vds, aggregationEC)
+    val aggregatorOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
 
     val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
       ec.setAll(v, va)

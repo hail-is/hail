@@ -14,9 +14,7 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.ClassTag
 
 
-sealed abstract class BaseType extends Serializable {
-  def typeCheck(a: Any): Boolean
-}
+sealed abstract class BaseType extends Serializable
 
 object Type {
   val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
@@ -54,6 +52,9 @@ object Type {
 }
 
 abstract class Type extends BaseType {
+
+  def typeCheck(a: Any): Boolean
+
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
       .flatMap { t =>
@@ -230,12 +231,40 @@ case object TString extends Type {
   override def genValue: Gen[Annotation] = arbitrary[String]
 }
 
+abstract class TAggregable extends BaseType {
+  override def toString: String = s"Aggregable[${ elementType.toString }]"
 
-case class TAggregable(ec: EvalContext) extends BaseType {
-  override def toString = "Aggregable"
+  def ec: EvalContext
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Iterable[_]]
+  def elementType: Type
+
+  def f: (Any) => Option[Any]
 }
+
+case class BaseAggregable(ec: EvalContext, elementType: Type) extends TAggregable {
+  def f: (Any) => Option[Any] = a => Some(a)
+}
+
+case class FilteredAggregable(parent: TAggregable, filterF: (Any) => Boolean) extends TAggregable {
+  def f: (Any) => Option[Any] = {
+    val parentF = parent.f
+    (a: Any) => parentF(a).filter(filterF)
+  }
+
+  override def elementType: Type = parent.elementType
+
+  override def ec: EvalContext = parent.ec
+}
+
+case class MappedAggregable(parent: TAggregable, elementType: Type, mapF: (Any) => Any) extends TAggregable {
+  def f: (Any) => Option[Any] = {
+    val parentF = parent.f
+    (a: Any) => parentF(a).flatMap(x => Option(mapF(x)))
+  }
+
+  override def ec: EvalContext = parent.ec
+}
+
 
 abstract class TIterable extends Type {
   def elementType: Type
@@ -272,7 +301,7 @@ case class TSet(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[Set,Annotation](elementType.genValue)
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
 }
 
 case class TDict(elementType: Type) extends Type {
