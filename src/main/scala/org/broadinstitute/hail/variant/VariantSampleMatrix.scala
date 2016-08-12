@@ -222,22 +222,27 @@ case class VSMSubgen[T](
   isDosage: Boolean = false) {
 
   def gen(sc: SparkContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
-    for (subsizes <- Gen.getPartition(7);
+    for (size <- Gen.size;
+      subsizes <- Gen.partition(5).resize(size/10);
       vaSig <- vaSigGen.resize(subsizes(0));
       saSig <- saSigGen.resize(subsizes(1));
       globalSig <- globalSigGen.resize(subsizes(2));
-      sampleIds <- sampleIdGen.resize(subsizes(3));
+      global <- globalGen(globalSig).resize(subsizes(3));
+      nPartitions <- Gen.choose(1,10);
+
+      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9);
+
+      sampleIds <- sampleIdGen.resize(w);
       nSamples = sampleIds.length;
-      global <- globalGen(globalSig).resize(subsizes(4));
-      saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(5));
+      saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
       rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
-        for (subsubsizes <- Gen.getPartition(3);
+        for (subsubsizes <- Gen.partition(3);
           v <- vGen.resize(subsubsizes(0));
           va <- vaGen(vaSig).resize(subsubsizes(1));
           ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v.nAlleles)).resize(subsubsizes(2)))
-          yield (v, (va, ts))).resize(if (nSamples == 0) nSamples else subsizes(6) / nSamples))
-      yield VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
-        sc.parallelize(rows))
+          yield (v, (va, ts))).resize(l))
+      yield { println(s"size $size , w $w , l $l"); VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
+        sc.parallelize(rows, nPartitions)) }
 }
 
 object VSMSubgen {
