@@ -241,7 +241,7 @@ case class VSMSubgen[T](
           va <- vaGen(vaSig).resize(subsubsizes(1));
           ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v.nAlleles)).resize(subsubsizes(2)))
           yield (v, (va, ts))).resize(l))
-      yield { println(s"size $size , w $w , l $l"); VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
+      yield { VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
         sc.parallelize(rows, nPartitions)) }
 }
 
