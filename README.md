@@ -20,6 +20,7 @@ involved in Hail development, email hail@broadinstitute.org.
  - [Annotating Variants](docs/commands/AnnotateVariants.md)
  - [Annotating Samples](docs/commands/AnnotateSamples.md)
  - [Annotating Global](docs/commands/AnnotateGlobal.md)
+ - [Imputing Sex](docs/ImputeSex.md)
  - [Quality Control](docs/QC.md)
  - [PCA](docs/PCA.md)
  - [Annotating with the Variant Effect Predictor](docs/VEP.md)
@@ -39,12 +40,11 @@ If you use Hail for published work, please cite both the software:
 
  - Hail, [https://github.com/broadinstitute/hail](https://github.com/broadinstitute/hail)
 
-and the forthcoming manuscript describing Hail:
+and the forthcoming manuscript describing Hail (if possible):
 
- - Cotton Seed, Alex Bloemendal, Jonathan M Bloom, Jacqueline I Goldstein, Timothy Poterba.  Hail: An Open-Source Framework for Scalable Genetic Data Analysis.  In preparation.
+ - Cotton Seed, Alex Bloemendal, Jonathan M Bloom, Jacqueline I Goldstein, Daniel King, Timothy Poterba.  Hail: An Open-Source Framework for Scalable Genetic Data Analysis.  In preparation.
 
-of the following paper which includes a brief introduction to Hail in
-the online methods:
+or the following paper which includes a brief introduction to Hail in the online methods:
 
  - Andrea Ganna, Giulio Genovese, Daniel P Howrigan, Andrea Byrnes, Mitja Kurki, Seyedeh M Zekavat, Christopher W Whelan, Robert E Handsaker, Mart Kals, Alex Bloemendal, Jonathan M Bloom, Jacqueline I Goldstein, Timothy Poterba, Cotton Seed, Michel G Nivard, Pradeep Natarajan, Reedik Magi, Diane Gage, Elise B Robinson, Andres Metspalu, Veikko Salomaa, Jaana Suvisaari, Shaun M Purcell, Pamela Sklar, Sekar Kathiresan, Mark J Daly, Steven A McCarroll, Patrick F Sullivan, Aarno Palotie, Tonu Esko, Christina Hultman, Benjamin M Neale. _Ultra-rare disruptive and damaging mutations influence educational attainment in the general population_.  doi: http://dx.doi.org/10.1101/050195.
 
@@ -59,10 +59,7 @@ development:
  - LMM
  - burden tests, SKAT
  - logistic regression
- - dosage
  - posterior (PP)
  - LD pruning
- - sex check
  - TDT
- - BGEN
  - Kaitlin Samocha's de novo caller
