@@ -101,20 +101,23 @@ dependencies {
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 }
 
+task(checkSettings) << {
+    def checkSeed = System.getProperty("check.seed", "1")
+    if (checkSeed == "random")
+        checkSeed = new Random().nextInt().toString()
+    def checkSize = System.getProperty("check.size", "1000")
+    def checkCount = System.getProperty("check.count", "10")
+
+    println "check: seed = $checkSeed, size = $checkSize, count = $checkCount"
+
+    // override with these defaults, random seed
+    System.setProperty("check.seed", checkSeed)
+    System.setProperty("check.size", checkSize)
+    System.setProperty("check.count", checkCount)
+}
+
 test {
     useTestNG {}
-
-    Random random = new Random()
-
-    def randomize = System.getProperty("hail.randomize","false").toBoolean()
-    def randomSeed = random.nextInt()
-
-    if (randomize) {System.setProperty("hail.seed", randomSeed.toString())
-    } else if (System.getProperty("hail.seed") == null) {
-        System.setProperty("hail.seed", "1")
-    }
-    def seed = System.getProperty("hail.seed")
-    println "Using a seed of [$seed] for testing."
 
     systemProperties System.getProperties()
 
@@ -127,6 +130,8 @@ test {
         logger.lifecycle("Running test: " + descriptor)
     }
 }
+
+test.dependsOn(checkSettings)
 
 tasks.withType(ShadowJar) {
     manifest {

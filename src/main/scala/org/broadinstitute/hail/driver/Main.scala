@@ -16,6 +16,32 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
+object SparkManager {
+  var _sc: SparkContext = _
+  var _sqlContext: SQLContext = _
+
+  def createSparkContext(appName: String, master: String): SparkContext = {
+    if (_sc == null) {
+      val conf = new SparkConf().setAppName(appName)
+      conf.setMaster(master)
+      conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      _sc = new SparkContext(conf)
+      _sc.hadoopConfiguration.set("io.compression.codecs",
+        "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
+    }
+
+    _sc
+  }
+
+  def createSQLContext(): SQLContext = {
+    assert(_sc != null)
+    if (_sqlContext == null)
+      _sqlContext = new org.apache.spark.sql.SQLContext(_sc)
+
+    _sqlContext
+  }
+}
+
 object HailConfiguration {
   var stacktrace: Boolean = _
 
@@ -59,18 +85,18 @@ object Main {
   }
 
   def handleFatal(e: Exception): Nothing = {
-    val msg = s"hail: fatal: ${e.getMessage}"
+    val msg = s"hail: fatal: ${ e.getMessage }"
     fail(msg)
   }
 
   def handleFatal(cmd: Command, e: Exception): Nothing = {
-    val msg = s"hail: fatal: ${cmd.name}: ${e.getMessage}"
+    val msg = s"hail: fatal: ${ cmd.name }: ${ e.getMessage }"
     fail(msg)
   }
 
 
   def expandException(cmd: Command, e: Throwable): String =
-    s"${e.getClass.getName}: ${e.getMessage}\n\tat ${e.getStackTrace.mkString("\n\tat ")}${
+    s"${ e.getClass.getName }: ${ e.getMessage }\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
       Option(e.getCause).foreach(exception => expandException(cmd, exception))
     }"
 
@@ -87,7 +113,7 @@ object Main {
     } catch {
       case e: Exception =>
         handlePropagatedException(cmd, e)
-        val msg = s"hail: ${cmd.name}: caught exception: "
+        val msg = s"hail: ${ cmd.name }: caught exception: "
         //        log.error(msg)
         log.error(msg + expandException(cmd, e))
         System.err.println(msg + e.getMessage)
@@ -231,37 +257,21 @@ object Main {
           }
       }
 
-    val conf = new SparkConf().setAppName("Hail")
-    if (options.master != null)
-      conf.setMaster(options.master)
-    else if (!conf.contains("spark.master"))
-      conf.setMaster("local[*]")
+    val sc = SparkManager.createSparkContext("Hail",
+      if (options.master != null)
+        options.master
+      else
+        "local[*]")
 
+    val conf = sc.getConf
     conf.set("spark.ui.showConsoleProgress", "false")
-
-    conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
-    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-
-    val sc = new SparkContext(conf)
     val progressBar = ProgressBarBuilder.build(sc)
 
-    val hadoopConf = sc.hadoopConfiguration
+    conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
 
-    hadoopConf.setInt("mapreduce.input.fileinputformat.split.minsize", options.blockSize * 1024*1024)
+    sc.hadoopConfiguration.setInt("mapreduce.input.fileinputformat.split.minsize", options.blockSize * 1024 * 1024)
 
-    hadoopConf.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
-
-    val accessKeyID = System.getenv("AWS_ACCESS_KEY_ID")
-    if (accessKeyID != null) {
-      hadoopConf.set("fs.s3a.access.key", accessKeyID)
-      hadoopConf.set("fs.s3n.access.key", accessKeyID)
-    }
-    val secretAccessKey = System.getenv("AWS_ACCESS_KEY_ID")
-    if (secretAccessKey != null) {
-      hadoopConf.set("fs.s3a.secret.key", secretAccessKey)
-      hadoopConf.set("fs.s3n.secret.key", secretAccessKey)
-    }
+    val sqlContext = SparkManager.createSQLContext()
 
     // FIXME separate entrypoints
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
@@ -270,12 +280,9 @@ object Main {
     HailConfiguration.installDir = new File(jar).getParent + "/.."
     HailConfiguration.tmpDir = options.tmpDir
 
-    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
-
     runCommands(sc, sqlContext, invocations)
 
     sc.stop()
     progressBar.stop()
   }
-
 }
