@@ -184,7 +184,7 @@ class IntervalSuite extends SparkSuite {
         }
       }
 
-      p.check(count = 100)
+      p.check()
     }
   }
 }

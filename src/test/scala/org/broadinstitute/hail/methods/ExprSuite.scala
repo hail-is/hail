@@ -7,7 +7,6 @@ import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.utils.StringEscapeUtils._
-import org.broadinstitute.hail.variant.GenotypeSuite.Spec.{check => _}
 import org.broadinstitute.hail.variant.{Genotype, Locus, Variant}
 import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
 import org.json4s._
@@ -427,7 +426,7 @@ class ExprSuite extends SparkSuite {
       s == unescapeString(escapeString(s))
     }
 
-    p.check(count = 1000)
+    p.check()
   }
 
   @Test def testImpexes() {

@@ -639,7 +639,7 @@ class RichBoolean(val b: Boolean) extends AnyVal {
 }
 
 trait Logging {
-  @transient var log_ : Logger = null
+  @transient var log_ : Logger = _
 
   def log: Logger = {
     if (log_ == null)

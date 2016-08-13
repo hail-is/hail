@@ -505,7 +505,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       state.vds.same(vds)
     }
 
-    p.check(count = 1)
+    p.check()
   }
 
   @Test def testPositions() {

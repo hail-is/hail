@@ -1,23 +1,24 @@
 package org.broadinstitute.hail
 
 import java.io.File
+
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.{SparkContext, SparkConf}
-import org.broadinstitute.hail.driver.HailConfiguration
+import org.apache.spark.SparkContext
+import org.broadinstitute.hail.driver.{HailConfiguration, SparkManager}
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.{BeforeClass, AfterClass}
+import org.testng.annotations.{AfterClass, BeforeClass}
 import org.apache.hadoop
 
 class SparkSuite extends TestNGSuite {
-  var sc: SparkContext = null
-  var sqlContext: SQLContext = null
-  val noArgs: Array[String] = Array.empty[String]
-
-  def hadoopConf: hadoop.conf.Configuration =
+  var sc: SparkContext = _
+  var sqlContext: SQLContext = _
+  lazy val hadoopConf: hadoop.conf.Configuration =
     sc.hadoopConfiguration
 
-  var _tmpDir: TempDir = null
+  val noArgs: Array[String] = Array.empty[String]
+
+  var _tmpDir: TempDir = _
   def tmpDir: TempDir = {
     if (_tmpDir == null)
       _tmpDir = TempDir("/tmp", hadoopConf)
@@ -26,28 +27,13 @@ class SparkSuite extends TestNGSuite {
 
   @BeforeClass
   def startSpark() {
-    val conf = new SparkConf().setAppName("Hail.TestNG")
+    val master = System.getProperty("hail.master", "local")
+    sc = SparkManager.createSparkContext("Hail.TestNG", master)
 
-    val master = System.getProperty("hail.master")
-    if (master != null)
-      conf.setMaster(master)
-    else if (!conf.contains("spark.master"))
-      // conf.setMaster("local[*]")
-      conf.setMaster("local")
+    sqlContext = SparkManager.createSQLContext()
 
-    conf.set("spark.sql.parquet.compression.codec", "uncompressed")
-
-    // FIXME KryoSerializer causes jacoco to throw IllegalClassFormatException exception
-    // conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-
-    sc = new SparkContext(conf)
-    sqlContext = new org.apache.spark.sql.SQLContext(sc)
-
-    sc.hadoopConfiguration.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
-
-    Logger.getLogger("org").setLevel(Level.OFF)
-    Logger.getLogger("akka").setLevel(Level.OFF)
+    // Logger.getLogger("org").setLevel(Level.OFF)
+    // Logger.getLogger("akka").setLevel(Level.OFF)
 
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     HailConfiguration.installDir = new File(jar).getParent + "/.."
@@ -56,8 +42,6 @@ class SparkSuite extends TestNGSuite {
 
   @AfterClass(alwaysRun = true)
   def stopSparkContext() {
-    sc.stop()
-
     sc = null
     sqlContext = null
   }

@@ -130,6 +130,6 @@ class FisherExactTestSuite extends SparkSuite {
   }
 
   @Test def testFisherExactTest() {
-    Spec.check(count = 100)
+    Spec.check()
   }
 }
