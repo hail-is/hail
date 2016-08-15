@@ -79,7 +79,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
  
      - select: `dict[key]` -- returns the value keyed by the string `key`.  An example might be `global.genedict["SCN2A"]`.
      - contains: `dict.contains(key)` -- returns true if `dict` has key `key`, false otherwise.
-     - mapvalues: `dict.mapvalues(x => expr)` -- returns a new dict with a transformation of the values
+     - mapValues: `dict.mapValues(x => expr)` -- returns a new dict with a transformation of the values
      - size: `dict.size` -- returns the number of key/value pairs
      - isEmpty: `dict.isEmpty` -- returns true if there is at least one key/value pairs
  

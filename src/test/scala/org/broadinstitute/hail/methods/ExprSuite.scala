@@ -283,13 +283,15 @@ class ExprSuite extends SparkSuite {
 
 
     assert(eval[Int](""" index(structArray, f2)["B"].f3 """).contains(6))
-    assert(eval[Map[_, _]](""" index(structArray, f2).mapvalues(x => x.f1) """).contains(Map(
+    assert(eval[Map[_, _]](""" index(structArray, f2).mapValues(x => x.f1) """).contains(Map(
       "A" -> 1,
       "B" -> 5,
       "C" -> 10)
     ))
     assert(eval[Boolean](""" index(structArray, f2).contains("B") """).contains(true))
     assert(eval[Boolean](""" index(structArray, f2).contains("E") """).contains(false))
+
+    assert(eval[Map[_, _]](""" genedict.mapValues(x => x + 1) """).contains(Map("gene1" -> 3, "gene2" -> 11, "gene3" -> 15)))
 
     // caused exponential blowup previously
     assert(eval[Boolean](
