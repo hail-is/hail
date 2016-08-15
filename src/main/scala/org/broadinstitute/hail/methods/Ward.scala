@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.mllib.linalg.{Matrix, Matrices}
+import org.apache.spark.mllib.linalg.Matrix
 
 /* Implements Ward's method, an agglomerative clustering algorithm that, at 
  * each step, merges clusters so as to minimize the increase in within-cluster 
@@ -14,9 +14,6 @@ import org.apache.spark.mllib.linalg.{Matrix, Matrices}
  * matrix, plus O(n^2) for the clustering.
  */
 
-/** It is assumed that rowcount(M) >= k.  The rows of M are treated as points
-  * to be clustered
-  */
 class Ward() {
   def name = "Ward"
   type dist = Array[Array[Double]]
@@ -24,6 +21,7 @@ class Ward() {
   // perform's Ward's clustering on distance object
   // like the one returned by Ward.distMat
   def apply(D : dist,k : Int) : Seq[Set[Int]] = { 
+    assert((D.size + 1) >= k) // Precondition
     val nPoints = D.size + 1
     val H = hier(D,Vector.fill(nPoints)(1),(0 until nPoints).toSet)
     cut(H,k,nPoints).values.toVector
@@ -35,14 +33,11 @@ class Ward() {
   }
    
   def getDist(D : dist,i : Int,j : Int) : Double = {
-    if (i == j) -1.0 else (if (i > j) D(j)(i - (j + 1)) else getDist(D,j,i))
+    if (i == j) -1.0 else (if (i > j) D(j)(i - (j + 1)) else D(i)(j - (i + 1)))
   }
 
-  // calculates distance seq seq D such that
-  // S[i][j] = dist(M[i],M[i + 1 + j])^2
-  // [[d(0,1),d(0,2),d(0,3)],
-  //  [d(1,2),d(1,3)],
-  //  [d(2,3) ]
+  // calculates distance seq seq D for a matrix M such that
+  // D(i)(j - (i + 1 )) is the distance between rows i and j of M w/ i < j
   def distMat(M : Matrix) : dist = { 
     val applyTo = ((0 until (M.numRows - 1)) map ((i : Int) => (((i+1) until M.numRows) map ((j : Int) => (i,j))).toArray)).toArray
     val D = applyTo map ((S : Array[(Int,Int)]) => S map { case (i,j) => pointDist(M,i,j) } )
@@ -78,7 +73,7 @@ class Ward() {
   }
 
   // Uses the Lance-Williams formula to update distances adding clust b to
-  // clust a
+  // clust a.  HAS SIDE EFFECTS!
   def LWupdate(D : dist, a : Int, b : Int, n : Seq[Int],remain : Set[Int]) : dist = { 
     val _ = remain.foreach( (i : Int) => if (i == a) Unit else 
       (if (i > a) D(a)(i - (a + 1)) = LW(D,a,b,i,n) else D(i)(a - (i + 1)) = LW(D,a,b,i,n) ) )
