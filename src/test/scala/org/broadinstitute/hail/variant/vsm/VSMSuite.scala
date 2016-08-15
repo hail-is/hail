@@ -248,9 +248,9 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
-    val minimumRSquareValue = 0.8
+    val minimumRSquareValue = 0.7
     def vsmOfSize(size: Int): VariantSampleMatrix[Genotype] = {
-      val parameters = Parameters(new RandomDataGenerator(), size, 1)
+      val parameters = Parameters.default.copy(size = size, count = 1)
       VariantSampleMatrix.gen(sc, VSMSubgen.random).apply(parameters)
     }
     def spaceStatsOf[T](factory: () => T): SummaryStatistics = {
