@@ -59,6 +59,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - toSet: `arr.toSet` -- returns a set of the same type (good if you need to call `.contains`, which is not available for arrays)
      - find: `arr.find(v => expr)` -- Returns the first non-missing element of `arr` for which `expr` is true.  If no element satisfies the predicate, `find` returns NA.
      - map: `arr.map(v => expr)` -- Returns a new array produced by applying `expr` to each element
+     - flatMap: `arr.flatMap(v => expr)` -- valid only for `expr` of type Array. Returns a new array by mapping each element of `arr` and concatenating the resulting arrays
+     - flatten: `arr.flatten()` -- Returns a new array by concatenating the elements of `arr`, which must be an array of arrays
      - filter: `arr.filter(v => expr)` -- Returns a new array subsetted to the elements where `expr` evaluated to true
      - exists: `arr.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
      - forall: `arr.forall(v => expr)` -- Returns a boolean which is true if the array is empty, or `expr` evaluates to `true` for **every** element
@@ -81,6 +83,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - max: `set.max` -- valid only for numeric sets, returns the minimum value
      - find: `set.find(v => expr)` -- Returns the first non-missing element of `set` for which `expr` is true.  If no element satisfies the predicate, `find` returns NA.
      - map: `set.map(v => expr)` -- Returns a new set produced by applying `expr` to each element
+     - flatMap: `set.flatMap(v => expr)` -- valid only for `expr` of type Set. Returns a new set by mapping each element of `set` and taking the union of the resulting sets
+     - flatten: `set.flatten()` -- Returns a new set by taking the union of elements of `set`, which must be a set of sets
      - filter: `set.filter(v => expr)` -- Returns a new set subsetted to the elements where `expr` evaluated to true
      - exists: `set.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
      - forall: `set.forall(v => expr)` -- returns a boolean which is true if the set is empty, or `expr` evaluates to `true` for **every** element

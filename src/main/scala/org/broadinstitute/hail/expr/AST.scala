@@ -1064,6 +1064,35 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             parseError(s"method `$method' expects a lambda function (param => Boolean), but found (param => $error)")
         }
 
+      case (it: TIterable, "flatMap", rhs) =>
+        lhs.typecheck(ec)
+        val (param, body) = rhs match {
+          case Array(Lambda(_, p, b)) => (p, b)
+          case _ => parseError(s"method `$method' expects a lambda function [param => Any]")
+        }
+        body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))
+        `type` = body.`type` match {
+          case t: TIterable => (t, it) match {
+            case (TArray(et), TArray(_)) => TArray(et)
+            case (TSet(et), TSet(_)) => TSet(et)
+            case _ =>
+              parseError(s"method `$method' expects the collection types of the left operand and the lambda body to match, " +
+                s"got $it and $t. Consider converting one collection type to the other")
+          }
+          case error =>
+            parseError(s"method `$method' expects lambda body to have type Array[T] or Set[T], got $error")
+        }
+
+      case (it: TIterable, "flatten", rhs) =>
+        lhs.typecheck(ec)
+        if (!rhs.isEmpty)
+          parseError(s"method `$method' does not take parameters, use flatten()")
+        it match {
+          case TArray(TArray(e)) => TArray(e)
+          case TSet(TSet(e)) => TSet(e)
+          case _ => parseError(s"method `$method' expects type Array[Array[T]] or Set[Set[T]], got $it.")
+        }
+
       case (it: TIterable, "filter", rhs) =>
         val (param, body) = rhs match {
           case Array(Lambda(_, p, b)) => (p, b)
@@ -1231,6 +1260,45 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
               localA(localIdx) = elt
               bodyFn()
             }
+          }
+      }
+
+    case (it: TIterable, "flatMap", Array(Lambda(_, param, body))) =>
+      val localIdx = ec.a.length
+      val localA = ec.a
+      localA += null
+      val bodyFn = body.eval(ec.copy(st = ec.st + (param -> (localIdx, it))))
+
+      (it: @unchecked) match {
+        case TArray(_) =>
+          AST.evalCompose[IndexedSeq[_]](ec, lhs) { is =>
+            flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any],
+              is.map { elt =>
+                localA(localIdx) = elt
+                bodyFn().asInstanceOf[Iterable[_]]
+              }
+            )
+          }
+        case TSet(_) =>
+          AST.evalCompose[Set[_]](ec, lhs) { s =>
+            flattenOrNull[Set, Any](Set.newBuilder[Any],
+              s.map { elt =>
+                localA(localIdx) = elt
+                bodyFn().asInstanceOf[Iterable[_]]
+              }
+            )
+          }
+      }
+
+    case (it: TIterable, "flatten", Array()) =>
+      (it: @unchecked) match {
+        case TArray(_) =>
+          AST.evalCompose[IndexedSeq[_]](ec, lhs) { is =>
+            flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any], is.asInstanceOf[Iterable[Iterable[_]]])
+          }
+        case TSet(_) =>
+          AST.evalCompose[Set[_]](ec, lhs) { s =>
+            flattenOrNull[Set, Any](Set.newBuilder[Any], s.asInstanceOf[Iterable[Iterable[_]]])
           }
       }
 

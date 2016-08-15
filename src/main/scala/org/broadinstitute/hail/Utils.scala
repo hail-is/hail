@@ -30,6 +30,7 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.{TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.implicitConversions
+import scala.language.higherKinds
 import scala.reflect.ClassTag
 import scala.util.Random
 
@@ -1339,6 +1340,15 @@ object Utils extends Logging {
           case _ => ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
         }
     }
+  }
+
+  def flattenOrNull[C[_] >: Null, T >: Null](b: mutable.Builder[T, C[T]], it: Iterable[Iterable[T]]): C[T] = {
+    for (elt <- it) {
+      if (elt == null)
+        return null
+      b ++= elt
+    }
+    b.result()
   }
 
   class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
