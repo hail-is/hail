@@ -19,10 +19,11 @@ import org.apache.spark.mllib.linalg.{Matrix, Matrices}
   */
 class Ward() {
   def name = "Ward"
+  type dist = Array[Array[Double]]
   
-  // perform's Ward's clustering on distance Seq[Seq[Double]]
+  // perform's Ward's clustering on distance object
   // like the one returned by Ward.distMat
-  def apply(D : Seq[Seq[Double]],k : Int) : Seq[Set[Int]] = { 
+  def apply(D : dist,k : Int) : Seq[Set[Int]] = { 
     val nPoints = D.size + 1
     val H = hier(D,Vector.fill(nPoints)(1),(0 until nPoints).toSet)
     cut(H,k,nPoints).values.toVector
@@ -32,24 +33,25 @@ class Ward() {
     def square (x : Double) : Double = x * x
     ( (0 until M.numCols) map ((i : Int) => square(M(x,i) - M(y,i))) ).sum
   }
-    
+   
+  def getDist(D : dist,i : Int,j : Int) : Double = {
+    if (i == j) -1.0 else (if (i > j) D(j)(i - (j + 1)) else getDist(D,j,i))
+  }
 
   // calculates distance seq seq D such that
   // S[i][j] = dist(M[i],M[i + 1 + j])^2
   // [[d(0,1),d(0,2),d(0,3)],
   //  [d(1,2),d(1,3)],
   //  [d(2,3) ]
-  def distMat(M : Matrix) : Seq[Seq[Double]] = { 
-    val applyTo = (0 until (M.numRows - 1)) map ((i : Int) => (((i+1) until M.numRows) map ((j : Int) => (i,j))))
-    applyTo map ((S : Seq[(Int,Int)]) => S map { case (i,j) => pointDist(M,i,j) } )
+  def distMat(M : Matrix) : dist = { 
+    val applyTo = ((0 until (M.numRows - 1)) map ((i : Int) => (((i+1) until M.numRows) map ((j : Int) => (i,j))).toArray)).toArray
+    val D = applyTo map ((S : Array[(Int,Int)]) => S map { case (i,j) => pointDist(M,i,j) } )
+    D
   }
 
   // Finds NN of cluster c
-  def NN (D : Seq[Seq[Double]], c : Int, remain : Set[Int]) : (Double, Int) = {
-    val neighbors = remain map { (i : Int) => (
-      if (i < c) D(i)(c - (i+1)) else 
-        (if (i == c) -1 else D(c)(i - (c + 1))),i)
-    }
+  def NN (D : dist, c : Int, remain : Set[Int]) : (Double, Int) = {
+    val neighbors = remain map ( (i : Int) => (getDist(D,i,c),i) )
     val (min,minidx) = neighbors reduceLeft { (l : (Double,Int),r : (Double,Int)) => (l,r) match {
       case ((-1,_),_) => r
       case (_,(-1,_)) => l
@@ -59,7 +61,7 @@ class Ward() {
   }
 
   // Finds an arbitrary RNN starting on cluster c
-  def RNN (D : Seq[Seq[Double]], c : Int, remain : Set[Int]) : (Int, Int, Double) = { 
+  def RNN (D : dist, c : Int, remain : Set[Int]) : (Int, Int, Double) = { 
     val (min,minidx) = NN(D,c,remain)
     val (min2,minidx2) = NN(D,minidx,remain)
     if (minidx2 == c | min == min2) (Math.min(c,minidx),Math.max(c,minidx),min)
@@ -67,41 +69,37 @@ class Ward() {
   }
  
   // Calculates LW formula w/ Ward coefficients for dist between a union b and i
-  def LW(D : Seq[Seq[Double]],a : Int,b : Int,i : Int,n : Seq[Int]) = {
-    val d_ab = if (a > b) D(b)(a - (b + 1)) else D(a)(b - (a + 1))
-    val d_ai = if (a > i) D(i)(a - (i + 1)) else D(a)(i - (a + 1))
-    val d_bi = if (i > b) D(b)(i - (b + 1)) else D(i)(b - (i + 1))
+  def LW(D : dist,a : Int,b : Int,i : Int,n : Seq[Int]) : Double= {
+    val d_ab = getDist(D,a,b)
+    val d_ai = getDist(D,a,i)
+    val d_bi = getDist(D,b,i)
     val ntot = (n(a) + n(b) + n(i)).toDouble
     ( (n(a) + n(i)) * d_ai / ntot ) + ( (n(b) + n(i)) * d_bi / ntot ) - ( n(i) * d_ab / ntot )
   }
 
   // Uses the Lance-Williams formula to update distances adding clust b to
   // clust a
-  def LWupdate(D : Seq[Seq[Double]], a : Int, b : Int, n : Seq[Int],remain : Set[Int]) : Seq[Seq[Double]] = { 
-  // Warning: mutable data structure!
-  val A = D.toArray
-  val _ = remain.foreach( (i : Int) => if (i == a) Unit else 
-    (if (i > a) A(a) = A(a) updated (i - (a + 1),LW(D,a,b,i,n)) else A(i) = A(i) updated (a - (i + 1),LW(D,a,b,i,n)) ) )
-  A.toVector
+  def LWupdate(D : dist, a : Int, b : Int, n : Seq[Int],remain : Set[Int]) : dist = { 
+    val _ = remain.foreach( (i : Int) => if (i == a) Unit else 
+      (if (i > a) D(a)(i - (a + 1)) = LW(D,a,b,i,n) else D(i)(a - (i + 1)) = LW(D,a,b,i,n) ) )
+    D
   }
  
   // Uses RNN algorithm to build a hierarchy
-  def hier(D : Seq[Seq[Double]], n : Seq[Int], remain : Set[Int]) : Set[(Int,Int,Double)] = {
+  def hier(D : dist, n : Seq[Int], remain : Set[Int]) : Set[(Int,Int,Double)] = {
     if (remain.size < 2) Set() : Set[(Int,Int,Double)] else {
-      val (a,b,d) = RNN(D,0,remain) // Start RNN finding with clust 0, as it's always extant
+      val merge = RNN(D,0,remain) // Start RNN finding with clust 0, as it's always extant
+      val (a,b,d) = merge
       val remain_new = remain - b
       val D_new = LWupdate(D,a,b,n,remain_new)
       val n_new = n updated (a,n(a) + n(b))
-      val merge = (a,b,d)
       (hier(D_new,n_new,remain_new)) + merge }
   }
 
   def makeClusters(joins : Set[(Int,Int,Double)], n : Int) : Map[Int,Set[Int]] = { 
     val mappedJoins = (joins map { case(a,b,_) => (b,a) }).toMap
-    // Warning: code develops side effects here!
     val A = (0 until n).toArray
     val _ = (0 until n).foreach( (i : Int) => A(i) = A(mappedJoins getOrElse (i,i)) )
-    // Ok, functional again
     A.zipWithIndex.foldLeft (Map(0 -> Set(0))) ((M : Map[Int,Set[Int]],p : (Int,Int)) =>
       p match { case (c,i) => if (M contains c) M + (c -> (M(c) + i)) else M + (c -> Set(i)) } )
   }
