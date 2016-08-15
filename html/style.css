@@ -1,0 +1,15 @@
+body {
+  font-size: 20px;
+  line-height: 125%;
+  font-family: 'Lora', serif;
+}
+
+div#body {
+  margin-left: auto;
+  margin-right: auto;
+  width: 40em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Montserrat', sans-serif;
+}
