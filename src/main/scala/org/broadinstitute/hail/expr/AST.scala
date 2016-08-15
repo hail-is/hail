@@ -1065,7 +1065,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           parseError(s"method `$method' expects a lambda function [param => T] with T of string or numeric type, got [param => ${ body.`type` }]")
         `type` = arr
 
-      case (TDict(elementType), "mapvalues", rhs) =>
+      case (TDict(elementType), "mapValues", rhs) =>
         lhs.typecheck(ec)
         val (param, body) = rhs match {
           case Array(Lambda(_, p, b)) => (p, b)
@@ -1344,7 +1344,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }(ord)
       }
 
-    case (returnType, "mapvalues", Array(Lambda(_, param, body))) =>
+    case (returnType, "mapValues", Array(Lambda(_, param, body))) =>
       val localIdx = ec.a.length
       val localA = ec.a
       localA += null
