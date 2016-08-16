@@ -1,4 +1,4 @@
-Added command `aggregateintervals`.  [Documentation here](docs/AggregateIntervals.md)
+Added command `aggregateintervals`.  [Documentation here](docs/commands/AggregateIntervals.md)
 
 ____
 
