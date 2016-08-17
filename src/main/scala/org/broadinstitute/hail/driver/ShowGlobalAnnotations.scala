@@ -16,7 +16,7 @@ object ShowGlobalAnnotations extends Command {
 
   def name = "showglobals"
 
-  def description = "Shows the signatures for all annotations currently stored in the dataset"
+  def description = "Show the signatures for all annotations currently stored in the dataset"
 
   def supportsMultiallelic = true
 

@@ -11,7 +11,7 @@ import org.broadinstitute.hail.Utils._
 object PCA extends Command {
   def name = "pca"
 
-  def description = "Compute PCA on the matrix of genotypes"
+  def description = "Run principle component analysis on the matrix of genotypes"
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
