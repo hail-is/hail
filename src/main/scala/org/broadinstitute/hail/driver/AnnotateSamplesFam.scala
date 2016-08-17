@@ -34,7 +34,7 @@ object AnnotateSamplesFam extends Command {
 
   def name = "annotatesamples fam"
 
-  def description = "Annotate samples with .fam file: famID, patID, matID, isMale, and either isCase or qPheno"
+  def description = "Imports data from a Plink .fam file into sample annotations."
 
   def supportsMultiallelic = true
 

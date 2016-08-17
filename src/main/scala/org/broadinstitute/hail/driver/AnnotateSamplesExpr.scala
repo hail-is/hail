@@ -20,7 +20,7 @@ object AnnotateSamplesExpr extends Command {
 
   def name = "annotatesamples expr"
 
-  def description = "Annotate samples programatically"
+  def description = "Use the Hail Expression Language to compute new annotations from existing sample annotations, as well as perform genotype aggregation."
 
   def supportsMultiallelic = true
 

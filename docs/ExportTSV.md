@@ -1,16 +1,12 @@
-# Exporting to TSV
+# Exporting Data to TSV
 
 Hail has three export modules which write to TSVs:
- - `exportsamples`
- - `exportvariants`
- - `exportgenotypes`
  
-These three export modules take a condition argument (`-c`) similar to [filtering](Filtering.md) expressions, with a similar namespace as well.  However, the expression is not parsed as a boolean, but rather a comma-delimited list of fields or expressions to print.  These fields will be printed in the order they appear in the expression in the header and on each line.
-
-Command line arguments: 
- - `-c <cond>, --condition <cond>` -- export expression (see below) or .columns file
- - `-o <file>, --output <file>` -- file path to which output should be written
- - `-t <types-file>, --types <types-file>`, -- file path to export column types 
+ - [`exportsamples`](#exportsamples)
+ - [`exportvariants`](#exportvariants)
+ - [`exportgenotypes`](#exportgenotypes)
+ 
+These three export modules take a condition argument (`-c`) similar to [filtering](#Filtering) expressions, with a similar namespace as well.  However, the expression is not parsed as a boolean, but rather a comma-delimited list of fields or expressions to print.  These fields will be printed in the order they appear in the expression in the header and on each line.
 
 ## Export modules
 
@@ -18,12 +14,12 @@ Command line arguments:
    - `s` (sample)
    - `sa` (sample annotations)
    - `global` (global annotations)
-   - `gs` (genotype column [aggregable](HailExpressionLanguage.md#aggregables))
+   - `gs` (genotype column [aggregable](#aggregables))
 2. `exportvariants` will print one line per variant in the VDS.  The accessible namespace includes:
    - `v` (variant)
    - `va` (variant annotations)
    - `global` (global annotations)
-   - `gs` (genotype row [aggregable](HailExpressionLanguage.md#aggregables))
+   - `gs` (genotype row [aggregable](#aggregables))
 3. `exportgenotypes` will print one line per cell (genotype) in the VDS<sup>*</sup>.  The accessible namespace includes:
    - `g` (genotype)
    - `s` (sample)
@@ -33,6 +29,7 @@ Command line arguments:
    - `global` (global annotations)
    
 <sup>*</sup>The `exportgenotypes` module does not print hom-ref or missing genotypes by default, in order to restrict the size of the file produced.  There are command line arguments to turn on these print modes:
+ 
  - `--print-ref`
  - `--print-missing`
    
@@ -70,7 +67,7 @@ exportgenotypes -c 'exportGenotypes.columns' -o file2.tsv
 
 ## Designating output with an expression
 
-Much like [filtering](Filtering.md) modules, exporting allows flexible expressions to be written on the command line.  While the filtering modules expect an expression that evaluates to true or false, export modules expect a comma-separated list of fields to print.  These fields should take the form `IDENTIFIER = <expression>`.  Below are examples of acceptable export expressions:
+Much like [filtering](#Filtering) modules, exporting allows flexible expressions to be written on the command line.  While the filtering modules expect an expression that evaluates to true or false, export modules expect a comma-separated list of fields to print.  These fields should take the form `IDENTIFIER = <expression>`.  Below are examples of acceptable export expressions:
 
 ```
 exportvariants -c 'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate' -o file.tsv

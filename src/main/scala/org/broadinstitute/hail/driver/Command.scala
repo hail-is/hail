@@ -49,6 +49,7 @@ object ToplevelCommands {
   register(AnnotateVariants)
   register(AnnotateGlobal)
   register(Cache)
+  register(CommandMetadata)
   register(CompareVDS)
   register(Count)
   register(DownsampleVariants)

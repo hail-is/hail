@@ -1,5 +1,5 @@
 
-# Representation of sequence data in Hail
+# <a name="Representation"></a> Data Representation
 
 ```
                 Columns keyed
@@ -29,7 +29,7 @@
 
 The above cartoon depicts the rough organization of the data stored in Hail.  The majority of the data is genotype information, which can be thought of as a matrix with columns keyed by [**sample**](#sample) objects, and rows keyed by [**variant**](#variant) objects.  Each cell of the matrix is a [**genotype**](#genotype) object.
 
-For more information about **annotations**, [see the documentation here](Annotations.md)
+For more information about **annotations**, [see the documentation here](#Annotations)
 
 Hail's internal representation for genotypes is conceptually similar to VCF.  Hail only supports diploid genotypes and does not yet store phasing information.  Hail uses a fixed set of genotype fields corresponding to a VCF format field of the form:
 ```
@@ -48,94 +48,3 @@ Hail makes the following assumptions about the genotype fields:
 
 Internally, Hail preserves these invariants.  On import, Hail filters (sets to no-call) any genotype that violates these invariants and prints a warning message.
 
-## Properties and methods of Hail objects
- 
-<a name="variant"></a>
-**Variant:** `v`
-
-Identifier | Type | Description
---- | :-: | ---
-`v.contig`              | `String`    | string representation of contig, exactly as imported.  _NB: Hail stores contigs as strings.  Use double-quotes when checking contig equality_
-`v.start`               | `Int`       | SNP position or start of an indel
-`v.ref`                 | `String`    | reference allele sequence
-`v.isBiallelic`         | `Boolean`   | true if `v` has one alternate allele
-`v.nAlleles`            | `Int`       | number of alleles
-`v.nAltAlleles`         | `Int`       | number of alternate alleles, equal to `nAlleles - 1`
-`v.nGenotypes`          | `Int`       | number of genotypes
-`v.altAlleles`  | `Array[AltAllele]`  | the alternate alleles
-`v.inXPar`              |  `Boolean`  | true if chromosome is X and start is in pseudo-autosomal region of X
-`v.inYPar`              |  `Boolean`  | true if chromosome is Y and start is in pseudo-autosomal region of Y. _NB: most callers assign variants in PAR to X_
-`v.inXNonPar`           |  `Boolean`  | true if chromosome is X and start is not in pseudo-autosomal region of X
-`v.inYNonPar`           |  `Boolean`  | true if chromosome is Y and start is not in pseudo-autosomal region of Y
-`v.altAllele`           | `AltAllele` | The alternate allele (schema below).  **Assumes biallelic.**
-`v.alt`                 | `String`    | Alternate allele sequence.  **Assumes biallelic.**
-`v.locus`               | `Locus`     | Chromosomal locus (chr, pos) of this variant
-
-**AltAllele:** `v.altAlleles[idx]` or `v.altAllele` (biallelic) 
-
-Identifier | Type | Description
---- | :-: | ---
- `<altAllele>.ref`            | `String`  | reference allele sequence
- `<altAllele>.alt`            | `String`  | alternate allele sequence
- `<altAllele>.isSNP`          | `Boolean` | true if both `v.ref` and `v.alt` are single bases
- `<altAllele>.isMNP`          | `Boolean` | true if `v.ref` and `v.alt` are the same (>1) length
- `<altAllele>.isIndel`        | `Boolean` | true if `v.ref` and `v.alt` are not the same length
- `<altAllele>.isInsertion`    | `Boolean` | true if `v.ref` is shorter than `v.alt`
- `<altAllele>.isDeletion`     | `Boolean` | true if `v.ref` is longer than `v.alt`
- `<altAllele>.isComplex`      | `Boolean` | true if `v` is not an indel, but `v.ref` and `v.alt` length do not match
- `<altAllele>.isTransition`   | `Boolean` | true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
- `<altAllele>.isTransversion` | `Boolean` | true if the polymorphism is a purine-pyrimidine flip
- `<altAllele>.nMismatch`      | `Int`     | the total number of bases in `v.ref` and `v.alt` that do not match
-
-**Locus:** `v.locus` or `Locus(chr, pos)`
-
-Identifier | Type | Description
---- | :-: | ---
-`<locus>.contig`   |  `String` |  String representation of contig
-`<locus>.position` |  `Int`    |  Chromosomal position
-
-**Interval:** `Interval(locus1, locus2)`
-
-Identifier | Type | Description
---- | :-: | ---
-`<interval>.start` |  `Locus` | `Locus` object (see above) at the start of the interval (inclusive)
-`<interval>.end`   |  `Locus` | `Locus` object (see above) at the end of the interval (exclusive)
-
-____ 
- 
-<a name="sample"></a>
-**Sample:** `s`
-
-Identifier | Type | Description
---- | :-: | ---
-`s.id` | `String` | The ID of this sample, as read at import-time
-
-____
-
-<a name="genotype"></a>
-**Genotype:** `g`
-
-Identifier | Type | Description
---- | :-: | ---
-`g.gt`             | `Int`     | the call, `gt = k*(k+1)/2+j` for call `j/k`
-`g.ad`          | `Array[Int]` | allelic depth for each allele
-`g.dp`             | `Int`     | the total number of informative reads
-`g.od`             | `Int`     | `od = dp - ad.sum`
-`g.gq`             | `Int`     | the difference between the two smallest PL entries
-`g.pl`          | `Array[Int]` | phred-scaled normalized genotype likelihood values
-`g.dosage`   | `Array[Double]` | the linear-scaled probabilities
-`g.isHomRef`       | `Boolean` | true if this call is `0/0`
-`g.isHet`          | `Boolean` | true if this call is heterozygous
-`g.isHetRef`       | `Boolean` | true if this call is `0/k` with `k>0`
-`g.isHetNonRef`    | `Boolean` | true if this call is `j/k` with `j>0`
-`g.isHomVar`       | `Boolean` | true if this call is `j/j` with `j>0`
-`g.isCalledNonRef` | `Boolean` | true if either `g.isHet` or `g.isHomVar` is true
-`g.isCalled`       | `Boolean` | true if the genotype is not `./.`
-`g.isNotCalled`    | `Boolean` | true if the genotype is `./.`
-`g.nNonRefAlleles`        | `Int`     | the number of called alternate alleles
-`g.pAB()`          | `Double`  | p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Assumes the variant `v` is biallelic.
-`g.fractionReadsRef` | `Double` | the ratio of ref reads to the sum of all *informative* reads
-`g.fakeRef`        | `Boolean` | true if this genotype was downcoded in `splitmulti`.  This can happen if a 1/2 call is split to 0/1, 0/1
-`g.isDosage` |`Boolean` | true if the data was imported from `importgen` or `importbgen`
-
-The conversion between `g.pl` (Phred-scaled likelihoods) and `g.dosage` (linear-scaled probabilities) assumes a uniform prior.

@@ -21,7 +21,7 @@ object AnnotateGlobalExpr extends Command {
 
   def name = "annotateglobal expr"
 
-  def description = "Annotate global table"
+  def description = "Use the Hail Expression Language to compute new annotations from existing global annotations, as well as perform sample and variant aggregations."
 
   def supportsMultiallelic = true
 

@@ -1,31 +1,30 @@
-# `aggregateintervals`
+<div class="cmdhead"></div>
+
+<div class="description"></div>
+
+<div class="synopsis"></div>
+
+<div class="options"></div>
+
+<div class="cmdsubsection">
+
+### Notes:
 
 This command allows you to compute statistics for a set of genomic intervals.
 
-#### Command Line Arguments
+Intervals are **left inclusive, right exclusive**.  This means that \[chr1:1, chr1:3\) contains chr1:1 and chr1:2.
 
-Argument | Shortcut | Default | Description
-:-: | :-: | :-: | ---
-`--input <intervals path>` | `-i` | **Required** | Path to interval list file
-`--output <export path>` | `-o` | **Required** | Path for output text file
-`--condition <expr>` | `-c` | **Required** | Export expression (see below)
-
-Note that intervals are **left inclusive, right exclusive**.  This means that \[chr1:1, chr1:3\) contains chr1:1 and chr1:2.
-
-____
-
-## Designating output with an expression
+#### Designating output with an expression:
 An export expression designates a list of computations to perform, and what these columns are named.  These expressions should take the form `COL_NAME_1 = <expression>, COL_NAME_2 = <expression>, ...`.  See the examples for ideas.
 
 **Namespace in the `aggregateintervals` condition:**
 
 Identifier | Description
 :-: | ---
-`interval` | genomic interval, see the [representation docs](../Representation.md) for details
+`interval` | genomic interval, see the [representation docs](#Representation) for details
 `global` | global annotation
-`variants` | Variant [aggregable](../HailExpressionLanguage.md#aggregables).  Aggregator namespace below.
+`variants` | Variant [aggregable](#aggregables).  Aggregator namespace below.
 
-____
 
 **Namespace within `variants` aggregator:**
 
@@ -35,9 +34,11 @@ Identifier | Description
 `va` | Variant annotations
 `global` | Global annotations
 
-____
+</div>
 
-### Example 1:
+<div class="cmdsubsection">
+
+<h4 class="example">Count the total number of SNPs, indels, and total variants in an inteval</h4>
 
 In this example, we have an interval file as below:
 
@@ -70,9 +71,8 @@ Contig    Start       End         n_SNP   n_indel     n_total
 
 The `-c` argument both defines the names of the column headers (n_SNP, n_indel, n_total) as well as the calculations for each interval.
 
-### Example 2:
+<h4 class="example">Count the number of LOF, missense, and synonymous non-reference calls per interval</h4>
 
-Now, let's count the number of LOF, missense, and synonymous non-reference calls per interval (perhaps these intervals are exons).
 
 ```
 $ cat intervals.txt
@@ -101,3 +101,5 @@ Contig    Start       End         LOF_CALLS   MISSENSE_CALLS   SYN_CALLS
 5         1           1000000     3           12               66
 16        29500000    30200000    17          22               202
 ```
+
+</div>

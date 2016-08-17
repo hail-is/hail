@@ -10,29 +10,7 @@ involved in Hail development, email hail@broadinstitute.org.
 
 ## Documentation
 
- - [Building](docs/Building.md)
- - [Representation](docs/Representation.md)
- - [Hail's expression language](docs/HailExpressionLanguage.md)
- - [Importing VCF files](docs/Importing.md)
- - [Importing sites-only text files](docs/commands/ImportAnnotations.md)
- - [Splitting Multiallelic Variants](docs/Splitmulti.md)
- - [Renaming Samples](docs/RenameSamples.md)
- - [Annotating Variants](docs/commands/AnnotateVariants.md)
- - [Annotating Samples](docs/commands/AnnotateSamples.md)
- - [Annotating Global](docs/commands/AnnotateGlobal.md)
- - [Imputing Sex](docs/ImputeSex.md)
- - [Quality Control](docs/QC.md)
- - [PCA](docs/PCA.md)
- - [Annotating with the Variant Effect Predictor](docs/VEP.md)
- - [Computing aggregate statistics on intervals](docs/commands/AggregateIntervals.md)
- - [Filtering](docs/Filtering.md)
- - [Querying using SQL](docs/SQL.md)
- - [Linear regression](docs/LinearRegression.md)
- - [Mendel errors](docs/MendelErrors.md)
- - [Exporting to TSV](docs/ExportTSV.md)
- - [Exporting to VCF](docs/ExportVCF.md)
- - [Exporting to Plink](docs/ExportPlink.md)
- - [Persist](docs/Persist.md)
+Read the [docs](https://hail.is/docs/).
 
 ## Citing Hail
 
