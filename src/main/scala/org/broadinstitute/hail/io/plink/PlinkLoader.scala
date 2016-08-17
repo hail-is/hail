@@ -20,7 +20,9 @@ case class FamFileConfig(isQuantitative: Boolean, delimiter: String, missingValu
 object PlinkLoader {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
-  private def parseBim(bimPath: String, hConf: Configuration): Array[Variant] = {
+  val plinkSchema = TStruct(("rsid", TString))
+
+  private def parseBim(bimPath: String, hConf: Configuration): Array[(Variant, String)] = {
     readLines(bimPath, hConf)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, morganPos, bpPos, allele1, allele2) =>
@@ -31,7 +33,7 @@ object PlinkLoader {
             case "26" => "MT"
             case x => x
           }
-          Variant(recodedContig, bpPos.toInt, allele2, allele1)
+          (Variant(recodedContig, bpPos.toInt, allele2, allele1), rsId)
         case other => fatal(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
       }
     }.value
@@ -108,7 +110,7 @@ object PlinkLoader {
                        sampleIds: IndexedSeq[String],
                        sampleAnnotations: IndexedSeq[Annotation],
                        sampleAnnotationSignature: Type,
-                       variants: Array[Variant],
+                       variants: Array[(Variant, String)],
                        sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
 
     val nSamples = sampleIds.length
@@ -119,7 +121,9 @@ object PlinkLoader {
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val variantRDD = rdd.map {
-      case (lw, vr) => (variantsBc.value(vr.getKey), (Annotation.empty, vr.getGS))
+      case (lw, vr) =>
+        val (v, rsId) = variantsBc.value(vr.getKey)
+        (v, (Annotation(rsId), vr.getGS))
     }
 
     VariantSampleMatrix(VariantMetadata(
@@ -127,7 +131,7 @@ object PlinkLoader {
       sampleAnnotations = sampleAnnotations,
       globalAnnotation = Annotation.empty,
       saSignature = sampleAnnotationSignature,
-      vaSignature = TStruct.empty,
+      vaSignature = plinkSchema,
       globalSignature = TStruct.empty,
       wasSplit = true), variantRDD)
   }
