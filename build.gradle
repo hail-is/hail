@@ -237,5 +237,9 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.14.1'
+}
+
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
