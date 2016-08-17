@@ -29,6 +29,13 @@ object GTPair {
     require(k >= 0 && k <= 0xffff, s"GTPair invalid k value $k")
     new GTPair(j | (k << 16))
   }
+
+  def fromNonNormalized(j: Int, k: Int): GTPair = {
+    if (j <= k)
+      GTPair(j, k)
+    else
+      GTPair(k, j)
+  }
 }
 
 class GTPair(val p: Int) extends AnyVal {

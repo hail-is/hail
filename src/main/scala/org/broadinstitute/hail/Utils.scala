@@ -29,7 +29,7 @@ import org.slf4j.{Logger, LoggerFactory}
 import scala.collection.JavaConverters._
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ListBuffer
-import scala.collection.{TraversableOnce, mutable}
+import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.io.Source
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
@@ -1474,4 +1474,26 @@ object Utils extends Logging {
     }
     b.result()
   }
+
+  /**
+    * An abstraction for building an {@code Array} of known size. Guarantees a left-to-right traversal
+    *
+    * @param xs the thing to iterate over
+    * @param size the size of array to allocate
+    * @param key given the source value and its source index, yield the target index
+    * @param combine given the target value, the target index, the source value, and the source index, compute the new target value
+    * @tparam A
+    * @tparam B
+    */
+  def coalesce[A,B : ClassTag](xs: GenTraversableOnce[A])(size: Int, key: (A, Int) => Int, z: B)(combine: (B, A) => B): Array[B] = {
+    val a = Array.fill(size)(z)
+
+    for ((x, idx) <- xs.toIterator.zipWithIndex) {
+      val k = key(x, idx)
+      a(k) = combine(a(k), x)
+    }
+
+    a
+  }
+
 }
