@@ -96,6 +96,10 @@ object VariantSampleMatrix {
     val wasSplit = getAndCastJSON[JBool]("split").value
     val isDosage = fields.get("isDosage") match {
       case Some(t: JBool) => t.value
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+            |  Expected `JBool' in field `isDosage', but got `${ other.getClass.getName }'
+            |  Recreate VDS with current version of Hail.""".stripMargin)
       case _ => false
     }
 
@@ -109,8 +113,7 @@ object VariantSampleMatrix {
       .map {
         case JObject(List(("id", JString(id)), ("annotation", jv: JValue))) =>
           (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations"))
-        case other =>
-          fatal(
+        case other => fatal(
             s"""corrupt VDS: invalid metadata
                 |  Invalid sample annotation metadata
                 |  Recreate VDS with current version of Hail.""".stripMargin)
