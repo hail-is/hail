@@ -36,7 +36,7 @@ object VEP extends Command {
 
   def name = "vep"
 
-  def description = "Annotation variants with VEP"
+  def description = "Annotate variants with VEP"
 
   def supportsMultiallelic = true
 
