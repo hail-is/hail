@@ -1354,7 +1354,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         m.mapValues { elt =>
           localA(localIdx) = elt
           bodyFn()
-        }
+        }.force
       }
 
     case (agg, "count", Array(predicate)) =>
