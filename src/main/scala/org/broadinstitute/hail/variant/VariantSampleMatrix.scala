@@ -94,7 +94,10 @@ object VariantSampleMatrix {
          """.stripMargin)
 
     val wasSplit = getAndCastJSON[JBool]("split").value
-    val isDosage = getAndCastJSON[JBool]("isDosage").value
+    val isDosage = fields.get("isDosage") match {
+      case Some(t: JBool) => t.value
+      case _ => false
+    }
 
     val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
     val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
@@ -223,12 +226,12 @@ case class VSMSubgen[T](
 
   def gen(sc: SparkContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (size <- Gen.size;
-      subsizes <- Gen.partition(5).resize(size/10);
+      subsizes <- Gen.partition(5).resize(size / 10);
       vaSig <- vaSigGen.resize(subsizes(0));
       saSig <- saSigGen.resize(subsizes(1));
       globalSig <- globalSigGen.resize(subsizes(2));
       global <- globalGen(globalSig).resize(subsizes(3));
-      nPartitions <- Gen.choose(1,10);
+      nPartitions <- Gen.choose(1, 10);
 
       (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9);
 
@@ -241,8 +244,10 @@ case class VSMSubgen[T](
           va <- vaGen(vaSig).resize(subsubsizes(1));
           ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v.nAlleles)).resize(subsubsizes(2)))
           yield (v, (va, ts))).resize(l))
-      yield { VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
-        sc.parallelize(rows, nPartitions)) }
+      yield {
+        VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
+          sc.parallelize(rows, nPartitions))
+      }
 }
 
 object VSMSubgen {
