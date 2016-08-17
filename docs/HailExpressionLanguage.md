@@ -88,15 +88,15 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - isEmpty: `dict.isEmpty` -- returns true if there is at least one key/value pairs
  
  - Struct Operations:        
-     - constructor: `{"key1": 1, "key2": "Hello", "key3": 0.99, ...}` -- Create a new struct from specified field names and values in the format shown.
+     - constructor: `{key1: 1, key2: "Hello", key3: 0.99, ...}` -- Create a new struct from specified field names and values in the format shown.
      - select: `struct.field` -- returns the value of the given field of a struct.  For example, `va.info.AC` selects the struct `info` from the struct `va`, and then selects the array `AC` from the struct `info`.  
      - index: `index(Array[Struct], fieldname)` -- returns a dictionary keyed by the string field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.  
                 
             For example, `global.gene_info` is the following `Array[Struct]`:
             
-                 [{"PLI": 0.998, "genename": "gene1", "hits_in_exac": 1},
-                 {"PLI": 0.0015, "genename": "gene2", "hits_in_exac": 10},
-                 {"PLI": 0.9045, "genename": "gene3", "hits_in_exac": 2}]
+                 [{PLI: 0.998, genename: "gene1", hits_in_exac: 1},
+                 {PLI: 0.0015, genename: "gene2", hits_in_exac: 10},
+                 {PLI: 0.9045, genename: "gene3", hits_in_exac: 2}]
             
             We can index it by gene:
             
@@ -104,7 +104,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
             
             Now the following equality is true:
             
-                global.gene_dict["gene1"] == {"PLI": 0.998, "hits_in_exac": 1}
+                global.gene_dict["gene1"] == {PLI: 0.998, hits_in_exac: 1}
      
       - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
       - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
