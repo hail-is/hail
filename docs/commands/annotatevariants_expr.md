@@ -48,13 +48,13 @@ Identifier | Description
 
 <h4 class="example">Compute GQ statistics about heterozygotes, per variant</h4>
 ```
-annotatevariants expr -c 'va.gqHetStats = gs.statsif(g.isHet, g.gq)'
+annotatevariants expr -c 'va.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()
 exportvariants -o out.txt -c 'variant = v, het_gq_mean = va.gqHetStats.mean'
 ```
 
 <h4 class="example">Collect a list of sample IDs with non-ref calls in LOF variants</h4>
 ```
 filtervariants expr --keep -c 'va.consequence == "LOF"'
-annotatevariants expr -c 'va.nonRefSamples = gs.collect(g.isCalledNonRef, s.id)'
+annotatevariants expr -c 'va.nonRefSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'
 ```
 </div>

@@ -138,7 +138,7 @@ class IntervalSuite extends SparkSuite {
       val startPos = 16050036 - 250000
       val endPos = 17421565 + 250000
       val intervalGen = for (start <- Gen.choose(startPos, endPos);
-                             end <- Gen.choose(start, endPos))
+        end <- Gen.choose(start, endPos))
         yield Interval(Locus("22", start), Locus("22", end))
       val intervalsGen = Gen.buildableOfN[Array, Interval[Locus]](500, intervalGen)
 
@@ -153,7 +153,9 @@ class IntervalSuite extends SparkSuite {
         AggregateIntervals.run(state, Array(
           "-i", iList,
           "-o", tmp1,
-          "-c", "nSNP = variants.count(v.altAllele.isSNP), nIndel = variants.count(v.altAllele.isIndel), N = variants.count(true)"))
+          "-c", "nSNP = variants.filter(v => v.altAllele.isSNP).count(), " +
+            "nIndel = variants.filter(v => v.altAllele.isIndel).count(), " +
+            "N = variants.count()"))
 
         val variants = state
           .vds

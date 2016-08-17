@@ -17,10 +17,10 @@ class AnnotateGlobalSuite extends SparkSuite {
     s = VariantQC.run(s, Array.empty[String])
     s = SampleQC.run(s, Array.empty[String])
 
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.afDist = variants.stats(va.qc.AF), global.singStats = samples.count(sa.qc.nSingleton > 2)"))
+    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.afDist = variants.map(v => va.qc.AF).stats(), global.singStats = samples.filter(s => sa.qc.nSingleton > 2).count()"))
     s = AnnotateGlobal.run(s, Array("expr", "-c", "global.anotherAnnotation.sumOver2 = global.afDist.sum / 2"))
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.acDist = variants.stats(va.qc.AC)"))
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.CRStats = samples.stats(sa.qc.callRate)"))
+    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.acDist = variants.map(v => va.qc.AC).stats()"))
+    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.CRStats = samples.map(s => sa.qc.callRate).stats()"))
 
 
     val vds = s.vds
@@ -55,8 +55,8 @@ class AnnotateGlobalSuite extends SparkSuite {
       }, { case (sc1, sc2) => sc1.merge(sc2) })
 
     assert(vds.queryGlobal("global.acDist")._2
-      .contains(Annotation(acSC.mean, acSC.stdev, acSC.min.toInt,
-        acSC.max.toInt, acSC.count, acSC.sum.round.toInt)))
+      .contains(Annotation(acSC.mean, acSC.stdev, acSC.min,
+        acSC.max, acSC.count, acSC.sum)))
 
     val qCR = vds.querySA("sa.qc.callRate")._2
     val crSC = vds.sampleAnnotations

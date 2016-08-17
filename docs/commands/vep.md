@@ -68,7 +68,7 @@ hail.vep.lof.conservation_file = /path/to/loftee_data//phylocsf.sql
 ### <a name="vep_annotations"></a> Annotations:
 
 The VEP output has the following schema, which can of course be viewed
-with the [`showannotations`](#showannotations) command after annotating with VEP.
+with the [`printschema`](#printschema) command after annotating with VEP.
 
 ```
 vep: va.vep.<identifier>

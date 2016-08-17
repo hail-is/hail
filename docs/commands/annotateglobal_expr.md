@@ -48,7 +48,6 @@ Identifier | Description
 Identifier | Description
 :-: | ---
 `global` | Global annotations
-`s` | Sample
 `sa` | Sample annotations
 
 **Namespace of `variants` aggregable:**
@@ -56,7 +55,6 @@ Identifier | Description
 Identifier | Description
 :-: | ---
 `global` | Global annotations
-`v` | Variant
 `va` | Variant annotations
 
 </div>
@@ -66,9 +64,9 @@ Identifier | Description
 
 <h4 class="example">Count the total number of cases and controls in the dataset</h4>
 ```
-annotateglobal expr -c 'global.nCase = samples.count(sa.pheno.isCase), 
-                        global.nControl = samples.count(!sa.pheno.isCase),
-                        global.nSample = samples.count(true)'
+annotateglobal expr -c 'global.nCase = samples.filter(s => sa.pheno.isCase).count(), 
+                        global.nControl = samples.filter(s => !sa.pheno.isCase).count(),
+                        global.nSample = samples.count()'
 showglobals
 
 hail: info: running: showglobals
@@ -82,9 +80,9 @@ Global annotations: `global' = {
 
 <h4 class="example">Count the total number of SNPs and Indels in the dataset</h4>
 ```
-annotateglobal expr -c 'global.nSNP = variants.count(v.altAllele.isSNP), 
-                        global.nIndel = variants.count(v.altAllele.isIndel),
-                        global.nVar = variants.count(true)'
+annotateglobal expr -c 'global.nSNP = variants.filter(v => v.altAllele.isSNP).count(), 
+                        global.nIndel = variants.filter(v => v.altAllele.isIndel).count(),
+                        global.nVar = variants.count()'
 showglobals
 
 hail: info: running: showglobals
@@ -99,7 +97,7 @@ Global annotations: `global' = {
 <h4 class="example">Compute summary statistics for the number of singletons per sample</h4>
 ```
 sampleqc
-annotateglobal expr -c 'global.singletonStats = samples.stats(sa.qc.nSingleton)'
+annotateglobal expr -c 'global.singletonStats = samples.map(s => sa.qc.nSingleton).stats()
 showglobals
 
 hail: info: running: showglobals

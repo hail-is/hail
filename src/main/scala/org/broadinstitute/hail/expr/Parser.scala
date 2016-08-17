@@ -11,11 +11,11 @@ import scala.util.parsing.input.Position
 object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
     val lineContents = pos.longString.split("\n").head
-    val prefix = s"<input>:${pos.line}:"
+    val prefix = s"<input>:${ pos.line }:"
     fatal(
       s"""$msg
          |$prefix$lineContents
-         |${" " * prefix.length}${
+         |${ " " * prefix.length }${
         lineContents.take(pos.column - 1).map { c => if (c == '\t') c else ' ' }
       }^""".stripMargin)
   }
@@ -82,12 +82,13 @@ object Parser extends JavaTokenParsers {
     }
 
     ts.foreach(_.typecheck(ec))
-    val fs = ts.map { t =>
-      val f = t.eval(ec)
-      (t.`type` match {
-        case t: Type => t
+    val fs = ts.map { ast =>
+      ast.`type` match {
+        case t: Type =>
+          val f = ast.eval(ec)
+          (t, () => Option(f()))
         case bt => fatal(s"""tried to export invalid type `$bt'""")
-      }, () => Option(f()))
+      }
     }
 
     (header, fs)
@@ -134,7 +135,7 @@ object Parser extends JavaTokenParsers {
       val t = ast.`type` match {
         case t: Type => t
         case _ => fatal(
-          s"""invalid export expression resulting in unprintable type `${ast.`type`}'""".stripMargin)
+          s"""invalid export expression resulting in unprintable type `${ ast.`type` }'""".stripMargin)
       }
       val f = ast.eval(ec)
       (id, t, () => Option(f()))
@@ -151,11 +152,10 @@ object Parser extends JavaTokenParsers {
       if (l.head == expectedHead)
         t match {
           case t: Type => t
-          case _ => fatal(
-            s"""Annotations must be stored as types with schema.
-                |  Got invalid type `$t' from the result of `${l.mkString(".")}'""".stripMargin)
+          case bt => fatal(
+            s"""Got invalid type `$t' from the result of `${ l.mkString(".") }'""".stripMargin)
         } else fatal(
-        s"""invalid annotation path `${l.map(prettyIdentifier).mkString(".")}'
+        s"""invalid annotation path `${ l.map(prettyIdentifier).mkString(".") }'
             |  Path should begin with `$expectedHead'
            """.stripMargin)
     }
@@ -179,7 +179,7 @@ object Parser extends JavaTokenParsers {
     if (path.isEmpty)
       fatal(s"expected an annotation path starting in `$root', but got an empty path")
     else if (path.head != root)
-      fatal(s"expected an annotation path starting in `$root', but got a path starting in '${path.head}'")
+      fatal(s"expected an annotation path starting in `$root', but got a path starting in '${ path.head }'")
     else
       path.tail
   }
@@ -371,7 +371,7 @@ object Parser extends JavaTokenParsers {
             case Some(m) =>
               // + 1 for the opening "
               ParserUtils.error(advancePosition(s.pos, m.start + 1),
-                s"""invalid escape character in $what: ${m.matched}""")
+                s"""invalid escape character in $what: ${ m.matched }""")
 
             case None =>
               // For safety.  Should never happen.

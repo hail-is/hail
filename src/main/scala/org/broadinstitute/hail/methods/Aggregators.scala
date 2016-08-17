@@ -7,7 +7,7 @@ import org.broadinstitute.hail.variant._
 
 object Aggregators {
 
-  def buildVariantaggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
+  def buildVariantAggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
     val aggregators = ec.aggregationFunctions.toArray
     val aggregatorA = ec.a
 
@@ -16,11 +16,8 @@ object Aggregators {
       val localSamplesBc = vds.sampleIdsBc
       val localAnnotationsBc = vds.sampleAnnotationsBc
 
-      val seqOps = aggregators.map(_._2)
-      val combOps = aggregators.map(_._3)
-      val endIndices = aggregators.map(_._4)
       val f = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
-        val aggregations = aggregators.map(_._1())
+        val aggregations = aggregators.map(_.zero)
         aggregatorA(0) = v
         aggregatorA(1) = va
         (gs, localSamplesBc.value, localAnnotationsBc.value).zipped
@@ -28,17 +25,16 @@ object Aggregators {
             case (g, s, sa) =>
               aggregatorA(2) = s
               aggregatorA(3) = sa
-              aggregatorA(4) = g
-              seqOps.iterator.zipWithIndex
+              aggregators.iterator.zipWithIndex
                 .foreach {
-                  case (so, i) =>
-                    aggregations(i) = so(aggregations(i))
+                  case (agg, i) =>
+                    aggregations(i) = agg.seqOp(g, aggregations(i))
                 }
           }
         aggregations.iterator
-          .zip(endIndices.iterator)
-          .foreach { case (res, i) =>
-            aggregatorA(i) = res
+          .zip(aggregators.iterator)
+          .foreach { case (res, agg) =>
+            aggregatorA(agg.idx) = res
           }
       }
       Some(f)
@@ -56,17 +52,12 @@ object Aggregators {
       val localSamplesBc = vds.sampleIdsBc
       val localAnnotationsBc = vds.sampleAnnotationsBc
 
-      val zeroVals = aggregators.map(_._1)
-      val seqOps = aggregators.map(_._2)
-      val combOps = aggregators.map(_._3)
-      val endIndices = aggregators.map(_._4)
-
       val nAggregations = aggregators.length
       val nSamples = vds.nSamples
 
       val baseArray = MultiArray2.fill[Any](nSamples, nAggregations)(null)
       for (i <- 0 until nSamples; j <- 0 until nAggregations) {
-        baseArray.update(i, j, zeroVals(j)())
+        baseArray.update(i, j, aggregators(j).zero)
       }
 
       val result = vds.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
@@ -77,28 +68,26 @@ object Aggregators {
           .foreach { case (g, i) =>
             aggregatorA(2) = localSamplesBc.value(i)
             aggregatorA(3) = localAnnotationsBc.value(i)
-            aggregatorA(4) = g
 
             for (j <- 0 until nAggregations) {
-              arr.update(i, j, seqOps(j)(arr(i, j)))
+              arr.update(i, j, aggregators(j).seqOp(g, arr(i, j)))
             }
           }
 
         arr
       }, { case (arr1, arr2) =>
         for (i <- 0 until nSamples; j <- 0 until nAggregations) {
-          arr1.update(i, j, combOps(j)(arr1(i, j), arr2(i, j)))
+          arr1.update(i, j, aggregators(j).combOp(arr1(i, j), arr2(i, j)))
         }
         arr1
       }
       )
 
-      val indices = aggregators.map(_._4)
       val sampleIndex = vds.sampleIds.zipWithIndex.toMap
       Some((s: String) => {
         val i = sampleIndex(s)
         for (j <- 0 until nAggregations) {
-          aggregatorA(indices(j)) = result(i, j)
+          aggregatorA(aggregators(j).idx) = result(i, j)
         }
       })
     }
@@ -107,38 +96,33 @@ object Aggregators {
   def makeFunctions(ec: EvalContext): (Array[Any], (Array[Any], (Any, Any)) => Array[Any],
     (Array[Any], Array[Any]) => Array[Any], (Array[Any]) => Unit) = {
 
-    val agg = ec.aggregationFunctions.toArray
+    val aggregators = ec.aggregationFunctions.toArray
 
     val arr = ec.a
-    val zVals = agg.map(_._1.apply())
-    val seqOps = agg.map(_._2)
-    val combOps = agg.map(_._3)
-    val indices = agg.map(_._4)
 
     val seqOp: (Array[Any], (Any, Any)) => Array[Any] = (array: Array[Any], b) => {
-      ec.setAll(b._1, b._2)
+      val (aggT, annotation) = b
+      ec.set(0, annotation)
       for (i <- array.indices) {
-        val seqOp = seqOps(i)
-        array(i) = seqOp(array(i))
+        array(i) = aggregators(i).seqOp(aggT, array(i))
       }
       array
     }
     val combOp: (Array[Any], Array[Any]) => Array[Any] = (arr1, arr2) => {
       for (i <- arr1.indices) {
-        val combOp = combOps(i)
-        arr1(i) = combOp(arr1(i), arr2(i))
+        arr1(i) = aggregators(i).combOp(arr1(i), arr2(i))
       }
       arr1
     }
 
     val resultOp = (array: Array[Any]) => array.iterator
-      .zip(indices.iterator)
+      .zip(aggregators.iterator)
       .foreach {
-        case (res, index) =>
-          arr(index) = res
+        case (res, agg) =>
+          arr(agg.idx) = res
       }
 
-    (zVals, seqOp, combOp, resultOp)
+    (aggregators.map(_.zero), seqOp, combOp, resultOp)
   }
 
 }

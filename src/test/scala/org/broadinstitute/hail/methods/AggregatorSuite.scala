@@ -1,10 +1,12 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.Prop
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.vcf.LoadVCF
+import org.broadinstitute.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 class AggregatorSuite extends SparkSuite {
@@ -14,10 +16,10 @@ class AggregatorSuite extends SparkSuite {
     var s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     s = VariantQC.run(s, Array.empty[String])
     s = AnnotateVariants.run(s, Array("expr", "-c",
-      "va.test.callrate = gs.fraction(g.isCalled), va.test.AC = gs.stats(g.nNonRefAlleles).sum, " +
-        "va.test.AF = gs.stats(g.nNonRefAlleles).sum.toDouble / gs.count(g.isCalled) / 2.0, " +
-        "va.test.gqstats = gs.stats(g.gq), va.test.gqhetstats = gs.statsif(g.isHet, g.gq), " +
-        "va.lowGqGts = gs.collect(g.gq < 60, g)"))
+      """va.test.callrate = gs.fraction(g => g.isCalled), va.test.AC = gs.map(g => g.nNonRefAlleles).sum(),
+        |va.test.AF = gs.map(g => g.nNonRefAlleles).stats().sum.toDouble / gs.filter(g => g.isCalled).count() / 2.0,
+        |va.test.gqstats = gs.map(g => g.gq).stats(), va.test.gqhetstats = gs.filter(g => g.isHet).map(g => g.gq).stats(),
+        |va.lowGqGts = gs.filter(g => g.gq < 60).collect()""".stripMargin))
 
     val qCallRate = s.vds.queryVA("va.test.callrate")._2
     val qCallRateQC = s.vds.queryVA("va.qc.callRate")._2
@@ -38,7 +40,7 @@ class AggregatorSuite extends SparkSuite {
         case (v, (va, gs)) =>
           assert(qCallRate(va) == qCallRateQC(va))
           assert(qAC(va) == qACQC(va))
-          assert(qAF(va) == qAFQC(va))
+          assert(D_==(qAF(va).get.asInstanceOf[Double], qAFQC(va).get.asInstanceOf[Double]))
           assert(gqStatsMean(va).zip(gqStatsMeanQC(va)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
@@ -71,8 +73,8 @@ class AggregatorSuite extends SparkSuite {
 
     s = SampleQC.run(s, Array.empty[String])
 
-    s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.callrate = gs.fraction(g.isCalled), sa.test.gqstats = " +
-      "gs.stats(g.gq), sa.test.gqhetstats = gs.statsif(g.isHet, g.gq)"))
+    s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.callrate = gs.fraction(g => g.isCalled), sa.test.gqstats = " +
+      "gs.map(g => g.gq).stats(), sa.test.gqhetstats = gs.filter(g => g.isHet).map(g => g.gq).stats()"))
 
     val qCallRate = s.vds.querySA("sa.test.callrate")._2
     val qCallRateQC = s.vds.querySA("sa.qc.callRate")._2
@@ -108,5 +110,43 @@ class AggregatorSuite extends SparkSuite {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
       }
+  }
+
+  @Test def testSum() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random)) { vds =>
+      var state = State(sc, sqlContext, vds)
+      state = SplitMulti.run(state)
+      state = VariantQC.run(state)
+      state = AnnotateVariantsExpr.run(state, Array("-c", "va.oneHotAC = gs.map(g => g.oneHotAlleles(v)).sum()"))
+      state.vds.rdd.collect()
+      state = AnnotateVariantsExpr.run(state, Array("-c",
+        "va.same = (gs.filter(g => g.isCalled).count() == 0) || " +
+          "(va.oneHotAC[0] == va.qc.nCalled * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.nHet + 2 * va.qc.nHomVar)"))
+      val (_, querier) = state.vds.queryVA("va.same")
+      state.vds.variantsAndAnnotations
+        .forall { case (v, va) =>
+          querier(va).exists(_.asInstanceOf[Boolean])
+        }
+    }
+    p.check()
+  }
+
+  @Test def testErrorMessages() {
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
+    val s = State(sc, sqlContext, vds)
+
+    val dummy = tmpDir.createTempFile("out")
+    TestUtils.interceptFatal("""tried to export invalid type `Aggregable\[Genotype\]'""")(
+      ExportVariants.run(s, Array("-o", dummy, "-c", "gs")))
+    TestUtils.interceptFatal("""tried to export invalid type `Aggregable\[Int\]'""")(
+      ExportVariants.run(s, Array("-o", dummy, "-c", "gs.map(g => 5)")))
+    TestUtils.interceptFatal("""tried to export invalid type `Aggregable\[Genotype\]'""")(
+      ExportVariants.run(s, Array("-o", dummy, "-c", "gs")))
+    TestUtils.interceptFatal("""Got invalid type `Aggregable\[Genotype\]'""")(
+      AnnotateVariants.run(s, Array("expr", "-c", "va = gs")))
+    TestUtils.interceptFatal("""Got invalid type `Aggregable\[Int\]'""")(
+      AnnotateVariants.run(s, Array("expr", "-c", "va = gs.map(G => 5)")))
+    TestUtils.interceptFatal("""Got invalid type `Aggregable\[Genotype\]'""")(
+      AnnotateVariants.run(s, Array("expr", "-c", "va = gs.filter(g => true)")))
   }
 }

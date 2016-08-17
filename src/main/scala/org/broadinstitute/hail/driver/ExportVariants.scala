@@ -52,7 +52,7 @@ object ExportVariants extends Command with TextExporter {
       "v" -> (0, TVariant),
       "va" -> (1, vds.vaSignature),
       "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, TAggregable(aggregationEC)))
+      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
 
 
     val ec = EvalContext(symTab)
@@ -73,7 +73,7 @@ object ExportVariants extends Command with TextExporter {
       exportTypes(file, state.hadoopConf, typeInfo)
     }
 
-    val variantAggregations = Aggregators.buildVariantaggregations(vds, aggregationEC)
+    val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
 
     hadoopDelete(output, state.hadoopConf, recursive = true)
 

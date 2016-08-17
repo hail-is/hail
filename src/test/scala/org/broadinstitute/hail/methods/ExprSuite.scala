@@ -191,19 +191,19 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
 
-    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
       eval[IndexedSeq[_]]("""a.sortBy(0)"""))
-    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
       eval[IndexedSeq[_]]("""a.sortBy(0, true)"""))
-    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
       eval[IndexedSeq[_]]("""a.sortBy(x => x, 0)"""))
-    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
       eval[IndexedSeq[_]]("""a.sortBy(x => x, "asdasd")"""))
-    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
       eval[IndexedSeq[_]]("""a.sortBy(x => x, true, true)"""))
-    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
       eval[IndexedSeq[_]]("""a.sortBy(x => x, null)"""))
-    TestUtils.interceptFatal("""lambda function \[param => T\] and at most one Boolean parameter""")(
+    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
       eval[IndexedSeq[_]]("""a.sortBy(x => x, asdasd)"""))
 
     assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
