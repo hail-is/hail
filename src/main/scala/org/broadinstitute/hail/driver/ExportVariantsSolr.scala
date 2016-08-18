@@ -18,6 +18,9 @@ object ExportVariantsSolr extends Command with Serializable {
       usage = "SolrCloud collection")
     var collection: String = _
 
+    @Args4jOption(name = "--export-ref", usage = "export HomRef calls")
+    var exportRef = false
+
     @Args4jOption(required = true, name = "-g",
       usage = "comma-separated list of fields/computations to be exported")
     var genotypeCondition: String = _
@@ -111,6 +114,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val gCond = options.genotypeCondition
     val vCond = options.variantCondition
     val collection = options.collection
+    val exportRef = options.exportRef
 
     val vSymTab = Map(
       "v" ->(0, TVariant),
@@ -190,7 +194,7 @@ object ExportVariantsSolr extends Command with Serializable {
         }
 
         gs.iterator.zipWithIndex.foreach { case (g, i) =>
-          if (g.isCalled && !g.isHomRef) {
+          if (g.isCalled && (exportRef || !g.isHomRef)) {
             val s = sampleIdsBc.value(i)
             val sa = sampleAnnotationsBc.value(i)
             gparsed.foreach { case (name, t, f) =>
