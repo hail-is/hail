@@ -42,7 +42,12 @@ class ExprSuite extends SparkSuite {
         ("f1", TInt),
         ("f2", TString),
         ("f3", TInt)))),
-      "a2" -> (17, TArray(TString)))
+      "a2" -> (17, TArray(TString)),
+      "nullarr" -> (18, TArray(TInt)),
+      "nullset" -> (19, TSet(TInt)),
+      "emptyarr" -> (20, TArray(TInt)),
+      "emptyset" -> (21, TSet(TInt)))
+
     val ec = EvalContext(symTab)
 
     val a = ec.a
@@ -71,6 +76,10 @@ class ExprSuite extends SparkSuite {
       Annotation(5, "B", 6),
       Annotation(10, "C", 10))
     a(17) = IndexedSeq("a", "d", null, "c", "e", null, "d", "c")
+    a(18) = null
+    a(19) = null
+    a(20) = IndexedSeq[Int]()
+    a(21) = Set[Int]()
 
     assert(a.length == symTab.size)
 
@@ -159,6 +168,70 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("s2.length").contains(62))
 
     assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
+
+    assert(eval[IndexedSeq[_]]("""a.flatMap(x => [x])""").contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)))
+    assert(eval[IndexedSeq[_]]("""a.flatMap(x => [x, x + 1])""").contains(IndexedSeq(1, 2, 2, 3, null, null, 6, 7, 3, 4, 3, 4, -1, 0, 8, 9)))
+
+    assert(eval[IndexedSeq[_]]("""nullarr.flatMap(x => [x])""").isEmpty)
+    assert(eval[IndexedSeq[_]]("""emptyarr.flatMap(x => [x])""").contains(IndexedSeq[Int]()))
+    assert(eval[IndexedSeq[_]]("""emptyarr.flatMap(x => nullarr)""").contains(IndexedSeq[Int]()))
+    assert(eval[IndexedSeq[_]]("""a.flatMap(x => nullarr)""").isEmpty)
+    assert(eval[IndexedSeq[_]]("""[nullarr, [1], [2]].flatMap(x => x)""").isEmpty)
+    assert(eval[IndexedSeq[_]]("""[[0], nullarr, [2]].flatMap(x => x)""").isEmpty)
+    assert(eval[IndexedSeq[_]]("""[[0], [1], nullarr].flatMap(x => x)""").isEmpty)
+
+    assert(eval[Set[_]]("""iset.flatMap(x => [x].toSet)""").contains(Set(0, 1, 2)))
+    assert(eval[Set[_]]("""iset.flatMap(x => [x, x + 1].toSet)""").contains(Set(0, 1, 2, 3)))
+
+    assert(eval[Set[_]]("""nullset.flatMap(x => [x].toSet)""").isEmpty)
+    assert(eval[Set[_]]("""emptyset.flatMap(x => [x].toSet)""").contains(Set[Int]()))
+    assert(eval[Set[_]]("""emptyset.flatMap(x => nullset)""").contains(Set[Int]()))
+    assert(eval[Set[_]]("""iset.flatMap(x => nullset)""").isEmpty)
+    assert(eval[Set[_]]("""[nullset, [1].toSet, [2].toSet].toSet.flatMap(x => x)""").isEmpty)
+    assert(eval[Set[_]]("""[[0].toSet, nullset, [2].toSet].toSet.flatMap(x => x)""").isEmpty)
+    assert(eval[Set[_]]("""[[0].toSet, [1].toSet, nullset].toSet.flatMap(x => x)""").isEmpty)
+
+    assert(eval[Set[_]]("""[[0].toSet, [1].toSet, nullset].filter(s => isDefined(s)).toSet.flatMap(x => x)""").contains(Set(0, 1)))
+
+    TestUtils.interceptFatal("""expects a lambda function""")(
+      eval[Set[_]]("""iset.flatMap(0)"""))
+
+    TestUtils.interceptFatal("""expects lambda body to have type Array\[T\] or Set\[T\], got Int""")(
+      eval[Set[_]]("""iset.flatMap(x => x)"""))
+
+    TestUtils.interceptFatal("""match, got Set\[Int\] and Array\[Int\]""")(
+      eval[Set[_]]("""iset.flatMap(x => [x])"""))
+
+    TestUtils.interceptFatal("""match, got Array\[Int\] and Set\[Int\]""")(
+      eval[IndexedSeq[_]]("""a.flatMap(x => [x].toSet)"""))
+
+    assert(eval[IndexedSeq[_]](""" [[1], [2, 3], [4, 5, 6]].flatten() """).contains(IndexedSeq(1, 2, 3, 4, 5, 6)))
+    assert(eval[IndexedSeq[_]](""" [a, [1]].flatten() """).contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8, 1)))
+
+    assert(eval[IndexedSeq[_]](""" [nullarr].flatten() """).isEmpty)
+    assert(eval[IndexedSeq[_]](""" [[0], nullarr].flatten() """).isEmpty)
+    assert(eval[IndexedSeq[_]](""" [nullarr, [1]].flatten() """).isEmpty)
+
+    assert(eval[IndexedSeq[_]](""" [[1], nullarr, [2, 3]].filter(a => isDefined(a)).flatten() """).contains(IndexedSeq(1, 2, 3)))
+
+    assert(eval[Set[_]](""" [iset, [2, 3, 4].toSet].toSet.flatten() """).contains(Set(0, 1, 2, 3, 4)))
+
+    assert(eval[Set[_]](""" [nullset].toSet.flatten() """).isEmpty)
+    assert(eval[Set[_]](""" [[0].toSet, nullset].toSet.flatten() """).isEmpty)
+    assert(eval[Set[_]](""" [nullset, [1].toSet].toSet.flatten() """).isEmpty)
+
+    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Array\[Set\[Int\]\]""")(
+      eval[Set[_]](""" [iset, [2, 3, 4].toSet].flatten() """))
+
+    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Set\[Array\[Int\]\]""")(
+      eval[Set[_]](""" [[1], [2, 3, 4]].toSet.flatten() """))
+
+    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Array\[Int\]""")(
+      eval[Set[_]](""" [0].flatten() """))
+    
+    TestUtils.interceptFatal("""does not take parameters, use flatten()""")(
+      eval[Set[_]](""" [[0]].flatten(0) """))
+
 
     assert(eval[IndexedSeq[_]]("""a.sort()""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
     assert(eval[IndexedSeq[_]]("""a.sort(true)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
