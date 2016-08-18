@@ -172,8 +172,12 @@ object VEP extends Command {
     "variant_class" -> TString)
 
   def printContext(w: (String) => Unit) {
-    w("##fileformat=VCFv4.1")
-    w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
+    w("##fileformat=VCFv4.1\n")
+    w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\n")
+  }
+
+  def printSep(w: (String) => Unit) {
+    w("\n")
   }
 
   def printElement(w: (String) => Unit, v: Variant) {
@@ -189,6 +193,10 @@ object VEP extends Command {
     w(sb.result())
   }
 
+  def printFooter(w: (String) => Unit) {
+    w("\n")
+  }
+
   def variantFromInput(input: String): Variant = {
     val a = input.split("\t")
     Variant(a(0),
@@ -199,7 +207,7 @@ object VEP extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    
+
     val root = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
 
     val rootType =
@@ -302,7 +310,8 @@ object VEP extends Command {
         .flatMap(_.iterator.pipe(pb,
           printContext,
           printElement,
-          _ => ())
+          printFooter,
+          printSep)
           .map { s =>
             val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
             val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
