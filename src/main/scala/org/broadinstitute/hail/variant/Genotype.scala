@@ -201,6 +201,13 @@ class Genotype(private val _gt: Int,
       b.append(pl.map(_.mkString(",")).getOrElse("."))
     else
       b.append(dosage.map(_.mkString(",")).getOrElse("."))
+
+    val regex = """(?::\.)+$""".r
+    val regexMatch = regex.findFirstMatchIn(b)
+    regexMatch.foreach { m =>
+      b.delete(m.start, m.end)
+    }
+
     b.result()
   }
 
