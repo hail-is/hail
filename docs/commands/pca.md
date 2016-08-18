@@ -29,7 +29,7 @@ From the perspective of the samples or rows of $M$ as data, $V_k$ contains the v
 
 **Note:** In PLINK/GCTA the GRM is taken as the starting point and it is computed slightly differently with regard to missing data. Here the $ij$ entry of $MM^T$ is simply the dot product of rows $i$ and $j$ of $M$; in terms of $C$ it is
 $$
-\frac{1}{m}\sum{l\in\mathcal{C}_i\cap\mathcal{C}_j}\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)}
+\frac{1}{m}\sum_{l\in\mathcal{C}_i\cap\mathcal{C}_j}\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)}
 $$
 where $\mathcal{C}_i = \{l\mid C_{il}\text{ is non-missing}\}$. In PLINK/GCTA the denominator $m$ is replaced with the number of terms in the sum $\lvert\mathcal{C}_i\cap\mathcal{C}_j\rvert$, i.e. the number of variants where both samples have non-missing genotypes. While this is arguably a better estimator of the true GRM (trading shrinkage for noise), it has the drawback that one loses the clean interpretation of the loadings and scores as features and projections.
 
