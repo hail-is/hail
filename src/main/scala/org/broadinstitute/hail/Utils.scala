@@ -210,6 +210,8 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         seen += x
     dups.toSet
   }
+
+  def cross[S](j: Traversable[S]) = for {x <- i; y <- j} yield (x, y)
 }
 
 class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
@@ -513,7 +515,7 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 }
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
-  def tsvAppend(a: Any) {
+  def tsvAppend(a: Any, sep: String = ",") {
     a match {
       case null | None => sb.append("NA")
       case Some(x) => tsvAppend(x)
@@ -532,7 +534,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
           if (first)
             first = false
           else
-            sb += ','
+            sb.append(sep)
           tsvAppend(x)
         }
       case arr: Array[_] =>
@@ -541,7 +543,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
           if (first)
             first = false
           else
-            sb += ','
+            sb.append(sep)
           tsvAppend(x)
         }
       case _ => sb.append(a)
@@ -595,9 +597,10 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   }
 
   def pipe(pb: ProcessBuilder,
-    printHeader: (String => Unit) => Unit,
-    printElement: (String => Unit, T) => Unit,
-    printFooter: (String => Unit) => Unit): Iterator[String] = {
+           printHeader: (String => Unit) => Unit,
+           printElement: (String => Unit, T) => Unit,
+           printFooter: (String => Unit) => Unit,
+           printSep: (String => Unit) => Unit): Iterator[String] = {
 
     val command = pb.command().asScala.mkString(" ")
 
@@ -617,9 +620,9 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       override def run() {
         val out = new PrintWriter(proc.getOutputStream)
 
-        printHeader(out.println)
-        it.foreach(x => printElement(out.println, x))
-        printFooter(out.println)
+        printHeader(out.print)
+        it.foreachBetween(x => printElement(out.print, x))(() => printSep(out.print))
+        printFooter(out.print)
         out.close()
       }
     }.start()
