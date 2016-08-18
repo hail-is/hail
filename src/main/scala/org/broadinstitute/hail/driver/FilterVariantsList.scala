@@ -32,9 +32,8 @@ object FilterVariantsList extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    if ((options.keep && options.remove)
-      || (!options.keep && !options.remove))
-      fatal("one `--keep' or `--remove' required, but not both")
+    if (!(options.keep ^ options.remove))
+      fatal("either `--keep' or `--remove' required, but not both")
 
     val keep = options.keep
 
