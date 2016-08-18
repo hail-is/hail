@@ -464,8 +464,8 @@ object Genotype {
     GTPair(0, 5), GTPair(1, 5), GTPair(2, 5), GTPair(3, 5), GTPair(4, 5), GTPair(5, 5),
     GTPair(0, 6), GTPair(1, 6), GTPair(2, 6), GTPair(3, 6), GTPair(4, 6), GTPair(5, 6),
     GTPair(6, 6),
-    GTPair(0, 7), GTPair(1, 7), GTPair(7, 2), GTPair(3, 7), GTPair(4, 7),
-    GTPair(5, 7), GTPair(7, 6), GTPair(7, 7))
+    GTPair(0, 7), GTPair(1, 7), GTPair(2, 7), GTPair(3, 7), GTPair(4, 7),
+    GTPair(5, 7), GTPair(6, 7), GTPair(7, 7))
 
   def gtPairRecursive(i: Int): GTPair = {
     def f(j: Int, k: Int): GTPair = if (j <= k)
