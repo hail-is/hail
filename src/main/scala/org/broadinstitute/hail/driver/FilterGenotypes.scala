@@ -37,8 +37,8 @@ object FilterGenotypes extends Command {
     val vas = vds.vaSignature
     val sas = vds.saSignature
 
-    if (!options.keep && !options.remove)
-      fatal(name + ": one of `--keep' or `--remove' required")
+    if (!(options.keep ^ options.remove))
+      fatal("either `--keep' or `--remove' required, but not both")
 
     val keep = options.keep
 
