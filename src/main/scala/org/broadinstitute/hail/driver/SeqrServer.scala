@@ -33,7 +33,7 @@ case class SeqrResponse(is_error: Boolean,
   found: Option[Long],
   variants: Option[Array[Map[String, JValue]]])
 
-class SeqrService(solr: SolrClient, cassSession: Session, cassKeyspace: String, cassTable: String) {
+class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cassKeyspace: String, cassTable: String) {
   def expandException(e: Throwable): String =
     s"${ e.getClass.getName }: ${ e.getMessage }\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
       Option(e.getCause).foreach(exception => expandException(exception))
@@ -76,10 +76,12 @@ class SeqrService(solr: SolrClient, cassSession: Session, cassKeyspace: String, 
     println("q: ", q)
     var query = new SolrQuery(q)
 
-    query.addField("chrom")
-    query.addField("pos")
-    query.addField("ref")
-    query.addField("alt")
+    if (!solrOnly) {
+      query.addField("chrom")
+      query.addField("pos")
+      query.addField("ref")
+      query.addField("alt")
+    }
 
     query.setStart((req.page - 1) * req.limit)
     query.setRows(req.limit)
@@ -90,64 +92,84 @@ class SeqrService(solr: SolrClient, cassSession: Session, cassKeyspace: String, 
     val docs = solrResponse.getResults
     val found = docs.getNumFound
 
-    val variants = docs.asScala
-      .flatMap { doc =>
-        val chrom = doc.getFieldValue("chrom").asInstanceOf[String]
-        val pos = doc.getFieldValue("pos").asInstanceOf[Int]
-        val ref = doc.getFieldValue("ref").asInstanceOf[String]
-        val alt = doc.getFieldValue("alt").asInstanceOf[String]
+    val variants: Array[Map[String, JValue]] = if (solrOnly) {
+      docs.asScala.map { doc =>
+        doc.keySet.asScala.map { fname =>
 
-        val cassQuery = QueryBuilder.select()
-          .all()
-          .from(cassKeyspace, cassTable)
-          .where()
-          .and(QueryBuilder.eq("chrom", chrom))
-          .and(QueryBuilder.eq("pos", pos))
-          .and(QueryBuilder.eq("ref", ref))
-          .and(QueryBuilder.eq("alt", alt))
-        val cassResults = cassSession.execute(cassQuery)
+          def toJSON(v: Any): JValue = v match {
+            case null => JNull
+            case b: java.lang.Boolean => JBool(b)
+            case i: Int => JInt(i)
+            case i: Long => JInt(i)
+            case d: Double => JDouble(d)
+            case al: java.util.ArrayList[_] =>
+              JArray(al.asScala.map(vi => toJSON(vi)).toList)
+            case s: String => JString(s)
+          }
 
-        val cassColumns = cassResults.getColumnDefinitions
-        cassResults.asScala.map { r =>
-          cassColumns.asScala.zipWithIndex.flatMap { case (col, i) =>
-            if (r.isNull(i))
-              None
-            else {
-              val jv: JValue = (col.getType.getName: @unchecked) match {
-                case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
-                  JString(r.getString(i))
-                case DataType.Name.INT =>
-                  JInt(r.getInt(i))
-                case DataType.Name.TINYINT =>
-                  JInt(r.getByte(i).toInt)
-                case DataType.Name.SMALLINT =>
-                  JInt(r.getShort(i).toInt)
-                case DataType.Name.BIGINT | DataType.Name.COUNTER =>
-                  JInt(r.getLong(i))
-                case DataType.Name.VARINT =>
-                  JInt(r.getVarint(i))
-                case DataType.Name.FLOAT =>
-                  JDouble(r.getFloat(i))
-                case DataType.Name.DOUBLE =>
-                  JDouble(r.getDouble(i))
-
-                case DataType.Name.LIST =>
-                  val typeArgs = col.getType.getTypeArguments
-                  assert(typeArgs.size() == 1)
-                  (typeArgs.get(0).getName: @unchecked) match {
-                    case DataType.Name.INT =>
-                      JArray(r.getList(i, classOf[java.lang.Integer]).asScala
-                        .map(v => JInt(v.toInt))
-                        .toList)
-                  }
-
-                // FIXME: handle Set
-              }
-              Some((col.getName, jv))
-            }
-          }.toMap
-        }
+          (fname, toJSON(doc.getFieldValue(fname)))
+        }.toMap
       }.toArray
+    } else {
+      docs.asScala
+        .flatMap { doc =>
+          val chrom = doc.getFieldValue("chrom").asInstanceOf[String]
+          val pos = doc.getFieldValue("pos").asInstanceOf[Int]
+          val ref = doc.getFieldValue("ref").asInstanceOf[String]
+          val alt = doc.getFieldValue("alt").asInstanceOf[String]
+
+          val cassQuery = QueryBuilder.select()
+            .all()
+            .from(cassKeyspace, cassTable)
+            .where()
+            .and(QueryBuilder.eq("chrom", chrom))
+            .and(QueryBuilder.eq("pos", pos))
+            .and(QueryBuilder.eq("ref", ref))
+            .and(QueryBuilder.eq("alt", alt))
+          val cassResults = cassSession.execute(cassQuery)
+
+          val cassColumns = cassResults.getColumnDefinitions
+          cassResults.asScala.map { r =>
+            cassColumns.asScala.zipWithIndex.flatMap { case (col, i) =>
+              if (r.isNull(i))
+                None
+              else {
+                val jv: JValue = (col.getType.getName: @unchecked) match {
+                  case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
+                    JString(r.getString(i))
+                  case DataType.Name.INT =>
+                    JInt(r.getInt(i))
+                  case DataType.Name.TINYINT =>
+                    JInt(r.getByte(i).toInt)
+                  case DataType.Name.SMALLINT =>
+                    JInt(r.getShort(i).toInt)
+                  case DataType.Name.BIGINT | DataType.Name.COUNTER =>
+                    JInt(r.getLong(i))
+                  case DataType.Name.VARINT =>
+                    JInt(r.getVarint(i))
+                  case DataType.Name.FLOAT =>
+                    JDouble(r.getFloat(i))
+                  case DataType.Name.DOUBLE =>
+                    JDouble(r.getDouble(i))
+
+                  case DataType.Name.LIST =>
+                    val typeArgs = col.getType.getTypeArguments
+                    assert(typeArgs.size() == 1)
+                    (typeArgs.get(0).getName: @unchecked) match {
+                      case DataType.Name.INT =>
+                        JArray(r.getList(i, classOf[java.lang.Integer]).asScala
+                          .map(v => JInt(v.toInt))
+                          .toList)
+                    }
+
+                  // FIXME: handle Set
+                }
+                Some((col.getName, jv))
+              }
+            }.toMap
+          }
+        }.toArray
+    }
 
     // println(variants.toSeq)
 
@@ -179,8 +201,8 @@ class SeqrService(solr: SolrClient, cassSession: Session, cassKeyspace: String, 
           (json: @unchecked) match {
             case JObject(fields) =>
               fields.foreach { case (id, _) =>
-                  if (!knownKeys.contains(id))
-                    throw new IllegalArgumentException(s"unknown field $id in request")
+                if (!knownKeys.contains(id))
+                  throw new IllegalArgumentException(s"unknown field $id in request")
               }
           }
 
@@ -216,15 +238,17 @@ object SeqrServerCommand extends Command {
       usage = "Zookeeper host string to connect to")
     var zkHost: String = _
 
-    @Args4jOption(required = true, name = "-a", aliases = Array("--address"),
+    @Args4jOption(name = "--solr-only", usage = "Return results directly queried from Solr")
+    var solrOnly = false
+
+    @Args4jOption(name = "-a", aliases = Array("--address"),
       usage = "Cassandra contact point to connect to")
     var address: String = _
 
-    @Args4jOption(required = true, name = "-k",
-      usage = "Cassandra keyspace")
+    @Args4jOption(name = "-k", usage = "Cassandra keyspace")
     var keyspace: String = _
 
-    @Args4jOption(required = true, name = "-t", aliases = Array("--table"),
+    @Args4jOption(name = "-t", aliases = Array("--table"),
       usage = "Cassandra table")
     var table: String = _
 
@@ -248,14 +272,20 @@ object SeqrServerCommand extends Command {
     val zkHost = options.zkHost
     val collection = options.collection
 
-    if (url == null && zkHost == null)
-      fatal("one of -u or -z required")
+    val solrOnly = options.solrOnly
 
-    if (url != null && zkHost != null)
-      fatal("both -u and -z given")
+    if ((url == null) == (zkHost == null))
+      fatal("exactly one of -u or -z required")
 
     if (zkHost != null && collection == null)
       fatal("-c required with -z")
+
+    if ((options.address == null) != (options.keyspace == null)
+      || (options.address == null) != (options.table == null))
+      fatal("none or all of -a, -k, -t required")
+
+    if (solrOnly != (options.address == null))
+      fatal("either --solr-only or all of -a, -k and -t required, but not both")
 
     val solr =
       if (url != null)
@@ -266,9 +296,13 @@ object SeqrServerCommand extends Command {
         cc
       }
 
-    val cassSession = CassandraStuff.getSession(options.address)
+    val cassSession =
+      if (solrOnly)
+        null
+      else
+        CassandraStuff.getSession(options.address)
 
-    val solrService = new SeqrService(solr, cassSession, options.keyspace, options.table)
+    val solrService = new SeqrService(solrOnly, solr, cassSession, options.keyspace, options.table)
 
     val task = BlazeBuilder.bindHttp(6060, "0.0.0.0")
       .mountService(solrService.service, "/")
