@@ -55,6 +55,9 @@ object ExportVariantsCass extends Command {
       usage = "Cassandra contact point to connect to")
     var address: String = _
 
+    @Args4jOption(name = "--export-ref", usage = "export HomRef calls")
+    var exportRef = false
+
     @Args4jOption(required = true, name = "-g",
       usage = "comma-separated list of fields/computations to be exported")
     var genotypeCondition: String = _
@@ -126,6 +129,7 @@ object ExportVariantsCass extends Command {
     val gCond = options.genotypeCondition
     val vCond = options.variantCondition
     val address = options.address
+    val exportRef = options.exportRef
 
     val keyspace = options.keyspace
     val table = options.table
@@ -204,7 +208,7 @@ object ExportVariantsCass extends Command {
               val s = sampleIdsBc.value(i)
               val sa = sampleAnnotationsBc.value(i)
               gparsed.foreach { case (name, t, f) =>
-                if (g.isCalled && !g.isHomRef) {
+                if (g.isCalled && (exportRef || !g.isHomRef)) {
                   gEC.setAll(v, va, s, sa, g)
                   f().foreach { a =>
                     nb += escapeCassColumnName(s + "_" + name)
