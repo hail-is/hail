@@ -1087,7 +1087,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         lhs.typecheck(ec)
         if (!rhs.isEmpty)
           parseError(s"method `$method' does not take parameters, use flatten()")
-        it match {
+        `type` = it match {
           case TArray(TArray(e)) => TArray(e)
           case TSet(TSet(e)) => TSet(e)
           case _ => parseError(s"method `$method' expects type Array[Array[T]] or Set[Set[T]], got $it.")
