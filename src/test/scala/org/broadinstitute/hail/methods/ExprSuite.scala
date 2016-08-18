@@ -208,6 +208,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]](""" [[1], [2, 3], [4, 5, 6]].flatten() """).contains(IndexedSeq(1, 2, 3, 4, 5, 6)))
     assert(eval[IndexedSeq[_]](""" [a, [1]].flatten() """).contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8, 1)))
 
+    assert(eval[Set[_]](""" [[1], [2]].flatten().toSet """).contains(Set(1, 2)))
+
     assert(eval[IndexedSeq[_]](""" [nullarr].flatten() """).isEmpty)
     assert(eval[IndexedSeq[_]](""" [[0], nullarr].flatten() """).isEmpty)
     assert(eval[IndexedSeq[_]](""" [nullarr, [1]].flatten() """).isEmpty)
