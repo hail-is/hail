@@ -161,8 +161,8 @@ Identifier | Description
 ### Map and Filter
 
 ```
-    <aggregable>.map( <Any lambda expression> )
-    <aggregable>.filter( <Boolean lambda expression> )
+<aggregable>.map( <Any lambda expression> )
+<aggregable>.filter( <Boolean lambda expression> )
 ```
 
 These two generic helper functions allow the proceeding calculations to be totally general and modular.
@@ -174,7 +174,7 @@ These two generic helper functions allow the proceeding calculations to be total
 ### Count
 
 ```
-    <aggregable>.count()
+<aggregable>.count()
 ```
 
 `count()` counts the number of included elements in this aggregable.
@@ -185,34 +185,34 @@ The result of `count` is a `Long` (integer).
 
 One can replicate `qc.nHet` for either samples or variants by counting:
 ```
-    annotatesamples expr -c 'sa.nHet = gs.filter(g => g.isHet).count()'
-    annotatevariants expr -c 'va.nHet = gs.filter(g => g.isHet).count()'
+annotatesamples expr -c 'sa.nHet = gs.filter(g => g.isHet).count()'
+annotatevariants expr -c 'va.nHet = gs.filter(g => g.isHet).count()'
 ```
 
 One can also compute more complicated counts.  Here we compute the number of non-ref cases and controls per variant (Assuming that `sa.pheno.isCase` is a boolean sample annotation)
 ```
-    annotatevariants expr -c 'va.caseCount = gs.filter(g => sa.pheno.isCase && g.isCalledNonRef).count(), va.controlCount = gs.filter(g => !(sa.pheno.isCase) && g.isCalledNonRef).count()'
+annotatevariants expr -c 'va.caseCount = gs.filter(g => sa.pheno.isCase && g.isCalledNonRef).count(), va.controlCount = gs.filter(g => !(sa.pheno.isCase) && g.isCalledNonRef).count()'
 ```
 
 Here we count the number of singleton non-ref LOFs and the number of homozygous alternate LOFs per sample, assuming that one has previously annotated variant consequence into `va.consequence`:
 ```
-    annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1' \
-    annotatesamples expr -c 'sa.singletonLOFs = gs.filter(g => va.isSingleton && g.isCalledNonRef && va.consequence == "LOF").count(),
-                        sa.homVarLOFs = gs.filter(g => g.isHomVar && va.consequence == "LOF").count()
+annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1' \
+annotatesamples expr -c 'sa.singletonLOFs = gs.filter(g => va.isSingleton && g.isCalledNonRef && va.consequence == "LOF").count(),
+                    sa.homVarLOFs = gs.filter(g => g.isHomVar && va.consequence == "LOF").count()
 ```
 
 This can also be used to calculate statistics from sample/variant annotations in `annotateglobal`:
 ```
-    annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1'
-    annotatesamples expr -c 'sa.callrate = gs.fraction(g => g.isCalled)'
-    annotateglobal expr -c 'global.lowQualSamples = samples.filter(s => sa.callrate < 0.95).count(),
-                  global.totalNSingleton = variants.filter(v => va.isSingleton).count()'
+annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1'
+annotatesamples expr -c 'sa.callrate = gs.fraction(g => g.isCalled)'
+annotateglobal expr -c 'global.lowQualSamples = samples.filter(s => sa.callrate < 0.95).count(),
+              global.totalNSingleton = variants.filter(v => va.isSingleton).count()'
 ```
 
 ### Fraction
 
 ```
-    <aggregable>.fraction( <Boolean lambda expression> )
+<aggregable>.fraction( <Boolean lambda expression> )
 ```
 
 `fraction` computes the ratio of the number of occurrences for which a boolean condition evaluates to `true`, divided the number of included elements in the aggregable.
@@ -223,14 +223,14 @@ The result of `fraction` is a `Double` (floating-point)
 
 One can replicate call rate, or calculate missingness:
 ```
-    filtervariants expr --keep -c 'gs.fraction(g => g.isCalled) > 0.90'
-    filtersamples expr --keep -c 'gs.fraction(g => g.isCalled) > 0.95'
+filtervariants expr --keep -c 'gs.fraction(g => g.isCalled) > 0.90'
+filtersamples expr --keep -c 'gs.fraction(g => g.isCalled) > 0.95'
 ```
 
 One can also extend this thinking to compute the differential missingness at SNPs and indels:
 ```
-    annotatesamples expr -c 'sa.SNPmissingness = gs.filter(g => v.altAllele.isSNP).fraction(g => g.isNotCalled),
-                        sa.indelmissingness = gs.filter(g => v.altAllele.isIndel).fraction(g => g.isNotCalled)
+annotatesamples expr -c 'sa.SNPmissingness = gs.filter(g => v.altAllele.isSNP).fraction(g => g.isNotCalled),
+                    sa.indelmissingness = gs.filter(g => v.altAllele.isIndel).fraction(g => g.isNotCalled)
 ```
 
 ### Sum
@@ -244,66 +244,65 @@ Compute the
 ### Stats
 
 ```
-    <numeric aggregable>.stats()
+<numeric aggregable>.stats()
 ```
 
 `stats()` computes six useful statistics about a numeric aggregable.
 
 The result of `stats` is a struct:
- ```
- Struct {
-    mean: Double,
-    stdev: Double,
-    min: Double,
-    max: Double,
-    nNotMissing: Double,
-    sum: Double
- }
- ```
+```
+Struct {
+   mean: Double,
+   stdev: Double,
+   min: Double,
+   max: Double,
+   nNotMissing: Double,
+   sum: Double
+}
+```
 
 **Examples:**
 
 One can replicate the calculations in `<va / sa>.qc.gqMean` and `<va / sa>.qc.gqStDev` with the command below.  After this command, `va.gqstats.mean` is equal to the result of running `variantqc` and querying `va.qc.gqMean`, and this equivalence holds for the other values.
 ```
-    annotatevariants expr -c 'va.gqstats = gs.map(g => g.gq).stats()'
-    annotatesamples expr -c 'sa.gqstats = g.map(g => g.gq).stats()'
+annotatevariants expr -c 'va.gqstats = gs.map(g => g.gq).stats()'
+annotatesamples expr -c 'sa.gqstats = g.map(g => g.gq).stats()'
 ```
 
 One can use `stats` to compute statistics on annotations as well:
 ```
-    sampleqc
-    annotateglobal expr -c 'global.singletonStats = samples.map(s => sa.qc.nSingleton).stats()'
+sampleqc
+annotateglobal expr -c 'global.singletonStats = samples.map(s => sa.qc.nSingleton).stats()'
 ```
 
 Compute gq/dp statistics stratified by genotype call:
 ```
-    annotatevariants expr -c '
-        va.homrefGQ = gs.filter(g => g.isHomRef).map(g => g.gq).stats(),
-        va.hetGQ = gs.filter(g => g.isHet).map(g => g.gq).stats(),
-        va.homvarGQ = gs.filter(g => g.isHomVar).map(g => g.gq).stats(),
-        va.homrefDP = gs.filter(g => g.isHomRef).map(g => g.dp).stats(),
-        va.hetDP = gs.filter(g => g.isHet).map(g => g.dp).stats(),
-        va.homvarDP = gs.filter(g => g.isHomVar).map(g => g.dp).stats()'
+annotatevariants expr -c '
+    va.homrefGQ = gs.filter(g => g.isHomRef).map(g => g.gq).stats(),
+    va.hetGQ = gs.filter(g => g.isHet).map(g => g.gq).stats(),
+    va.homvarGQ = gs.filter(g => g.isHomVar).map(g => g.gq).stats(),
+    va.homrefDP = gs.filter(g => g.isHomRef).map(g => g.dp).stats(),
+    va.hetDP = gs.filter(g => g.isHet).map(g => g.dp).stats(),
+    va.homvarDP = gs.filter(g => g.isHomVar).map(g => g.dp).stats()'
 ```
 
 Compute statistics on number of singletons stratified by case/control:
 ```
-    sampleqc
-    annotateglobal expr -c 'global.caseSingletons = samples.filter(s => sa.fam.isCase).map(s => sa.qc.nSingleton).stats(),
-        global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()'
-
+ sampleqc
+ annotateglobal expr -c 'global.caseSingletons = samples.filter(s => sa.fam.isCase).map(s => sa.qc.nSingleton).stats(),
+     global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()'
 ```
 
 ### Collect
 
 ```
-    <aggregable>.collect()
+<aggregable>.collect()
 ```
 
 `collect()` is an aggregator that allows a set of elements of an aggregator to be collected into an `Array`.  For example, one can collect the list of non-ref sample IDs per variant with the following:
 
 ```
-    annotatevariants expr -c 'va.hetSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'
+annotatevariants expr -c 'va.hetSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'
 ```
 
 The above reads, "where the genotype is called non-reference, collect the sample id".  This returns an `Array[String]`.
