@@ -35,6 +35,23 @@ a:active {
   color: #faa700;
 }
 
+a code {
+  color: #0645ad;
+  text-decoration: none;
+}
+
+a:visited code {
+  color: #0b0080;
+}
+
+a:hover code {
+  color: #06e;
+}
+
+a:active code {
+  color: #faa700;
+}
+
 a:focus {
   outline: thin dotted;
 }
