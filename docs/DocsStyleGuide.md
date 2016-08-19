@@ -73,3 +73,9 @@
 10. The docs are viewable at `http://localhost:8000/`. To go directly to your command in the browser window, add a `#` and the command name (remember to replace spaces and slashes with underscores!)
 
 11. If you make changes, be sure to rerun the gradle command to rebuild the docs before refreshing your browser.
+
+12. To get a click-able reference to a command use the following markdown:
+
+    ```
+    [`commandName`](#commandName)
+    ```
