@@ -128,7 +128,7 @@ pre, code, kdb, samp {
 code, kbd, samp {
   font-size: 80%;
   /* 5/32, 10/32 .15625em .3125em */
-  padding: .15625em .25em;
+  padding: 0em .25em;
   display: inline-block;
 }
 
