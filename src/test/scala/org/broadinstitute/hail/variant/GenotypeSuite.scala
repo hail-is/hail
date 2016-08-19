@@ -97,12 +97,18 @@ class GenotypeSuite extends TestNGSuite {
     Prop.forAll { (j: Int, k: Int) =>
       val gt = GTPair(j, k)
       Genotype.gtPair(Genotype.gtIndex(gt)) == gt
-    }
+    }.check()
   }
 
   @Test def gtIndexGtPairIsId(): Unit = {
     Prop.forAll { (idx: Int) =>
       Genotype.gtIndex(Genotype.gtPair(idx)) == idx
-    }
+    }.check()
+  }
+
+  @Test def gtPairAndGtPairSqrtEqual(): Unit = {
+    Prop.forAll(Gen.choose(0, 10000)) { (idx: Int) =>
+      Genotype.gtPair(idx) == Genotype.gtPairSqrt(idx)
+    }.check()
   }
 }
