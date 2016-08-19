@@ -1,31 +1,31 @@
 # Hail Expression Language
 
-Several Hail commands provide the ability to perform a broad array of computations based on data structures exposed to the user.  
+Several Hail commands provide the ability to perform a broad array of computations based on data structures exposed to the user.
 
 ## Expressions and Operations
 
  - Conditionals: `if (p) a else b` -- The value of the conditional is the value of `a` or `b` depending on `p`.  If `p` is missing, the value of the conditional is missing.
- 
+
  - Let: `let v1 = e1 and v2 = e2 and ... and vn = en in b` -- Bind variables `v1` through `vn` to result of evaluating the `ei`.  The value of the `let` is the value of `b`.  `v1` is visible in `e2` through `en`, etc.
- 
+
  - Global comparisons: `a == b`, `a != b`
- 
+
  - Boolean comparisons: `a || b`, `a && b`  Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without evaluating `b`.  If `a` is missing, `b` is evaluated and the comparison returns `true` if `b` is true, otherwise missing.
- 
- - Missingness: 
+
+ - Missingness:
      - isMissing: `isMissing(a)` -- returns true if `a` is missing
      - isDefined: `isDefined(a)` -- returns true if `a` is defined
      - orElse: `a.OrElse(x)` -- return `a` if `a` is defined, otherwise `x`.  `x` is only evaluated if `a` is NA.
- 
+
  - Numerical comparisons: `<`, `<=`, `>`, `>=`
- 
- - Numerical conversions:  
+
+ - Numerical conversions:
      - toDouble: `i.toDouble`
      - toInt: `i.toInt`
      - toFloat: `i.toFloat`
      - toLong: `i.toLong`
- 
- - Numerical operations: 
+
+ - Numerical operations:
      - +, -, /, *, %: `a + b - c / d * e % f`
      - abs: `i.abs` -- returns the absolute value of `i`
      - signum: `i.signum` -- returns the sign of `i` (1, 0, or -1)
@@ -36,19 +36,19 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - exp(x) -- exponential of `x`
      - pow(b, e) -- `b` to the power `e`
      - sqrt(x) -- the square root of `x`
- 
- - String operations:  
+
+ - String operations:
      - apply: `str(index)` -- returns the character at `index`
      - length: `str.length` -- returns the length of the string
      - concatenate: `str1 + str2` -- returns the two strings joined start-to-end
-     - split: `str.split(delimiter)` -- returns an array of strings, split on the given `delimiter` 
- 
- - String conversions: 
+     - split: `str.split(delimiter)` -- returns an array of strings, split on the given `delimiter`
+
+ - String conversions:
     - toInt: `str.toInt`
     - toDouble: `str.toDouble`
     - toLong: `str.toLong`
     - toFloat: `str.toFloat`
-    
+
  - Array Operations:
      - constructor: `[element1, element2, ...]` -- Create a new array from elements of the same type.
      - indexing: `arr[index]` -- get a value from the array, or NA if array or index is missing
@@ -66,15 +66,15 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - forall: `arr.forall(v => expr)` -- Returns a boolean which is true if the array is empty, or `expr` evaluates to `true` for **every** element
      - sort: `arr.sort([ascending])` -- Returns a new array with the same elements in ascending order according to their value, which must be numeric or string. For descending order, use `arr.sort(false)`. Missing elements are always placed at the end.
      - sortBy: `arr.sortBy(v => expr[,ascending])` -- Returns a new array with the same elements in ascending order according to the value of `expr`, which must be numeric or string. For descending order, use `arr.sortBy(v => expr, false)`. Elements with missing `expr` values are always placed at the end.
- 
+
  - Numeric Array Operations:
      - min: `arr.min` -- valid only for numeric arrays, returns the minimum value
      - max: `arr.max` -- valid only for numeric arrays, returns the minimum value
      - arithmetic: `+ - * /`
-        - Array with scalar will apply the operation to each element of the array.  `[1, 2, 3] * 2` = `[2, 4, 6]`.  
+        - Array with scalar will apply the operation to each element of the array.  `[1, 2, 3] * 2` = `[2, 4, 6]`.
         - Array with Array will apply the operation positionally.  `[1, 2, 3] * [1, 0, -1]` = `[1, 0, -3]`.  _Fails if the dimension of the two arrays does not match._
- 
- - Set Operations:  
+
+ - Set Operations:
      - contains: `set.contains(elem)` -- returns true if the element is contained in the array, otherwise false
      - size: `set.size` -- returns the number of elements in the set as an integer
      - isEmpty: `set.isEmpty` -- returns true if the set contains 0 elements
@@ -89,37 +89,37 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - exists: `set.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
      - forall: `set.forall(v => expr)` -- returns a boolean which is true if the set is empty, or `expr` evaluates to `true` for **every** element
 
- - Dict Operations: 
+ - Dict Operations:
      - select: `dict[key]` -- returns the value keyed by the string `key`.  An example might be `global.genedict["SCN2A"]`.
      - contains: `dict.contains(key)` -- returns true if `dict` has key `key`, false otherwise.
      - mapValues: `dict.mapValues(x => expr)` -- returns a new dict with a transformation of the values
      - size: `dict.size` -- returns the number of key/value pairs
      - isEmpty: `dict.isEmpty` -- returns true if there is at least one key/value pairs
- 
- - Struct Operations:        
+
+ - Struct Operations:
      - constructor: `{key1: 1, key2: "Hello", key3: 0.99, ...}` -- Create a new struct from specified field names and values in the format shown.
-     - select: `struct.field` -- returns the value of the given field of a struct.  For example, `va.info.AC` selects the struct `info` from the struct `va`, and then selects the array `AC` from the struct `info`.  
-     - index: `index(Array[Struct], fieldname)` -- returns a dictionary keyed by the string field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.  
-                
+     - select: `struct.field` -- returns the value of the given field of a struct.  For example, `va.info.AC` selects the struct `info` from the struct `va`, and then selects the array `AC` from the struct `info`.
+     - index: `index(Array[Struct], fieldname)` -- returns a dictionary keyed by the string field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
+
             For example, `global.gene_info` is the following `Array[Struct]`:
-            
+
                  [{PLI: 0.998, genename: "gene1", hits_in_exac: 1},
                  {PLI: 0.0015, genename: "gene2", hits_in_exac: 10},
                  {PLI: 0.9045, genename: "gene3", hits_in_exac: 2}]
-            
+
             We can index it by gene:
-            
+
                 global.gene_dict = index(global.gene_info, genename)
-            
+
             Now the following equality is true:
-            
+
                 global.gene_dict["gene1"] == {PLI: 0.998, hits_in_exac: 1}
-     
+
       - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
       - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
 
   - Object constructors:
-  
+
     - Variant: `Variant(chr, pos, ref, alt)`, where chr, ref, are `String`, and `pos` is Int, and `alt` is either a `String` or `Array[String]`
     - Variant: `Variant(str)`, where str is of the form `CHR:POS:REF:ALT` or `CHR:POS:REF:ALT1,ALT2...ALTN`
     - Locus: `Locus(chr, pos)`, where chr is a `String` and pos is an `Int`
@@ -128,7 +128,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
 **Note:**
 
  - All variables and values are case sensitive
- - Missingness propagates up.  If any element in an expression is missing, the expression will evaluate to missing.  
+ - Missingness propagates up.  If any element in an expression is missing, the expression will evaluate to missing.
 
 ## <a name="#aggregables"></a> Aggregables
 
@@ -161,20 +161,20 @@ Identifier | Description
 ### Map and Filter
 
 ```
-    <aggregable>.map( <Any lambda expression> )
-    <aggregable>.filter( <Boolean lambda expression> )
+<aggregable>.map( <Any lambda expression> )
+<aggregable>.filter( <Boolean lambda expression> )
 ```
 
-These two generic helper functions allow the proceeding calculations to be totally general and modular.  
+These two generic helper functions allow the proceeding calculations to be totally general and modular.
 
-`map` changes the type of an aggregable: `gs.map(g => g.gq)` takes the `Aggregable[Genotype]` "gs" and returns an `Aggregable[Int]`.  
+`map` changes the type of an aggregable: `gs.map(g => g.gq)` takes the `Aggregable[Genotype]` "gs" and returns an `Aggregable[Int]`.
 
-`filter` subsets an aggregable by excluding/including elements based on a lambda expression.  Note: does not change the type of an aggregable.  `gs.filter(g => g.isHet)` produces an aggregable where only heterozygous genotypes are considered. 
+`filter` subsets an aggregable by excluding/including elements based on a lambda expression.  Note: does not change the type of an aggregable.  `gs.filter(g => g.isHet)` produces an aggregable where only heterozygous genotypes are considered.
 
 ### Count
 
 ```
-    <aggregable>.count()
+<aggregable>.count()
 ```
 
 `count()` counts the number of included elements in this aggregable.
@@ -185,34 +185,34 @@ The result of `count` is a `Long` (integer).
 
 One can replicate `qc.nHet` for either samples or variants by counting:
 ```
-    annotatesamples expr -c 'sa.nHet = gs.filter(g => g.isHet).count()'
-    annotatevariants expr -c 'va.nHet = gs.filter(g => g.isHet).count()'
+annotatesamples expr -c 'sa.nHet = gs.filter(g => g.isHet).count()'
+annotatevariants expr -c 'va.nHet = gs.filter(g => g.isHet).count()'
 ```
 
 One can also compute more complicated counts.  Here we compute the number of non-ref cases and controls per variant (Assuming that `sa.pheno.isCase` is a boolean sample annotation)
 ```
-    annotatevariants expr -c 'va.caseCount = gs.filter(g => sa.pheno.isCase && g.isCalledNonRef).count(), va.controlCount = gs.filter(g => !(sa.pheno.isCase) && g.isCalledNonRef).count()'
+annotatevariants expr -c 'va.caseCount = gs.filter(g => sa.pheno.isCase && g.isCalledNonRef).count(), va.controlCount = gs.filter(g => !(sa.pheno.isCase) && g.isCalledNonRef).count()'
 ```
 
 Here we count the number of singleton non-ref LOFs and the number of homozygous alternate LOFs per sample, assuming that one has previously annotated variant consequence into `va.consequence`:
 ```
-    annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1' \
-    annotatesamples expr -c 'sa.singletonLOFs = gs.filter(g => va.isSingleton && g.isCalledNonRef && va.consequence == "LOF").count(),
-                        sa.homVarLOFs = gs.filter(g => g.isHomVar && va.consequence == "LOF").count()
+annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1' \
+annotatesamples expr -c 'sa.singletonLOFs = gs.filter(g => va.isSingleton && g.isCalledNonRef && va.consequence == "LOF").count(),
+                    sa.homVarLOFs = gs.filter(g => g.isHomVar && va.consequence == "LOF").count()
 ```
 
 This can also be used to calculate statistics from sample/variant annotations in `annotateglobal`:
 ```
-    annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1'
-    annotatesamples expr -c 'sa.callrate = gs.fraction(g => g.isCalled)'
-    annotateglobal expr -c 'global.lowQualSamples = samples.filter(s => sa.callrate < 0.95).count(),
-                  global.totalNSingleton = variants.filter(v => va.isSingleton).count()'
+annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1'
+annotatesamples expr -c 'sa.callrate = gs.fraction(g => g.isCalled)'
+annotateglobal expr -c 'global.lowQualSamples = samples.filter(s => sa.callrate < 0.95).count(),
+              global.totalNSingleton = variants.filter(v => va.isSingleton).count()'
 ```
 
 ### Fraction
 
 ```
-    <aggregable>.fraction( <Boolean lambda expression> )
+<aggregable>.fraction( <Boolean lambda expression> )
 ```
 
 `fraction` computes the ratio of the number of occurrences for which a boolean condition evaluates to `true`, divided the number of included elements in the aggregable.
@@ -223,14 +223,14 @@ The result of `fraction` is a `Double` (floating-point)
 
 One can replicate call rate, or calculate missingness:
 ```
-    filtervariants expr --keep -c 'gs.fraction(g => g.isCalled) > 0.90'
-    filtersamples expr --keep -c 'gs.fraction(g => g.isCalled) > 0.95'
+filtervariants expr --keep -c 'gs.fraction(g => g.isCalled) > 0.90'
+filtersamples expr --keep -c 'gs.fraction(g => g.isCalled) > 0.95'
 ```
 
 One can also extend this thinking to compute the differential missingness at SNPs and indels:
 ```
-    annotatesamples expr -c 'sa.SNPmissingness = gs.filter(g => v.altAllele.isSNP).fraction(g => g.isNotCalled),
-                        sa.indelmissingness = gs.filter(g => v.altAllele.isIndel).fraction(g => g.isNotCalled)
+annotatesamples expr -c 'sa.SNPmissingness = gs.filter(g => v.altAllele.isSNP).fraction(g => g.isNotCalled),
+                    sa.indelmissingness = gs.filter(g => v.altAllele.isIndel).fraction(g => g.isNotCalled)
 ```
 
 ### Sum
@@ -239,71 +239,70 @@ One can also extend this thinking to compute the differential missingness at SNP
 
 **Examples:**
 
-Compute the 
+Compute the
 
 ### Stats
 
 ```
-    <numeric aggregable>.stats()
+<numeric aggregable>.stats()
 ```
 
-`stats()` computes six useful statistics about a numeric aggregable.  
+`stats()` computes six useful statistics about a numeric aggregable.
 
 The result of `stats` is a struct:
- ```
- Struct {
-    mean: Double,
-    stdev: Double,
-    min: Double,
-    max: Double,
-    nNotMissing: Double,
-    sum: Double
- }
- ```
+```
+Struct {
+   mean: Double,
+   stdev: Double,
+   min: Double,
+   max: Double,
+   nNotMissing: Double,
+   sum: Double
+}
+```
 
 **Examples:**
 
 One can replicate the calculations in `<va / sa>.qc.gqMean` and `<va / sa>.qc.gqStDev` with the command below.  After this command, `va.gqstats.mean` is equal to the result of running `variantqc` and querying `va.qc.gqMean`, and this equivalence holds for the other values.
 ```
-    annotatevariants expr -c 'va.gqstats = gs.map(g => g.gq).stats()'
-    annotatesamples expr -c 'sa.gqstats = g.map(g => g.gq).stats()'
+annotatevariants expr -c 'va.gqstats = gs.map(g => g.gq).stats()'
+annotatesamples expr -c 'sa.gqstats = g.map(g => g.gq).stats()'
 ```
 
 One can use `stats` to compute statistics on annotations as well:
 ```
-    sampleqc
-    annotateglobal expr -c 'global.singletonStats = samples.map(s => sa.qc.nSingleton).stats()' 
+sampleqc
+annotateglobal expr -c 'global.singletonStats = samples.map(s => sa.qc.nSingleton).stats()'
 ```
 
 Compute gq/dp statistics stratified by genotype call:
 ```
-    annotatevariants expr -c '
-        va.homrefGQ = gs.filter(g => g.isHomRef).map(g => g.gq).stats(),
-        va.hetGQ = gs.filter(g => g.isHet).map(g => g.gq).stats(),
-        va.homvarGQ = gs.filter(g => g.isHomVar).map(g => g.gq).stats(),
-        va.homrefDP = gs.filter(g => g.isHomRef).map(g => g.dp).stats(),
-        va.hetDP = gs.filter(g => g.isHet).map(g => g.dp).stats(),
-        va.homvarDP = gs.filter(g => g.isHomVar).map(g => g.dp).stats()'
+annotatevariants expr -c '
+    va.homrefGQ = gs.filter(g => g.isHomRef).map(g => g.gq).stats(),
+    va.hetGQ = gs.filter(g => g.isHet).map(g => g.gq).stats(),
+    va.homvarGQ = gs.filter(g => g.isHomVar).map(g => g.gq).stats(),
+    va.homrefDP = gs.filter(g => g.isHomRef).map(g => g.dp).stats(),
+    va.hetDP = gs.filter(g => g.isHet).map(g => g.dp).stats(),
+    va.homvarDP = gs.filter(g => g.isHomVar).map(g => g.dp).stats()'
 ```
 
 Compute statistics on number of singletons stratified by case/control:
 ```
-    sampleqc
-    annotateglobal expr -c 'global.caseSingletons = samples.filter(s => sa.fam.isCase).map(s => sa.qc.nSingleton).stats(),
-        global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()'
-
+ sampleqc
+ annotateglobal expr -c 'global.caseSingletons = samples.filter(s => sa.fam.isCase).map(s => sa.qc.nSingleton).stats(),
+     global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()'
 ```
 
 ### Collect
 
 ```
-    <aggregable>.collect()
+<aggregable>.collect()
 ```
 
 `collect()` is an aggregator that allows a set of elements of an aggregator to be collected into an `Array`.  For example, one can collect the list of non-ref sample IDs per variant with the following:
 
 ```
-    annotatevariants expr -c 'va.hetSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'
+annotatevariants expr -c 'va.hetSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'
 ```
 
 The above reads, "where the genotype is called non-reference, collect the sample id".  This returns an `Array[String]`.
@@ -330,7 +329,7 @@ filtersamples expr --keep -c 'if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 e
 The below expression assumes a VDS was split from a VCF, and filters down to sites which were singletons on import.  `va.aIndex` indexes into the originally-multiallelic array `va.info.AC` with the original position of each variant.
 
 ```
-filtervariants expr --keep -c 'if (va.info.AC[va.aIndex]) == 1' 
+filtervariants expr --keep -c 'if (va.info.AC[va.aIndex]) == 1'
 ```
 
 See documentation on [exporting to TSV](#ExportTSV) for more examples of what Hail's language can do.
@@ -352,7 +351,7 @@ The function adds four annotations of type Double to the annotation root specifi
  - `oddsRatio`
  - `ci95Lower`
  - `ci95Upper`
- 
+
 Note that the aggregator function `count()` creates annotation of type Long, which must be converted to Int as in the workflow below. Caution: the maximum value of an Int is 2147483647. Converting a Long of larger value to Int will corrupt the value.
 
 **Example Workflow to Perform a Single-Variant Association Test Using FET:**
