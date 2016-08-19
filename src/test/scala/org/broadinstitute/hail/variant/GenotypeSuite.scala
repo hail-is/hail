@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.{Arbitrary, Gen, Properties}
+import org.broadinstitute.hail.check.{Arbitrary, Gen, Prop, Properties}
 import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
@@ -91,5 +91,18 @@ class GenotypeSuite extends TestNGSuite {
     assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(99), Some(Array(200, 0, 100))).pAB().get, 0.423950))
 
     Spec.check()
+  }
+
+  @Test def gtPairGtIndexIsId(): Unit = {
+    Prop.forAll { (j: Int, k: Int) =>
+      val gt = GTPair(j, k)
+      Genotype.gtPair(Genotype.gtIndex(gt)) == gt
+    }
+  }
+
+  @Test def gtIndexGtPairIsId(): Unit = {
+    Prop.forAll { (idx: Int) =>
+      Genotype.gtIndex(Genotype.gtPair(idx)) == idx
+    }
   }
 }
