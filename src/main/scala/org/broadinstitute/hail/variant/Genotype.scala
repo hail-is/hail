@@ -74,7 +74,7 @@ class Genotype(private val _gt: Int,
     gq: Option[Int] = this.gq,
     px: Option[Array[Int]] = this.px,
     fakeRef: Boolean = this.fakeRef,
-    isDosage: Boolean = this.isDosage): Genotype = Genotype(gt, ad, dp, gq, pl, fakeRef, isDosage)
+    isDosage: Boolean = this.isDosage): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
