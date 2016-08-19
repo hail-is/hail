@@ -7,7 +7,7 @@
   <meta name="description" content="Hail">
   <link rel="stylesheet" href="css/pandocSampleTemplate.css">
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
-  <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+  <script type="text/javascript" defer src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
   <script src="js/buildDocs.js"></script>
   <script> 
     $(function(){
@@ -29,8 +29,7 @@
         $("div#GlobalOptions div.options").append(buildGlobalOptions('globalopt', json.global.options));
       });
     });
-    </script> 
-   
+  </script>
 </head>
 
 <body>  
@@ -61,17 +60,18 @@
       </ul>
     </ul>
   </div>
-  
-<div id="Representation"></div>
-<div id="ImportingGenotypeData"></div>
-<div id="HailObjects"></div>
-<div id="Annotations"></div>
-<div id="HailExpressionLanguage"></div>
-<div id="Filtering"></div>
-<div id="ExportingData"></div>
-<div id="ExportingTSV"></div>
-<div id="SQL"></div>
-<div id="Building"></div>
-<div id="GlobalOptions"></div>
+
+  <div id="Representation"></div>
+  <div id="ImportingGenotypeData"></div>
+  <div id="HailObjects"></div>
+  <div id="Annotations"></div>
+  <div id="HailExpressionLanguage"></div>
+  <div id="Filtering"></div>
+  <div id="ExportingData"></div>
+  <div id="ExportingTSV"></div>
+  <div id="SQL"></div>
+  <div id="Building"></div>
+  <div id="GlobalOptions"></div>
+
 </body>
 </html>

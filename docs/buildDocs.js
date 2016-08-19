@@ -57,7 +57,7 @@ function buildSynopsis(data) {
 
 function buildCommand(commandName, data) {
 	var cmdId = commandName.replace(/\s+/g, '_').replace(/\//, '_');
-	// $("#Commands").append("<div class=command id=" + cmdId + "></div>");
+
 	$("body").append("<div class=command id=" + cmdId + "></div>");
     
     $("#toc-commands").append("<li><a href=#" + cmdId + ">" + commandName + "</a></li>");
@@ -70,7 +70,7 @@ function buildCommand(commandName, data) {
 		$("div#" + cmdId + " div.cmdhead").append(buildHeader(commandName, cmdId));
 		$("div#" + cmdId + " div.description").append(buildDescription(cmdId, data));
 		$("div#" + cmdId + " div.options").append(buildCommandOptions(cmdId, data.options));
-		$("div#" + cmdId + " div.synopsis").append(buildSynopsis(data));		
+		$("div#" + cmdId + " div.synopsis").append(buildSynopsis(data));
 	});
 
 	
