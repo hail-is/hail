@@ -265,7 +265,7 @@ task copyHtml(type: Copy) {
 }
 
 task copyCss(type: Copy) {
-    from 'docs/pandocSampleTemplate.css'
+    from 'docs/style.css'
     into 'build/docs/css'
 }
 
