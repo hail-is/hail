@@ -113,21 +113,9 @@ class ExportVcfSuite extends SparkSuite {
     val out = tmpDir.createTempFile("exportPPs", ".vcf")
     ExportVCF.run(s, Array("-o", out, "--export-pp"))
 
-    val lines1 = readFile(out, sc.hadoopConfiguration) { in =>
-      Source.fromInputStream(in)
-        .getLines()
-        .dropWhile(_.startsWith("#"))
-        .toIndexedSeq
-    }
+    val vdsNew = LoadVCF(sc, out, nPartitions = Some(10), ppAsPL = true)
 
-    val lines2 = readFile("src/test/resources/sample.PPs.vcf", sc.hadoopConfiguration) { in =>
-      Source.fromInputStream(in)
-        .getLines()
-        .dropWhile(_.startsWith("#"))
-        .toIndexedSeq
-    }
-
-    assert(lines1 == lines2)
+    assert(s.vds.same(vdsNew))
   }
 
   @Test def testGeneratedInfo() {
