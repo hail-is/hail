@@ -32,8 +32,8 @@ class SparkSuite extends TestNGSuite {
 
     sqlContext = SparkManager.createSQLContext()
 
-    // Logger.getLogger("org").setLevel(Level.OFF)
-    // Logger.getLogger("akka").setLevel(Level.OFF)
+    Logger.getLogger("org").setLevel(Level.OFF)
+    Logger.getLogger("akka").setLevel(Level.OFF)
 
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     HailConfiguration.installDir = new File(jar).getParent + "/.."
