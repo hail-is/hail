@@ -18,25 +18,20 @@ body {
   background: #fefefe;
 }
 
-a {
-  color: #0645ad;
+a, a code {
+  color: #1a0dab;
   text-decoration: none;
 }
 
-a:visited {
-  color: #0b0080;
+a:hover, a:hover code {
+  color: #1a0dab;
+  text-decoration-color: #1a0dab;
+  text-decoration: underline;
 }
 
-a:hover {
-  color: #06e;
-}
-
-a:active {
-  color: #faa700;
-}
-
-a:focus {
-  outline: thin dotted;
+a:visited, a:visited code {
+  color: #609;
+  text-decoration-color: #609;
 }
 
 *::-moz-selection {
