@@ -190,6 +190,11 @@ class Genotype(private val _gt: Int,
       val p = Genotype.gtPair(gt)
       s"${ p.j }/${ p.k }"
     }.getOrElse("./."))
+
+    if (fakeRef) {
+      b += '*'
+    }
+
     b += ':'
     b.append(ad.map(_.mkString(",")).getOrElse("."))
     b += ':'
@@ -197,15 +202,10 @@ class Genotype(private val _gt: Int,
     b += ':'
     b.append(gq.map(_.toString).getOrElse("."))
     b += ':'
-    if (!isDosage)
-      b.append(pl.map(_.mkString(",")).getOrElse("."))
-    else
-      b.append(dosage.map(_.mkString(",")).getOrElse("."))
-
-    val regex = """(?::\.)+$""".r
-    val regexMatch = regex.findFirstMatchIn(b)
-    regexMatch.foreach { m =>
-      b.delete(m.start, m.end)
+    if (!isDosage) {
+      b.append("PL=" + pl.map(_.mkString(",")).getOrElse("."))
+    } else {
+      b.append("GP=" + dosage.map(_.mkString(",")).getOrElse("."))
     }
 
     b.result()
