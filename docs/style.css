@@ -113,19 +113,24 @@ hr {
   padding: 0;
 }
 
-pre, code, kbd, samp {
+code, samp, kbd {
   color: #000;
   font-family: monospace, monospace;
   _font-family: 'courier new', monospace;
-  font-size: 0.98em;
-  background: rgba(238, 238, 238, 1);
-  /* 5/32, 10/32 .15625em .3125em */
-  padding: .15625em .25em;
+  background: #eee;
+  padding: .15625em .25em;  /* 5/32, 1/4 */
+}
+
+pre > code {
+  line-height: 1.1;
+  display: block;
+  padding: .5em .5em;
 }
 
 pre {
   white-space: pre;
   word-wrap: normal;
+  background: #eee;
 }
 
 b, strong {
@@ -358,8 +363,8 @@ body > div:not(.command) > *:not(h1):not(h2) {
 }
 
 pre.synopsis {
-    padding: 10px 10px 10px 60px;
-    text-indent: -50px;
+    padding: 0 0 0 2em;
+    text-indent: -2em;
     white-space: pre-wrap;
 }
 
