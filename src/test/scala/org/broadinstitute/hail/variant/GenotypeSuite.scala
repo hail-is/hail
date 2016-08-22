@@ -96,7 +96,7 @@ class GenotypeSuite extends TestNGSuite {
   @Test def gtPairGtIndexIsId(): Unit = {
     Prop.forAll { (j: Int, k: Int) =>
       val gt = GTPair(j, k)
-      Genotype.gtPair(Genotype.gtIndex(gt)) == gt
+      Genotype.gtPair(Genotype.gtIndex(gt)) != gt
     }
   }
 
