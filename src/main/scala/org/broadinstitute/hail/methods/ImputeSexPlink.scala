@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.{Genotype, Variant, VariantDataset}
+import org.broadinstitute.hail.variant.VariantDataset
 
 object ImputeSexPlink {
 
@@ -26,11 +26,11 @@ object ImputeSexPlink {
   }
 
   def apply(vds: VariantDataset,
-            mafThreshold: Double,
-            includePar: Boolean,
-            fMaleThreshold: Double,
-            fFemaleThreshold: Double,
-            popFrequencyExpr: Option[String]): Map[String, Annotation] = {
+    mafThreshold: Double,
+    includePar: Boolean,
+    fMaleThreshold: Double,
+    fFemaleThreshold: Double,
+    popFrequencyExpr: Option[String]): Map[String, Annotation] = {
 
     val query = popFrequencyExpr.map { code =>
       val (t, f) = vds.queryVA(code)
@@ -40,15 +40,15 @@ object ImputeSexPlink {
       }
     }
 
-    vds.filterVariants((v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+    vds.filterVariants { case (v, _, _) =>
       if (!includePar)
         v.inXNonPar
       else
         v.contig == "X" || v.contig == "23" || v.contig == "25"
-    )
-      .mapAnnotations((v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+    }
+      .mapAnnotations { case (v, va, gs) =>
         query.map(_.apply(va).orNull)
-          .getOrElse({
+          .getOrElse {
             var nAlt = 0
             var nTot = 0
             for (g <- gs) {
@@ -61,14 +61,14 @@ object ImputeSexPlink {
               nAlt.toDouble / nTot
             else
               null
-          }))
-      .filterVariants((v: Variant, va: Annotation, _: Iterable[Genotype]) =>
-        Option(va).exists(_.asInstanceOf[Double] > mafThreshold))
-      .aggregateBySampleWithAll(new InbreedingCombiner)(
-        (ibc: InbreedingCombiner, _: Variant, va: Annotation, _: String, _: Annotation, gt: Genotype) =>
-          ibc.addCount(gt, va.asInstanceOf[Double]),
-        (ibc1: InbreedingCombiner, ibc2: InbreedingCombiner) => ibc1.combineCounts(ibc2)
-      )
+          }
+      }
+      .filterVariants { case (v, va, _) => Option(va).exists(_.asInstanceOf[Double] > mafThreshold) }
+      .aggregateBySampleWithAll(new InbreedingCombiner)({ case (ibc, _, va, _, _, gt) =>
+        ibc.addCount(gt, va.asInstanceOf[Double])
+      }, { case (ibc1, ibc2) =>
+        ibc1.combineCounts(ibc2)
+      })
       .collect()
       .toMap
       .mapValues(ibc =>

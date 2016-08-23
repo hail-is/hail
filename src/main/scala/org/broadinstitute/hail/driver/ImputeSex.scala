@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.ImputeSexPlink
 import org.kohsuke.args4j.{Option => Args4jOption}
 
