@@ -164,6 +164,14 @@ object Main {
 
   def main(args: Array[String]) {
 
+    {
+      import breeze.linalg._
+      import breeze.linalg.operators.{OpMulMatrix, BinaryRegistry}
+
+      implicitly[BinaryRegistry[DenseMatrix[Double], Vector[Double], OpMulMatrix.type, DenseVector[Double]]].register(
+        DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
+    }
+
     def splitBefore[T](a: Array[T], p: (T) => Boolean)
       (implicit tct: ClassTag[T]): Array[Array[T]] = {
       val r = mutable.ArrayBuilder.make[Array[T]]()
