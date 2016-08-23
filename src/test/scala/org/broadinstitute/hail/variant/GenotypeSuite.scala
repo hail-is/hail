@@ -2,7 +2,6 @@ package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.check.{Gen, Properties}
-import org.broadinstitute.hail.check.Gen.positiveInt
 import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
