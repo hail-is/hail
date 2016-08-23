@@ -1,8 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.RangePartitioner
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
@@ -192,7 +190,7 @@ object ExportVCF extends Command {
                     case _ => sb.append(v)
                   }
                 }
-              } { sb += ';' }
+              }(sb += ';')
           }
 
         case None =>
@@ -212,23 +210,14 @@ object ExportVCF extends Command {
       }
     }
 
-    val isDosage = vds.isDosage
-
-    val kvRDD = vds.rdd.map { case (v, (a, gs)) =>
-      (v, (a, gs.toGenotypeStream(v, isDosage, compress = false)))
-    }
-    kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
-    kvRDD
-      .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotation, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-      .mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
-        val sb = new StringBuilder
-        it.map { case (v, (va, gs)) =>
-          sb.clear()
-          appendRow(sb, v, va, gs)
-          sb.result()
-        }
-      }.writeTable(options.output, Some(header), deleteTmpFiles = true)
-    kvRDD.unpersist()
+    vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
+      val sb = new StringBuilder
+      it.map { case (v, (va, gs)) =>
+        sb.clear()
+        appendRow(sb, v, va, gs)
+        sb.result()
+      }
+    }.writeTable(options.output, Some(header), deleteTmpFiles = true)
     state
   }
 

@@ -1,11 +1,12 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.{OrderedRDD, RDD}
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
@@ -38,7 +39,9 @@ class ImputeSexSuite extends SparkSuite {
     property("hail generates same results as PLINK v1.9") =
       forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { case (vds: VariantSampleMatrix[Genotype]) =>
 
-        var s = State(sc, sqlContext).copy(vds = vds.copy(rdd = vds.rdd.map { case (v, (va, gs)) => (v.copy(contig = "X"), (va, gs)) }))
+        var s = State(sc, sqlContext).copy(vds = vds.copy(rdd =
+          vds.rdd.map { case (v, (va, gs)) => (v.copy(contig = "X"), (va, gs)) }
+          .toOrderedRDD(_.locus)))
 
         s = SplitMulti.run(s, Array.empty[String])
         s = VariantQC.run(s, Array[String]())
@@ -80,7 +83,7 @@ class ImputeSexSuite extends SparkSuite {
             if (resultSex && resultF)
               true
             else {
-              println(s"$sample plink=${data1.getOrElse("NA")} hail=${data2.getOrElse("NA")} $resultSex $resultF")
+              println(s"$sample plink=${ data1.getOrElse("NA") } hail=${ data2.getOrElse("NA") } $resultSex $resultF")
               false
             }
           }

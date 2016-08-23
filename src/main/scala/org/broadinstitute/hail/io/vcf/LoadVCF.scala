@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.io.vcf
 
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
+import org.apache.spark.rdd.OrderedRDD
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
@@ -46,7 +48,7 @@ object VCFReport {
       case Symbolic => "Variant is symbolic"
       case ADInvalidNumber => "AD array contained the wrong number of elements"
     }
-    s"$count ${plural(count, "time")}: $desc"
+    s"$count ${ plural(count, "time") }: $desc"
   }
 
   def report() {
@@ -109,6 +111,11 @@ object LoadVCF {
     val end = i
 
     s.substring(start, end)
+  }
+
+  def lineVariant(s: String): Variant = {
+    val arr = s.split("\t", 6)
+    Variant(arr(0), arr(1).toInt, arr(3), arr(4))
   }
 
   def infoNumberToString(line: VCFInfoHeaderLine): String = line.getCountType match {
@@ -203,7 +210,7 @@ object LoadVCF {
     val headerLine = headerLines.last
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
       fatal(s"corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'" +
-        s"\n  found: ${truncate(headerLine)}")
+        s"\n  found: ${ truncate(headerLine) }")
 
     val sampleIds: Array[String] =
       if (skipGenotypes)
@@ -221,6 +228,15 @@ object LoadVCF {
       Array(file1)
     else
       files
+
+    val justVariants = sc.textFilesLines(files2, nPartitions = nPartitions.getOrElse(sc.defaultMinPartitions))
+      .filter(_.map { line => !line.isEmpty &&
+        line(0) != '#' &&
+        lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
+        // FIXME this doesn't filter symbolic, but also avoids decoding the line.  Won't cause errors but might cause unnecessary shuffles
+      }.value)
+      .map(_.map(lineVariant).value)
+    justVariants.persist(StorageLevel.MEMORY_AND_DISK)
 
     val genotypes = sc.union(files2.map { file =>
       val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
@@ -248,7 +264,9 @@ object LoadVCF {
           }.value
           }
         }
-    })
+    }).toOrderedRDD(_.locus, Some(justVariants))
+
+    justVariants.unpersist()
 
     VariantSampleMatrix(VariantMetadata(sampleIds,
       Annotation.emptyIndexedSeq(sampleIds.length),

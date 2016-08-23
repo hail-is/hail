@@ -3,6 +3,7 @@ package org.broadinstitute.hail.utils
 import org.apache.spark.SparkContext
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.Utils._
 
 import scala.util.Random
 
@@ -126,6 +127,6 @@ object TestRDDBuilder {
         }
         (variant, (Annotation.empty, b.result(): Iterable[Genotype]))
     }
-    VariantSampleMatrix(VariantMetadata(sampleList), streamRDD)
+    VariantSampleMatrix(VariantMetadata(sampleList), streamRDD.toOrderedRDD(_.locus))
   }
 }

@@ -2,10 +2,11 @@ package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
 
-import org.apache.spark.rdd.RDD
+import org.apache.hadoop
+import org.apache.spark.rdd.{OrderedRDD, RDD}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.{SparkContext, SparkEnv}
+import org.apache.spark.{OrderedPartitioner, SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
@@ -24,16 +25,14 @@ object VariantSampleMatrix {
   final val fileVersion: Int = 4
 
   def apply[T](metadata: VariantMetadata,
-    rdd: RDD[(Variant, (Annotation, Iterable[T]))])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
+    rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     new VariantSampleMatrix(metadata, rdd)
   }
 
-  private def readMetadata(sqlContext: SQLContext, dirname: String,
+  private def readMetadata(hConf: hadoop.conf.Configuration, dirname: String,
     requireParquetSuccess: Boolean = true): VariantMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
-
-    val hConf = sqlContext.sparkContext.hadoopConfiguration
 
     if (!hadoopExists(hConf, dirname))
       fatal(s"no VDS found at `$dirname'")
@@ -114,9 +113,9 @@ object VariantSampleMatrix {
         case JObject(List(("id", JString(id)), ("annotation", jv: JValue))) =>
           (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations"))
         case other => fatal(
-            s"""corrupt VDS: invalid metadata
-                |  Invalid sample annotation metadata
-                |  Recreate VDS with current version of Hail.""".stripMargin)
+          s"""corrupt VDS: invalid metadata
+              |  Invalid sample annotation metadata
+              |  Recreate VDS with current version of Hail.""".stripMargin)
       }
       .toArray
 
@@ -132,31 +131,56 @@ object VariantSampleMatrix {
 
   def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
 
-    val metadata = readMetadata(sqlContext, dirname)
+    val hConf = sqlContext.sparkContext.hadoopConfiguration
+
+    val metadata = readMetadata(hConf, dirname, skipGenotypes)
     val vaSignature = metadata.vaSignature
 
-    val df = sqlContext.read.parquet(dirname + "/rdd.parquet")
+    val df = sqlContext.readPartitioned.parquet(dirname + "/rdd.parquet")
 
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
     val isDosage = metadata.isDosage
 
-    if (skipGenotypes)
-      new VariantSampleMatrix[Genotype](
-        metadata.copy(sampleIds = IndexedSeq.empty[String],
-          sampleAnnotations = IndexedSeq.empty[Annotation]),
+    def readRDD(skipGenotypes: Boolean): RDD[(Variant, (Annotation, Iterable[Genotype]))] = {
+      if (skipGenotypes)
         df.select("variant", "annotations")
           .map(row => (row.getVariant(0),
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              Iterable.empty[Genotype]))))
-    else
-      new VariantSampleMatrix(
-        metadata,
+              Iterable.empty[Genotype])))
+      else
         df.rdd.map { row =>
           val v = row.getVariant(0)
+
           (v,
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
               row.getGenotypeStream(v, 2, isDosage)))
-        })
+        }
+    }
+
+    val orderedRDD = if (hadoopExists(hConf, dirname + "/partitioner")) {
+      val partitioner = readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>
+        OrderedPartitioner.read[Locus, Variant](in, _.locus)
+      }
+
+      new OrderedRDD[Locus, Variant, (Annotation, Iterable[Genotype])](readRDD(skipGenotypes), partitioner)
+    } else {
+      warn(
+        """No partition information found: VDS is old or corrupted and will experience poor performance.
+          |  Please `read' and `write' this dataset to update it.""".stripMargin)
+      if (skipGenotypes)
+        readRDD(skipGenotypes = true).toOrderedRDD(_.locus)
+      else
+        readRDD(skipGenotypes = false).toOrderedRDD(
+          _.locus,
+          reducedRepresentation = Some(readRDD(skipGenotypes = true).map(_._1)))
+
+    }
+
+    new VariantSampleMatrix[Genotype](
+      if (skipGenotypes) metadata.copy(sampleIds = IndexedSeq.empty[String],
+        sampleAnnotations = IndexedSeq.empty[Annotation])
+      else metadata,
+      orderedRDD)
   }
 
   def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.t,
@@ -167,7 +191,7 @@ object VariantSampleMatrix {
   def readKudu(sqlContext: SQLContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
-    val metadata = readMetadata(sqlContext, dirname, requireParquetSuccess = false)
+    val metadata = readMetadata(sqlContext.sparkContext.hadoopConfiguration, dirname, requireParquetSuccess = false)
     val vaSignature = metadata.vaSignature
     val isDosage = metadata.isDosage
 
@@ -199,7 +223,7 @@ object VariantSampleMatrix {
     }
 
     )
-    new VariantSampleMatrix[Genotype](metadata, rdd)
+    new VariantSampleMatrix[Genotype](metadata, rdd.toOrderedRDD(_.locus))
   }
 
   private def makeSchemaForKudu(vaSignature: Type): StructType =
@@ -249,7 +273,7 @@ case class VSMSubgen[T](
           yield (v, (va, ts))).resize(l))
       yield {
         VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
-          sc.parallelize(rows, nPartitions))
+          sc.parallelize(rows, nPartitions).toOrderedRDD(_.locus))
       }
 }
 
@@ -273,8 +297,7 @@ object VSMSubgen {
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
-  val rdd: RDD[(Variant, (Annotation, Iterable[T]))])
-  (implicit tct: ClassTag[T]) {
+  val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) {
 
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
 
@@ -300,7 +323,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def isDosage: Boolean = metadata.isDosage
 
-  def copy[U](rdd: RDD[(Variant, (Annotation, Iterable[U]))] = rdd,
+  def copy[U](rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[U])] = rdd,
     sampleIds: IndexedSeq[String] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     globalAnnotation: Annotation = globalAnnotation,
@@ -318,13 +341,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def cache(): VariantSampleMatrix[T] = copy[T](rdd = rdd.cache())
 
-  def repartition(nPartitions: Int) = copy[T](rdd = rdd.repartition(nPartitions)(null))
+  // FIXME make this faster by maintaining order
+  def repartition(nPartitions: Int) = copy[T](rdd = rdd.repartition(nPartitions)(null).toOrderedRDD(_.locus))
 
   def nPartitions: Int = rdd.partitions.length
 
-  def variants: RDD[Variant] = rdd.map(_._1)
+  def variants: RDD[Variant] = rdd.keys
 
-  def variantsAndAnnotations: RDD[(Variant, Annotation)] = rdd.map { case (v, (va, gs)) => (v, va) }
+  def variantsAndAnnotations: RDD[(Variant, Annotation)] = rdd.mapValuesWithKey { case (v, (va, gs)) => va }
 
   def nVariants: Long = variants.count()
 
@@ -335,7 +359,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     mapWithAll[(Variant, Annotation, String, Annotation, T)]((v, va, s, sa, g) => (v, va, s, sa, g))
 
   def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
-    copy(rdd = rdd.sample(withReplacement = false, fraction, 1))
+    copy(rdd = rdd.sample(withReplacement = false, fraction, 1).toOrderedRDD(_.locus))
 
   def mapValues[U](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     mapValuesWithAll((v, va, s, sa, g) => f(g))
@@ -350,11 +374,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (implicit uct: ClassTag[U]): VariantSampleMatrix[U] = {
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
-    copy(rdd = rdd.map { case (v, (va, gs)) =>
-      (v, (va, localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](localSampleAnnotationsBc.value, gs, {
+    copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
+      (va, localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](localSampleAnnotationsBc.value, gs, {
         case (s, sa, g) => f(v, va, s, sa, g)
-      })))
-    })
+      }))
+    }.toOrderedRDD(_.locus))
   }
 
   def map[U](f: T => U)(implicit uct: ClassTag[U]): RDD[U] =
@@ -396,7 +420,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def mapAnnotations(f: (Variant, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[T] =
-    copy[T](rdd = rdd.map { case (v, (va, gs)) => (v, (f(v, va, gs), gs)) })
+    copy[T](rdd = rdd.mapValuesWithKey { case (v, (va, gs)) => (f(v, va, gs), gs) }.toOrderedRDD(_.locus))
 
   def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     flatMapWithKeys((v, s, g) => f(g))
@@ -411,7 +435,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
-    copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) })
+    copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) }.toOrderedRDD(_.locus))
 
   def filterIntervals(iList: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
     val iListBc = sparkContext.broadcast(iList)
@@ -427,9 +451,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def dropSamples(): VariantSampleMatrix[T] =
     copy(sampleIds = IndexedSeq.empty[String],
       sampleAnnotations = IndexedSeq.empty[Annotation],
-      rdd = rdd.map { case (v, (va, gs)) =>
-        (v, (va, Iterable.empty[T]))
-      })
+      rdd = rdd.mapValues { case (va, gs) => (va, Iterable.empty[T]) }
+        .toOrderedRDD(_.locus))
 
   // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (String, Annotation) => Boolean): VariantSampleMatrix[T] = {
@@ -442,9 +465,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       sampleAnnotations = sampleAnnotations.zipWithIndex
         .filter { case (sa, i) => mask(i) }
         .map(_._1),
-      rdd = rdd.map { case (v, (va, gs)) =>
-        (v, (va, gs.lazyFilterWith(maskBc.value, (g: T, m: Boolean) => m)))
-      })
+      rdd = rdd.mapValues { case (va, gs) =>
+        (va, gs.lazyFilterWith(maskBc.value, (g: T, m: Boolean) => m))
+      }.toOrderedRDD(_.locus))
   }
 
   def aggregateBySample[U](zeroValue: U)(
@@ -510,7 +533,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     rdd
-      .mapPartitions { (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
+      .mapPartitions({ (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
         it.map { case (v, (va, gs)) =>
           val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
@@ -519,7 +542,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
               seqOp(acc, v, va, s, sa, g)
             })
         }
-      }
+      }, preservesPartitioning = true)
 
     /*
         rdd
@@ -560,7 +583,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
-    rdd.map { case (v, (va, gs)) => (v, gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g))) }
+    rdd.mapValues { case (va, gs) => gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g)) }
 
   def same(that: VariantSampleMatrix[T]): Boolean = {
     val metadataSame = metadata == that.metadata
@@ -644,27 +667,27 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     copy(vaSignature = newVAS,
-      rdd = rdd.map {
+      rdd = rdd.mapValuesWithKey {
         case (v, (va, gs)) =>
           val serializer = SparkEnv.get.serializer.newInstance()
           val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
 
-          (v, (mapOp(va, gs.iterator
+          (mapOp(va, gs.iterator
             .zip(localSampleIdsBc.value.iterator
               .zip(localSampleAnnotationsBc.value.iterator)).foldLeft(zeroValue) {
             case (acc, (g, (s, sa))) =>
               seqOp(acc, v, va, s, sa, g)
-          }), gs))
-      })
+          }), gs)
+      }.toOrderedRDD(_.locus))
   }
 
   def annotateIntervals(is: IntervalTree[Locus],
     path: List[String]): VariantSampleMatrix[T] = {
     val isBc = sparkContext.broadcast(is)
     val (newSignature, inserter) = insertVA(TBoolean, path)
-    copy(rdd = rdd.map { case (v, (va, gs)) =>
-      (v, (inserter(va, Some(isBc.value.contains(Locus(v.contig, v.start)))), gs))
-    },
+    copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
+      (inserter(va, Some(isBc.value.contains(Locus(v.contig, v.start)))), gs)
+    }.toOrderedRDD(_.locus),
       vaSignature = newSignature)
   }
 
@@ -679,7 +702,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val (newSignature, inserter) = insertVA(
       if (all) TSet(t) else t,
       path)
-    copy(rdd = rdd.map { case (v, (va, gs)) =>
+    copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
       val queries = isBc.value.query(v.locus)
       val toIns = if (all)
         Some(queries.map(mBc.value))
@@ -689,23 +712,29 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         else
           Some(mBc.value(queries.head))
       }
-      (v, (inserter(va, toIns), gs))
-    },
+      (inserter(va, toIns), gs)
+    }.toOrderedRDD(_.locus),
       vaSignature = newSignature)
   }
 
   def annotateVariants(otherRDD: RDD[(Variant, Annotation)], newSignature: Type,
     inserter: Inserter): VariantSampleMatrix[T] = {
-    val newRDD = rdd
-      .leftOuterJoinDistinct(otherRDD)
-      .map { case (v, ((va, gs), annotation)) => (v, (inserter(va, annotation), gs)) }
+    val newRDD = rdd.orderedLeftJoinDistinct(otherRDD.toOrderedRDD(_.locus))
+      .mapValues { case ((va, gs), annotation) =>
+        (inserter(va, annotation), gs)
+      }.toOrderedRDD(_.locus)
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
   def annotateLoci(lociRDD: RDD[(Locus, Annotation)], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
-    val newRDD = rdd.map { case (v, (va, gs)) => (v.locus, (v, va, gs)) }
-      .leftOuterJoinDistinct(lociRDD)
-      .map { case (l, ((v, va, gs), annotation)) => (v, (inserter(va, annotation), gs)) }
+    val newRDD = rdd
+      .mapMonotonic({ case (v, vags) => (v.locus, (v, vags)) },
+        identity[Locus])
+      .orderedLeftJoinDistinct(lociRDD.toOrderedRDD(identity[Locus]))
+      .mapValues { case ((v, (va, gs)), annotation) => (v, (inserter(va, annotation), gs)) }
+      .toOrderedRDD[Locus](identity)
+      .mapMonotonic({ case (_, vvags) => vvags },
+        (v: Variant) => v.locus)
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
@@ -863,15 +892,19 @@ class RichVDS(vds: VariantDataset) {
     val vaSignature = vds.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
-    val isDosage = vds.isDosage
+    val ordered = vds.rdd.toOrderedRDD(_.locus)
 
-    val rowRDD = vds.rdd
-      .map {
-        case (v, (va, gs)) =>
-          Row.fromSeq(Array(v.toRow,
-            if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-            gs.toGenotypeStream(v, isDosage, compress).toRow))
-      }
+    writeObjectFile(dirname + "/partitioner", vds.sparkContext.hadoopConfiguration) { out =>
+      ordered.orderedPartitioner.write(out)
+    }
+
+    val isDosage = vds.isDosage
+    val rowRDD = ordered.map {
+      case (v, (va, gs)) =>
+        Row.fromSeq(Array(v.toRow,
+          if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
+          gs.toGenotypeStream(v, isDosage, compress).toRow))
+    }
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
     // .saveAsParquetFile(dirname + "/rdd.parquet")
@@ -938,18 +971,18 @@ class RichVDS(vds: VariantDataset) {
       val (newSignatures2, f2) = vds1.deleteVA("aIndex")
       vds1.copy(wasSplit = false,
         vaSignature = newSignatures2,
-        rdd = vds1.rdd.map {
+        rdd = vds1.rdd.mapValuesWithKey {
           case (v, (va, gs)) =>
-            (v, (f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false))))
-        })
+            (f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
+        }.toOrderedRDD(_.locus))
     } else
       vds
   }
 
   def withGenotypeStream(compress: Boolean = false): VariantDataset = {
     val isDosage = vds.isDosage
-    vds.copy(rdd = vds.rdd.map { case (v, (va, gs)) =>
-      (v, (va, gs.toGenotypeStream(v, isDosage, compress = compress)))
-    })
+    vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
+      (va, gs.toGenotypeStream(v, isDosage, compress = compress))
+    }.toOrderedRDD(_.locus))
   }
 }
