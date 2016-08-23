@@ -44,17 +44,15 @@ object ToplevelCommands {
         + cmd.description))
   }
 
-  register(AggregateIntervals)
   register(AnnotateSamples)
   register(AnnotateVariants)
   register(AnnotateGlobal)
   register(Cache)
-  register(CommandMetadata)
+  register(ImportAnnotations)
   register(CompareVDS)
   register(Count)
   register(DownsampleVariants)
   register(ExportPlink)
-  register(ExportGEN)
   register(ExportGenotypes)
   register(ExportSamples)
   register(ExportVariants)
@@ -67,16 +65,13 @@ object ToplevelCommands {
   register(FilterVariants)
   register(GenDataset)
   register(Grep)
+  register(GroupTest)
+  register(GroupTestSKATO)
   register(GRM)
   register(GQByDP)
   register(GQHist)
-  register(ImportAnnotations)
-  register(ImportBGEN)
-  register(ImportGEN)
-  register(ImportPlink)
   register(ImportVCF)
   register(ImputeSex)
-  register(IndexBGEN)
   register(LinearRegressionCommand)
   register(MendelErrorsCommand)
   register(SplitMulti)
@@ -87,7 +82,6 @@ object ToplevelCommands {
   register(RenameSamples)
   register(Repartition)
   register(SampleQC)
-  register(SeqrServerCommand)
   register(PrintSchema)
   register(ShowGlobalAnnotations)
   register(VariantQC)
@@ -150,7 +144,7 @@ abstract class SuperCommand extends Command {
 
   override def parseArgs(args: Array[String]): Options = {
     val options = newOptions
-    if (args(0) == "-h")
+    if (args(0) ==  "-h")
       options.printUsage = true
 
     val subArgs = args.dropWhile(_ == "-h")
