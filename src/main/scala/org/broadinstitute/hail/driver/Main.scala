@@ -20,10 +20,18 @@ object SparkManager {
   var _sc: SparkContext = _
   var _sqlContext: SQLContext = _
 
-  def createSparkContext(appName: String, master: String): SparkContext = {
+  def createSparkContext(appName: String, master: Option[String], local: String): SparkContext = {
     if (_sc == null) {
       val conf = new SparkConf().setAppName(appName)
-      conf.setMaster(master)
+
+      master match {
+        case Some(m) =>
+          conf.setMaster(m)
+        case None =>
+          if (!conf.contains("spark.master"))
+            conf.setMaster(local)
+      }
+
       conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       _sc = new SparkContext(conf)
       _sc.hadoopConfiguration.set("io.compression.codecs",
@@ -256,11 +264,7 @@ object Main {
           }
       }
 
-    val sc = SparkManager.createSparkContext("Hail",
-      if (options.master != null)
-        options.master
-      else
-        "local[*]")
+    val sc = SparkManager.createSparkContext("Hail", Option(options.master), "local[*]")
 
     val conf = sc.getConf
     conf.set("spark.ui.showConsoleProgress", "false")
