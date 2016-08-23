@@ -100,12 +100,12 @@ A	T	0/1:10,6:16:50:50,0,99
 <div class="cmdsubsection">
 ### VCF Info Fields:
 
-Hail does not split annotations in the info field.  This means that if a multiallelic site with info.AC value `[10, 2]` is split, each split site will contain the same array `[10, 2]`.  The provided annotation `va.aIndex` can be used to select the value corresponding to the split allele's position:
+Hail does not split annotations in the info field.  This means that if a multiallelic site with info.AC value `[10, 2]` is split, each split site will contain the same array `[10, 2]`.  The provided allele index annotation `va.aIndex` can be used to select the value corresponding to the split allele's position:
 
 ```
 $ hail importvcf 1kg.vcf.bgz
     splitmulti
-    filtervariants expr -c 'va.info.AC[va.aIndex] < 10' --remove
+    filtervariants expr -c 'va.info.AC[va.aIndex - 1] < 10' --remove
 ```
 
 **VCFs split by Hail and exported to new VCFs may be incompatible with other tools, if action is not taken first.**  Since the "Number" of the arrays in split multiallelic sites no longer matches the structure on import ("A" for 1 per allele, for example), Hail will export these fields with number ".".
@@ -115,7 +115,7 @@ If the desired output is one value per site, then it is possible to use `annotat
 ```
 $ hail importvcf 1kg.vcf.bgz
     splitmulti 
-    annotatevariants expr -c 'va.info.AC = va.info.AC[va.aIndex]'
+    annotatevariants expr -c 'va.info.AC = va.info.AC[va.aIndex - 1]'
     exportvcf -o 1kg.split.vcf.bgz
 ```
 
@@ -125,6 +125,7 @@ After this pipeline, the info field "AC" in `1kg.split.vcf.bgz` will have number
 <div class="cmdsubsection">
 ### <a name="splitmulti_annotations"></a> Annotations:
 
- - `va.wasSplit       Boolean` -- this variant was originally multiallelic 
- - `va.aIndex             Int` -- The original index of this variant in imported line, 0 for imported biallelic sites
+ - `va.wasSplit : Boolean` -- this variant was originally multiallelic
+ - `va.aIndex : Int` -- the original index of this alternate allele in the multiallelic representation (NB: 1 is the first alternate allele or the only alternate allele in a biallelic variant). For example, `1:100:A:T,C` yields two instances: `1:100:A:T` with aIndex = 1 and `1:100:A:C` with aIndex = 2.
+
 </div>

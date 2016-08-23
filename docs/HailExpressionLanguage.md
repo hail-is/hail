@@ -326,10 +326,10 @@ In the below expression, we will use a different cutoff for samples with Europea
 filtersamples expr --keep -c 'if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200'
 ```
 
-The below expression assumes a VDS was split from a VCF, and filters down to sites which were singletons on import.  `va.aIndex` indexes into the originally-multiallelic array `va.info.AC` with the original position of each variant.
+The below expression assumes a VDS was split from a VCF, and filters down to sites which were singletons on import.  `va.aIndex - 1` (NB: `va.aIndex` is the allele index, not the alternate allele index) indexes into the originally-multiallelic array `va.info.AC` with the original position of each variant.
 
 ```
-filtervariants expr --keep -c 'if (va.info.AC[va.aIndex]) == 1'
+filtervariants expr --keep -c 'if (va.info.AC[va.aIndex - 1]) == 1'
 ```
 
 See documentation on [exporting to TSV](#ExportTSV) for more examples of what Hail's language can do.
