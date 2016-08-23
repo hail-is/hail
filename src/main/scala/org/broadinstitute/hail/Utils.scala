@@ -481,16 +481,6 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
     (implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T], kct: ClassTag[K]): OrderedRDD[T, K, V] =
     OrderedRDD[T, K, V](rdd, projectKey, reducedRepresentation)
 
-  def joinDistinct[W](other: RDD[(K, W)])
-    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, W))] = joinDistinct(other, defaultPartitioner(rdd, other))
-
-  def joinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
-    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
-    rdd.cogroup(other, partitioner).flatMapValues { pair =>
-      for (v <- pair._1.iterator; w <- pair._2.iterator.take(1)) yield (v, w)
-    }
-  }
-
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {

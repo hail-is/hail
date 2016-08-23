@@ -72,14 +72,6 @@ class UtilsSuite extends SparkSuite {
 
     assert(join.collect().sortBy(t => t._1) sameElements answer1)
     assert(join.count() == 4)
-
-    val answer2 = Array((1, (1, 1)), (2, (4, 2)))
-    val pairRDD3 = sc.parallelize(Array(1, 2, 3, 4)).map { i => (i, i * i) }
-    val pairRDD4 = sc.parallelize(Array(1, 2)).map { i => (i, i) }
-    val join2 = pairRDD3.joinDistinct(pairRDD4)
-
-    assert(join2.collect() sameElements answer2)
-    assert(join2.count() == 2)
   }
 
   @Test def testForallExists() {
