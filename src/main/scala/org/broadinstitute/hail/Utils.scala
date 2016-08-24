@@ -14,13 +14,14 @@ import org.apache.spark.Partitioner._
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd._
-import org.apache.spark.sql.{PartitionedDataFrameReader, Row, SQLContext}
+import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{AccumulableParam, Partitioner, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
+import org.broadinstitute.hail.sparkextras.{OrderedRDD, PartitionedDataFrameReader}
 import org.broadinstitute.hail.utils.{AdvanceableOrderedPairIterator, RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
 import org.slf4j.{Logger, LoggerFactory}

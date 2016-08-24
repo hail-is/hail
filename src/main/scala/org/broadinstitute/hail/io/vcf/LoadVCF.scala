@@ -1,12 +1,12 @@
 package org.broadinstitute.hail.io.vcf
 
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
-import org.apache.spark.rdd.OrderedRDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.sparkextras.OrderedRDD
 import org.broadinstitute.hail.variant._
 
 import scala.collection.JavaConversions._

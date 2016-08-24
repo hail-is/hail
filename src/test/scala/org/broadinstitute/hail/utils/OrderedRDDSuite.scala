@@ -1,13 +1,12 @@
 package org.broadinstitute.hail.utils
 
-import org.apache.spark.rdd.{OrderedRDD, RDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.apache.spark.{OrderedPartitioner, Partition, SparkContext, TaskContext}
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop, Properties}
+import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, _}
 import org.broadinstitute.hail.variant.{Locus, Variant}
 import org.testng.annotations.Test
 

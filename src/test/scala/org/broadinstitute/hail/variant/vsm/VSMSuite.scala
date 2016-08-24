@@ -3,7 +3,7 @@ package org.broadinstitute.hail.variant.vsm
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
-import org.apache.spark.rdd.{OrderedRDD, RDD}
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._

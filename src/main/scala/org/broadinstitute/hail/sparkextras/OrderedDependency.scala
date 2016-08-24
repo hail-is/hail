@@ -1,5 +1,6 @@
-package org.apache.spark
+package org.broadinstitute.hail.sparkextras
 
+import org.apache.spark.NarrowDependency
 import org.apache.spark.rdd.RDD
 
 class OrderedDependency[T, K1, K2, V](p1: OrderedPartitioner[T, K1], p2: OrderedPartitioner[T, K2],
