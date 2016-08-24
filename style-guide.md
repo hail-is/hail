@@ -34,7 +34,7 @@ import scala.collection.mutable.ArrayBuilder
   ... ArrayBuilder[Byte] ...
 ```
 
- - Prefer `None`/`Some` to `Option.empty`/`Option`, respectively.
+ - Prefer `None` to `Option.empty`. Prefer `Some(_)` to `Option(_)` when the argument will never be `null`.
 
  - Use require, assert and ensure liberally to check preconditions, conditions and post-conditions.  Define a validate member to check object invariants and call where suitable.
 
