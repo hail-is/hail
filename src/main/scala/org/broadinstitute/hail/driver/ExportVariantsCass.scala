@@ -167,8 +167,15 @@ object ExportVariantsCass extends Command {
 
     val session = CassandraStuff.getSession(address)
 
-    // FIXME check keyspace, table exsit (null)
-    val tableMetadata = session.getCluster.getMetadata.getKeyspace(keyspace).getTable(table)
+    val keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace);
+    if (keyspaceMetadata == null) {
+       throw new IllegalArgumentException("keyspace not found: " + keyspace);
+    }
+    val tableMetadata = keyspaceMetadata.getTable(table)
+    if (tableMetadata == null) {
+       throw new IllegalArgumentException("table not found: " + table);
+    }
+
     val preexistingFields = tableMetadata.getColumns.asScala.map(_.getName).toSet
     val toAdd = fields
       .filter { case (name, t) => !preexistingFields(name) }
