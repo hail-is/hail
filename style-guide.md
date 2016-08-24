@@ -34,6 +34,8 @@ import scala.collection.mutable.ArrayBuilder
   ... ArrayBuilder[Byte] ...
 ```
 
+ - Prefer `None`/`Some` to `Option.empty`/`Option`, respectively.
+
  - Use require, assert and ensure liberally to check preconditions, conditions and post-conditions.  Define a validate member to check object invariants and call where suitable.
 
  - In IntelliJ, turn on Preferences > Editor > Code Style > Scala > Spaces > Other > Insert whitespaces in simple one line blocks.
