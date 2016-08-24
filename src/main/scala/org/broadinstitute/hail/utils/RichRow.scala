@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 class RichRow(r: Row) {
 
   def update(i: Int, a: Any): Row = {
-    val arr = r.toSeq.toArray
+    val arr = Array.tabulate(r.size)(r.get)
     arr(i) = a
     Row.fromSeq(arr)
   }

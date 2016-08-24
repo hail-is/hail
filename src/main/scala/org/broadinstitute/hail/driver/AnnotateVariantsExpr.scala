@@ -33,16 +33,16 @@ object AnnotateVariantsExpr extends Command {
 
 
     val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "global" ->(4, vds.globalSignature)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, vds.saSignature),
+      "global" -> (4, vds.globalSignature)))
     val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "global" -> (2, vds.globalSignature),
+      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
 
 
     val ec = EvalContext(symTab)
@@ -65,7 +65,6 @@ object AnnotateVariantsExpr extends Command {
       ec.setAll(v, va)
 
       aggregateOption.foreach(f => f(v, va, gs))
-
       fns.zip(inserters)
         .foldLeft(va) { case (va, (fn, inserter)) =>
           inserter(va, fn())
@@ -73,5 +72,4 @@ object AnnotateVariantsExpr extends Command {
     }.copy(vaSignature = finalType)
     state.copy(vds = annotated)
   }
-
 }
