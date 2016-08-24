@@ -10,17 +10,15 @@ import org.json4s._
 import scala.math.Numeric.Implicits._
 
 object Contig {
+  val standardContigs = (1 to 23).map(_.toString) ++ IndexedSeq("X", "Y", "MT")
+  val standardContigIdx = standardContigs.zipWithIndex.toMap
+
   def compare(lhs: String, rhs: String): Int = {
-    if (lhs.forall(_.isDigit)) {
-      if (rhs.forall(_.isDigit)) {
-        lhs.toInt.compare(rhs.toInt)
-      } else
-        -1
-    } else {
-      if (rhs.forall(_.isDigit))
-        1
-      else
-        lhs.compare(rhs)
+    (standardContigIdx.get(lhs), standardContigIdx.get(rhs)) match {
+      case (Some(i), Some(j)) => i.compare(j)
+      case (Some(_), None) => -1
+      case (None, Some(_)) => 1
+      case (None, None) => lhs.compare(rhs)
     }
   }
 }
