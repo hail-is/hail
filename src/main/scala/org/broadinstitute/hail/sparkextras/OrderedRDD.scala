@@ -16,6 +16,7 @@ object OrderedRDD {
 
   def apply[T, K, V](rdd: RDD[(K, V)], projectKey: (K) => T, fastKeys: Option[RDD[K]] = None)
     (implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T], kct: ClassTag[K]): OrderedRDD[T, K, V] = {
+    import Ordering.Implicits._
 
     if (rdd.partitions.isEmpty)
       return empty(rdd.sparkContext, projectKey)
@@ -42,8 +43,8 @@ object OrderedRDD {
 
     val partitionsSorted =
       keyInfoOption.exists(keyInfo =>
-        keyInfo.tail.zip(keyInfo).forall { case (pi1, pi2) =>
-          tOrd.lt(pi1.max, pi2.min)
+        keyInfo.zip(keyInfo.tail).forall { case (p, pnext) =>
+          p.max < pnext.min
         })
 
     if (partitionsSorted) {

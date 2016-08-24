@@ -5,8 +5,8 @@ import org.testng.annotations.Test
 
 class VariantSuite extends TestNGSuite {
   @Test def test() {
-    assert(Contig.compare("3", "26") < 0)
-    assert(Contig.compare("26", "3") > 0)
+    assert(Contig.compare("3", "18") < 0)
+    assert(Contig.compare("18", "3") > 0)
     assert(Contig.compare("7", "7") == 0)
 
     assert(Contig.compare("3", "X") < 0)
@@ -15,6 +15,10 @@ class VariantSuite extends TestNGSuite {
 
     assert(Contig.compare("X", "Y") < 0)
     assert(Contig.compare("Y", "X") > 0)
-    assert(Contig.compare("MT", "Y") < 0)
+    assert(Contig.compare("Y", "MT") < 0)
+
+    assert(Contig.compare("18", "SPQR") < 0)
+    assert(Contig.compare("MT", "SPQR") < 0)
+
   }
 }

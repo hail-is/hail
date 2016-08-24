@@ -12,6 +12,8 @@ object PartitionKeyInfo {
   final val KSORTED = 2
 
   def apply[T, K](partIndex: Int, projectKey: (K) => T, it: Iterator[K])(implicit tOrd: Ordering[T], kOrd: Ordering[K]): PartitionKeyInfo[T] = {
+    import Ordering.Implicits._
+
     assert(it.hasNext)
 
     val k0 = it.next()
@@ -27,14 +29,14 @@ object PartitionKeyInfo {
       val k = it.next()
       val t = projectKey(k)
 
-      if (tOrd.lt(prevT, t))
+      if (t < prevT)
         sortedness = UNSORTED
-      else if (kOrd.lt(prevK, k))
+      else if (k < prevK)
         sortedness = sortedness.min(TSORTED)
 
-      if (tOrd.lt(t, minT))
+      if (t < minT)
         minT = t
-      if (tOrd.gt(t, maxT))
+      if (t > maxT)
         maxT = t
 
       prevK = k
