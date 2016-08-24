@@ -11,17 +11,17 @@
 
 These expressions look something like the following:
 ```
-annotatevariants expr -c 'va.isSingleton = va.info.AC[va.aIndex] == 1'
+annotatevariants expr -c 'va.isSingleton = va.info.AC[va.aIndex - 1] == 1'
 ```
 
 To break down this expression:
 ```
 annotatevariants expr \
-   -c   "'va.isSingleton                    =           va.info.AC[va.aIndex] == 1'       [ , ... ]"
-                  ^                         ^                     ^                           ^
-         *period-delimited path         equals sign            expression             (optional) comma 
-       starting with 'va'              delimits path                                  followed by more 
-       where the annotation will      and expression                                annotation statements
+   -c   "'va.isSingleton                    =           va.info.AC[va.aIndex - 1] == 1'       [ , ... ]"
+                  ^                         ^                       ^                             ^
+         *period-delimited path         equals sign             expression                 (optional) comma 
+       starting with 'va'              delimits path                                       followed by more 
+       where the annotation will      and expression                                     annotation statements
              be placed
 ```
 

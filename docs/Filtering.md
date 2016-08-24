@@ -52,7 +52,7 @@ filtervariants expr -c '!va.pass' --remove
 
 ```
 [after importvcf & splitmulti]
-filtervariants expr -c 'va.info.AC[va.aIndex] > 1' --keep 
+filtervariants expr -c 'va.info.AC[va.aIndex - 1] > 1' --keep 
 ```
 
 ```

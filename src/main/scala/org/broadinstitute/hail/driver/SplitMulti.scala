@@ -72,10 +72,10 @@ object SplitMulti extends Command {
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(_._1.alt != "*")
-      .map { case (aa, i) =>
+      .map { case (aa, aai) =>
         val (newStart, newRef, newAlt) = minRep(v.start, v.ref, aa.alt)
 
-        (Variant(v.contig, newStart, newRef, newAlt), i + 1)
+        (Variant(v.contig, newStart, newRef, newAlt), aai + 1)
       }.toArray.sorted
 
     val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isDosage) }
@@ -154,7 +154,7 @@ object SplitMulti extends Command {
     splitVariants.iterator
       .zip(splitGenotypeStreamBuilders.iterator)
       .map { case ((v, ind), gsb) =>
-        (v, (insertSplitAnnots(va, ind - 1, true), gsb.result()))
+        (v, (insertSplitAnnots(va, ind, true), gsb.result()))
       }
   }
 

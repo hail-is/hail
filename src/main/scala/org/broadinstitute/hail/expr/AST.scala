@@ -1902,7 +1902,7 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
             ParserUtils.error(localPos,
               s"""Tried to access index [$i] on array ${ JsonMethods.compact(localT.toJSON(a)) } of length ${ a.length }
                   |  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)
-                  |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex]' is correct""".stripMargin)
+                  |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex - 1]' is correct""".stripMargin)
           case e: Throwable => throw e
         })
 
