@@ -3,15 +3,16 @@ package org.broadinstitute.hail.variant
 import java.nio.ByteBuffer
 
 import org.apache.hadoop
-import org.apache.spark.rdd.{OrderedRDD, RDD}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.{OrderedPartitioner, SparkContext, SparkEnv}
+import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.vcf.BufferedLineIterator
+import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.json4s._
 import org.json4s.jackson.JsonMethods

@@ -1,57 +1,13 @@
-package org.apache.spark.rdd
+package org.broadinstitute.hail.sparkextras
 
-import org.apache.spark._
+import org.apache.spark.{SparkContext, _}
+import org.apache.spark.rdd.{PartitionPruningRDD, RDD, ShuffledRDD}
 import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.hashing._
-
-case class PartitionKeyInfo[T](
-  partIndex: Int,
-  sortedness: Int,
-  min: T,
-  max: T)
-
-object PartitionKeyInfo {
-  final val UNSORTED = 0
-  final val TSORTED = 1
-  final val KSORTED = 2
-
-  def apply[T, K](partIndex: Int, projectKey: (K) => T, it: Iterator[K])(implicit tOrd: Ordering[T], kOrd: Ordering[K]): PartitionKeyInfo[T] = {
-    assert(it.hasNext)
-
-    val k0 = it.next()
-    val t0 = projectKey(k0)
-
-    var minT = t0
-    var maxT = t0
-    var sortedness = KSORTED
-    var prevK = k0
-    var prevT = t0
-
-    while (it.hasNext) {
-      val k = it.next()
-      val t = projectKey(k)
-
-      if (tOrd.lt(prevT, t))
-        sortedness = UNSORTED
-      else if (kOrd.lt(prevK, k))
-        sortedness = sortedness.min(TSORTED)
-
-      if (tOrd.lt(t, minT))
-        minT = t
-      if (tOrd.gt(t, maxT))
-        maxT = t
-
-      prevK = k
-      prevT = t
-    }
-
-    PartitionKeyInfo(partIndex, sortedness, minT, maxT)
-  }
-}
 
 object OrderedRDD {
 
@@ -130,7 +86,7 @@ object OrderedRDD {
     val sampleSize = math.min(20.0 * rdd.partitions.length, 1e6)
     // Assume the input partitions are roughly balanced and over-sample a little bit.
     val sampleSizePerPartition = math.ceil(3.0 * sampleSize / rdd.partitions.length).toInt
-    val (numItems, sketched) = RangePartitioner.sketch(rdd, sampleSizePerPartition)
+    val (numItems, sketched) = OrderedPartitioner.sketch(rdd, sampleSizePerPartition)
     if (numItems == 0L) {
       Array.empty
     } else {
@@ -159,7 +115,7 @@ object OrderedRDD {
         val weight = (1.0 / fraction).toFloat
         candidates ++= reSampled.map(x => (x, weight))
       }
-      RangePartitioner.determineBounds(candidates, rdd.partitions.length)
+      OrderedPartitioner.determineBounds(candidates, rdd.partitions.length)
     }
   }
 

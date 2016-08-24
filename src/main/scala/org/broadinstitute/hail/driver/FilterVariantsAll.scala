@@ -1,8 +1,8 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.rdd.OrderedRDD
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.sparkextras.OrderedRDD
 
 object FilterVariantsAll extends Command {
 

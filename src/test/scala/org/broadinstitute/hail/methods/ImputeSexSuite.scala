@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.rdd.{OrderedRDD, RDD}
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Prop._

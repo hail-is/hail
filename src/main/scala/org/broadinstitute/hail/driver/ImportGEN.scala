@@ -1,12 +1,12 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.rdd.OrderedRDD
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader
 import org.broadinstitute.hail.io.gen.GenLoader
+import org.broadinstitute.hail.sparkextras.OrderedRDD
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
