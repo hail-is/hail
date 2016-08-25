@@ -4,6 +4,7 @@ import java.nio.ByteBuffer
 import java.util
 
 import org.apache.hadoop
+import org.apache.hadoop.fs.PathIOException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
@@ -134,30 +135,32 @@ object VariantSampleMatrix {
 
   def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
 
-    val hConf = sqlContext.sparkContext.hadoopConfiguration
+    val sc = sqlContext.sparkContext
+    val hConf = sc.hadoopConfiguration
 
     val metadata = readMetadata(hConf, dirname, skipGenotypes)
     val vaSignature = metadata.vaSignature
 
-    val df = sqlContext.readPartitioned.parquet(dirname + "/rdd.parquet")
-
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
     val isDosage = metadata.isDosage
 
-    def readRDD(skipGenotypes: Boolean): RDD[(Variant, (Annotation, Iterable[Genotype]))] = {
-      if (skipGenotypes)
-        df.select("variant", "annotations")
-          .map(row => (row.getVariant(0),
-            (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              Iterable.empty[Genotype])))
-      else
-        df.rdd.map { row =>
-          val v = row.getVariant(0)
+    val dfOption = sqlContext.sortedParquetRead(dirname + "/rdd.parquet")
 
-          (v,
-            (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              row.getGenotypeStream(v, 2, isDosage)))
-        }
+    def readRDD(skipGenotypes: Boolean): RDD[(Variant, (Annotation, Iterable[Genotype]))] = {
+      dfOption.map { df =>
+        if (skipGenotypes)
+          df.select("variant", "annotations")
+            .map(row => (row.getVariant(0),
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                Iterable.empty[Genotype])))
+        else
+          df.map { row =>
+            val v = row.getVariant(0)
+            (v,
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
+          }
+      }.getOrElse(sc.emptyRDD[(Variant, (Annotation, Iterable[Genotype]))])
     }
 
     val orderedRDD = if (hadoopExists(hConf, dirname + "/partitioner")) {
@@ -370,8 +373,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         && partCommulativeSize(j + 1) == t)
         j += 1
       assert(t <= partCommulativeSize(j) &&
-          (j == partCommulativeSize.length - 1 ||
-            t < partCommulativeSize(j + 1)))
+        (j == partCommulativeSize.length - 1 ||
+          t < partCommulativeSize(j + 1)))
       j
     }.toArray
 

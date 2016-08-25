@@ -2,12 +2,11 @@ package org.broadinstitute.hail
 
 import java.io._
 import java.net.URI
-import java.util
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
 import org.apache.hadoop
-import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.fs.{FileStatus, PathIOException}
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
@@ -15,14 +14,14 @@ import org.apache.spark.Partitioner._
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.mllib.linalg.{DenseVector => SDenseVector, SparseVector => SSparseVector, Vector => SVector}
 import org.apache.spark.rdd._
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.{AccumulableParam, Partitioner, SparkContext}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
-import org.broadinstitute.hail.sparkextras.{OrderedRDD, PartitionedDataFrameReader}
+import org.broadinstitute.hail.sparkextras.OrderedRDD
 import org.broadinstitute.hail.utils.{AdvanceableOrderedPairIterator, RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
 import org.slf4j.{Logger, LoggerFactory}
@@ -311,10 +310,6 @@ class RichOrderedSeq[T: Ordering](s: Seq[T]) {
   def isSorted: Boolean = s.isEmpty || (s, s.tail).zipped.forall(_ <= _)
 }
 
-class RichSQLContext(val sqlContext: SQLContext) extends AnyVal {
-  def readPartitioned: PartitionedDataFrameReader = new PartitionedDataFrameReader(sqlContext)
-}
-
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFilesLines(files: Array[String], f: String => Unit = s => (),
     nPartitions: Int = sc.defaultMinPartitions): RDD[WithContext[String]] = {
@@ -327,6 +322,26 @@ class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFileLines(file: String, nPartitions: Int = sc.defaultMinPartitions): RDD[WithContext[String]] =
     sc.textFile(file, nPartitions)
       .map(l => WithContext(l, TextContext(l, file, None)))
+}
+
+class RichSQLContext(val sqlContext: SQLContext) extends AnyVal {
+  def sortedParquetRead(dirname: String): Option[DataFrame] = {
+    val partRegex = ".*/?part-r-(\\d+)-.*\\.parquet.*".r
+    def getPartNumber(fname: String): Int = {
+      fname match {
+        case partRegex(i) => i.toInt
+        case _ => throw new PathIOException(s"invalid parquet file `$fname'")
+      }
+    }
+
+    val parquetFiles = hadoopGlobAll(Array(s"""$dirname/*.parquet"""),
+      sqlContext.sparkContext.hadoopConfiguration)
+      .sortBy(getPartNumber)
+
+    if (parquetFiles.isEmpty)
+      None
+    else Some(sqlContext.read.parquet(parquetFiles: _*))
+  }
 }
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
@@ -480,7 +495,7 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
   }
 
   def toOrderedRDD[T](projectKey: (K) => T, reducedRepresentation: Option[RDD[K]] = None)
-    (implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T], kct: ClassTag[K]): OrderedRDD[T, K, V] =
+    (implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T], kct: ClassTag[K], vct: ClassTag[V]): OrderedRDD[T, K, V] =
     OrderedRDD[T, K, V](rdd, projectKey, reducedRepresentation)
 
 }
