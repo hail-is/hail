@@ -3,7 +3,7 @@ package org.broadinstitute.hail.variant.vsm
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.{Gen, Prop}
-import org.broadinstitute.hail.driver.{Read, Repartition, State, Write}
+import org.broadinstitute.hail.driver.{Read, Coalesce, State, Write}
 import org.broadinstitute.hail.variant.{VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 
@@ -12,7 +12,7 @@ class PartitioningSuite extends SparkSuite {
   @Test def testParquetWriteRead() {
     Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random), Gen.choose(1, 10)) { case (vds, nPar) =>
       var state = State(sc, sqlContext, vds)
-      state = Repartition.run(state, Array("-n", nPar.toString))
+      state = Coalesce.run(state, Array("-n", nPar.toString))
       val out = tmpDir.createTempFile("out", ".vds")
       val out2 = tmpDir.createTempFile("out", ".vds")
       state = Write.run(state, Array("-o", out))

@@ -85,7 +85,7 @@ object ToplevelCommands {
   register(Read)
   register(ReadKudu)
   register(RenameSamples)
-  register(Repartition)
+  register(Coalesce)
   register(SampleQC)
   register(SeqrServerCommand)
   register(PrintSchema)

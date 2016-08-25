@@ -122,6 +122,36 @@ object OrderedRDD {
 
 }
 
+case class BlockedRDDPartition(index: Int,
+  start: Int,
+  end: Int) extends Partition {
+  require(start <= end)
+
+  def range: Range = start to end
+}
+
+class BlockedRDD[T](rdd: RDD[T],
+  newPartEnd: Array[Int])(implicit tct: ClassTag[T]) extends RDD[T](rdd) {
+
+  override def getPartitions: Array[Partition] = {
+    newPartEnd.zipWithIndex.map { case (end, i) =>
+      val start = if (i == 0)
+        0
+      else
+        newPartEnd(i - 1) + 1
+      BlockedRDDPartition(i, start, end)
+    }
+  }
+
+  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    split.asInstanceOf[BlockedRDDPartition].range.iterator.flatMap { i =>
+      rdd.iterator(new Partition {
+        def index = i
+      }, context)
+    }
+  }
+}
+
 class OrderedRDD[T, K, V](rdd: RDD[(K, V)],
   val orderedPartitioner: OrderedPartitioner[T, K])
   (implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T], kct: ClassTag[K]) extends RDD[(K, V)](rdd) {

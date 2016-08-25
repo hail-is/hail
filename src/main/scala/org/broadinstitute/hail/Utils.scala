@@ -2,6 +2,7 @@ package org.broadinstitute.hail
 
 import java.io._
 import java.net.URI
+import java.util
 
 import breeze.linalg.operators.{OpAdd, OpSub}
 import breeze.linalg.{DenseMatrix, DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
@@ -1470,5 +1471,17 @@ object Utils extends Logging {
       var x: T = _
     }
     (new A).x
+  }
+
+  def mapAccumulate[C[_], T, S, U](a: Iterable[T], z: S)(f: (T, S) => (U, S))(implicit uct: ClassTag[U],
+    cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
+    val b = cbf()
+    var acc = z
+    for ((x, i) <- a.zipWithIndex) {
+      val (y, newAcc) = f(x, acc)
+      b += y
+      acc = newAcc
+    }
+    b.result()
   }
 }
