@@ -1,13 +1,17 @@
 package org.broadinstitute.hail.sparkextras
 
+import java.util
+
 import org.apache.spark.{SparkContext, _}
 import org.apache.spark.rdd.{PartitionPruningRDD, RDD, ShuffledRDD}
+import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.hashing._
+import scala.language.existentials
 
 object OrderedRDD {
 
@@ -122,16 +126,19 @@ object OrderedRDD {
 
 }
 
-case class BlockedRDDPartition(index: Int,
+case class BlockedRDDPartition(@transient rdd: RDD[_],
+  index: Int,
   start: Int,
   end: Int) extends Partition {
   require(start <= end)
 
+  val parentPartitions = range.map(rdd.partitions).toArray
+
   def range: Range = start to end
 }
 
-class BlockedRDD[T](rdd: RDD[T],
-  newPartEnd: Array[Int])(implicit tct: ClassTag[T]) extends RDD[T](rdd) {
+class BlockedRDD[T](@transient var prev: RDD[T],
+  newPartEnd: Array[Int])(implicit tct: ClassTag[T]) extends RDD[T](prev.sparkContext, Nil) {
 
   override def getPartitions: Array[Partition] = {
     newPartEnd.zipWithIndex.map { case (end, i) =>
@@ -139,16 +146,44 @@ class BlockedRDD[T](rdd: RDD[T],
         0
       else
         newPartEnd(i - 1) + 1
-      BlockedRDDPartition(i, start, end)
+      BlockedRDDPartition(prev, i, start, end)
     }
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[T] = {
-    split.asInstanceOf[BlockedRDDPartition].range.iterator.flatMap { i =>
-      rdd.iterator(new Partition {
-        def index = i
-      }, context)
-    }
+    val parent = dependencies.head.rdd.asInstanceOf[RDD[T]]
+    split.asInstanceOf[BlockedRDDPartition].parentPartitions.iterator.flatMap(p =>
+      parent.iterator(p, context))
+  }
+
+  override def getDependencies: Seq[Dependency[_]] = {
+    Seq(new NarrowDependency(prev) {
+      def getParents(id: Int): Seq[Int] =
+        partitions(id).asInstanceOf[BlockedRDDPartition].range
+    })
+  }
+
+  override def clearDependencies() {
+    super.clearDependencies()
+    prev = null
+  }
+
+  override def getPreferredLocations(partition: Partition): Seq[String] = {
+    val prevPartitions = prev.partitions
+    val range = partition.asInstanceOf[BlockedRDDPartition].range
+
+    val locationAvail = range.flatMap(i =>
+      prev.preferredLocations(prevPartitions(i)))
+      .groupBy(identity)
+      .mapValues(_.length)
+
+    if (locationAvail.isEmpty)
+      return Seq.empty
+
+    val m = locationAvail.values.max
+    locationAvail.filter(_._2 == m)
+      .keys
+      .toSeq
   }
 }
 
@@ -173,5 +208,51 @@ class OrderedRDD[T, K, V](rdd: RDD[(K, V)],
     new OrderedRDD[T, K2, V2](
       rdd.mapPartitions(_.map(f.tupled)),
       orderedPartitioner.mapMonotonic(projectKey2))
+  }
+
+  override def coalesce(maxPartitions: Int, shuffle: Boolean = false)(implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
+    if (shuffle)
+      return super.coalesce(maxPartitions, shuffle)(ord)
+
+    val n = rdd.partitions.length
+    if (maxPartitions >= n)
+      return this
+
+    val persisted = rdd.persist(StorageLevel.MEMORY_AND_DISK)
+
+    val partSize = new Array[Int](n)
+    persisted.mapPartitionsWithIndex((i, it) => Iterator((i, it.length)))
+      .collect()
+      .foreach { case (i, size) => partSize(i) = size }
+
+    val partCommulativeSize = mapAccumulate[Array, Int, Int, Int](partSize, 0)((s, acc) => (s + acc, s + acc))
+    val totalSize = partCommulativeSize.last
+
+    val newPartEnd = (0 until maxPartitions).map { i =>
+      val t = totalSize * (i + 1) / maxPartitions
+
+      /* j largest index not greater than t */
+      var j = util.Arrays.binarySearch(partCommulativeSize, t)
+      if (j < 0)
+        j = -j - 1
+      while (j < partCommulativeSize.length - 1
+        && partCommulativeSize(j + 1) == t)
+        j += 1
+      assert(t <= partCommulativeSize(j) &&
+        (j == partCommulativeSize.length - 1 ||
+          t < partCommulativeSize(j + 1)))
+      j
+    }.toArray
+
+    assert(newPartEnd.last == n - 1)
+    assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i <= inext })
+
+    val newRangeBounds = newPartEnd.init.map(end =>
+      orderedPartitioner.rangeBounds(end))
+
+    new OrderedRDD[T, K, V](
+      new BlockedRDD(persisted, newPartEnd),
+      OrderedPartitioner(newRangeBounds,
+        orderedPartitioner.projectKey))
   }
 }
