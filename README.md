@@ -1,4 +1,4 @@
-# Hail bull bull
+# Hail bull bull bull
 
 [![Join the chat at https://gitter.im/broadinstitute/hail](https://badges.gitter.im/broadinstitute/hail.svg)](https://gitter.im/broadinstitute/hail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
