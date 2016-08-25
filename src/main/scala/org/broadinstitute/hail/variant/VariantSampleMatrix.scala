@@ -1,18 +1,20 @@
 package org.broadinstitute.hail.variant
 
 import java.nio.ByteBuffer
+import java.util
 
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.vcf.BufferedLineIterator
-import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
+import org.broadinstitute.hail.sparkextras.{BlockedRDD, OrderedPartitioner, OrderedRDD}
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
@@ -342,8 +344,49 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def cache(): VariantSampleMatrix[T] = copy[T](rdd = rdd.cache())
 
-  // FIXME make this faster by maintaining order
-  def repartition(nPartitions: Int) = copy[T](rdd = rdd.repartition(nPartitions)(null).toOrderedRDD(_.locus))
+  def coalesce(k: Int): VariantSampleMatrix[T] = {
+    val n = rdd.partitions.length
+    if (k >= n)
+      return this
+
+    rdd.persist(StorageLevel.MEMORY_AND_DISK)
+
+    val partSize = new Array[Int](n)
+    rdd.mapPartitionsWithIndex((i, it) => Iterator((i, it.length)))
+      .collect()
+      .foreach { case (i, size) => partSize(i) = size }
+
+    val partCommulativeSize = mapAccumulate[Array, Int, Int, Int](partSize, 0)((s, acc) => (s + acc, s + acc))
+    val totalSize = partCommulativeSize.last
+
+    val newPartEnd = (0 until k).map { i =>
+      val t = totalSize * (i + 1) / k
+
+      /* j largest index not greater than t */
+      var j = util.Arrays.binarySearch(partCommulativeSize, t)
+      if (j < 0)
+        j = -j - 1
+      while (j < partCommulativeSize.length - 1
+        && partCommulativeSize(j + 1) == t)
+        j += 1
+      assert(t <= partCommulativeSize(j) &&
+          (j == partCommulativeSize.length - 1 ||
+            t < partCommulativeSize(j + 1)))
+      j
+    }.toArray
+
+    assert(newPartEnd.last == n - 1)
+    assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i <= inext })
+
+    val newRangeBounds = newPartEnd.init.map(end =>
+      rdd.orderedPartitioner.rangeBounds(end))
+
+    copy[T](
+      rdd = new OrderedRDD[Locus, Variant, (Annotation, Iterable[T])](
+        new BlockedRDD(rdd, newPartEnd),
+        OrderedPartitioner(newRangeBounds,
+          rdd.orderedPartitioner.projectKey)))
+  }
 
   def nPartitions: Int = rdd.partitions.length
 
