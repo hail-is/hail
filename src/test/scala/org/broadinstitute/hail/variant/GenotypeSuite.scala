@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.{Arbitrary, Gen, Prop, Properties}
+import org.broadinstitute.hail.check.{Gen, Properties}
 import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
@@ -94,15 +94,24 @@ class GenotypeSuite extends TestNGSuite {
   }
 
   @Test def gtPairGtIndexIsId(): Unit = {
-    Prop.forAll { (j: Int, k: Int) =>
+    forAll(Gen.choose(0, 32768), Gen.choose(0, 32768)) { (x, y) =>
+      val (j, k) = if (x < y) (x, y) else (y, x)
       val gt = GTPair(j, k)
       Genotype.gtPair(Genotype.gtIndex(gt)) == gt
-    }
+    }.check()
   }
 
+  def triangleNumberOf(i: Int) = (i * i + i) / 2
+
   @Test def gtIndexGtPairIsId(): Unit = {
-    Prop.forAll { (idx: Int) =>
+    forAll(Gen.choose(0,10000)) { (idx) =>
       Genotype.gtIndex(Genotype.gtPair(idx)) == idx
-    }
+    }.check()
+  }
+
+  @Test def gtPairAndGtPairSqrtEqual(): Unit = {
+    forAll(Gen.choose(0,10000)) { (idx) =>
+      Genotype.gtPair(idx) == Genotype.gtPairSqrt(idx)
+    }.check()
   }
 }

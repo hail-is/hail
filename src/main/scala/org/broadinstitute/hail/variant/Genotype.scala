@@ -25,8 +25,8 @@ import org.broadinstitute.hail.variant.GenotypeType.GenotypeType
 
 object GTPair {
   def apply(j: Int, k: Int): GTPair = {
-    require(j >= 0 && j <= 0xffff, "GTPair invalid j value")
-    require(k >= 0 && k <= 0xffff, "GTPair invalid k value")
+    require(j >= 0 && j <= 0xffff, s"GTPair invalid j value $j")
+    require(k >= 0 && k <= 0xffff, s"GTPair invalid k value $k")
     new GTPair(j | (k << 16))
   }
 }
