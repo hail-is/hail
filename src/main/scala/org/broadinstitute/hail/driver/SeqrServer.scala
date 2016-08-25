@@ -78,7 +78,7 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
 
     if (!solrOnly) {
       query.addField("chrom")
-      query.addField("pos")
+      query.addField("start")
       query.addField("ref")
       query.addField("alt")
     }
@@ -102,6 +102,7 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
             case i: Int => JInt(i)
             case i: Long => JInt(i)
             case d: Double => JDouble(d)
+            case f: Float => JDouble(f)
             case al: java.util.ArrayList[_] =>
               JArray(al.asScala.map(vi => toJSON(vi)).toList)
             case s: String => JString(s)
@@ -111,22 +112,21 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
         }.toMap
       }.toArray
     } else {
-      docs.asScala
-        .flatMap { doc =>
-          val chrom = doc.getFieldValue("chrom").asInstanceOf[String]
-          val pos = doc.getFieldValue("pos").asInstanceOf[Int]
-          val ref = doc.getFieldValue("ref").asInstanceOf[String]
-          val alt = doc.getFieldValue("alt").asInstanceOf[String]
+      val prepared = cassSession.prepare(
+        s"SELECT * FROM ${ cassKeyspace }.${ cassTable } WHERE chrom=? AND start=? AND ref=? AND alt=?")
+      
+      val futures = docs.asScala
+        .map { doc =>
+          val chrom = doc.getFieldValue("chrom")
+          val start = doc.getFieldValue("start")
+          val ref = doc.getFieldValue("ref")
+          val alt = doc.getFieldValue("alt")
 
-          val cassQuery = QueryBuilder.select()
-            .all()
-            .from(cassKeyspace, cassTable)
-            .where()
-            .and(QueryBuilder.eq("chrom", chrom))
-            .and(QueryBuilder.eq("pos", pos))
-            .and(QueryBuilder.eq("ref", ref))
-            .and(QueryBuilder.eq("alt", alt))
-          val cassResults = cassSession.execute(cassQuery)
+          cassSession.executeAsync(prepared.bind(chrom, start, ref, alt))
+        }
+
+      futures.flatMap { future =>
+          val cassResults = future.getUninterruptibly()
 
           val cassColumns = cassResults.getColumnDefinitions
           cassResults.asScala.map { r =>
@@ -135,14 +135,16 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
                 None
               else {
                 val jv: JValue = (col.getType.getName: @unchecked) match {
+                  case DataType.Name.BOOLEAN =>
+                    JBool(r.getBool(i))
                   case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
                     JString(r.getString(i))
-                  case DataType.Name.INT =>
-                    JInt(r.getInt(i))
                   case DataType.Name.TINYINT =>
                     JInt(r.getByte(i).toInt)
                   case DataType.Name.SMALLINT =>
                     JInt(r.getShort(i).toInt)
+                  case DataType.Name.INT =>
+                    JInt(r.getInt(i))
                   case DataType.Name.BIGINT | DataType.Name.COUNTER =>
                     JInt(r.getLong(i))
                   case DataType.Name.VARINT =>
@@ -156,13 +158,33 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
                     val typeArgs = col.getType.getTypeArguments
                     assert(typeArgs.size() == 1)
                     (typeArgs.get(0).getName: @unchecked) match {
-                      case DataType.Name.INT =>
+                      case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
+                        JArray(r.getList(i, classOf[java.lang.String]).asScala
+                          .map(v => JString(v))
+                          .toList)
+                      case DataType.Name.TINYINT | DataType.Name.SMALLINT |
+                           DataType.Name.INT | DataType.Name.BIGINT |
+                           DataType.Name.VARINT =>
                         JArray(r.getList(i, classOf[java.lang.Integer]).asScala
                           .map(v => JInt(v.toInt))
                           .toList)
                     }
 
-                  // FIXME: handle Set
+                  case DataType.Name.SET =>
+                    val typeArgs = col.getType.getTypeArguments
+                    assert(typeArgs.size() == 1)
+                    (typeArgs.get(0).getName: @unchecked) match {
+                      case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
+                        JArray(r.getSet(i, classOf[java.lang.String]).asScala
+                          .toList
+                          .map(v => JString(v)))
+                      case DataType.Name.TINYINT | DataType.Name.SMALLINT |
+                           DataType.Name.INT | DataType.Name.BIGINT |
+                           DataType.Name.VARINT =>
+                        JArray(r.getSet(i, classOf[java.lang.Integer]).asScala
+                          .toList
+                          .map(v => JInt(v.toInt)))
+                    }
                 }
                 Some((col.getName, jv))
               }
