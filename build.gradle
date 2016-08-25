@@ -241,9 +241,6 @@ task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
 }
 
-sourceCompatibility = 1.7
-targetCompatibility = 1.7
-
 task setupDocs(type: Exec) {
     commandLine 'mkdir', '-p', 'build/docs/js/', 'build/docs/html/', 'build/docs/resources/', 'build/docs/css/'
 }
