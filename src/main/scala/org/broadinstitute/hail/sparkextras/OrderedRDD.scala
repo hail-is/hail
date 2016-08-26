@@ -293,6 +293,33 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       orderedPartitioner.mapMonotonic(mapKey.k2ok))
   }
 
+  /**
+    * Preconditions:
+    *
+    * - if v1 < v2, f(v1) = (v1a, v1b, ...) and f(v2) = (v2p, v2q, ...), then v1x < v1y for all x = a, b, ... and y = p, q, ...
+    *
+    * - for all x, kOk.project(v1) = kOk.project(v1x)
+    *
+    * - the TraversableOnce is sorted according to kOk.kOrd
+    */
+  def flatMapMonotonic[V2](f: (K, V) => TraversableOnce[(K, V2)]): OrderedRDD[PK, K, V2] = {
+    new OrderedRDD[PK, K, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner)
+  }
+
+  /**
+    * Preconditions:
+    *
+    * - if v1 < v2, f(v1) = (v1a, v1b, ...) and f(v2) = (v2p, v2q, ...), then v1x < v1y for all x = a, b, ... and y = p, q, ...
+    *
+    * - for all x, kOk.project(v1) = kOk.project(v1x) (and similarly for v2)
+    *
+    * - the TraversableOnce is sorted according to k2Ok.kOrd
+    */
+  def flatMapMonotonic[K2, V2](f: (K, V) => TraversableOnce[(K2, V2)])
+    (implicit k2Ok: OrderedKey[PK, K2]): OrderedRDD[PK, K2, V2] = {
+    new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner.mapMonotonic)
+  }
+
   override def coalesce(maxPartitions: Int, shuffle: Boolean = false)(implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     if (shuffle)
       return super.coalesce(maxPartitions, shuffle)(ord)
