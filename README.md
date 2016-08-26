@@ -28,7 +28,6 @@ or the following paper which includes a brief introduction to Hail in the online
 
 ## Roadmap
 
-
 Here is a rough list of features currently planned or under
 development:
 
