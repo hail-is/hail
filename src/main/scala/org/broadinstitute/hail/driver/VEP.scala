@@ -282,7 +282,7 @@ object VEP extends Command {
         if (path != null)
           env.put("PATH", path)
 
-        val r = it.filter { case (v, va) =>
+        it.filter { case (v, va) =>
           rootQuery.flatMap(q => q(va)).isEmpty
         }
           .map { case (v, _) => v }
@@ -295,10 +295,9 @@ object VEP extends Command {
               val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
               val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
               (v, a)
-            })
-          .toArray
-          .sortWith { case ((v1, _), (v2, _)) => v1 < v2 }
-        r.iterator
+            }
+            .toArray
+            .sortBy(_._1))
       }, preservesPartitioning = true)
       .persist(StorageLevel.MEMORY_AND_DISK)
 
