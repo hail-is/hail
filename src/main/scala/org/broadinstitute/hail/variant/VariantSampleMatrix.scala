@@ -347,50 +347,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def cache(): VariantSampleMatrix[T] = copy[T](rdd = rdd.cache())
 
-  def coalesce(k: Int): VariantSampleMatrix[T] = {
-    val n = rdd.partitions.length
-    if (k >= n)
-      return this
-
-    rdd.persist(StorageLevel.MEMORY_AND_DISK)
-
-    val partSize = new Array[Int](n)
-    rdd.mapPartitionsWithIndex((i, it) => Iterator((i, it.length)))
-      .collect()
-      .foreach { case (i, size) => partSize(i) = size }
-
-    val partCommulativeSize = mapAccumulate[Array, Int, Int, Int](partSize, 0)((s, acc) => (s + acc, s + acc))
-    val totalSize = partCommulativeSize.last
-
-    val newPartEnd = (0 until k).map { i =>
-      val t = totalSize * (i + 1) / k
-
-      /* j largest index not greater than t */
-      var j = util.Arrays.binarySearch(partCommulativeSize, t)
-      if (j < 0)
-        j = -j - 1
-      while (j < partCommulativeSize.length - 1
-        && partCommulativeSize(j + 1) == t)
-        j += 1
-      assert(t <= partCommulativeSize(j) &&
-        (j == partCommulativeSize.length - 1 ||
-          t < partCommulativeSize(j + 1)))
-      j
-    }.toArray
-
-    assert(newPartEnd.last == n - 1)
-    assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i <= inext })
-
-    val newRangeBounds = newPartEnd.init.map(end =>
-      rdd.orderedPartitioner.rangeBounds(end))
-
-    copy[T](
-      rdd = new OrderedRDD[Locus, Variant, (Annotation, Iterable[T])](
-        new BlockedRDD(rdd, newPartEnd),
-        OrderedPartitioner(newRangeBounds,
-          rdd.orderedPartitioner.projectKey)))
-  }
-
+  def coalesce(k: Int): VariantSampleMatrix[T] =
+    copy[T](rdd = rdd.coalesce(k)(null).toOrderedRDD(_.locus))
+  
   def nPartitions: Int = rdd.partitions.length
 
   def variants: RDD[Variant] = rdd.keys
