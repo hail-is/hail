@@ -1,10 +1,9 @@
 package org.broadinstitute.hail.variant.vsm
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.{Gen, Prop}
-import org.broadinstitute.hail.driver.{Read, Coalesce, State, Write}
-import org.broadinstitute.hail.variant.{VSMSubgen, Variant, VariantSampleMatrix}
+import org.broadinstitute.hail.driver.{Coalesce, Read, State, Write}
+import org.broadinstitute.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 class PartitioningSuite extends SparkSuite {
@@ -22,18 +21,15 @@ class PartitioningSuite extends SparkSuite {
       state = Write.run(state, Array("-o", out2))
       val readback = Read.run(state, Array("-i", out2))
 
-
-      state.vds.variantsAndAnnotations
-        .zipPartitions(readback.vds.variantsAndAnnotations)(
-          { (it1: Iterator[(Variant, Annotation)],
-          it2: Iterator[(Variant, Annotation)]) => it1.zip(it2)
-          })
+      val original = state.vds.variantsAndAnnotations
+        .mapPartitionsWithIndex { case (i, it) => it.zipWithIndex.map(x => (i, x)) }
         .collect()
-        .foreach { case (t1, t2) =>
-          assert(t1 == t2)
-        }
-
-      true
+        .toSet
+      val rb = readback.vds.variantsAndAnnotations
+        .mapPartitionsWithIndex { case (i, it) => it.zipWithIndex.map(x => (i, x)) }
+        .collect()
+        .toSet
+      rb == original
     }.check()
   }
 }
