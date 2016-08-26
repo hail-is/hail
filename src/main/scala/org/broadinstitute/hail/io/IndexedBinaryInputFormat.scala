@@ -6,8 +6,7 @@ import org.broadinstitute.hail.variant._
 import scala.collection.mutable.ArrayBuffer
 
 
-abstract class IndexedBinaryInputFormat[K] extends FileInputFormat[LongWritable, VariantRecord[K]] {
+abstract class IndexedBinaryInputFormat[T] extends FileInputFormat[LongWritable, T] {
 
-  def getRecordReader(split: InputSplit, job: JobConf, reporter: Reporter): RecordReader[LongWritable,
-    VariantRecord[K]]
+  def getRecordReader(split: InputSplit, job: JobConf, reporter: Reporter): RecordReader[LongWritable, T]
 }
