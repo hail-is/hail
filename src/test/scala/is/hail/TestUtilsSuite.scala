@@ -18,4 +18,23 @@ class TestUtilsSuite extends SparkSuite {
     intercept[Exception](TestUtils.assertVectorEqualityDouble(V, V1))
     intercept[Exception](TestUtils.assertMatrixEqualityDouble(M, M1))
   }
+
+  @Test def constantVectorTest() {
+    assert(TestUtils.isConstant(DenseVector()))
+    assert(TestUtils.isConstant(DenseVector(0)))
+    assert(TestUtils.isConstant(DenseVector(0, 0)))
+    assert(TestUtils.isConstant(DenseVector(0, 0, 0)))
+    assert(!TestUtils.isConstant(DenseVector(0, 1)))
+    assert(!TestUtils.isConstant(DenseVector(0, 0, 1)))
+  }
+
+  @Test def removeConstantColsTest(): Unit = {
+    val M = DenseMatrix((0, 0, 1, 1, 0),
+                        (0, 1, 0, 1, 1))
+
+    val M1 = DenseMatrix((0, 1, 0),
+                         (1, 0, 1))
+
+    assert(TestUtils.removeConstantCols(M) == M1)
+  }
 }

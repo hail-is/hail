@@ -86,7 +86,7 @@ To get started running Hail on the Google Cloud Platform, see this [forum post](
 
 ### BLAS and LAPACK
 
-Hail uses BLAS and LAPACK optimized linear algebra libraries. On Linux, these must be explicitly installed. On Ubuntu 14.04, run
+Hail uses BLAS and LAPACK optimized linear algebra libraries. These load automatically on recent versions of OS X (Mac) and on Google Dataproc. On Linux, they must be explicitly installed; on Ubuntu 14.04, run
 ```
 $ apt-get install libatlas-base-dev
 ```
@@ -94,6 +94,11 @@ If natives are not found, `hail.log` will contain the warnings
 ```
 Failed to load implementation from: com.github.fommil.netlib.NativeSystemLAPACK
 Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
+```
+If natives are found, `hail.log` will contain lines starting with `JniLoader` such as:
+```
+JniLoader:90 - successfully loaded /tmp/jniloader5664765860970125396netlib-native_system-linux-x86_64.so
+JniLoader:62 - already loaded netlib-native_system-linux-x86_64.so
 ```
 See [netlib-java](http://github.com/fommil/netlib-java) for more information.
 

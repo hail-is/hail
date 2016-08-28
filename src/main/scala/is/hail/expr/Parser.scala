@@ -256,6 +256,10 @@ object Parser extends JavaTokenParsers {
       path.tail
   }
 
+  def validateAnnotationRoot(a: String, root: String): Unit = {
+    parseAnnotationRoot(a, root)
+  }
+
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 

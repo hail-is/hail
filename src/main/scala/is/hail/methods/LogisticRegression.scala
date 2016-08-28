@@ -20,7 +20,8 @@ object LogisticRegression {
 
     val logRegTest = tests(test)
 
-    val (y, cov, sampleMask) = getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     if (! y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all values equal to 0 or 1")

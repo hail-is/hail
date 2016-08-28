@@ -12,12 +12,14 @@
 The `linreg` command computes, for each variant, statistics of the $t$-test for the genotype coefficient of the linear function of best fit from sample genotype and covariates to quantitative phenotype or case-control status. Hail only includes samples for which phenotype and all covariates are defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
 
 Assuming there are sample annotations `sa.pheno.height`, `sa.cov.age`, `sa.cov.isFemale`, and `sa.cov.PC1`, the command
+
 ```
-linreg -y sa.pheno.height -c sa.cov.age,sa.cov.isFemale,sa.cov.PC1
+linreg -y sa.pheno.height -c sa.cov.age,sa.cov.isFemale,sa.cov.PC
 ```
+
 considers a model of the form
 $$
-\mathrm{height} = \beta_0 + \beta_1 \, \mathrm{gt} + \beta_2 \, \mathrm{age} + \beta_3 \, \mathrm{isFemale} + \beta_4 \, \mathrm{PC1} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)
+\mathrm{height} = \beta_0 + \beta_1 \, \mathrm{gt} + \beta_2 \, \mathrm{age} + \beta_3 \, \mathrm{isFemale} + \beta_4 \, \mathrm{PC1} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)		
 $$
 where the genotype $\mathrm{gt}$ is coded as $0$ for HomRef, $1$ for Het, and $2$ for HomVar, and the Boolean covariate $\mathrm{isFemale}$ is coded as $1$ for true (female) and $0$ for false (male). The null model sets $\beta_1 = 0$.
 

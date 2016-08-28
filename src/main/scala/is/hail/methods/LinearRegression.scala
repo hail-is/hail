@@ -5,80 +5,8 @@ import org.apache.commons.math3.distribution.TDistribution
 import is.hail.utils._
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.stats.RegressionUtils.getPhenoCovCompleteSamples
+import is.hail.stats._
 import is.hail.variant._
-
-import scala.collection.mutable
-
-class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
-  private val missingRowIndices = new mutable.ArrayBuilder.ofInt()
-  private val rowsX = new mutable.ArrayBuilder.ofInt()
-  private val valsX = new mutable.ArrayBuilder.ofDouble()
-  private var row = 0
-  private var sparseLength = 0 // length of rowsX and valsX (ArrayBuilder has no length), used to track missingRowIndices
-  private var sumX = 0
-  private var sumXX = 0
-  private var sumXY = 0.0
-  private var sumYMissing = 0.0
-
-  def merge(g: Genotype): LinRegBuilder = {
-    (g.unboxedGT: @unchecked) match {
-      case 0 =>
-      case 1 =>
-        rowsX += row
-        valsX += 1d
-        sparseLength += 1
-        sumX += 1
-        sumXX += 1
-        sumXY += y(row)
-      case 2 =>
-        rowsX += row
-        valsX += 2d
-        sparseLength += 1
-        sumX += 2
-        sumXX += 4
-        sumXY += 2 * y(row)
-      case -1 =>
-        missingRowIndices += sparseLength
-        rowsX += row
-        valsX += 0d // placeholder for meanX
-        sparseLength += 1
-        sumYMissing += y(row)
-    }
-    row += 1
-
-    this
-  }
-
-  def stats(y: DenseVector[Double], n: Int, minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
-    require(minAC > 0)
-
-    val missingRowIndicesArray = missingRowIndices.result()
-    val nMissing = missingRowIndicesArray.size
-    val nPresent = n - nMissing
-    val allHet = sumX == nPresent && sumXX == nPresent
-    val allHomVar = sumX == 2 * nPresent
-
-    if (sumX < minAC || allHomVar || allHet)
-      None
-    else {
-      val rowsXArray = rowsX.result()
-      val valsXArray = valsX.result()
-      val meanX = sumX.toDouble / nPresent
-
-      missingRowIndicesArray.foreach(valsXArray(_) = meanX)
-
-      // variant is atomic => combOp merge not called => rowsXArray is sorted (as expected by SparseVector constructor)
-      assert(rowsXArray.isIncreasing)
-
-      val x = new SparseVector[Double](rowsXArray, valsXArray, n)
-      val xx = sumXX + meanX * meanX * nMissing
-      val xy = sumXY + meanX * sumYMissing
-
-      Some((x, xx, xy))
-    }
-  }
-}
 
 object LinearRegression {
   def `type`: Type = TStruct(
@@ -92,7 +20,8 @@ object LinearRegression {
     if (!vds.wasSplit)
       fatal("linreg requires bi-allelic VDS. Run split_multi or filter_multi first")
 
-    val (y, cov, sampleMask) = getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     if (minAC < 1)
       fatal(s"Minumum alternate allele count must be a positive integer, got $minAC")
@@ -110,10 +39,6 @@ object LinearRegression {
       fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
     info(s"Running linreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
-
-    val completeSamplesSet = completeSamples.toSet
-    assert(completeSamplesSet.size == completeSamples.size)
-    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
