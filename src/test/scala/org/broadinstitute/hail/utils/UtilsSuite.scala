@@ -3,8 +3,9 @@ package org.broadinstitute.hail.utils
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop}
+import org.broadinstitute.hail.sparkextras.OrderedRDD
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.{SpanningIterator, SparkSuite}
+import org.broadinstitute.hail.{RichPairIterator, SpanningIterator, SparkSuite}
 import org.testng.annotations.Test
 
 class UtilsSuite extends SparkSuite {
@@ -131,9 +132,9 @@ class UtilsSuite extends SparkSuite {
     val p = Prop.forAll(Gen.buildableOf[IndexedSeq, (Variant, Int)](g)) { is =>
       val kSorted = is.sortBy(_._1)
       val tSorted = is.sortBy(_._1.locus)
-      val localKeySort = is.sortBy(_._1.locus).iterator.localKeySort[Locus](_.locus).toIndexedSeq
+      val localKeySorted = OrderedRDD.localKeySort(is.sortBy(_._1.locus).iterator).toIndexedSeq
 
-      kSorted == localKeySort
+      kSorted == localKeySorted
     }
 
     p.check()

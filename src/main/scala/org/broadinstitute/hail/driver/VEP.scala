@@ -4,6 +4,7 @@ import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
 import org.apache.spark.storage.StorageLevel
+import org.broadinstitute.hail.RichPairIterator
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
@@ -311,7 +312,7 @@ object VEP extends Command {
           .map { case (v, ((va, gs), vaVep)) =>
             (v, (vaVep.map(a => insertVEP(va, Some(a))).getOrElse(va), gs))
           }
-      }.toOrderedRDD(_.locus)
+      }.toOrderedRDD[Locus]
 
     val newVDS = vds.copy(rdd = newRDD,
       vaSignature = newVASignature)

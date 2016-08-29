@@ -21,7 +21,7 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
-import org.broadinstitute.hail.sparkextras.OrderedRDD
+import org.broadinstitute.hail.sparkextras.{OrderedKey, OrderedRDD}
 import org.broadinstitute.hail.utils.{AdvanceableOrderedPairIterator, RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
 import org.slf4j.{Logger, LoggerFactory}
@@ -494,9 +494,12 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
     }
   }
 
-  def toOrderedRDD[T](projectKey: (K) => T, reducedRepresentation: Option[RDD[K]] = None)
-    (implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T], kct: ClassTag[K], vct: ClassTag[V]): OrderedRDD[T, K, V] =
-    OrderedRDD[T, K, V](rdd, projectKey, reducedRepresentation)
+  // It would be nice to use default arguments here, but the compiler gets confused by the implicit argument
+  def toOrderedRDD[PK](implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
+    OrderedRDD[PK, K, V](rdd, None)
+
+  def toOrderedRDD[PK](reducedRepresentation: Option[RDD[K]])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
+    OrderedRDD[PK, K, V](rdd, reducedRepresentation)
 
 }
 
@@ -597,40 +600,6 @@ class RichPairTraversableOnce[K, V](val t: TraversableOnce[(K, V)]) extends AnyV
 }
 
 class RichPairIterator[K, V](val it: Iterator[(K, V)]) {
-
-  /**
-    * Precondition: the iterator it is T-sorted. Moreover, projectKey must be monotonic. We lazily K-sort each block
-    * of T-equivalent elements.
-    */
-  def localKeySort[T](projectKey: (K) => T)(implicit ord: Ordering[T], kOrd: Ordering[K]): Iterator[(K, V)] = {
-
-    implicit val kvOrd = new Ordering[(K, V)] {
-      // ascending
-      def compare(x: (K, V), y: (K, V)): Int = -kOrd.compare(x._1, y._1)
-    }
-
-    val bit = it.buffered
-
-    new Iterator[(K, V)] {
-      val q = new mutable.PriorityQueue[(K, V)]
-
-      def hasNext = bit.hasNext || q.nonEmpty
-
-      def next() = {
-        if (q.isEmpty) {
-          val kv = bit.next()
-          val t = projectKey(kv._1)
-
-          q.enqueue(kv)
-
-          while (bit.hasNext && projectKey(bit.head._1) == t)
-            q.enqueue(bit.next())
-        }
-
-        q.dequeue()
-      }
-    }
-  }
 
   def sortedLeftJoinDistinct[V2](right: Iterator[(K, V2)])(implicit kOrd: Ordering[K]): Iterator[(K, (V, Option[V2]))] = {
     import Ordering.Implicits._

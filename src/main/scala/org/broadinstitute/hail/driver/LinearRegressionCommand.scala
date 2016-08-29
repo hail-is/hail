@@ -101,7 +101,7 @@ object LinearRegressionCommand extends Command {
             assert(v == v2)
             (v, (inserter(va, comb.map(_.toAnnotation)), gs))
           }
-        }.toOrderedRDD(_.locus),
+        }.toOrderedRDD[Locus],
         vaSignature = newVAS
       )
     )

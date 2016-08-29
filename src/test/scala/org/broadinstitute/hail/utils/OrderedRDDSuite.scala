@@ -62,8 +62,8 @@ class OrderedRDDSuite extends SparkSuite {
       val rdd1 = sc.parallelize(is1, nPar1).cache()
       val rdd2 = sc.parallelize(is2, nPar2).cache()
 
-      val join: IndexedSeq[(Variant, (String, Option[String]))] = rdd1.toOrderedRDD(_.locus)
-        .orderedLeftJoinDistinct(rdd2.toOrderedRDD(_.locus))
+      val join: IndexedSeq[(Variant, (String, Option[String]))] = rdd1.toOrderedRDD[Locus]
+        .orderedLeftJoinDistinct(rdd2.toOrderedRDD[Locus])
         .collect()
         .toIndexedSeq
 
@@ -75,15 +75,15 @@ class OrderedRDDSuite extends SparkSuite {
     }
 
     property("randomlyOrdered") = Prop.forAll(random) { case (nPar, s) =>
-      check(sc.parallelize(s, nPar).toOrderedRDD(_.locus))
+      check(sc.parallelize(s, nPar).toOrderedRDD[Locus])
     }
 
     property("locusSorted") = Prop.forAll(locusSorted) { case (nPar, s) =>
-      check(sc.parallelize(s, nPar).toOrderedRDD(_.locus))
+      check(sc.parallelize(s, nPar).toOrderedRDD[Locus])
     }
 
     property("fullySorted") = Prop.forAll(sorted) { case (nPar, s) =>
-      check(sc.parallelize(s, nPar).toOrderedRDD(_.locus))
+      check(sc.parallelize(s, nPar).toOrderedRDD[Locus])
     }
 
     property("join1") = Prop.forAll(g, g) { case ((nPar1, is1), (nPar2, is2)) =>
@@ -120,7 +120,7 @@ class OrderedRDDSuite extends SparkSuite {
     val tmpRdd = tmpDir.createTempFile("rdd", ".parquet")
 
     property("writeRead") = Prop.forAll(g) { case (nPar, is) =>
-      val rdd = sc.parallelize(is, nPar).toOrderedRDD(_.locus)
+      val rdd = sc.parallelize(is, nPar).toOrderedRDD[Locus]
       val schema = StructType(Array(
         StructField("variant", Variant.schema, nullable = false),
         StructField("str", StringType, nullable = false)))
@@ -140,7 +140,7 @@ class OrderedRDDSuite extends SparkSuite {
         .map(r => (Variant.fromRow(r.getAs[Row](0)), r.getAs[String](1)))
 
       val readBackPartitioner = readObjectFile(tmpPartitioner, hadoopConf) { in =>
-        OrderedPartitioner.read[Locus, Variant](in, _.locus)
+        OrderedPartitioner.read[Locus, Variant](in)
       }
 
       val orderedRddRB = OrderedRDD[Locus, Variant, String](rddReadBack, readBackPartitioner)

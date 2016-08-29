@@ -2,34 +2,36 @@ package org.broadinstitute.hail.sparkextras
 
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.RichPairIterator
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.utils.BufferedAdvanceableOrderedPairIterator
 
 import scala.reflect.ClassTag
 
 object OrderedRDDIterator {
-  def apply[T, K, V](rdd: OrderedRDD[T, K, V],
-    context: TaskContext,
-    k0: K)(implicit tOrd: Ordering[T], kOrd: Ordering[K]): OrderedRDDIterator[T, K, V] = {
+  def apply[PK, K, V](rdd: OrderedRDD[PK, K, V], context: TaskContext, k0: K): OrderedRDDIterator[PK, K, V] = {
 
-    val it = new OrderedRDDIterator[T, K, V](rdd, context)
+    val it = new OrderedRDDIterator(rdd, context)
     it.setPartition(rdd.orderedPartitioner.getPartition(k0))
     it
   }
 }
 
-class OrderedRDDIterator[T, K, V](
-  rdd: OrderedRDD[T, K, V],
+class OrderedRDDIterator[PK, K, V](
+  rdd: OrderedRDD[PK, K, V],
   context: TaskContext,
   var partIndex: Int = -1,
   var it: BufferedIterator[(K, V)] = null,
-  var partMaxT: T = uninitialized[T])(implicit tOrd: Ordering[T], val kOrdering: Ordering[K]) extends BufferedAdvanceableOrderedPairIterator[K, V] {
-
-  import Ordering.Implicits._
+  var partMaxT: PK = uninitialized[PK]) extends BufferedAdvanceableOrderedPairIterator[K, V] {
 
   private val nPartitions = rdd.partitions.length
+  private val orderedKeyEv = rdd.kOk
+
+  implicit val kOrdering = orderedKeyEv.kOrd
+  import orderedKeyEv.pkOrd
+  import Ordering.Implicits._
+
   private val partitioner = rdd.orderedPartitioner
-  private val projectKey = partitioner.projectKey
 
   def head = it.head
 
@@ -58,7 +60,7 @@ class OrderedRDDIterator[T, K, V](
   }
 
   def advanceTo(k: K) {
-    val t = projectKey(k)
+    val t = orderedKeyEv.project(k)
 
     if (partIndex < nPartitions - 1 && t > partMaxT)
       setPartition(partitioner.getPartition(k))
@@ -68,9 +70,8 @@ class OrderedRDDIterator[T, K, V](
   }
 }
 
-class OrderedLeftJoinRDD[T, K, V1, V2](left: OrderedRDD[T, K, V1], right: OrderedRDD[T, K, V2])
-  (implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T],
-    kct: ClassTag[K]) extends RDD[(K, (V1, Option[V2]))](left.sparkContext, Seq(new OneToOneDependency(left),
+class OrderedLeftJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: OrderedRDD[PK, K, V2])
+  extends RDD[(K, (V1, Option[V2]))](left.sparkContext, Seq(new OneToOneDependency(left),
   new OrderedDependency(left.orderedPartitioner, right.orderedPartitioner, right)): Seq[Dependency[_]]) {
 
   override val partitioner: Option[Partitioner] = left.partitioner

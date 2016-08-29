@@ -5,9 +5,11 @@ import org.apache.spark.sql.types._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.sparkextras.OrderedKey
 import org.json4s._
 
 import scala.math.Numeric.Implicits._
+import scala.reflect.ClassTag
 
 object Contig {
   val standardContigs = (1 to 23).map(_.toString) ++ IndexedSeq("X", "Y", "MT")
@@ -163,6 +165,19 @@ object Variant {
       r.getSeq[Row](3)
         .map(s => AltAllele.fromRow(s))
         .toArray)
+
+  implicit def orderedKey: OrderedKey[Locus, Variant] =
+    new OrderedKey[Locus, Variant] {
+      def project(key: Variant): Locus = key.locus
+
+      def kOrd: Ordering[Variant] = implicitly[Ordering[Variant]]
+
+      def pkOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
+
+      def kct: ClassTag[Variant] = implicitly[ClassTag[Variant]]
+
+      def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
+    }
 }
 
 object VariantSubgen {

@@ -253,7 +253,7 @@ object VariantQC extends Command {
             assert(v == v2)
             (v, (insertQC(va, Some(comb.asAnnotation)), gs))
           }
-        }.toOrderedRDD(_.locus), vaSignature = newVAS)
+        }.toOrderedRDD[Locus], vaSignature = newVAS)
     )
   }
 
