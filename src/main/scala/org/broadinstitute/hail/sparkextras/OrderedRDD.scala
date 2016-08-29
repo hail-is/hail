@@ -45,10 +45,15 @@ object OrderedRDD {
           None)
       }.collect())
 
+    log.info(s"keyInfo = ${ keyInfoOption.map(_.toSeq) }")
+
     val partitionsSorted =
       keyInfoOption.exists(keyInfo =>
         keyInfo.zip(keyInfo.tail).forall { case (p, pnext) =>
-          p.max < pnext.min
+          val r = p.max < pnext.min
+          if (!r)
+            log.info(s"not sorted: p = $p, pnext = $pnext")
+          r
         })
 
     if (partitionsSorted) {
