@@ -24,6 +24,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - toInt: `i.toInt`
      - toFloat: `i.toFloat`
      - toLong: `i.toLong`
+     - str: `str(i)` -- returns `i` as a string
 
  - Numerical operations:
      - +, -, /, *, %: `a + b - c / d * e % f`
