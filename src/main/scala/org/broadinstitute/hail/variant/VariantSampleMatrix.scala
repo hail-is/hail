@@ -168,7 +168,7 @@ object VariantSampleMatrix {
         OrderedPartitioner.read[Locus, Variant](in, _.locus)
       }
 
-      new OrderedRDD[Locus, Variant, (Annotation, Iterable[Genotype])](readRDD(skipGenotypes), partitioner)
+      OrderedRDD[Locus, Variant, (Annotation, Iterable[Genotype])](readRDD(skipGenotypes), partitioner)
     } else {
       warn(
         """No partition information found: VDS is old or corrupted and will experience poor performance.
