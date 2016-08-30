@@ -143,7 +143,7 @@ class OrderedRDDSuite extends SparkSuite {
         OrderedPartitioner.read[Locus, Variant](in, _.locus)
       }
 
-      val orderedRddRB = new OrderedRDD[Locus, Variant, String](rddReadBack, readBackPartitioner)
+      val orderedRddRB = OrderedRDD[Locus, Variant, String](rddReadBack, readBackPartitioner)
 
       orderedRddRB.zipPartitions(rdd) { case (it1, it2) =>
         it1.zip(it2)

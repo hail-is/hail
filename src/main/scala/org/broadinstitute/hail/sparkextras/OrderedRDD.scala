@@ -64,17 +64,17 @@ object OrderedRDD {
         case PartitionKeyInfo.KSORTED =>
           assert(sortedness == PartitionKeyInfo.KSORTED)
           info("Coerced sorted dataset")
-          new OrderedRDD(rdd, partitioner)
+          OrderedRDD(rdd, partitioner)
 
         case PartitionKeyInfo.TSORTED =>
           info("Coerced almost-sorted dataset")
-          new OrderedRDD(rdd.mapPartitions { it =>
+          OrderedRDD(rdd.mapPartitions { it =>
             it.localKeySort(projectKey)
           }, partitioner)
 
         case PartitionKeyInfo.UNSORTED =>
           info("Coerced unsorted dataset")
-          new OrderedRDD(rdd.mapPartitions { it =>
+          OrderedRDD(rdd.mapPartitions { it =>
             it.toArray.sortBy(_._1).iterator
           }, partitioner)
       }
@@ -82,8 +82,42 @@ object OrderedRDD {
       info("Ordering unsorted dataset with network shuffle")
       val ranges: Array[T] = calculateKeyRanges[T](keys.map(projectKey))
       val partitioner = OrderedPartitioner[T, K](ranges, projectKey)
-      new OrderedRDD[T, K, V](new ShuffledRDD[K, V, V](rdd, partitioner).setKeyOrdering(kOrd), partitioner)
+      OrderedRDD[T, K, V](new ShuffledRDD[K, V, V](rdd, partitioner).setKeyOrdering(kOrd), partitioner)
     }
+  }
+
+
+  def apply[T, K, V](rdd: RDD[(K, V)],
+    orderedPartitioner: OrderedPartitioner[T, K])(implicit kOrd: Ordering[K], tOrd: Ordering[T], kct: ClassTag[K], tct: ClassTag[T]): OrderedRDD[T, K, V] = {
+    import Ordering.Implicits._
+
+    val rangeBoundsBc = rdd.sparkContext.broadcast(orderedPartitioner.rangeBounds)
+    new OrderedRDD(
+      rdd.mapPartitionsWithIndex { case (i, it) =>
+        new Iterator[(K, V)] {
+          var prevK: K = _
+          var first = true
+
+          def hasNext = it.hasNext
+
+          def next(): (K, V) = {
+            val r = it.next()
+            
+            if (i < rangeBoundsBc.value.length)
+              assert(orderedPartitioner.projectKey(r._1) <= rangeBoundsBc.value(i))
+            if (i > 0)
+              assert(rangeBoundsBc.value(i - 1) < orderedPartitioner.projectKey(r._1))
+
+            if (first)
+              first = false
+            else
+              assert(prevK <= r._1)
+
+            prevK = r._1
+            r
+          }
+        }
+      }, orderedPartitioner)
   }
 
   /**
@@ -190,11 +224,15 @@ class BlockedRDD[T](@transient var prev: RDD[T],
       .keys
       .toSeq
   }
+
 }
 
-class OrderedRDD[T, K, V](rdd: RDD[(K, V)],
+class OrderedRDD[T, K, V] private(rdd: RDD[(K, V)],
   val orderedPartitioner: OrderedPartitioner[T, K])
   (implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T], kct: ClassTag[K]) extends RDD[(K, V)](rdd) {
+
+  info(s"partitions: ${ rdd.partitions.length }, ${ orderedPartitioner.rangeBounds.length }")
+
   assert((orderedPartitioner.rangeBounds.isEmpty && rdd.partitions.isEmpty)
     || orderedPartitioner.rangeBounds.length == rdd.partitions.length - 1)
 
