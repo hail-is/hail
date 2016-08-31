@@ -7,7 +7,7 @@ function parseOptionKey(str) {
 };
 
 function buildHeader(commandName, cmdId) {
-	return "<a name=" + cmdId + "></a><h1 class=cmdhead>" + commandName + "</h1>";
+	return "<a name=" + cmdId + "></a><h1 class=cmdhead>" + commandName + " <a href=\"https://github.com/hail-is/hail/edit/master/docs/commands/"+cmdId+".md\" target=\"_blank\">✎</a></h1>";
 };
 
 function buildDescription(cmdId, data) {
