@@ -5,6 +5,7 @@ import java.util.Properties
 
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.FatalException
 import org.broadinstitute.hail.Utils._
@@ -281,6 +282,16 @@ object Main {
     conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
 
     sc.hadoopConfiguration.setInt("mapreduce.input.fileinputformat.split.minsize", options.blockSize * 1024 * 1024)
+
+    /* `DataFrame.write` writes one file per partition.  Without this, read will split files larger than the default
+     * parquet block size into multiple partitions.  This causes `OrderedRDD` to fail since the per-partition range
+     * no longer line up with the RDD partitions.
+     *
+     * For reasons we don't understand, the DataFrame code uses `SparkHadoopUtil.get.conf` instead of the Hadoop
+     * configuration in the SparkContext.  Set both for consistency.
+     */
+    SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1099511627776L)
+    sc.hadoopConfiguration.setLong("parquet.block.size", 1099511627776L)
 
     val sqlContext = SparkManager.createSQLContext()
 
