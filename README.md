@@ -1,4 +1,4 @@
-# Hail
+# Hail WUT
 
 [![Gitter](https://badges.gitter.im/hail-is/hail.svg)](https://gitter.im/hail-is/hail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
