@@ -21,7 +21,7 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.io.compress.BGzipCodec
 import org.broadinstitute.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
-import org.broadinstitute.hail.sparkextras.{OrderedKey, OrderedRDD}
+import org.broadinstitute.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
 import org.broadinstitute.hail.utils.{AdvanceableOrderedPairIterator, RichRow, StringEscapeUtils}
 import org.broadinstitute.hail.variant.Variant
 import org.slf4j.{Logger, LoggerFactory}
@@ -494,24 +494,29 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
     }
   }
 
-  // It would be nice to use default arguments here, but the compiler gets confused by the implicit argument
-  def toOrderedRDD[PK](implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
-    OrderedRDD[PK, K, V](rdd, None)
+  def asOrderedRDD[PK](implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
+    OrderedRDD.cast[PK, K, V](rdd)
+
+  def toOrderedRDD[PK](ranges: Array[PK])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
+    OrderedRDD(rdd, ranges)
+  }
 
   def toOrderedRDD[PK](reducedRepresentation: Option[RDD[K]])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
     OrderedRDD[PK, K, V](rdd, reducedRepresentation)
 
+  def toOrderedRDD[PK](implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
+    OrderedRDD[PK, K, V](rdd, None)
 }
 
 class RichIndexedRow(val r: IndexedRow) extends AnyVal {
 
-  def -(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector - that)
+  def -(that: BVector[Double]): IndexedRow = IndexedRow(r.index, r.vector - that)
 
-  def +(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector + that)
+  def +(that: BVector[Double]): IndexedRow = IndexedRow(r.index, r.vector + that)
 
-  def :*(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :* that)
+  def :*(that: BVector[Double]): IndexedRow = IndexedRow(r.index, r.vector :* that)
 
-  def :/(that: BVector[Double]): IndexedRow = new IndexedRow(r.index, r.vector :/ that)
+  def :/(that: BVector[Double]): IndexedRow = IndexedRow(r.index, r.vector :/ that)
 }
 
 class RichEnumeration[T <: Enumeration](val e: T) extends AnyVal {

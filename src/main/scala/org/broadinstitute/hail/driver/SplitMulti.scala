@@ -76,7 +76,7 @@ object SplitMulti extends Command {
         val (newStart, newRef, newAlt) = minRep(v.start, v.ref, aa.alt)
 
         (Variant(v.contig, newStart, newRef, newAlt), aai + 1)
-      }.toArray.sorted
+      }.toArray
 
     val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isDosage) }
     val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isDosage, compress) }
@@ -188,12 +188,21 @@ object SplitMulti extends Command {
       newSignature
     }.getOrElse(vas3)
 
-    val newVDS = state.vds
-      .flatMapVariants { case (v, va, gs) =>
-        split(v, va, gs, propagateGQ = propagateGQ, compress = !noCompress, isDosage = isDosage, { (ca, index, wasSplit) =>
-          insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
-        })}
-      .copy(wasSplit = true, vaSignature = vas4)
+    val newVDS = state.vds.copy(
+      wasSplit = true,
+      vaSignature = vas4,
+      rdd = vds.rdd.flatMap { case (v, (va, gs)) =>
+        split(v, va, gs,
+          propagateGQ = propagateGQ,
+          compress = !noCompress,
+          isDosage = isDosage, { (va, index, wasSplit) =>
+            insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+          })
+      }
+        .map[(Variant, (Annotation, Iterable[Genotype]))] { case (v, (va, gs)) =>
+        (v, (va, gs.toGenotypeStream(v, isDosage, compress = true)))
+      }
+        .toOrderedRDD[Locus](vds.rdd.orderedPartitioner.rangeBounds))
 
     state.copy(vds = newVDS)
   }
