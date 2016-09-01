@@ -13,7 +13,7 @@ object PlinkBlockReader {
 }
 
 class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[Int](job, split) {
-  var variantIndex = 0
+  var variantIndex: Long = 0L
   val nSamples = job.getInt("nSamples", 0)
   val compressGS = job.getBoolean("compressGS", false)
   val blockLength = (nSamples + 3) / 4
@@ -23,13 +23,15 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   seekToFirstBlockInSplit(split.getStart)
 
   def seekToFirstBlockInSplit(start: Long) {
-    variantIndex = math.max(0,((start - 3 + blockLength - 1) / blockLength).toInt)
+    variantIndex = math.max(0, (start - 3 + blockLength - 1) / blockLength)
     pos = variantIndex * blockLength + 3
 
     if (pos < start) {
       variantIndex += 1
       pos = variantIndex * blockLength + 3
     }
+
+    assert(pos >= 0, s"negative seek position $pos from variant index $variantIndex and block length $blockLength")
 
     bfis.seek(pos)
   }
@@ -40,7 +42,6 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
     else {
       val b = new GenotypeStreamBuilder(2, isDosage = false, compress = compressGS)
       val genoBuilder = new GenotypeBuilder(2, isDosage = false)
-
 
       bfis.readBytes(blockLength)
         .iterator
@@ -54,9 +55,10 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
           b.write(genoBuilder)
         }
 
-      require(variantIndex >= 0)
       value.setGS(b.result())
-      value.setKey(variantIndex)
+
+      assert(variantIndex >= 0 && variantIndex <= Integer.MAX_VALUE)
+      value.setKey(variantIndex.toInt)
       variantIndex += 1
       pos += blockLength
 
