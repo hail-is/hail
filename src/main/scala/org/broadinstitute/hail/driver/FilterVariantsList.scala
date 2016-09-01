@@ -66,7 +66,7 @@ object FilterVariantsList extends Command {
               }
             }
           }, preservesPartitioning = true)
-          .toOrderedRDD[Locus]
+          .asOrderedRDD[Locus]
       ))
   }
 }

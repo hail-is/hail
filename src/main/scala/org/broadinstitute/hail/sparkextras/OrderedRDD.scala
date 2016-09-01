@@ -19,6 +19,24 @@ object OrderedRDD {
   def empty[PK, K, V](sc: SparkContext)(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
     new OrderedRDD[PK, K, V](sc.emptyRDD[(K, V)], OrderedPartitioner.empty)
 
+  def apply[PK, K, V](rdd: RDD[(K, V)], ranges: Array[PK])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
+    val partitioner = OrderedPartitioner(ranges)
+    OrderedRDD[PK, K, V](new ShuffledRDD[K, V, V](rdd, partitioner).setKeyOrdering(kOk.kOrd), partitioner)
+  }
+
+  def cast[PK, K, V](rdd: RDD[(K, V)])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
+    if (rdd.partitions.isEmpty)
+      OrderedRDD.empty[PK, K, V](rdd.sparkContext)
+    else
+      rdd match {
+        case ordered: OrderedRDD[PK, K, V] => ordered
+        case _ =>
+          (rdd.partitioner: @unchecked) match {
+            case Some(p: OrderedPartitioner[PK, K]) => OrderedRDD(rdd, p)
+          }
+      }
+  }
+
   def apply[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None)(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
     import kOk.kct
     import kOk.pkct
@@ -85,11 +103,9 @@ object OrderedRDD {
     } else {
       info("Ordering unsorted dataset with network shuffle")
       val ranges = calculateKeyRanges(keys.map(kOk.project))
-      val partitioner = OrderedPartitioner(ranges)
-      OrderedRDD[PK, K, V](new ShuffledRDD[K, V, V](rdd, partitioner).setKeyOrdering(kOk.kOrd), partitioner)
+      apply(rdd, ranges)
     }
   }
-
 
   def apply[PK, K, V](rdd: RDD[(K, V)],
     orderedPartitioner: OrderedPartitioner[PK, K])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
@@ -97,6 +113,12 @@ object OrderedRDD {
     import kOk.pkOrd
     import kOk.kOrd
     import kOk.pkct
+
+    rdd.partitioner match {
+      /* if we verified rdd is K-sorted, it won't necessarily be partitioned */
+      case Some(p) => assert(p eq orderedPartitioner)
+      case _ =>
+    }
 
     val rangeBoundsBc = rdd.sparkContext.broadcast(orderedPartitioner.rangeBounds)
     new OrderedRDD(
@@ -109,7 +131,7 @@ object OrderedRDD {
 
           def next(): (K, V) = {
             val r = it.next()
-            
+
             if (i < rangeBoundsBc.value.length)
               assert(kOk.project(r._1) <= rangeBoundsBc.value(i))
             if (i > 0)
@@ -268,8 +290,10 @@ class BlockedRDD[T](@transient var prev: RDD[T],
 }
 
 class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: OrderedPartitioner[PK, K])
-   extends RDD[(K, V)](rdd) {
+  extends RDD[(K, V)](rdd) {
+
   import orderedPartitioner.kOk.pkct
+
   implicit val kOk: OrderedKey[PK, K] = orderedPartitioner.kOk
 
   info(s"partitions: ${ rdd.partitions.length }, ${ orderedPartitioner.rangeBounds.length }")
@@ -380,7 +404,7 @@ trait OrderedKey[PK, K] extends Serializable {
 
 
 abstract class OrderedKeyFunction[PK1, K1, PK2, K2]
-  (implicit val k1ok: OrderedKey[PK1, K1], val k2ok: OrderedKey[PK2, K2]) extends Serializable {
+(implicit val k1ok: OrderedKey[PK1, K1], val k2ok: OrderedKey[PK2, K2]) extends Serializable {
   def apply(k1: K1): K2 = f(k1)
 
   /**
@@ -412,6 +436,10 @@ object OrderedKeyFunction {
 
   def apply[K1, PK1, K2, PK2](g: (K1) => K2, partitionG: (PK1) => PK2)
     (implicit k1ok: OrderedKey[PK1, K1], k2ok: OrderedKey[PK2, K2]): OrderedKeyFunction[PK1, K1, PK2, K2] = {
-    new OrderedKeyFunction[PK1, K1, PK2, K2] { def f(k1: K1) = g(k1); def partitionF(pk1: PK1) = partitionG(pk1) }
+    new OrderedKeyFunction[PK1, K1, PK2, K2] {
+      def f(k1: K1) = g(k1);
+
+      def partitionF(pk1: PK1) = partitionG(pk1)
+    }
   }
 }

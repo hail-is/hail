@@ -5,7 +5,7 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant.{Locus, Variant}
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
@@ -68,7 +68,7 @@ object AnnotateVariantsTable extends Command with JoinAnnotator {
       _.map { a =>
         variantQuery(a).map(v => (v, a))
       }.value
-    }
+    }.toOrderedRDD[Locus]
 
     state.copy(vds = vds
       .withGenotypeStream()
