@@ -13,22 +13,24 @@ import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 import scala.util.hashing.{MurmurHash3, byteswap32}
 
-case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], ascending: Boolean = true)(implicit val kOk: OrderedKey[PK, K])
+case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], nPartitions: Int, ascending: Boolean = true)
+  (implicit val kOk: OrderedKey[PK, K])
   extends Partitioner {
 
   import kOk.pkct
   import kOk.pkOrd
   import Ordering.Implicits._
 
-  require(rangeBounds.isEmpty ||
-    rangeBounds.zip(rangeBounds.tail).forall { case (left, right) => left < right })
+  require(nPartitions == 0 && rangeBounds.isEmpty || nPartitions == rangeBounds.length + 1,
+    s"nPartitions = $nPartitions, ranges = ${rangeBounds.length}")
+  require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left, right) => left < right })
 
   def write(out: ObjectOutputStream) {
     out.writeBoolean(ascending)
     out.writeObject(rangeBounds)
   }
 
-  def numPartitions: Int = rangeBounds.length + 1
+  def numPartitions: Int = nPartitions
 
   var binarySearch: (Array[PK], PK) => Int = OrderedPartitioner.makeBinarySearch[PK]
 
@@ -83,18 +85,18 @@ case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], ascending: Boolean 
   }
 
   def mapMonotonic[K2](implicit k2Ok: OrderedKey[PK, K2]): OrderedPartitioner[PK, K2] = {
-    new OrderedPartitioner(rangeBounds, ascending)
+    new OrderedPartitioner(rangeBounds, nPartitions, ascending)
   }
 }
 
 object OrderedPartitioner {
   def empty[PK, K](implicit kOk: OrderedKey[PK, K]): OrderedPartitioner[PK, K] =
-    new OrderedPartitioner[PK, K](Array.empty(kOk.pkct))
+    new OrderedPartitioner[PK, K](Array.empty(kOk.pkct), 0)
 
-  def read[PK, K](in: ObjectInputStream)(implicit kOk: OrderedKey[PK, K]): OrderedPartitioner[PK, K] = {
+  def read[PK, K](in: ObjectInputStream, partitions: Int)(implicit kOk: OrderedKey[PK, K]): OrderedPartitioner[PK, K] = {
     val ascending = in.readBoolean()
     val rangeBounds = in.readObject().asInstanceOf[Array[PK]]
-    OrderedPartitioner(rangeBounds, ascending)
+    OrderedPartitioner(rangeBounds, partitions, ascending)
   }
 
   /**

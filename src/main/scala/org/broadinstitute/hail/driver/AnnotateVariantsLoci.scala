@@ -68,7 +68,7 @@ object AnnotateVariantsLoci extends Command with JoinAnnotator {
       _.map { a =>
         locusQuery(a).map(l => (l, a))
       }.value
-    }.toOrderedRDD[Locus]
+    }.toOrderedRDD
 
     state.copy(vds = vds
       .withGenotypeStream()

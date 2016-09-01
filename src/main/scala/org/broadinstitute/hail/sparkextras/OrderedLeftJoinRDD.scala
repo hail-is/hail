@@ -9,9 +9,9 @@ import org.broadinstitute.hail.utils.richUtils.RichPairIterator
 import scala.reflect.ClassTag
 
 object OrderedRDDIterator {
-  def apply[PK, K, V](rdd: OrderedRDD[PK, K, V], context: TaskContext, k0: K): OrderedRDDIterator[PK, K, V] = {
-
-    val it = new OrderedRDDIterator(rdd, context)
+  def apply[PK, K, V](rdd: OrderedRDD[PK, K, V], partitions: Array[Partition],
+    context: TaskContext, k0: K): OrderedRDDIterator[PK, K, V] = {
+    val it = new OrderedRDDIterator(rdd, partitions, context)
     it.setPartition(rdd.orderedPartitioner.getPartition(k0))
     it
   }
@@ -19,12 +19,13 @@ object OrderedRDDIterator {
 
 class OrderedRDDIterator[PK, K, V](
   rdd: OrderedRDD[PK, K, V],
+  partitions: Array[Partition], // cannot access rdd.partitions on executor
   context: TaskContext,
   var partIndex: Int = -1,
   var it: BufferedIterator[(K, V)] = null,
   var partMaxT: PK = uninitialized[PK]) extends BufferedAdvanceableOrderedPairIterator[K, V] {
 
-  private val nPartitions = rdd.partitions.length
+  private val nPartitions = partitions.length
   private val orderedKeyEv = rdd.kOk
 
   implicit val kOrdering = orderedKeyEv.kOrd
@@ -43,7 +44,7 @@ class OrderedRDDIterator[PK, K, V](
   def setPartition(newPartIndex: Int) {
     partIndex = newPartIndex
     if (partIndex < nPartitions) {
-      it = rdd.iterator(rdd.partitions(partIndex), context).buffered
+      it = rdd.iterator(partitions(partIndex), context).buffered
       if (partIndex < nPartitions - 1)
         partMaxT = partitioner.rangeBounds(partIndex)
     } else
@@ -75,6 +76,8 @@ class OrderedLeftJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: Orde
   extends RDD[(K, (V1, Option[V2]))](left.sparkContext, Seq(new OneToOneDependency(left),
     new OrderedDependency(left.orderedPartitioner, right.orderedPartitioner, right)): Seq[Dependency[_]]) {
 
+  private val rightPartitions = right.partitions
+
   override val partitioner: Option[Partitioner] = left.partitioner
 
   def getPartitions: Array[Partition] = left.partitions
@@ -86,7 +89,7 @@ class OrderedLeftJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: Orde
     if (leftIt.isEmpty)
       Iterator()
     else {
-      val rightIt = OrderedRDDIterator(right, context, leftIt.head._1)
+      val rightIt = OrderedRDDIterator(right, rightPartitions, context, leftIt.head._1)
       leftIt.sortedLeftJoinDistinct(rightIt)
     }
   }

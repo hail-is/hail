@@ -91,7 +91,7 @@ object ImportBGEN extends Command {
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
     val vds = VariantSampleMatrix(VariantMetadata(samples).copy(isDosage = true),
-      sc.union(results.map(_.rdd)).toOrderedRDD[Locus])
+      sc.union(results.map(_.rdd)).toOrderedRDD)
       .copy(vaSignature = signature, wasSplit = true)
 
     state.copy(vds = vds)
