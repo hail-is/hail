@@ -23,13 +23,18 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   seekToFirstBlockInSplit(split.getStart)
 
   def seekToFirstBlockInSplit(start: Long) {
-    variantIndex = math.max(0,((start - 3 + blockLength - 1) / blockLength).toInt)
-    pos = variantIndex * blockLength + 3
+    val computedBlockStart = (start - 3 + blockLength - 1) / blockLength
+    assert(computedBlockStart < Integer.MAX_VALUE,
+      s"computed block start greater than MAXINT from start $start and block length $blockLength")
+    variantIndex = math.max(0, computedBlockStart.toInt)
+    pos = variantIndex.toLong * blockLength + 3
 
     if (pos < start) {
       variantIndex += 1
       pos = variantIndex * blockLength + 3
     }
+
+    assert(pos >= 0, s"negative seek position $pos from variant index $variantIndex and block length $blockLength")
 
     bfis.seek(pos)
   }
