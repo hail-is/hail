@@ -192,6 +192,8 @@ object VariantSubgen {
   val plinkCompatible = random.copy(
     contigGen = Gen.choose(1, 22).map(_.toString)
   )
+
+  val biallelic = random.copy(nAllelesGen = Gen.const(2))
 }
 
 case class VariantSubgen(

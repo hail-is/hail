@@ -363,7 +363,7 @@ object Genotype {
       else
         f(i + 1, m, mi, count)
     }
-    f(1, 0, a(0), 1)
+    f(0, 0, a(0), 1)
   }
 
   def weightsToLinear[T: Numeric](a: Array[T]): Array[Int] = {
@@ -599,8 +599,7 @@ object Genotype {
 
   def genDosage(nAlleles: Int): Gen[Genotype] = {
     val nGenotypes = triangle(nAlleles)
-    // FIXME hack, add Gen.partition(nParts) and Gen.partitionN(nParts, size)
-    for (px <- Gen.option(Gen.partition(nGenotypes).resize(32768))) yield {
+    for (px <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
       val gt = px.flatMap(gtFromLinear)
       val g = Genotype(gt = gt, px = px, isDosage = true)
       g.check(nAlleles)

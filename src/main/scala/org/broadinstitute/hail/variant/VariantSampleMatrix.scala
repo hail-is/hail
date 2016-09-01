@@ -257,7 +257,7 @@ case class VSMSubgen[T](
 
   def gen(sc: SparkContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (size <- Gen.size;
-      subsizes <- Gen.partition(5).resize(size / 10);
+      subsizes <- Gen.partitionSize(5).resize(size / 10);
       vaSig <- vaSigGen.resize(subsizes(0));
       saSig <- saSigGen.resize(subsizes(1));
       globalSig <- globalSigGen.resize(subsizes(2));
@@ -270,7 +270,7 @@ case class VSMSubgen[T](
       nSamples = sampleIds.length;
       saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
       rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
-        for (subsubsizes <- Gen.partition(3);
+        for (subsubsizes <- Gen.partitionSize(3);
           v <- vGen.resize(subsubsizes(0));
           va <- vaGen(vaSig).resize(subsubsizes(1));
           ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v.nAlleles)).resize(subsubsizes(2)))
