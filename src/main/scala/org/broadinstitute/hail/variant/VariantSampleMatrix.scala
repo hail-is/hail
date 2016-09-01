@@ -440,6 +440,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       }
   }
 
+  /**
+    * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
+    */
+  def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
+    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) }.toOrderedRDD)
 
