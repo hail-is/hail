@@ -13,12 +13,11 @@ import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 import scala.util.hashing.{MurmurHash3, byteswap32}
 
-case class OrderedPartitioner[T, K](
-  rangeBounds: Array[T],
-  projectKey: (K) => T,
-  ascending: Boolean = true)(implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T], kct: ClassTag[K])
+case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], ascending: Boolean = true)(implicit val kOk: OrderedKey[PK, K])
   extends Partitioner {
 
+  import kOk.pkct
+  import kOk.pkOrd
   import Ordering.Implicits._
 
   require(rangeBounds.isEmpty ||
@@ -31,16 +30,16 @@ case class OrderedPartitioner[T, K](
 
   def numPartitions: Int = rangeBounds.length + 1
 
-  var binarySearch: ((Array[T], T) => Int) = OrderedPartitioner.makeBinarySearch[T]
+  var binarySearch: (Array[PK], PK) => Int = OrderedPartitioner.makeBinarySearch[PK]
 
-  def getPartition(key: Any): Int = getPartitionT(projectKey(key.asInstanceOf[K]))
+  def getPartition(key: Any): Int = getPartitionT(kOk.project(key.asInstanceOf[K]))
 
   /**
     * Code mostly copied from:
     *   org.apache.spark.RangePartitioner.getPartition(key: Any)
     *   version 1.5.0
     **/
-  def getPartitionT(key: T): Int = {
+  def getPartitionT(key: PK): Int = {
 
     var partition = 0
     if (rangeBounds.length <= 128) {
@@ -83,20 +82,19 @@ case class OrderedPartitioner[T, K](
     result
   }
 
-  def mapMonotonic[K2](newF: (K2) => T)(implicit k2Ord: Ordering[K2], k2ct: ClassTag[K2]): OrderedPartitioner[T, K2] = {
-    new OrderedPartitioner[T, K2](rangeBounds, newF, ascending)
+  def mapMonotonic[K2](implicit k2Ok: OrderedKey[PK, K2]): OrderedPartitioner[PK, K2] = {
+    new OrderedPartitioner(rangeBounds, ascending)
   }
 }
 
 object OrderedPartitioner {
-  def empty[T, K](projectKey: (K) => T)(implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T],
-    kct: ClassTag[K]): OrderedPartitioner[T, K] = new OrderedPartitioner(Array.empty[T], projectKey)
+  def empty[PK, K](implicit kOk: OrderedKey[PK, K]): OrderedPartitioner[PK, K] =
+    new OrderedPartitioner[PK, K](Array.empty(kOk.pkct))
 
-  def read[T, K](in: ObjectInputStream, projectKey: (K) => T)(implicit tOrd: Ordering[T], kOrd: Ordering[K], tct: ClassTag[T],
-    kct: ClassTag[K]): OrderedPartitioner[T, K] = {
+  def read[PK, K](in: ObjectInputStream)(implicit kOk: OrderedKey[PK, K]): OrderedPartitioner[PK, K] = {
     val ascending = in.readBoolean()
-    val rangeBounds = in.readObject().asInstanceOf[Array[T]]
-    OrderedPartitioner(rangeBounds, projectKey, ascending)
+    val rangeBounds = in.readObject().asInstanceOf[Array[PK]]
+    OrderedPartitioner(rangeBounds, ascending)
   }
 
   /**

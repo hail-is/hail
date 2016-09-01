@@ -101,7 +101,7 @@ class VSMSuite extends SparkSuite {
       (v2, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD(_.locus)
+          Genotype(1)))))).toOrderedRDD[Locus]
 
     // differ in variant
     val rdd2 = sc.parallelize(Seq((v1, (va1,
@@ -111,7 +111,7 @@ class VSMSuite extends SparkSuite {
       (v3, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD(_.locus)
+          Genotype(1)))))).toOrderedRDD[Locus]
 
     // differ in genotype
     val rdd3 = sc.parallelize(Seq((v1, (va1,
@@ -121,7 +121,7 @@ class VSMSuite extends SparkSuite {
       (v2, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD(_.locus)
+          Genotype(1)))))).toOrderedRDD[Locus]
 
     // for mdata2
     val rdd4 = sc.parallelize(Seq((v1, (va1,
@@ -129,12 +129,12 @@ class VSMSuite extends SparkSuite {
         Genotype(0)))),
       (v2, (va2, Iterable(
         Genotype(0),
-        Genotype(0)))))).toOrderedRDD(_.locus)
+        Genotype(0)))))).toOrderedRDD[Locus]
 
     // differ in number of variants
     val rdd5 = sc.parallelize(Seq((v1, (va1,
       Iterable(Genotype(),
-        Genotype(0)))))).toOrderedRDD(_.locus)
+        Genotype(0)))))).toOrderedRDD[Locus]
 
     // differ in annotations
     val rdd6 = sc.parallelize(Seq((v1, (va1,
@@ -144,7 +144,7 @@ class VSMSuite extends SparkSuite {
       (v2, (va3,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD(_.locus)
+          Genotype(1)))))).toOrderedRDD[Locus]
 
     val vdss = Array(new VariantDataset(mdata1, rdd1),
       new VariantDataset(mdata1, rdd2),

@@ -201,7 +201,7 @@ object SplitMulti extends Command {
             })
         }
       }, preservesPartitioning = true)
-        .toOrderedRDD(_.locus))
+        .toOrderedRDD[Locus])
     state.copy(vds = newVDS)
   }
 }

@@ -19,6 +19,6 @@ object FilterVariantsAll extends Command {
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    state.copy(vds = state.vds.copy(rdd = OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](state.sc, _.locus)))
+    state.copy(vds = state.vds.copy(rdd = OrderedRDD.empty(state.sc)))
   }
 }
