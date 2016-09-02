@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.{Gen, Properties}
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Prop._
+import org.broadinstitute.hail.check.{Gen, Properties}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-import org.broadinstitute.hail.Utils._
 
 import scala.collection.mutable
 
@@ -21,7 +21,7 @@ object GenotypeSuite {
     gb.set(g)
     gb.write(ab)
     val g2 = Genotype.read(nAlleles, isDosage, new ByteIterator(ab.result()))
-    
+
     g == g2
   }
 
@@ -44,10 +44,11 @@ object GenotypeSuite {
       val p = Genotype.gtPair(i)
 
       Genotype.gtIndex(p) == i &&
-      Genotype.gtPairSqrt(i) == p &&
-      Genotype.gtPairRecursive(i) == p
+        Genotype.gtPairSqrt(i) == p &&
+        Genotype.gtPairRecursive(i) == p
     }
   }
+
 }
 
 class GenotypeSuite extends TestNGSuite {
@@ -93,7 +94,7 @@ class GenotypeSuite extends TestNGSuite {
     Spec.check()
   }
 
-  @Test def gtPairGtIndexIsId(): Unit = {
+  @Test def gtPairGtIndexIsId() {
     forAll(Gen.choose(0, 32768), Gen.choose(0, 32768)) { (x, y) =>
       val (j, k) = if (x < y) (x, y) else (y, x)
       val gt = GTPair(j, k)
@@ -103,15 +104,37 @@ class GenotypeSuite extends TestNGSuite {
 
   def triangleNumberOf(i: Int) = (i * i + i) / 2
 
-  @Test def gtIndexGtPairIsId(): Unit = {
-    forAll(Gen.choose(0,10000)) { (idx) =>
+  @Test def gtIndexGtPairIsId() {
+    forAll(Gen.choose(0, 10000)) { (idx) =>
       Genotype.gtIndex(Genotype.gtPair(idx)) == idx
     }.check()
   }
 
-  @Test def gtPairAndGtPairSqrtEqual(): Unit = {
-    forAll(Gen.choose(0,10000)) { (idx) =>
+  @Test def gtPairAndGtPairSqrtEqual() {
+    forAll(Gen.choose(0, 10000)) { (idx) =>
       Genotype.gtPair(idx) == Genotype.gtPairSqrt(idx)
     }.check()
+  }
+
+  @Test def testGtFromLinear() {
+    val gen = for (nGenotype <- Gen.choose(2, 5).map(triangleNumberOf);
+      dosageGen = Gen.partition(nGenotype, 32768);
+      result <- dosageGen) yield result
+
+    val p = forAll(gen) { dosages =>
+      val gt = Genotype.gtFromLinear(dosages)
+      assert(dosages.sum == 32768)
+      val dMax = dosages.max
+
+      val check1 = gt.forall { gt =>
+        val dosageP = dosages(gt)
+        dosageP == dMax && dosages.zipWithIndex.forall { case (d, index) => index == gt || d != dosageP }
+      }
+
+      val check2 = dosages.count(_ == dMax) > 1 || gt.contains(dosages.indexOf(dMax))
+
+      check1 && check2
+    }
+    p.check()
   }
 }

@@ -43,8 +43,19 @@ object Gen {
     a
   }
 
-  def partition(parts: Int) : Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts) }
-  def size : Gen[Int] = Gen { p => p.size }
+  def partition(parts: Int, sum: Int): Gen[Array[Int]] = {
+    val allOneBucket = Gen { p =>
+      val a = Array.fill[Int](parts)(0)
+      a(p.rng.nextInt(0, parts - 1)) = sum
+      a
+    }
+
+    Gen.frequency(1 -> allOneBucket, 9 -> Gen { p => partition(p.rng, sum, parts) })
+  }
+
+  def partitionSize(parts: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts) }
+
+  def size: Gen[Int] = Gen { p => p.size }
 
   val printableChars = (0 to 127).map(_.toChar).filter(!_.isControl).toArray
   val identifierLeadingChars = (0 to 127).map(_.toChar)
@@ -140,10 +151,10 @@ object Gen {
     * traversable.
     *
     **/
-  def uniformSequence[C[_], T](gs : Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-    partition(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C,T])
+  def uniformSequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+  partitionSize(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C, T])
 
-  private def resizeMany[T](gs : Traversable[Gen[T]], partition : Array[Int]): Iterable[Gen[T]] =
+  private def resizeMany[T](gs: Traversable[Gen[T]], partition: Array[Int]): Iterable[Gen[T]] =
     (gs.toIterable, partition).zipped.map((gen, size) => gen.resize(size))
 
   def stringOf[T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, String]): Gen[String] =
@@ -152,10 +163,10 @@ object Gen {
   def buildableOf[C[_], T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     unsafeBuildableOf(g)
 
-  def buildableOf2[C[_,_], T, U](g: Gen[(T,U)])(implicit cbf: CanBuildFrom[Nothing, (T,U), C[T,U]]): Gen[C[T, U]] =
+  def buildableOf2[C[_, _], T, U](g: Gen[(T, U)])(implicit cbf: CanBuildFrom[Nothing, (T, U), C[T, U]]): Gen[C[T, U]] =
     unsafeBuildableOf(g)
 
-  private def unsafeBuildableOf[C,T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
+  private def unsafeBuildableOf[C, T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
       val b = cbf()
       if (p.size == 0)

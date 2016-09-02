@@ -28,6 +28,7 @@ class OrderedRDDIterator[PK, K, V](
   private val orderedKeyEv = rdd.kOk
 
   implicit val kOrdering = orderedKeyEv.kOrd
+
   import orderedKeyEv.pkOrd
   import Ordering.Implicits._
 
@@ -72,7 +73,7 @@ class OrderedRDDIterator[PK, K, V](
 
 class OrderedLeftJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: OrderedRDD[PK, K, V2])
   extends RDD[(K, (V1, Option[V2]))](left.sparkContext, Seq(new OneToOneDependency(left),
-  new OrderedDependency(left.orderedPartitioner, right.orderedPartitioner, right)): Seq[Dependency[_]]) {
+    new OrderedDependency(left.orderedPartitioner, right.orderedPartitioner, right)): Seq[Dependency[_]]) {
 
   override val partitioner: Option[Partitioner] = left.partitioner
 
@@ -82,7 +83,11 @@ class OrderedLeftJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: Orde
 
   override def compute(split: Partition, context: TaskContext): Iterator[(K, (V1, Option[V2]))] = {
     val leftIt = left.iterator(split, context).buffered
-    val rightIt = OrderedRDDIterator(right, context, leftIt.head._1)
-    leftIt.sortedLeftJoinDistinct(rightIt)
+    if (leftIt.isEmpty)
+      Iterator()
+    else {
+      val rightIt = OrderedRDDIterator(right, context, leftIt.head._1)
+      leftIt.sortedLeftJoinDistinct(rightIt)
+    }
   }
 }

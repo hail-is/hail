@@ -73,7 +73,10 @@ class LoadBgenSuite extends SparkSuite {
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- VariantSampleMatrix.gen(sc,
-      VSMSubgen.dosage.copy(vGen = VSMSubgen.dosage.vGen.map(v => v.copy(contig = "01")))) if vds.nVariants != 0;
+      VSMSubgen.dosage.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
+        sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier.filter(_ != "NA"))))
+      .filter(_.nVariants > 0)
+      .map(_.copy(wasSplit = true));
       nPartitions <- choose(1, 10))
       yield (vds, nPartitions)
 
@@ -101,8 +104,6 @@ class LoadBgenSuite extends SparkSuite {
         hadoopDelete(qcToolLogFile, sc.hadoopConfiguration, recursive = true)
 
         var s = State(sc, sqlContext, vds)
-        s = SplitMulti.run(s, Array[String]())
-        s = RenameSamples.run(s, Array("-i", sampleRenameFile))
 
         val origVds = s.vds
 
