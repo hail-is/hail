@@ -7,6 +7,21 @@ import org.json4s._
 
 import scala.reflect.ClassTag
 
+object LocusImplicits {
+  /* We cannot add this to the Locus companion object because it breaks serialization. */
+  implicit def orderedKey = new OrderedKey[Locus, Locus] {
+    def project(key: Locus): Locus = key
+
+    def kOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
+
+    def pkOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
+
+    def kct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
+
+    def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
+  }
+}
+
 object Locus {
   val simpleContigs: Seq[String] = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")
 
@@ -20,19 +35,6 @@ object Locus {
       .map { case (contig, pos) => Locus(contig, pos) }
 
   def gen: Gen[Locus] = gen(simpleContigs)
-
-
-  implicit def orderedKey = new OrderedKey[Locus, Locus] {
-    def project(key: Locus): Locus = key
-
-    def kOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
-
-    def pkOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
-
-    def kct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
-
-    def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
-  }
 }
 
 case class Locus(contig: String, position: Int) extends Ordered[Locus] {

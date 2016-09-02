@@ -737,7 +737,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def annotateLoci(lociRDD: OrderedRDD[Locus, Locus, Annotation], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
-    import Locus.orderedKey
+    import LocusImplicits.orderedKey
 
     val newRDD = rdd
       .mapMonotonic(OrderedKeyFunction(_.locus), { case (v, vags) => (v, vags) })

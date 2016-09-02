@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.sql.Row
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.{Locus, Variant}
+import org.broadinstitute.hail.variant.Locus
+import org.broadinstitute.hail.variant.LocusImplicits.orderedKey
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
