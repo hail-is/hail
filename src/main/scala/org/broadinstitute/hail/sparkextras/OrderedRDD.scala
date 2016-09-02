@@ -21,6 +21,8 @@ object OrderedRDD {
 
   def apply[PK, K, V](rdd: RDD[(K, V)], ranges: Array[PK])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
+    import kOk.kct
+    import kOk.pkct
     val partitioner = OrderedPartitioner(ranges)
     OrderedRDD[PK, K, V](new ShuffledRDD[K, V, V](rdd, partitioner).setKeyOrdering(kOk.kOrd), partitioner)
   }
