@@ -494,17 +494,18 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
     }
   }
 
-  def asOrderedRDD[PK](implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
+  def asOrderedRDD[PK](implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     OrderedRDD.cast[PK, K, V](rdd)
 
-  def toOrderedRDD[PK](ranges: Array[PK])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
+  def toOrderedRDD[PK](ranges: Array[PK])(implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
     OrderedRDD(rdd, ranges)
   }
 
-  def toOrderedRDD[PK](reducedRepresentation: Option[RDD[K]])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
+  def toOrderedRDD[PK](reducedRepresentation: Option[RDD[K]])
+    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     OrderedRDD[PK, K, V](rdd, reducedRepresentation)
 
-  def toOrderedRDD[PK](implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
+  def toOrderedRDD[PK](implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     OrderedRDD[PK, K, V](rdd, None)
 }
 

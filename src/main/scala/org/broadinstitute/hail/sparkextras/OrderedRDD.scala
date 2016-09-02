@@ -16,15 +16,16 @@ import scala.language.existentials
 
 object OrderedRDD {
 
-  def empty[PK, K, V](sc: SparkContext)(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] =
+  def empty[PK, K, V](sc: SparkContext)(implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     new OrderedRDD[PK, K, V](sc.emptyRDD[(K, V)], OrderedPartitioner.empty)
 
-  def apply[PK, K, V](rdd: RDD[(K, V)], ranges: Array[PK])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
+  def apply[PK, K, V](rdd: RDD[(K, V)], ranges: Array[PK])
+    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
     val partitioner = OrderedPartitioner(ranges)
     OrderedRDD[PK, K, V](new ShuffledRDD[K, V, V](rdd, partitioner).setKeyOrdering(kOk.kOrd), partitioner)
   }
 
-  def cast[PK, K, V](rdd: RDD[(K, V)])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
+  def cast[PK, K, V](rdd: RDD[(K, V)])(implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
     if (rdd.partitions.isEmpty)
       OrderedRDD.empty[PK, K, V](rdd.sparkContext)
     else
@@ -37,7 +38,8 @@ object OrderedRDD {
       }
   }
 
-  def apply[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None)(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
+  def apply[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None)
+    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
     import kOk.kct
     import kOk.pkct
     import kOk.kOrd
@@ -108,7 +110,8 @@ object OrderedRDD {
   }
 
   def apply[PK, K, V](rdd: RDD[(K, V)],
-    orderedPartitioner: OrderedPartitioner[PK, K])(implicit kOk: OrderedKey[PK, K]): OrderedRDD[PK, K, V] = {
+    orderedPartitioner: OrderedPartitioner[PK, K])
+    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
     import Ordering.Implicits._
     import kOk.pkOrd
     import kOk.kOrd
@@ -293,7 +296,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
   extends RDD[(K, V)](rdd) {
 
   import orderedPartitioner.kOk.pkct
-
+  import orderedPartitioner.kOk.kct
   implicit val kOk: OrderedKey[PK, K] = orderedPartitioner.kOk
 
   info(s"partitions: ${ rdd.partitions.length }, ${ orderedPartitioner.rangeBounds.length }")
