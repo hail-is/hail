@@ -295,6 +295,10 @@ object VSMSubgen {
     vGen = Variant.gen,
     tGen = Genotype.genExtreme)
 
+  val plinkSafeBiallelic = random.copy(
+    sampleIdGen = Gen.distinctBuildableOfAtLeast[IndexedSeq, String](1, Gen.plinkSafeIdentifier),
+    vGen = VariantSubgen.random.copy(nAllelesGen = Gen.const(2)).gen)
+
   val realistic = random.copy(
     tGen = Genotype.genRealistic)
 

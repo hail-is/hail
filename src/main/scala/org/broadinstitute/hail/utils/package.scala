@@ -262,4 +262,44 @@ package object utils extends Logging
 
     a
   }
+
+  def assertSameElements[K,V](l: Map[K, V], r: Map[K, V], valueEq: (V, V) => Boolean) {
+    def entryMismatchMessage(failures: TraversableOnce[(K, V, V)]): String = {
+      require(failures.nonEmpty)
+      val newline = System.lineSeparator()
+      val sb = new StringBuilder
+      sb ++= "The maps do not have the same entries:" + newline
+      for (failure <- failures) {
+        sb ++= s"  At key ${failure._1}, the left map has ${failure._2} and the right map has ${failure._3}" + newline
+      }
+      sb ++= s"  The left map is: $l" + newline
+      sb ++= s"  The right map is: $r" + newline
+      sb.result()
+    }
+
+    if (l.keySet != r.keySet) {
+      println(
+        s"""The maps do not have the same keys.
+            |  These keys are unique to the left-hand map: ${l.keySet -- r.keySet}
+            |  These keys are unique to the right-hand map: ${r.keySet -- l.keySet}
+            |  The left map is: $l
+            |  The right map is: $r
+      """.stripMargin)
+      assert(false)
+    }
+
+    val fs = Array.newBuilder[(K, V, V)]
+    for ((k, lv) <- l) {
+      val rv = r(k)
+      if (!valueEq(lv, rv))
+        fs += ((k, lv, rv))
+    }
+    val failures = fs.result()
+
+    if (!failures.isEmpty) {
+      println(entryMismatchMessage(failures))
+      assert(false)
+    }
+  }
+
 }
