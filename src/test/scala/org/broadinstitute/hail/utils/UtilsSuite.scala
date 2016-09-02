@@ -2,10 +2,11 @@ package org.broadinstitute.hail.utils
 
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Arbitrary._
-import org.broadinstitute.hail.check.{Gen, Prop}
+import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.sparkextras.OrderedRDD
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.{RichPairIterator, SpanningIterator, SparkSuite}
+import org.broadinstitute.hail.{PropertySuite, SpanningIterator, SparkSuite}
 import org.testng.annotations.Test
 
 class UtilsSuite extends SparkSuite {
@@ -101,42 +102,37 @@ class UtilsSuite extends SparkSuite {
   def span[K, V](tuples: List[(K, V)]) = {
     new SpanningIterator(tuples.iterator).toIterable.toList
   }
+}
 
-  @Test def testLeftJoinIterators() {
-    val g = for (uniqueInts <- Gen.buildableOf[Set, Int](Gen.choose(0, 1000)).map(set => set.toIndexedSeq.sorted);
-      toZip <- Gen.buildableOfN[IndexedSeq, String](uniqueInts.size, arbitrary[String])
-    ) yield {
-      uniqueInts.zip(toZip)
-    }
-
-    val p = Prop.forAll(g, g) { case (it1, it2) =>
-      val m2 = it2.toMap
-
-      val join = it1.iterator.sortedLeftJoinDistinct(it2.iterator).toIndexedSeq
-
-      val check1 = it1 == join.map { case (k, (v1, _)) => (k, v1) }
-      val check2 = join.forall { case (k, (_, v2)) => v2 == m2.get(k) }
-
-      check1 && check2
-    }
-
-    p.check()
+class UtilsProperties extends PropertySuite {
+  val g1 = for (uniqueInts <- Gen.buildableOf[Set, Int](Gen.choose(0, 1000)).map(set => set.toIndexedSeq.sorted);
+    toZip <- Gen.buildableOfN[IndexedSeq, String](uniqueInts.size, arbitrary[String])
+  ) yield {
+    uniqueInts.zip(toZip)
   }
 
-  @Test def testKeySortIterator() {
-    val g = for (chr <- Gen.oneOf("1", "2");
-      pos <- Gen.choose(1, 50);
-      ref <- genDNAString;
-      alt <- genDNAString.filter(_ != ref);
-      v <- arbitrary[Int]) yield (Variant(chr, pos, ref, alt), v)
-    val p = Prop.forAll(Gen.buildableOf[IndexedSeq, (Variant, Int)](g)) { is =>
-      val kSorted = is.sortBy(_._1)
-      val tSorted = is.sortBy(_._1.locus)
-      val localKeySorted = OrderedRDD.localKeySort(is.sortBy(_._1.locus).iterator).toIndexedSeq
+  property("left join iterators") = forAll(g1, g1) { case (it1, it2) =>
+    val m2 = it2.toMap
 
-      kSorted == localKeySorted
-    }
+    val join = it1.iterator.sortedLeftJoinDistinct(it2.iterator).toIndexedSeq
 
-    p.check()
+    val check1 = it1 == join.map { case (k, (v1, _)) => (k, v1) }
+    val check2 = join.forall { case (k, (_, v2)) => v2 == m2.get(k) }
+
+    check1 && check2
   }
+
+  val g2 = for (chr <- Gen.oneOf("1", "2");
+    pos <- Gen.choose(1, 50);
+    ref <- genDNAString;
+    alt <- genDNAString.filter(_ != ref);
+    v <- arbitrary[Int]) yield (Variant(chr, pos, ref, alt), v)
+  property("key sort iterator") = forAll(Gen.buildableOf[IndexedSeq, (Variant, Int)](g2)) { is =>
+    val kSorted = is.sortBy(_._1)
+    val tSorted = is.sortBy(_._1.locus)
+    val localKeySorted = OrderedRDD.localKeySort(is.sortBy(_._1.locus).iterator).toIndexedSeq
+
+    kSorted == localKeySorted
+  }
+
 }

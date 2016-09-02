@@ -1,12 +1,12 @@
 package org.broadinstitute.hail.io
 
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.{Gen, Properties}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{PropertySuite, SparkSuite}
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -70,79 +70,77 @@ class LoadBgenSuite extends SparkSuite {
 
     hadoopDelete(bgen + ".idx", sc.hadoopConfiguration, recursive = true)
   }
+}
 
-  object Spec extends Properties("ImportBGEN") {
-    val compGen = for (vds <- VariantSampleMatrix.gen(sc,
-      VSMSubgen.dosage.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
-        sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier.filter(_ != "NA"))))
-      .filter(_.nVariants > 0)
-      .map(_.copy(wasSplit = true));
-      nPartitions <- choose(1, 10))
-      yield (vds, nPartitions)
+class LoadBgenProperties extends PropertySuite {
 
-    val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
-    writeTextFile(sampleRenameFile, sc.hadoopConfiguration)(_.write("NA\tfdsdakfasdkfla"))
+  val compGen = for (vds <- VariantSampleMatrix.gen(sc,
+    VSMSubgen.dosage.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
+      sampleIdGen =
+        Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier.filter(_ != "NA"))))
+    .filter(_.nVariants > 0)
+    .map(_.copy(wasSplit = true));
+    nPartitions <- choose(1, 10))
+    yield (vds, nPartitions)
 
-    property("import generates same output as export") =
-      forAll(compGen) { case (vds, nPartitions) =>
+  val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
+  writeTextFile(sampleRenameFile, sc.hadoopConfiguration)(_.write("NA\tfdsdakfasdkfla"))
 
-        assert(vds.rdd.forall { case (v, (va, gs)) =>
-          gs.flatMap(_.dosage).flatten.forall(d => d >= 0.0 && d <= 1.0)
-        })
+  property("import generates same output as export") =
+    forAll(compGen) { case (vds, nPartitions) =>
 
-        val fileRoot = tmpDir.createTempFile(prefix = "testImportBgen")
-        val sampleFile = fileRoot + ".sample"
-        val genFile = fileRoot + ".gen"
-        val bgenFile = fileRoot + ".bgen"
-        val qcToolLogFile = fileRoot + ".qctool.log"
-        val statsFile = fileRoot + ".stats"
+      assert(vds.rdd.forall { case (v, (va, gs)) =>
+        gs.flatMap(_.dosage).flatten.forall(d => d >= 0.0 && d <= 1.0)
+      })
 
-        hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, recursive = true)
-        hadoopDelete(bgenFile, sc.hadoopConfiguration, recursive = true)
-        hadoopDelete(genFile, sc.hadoopConfiguration, recursive = true)
-        hadoopDelete(sampleFile, sc.hadoopConfiguration, recursive = true)
-        hadoopDelete(qcToolLogFile, sc.hadoopConfiguration, recursive = true)
+      val fileRoot = tmpDir.createTempFile(prefix = "testImportBgen")
+      val sampleFile = fileRoot + ".sample"
+      val genFile = fileRoot + ".gen"
+      val bgenFile = fileRoot + ".bgen"
+      val qcToolLogFile = fileRoot + ".qctool.log"
+      val statsFile = fileRoot + ".stats"
 
-        var s = State(sc, sqlContext, vds)
+      hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, recursive = true)
+      hadoopDelete(bgenFile, sc.hadoopConfiguration, recursive = true)
+      hadoopDelete(genFile, sc.hadoopConfiguration, recursive = true)
+      hadoopDelete(sampleFile, sc.hadoopConfiguration, recursive = true)
+      hadoopDelete(qcToolLogFile, sc.hadoopConfiguration, recursive = true)
 
-        val origVds = s.vds
+      var s = State(sc, sqlContext, vds)
 
-        s = ExportGEN.run(s, Array("-o", fileRoot))
+      val origVds = s.vds
 
-        val rc = s"qctool -force -g $genFile -s $sampleFile -og $bgenFile -log $qcToolLogFile" !
+      s = ExportGEN.run(s, Array("-o", fileRoot))
 
-        assert(rc == 0)
+      val rc = s"qctool -force -g $genFile -s $sampleFile -og $bgenFile -log $qcToolLogFile" !
 
-        var q = IndexBGEN.run(State(sc, sqlContext, null), Array(bgenFile))
-        q = ImportBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
+      assert(rc == 0)
 
-        val importedVds = q.vds
+      var q = IndexBGEN.run(State(sc, sqlContext, null), Array(bgenFile))
+      q = ImportBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
 
-        assert(importedVds.nSamples == origVds.nSamples)
-        assert(importedVds.nVariants == origVds.nVariants)
-        assert(importedVds.sampleIds == origVds.sampleIds)
+      val importedVds = q.vds
 
-        val importedVariants = importedVds.variants
-        val origVariants = origVds.variants
+      assert(importedVds.nSamples == origVds.nSamples)
+      assert(importedVds.nVariants == origVds.nVariants)
+      assert(importedVds.sampleIds == origVds.sampleIds)
 
-        val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
-        val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
+      val importedVariants = importedVds.variants
+      val origVariants = origVds.variants
 
-        originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (g1, g2)) =>
+      val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
+      val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
 
-          val r = g1 == g2 ||
-            g1.get.dosage.get.zip(g2.get.dosage.get)
-              .forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
+      originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (g1, g2)) =>
 
-          if (!r)
-            println(g1, g2)
+        val r = g1 == g2 ||
+          g1.get.dosage.get.zip(g2.get.dosage.get)
+            .forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
 
-          r
-        }
+        if (!r)
+          println(g1, g2)
+
+        r
       }
-  }
-
-  @Test def testBgenImportRandom() {
-    Spec.check()
-  }
+    }
 }

@@ -1,13 +1,11 @@
 package org.broadinstitute.hail.utils
 
-import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.check.Properties
+import org.broadinstitute.hail.{ByteIterator, PropertySuite}
 import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 import scala.collection.mutable
-
 import org.broadinstitute.hail.Utils._
 
 object LEB128Suite {
@@ -25,20 +23,9 @@ object LEB128Suite {
     i == new ByteIterator(b.result()).readSLEB128()
   }
 
-  object Spec extends Properties("LEB128") {
-    property("readWrite") = forAll { n: Int =>
-      (n >= 0) ==> ulebReadWriteEqual(n)
-    }
-
-    property("readWrite") = forAll { n: Int =>
-      slebReadWriteEqual(n)
-    }
-  }
-
 }
 
 class LEB128Suite extends TestNGSuite {
-
   import LEB128Suite._
 
   def testReadWrite(i: Int) {
@@ -62,7 +49,17 @@ class LEB128Suite extends TestNGSuite {
     testSLEBReadWrite(-129)
     (0 until 31).foreach(i =>
       testSLEBReadWrite(0xdeadbeef >>> i))
+  }
+}
 
-    Spec.check
+class LEB128Properties extends PropertySuite {
+  import LEB128Suite._
+
+  property("readWrite") = forAll { n: Int =>
+    (n >= 0) ==> ulebReadWriteEqual(n)
+  }
+
+  property("readWrite") = forAll { n: Int =>
+    slebReadWriteEqual(n)
   }
 }

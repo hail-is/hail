@@ -1,9 +1,9 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.{SparkSuite, TestUtils}
+import org.broadinstitute.hail.{PropertySuite, SparkSuite, TestUtils}
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.check.Prop
+import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.variant.{VSMSubgen, VariantSampleMatrix}
@@ -112,25 +112,6 @@ class AggregatorSuite extends SparkSuite {
       }
   }
 
-  @Test def testSum() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random)) { vds =>
-      var state = State(sc, sqlContext, vds)
-      state = SplitMulti.run(state)
-      state = VariantQC.run(state)
-      state = AnnotateVariantsExpr.run(state, Array("-c", "va.oneHotAC = gs.map(g => g.oneHotAlleles(v)).sum()"))
-      state.vds.rdd.collect()
-      state = AnnotateVariantsExpr.run(state, Array("-c",
-        "va.same = (gs.filter(g => g.isCalled).count() == 0) || " +
-          "(va.oneHotAC[0] == va.qc.nCalled * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.nHet + 2 * va.qc.nHomVar)"))
-      val (_, querier) = state.vds.queryVA("va.same")
-      state.vds.variantsAndAnnotations
-        .forall { case (v, va) =>
-          querier(va).exists(_.asInstanceOf[Boolean])
-        }
-    }
-    p.check()
-  }
-
   @Test def testErrorMessages() {
     val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
     val s = State(sc, sqlContext, vds)
@@ -148,5 +129,24 @@ class AggregatorSuite extends SparkSuite {
       AnnotateVariants.run(s, Array("expr", "-c", "va = gs.map(G => 5)")))
     TestUtils.interceptFatal("""Got invalid type `Aggregable\[Genotype\]'""")(
       AnnotateVariants.run(s, Array("expr", "-c", "va = gs.filter(g => true)")))
+  }
+}
+
+class AggregatorProperties extends PropertySuite {
+
+  property("sum") = forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random)) { vds =>
+    var state = State(sc, sqlContext, vds)
+    state = SplitMulti.run(state)
+    state = VariantQC.run(state)
+    state = AnnotateVariantsExpr.run(state, Array("-c", "va.oneHotAC = gs.map(g => g.oneHotAlleles(v)).sum()"))
+    state.vds.rdd.collect()
+    state = AnnotateVariantsExpr.run(state, Array("-c",
+      "va.same = (gs.filter(g => g.isCalled).count() == 0) || " +
+        "(va.oneHotAC[0] == va.qc.nCalled * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.nHet + 2 * va.qc.nHomVar)"))
+    val (_, querier) = state.vds.queryVA("va.same")
+    state.vds.variantsAndAnnotations
+      .forall { case (v, va) =>
+        querier(va).exists(_.asInstanceOf[Boolean])
+      }
   }
 }

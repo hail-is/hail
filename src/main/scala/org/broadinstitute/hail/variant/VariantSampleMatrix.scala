@@ -164,7 +164,7 @@ object VariantSampleMatrix {
           }
       }.getOrElse(sc.emptyRDD[(Variant, (Annotation, Iterable[Genotype]))])
     }
-    
+
     val partitioner = {
         try {
           Some(readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>

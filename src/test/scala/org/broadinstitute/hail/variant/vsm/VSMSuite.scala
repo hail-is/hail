@@ -2,7 +2,7 @@ package org.broadinstitute.hail.variant.vsm
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{PropertySuite, SparkSuite}
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Gen, Parameters}
 import org.broadinstitute.hail.check.Prop._
@@ -169,17 +169,6 @@ class VSMSuite extends SparkSuite {
     }
   }
 
-  @Test def testReadWrite() {
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vsm: VariantSampleMatrix[Genotype]) =>
-      val f = tmpDir.createTempFile(extension = ".vds")
-      vsm.write(sqlContext, f)
-      val vsm2 = VariantSampleMatrix.read(sqlContext, f)
-      vsm2.same(vsm)
-    }
-
-    p.check()
-  }
-
   @Test(enabled = false) def testKuduReadWrite() {
 
     val vcf = "src/test/resources/multipleChromosomes.vcf"
@@ -303,16 +292,23 @@ class VSMSuite extends SparkSuite {
     assert(sr.getRSquare >= minimumRSquareValue,
       "The VSM generator seems non-linear because the magnitude of the R coefficient is less than 0.9")
   }
+}
 
-  @Test def testCoalesce() {
-    val g = for (
-      vsm <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
-      k <- Gen.choose(1, vsm.nPartitions))
-      yield (vsm, k)
+class VSMProperties extends PropertySuite {
+  property("read write") = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vsm: VariantSampleMatrix[Genotype]) =>
+    val f = tmpDir.createTempFile(extension = ".vds")
+    vsm.write(sqlContext, f)
+    val vsm2 = VariantSampleMatrix.read(sqlContext, f)
+    vsm2.same(vsm)
+  }
 
-    forAll(g) { case (vsm, k) =>
-      val coalesced = vsm.coalesce(k)
-      VSMSuite.checkOrderedRDD(coalesced.rdd) && vsm.same(coalesced)
-    }.check()
+  val g = for (
+    vsm <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
+    k <- Gen.choose(1, vsm.nPartitions))
+    yield (vsm, k)
+
+  property("coalesce") = forAll(g) { case (vsm, k) =>
+    val coalesced = vsm.coalesce(k)
+    VSMSuite.checkOrderedRDD(coalesced.rdd) && vsm.same(coalesced)
   }
 }

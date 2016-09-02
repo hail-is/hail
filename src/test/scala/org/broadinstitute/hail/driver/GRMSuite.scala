@@ -7,14 +7,14 @@ import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.{SparkSuite, TempDir}
+import org.broadinstitute.hail.{PropertySuite, SparkSuite, TempDir}
 import org.testng.annotations.Test
 
 import scala.io.Source
 import scala.language.postfixOps
 import scala.sys.process._
 
-class GRMSuite extends SparkSuite {
+class GRMProperties extends PropertySuite {
   def loadIDFile(file: String): Array[String] = {
     readFile(file, sc.hadoopConfiguration) { s =>
       Source.fromInputStream(s)
@@ -119,79 +119,76 @@ class GRMSuite extends SparkSuite {
     true
   }
 
-  @Test def test() {
+  val localTmpDir = TempDir("file:///tmp", hadoopConf)
 
-    val localTmpDir = TempDir("file:///tmp", hadoopConf)
+  val bFile = localTmpDir.createTempFile("plink")
+  val bPath = uriPath(bFile)
 
-    val bFile = localTmpDir.createTempFile("plink")
-    val bPath = uriPath(bFile)
+  val relFile = tmpDir.createTempFile("test", ".rel")
+  val relIDFile = tmpDir.createTempFile("test", ".rel.id")
+  val grmFile = tmpDir.createTempFile("test", ".grm")
+  val grmBinFile = tmpDir.createTempFile("test", ".grm.bin")
+  val grmNBinFile = tmpDir.createTempFile("test", ".grm.N.bin")
 
-    val relFile = tmpDir.createTempFile("test", ".rel")
-    val relIDFile = tmpDir.createTempFile("test", ".rel.id")
-    val grmFile = tmpDir.createTempFile("test", ".grm")
-    val grmBinFile = tmpDir.createTempFile("test", ".grm.bin")
-    val grmNBinFile = tmpDir.createTempFile("test", ".grm.N.bin")
+  property("test") = forAll(
+    VSMSubgen.realistic.copy(
+      vGen = VariantSubgen.plinkCompatible.gen,
+      tGen = VSMSubgen.realistic.tGen(_).filter(_.isCalled))
+      .gen(sc)
+      // plink fails with fewer than 2 samples, no variants
+      .filter(vsm => vsm.nSamples > 1 && vsm.nVariants > 0),
+    Gen.oneOf("rel", "gcta-grm", "gcta-grm-bin")) {
+    (vsm: VariantSampleMatrix[Genotype], format: String) =>
 
-    Prop.check(forAll(
-      VSMSubgen.realistic.copy(
-        vGen = VariantSubgen.plinkCompatible.gen,
-        tGen = VSMSubgen.realistic.tGen(_).filter(_.isCalled))
-        .gen(sc)
-        // plink fails with fewer than 2 samples, no variants
-        .filter(vsm => vsm.nSamples > 1 && vsm.nVariants > 0),
-      Gen.oneOf("rel", "gcta-grm", "gcta-grm-bin")) {
-      (vsm: VariantSampleMatrix[Genotype], format: String) =>
+      var s = State(sc, sqlContext)
+      s = s.copy(vds = vsm)
+      s = SplitMulti.run(s, Array.empty[String])
 
-        var s = State(sc, sqlContext)
-        s = s.copy(vds = vsm)
-        s = SplitMulti.run(s, Array.empty[String])
+      val sampleIds = s.vds.sampleIds
+      val nSamples = s.vds.nSamples
+      val nVariants = s.vds.nVariants.toInt
+      assert(nVariants > 0)
 
-        val sampleIds = s.vds.sampleIds
-        val nSamples = s.vds.nSamples
-        val nVariants = s.vds.nVariants.toInt
-        assert(nVariants > 0)
+      ExportPlink.run(s, Array("-o", bFile))
 
-        ExportPlink.run(s, Array("-o", bFile))
+      format match {
+        case "rel" =>
+          s"plink --bfile $bPath --make-rel --out $bPath" !
 
-        format match {
-          case "rel" =>
-            s"plink --bfile $bPath --make-rel --out $bPath" !
+          assert(loadIDFile(bFile + ".rel.id").toIndexedSeq
+            == vsm.sampleIds)
 
-            assert(loadIDFile(bFile + ".rel.id").toIndexedSeq
-              == vsm.sampleIds)
+          GRM.run(s, Array("--id-file", relIDFile, "-f", "rel", "-o", relFile))
 
-            GRM.run(s, Array("--id-file", relIDFile, "-f", "rel", "-o", relFile))
+          assert(loadIDFile(relIDFile).toIndexedSeq
+            == vsm.sampleIds)
 
-            assert(loadIDFile(relIDFile).toIndexedSeq
-              == vsm.sampleIds)
+          compare(loadRel(nSamples, bFile + ".rel"),
+            loadRel(nSamples, relFile))
 
-            compare(loadRel(nSamples, bFile + ".rel"),
-              loadRel(nSamples, relFile))
+        case "gcta-grm" =>
+          s"plink --bfile $bPath --make-grm-gz --out $bPath" !
 
-          case "gcta-grm" =>
-            s"plink --bfile $bPath --make-grm-gz --out $bPath" !
+          assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
+            == vsm.sampleIds)
 
-            assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
-              == vsm.sampleIds)
+          GRM.run(s, Array("-f", "gcta-grm", "-o", grmFile))
 
-            GRM.run(s, Array("-f", "gcta-grm", "-o", grmFile))
+          compare(loadGRM(nSamples, nVariants, bFile + ".grm.gz"),
+            loadGRM(nSamples, nVariants, grmFile))
 
-            compare(loadGRM(nSamples, nVariants, bFile + ".grm.gz"),
-              loadGRM(nSamples, nVariants, grmFile))
+        case "gcta-grm-bin" =>
+          s"plink --bfile $bPath --make-grm-bin --out $bPath" !
 
-          case "gcta-grm-bin" =>
-            s"plink --bfile $bPath --make-grm-bin --out $bPath" !
+          assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
+            == vsm.sampleIds)
 
-            assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
-              == vsm.sampleIds)
+          GRM.run(s, Array("-f", "gcta-grm-bin", "-o", grmBinFile, "--N-file", grmNBinFile))
 
-            GRM.run(s, Array("-f", "gcta-grm-bin", "-o", grmBinFile, "--N-file", grmNBinFile))
-
-            (compare(loadBin(nSamples, bFile + ".grm.bin"),
-              loadBin(nSamples, grmBinFile))
-              && compare(loadBin(nSamples, bFile + ".grm.N.bin"),
-              loadBin(nSamples, grmNBinFile)))
-        }
-    })
+          (compare(loadBin(nSamples, bFile + ".grm.bin"),
+            loadBin(nSamples, grmBinFile))
+            && compare(loadBin(nSamples, bFile + ".grm.N.bin"),
+            loadBin(nSamples, grmNBinFile)))
+      }
   }
 }
