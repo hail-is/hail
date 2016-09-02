@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.variant
 
+import java.io.InvalidClassException
 import java.nio.ByteBuffer
 import java.util
 
@@ -164,22 +165,29 @@ object VariantSampleMatrix {
       }.getOrElse(sc.emptyRDD[(Variant, (Annotation, Iterable[Genotype]))])
     }
 
-    val orderedRDD = if (hadoopExists(hConf, dirname + "/partitioner")) {
-      val partitioner = readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>
-        OrderedPartitioner.read[Locus, Variant](in)
+    val partitioner = {
+      try {
+        Some(readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>
+          OrderedPartitioner.read[Locus, Variant](in)
+        })
+      } catch {
+        case _: InvalidClassException => None
       }
+    }
 
-      OrderedRDD[Locus, Variant, (Annotation, Iterable[Genotype])](readRDD(skipGenotypes), partitioner)
-    } else {
-      warn(
-        """No partition information found: VDS is old or corrupted and will experience poor performance.
-          |  Please `read' and `write' this dataset to update it.""".stripMargin)
-      if (skipGenotypes)
-        readRDD(skipGenotypes = true).asOrderedRDD[Locus]
-      else
-        readRDD(skipGenotypes = false).toOrderedRDD[Locus](
-          reducedRepresentation = Some(readRDD(skipGenotypes = true).map(_._1)))
+    val orderedRDD = partitioner match {
+      case Some(p) =>
+        OrderedRDD[Locus, Variant, (Annotation, Iterable[Genotype])](readRDD(skipGenotypes), p)
 
+      case None =>
+        warn(
+          """No partition information found: VDS is old and will experience poor performance.
+            |  Please `read' and `write' this dataset to update it.""".stripMargin)
+        if (skipGenotypes)
+          readRDD(skipGenotypes = true).asOrderedRDD[Locus]
+        else
+          readRDD(skipGenotypes = false).toOrderedRDD[Locus](
+            reducedRepresentation = Some(readRDD(skipGenotypes = true).map(_._1)))
     }
 
     new VariantSampleMatrix[Genotype](
