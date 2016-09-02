@@ -12,6 +12,7 @@ The Hail team is based in the Neale lab at the [Stanley Center for Psychiatric R
 
 Contact the Hail team at `hail@broadinstitute.org`.
 
+
 #### Citing Hail
 
 If you use Hail for published work, please cite the software:
