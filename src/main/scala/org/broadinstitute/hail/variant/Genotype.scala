@@ -236,6 +236,9 @@ class Genotype(private val _gt: Int,
 object Genotype {
   def apply(gtx: Int): Genotype = new Genotype(gtx, null, -1, -1, null, false, false)
 
+  def apply(gt: Option[Int], fakeRef: Boolean): Genotype =
+    new Genotype(gt.getOrElse(-1), null, -1, -1, null, fakeRef, false)
+
   def apply(gt: Option[Int] = None,
     ad: Option[Array[Int]] = None,
     dp: Option[Int] = None,
