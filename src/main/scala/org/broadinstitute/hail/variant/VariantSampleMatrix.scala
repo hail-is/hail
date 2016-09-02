@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.variant
 
-import java.io.InvalidClassException
+import java.io.{FileNotFoundException, InvalidClassException}
 import java.nio.ByteBuffer
 import java.util
 
@@ -164,16 +164,17 @@ object VariantSampleMatrix {
           }
       }.getOrElse(sc.emptyRDD[(Variant, (Annotation, Iterable[Genotype]))])
     }
-
+    
     val partitioner = {
-      try {
-        Some(readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>
-          OrderedPartitioner.read[Locus, Variant](in)
-        })
-      } catch {
-        case _: InvalidClassException => None
+        try {
+          Some(readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>
+            OrderedPartitioner.read[Locus, Variant](in)
+          })
+        } catch {
+          case _: InvalidClassException => None
+          case _: FileNotFoundException => None
+        }
       }
-    }
 
     val orderedRDD = partitioner match {
       case Some(p) =>
@@ -450,7 +451,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
-    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) }.asOrderedRDD)
