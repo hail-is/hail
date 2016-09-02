@@ -38,8 +38,6 @@ Identifier | Type | Description
  `<altAllele>.isComplex`      | `Boolean` | true if `v` is not an indel, but `v.ref` and `v.alt` length do not match
  `<altAllele>.isTransition`   | `Boolean` | true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
  `<altAllele>.isTransversion` | `Boolean` | true if the polymorphism is a purine-pyrimidine flip
- `<altAllele>.nMismatch`      | `Int`     | the total number of bases in `v.ref` and `v.alt` that do not match
-
 
 ## <a name="locus"></a>Locus
 
