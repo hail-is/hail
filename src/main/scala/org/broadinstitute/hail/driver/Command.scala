@@ -73,6 +73,7 @@ object ToplevelCommands {
   register(GQByDP)
   register(GQHist)
   register(HardCalls)
+  register(IBDCommand)
   register(ImportAnnotations)
   register(ImportBGEN)
   register(ImportGEN)

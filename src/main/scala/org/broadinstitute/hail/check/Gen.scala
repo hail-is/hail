@@ -62,6 +62,10 @@ object Gen {
     .filter(c => c == '_' || c.isLetter)
   val identifierChars = (0 to 127).map(_.toChar)
     .filter(c => c == '_' || c.isLetterOrDigit)
+  val plinkSafeStartOfIdentifierChars = (0 to 127).map(_.toChar)
+    .filter(c => c.isLetter)
+  val plinkSafeChars = (0 to 127).map(_.toChar)
+    .filter(c => c.isLetterOrDigit)
 
   def apply[T](gen: (Parameters) => T): Gen[T] = new Gen[T](gen)
 
@@ -163,6 +167,9 @@ object Gen {
   def buildableOf[C[_], T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     unsafeBuildableOf(g)
 
+  implicit def buildableOfFromElements[C[_], T](implicit g: Gen[T], cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+    buildableOf[C, T](g)
+
   def buildableOf2[C[_, _], T, U](g: Gen[(T, U)])(implicit cbf: CanBuildFrom[Nothing, (T, U), C[T, U]]): Gen[C[T, U]] =
     unsafeBuildableOf(g)
 
@@ -196,6 +203,33 @@ object Gen {
       }
     }
 
+  /**
+    * This function terminates with probability equal to the probability of {@code g} generating {@code min} distinct
+    * elements in finite time.
+    */
+  def distinctBuildableOfAtLeast[C[_], T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+    Gen { (p: Parameters) =>
+      val b = cbf()
+      if (p.size < min) {
+        throw new RuntimeException(s"Size (${ p.size }) is too small for buildable of size at least $min")
+      } else if (p.size == 0)
+        b.result()
+      else {
+        val s = p.rng.nextInt(min, p.size)
+        val part = partition(p.rng, p.size, s)
+        val t = mutable.Set.empty[T]
+        for (i <- 0 until s) {
+          var element = g.resize(part(i))(p)
+          while (t.contains(element)) {
+            element = g.resize(part(i))(p)
+          }
+          t += element
+        }
+        b ++= t
+        b.result()
+      }
+    }
+
   def buildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
       val part = partition(p.rng, p.size, n)
@@ -224,12 +258,18 @@ object Gen {
     is(rng.getRandomGenerator.nextInt(is.length))
   }
 
-  def identifier: Gen[String] = Gen { (p: Parameters) =>
+  def identifier: Gen[String] =
+    identifierGen(identifierLeadingChars, identifierChars)
+
+  def plinkSafeIdentifier: Gen[String] =
+    identifierGen(plinkSafeStartOfIdentifierChars, plinkSafeChars)
+
+  private def identifierGen(leadingCharacter: IndexedSeq[Char], trailingCharacters: IndexedSeq[Char]): Gen[String] = Gen { p =>
     val s = 1 + p.rng.getRandomGenerator.nextInt(11)
     val b = new StringBuilder()
-    b += randomOneOf(p.rng, identifierLeadingChars)
+    b += randomOneOf(p.rng, leadingCharacter)
     for (_ <- 1 until s)
-      b += randomOneOf(p.rng, identifierChars)
+      b += randomOneOf(p.rng, trailingCharacters)
     b.result()
   }
 
