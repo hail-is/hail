@@ -1,10 +1,10 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{PropertySuite, SparkSuite}
 import org.broadinstitute.hail.TestUtils._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.check.Prop
+import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.TInt
 import org.broadinstitute.hail.io.plink.PlinkLoader
@@ -490,24 +490,6 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(vds1.same(fmt6.vds))
   }
 
-  @Test def testAnnotationsVDSReadWrite() {
-    val outPath = tmpDir.createTempFile("annotationOut", ".vds")
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.realistic)
-      .filter(vds => vds.nVariants > 0)) { vds: VariantDataset =>
-
-      var state = State(sc, sqlContext, vds)
-      state = Write.run(state, Array("-o", outPath))
-
-      state = AnnotateVariantsVDS.run(state, Array(
-        "-i", outPath,
-        "-c", "va = vds"))
-
-      state.vds.same(vds)
-    }
-
-    p.check()
-  }
-
   @Test def testPositions() {
     val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
     var state = State(sc, sqlContext, vds)
@@ -533,3 +515,19 @@ class ImportAnnotationsSuite extends SparkSuite {
   }
 }
 
+class ImportAnnotationsProperties extends PropertySuite {
+
+  val outPath = tmpDir.createTempFile("annotationOut", ".vds")
+  property("annotations VDS read write") = forAll(VariantSampleMatrix.gen(sc, VSMSubgen.realistic)
+    .filter(vds => vds.nVariants > 0)) { vds: VariantDataset =>
+
+    var state = State(sc, sqlContext, vds)
+    state = Write.run(state, Array("-o", outPath))
+
+    state = AnnotateVariantsVDS.run(state, Array(
+      "-i", outPath,
+      "-c", "va = vds"))
+
+    state.vds.same(vds)
+  }
+}

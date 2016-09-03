@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.io
 
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{PropertySuite, SparkSuite}
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Gen
@@ -15,7 +15,7 @@ import org.testng.annotations.Test
 import scala.io.Source
 import scala.language.postfixOps
 
-class ExportVcfSuite extends SparkSuite {
+class ExportVCFSuite extends SparkSuite {
 
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
@@ -77,24 +77,6 @@ class ExportVcfSuite extends SparkSuite {
     }.isSorted)
   }
 
-  @Test def testReadWrite() {
-    val s = State(sc, sqlContext, null)
-    val out = tmpDir.createTempFile("foo", ".vcf.bgz")
-    val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random), Gen.choose(1, 10), Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
-      hadoopDelete(out, sc.hadoopConfiguration, recursive = true)
-      hadoopDelete(out2, sc.hadoopConfiguration, recursive = true)
-      ExportVCF.run(s.copy(vds = vds), Array("-o", out))
-      val vsm2 = ImportVCF.run(s, Array(out, "-n", nPar1.toString)).vds
-      ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
-      val vsm3 = ImportVCF.run(s, Array(out2, "-n", nPar1.toString)).vds
-
-      vsm2.same(vsm3)
-    }
-
-    p.check()
-  }
-
   @Test def testPPs() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf", "--pp-as-pl"))
@@ -124,5 +106,22 @@ class ExportVcfSuite extends SparkSuite {
         }
     }
 
+  }
+}
+
+class ExportVCFProperties extends PropertySuite {
+  val s = State(sc, sqlContext, null)
+  val out = tmpDir.createTempFile("foo", ".vcf.bgz")
+  val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
+
+  property("read write") = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random), Gen.choose(1, 10), Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
+    hadoopDelete(out, sc.hadoopConfiguration, recursive = true)
+    hadoopDelete(out2, sc.hadoopConfiguration, recursive = true)
+    ExportVCF.run(s.copy(vds = vds), Array("-o", out))
+    val vsm2 = ImportVCF.run(s, Array(out, "-n", nPar1.toString)).vds
+    ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
+    val vsm3 = ImportVCF.run(s, Array(out2, "-n", nPar1.toString)).vds
+
+    vsm2.same(vsm3)
   }
 }

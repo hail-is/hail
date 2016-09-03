@@ -1,8 +1,9 @@
 package org.broadinstitute.hail.variant
 
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{PropertySuite, SparkSuite}
 import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.check.{Gen, Prop}
+import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.{TSet, TString}
 import org.broadinstitute.hail.io.annotators.IntervalListAnnotator
@@ -85,30 +86,6 @@ class IntervalSuite extends SparkSuite {
 
   }
 
-  @Test def properties() {
-
-    // greater chance of collision
-    val lgen = Gen.zip(Gen.oneOf("1", "2"),
-      Gen.choose(1, 100))
-    val g = Gen.zip(IntervalTree.gen(lgen),
-      lgen)
-
-    val p = Prop.forAll(g) { case (it, locus) =>
-      val intervals = it.toSet
-
-      val setResults = intervals.filter(_.contains(locus))
-      val treeResults = it.query(locus)
-
-      val inSet = intervals.exists(_.contains(locus))
-      val inTree = it.contains(locus)
-
-      setResults == treeResults &&
-        setResults.nonEmpty == inSet &&
-        inSet == inTree
-    }
-    p.check()
-  }
-
   @Test def testAnnotateIntervalsAll() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
@@ -128,65 +105,84 @@ class IntervalSuite extends SparkSuite {
       else
         simpleAssert(a.isEmpty)
     }
+  }
+}
 
-    @Test def testAggregate() {
-      val vds = LoadVCF(sc, "src/test/resources/sample2.vcf", nPartitions = Some(2)).cache()
-      val state = SplitMulti.run(State(sc, sqlContext, vds))
-      val iList = tmpDir.createTempFile("input", ".interval_list")
-      val tmp1 = tmpDir.createTempFile("output", ".tsv")
+class IntervalProperties extends PropertySuite {
 
-      val startPos = 16050036 - 250000
-      val endPos = 17421565 + 250000
-      val intervalGen = for (start <- Gen.choose(startPos, endPos);
-        end <- Gen.choose(start, endPos))
-        yield Interval(Locus("22", start), Locus("22", end))
-      val intervalsGen = Gen.buildableOfN[Array, Interval[Locus]](500, intervalGen)
+  val vds = LoadVCF(sc, "src/test/resources/sample2.vcf", nPartitions = Some(2)).cache()
+  val state = SplitMulti.run(State(sc, sqlContext, vds))
+  val iList = tmpDir.createTempFile("input", ".interval_list")
+  val tmp1 = tmpDir.createTempFile("output", ".tsv")
 
-      val p = Prop.forAll(intervalsGen) { intervals =>
+  val startPos = 16050036 - 250000
+  val endPos = 17421565 + 250000
+  val intervalGen = for (start <- Gen.choose(startPos, endPos);
+    end <- Gen.choose(start, endPos))
+    yield Interval(Locus("22", start), Locus("22", end))
+  val intervalsGen = Gen.buildableOfN[Array, Interval[Locus]](500, intervalGen)
 
-        writeTextFile(iList, hadoopConf) { out =>
-          intervals.foreach { i =>
-            out.write(s"22\t${ i.start.position }\t${ i.end.position }\n")
-          }
-        }
+  property("aggregate") = forAll(intervalsGen) { intervals =>
 
-        AggregateIntervals.run(state, Array(
-          "-i", iList,
-          "-o", tmp1,
-          "-c", "nSNP = variants.filter(v => v.altAllele.isSNP).count(), " +
-            "nIndel = variants.filter(v => v.altAllele.isIndel).count(), " +
-            "N = variants.count()"))
-
-        val variants = state
-          .vds
-          .variants
-          .collect()
-
-        readFile(tmp1, hadoopConf) { in =>
-
-          Source.fromInputStream(in)
-            .getLines()
-            .toArray
-            .tail
-            .forall { line =>
-              val Array(contig, startStr, endStr, nSnpStr, nIndelStr, nStr) = line.split("\t")
-              val start = startStr.toInt
-              val end = endStr.toInt
-              val nSnp = nSnpStr.toInt
-              val nIndel = nIndelStr.toInt
-              val n = nStr.toInt
-
-              val interval = Interval(Locus(contig, start), Locus(contig, end))
-              val inInterval = variants.filter(v => interval.contains(v.locus))
-
-              (nSnp == inInterval.count(_.altAllele.isSNP)) &&
-                (nIndel == inInterval.count(_.altAllele.isIndel)) &&
-                (n == inInterval.length)
-            }
-        }
+    writeTextFile(iList, hadoopConf) { out =>
+      intervals.foreach { i =>
+        out.write(s"22\t${ i.start.position }\t${ i.end.position }\n")
       }
-
-      p.check()
     }
+
+    AggregateIntervals.run(state, Array(
+      "-i", iList,
+      "-o", tmp1,
+      "-c", "nSNP = variants.filter(v => v.altAllele.isSNP).count(), " +
+        "nIndel = variants.filter(v => v.altAllele.isIndel).count(), " +
+        "N = variants.count()"))
+
+    val variants = state
+      .vds
+      .variants
+      .collect()
+
+    readFile(tmp1, hadoopConf) { in =>
+
+      Source.fromInputStream(in)
+        .getLines()
+        .toArray
+        .tail
+        .forall { line =>
+          val Array(contig, startStr, endStr, nSnpStr, nIndelStr, nStr) = line.split("\t")
+          val start = startStr.toInt
+          val end = endStr.toInt
+          val nSnp = nSnpStr.toInt
+          val nIndel = nIndelStr.toInt
+          val n = nStr.toInt
+
+          val interval = Interval(Locus(contig, start), Locus(contig, end))
+          val inInterval = variants.filter(v => interval.contains(v.locus))
+
+          (nSnp == inInterval.count(_.altAllele.isSNP)) &&
+            (nIndel == inInterval.count(_.altAllele.isIndel)) &&
+            (n == inInterval.length)
+        }
+    }
+  }
+
+  // greater chance of collision
+  val lgen = Gen.zip(Gen.oneOf("1", "2"),
+    Gen.choose(1, 100))
+  val g = Gen.zip(IntervalTree.gen(lgen),
+    lgen)
+
+  property("tree set agree") = forAll(g) { case (it, locus) =>
+    val intervals = it.toSet
+
+    val setResults = intervals.filter(_.contains(locus))
+    val treeResults = it.query(locus)
+
+    val inSet = intervals.exists(_.contains(locus))
+    val inTree = it.contains(locus)
+
+    setResults == treeResults &&
+      setResults.nonEmpty == inSet &&
+      inSet == inTree
   }
 }

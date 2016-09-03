@@ -1,24 +1,10 @@
 package org.broadinstitute.hail.check
 
-import org.broadinstitute.hail.Utils._
 import org.apache.commons.math3.random.RandomDataGenerator
-
-import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
 abstract class Prop {
   def apply(p: Parameters, name: Option[String] = None): Unit
-
-  def check() {
-    val size = System.getProperty("check.size", "1000").toInt
-    val count = System.getProperty("check.count", "10").toInt
-
-    println(s"check: size = $size, count = $count")
-
-    val rng = new RandomDataGenerator()
-    rng.reSeed(Prop.seed)
-    apply(Parameters(rng, size, count))
-  }
 }
 
 class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {
@@ -75,23 +61,6 @@ class GenProp3[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], f: (T1, T2, T3
   }
 }
 
-class Properties(val name: String) extends Prop {
-  val properties = ArrayBuffer.empty[(String, Prop)]
-
-  class PropertySpecifier {
-    def update(propName: String, prop: Prop) {
-      properties += (name + "." + propName) -> prop
-    }
-  }
-
-  lazy val property = new PropertySpecifier
-
-  override def apply(p: Parameters, prefix: Option[String]) {
-    for ((propName, prop) <- properties)
-      prop(p, prefix.map(_ + "." + propName).orElse(Some(propName)))
-  }
-}
-
 object Prop {
   lazy val _seed: Int = {
     val seedStr = System.getProperty("check.seed")
@@ -106,10 +75,6 @@ object Prop {
   def seed: Int = {
     println(s"check: seed = ${ _seed }")
     _seed
-  }
-
-  def check(prop: Prop) {
-    prop.check()
   }
 
   def forAll[T1](g1: Gen[T1])(p: (T1) => Boolean): Prop =

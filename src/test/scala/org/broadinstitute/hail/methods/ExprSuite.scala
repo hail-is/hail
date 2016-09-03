@@ -3,16 +3,53 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.broadinstitute.hail.variant.{Genotype, Locus, Variant}
-import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
+import org.broadinstitute.hail.{FatalException, PropertySuite, SparkSuite, TestUtils}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
 import org.broadinstitute.hail.TestUtils._
+
+class ExprProperties extends PropertySuite {
+
+  val sb = new StringBuilder
+  property("parse-pretty") = forAll { (compact: Boolean, t: Type) =>
+    sb.clear()
+    t.pretty(sb, compact = compact, printAttrs = true)
+    val res = sb.result()
+    val parsed = Parser.parseType(res)
+    t == parsed
+  }
+
+  property("escaping") = forAll { (s: String) =>
+    s == unescapeString(escapeString(s))
+  }
+
+  val g = for {
+    t <- Type.genArb
+    a <- t.genValue
+  } yield (t, a)
+
+  property("ImpEx.json") = forAll(g) { case (t, a) =>
+    JSONAnnotationImpex.importAnnotation(JSONAnnotationImpex.exportAnnotation(a, t), t) == a
+  }
+
+  property("ImpEx.json-text") = forAll(g) { case (t, a) =>
+    val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
+    JSONAnnotationImpex.importAnnotation(parse(string), t) == a
+  }
+
+  property("ImpEx.table") = forAll(g.filter { case (t, a) => t != TDouble && a != null }) { case (t, a) =>
+    TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
+  }
+
+  property("ImpEx.spark") = forAll(g) { case (t, a) =>
+    SparkAnnotationImpex.importAnnotation(SparkAnnotationImpex.exportAnnotation(a, t), t) == a
+  }
+}
 
 class ExprSuite extends SparkSuite {
 
@@ -230,7 +267,7 @@ class ExprSuite extends SparkSuite {
 
     TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Array\[Int\]""")(
       eval[Set[_]](""" [0].flatten() """))
-    
+
     TestUtils.interceptFatal("""does not take parameters, use flatten()""")(
       eval[Set[_]](""" [[0]].flatten(0) """))
 
@@ -492,63 +529,5 @@ class ExprSuite extends SparkSuite {
     assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
     assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, BaseType])
     intercept[FatalException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
-  }
-
-  @Test def testTypePretty() {
-    import Type._
-    // for arbType
-
-    val sb = new StringBuilder
-    check(forAll { (t: Type) =>
-      sb.clear()
-      t.pretty(sb, compact = true, printAttrs = true)
-      val res = sb.result()
-      val parsed = Parser.parseType(res)
-      t == parsed
-    })
-    check(forAll { (t: Type) =>
-      sb.clear()
-      t.pretty(sb, printAttrs = true)
-      val res = sb.result()
-      //      println(res)
-      val parsed = Parser.parseType(res)
-      t == parsed
-    })
-
-  }
-
-  @Test def testEscaping() {
-    val p = forAll { (s: String) =>
-      s == unescapeString(escapeString(s))
-    }
-
-    p.check()
-  }
-
-  @Test def testImpexes() {
-
-    val g = for {t <- Type.genArb
-      a <- t.genValue} yield (t, a)
-
-    object Spec extends Properties("ImpEx") {
-      property("json") = forAll(g) { case (t, a) =>
-        JSONAnnotationImpex.importAnnotation(JSONAnnotationImpex.exportAnnotation(a, t), t) == a
-      }
-
-      property("json-text") = forAll(g) { case (t, a) =>
-        val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
-        JSONAnnotationImpex.importAnnotation(parse(string), t) == a
-      }
-
-      property("table") = forAll(g.filter { case (t, a) => t != TDouble && a != null }) { case (t, a) =>
-        TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
-      }
-
-      property("spark") = forAll(g) { case (t, a) =>
-        SparkAnnotationImpex.importAnnotation(SparkAnnotationImpex.exportAnnotation(a, t), t) == a
-      }
-    }
-
-    Spec.check()
   }
 }

@@ -1,29 +1,28 @@
 package org.broadinstitute.hail.io
 
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{PropertySuite, SparkSuite}
 import org.broadinstitute.hail.Utils.simpleAssert
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver.{SplitMulti, State}
 import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.testng.annotations.Test
 
-class SplitSuite extends SparkSuite {
+class SplitProperties extends PropertySuite {
+  property("fakeRef implies wasSplit") =
+    forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vds: VariantDataset) =>
+      var s = State(sc, sqlContext, vds)
+      s = SplitMulti.run(s, Array[String]())
+      val wasSplitQuerier = s.vds.vaSignature.query("wasSplit")
+      s.vds.mapWithAll((v: Variant, va: Annotation, _: String, _: Annotation, g: Genotype) =>
+        !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get)
+        .collect()
+        .forall(identity)
+    }
+}
 
-  object Spec extends Properties("MultiSplit") {
-    property("fakeRef implies wasSplit") =
-      forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vds: VariantDataset) =>
-        var s = State(sc, sqlContext, vds)
-        s = SplitMulti.run(s, Array[String]())
-        val wasSplitQuerier = s.vds.vaSignature.query("wasSplit")
-        s.vds.mapWithAll((v: Variant, va: Annotation, _: String, _: Annotation, g: Genotype) =>
-          !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Option[Boolean]].get)
-          .collect()
-          .forall(identity)
-      }
-  }
+class SplitSuite extends SparkSuite {
 
   @Test def minrep() {
     assert(SplitMulti.minRep(10, "TAA", "TA") == (10, "TA", "T"))
@@ -33,8 +32,6 @@ class SplitSuite extends SparkSuite {
   }
 
   @Test def splitTest() {
-    Spec.check()
-
     val vds1m = LoadVCF(sc, "src/test/resources/split_test.vcf")
 
     var s = State(sc, sqlContext)
@@ -50,7 +47,8 @@ class SplitSuite extends SparkSuite {
       .foreach { case (k, (g1, g2)) =>
         if (g1 != g2)
           println(s"$g1, $g2")
-        simpleAssert(g1 == g2) }
+        simpleAssert(g1 == g2)
+      }
 
     val wasSplitQuerier = vds1.vaSignature.query("wasSplit")
 

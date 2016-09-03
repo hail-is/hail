@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{PropertySuite, SparkSuite}
+import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.stats.LeveneHaldane
 import org.testng.annotations.Test
-import org.broadinstitute.hail.check._
 import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant._
 
@@ -23,23 +23,23 @@ class HWESuite extends SparkSuite {
     assert(D_==(r(5)._2, LeveneHaldane(3, 1).exactMidP(1)))
     assert(r(6) ==(None, 0.5))
   }
+}
 
-  @Test def testExpr() {
-    val p = Prop.forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds: VariantDataset =>
-      val s = SplitMulti.run(State(sc, sqlContext, vds))
-      val s2 = VariantQC.run(s)
-      val s3 = AnnotateVariantsExpr.run(s2, Array("-c", "va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)"))
-      val vds2 = s3.vds
-      val (_, q1) = vds2.queryVA("va.hweExpr.rExpectedHetFrequency")
-      val (_, q2) = vds2.queryVA("va.hweExpr.pHWE")
-      val (_, q1e) = vds2.queryVA("va.qc.rExpectedHetFrequency")
-      val (_, q2e) = vds2.queryVA("va.qc.pHWE")
-      vds2
-        .variantsAndAnnotations
-        .map(_._2)
-        .collect()
-        .forall(a => q1(a) == q1e(a) && q2(a) == q2e(a))
-    }
-    p.check()
+class HWEProperties extends PropertySuite {
+
+  property("expr") = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds: VariantDataset =>
+    val s = SplitMulti.run(State(sc, sqlContext, vds))
+    val s2 = VariantQC.run(s)
+    val s3 = AnnotateVariantsExpr.run(s2, Array("-c", "va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)"))
+    val vds2 = s3.vds
+    val (_, q1) = vds2.queryVA("va.hweExpr.rExpectedHetFrequency")
+    val (_, q2) = vds2.queryVA("va.hweExpr.pHWE")
+    val (_, q1e) = vds2.queryVA("va.qc.rExpectedHetFrequency")
+    val (_, q2e) = vds2.queryVA("va.qc.pHWE")
+    vds2
+      .variantsAndAnnotations
+      .map(_._2)
+      .collect()
+      .forall(a => q1(a) == q1e(a) && q2(a) == q2e(a))
   }
 }

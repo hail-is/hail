@@ -1,9 +1,9 @@
 package org.broadinstitute.hail.variant
 
-import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.{ByteIterator, PropertySuite}
 import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.{Gen, Properties}
+import org.broadinstitute.hail.check.Gen
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -25,35 +25,11 @@ object GenotypeSuite {
     g == g2
   }
 
-  object Spec extends Properties("Genotype") {
-
-    property("readWrite") = forAll[(Variant, Genotype)](Genotype.genVariantGenotype) { case (v, g) =>
-      readWriteEqual(v.nAlleles, g)
-    }
-
-    property("gt") = forAll { g: Genotype =>
-      g.gt.isDefined == g.isCalled
-    }
-
-    property("gtPairIndex") = forAll(Gen.choose(0, 0x7fff),
-      Gen.choose(0, 0x7fff)) { (i: Int, j: Int) =>
-      (i <= j) ==> (Genotype.gtPair(Genotype.gtIndex(i, j)) == GTPair(i, j))
-    }
-
-    property("gtIndexPair") = forAll(Gen.choose(0, 0x20003fff)) { (i: Int) =>
-      val p = Genotype.gtPair(i)
-
-      Genotype.gtIndex(p) == i &&
-        Genotype.gtPairSqrt(i) == p &&
-        Genotype.gtPairRecursive(i) == p
-    }
-  }
-
 }
 
 class GenotypeSuite extends TestNGSuite {
 
-  import GenotypeSuite._
+  import GenotypeSuite.readWriteEqual
 
   val v = Variant("1", 1, "A", "T")
 
@@ -90,51 +66,67 @@ class GenotypeSuite extends TestNGSuite {
     assert(D_==(Genotype(None, Some(Array(0, 0)), Some(0), None, None).pAB().get, 1.0))
     assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(99), Some(Array(100, 0, 100))).pAB().get, 1.0))
     assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(99), Some(Array(200, 0, 100))).pAB().get, 0.423950))
+  }
+}
 
-    Spec.check()
+class GenotypeProperties extends PropertySuite {
+
+  import GenotypeSuite.readWriteEqual
+
+  property("readWrite") = forAll[(Variant, Genotype)](Genotype.genVariantGenotype) { case (v, g) =>
+    readWriteEqual(v.nAlleles, g)
   }
 
-  @Test def gtPairGtIndexIsId() {
-    forAll(Gen.choose(0, 32768), Gen.choose(0, 32768)) { (x, y) =>
-      val (j, k) = if (x < y) (x, y) else (y, x)
-      val gt = GTPair(j, k)
-      Genotype.gtPair(Genotype.gtIndex(gt)) == gt
-    }.check()
+  property("gt") = forAll { g: Genotype =>
+    g.gt.isDefined == g.isCalled
+  }
+
+  property("gtIndexSame") = forAll(Gen.choose(0, 0x7fff), Gen.choose(0, 0x7fff)) { (x, y) =>
+    val (j, k) = if (x < y) (x, y) else (y, x)
+    Genotype.gtIndex(j, k) == Genotype.gtIndex(GTPair(j, k))
+  }
+
+  property("gtPairIndex") = forAll(Gen.choose(0, 0x7fff), Gen.choose(0, 0x7fff)) { (x, y) =>
+    val (j, k) = if (x < y) (x, y) else (y, x)
+    Genotype.gtPair(Genotype.gtIndex(j, k)) == GTPair(j, k)
+  }
+
+  property("gtPairIndex") = forAll(Gen.choose(0, 0x7fff), Gen.choose(0, 0x7fff)) { (x, y) =>
+    val (j, k) = if (x < y) (x, y) else (y, x)
+    val gt = GTPair(j, k)
+    Genotype.gtPair(Genotype.gtIndex(gt)) == gt
+  }
+
+  property("gtIndexPair") = forAll(Gen.choose(0, 0x20003fff)) { (i: Int) =>
+    Genotype.gtIndex(Genotype.gtPair(i)) == i
+  }
+
+  property("gtIndexPairSqrt") = forAll(Gen.choose(0, 0x20003fff)) { (i: Int) =>
+    Genotype.gtPair(i) == Genotype.gtPairSqrt(i)
+  }
+
+  property("gtIndexPairRecursive") = forAll(Gen.choose(0, 0x20003fff)) { (i: Int) =>
+    Genotype.gtPair(i) == Genotype.gtPairRecursive(i)
   }
 
   def triangleNumberOf(i: Int) = (i * i + i) / 2
 
-  @Test def gtIndexGtPairIsId() {
-    forAll(Gen.choose(0, 10000)) { (idx) =>
-      Genotype.gtIndex(Genotype.gtPair(idx)) == idx
-    }.check()
-  }
+  val gen = for (nGenotype <- Gen.choose(2, 5).map(triangleNumberOf);
+    dosageGen = Gen.partition(nGenotype, 32768);
+    result <- dosageGen) yield result
 
-  @Test def gtPairAndGtPairSqrtEqual() {
-    forAll(Gen.choose(0, 10000)) { (idx) =>
-      Genotype.gtPair(idx) == Genotype.gtPairSqrt(idx)
-    }.check()
-  }
+  val p = forAll(gen) { dosages =>
+    val gt = Genotype.gtFromLinear(dosages)
+    assert(dosages.sum == 32768)
+    val dMax = dosages.max
 
-  @Test def testGtFromLinear() {
-    val gen = for (nGenotype <- Gen.choose(2, 5).map(triangleNumberOf);
-      dosageGen = Gen.partition(nGenotype, 32768);
-      result <- dosageGen) yield result
-
-    val p = forAll(gen) { dosages =>
-      val gt = Genotype.gtFromLinear(dosages)
-      assert(dosages.sum == 32768)
-      val dMax = dosages.max
-
-      val check1 = gt.forall { gt =>
-        val dosageP = dosages(gt)
-        dosageP == dMax && dosages.zipWithIndex.forall { case (d, index) => index == gt || d != dosageP }
-      }
-
-      val check2 = dosages.count(_ == dMax) > 1 || gt.contains(dosages.indexOf(dMax))
-
-      check1 && check2
+    val check1 = gt.forall { gt =>
+      val dosageP = dosages(gt)
+      dosageP == dMax && dosages.zipWithIndex.forall { case (d, index) => index == gt || d != dosageP }
     }
-    p.check()
+
+    val check2 = dosages.count(_ == dMax) > 1 || gt.contains(dosages.indexOf(dMax))
+
+    check1 && check2
   }
 }
