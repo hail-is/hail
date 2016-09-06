@@ -1966,23 +1966,31 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
   override def typecheckThis(ec: EvalContext): BaseType = {
-    if (thenTree.`type` != elseTree.`type`)
-      parseError(s"expected same-type `then' and `else' clause, got `${ thenTree.`type` }' and `${ elseTree.`type` }'")
-    else
-      thenTree.`type`
+    (thenTree.`type`, elseTree.`type`) match {
+      case (thenType, elseType) if thenType == elseType => thenType
+      case (thenType: TNumeric, elseType: TNumeric)     => TNumeric.promoteNumeric(Set(thenType, elseType))
+      case _ =>
+        parseError(s"expected same-type `then' and `else' clause, got `${ thenTree.`type` }' and `${ elseTree.`type` }'")
+    }
   }
 
   def eval(ec: EvalContext): () => Any = {
     val f1 = cond.eval(ec)
     val f2 = thenTree.eval(ec)
     val f3 = elseTree.eval(ec)
+
+    // this is necessary to avoid serializing `this` which is not serializable
+    // (and it would be an unnecessary leak anyway)
+    val ifType = `type`
+
     () => {
+      def coerce(value: Any): Any = ifType match {
+        case t: TNumeric => t.conv.to(value)
+        case _           => value
+      }
       val c = f1()
       if (c != null) {
-        if (c.asInstanceOf[Boolean])
-          f2()
-        else
-          f3()
+        coerce(if (c.asInstanceOf[Boolean]) f2() else f3())
       } else
         null
     }

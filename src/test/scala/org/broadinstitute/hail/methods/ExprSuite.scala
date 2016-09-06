@@ -559,4 +559,19 @@ class ExprSuite extends SparkSuite {
 
     Spec.check()
   }
+
+  @Test def testIfNumericPromotion() {
+    val ec = EvalContext(Map("c" -> (0, TBoolean), "l" -> (1, TLong), "f" -> (2, TFloat)))
+    def eval[T](s: String): (BaseType, Option[T]) = {
+      val (t, f) = Parser.parse(s, ec)
+      (t, f().map(_.asInstanceOf[T]))
+    }
+
+    assert(Parser.parse("if (c) 0 else 0", ec)._1 == TInt)
+    assert(Parser.parse("if (c) 0 else l", ec)._1 == TLong)
+    assert(Parser.parse("if (c) f else 0", ec)._1 == TFloat)
+    assert(Parser.parse("if (c) 0 else 0.0", ec)._1 == TDouble)
+    assert(eval[Int]("(if (true) 0 else 0.toLong).toInt") == (TInt, Some(0)))
+    assert(eval[Int]("(if (true) 0 else 0.toFloat).toInt") == (TInt, Some(0)))
+  }
 }
