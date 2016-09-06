@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -30,7 +30,7 @@ object AnnotateSamplesList extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val samplesInList = readLines(options.input, state.hadoopConf) { lines =>
+    val samplesInList = state.hadoopConf.readLines(options.input) { lines =>
       if (lines.isEmpty)
         warn(s"Empty annotation file given ${options.input}")
 

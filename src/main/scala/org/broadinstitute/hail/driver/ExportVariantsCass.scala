@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import com.datastax.driver.core._
 import com.datastax.driver.core.querybuilder.QueryBuilder
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
 

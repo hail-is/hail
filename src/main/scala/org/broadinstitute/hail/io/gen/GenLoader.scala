@@ -2,7 +2,7 @@ package org.broadinstitute.hail.io.gen
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Accumulable, SparkContext}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader

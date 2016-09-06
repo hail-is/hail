@@ -3,11 +3,12 @@ package org.broadinstitute.hail.driver
 import java.io.DataInputStream
 
 import breeze.linalg.DenseMatrix
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.{SparkSuite, TempDir}
+import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.utils.TempDir
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -16,7 +17,7 @@ import scala.sys.process._
 
 class GRMSuite extends SparkSuite {
   def loadIDFile(file: String): Array[String] = {
-    readFile(file, sc.hadoopConfiguration) { s =>
+    hadoopConf.readFile(file) { s =>
       Source.fromInputStream(s)
         .getLines()
         .map { line =>
@@ -29,7 +30,7 @@ class GRMSuite extends SparkSuite {
 
   def loadRel(nSamples: Int, file: String): DenseMatrix[Float] = {
     val m: DenseMatrix[Float] = new DenseMatrix[Float](rows = nSamples, cols = nSamples)
-    val rows = readFile(file, sc.hadoopConfiguration) { s =>
+    val rows = hadoopConf.readFile(file) { s =>
       val lines = Source.fromInputStream(s)
         .getLines()
         .toArray
@@ -50,13 +51,13 @@ class GRMSuite extends SparkSuite {
 
   def loadGRM(nSamples: Int, nVariants: Int, file: String): DenseMatrix[Float] = {
     val m: DenseMatrix[Float] = new DenseMatrix[Float](rows = nSamples, cols = nSamples)
-    val rows = readFile(file, sc.hadoopConfiguration) { s =>
+    val rows = hadoopConf.readFile(file) { s =>
       val lines = Source.fromInputStream(s)
         .getLines()
         .toArray
       assert(lines.length == nSamples * (nSamples + 1) / 2)
 
-      lines.foreach { case line =>
+      lines.foreach { line =>
         val s = line.split("\t")
         val i = s(0).toInt - 1
         val j = s(1).toInt - 1
@@ -83,10 +84,10 @@ class GRMSuite extends SparkSuite {
   def loadBin(nSamples: Int, file: String): DenseMatrix[Float] = {
     val m = new DenseMatrix[Float](rows = nSamples, cols = nSamples)
 
-    val status = hadoopFileStatus(file, sc.hadoopConfiguration)
+    val status = hadoopConf.fileStatus(file)
     assert(status.getLen == 4 * nSamples * (nSamples + 1) / 2)
 
-    readDataFile(file, sc.hadoopConfiguration) { s =>
+    hadoopConf.readDataFile(file) { s =>
       for (i <- 0 until nSamples)
         for (j <- 0 to i) {
           val x = readFloatLittleEndian(s)
@@ -178,8 +179,7 @@ class GRMSuite extends SparkSuite {
           case "gcta-grm-bin" =>
             s"plink --bfile ${ uriPath(bFile) } --make-grm-bin --out ${ uriPath(bFile) }" !
 
-            assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
-              == vsm.sampleIds)
+            assert(loadIDFile(bFile + ".grm.id").toIndexedSeq == vsm.sampleIds)
 
             GRM.run(s, Array("-f", "gcta-grm-bin", "-o", grmBinFile, "--N-file", grmNBinFile))
 

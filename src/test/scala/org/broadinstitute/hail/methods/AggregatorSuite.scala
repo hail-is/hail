@@ -2,7 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.{SparkSuite, TestUtils}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Prop
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.vcf.LoadVCF

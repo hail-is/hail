@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.io._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.kohsuke.args4j.{Option => Args4jOption, Argument}
 import scala.collection.JavaConverters._
@@ -9,7 +9,7 @@ import org.apache.hadoop
 
 trait VCFImporter {
   def globAllVcfs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
-    val inputs = hadoopGlobAll(arguments, hConf)
+    val inputs = hConf.globAll(arguments)
 
     if (inputs.isEmpty)
       fatal("arguments refer to no files")

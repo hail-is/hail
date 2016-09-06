@@ -3,7 +3,7 @@ package org.broadinstitute.hail.utils
 import org.apache.spark.SparkContext
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 import scala.util.Random
 

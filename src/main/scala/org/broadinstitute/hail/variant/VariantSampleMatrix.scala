@@ -11,7 +11,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkContext, SparkEnv}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
@@ -40,26 +40,26 @@ object VariantSampleMatrix {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
-    if (!hadoopExists(hConf, dirname))
+    if (!hConf.exists(dirname))
       fatal(s"no VDS found at `$dirname'")
 
     val metadataFile = dirname + "/metadata.json.gz"
     val pqtSuccess = dirname + "/rdd.parquet/_SUCCESS"
 
-    if (!hadoopExists(hConf, pqtSuccess) && requireParquetSuccess)
+    if (!hConf.exists(pqtSuccess) && requireParquetSuccess)
       fatal(
         s"""corrupt VDS: no parquet success indicator
             |  Unexpected shutdown occurred during `write'
             |  Recreate VDS.""".stripMargin)
 
-    if (!hadoopExists(hConf, metadataFile))
+    if (!hConf.exists(metadataFile))
       fatal(
         s"""corrupt or outdated VDS: invalid metadata
             |  No `metadata.json.gz' file found in VDS directory
             |  Recreate VDS with current version of Hail.""".stripMargin)
 
     val json = try {
-      readFile(metadataFile, hConf)(
+      hConf.readFile(metadataFile)(
         in => JsonMethods.parse(Source.fromInputStream(in).mkString)
       )
     } catch {
@@ -167,7 +167,7 @@ object VariantSampleMatrix {
 
     val partitioner = {
       try {
-        Some(readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>
+          Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
           OrderedPartitioner.read[Locus, Variant](in)
         })
       } catch {
@@ -886,7 +886,7 @@ class RichVDS(vds: VariantDataset) {
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
     val hConf = vds.sparkContext.hadoopConfiguration
-    hadoopMkdir(dirname, hConf)
+    hConf.mkDir(dirname)
 
     val sb = new StringBuilder
 
@@ -921,7 +921,7 @@ class RichVDS(vds: VariantDataset) {
       ("global_annotation", JSONAnnotationImpex.exportAnnotation(vds.globalAnnotation, vds.globalSignature))
     )
 
-    writeTextFile(dirname + "/metadata.json.gz", hConf)(_.write(JsonMethods.pretty(json)))
+    hConf.writeTextFile(dirname + "/metadata.json.gz")(_.write(JsonMethods.pretty(json)))
   }
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
@@ -932,7 +932,7 @@ class RichVDS(vds: VariantDataset) {
 
     val ordered = vds.rdd.asOrderedRDD
 
-    writeObjectFile(dirname + "/partitioner", vds.sparkContext.hadoopConfiguration) { out =>
+    sqlContext.sparkContext.hadoopConfiguration.writeObjectFile(dirname + "/partitioner") { out =>
       ordered.orderedPartitioner.write(out)
     }
 
@@ -977,7 +977,7 @@ class RichVDS(vds: VariantDataset) {
     }
     if (!KuduUtils.tableExists(master, tableName)) {
       val hConf = sqlContext.sparkContext.hadoopConfiguration
-      val headerLines = readFile(vcfSeqDict, hConf) { s =>
+      val headerLines = hConf.readFile(vcfSeqDict) { s =>
         Source.fromInputStream(s)
           .getLines()
           .takeWhile { line => line(0) == '#' }

@@ -1,9 +1,9 @@
-package org.broadinstitute.hail.utils
+package org.broadinstitute.hail.utils.richUtils
 
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.variant.{GenotypeStream, Variant}
+
 import scala.collection.mutable
-import scala.language.implicitConversions
 
 class RichRow(r: Row) {
 

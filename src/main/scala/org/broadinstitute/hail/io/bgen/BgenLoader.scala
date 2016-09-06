@@ -3,7 +3,7 @@ package org.broadinstitute.hail.io.bgen
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.io.gen.GenReport
 import org.broadinstitute.hail.variant._
@@ -44,7 +44,7 @@ object BgenLoader {
 
     dataBlockStarts(0) = position
 
-    readFile(file, hConf) { is =>
+    hConf.readFile(file) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
       reader.seek(0)
 
@@ -80,7 +80,7 @@ object BgenLoader {
     if (!bState.hasIds)
       fatal(s"BGEN file `$file' contains no sample ID block, coimport a `.sample' file")
 
-    readFile(file, hConf) { is =>
+    hConf.readFile(file) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
 
       reader.seek(bState.headerLength + 4)
@@ -100,7 +100,7 @@ object BgenLoader {
   }
 
   def readSampleFile(hConf: org.apache.hadoop.conf.Configuration, file: String): Array[String] = {
-    readFile(file, hConf) { s =>
+    hConf.readFile(file) { s =>
       Source.fromInputStream(s)
         .getLines()
         .drop(2)
@@ -114,7 +114,7 @@ object BgenLoader {
   }
 
   def readState(hConf: org.apache.hadoop.conf.Configuration, file: String): BgenHeader = {
-    readFile(file, hConf) { is =>
+    hConf.readFile(file) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
       readState(reader)
     }

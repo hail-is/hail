@@ -10,7 +10,7 @@ import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.sparkextras.OrderedRDD
 import org.testng.annotations.Test
 
@@ -189,7 +189,7 @@ class VSMSuite extends SparkSuite {
 
     val table = "variants_test"
     val master = "quickstart.cloudera"
-    hadoopDelete("/tmp/foo.vds", sc.hadoopConfiguration, recursive = true)
+    hadoopConf.delete("/tmp/foo.vds", recursive = true)
 
     s = WriteKudu.run(s, Array("-o", "/tmp/foo.vds", "-t", table, "-m", master,
       "--vcf-seq-dict", vcf, "--rows-per-partition", "300000000", "--drop"))

@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object Write extends Command {
@@ -22,7 +22,7 @@ object Write extends Command {
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    hadoopDelete(options.output, state.hadoopConf, true)
+    state.hadoopConf.delete(options.output, true)
     state.vds.write(state.sqlContext, options.output, compress = !options.noCompress)
     state
   }

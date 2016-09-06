@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import java.io.DataOutputStream
 import breeze.linalg.DenseMatrix
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.methods.ToStandardizedIndexedRowMatrix
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -58,7 +58,7 @@ object GRM extends Command {
       && grm.numRows == nSamples)
 
     if (options.idFile != null) {
-      writeTextFile(options.idFile, state.hadoopConf) { s =>
+      state.hadoopConf.writeTextFile(options.idFile) { s =>
         for (id <- vds.sampleIds) {
           s.write(id)
           s.write("\t")
@@ -74,7 +74,7 @@ object GRM extends Command {
 
     options.format match {
       case "rel" =>
-        writeTextFile(options.output, state.hadoopConf) { s =>
+        state.hadoopConf.writeTextFile(options.output) { s =>
           for (i <- 0 until nSamples) {
             for (j <- 0 to i) {
               if (j > 0)
@@ -86,21 +86,21 @@ object GRM extends Command {
         }
 
       case "gcta-grm" =>
-        writeTextFile(options.output, state.hadoopConf) { s =>
+        state.hadoopConf.writeTextFile(options.output) { s =>
           for (i <- 0 until nSamples)
             for (j <- 0 to i)
               s.write(s"${i + 1}\t${j + 1}\t$nVariants\t${grm(i, j)}\n")
         }
 
       case "gcta-grm-bin" =>
-        writeDataFile(options.output, state.hadoopConf) { s =>
+        state.hadoopConf.writeDataFile(options.output) { s =>
           for (i <- 0 until nSamples)
             for (j <- 0 to i)
               writeFloatLittleEndian(s, grm(i, j).toFloat)
         }
 
         if (options.nFile != null) {
-          writeDataFile(options.nFile, state.hadoopConf) { s =>
+          state.hadoopConf.writeDataFile(options.nFile) { s =>
             for (_ <- 0 until nSamples * (nSamples + 1) / 2)
               writeFloatLittleEndian(s, nVariants.toFloat)
           }

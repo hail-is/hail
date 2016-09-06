@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -72,7 +72,7 @@ object PrintSchema extends Command {
     val result = sb.result()
     options.output match {
       case null => print(result)
-      case out => writeTextFile(out, vds.sparkContext.hadoopConfiguration) { dos =>
+      case out => vds.sparkContext.hadoopConfiguration.writeTextFile(out) { dos =>
         dos.write(result)
       }
     }

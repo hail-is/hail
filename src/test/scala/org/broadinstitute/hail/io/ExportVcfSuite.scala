@@ -2,7 +2,7 @@ package org.broadinstitute.hail.io
 
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.check.Prop._
@@ -69,7 +69,7 @@ class ExportVcfSuite extends SparkSuite {
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
     val stateNew = State(sc, sqlContext, vdsNew)
 
-    assert(readFile(outFile, stateNew.hadoopConf) { s =>
+    assert(hadoopConf.readFile(outFile) { s =>
       Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty && line(0) != '#')
@@ -82,8 +82,8 @@ class ExportVcfSuite extends SparkSuite {
     val out = tmpDir.createTempFile("foo", ".vcf.bgz")
     val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
     val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random), Gen.choose(1, 10), Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
-      hadoopDelete(out, sc.hadoopConfiguration, recursive = true)
-      hadoopDelete(out2, sc.hadoopConfiguration, recursive = true)
+      hadoopConf.delete(out, recursive = true)
+      hadoopConf.delete(out2, recursive = true)
       ExportVCF.run(s.copy(vds = vds), Array("-o", out))
       val vsm2 = ImportVCF.run(s, Array(out, "-n", nPar1.toString)).vds
       ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
@@ -115,7 +115,7 @@ class ExportVcfSuite extends SparkSuite {
     val out = tmpDir.createTempFile("export", ".vcf")
     ExportVCF.run(s, Array("-o", out))
 
-    readFile(out, hadoopConf) { in =>
+    hadoopConf.readFile(out) { in =>
       Source.fromInputStream(in)
         .getLines()
         .filter(_.startsWith("##INFO"))

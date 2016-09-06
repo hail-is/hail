@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.check
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.apache.commons.math3.random.RandomDataGenerator
 
 import scala.collection.mutable.ArrayBuffer

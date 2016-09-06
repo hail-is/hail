@@ -3,12 +3,11 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Prop
-import org.broadinstitute.hail.expr.{TChar, TStruct, Type}
+import org.broadinstitute.hail.expr.{TChar, TStruct}
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, VSMSubgen, Variant, VariantMetadata, VariantSampleMatrix}
-import org.scalactic.Equality
-import org.testng.annotations.Test
 import org.scalatest.Matchers._
-import org.broadinstitute.hail.Utils._
+import org.testng.annotations.Test
 
 class FilterAllelesSuite extends SparkSuite {
 

@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.TextExporter
 import org.broadinstitute.hail.methods._
@@ -75,7 +75,7 @@ object ExportSamples extends Command with TextExporter {
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
-    hadoopDelete(output, state.hadoopConf, recursive = true)
+    hConf.delete(output, recursive = true)
 
     val sb = new StringBuilder()
     val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
@@ -92,7 +92,7 @@ object ExportSamples extends Command with TextExporter {
       sb.result()
     }
 
-    writeTable(output, hConf, lines, header.map(_.mkString("\t")))
+    hConf.writeTable(output, lines, header.map(_.mkString("\t")))
 
     state
   }

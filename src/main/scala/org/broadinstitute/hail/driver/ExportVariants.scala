@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.TextExporter
 import org.broadinstitute.hail.methods._
@@ -75,7 +75,7 @@ object ExportVariants extends Command with TextExporter {
 
     val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
 
-    hadoopDelete(output, state.hadoopConf, recursive = true)
+    state.hadoopConf.delete(output, recursive = true)
 
     vds.rdd
       .mapPartitions { it =>

@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.schema.SchemaRequest
 import org.apache.solr.common.{SolrException, SolrInputDocument}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
 

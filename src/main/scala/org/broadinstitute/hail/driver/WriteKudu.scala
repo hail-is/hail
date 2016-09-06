@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.io.vcf.BufferedLineIterator
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -40,7 +40,7 @@ object WriteKudu extends Command {
   override def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    hadoopDelete(options.output, state.hadoopConf, true)
+    state.hadoopConf.delete(options.output, true)
     state.vds.writeKudu(state.sqlContext, options.output, options.table,
       options.master, options.vcfSeqDict, options.rowsPerPartition, options.sampleGroup,
       compress = options.compress, drop = options.drop)

@@ -2,7 +2,7 @@ package org.broadinstitute.hail.expr
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Sample, Variant}

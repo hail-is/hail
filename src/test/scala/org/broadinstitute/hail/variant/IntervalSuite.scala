@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.driver._
@@ -53,7 +52,7 @@ class IntervalSuite extends SparkSuite {
       sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Genotype])))).toOrderedRDD)
 
     val intervalFile = tmpDir.createTempFile("intervals")
-    writeTextFile(intervalFile, hadoopConf) { out =>
+    hadoopConf.writeTextFile(intervalFile) { out =>
       out.write("1\t50\t150\t+\tTHING1\n")
       out.write("1\t50\t150\t+\tTHING2\n")
       out.write("1\t50\t150\t+\tTHING3\n")
@@ -164,7 +163,7 @@ class IntervalSuite extends SparkSuite {
 
       val p = Prop.forAll(intervalsGen) { intervals =>
 
-        writeTextFile(iList, hadoopConf) { out =>
+        hadoopConf.writeTextFile(iList) { out =>
           intervals.foreach { i =>
             out.write(s"22\t${ i.start.position }\t${ i.end.position }\n")
           }
@@ -182,7 +181,7 @@ class IntervalSuite extends SparkSuite {
           .variants
           .collect()
 
-        readFile(tmp1, hadoopConf) { in =>
+        hadoopConf.readFile(tmp1) { in =>
 
           Source.fromInputStream(in)
             .getLines()

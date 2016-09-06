@@ -6,7 +6,7 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver.{ImportGEN, State}
 import org.testng.annotations.Test
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 class LoadGenSuite extends SparkSuite {
 

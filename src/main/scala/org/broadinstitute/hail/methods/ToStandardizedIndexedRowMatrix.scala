@@ -2,7 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{Variant, VariantDataset}
 
 object ToStandardizedIndexedRowMatrix {

@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr._
@@ -38,7 +38,7 @@ object AnnotateGlobalList extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val textList = readFile(options.input, state.hadoopConf) { in =>
+    val textList = state.hadoopConf.readFile(options.input) { in =>
       Source.fromInputStream(in)
         .getLines()
         .toArray

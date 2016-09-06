@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver._
@@ -16,7 +16,7 @@ import scala.sys.process._
 class ImputeSexSuite extends SparkSuite {
 
   def parsePlinkSexCheck(file: String): Map[String, (Option[Int], Option[Double])] =
-    readLines(file, sc.hadoopConfiguration)(_.drop(1).map(_.map { line =>
+    hadoopConf.readLines(file)(_.drop(1).map(_.map { line =>
       val Array(fid, iid, pedsex, snpsex, status, f) = line.trim.split("\\s+")
       val sex = snpsex match {
         case "1" => Option(1)
@@ -60,11 +60,11 @@ class ImputeSexSuite extends SparkSuite {
           s = ImputeSex.run(s, Array("-m", "0.0", "--include-par"))
           s = ExportVCF.run(s, Array("-o", vcfFile))
 
-          hadoopCopy(vcfFile, localVCFFile, hadoopConf)
+          hadoopConf.copy(vcfFile, localVCFFile)
 
           s"plink --vcf ${ uriPath(localVCFFile) } --const-fid --check-sex --silent --out ${ uriPath(localRoot) }" !
 
-          hadoopCopy(localSexcheckFile, sexcheckFile, hadoopConf)
+          hadoopConf.copy(localSexcheckFile, sexcheckFile)
 
           val plinkResult = parsePlinkSexCheck(sexcheckFile)
 

@@ -1,11 +1,6 @@
 package org.broadinstitute.hail.annotations
 
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.expr.{EvalContext, _}
-import org.broadinstitute.hail.variant.{AltAllele, Genotype, Variant}
-import org.json4s._
-import org.json4s.jackson.Serialization
 
 object Annotation {
 
@@ -26,7 +21,7 @@ object Annotation {
       case r: Row =>
         "Row:\n" +
           r.toSeq.zipWithIndex.map { case (elem, index) =>
-            s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}"""
+            s"""$spaces[$index] ${ printAnnotation(elem, nSpace + 4) }"""
           }
             .mkString("\n")
       case a => a.toString + ": " + a.getClass.getSimpleName

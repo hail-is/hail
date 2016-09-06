@@ -4,7 +4,7 @@ import com.datastax.driver.core.{DataType, Session}
 import com.datastax.driver.core.querybuilder.QueryBuilder
 import org.apache.solr.client.solrj.{SolrClient, SolrQuery}
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.http4s.headers.`Content-Type`
 import org.http4s._
 import org.http4s.MediaType._

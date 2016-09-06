@@ -2,7 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.utils.MultiArray2
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.variant.GenotypeType._
@@ -154,7 +154,7 @@ case class MendelErrors(trios:        IndexedSeq[CompleteTrio],
       trioFamBc.value.getOrElse(dad, "0") + "\t" + dad + "\t" + mom + "\t" +
         nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\t" + nSNP + "\n"
     }.collect()
-    writeTable(filename, sc.hadoopConfiguration, lines, Some("FID\tPAT\tMAT\tCHLD\tN\tNSNP"))
+    sc.hadoopConfiguration.writeTable(filename, lines, Some("FID\tPAT\tMAT\tCHLD\tN\tNSNP"))
   }
 
   def writeMendelI(filename: String) {
@@ -163,7 +163,7 @@ case class MendelErrors(trios:        IndexedSeq[CompleteTrio],
     val lines = nErrorPerIndiv.map { case (s, (n, nSNP)) =>
       trioFamBc.value.getOrElse(s, "0") + "\t" + s + "\t" + n + "\t" + nSNP + "\n"
     }.collect()
-    writeTable(filename, sc.hadoopConfiguration, lines, Some("FID\tIID\tN\tNSNP"))
+    sc.hadoopConfiguration.writeTable(filename, lines, Some("FID\tIID\tN\tNSNP"))
   }
 
   def writeMendelL(filename: String) {

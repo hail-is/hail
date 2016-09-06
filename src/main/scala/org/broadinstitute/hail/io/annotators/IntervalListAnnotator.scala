@@ -1,11 +1,10 @@
 package org.broadinstitute.hail.io.annotators
 
 import org.apache.hadoop
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.utils.{Interval, IntervalTree}
+import org.broadinstitute.hail.utils.{Interval, IntervalTree, _}
 import org.broadinstitute.hail.variant._
+
 import scala.collection.mutable
 
 object IntervalListAnnotator {
@@ -13,7 +12,7 @@ object IntervalListAnnotator {
   val intervalRegex = """([^:]*)[:\t](\d+)[\-\t](\d+)""".r
 
   def readWithMap(filename: String, hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Map[Interval[Locus], List[String]]) = {
-    readLines(filename, hConf) { s =>
+    hConf.readLines(filename) { s =>
       val m = mutable.Map.empty[Interval[Locus], List[String]]
       s
         .filter(line => !line.value.isEmpty && line.value(0) != '@')
@@ -42,7 +41,7 @@ object IntervalListAnnotator {
   }
 
   def read(filename: String, hConf: hadoop.conf.Configuration): IntervalTree[Locus] = {
-    readLines(filename, hConf) {
+    hConf.readLines(filename) {
       s =>
         val intervals = s
           .filter(line => !line.value.isEmpty && line.value(0) != '@')
@@ -73,7 +72,7 @@ object IntervalListAnnotator {
   }
 
   def write(it: IntervalTree[Locus], filename: String, hConf: hadoop.conf.Configuration) {
-    writeTextFile(filename, hConf) {
+    hConf.writeTextFile(filename) {
       fw =>
         it.foreach { i =>
           assert(i.start.contig == i.end.contig)
@@ -84,7 +83,7 @@ object IntervalListAnnotator {
   }
 
   def apply(filename: String, hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], List[String]])]) = {
-    val stringAnno = readLines(filename, hConf) {
+    val stringAnno = hConf.readLines(filename) {
       lines =>
 
         if (lines.isEmpty)

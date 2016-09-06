@@ -1,14 +1,14 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.utils.Interval
+import org.broadinstitute.hail.utils.{FatalException, Interval}
 import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.broadinstitute.hail.variant.{Genotype, Locus, Variant}
-import org.broadinstitute.hail.{FatalException, SparkSuite, TestUtils}
+import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test

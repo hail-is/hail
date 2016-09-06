@@ -2,9 +2,8 @@ package org.broadinstitute.hail.utils
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.check._
-import org.broadinstitute.hail.driver.{AnnotateVariantsExpr, AnnotateVariantsTable, ExportVariants, State}
+import org.broadinstitute.hail.driver.{AnnotateVariantsTable, ExportVariants, State}
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
 import org.testng.annotations.Test
 

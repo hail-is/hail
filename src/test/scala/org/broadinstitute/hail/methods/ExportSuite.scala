@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.testng.annotations.Test
@@ -39,11 +39,11 @@ class ExportSuite extends SparkSuite {
         "rTiTv=sa.qc.rTiTv,rHetHomVar=sa.qc.rHetHomVar," +
         "rDeletionInsertion=sa.qc.rDeletionInsertion"))
 
-    val sQcOutput = readFile(sampleQCFile, hadoopConf) { s =>
+    val sQcOutput = hadoopConf.readFile(sampleQCFile) { s =>
       Source.fromInputStream(s)
         .getLines().toSet
     }
-    val sExportOutput = readFile(exportSamplesFile, hadoopConf) { s =>
+    val sExportOutput = hadoopConf.readFile(exportSamplesFile) { s =>
       Source.fromInputStream(s)
         .getLines().toSet
     }
@@ -67,11 +67,11 @@ class ExportSuite extends SparkSuite {
         "rHeterozygosity=va.qc.rHeterozygosity,rHetHomVar=va.qc.rHetHomVar,rExpectedHetFrequency=va.qc.rExpectedHetFrequency," +
         "pHWE=va.qc.pHWE"))
 
-    val vQcOutput = readFile(variantQCFile, hadoopConf) { s =>
+    val vQcOutput = hadoopConf.readFile(variantQCFile) { s =>
       Source.fromInputStream(s)
         .getLines().toSet
     }
-    val vExportOutput = readFile(exportVariantsFile, hadoopConf) { s =>
+    val vExportOutput = hadoopConf.readFile(exportVariantsFile) { s =>
       Source.fromInputStream(s)
         .getLines().toSet
     }
@@ -106,17 +106,17 @@ class ExportSuite extends SparkSuite {
       "$$$I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS**** = s.id, ANOTHERTHING=s.id"))
     s = ExportSamples.run(s, Array("-o", f3, "-c",
       "`I have some spaces and tabs\\there` = s.id,`more weird stuff here`=s.id"))
-    readFile(f, sc.hadoopConfiguration) { reader =>
+    hadoopConf.readFile(f) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
       assert(lines.next == "S.A.M.P.L.E.ID")
     }
-    readFile(f2, sc.hadoopConfiguration) { reader =>
+    hadoopConf.readFile(f2) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
       assert(lines.next == "$$$I_HEARD_YOU_LIKE_%%%_#@!_WEIRD_CHARS****\tANOTHERTHING")
     }
-    readFile(f3, sc.hadoopConfiguration) { reader =>
+    hadoopConf.readFile(f3) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
       assert(lines.next == "I have some spaces and tabs\there\tmore weird stuff here")

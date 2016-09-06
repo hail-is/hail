@@ -1,5 +1,7 @@
 package org.broadinstitute.hail
 
+import org.broadinstitute.hail.utils.FatalException
+
 object TestUtils {
 
   import org.scalatest.Assertions._

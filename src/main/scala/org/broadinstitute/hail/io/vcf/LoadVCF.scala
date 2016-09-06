@@ -3,7 +3,7 @@ package org.broadinstitute.hail.io.vcf
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Accumulable, SparkContext}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.sparkextras.OrderedRDD
@@ -167,7 +167,7 @@ object LoadVCF {
     val settings = VCFSettings(storeGQ, skipGenotypes, compress, ppAsPL, skipBadAD)
 
     val hConf = sc.hadoopConfiguration
-    val headerLines = readFile(file1, hConf) { s =>
+    val headerLines = hConf.readFile(file1) { s =>
       Source.fromInputStream(s)
         .getLines()
         .takeWhile { line => line(0) == '#' }

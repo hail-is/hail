@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.annotators.IntervalListAnnotator
@@ -83,7 +83,7 @@ object AggregateIntervals extends Command {
       .aggregateByKey(zvf())(seqOp, combOp)
       .collectAsMap()
 
-    writeTextFile(options.output, sc.hadoopConfiguration) { out =>
+    sc.hadoopConfiguration.writeTextFile(options.output) { out =>
       val sb = new StringBuilder
       sb.append("Contig")
       sb += '\t'
