@@ -163,7 +163,7 @@ object TNumeric {
     else if (types(TFloat))
       TFloat
     else {
-      assert(types == Set(TLong))
+      assert(types(TLong))
       TLong
     }
   }
