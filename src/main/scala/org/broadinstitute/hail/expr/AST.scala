@@ -1969,12 +1969,10 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
   override def typecheckThis(ec: EvalContext): BaseType = {
-    (thenTree.`type`, elseTree.`type`) match {
-      case (thenType, elseType) if thenType == elseType => thenType
-      case (thenType: TNumeric, elseType: TNumeric) => TNumeric.promoteNumeric(Set(thenType, elseType))
-      case _ =>
-        parseError(s"expected same-type `then' and `else' clause, got `${ thenTree.`type` }' and `${ elseTree.`type` }'")
-    }
+    if (thenTree.`type` != elseTree.`type`)
+      parseError(s"expected same-type `then' and `else' clause, got `${ thenTree.`type` }' and `${ elseTree.`type` }'")
+    else
+      thenTree.`type`
   }
 
   def eval(ec: EvalContext): () => Any = {
