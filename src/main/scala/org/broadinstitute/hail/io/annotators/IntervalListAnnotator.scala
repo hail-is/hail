@@ -6,37 +6,38 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.broadinstitute.hail.variant._
+import scala.collection.mutable
 
 object IntervalListAnnotator {
 
   val intervalRegex = """([^:]*)[:\t](\d+)[\-\t](\d+)""".r
 
-  def readWithMap(filename: String, hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Map[Interval[Locus], Annotation]) = {
+  def readWithMap(filename: String, hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Map[Interval[Locus], List[String]]) = {
     readLines(filename, hConf) { s =>
-      val m = s
+      val m = mutable.Map.empty[Interval[Locus], List[String]]
+      s
         .filter(line => !line.value.isEmpty && line.value(0) != '@')
-        .map(_.map { line =>
-          line.split("\t") match {
-            case Array(contig, start, end, direction, target) =>
-              if (!(direction == "+" || direction == "-"))
-                fatal(s"expect `+' or `-' in the `direction' field, but found $direction")
-              // interval list is 1-based, inclusive: [start, end]
-              (Interval(Locus(contig, start.toInt),
-                Locus(contig, end.toInt + 1)), target)
-            case _ => fatal(
-              """invalid interval format.  Acceptable formats:
-                |  `chr:start-end'
-                |  `chr  start  end' (tab-separated)
-                |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
-              """.stripMargin)
-
+        .foreach {
+          _.foreach { line =>
+            val (k, v) = line.split("\t") match {
+              case Array(contig, start, end, direction, target) =>
+                if (!(direction == "+" || direction == "-"))
+                  fatal(s"expect `+' or `-' in the `direction' field, but found $direction")
+                // interval list is 1-based, inclusive: [start, end]
+                (Interval(Locus(contig, start.toInt), Locus(contig, end.toInt + 1)), target)
+              case _ => fatal(
+                """invalid interval format.  Acceptable formats:
+                  |  `chr:start-end'
+                  |  `chr  start  end' (tab-separated)
+                  |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
+                """.
+                  stripMargin)
+            }
+            m.updateValue(k, List(v), prev => v :: prev)
           }
-        }.value
-        )
-        .toMap
-        .force
+        }
 
-      (IntervalTree[Locus](m.keys.toArray), m)
+      (IntervalTree[Locus](m.keys.toArray), m.toMap)
     }
   }
 
@@ -82,7 +83,7 @@ object IntervalListAnnotator {
     }
   }
 
-  def apply(filename: String, hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], Annotation])]) = {
+  def apply(filename: String, hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], List[String]])]) = {
     val stringAnno = readLines(filename, hConf) {
       lines =>
 
@@ -90,11 +91,11 @@ object IntervalListAnnotator {
           fatal("empty interval file")
 
         val firstLine = lines.next()
-        firstLine.value match {
+        firstLine.map {
           case intervalRegex(contig, start_str, end_str) => false
           case line if line.split("""\s+""").length == 5 => true
           case _ => fatal("unsupported interval list format")
-        }
+        }.value
     }
 
     if (stringAnno) {
