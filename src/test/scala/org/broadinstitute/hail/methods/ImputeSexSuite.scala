@@ -49,16 +49,24 @@ class ImputeSexSuite extends SparkSuite {
         if (s.vds.nSamples < 5 || s.vds.nVariants < 5) {
           true
         } else {
-          val fileRoot = tmpDir.createTempFile(prefix = "plinksexCheck")
-          val vcfOutputFile = fileRoot + ".vcf"
-          val plinkSexCheckRoot = fileRoot
+          val localRoot = tmpDir.createLocalTempFile("plinksexCheck")
+          val localVCFFile = localRoot + ".vcf"
+          val localSexcheckFile = localRoot + ".sexcheck"
+
+          val root = tmpDir.createTempFile("plinksexCheck")
+          val vcfFile = root + ".vcf"
+          val sexcheckFile = root + ".sexcheck"
 
           s = ImputeSex.run(s, Array("-m", "0.0", "--include-par"))
-          s = ExportVCF.run(s, Array("-o", vcfOutputFile))
+          s = ExportVCF.run(s, Array("-o", vcfFile))
 
-          s"plink --vcf $vcfOutputFile --const-fid --check-sex --silent --out $plinkSexCheckRoot" !
+          hadoopCopy(vcfFile, localVCFFile, hadoopConf)
 
-          val plinkResult = parsePlinkSexCheck(plinkSexCheckRoot + ".sexcheck")
+          s"plink --vcf ${ uriPath(localVCFFile) } --const-fid --check-sex --silent --out ${ uriPath(localRoot) }" !
+
+          hadoopCopy(localSexcheckFile, sexcheckFile, hadoopConf)
+
+          val plinkResult = parsePlinkSexCheck(sexcheckFile)
 
           val (_, imputedSexQuery) = s.vds.querySA("if (sa.imputesex.isFemale) 2 else 1")
           val (_, fQuery) = s.vds.querySA("sa.imputesex.Fstat")
@@ -80,8 +88,10 @@ class ImputeSexSuite extends SparkSuite {
               true
             else {
               println(s"$sample plink=${
-                plinkSex.liftedZip(plinkF).getOrElse("NA") } hail=${
-                hailSex.liftedZip(hailF).getOrElse("NA") } $resultSex $resultF")
+                plinkSex.liftedZip(plinkF).getOrElse("NA")
+              } hail=${
+                hailSex.liftedZip(hailF).getOrElse("NA")
+              } $resultSex $resultF")
               false
             }
           }
@@ -90,7 +100,9 @@ class ImputeSexSuite extends SparkSuite {
             Array("-c", "va.maf = let a = gs.map(g => g.oneHotAlleles(v)).sum() in a[1] / a.sum"))
           val sexcheck2 = ImputeSex.run(countAnnotated, Array("--pop-freq", "va.maf", "--include-par"))
 
-          result && sexcheck2.vds.sampleAnnotations == s.vds.sampleAnnotations
+          result &&
+            sexcheck2.vds.saSignature == s.vds.saSignature &&
+            sexcheck2.vds.sampleAnnotationsSimilar(s.vds)
         }
       }
   }

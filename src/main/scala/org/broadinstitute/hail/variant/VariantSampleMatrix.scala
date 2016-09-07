@@ -164,17 +164,17 @@ object VariantSampleMatrix {
           }
       }.getOrElse(sc.emptyRDD[(Variant, (Annotation, Iterable[Genotype]))])
     }
-    
+
     val partitioner = {
-        try {
-          Some(readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>
-            OrderedPartitioner.read[Locus, Variant](in)
-          })
-        } catch {
-          case _: InvalidClassException => None
-          case _: FileNotFoundException => None
-        }
+      try {
+        Some(readObjectFile(dirname + "/partitioner", sqlContext.sparkContext.hadoopConfiguration) { in =>
+          OrderedPartitioner.read[Locus, Variant](in)
+        })
+      } catch {
+        case _: InvalidClassException => None
+        case _: FileNotFoundException => None
       }
+    }
 
     val orderedRDD = partitioner match {
       case Some(p) =>
@@ -604,53 +604,73 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.mapValues { case (va, gs) => gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g)) }
 
+  def sampleAnnotationsSimilar(that: VariantSampleMatrix[T]): Boolean = {
+    require(saSignature == that.saSignature)
+    sampleAnnotations.zip(that.sampleAnnotations)
+      .forall((saSignature.valuesSimilar _).tupled)
+  }
+
   def same(that: VariantSampleMatrix[T]): Boolean = {
-    val metadataSame = metadata == that.metadata
-    if (!metadataSame) {
-      println("metadata were not the same")
-      if (vaSignature != that.vaSignature)
-        println(
-          s"""different va signature:
-              |  left:  ${ vaSignature.toPrettyString(compact = true) }
-              |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
-      if (saSignature != that.saSignature)
-        println(
-          s"""different sa signature:
-              |  left:  ${ saSignature.toPrettyString(compact = true) }
-              |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
-      if (globalSignature != that.globalSignature)
-        println(
-          s"""different global signature:
-              |  left:  ${ globalSignature.toPrettyString(compact = true) }
-              |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
-      if (sampleIds != that.sampleIds)
-        println(
-          s"""different sample ids:
-              |  left:  $sampleIds
-              |  right: ${ that.sampleIds }""".stripMargin)
-      if (sampleAnnotations != that.sampleAnnotations)
-        println(
-          s"""different sample annotations:
-              |  left:  $sampleAnnotations
-              |  right: ${ that.sampleAnnotations }""".stripMargin)
-      if (sampleIds != that.sampleIds)
-        println(
-          s"""different global annotation:
-              |  left:  $globalAnnotation
-              |  right: ${ that.globalAnnotation }""".stripMargin)
-      if (wasSplit != that.wasSplit)
-        println(
-          s"""different was split:
-              |  left:  $wasSplit
-              |  right: ${ that.wasSplit }""".stripMargin)
+    var metadataSame = true
+    if (vaSignature != that.vaSignature) {
+      metadataSame = false
+      println(
+        s"""different va signature:
+            |  left:  ${ vaSignature.toPrettyString(compact = true) }
+            |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
     }
+    if (saSignature != that.saSignature) {
+      metadataSame = false
+      println(
+        s"""different sa signature:
+            |  left:  ${ saSignature.toPrettyString(compact = true) }
+            |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
+    }
+    if (globalSignature != that.globalSignature) {
+      metadataSame = false
+      println(
+        s"""different global signature:
+            |  left:  ${ globalSignature.toPrettyString(compact = true) }
+            |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
+    }
+    if (sampleIds != that.sampleIds) {
+      metadataSame = false
+      println(
+        s"""different sample ids:
+            |  left:  $sampleIds
+            |  right: ${ that.sampleIds }""".stripMargin)
+    }
+    if (!sampleAnnotationsSimilar(that)) {
+      metadataSame = false
+      println(
+        s"""different sample annotations:
+            |  left:  $sampleAnnotations
+            |  right: ${ that.sampleAnnotations }""".stripMargin)
+    }
+    if (sampleIds != that.sampleIds) {
+      metadataSame = false
+      println(
+        s"""different global annotation:
+            |  left:  $globalAnnotation
+            |  right: ${ that.globalAnnotation }""".stripMargin)
+    }
+    if (wasSplit != that.wasSplit) {
+      metadataSame = false
+      println(
+        s"""different was split:
+            |  left:  $wasSplit
+            |  right: ${ that.wasSplit }""".stripMargin)
+    }
+    if (!metadataSame)
+      println("metadata were not the same")
+    val vaSignatureBc = sparkContext.broadcast(vaSignature)
     var printed = false
     metadataSame &&
       rdd
         .fullOuterJoin(that.rdd)
         .forall {
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
-            val annotationsSame = va1 == va2
+            val annotationsSame = vaSignatureBc.value.valuesSimilar(va1, va2)
             if (!annotationsSame && !printed) {
               println(
                 s"""at variant `$v', annotations were not the same:
@@ -686,17 +706,16 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     copy(vaSignature = newVAS,
-      rdd = rdd.mapValuesWithKey {
-        case (v, (va, gs)) =>
-          val serializer = SparkEnv.get.serializer.newInstance()
-          val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+      rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
+        val serializer = SparkEnv.get.serializer.newInstance()
+        val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
 
-          (mapOp(va, gs.iterator
-            .zip(localSampleIdsBc.value.iterator
-              .zip(localSampleAnnotationsBc.value.iterator)).foldLeft(zeroValue) {
-            case (acc, (g, (s, sa))) =>
-              seqOp(acc, v, va, s, sa, g)
-          }), gs)
+        (mapOp(va, gs.iterator
+          .zip(localSampleIdsBc.value.iterator
+            .zip(localSampleAnnotationsBc.value.iterator)).foldLeft(zeroValue) {
+          case (acc, (g, (s, sa))) =>
+            seqOp(acc, v, va, s, sa, g)
+        }), gs)
       }.asOrderedRDD[Locus])
   }
 
@@ -746,6 +765,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def annotateLoci(lociRDD: OrderedRDD[Locus, Locus, Annotation], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
+
     import LocusImplicits.orderedKey
 
     val newRDD = rdd
@@ -920,11 +940,10 @@ class RichVDS(vds: VariantDataset) {
     }
 
     val isDosage = vds.isDosage
-    val rowRDD = ordered.map {
-      case (v, (va, gs)) =>
-        Row.fromSeq(Array(v.toRow,
-          if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-          gs.toGenotypeStream(v, isDosage, compress).toRow))
+    val rowRDD = ordered.map { case (v, (va, gs)) =>
+      Row.fromSeq(Array(v.toRow,
+        if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
+        gs.toGenotypeStream(v, isDosage, compress).toRow))
     }
     sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
@@ -992,9 +1011,8 @@ class RichVDS(vds: VariantDataset) {
       val (newSignatures2, f2) = vds1.deleteVA("aIndex")
       vds1.copy(wasSplit = false,
         vaSignature = newSignatures2,
-        rdd = vds1.rdd.mapValuesWithKey {
-          case (v, (va, gs)) =>
-            (f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
+        rdd = vds1.rdd.mapValuesWithKey { case (v, (va, gs)) =>
+          (f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
         }.asOrderedRDD[Locus])
     } else
       vds
