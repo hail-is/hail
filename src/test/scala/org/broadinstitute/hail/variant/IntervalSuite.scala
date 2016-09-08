@@ -2,6 +2,7 @@ package org.broadinstitute.hail.variant
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr.{TSet, TString}
@@ -45,6 +46,25 @@ class IntervalSuite extends SparkSuite {
 
     val ex2 = IntervalListAnnotator.read("src/test/resources/example2.interval_list", hadoopConf)
     assert(ex1 == ex2)
+  }
+
+  @Test def testAll() {
+    val vds = VariantSampleMatrix(VariantMetadata(Array.empty[String]),
+      sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Genotype])))).toOrderedRDD)
+
+    val intervalFile = tmpDir.createTempFile("intervals")
+    writeTextFile(intervalFile, hadoopConf) { out =>
+      out.write("1\t50\t150\t+\tTHING1\n")
+      out.write("1\t50\t150\t+\tTHING2\n")
+      out.write("1\t50\t150\t+\tTHING3\n")
+      out.write("1\t50\t150\t+\tTHING4\n")
+      out.write("1\t50\t150\t+\tTHING5")
+    }
+
+    val s = AnnotateVariantsIntervals.run(State(sc, sqlContext, vds), Array("--all", "-i", intervalFile, "-r", "va"))
+    assert(s.vds.variantsAndAnnotations
+      .collect()
+      .head._2 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testNew() {

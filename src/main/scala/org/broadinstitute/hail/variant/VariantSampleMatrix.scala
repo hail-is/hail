@@ -731,7 +731,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def annotateIntervals(is: IntervalTree[Locus],
     t: Type,
-    m: Map[Interval[Locus], Annotation],
+    m: Map[Interval[Locus], List[String]],
     all: Boolean,
     path: List[String]): VariantSampleMatrix[T] = {
     val isBc = sparkContext.broadcast(is)
@@ -743,12 +743,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
       val queries = isBc.value.query(v.locus)
       val toIns = if (all)
-        Some(queries.map(mBc.value))
+        Some(queries.flatMap(mBc.value))
       else {
-        if (queries.isEmpty)
-          None
-        else
-          Some(mBc.value(queries.head))
+        queries.flatMap(mBc.value).headOption
       }
       (inserter(va, toIns), gs)
     }.asOrderedRDD[Locus],

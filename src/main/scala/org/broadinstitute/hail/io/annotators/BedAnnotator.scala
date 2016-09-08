@@ -7,9 +7,11 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.broadinstitute.hail.variant._
 
+import scala.collection.mutable
+
 object BedAnnotator {
   def apply(filename: String,
-    hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], Annotation])]) = {
+    hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], List[String]])]) = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     readLines(filename, hConf) { lines =>
@@ -32,19 +34,21 @@ object BedAnnotator {
 
       val getString = next.length >= 4
 
+
       if (getString) {
-        val m = dataLines
+        val m = mutable.Map.empty[Interval[Locus], List[String]]
+        dataLines
           .filter(l => !l.value.isEmpty)
-          .map(l => l.map { line =>
-            val Array(chrom, strStart, strEnd, value) = line.split("""\s+""")
-            // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
-            (Interval(Locus(chrom, strStart.toInt + 1),
-              Locus(chrom, strEnd.toInt + 1)),
-              value)
-          }.value)
-          .toMap
+          .foreach {
+            _.foreach { line =>
+              val Array(chrom, strStart, strEnd, value) = line.split("""\s+""")
+              // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
+              val interval = Interval(Locus(chrom, strStart.toInt + 1), Locus(chrom, strEnd.toInt + 1))
+              m.updateValue(interval, List(value), prev => value :: prev)
+            }
+          }
         val t = IntervalTree(m.keys.toArray)
-        (t, Some(TString, m))
+        (t, Some(TString, m.toMap))
       } else {
         val t = IntervalTree(dataLines
           .filter(l => !l.value.isEmpty)
