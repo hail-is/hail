@@ -18,7 +18,7 @@
  
  - The sample id `s.id` used is the first column in the .sample file
  
-#### Dosage representation
+<a href="dosagefilters">#### Dosage representation
  - Hail automatically filters out any genotypes where the absolute value of the sum of the dosages is greater than a certain tolerance (specified by `-t` or `--tolerance`) from 1.0. The default value is 0.02.
  - Hail normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
  - Hail will give slightly different results than the original data (maximum difference observed is 3E-4). 
