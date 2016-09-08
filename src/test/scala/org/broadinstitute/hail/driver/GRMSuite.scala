@@ -121,11 +121,7 @@ class GRMSuite extends SparkSuite {
 
   @Test def test() {
 
-    val localTmpDir = TempDir("file:///tmp", hadoopConf)
-
-    val bFile = localTmpDir.createTempFile("plink")
-    val bPath = uriPath(bFile)
-
+    val bFile = tmpDir.createLocalTempFile("plink")
     val relFile = tmpDir.createTempFile("test", ".rel")
     val relIDFile = tmpDir.createTempFile("test", ".rel.id")
     val grmFile = tmpDir.createTempFile("test", ".grm")
@@ -155,7 +151,7 @@ class GRMSuite extends SparkSuite {
 
         format match {
           case "rel" =>
-            s"plink --bfile $bPath --make-rel --out $bPath" !
+            s"plink --bfile ${ uriPath(bFile) } --make-rel --out ${ uriPath(bFile) }" !
 
             assert(loadIDFile(bFile + ".rel.id").toIndexedSeq
               == vsm.sampleIds)
@@ -169,7 +165,7 @@ class GRMSuite extends SparkSuite {
               loadRel(nSamples, relFile))
 
           case "gcta-grm" =>
-            s"plink --bfile $bPath --make-grm-gz --out $bPath" !
+            s"plink --bfile ${ uriPath(bFile) } --make-grm-gz --out ${ uriPath(bFile) }" !
 
             assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
               == vsm.sampleIds)
@@ -180,7 +176,7 @@ class GRMSuite extends SparkSuite {
               loadGRM(nSamples, nVariants, grmFile))
 
           case "gcta-grm-bin" =>
-            s"plink --bfile $bPath --make-grm-bin --out $bPath" !
+            s"plink --bfile ${ uriPath(bFile) } --make-grm-bin --out ${ uriPath(bFile) }" !
 
             assert(loadIDFile(bFile + ".grm.id").toIndexedSeq
               == vsm.sampleIds)

@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.io
 
-import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
@@ -23,35 +22,41 @@ class ImportPlinkSuite extends SparkSuite {
     property("import generates same output as export") =
       forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
 
-        val tmpTruthRoot = tmpDir.createTempFile(prefix = "truth")
-        val tmpTestRoot = tmpDir.createTempFile(prefix = "test")
+        val truthRoot = tmpDir.createTempFile("truth")
+        val testRoot = tmpDir.createTempFile("test")
 
         var s = State(sc, sqlContext, vds)
 
         s = SplitMulti.run(s, Array[String]())
-        val save = s.vds
-        s = ExportPlink.run(s, Array("-o", tmpTruthRoot))
-        if (s.vds.nSamples == 0 || s.vds.nVariants == 0)
+        s = ExportPlink.run(s, Array("-o", truthRoot))
+        if (s.vds.nSamples == 0 || s.vds.nVariants == 0) {
           try {
-            s = ImportPlink.run(s, Array("--bfile", tmpTruthRoot, "-n", nPartitions.toString))
+            s = ImportPlink.run(s, Array("--bfile", truthRoot, "-n", nPartitions.toString))
             false
           } catch {
             case e: FatalException => true
             case _: Throwable => false
           }
-        else {
-          s = ImportPlink.run(s, Array("--bfile", tmpTruthRoot, "-n", nPartitions.toString))
-          s = ExportPlink.run(s, Array("-o", tmpTestRoot))
+        } else {
+          s = ImportPlink.run(s, Array("--bfile", truthRoot, "-n", nPartitions.toString))
+          s = ExportPlink.run(s, Array("-o", testRoot))
 
-          val exitCodeFam = s"diff $tmpTruthRoot.fam $tmpTestRoot.fam" !
-          val exitCodeBim = s"diff $tmpTruthRoot.bim $tmpTestRoot.bim" !
-          val exitCodeBed = s"diff $tmpTruthRoot.bed $tmpTestRoot.bed" !
+          val localTruthRoot = tmpDir.createLocalTempFile("truth")
+          val localTestRoot = tmpDir.createLocalTempFile("test")
 
-          if (exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0)
-            true
-          else {
-            false
-          }
+          hadoopCopy(truthRoot + ".fam", localTruthRoot + ".fam", hadoopConf)
+          hadoopCopy(truthRoot + ".bim", localTruthRoot + ".bim", hadoopConf)
+          hadoopCopy(truthRoot + ".bed", localTruthRoot + ".bed", hadoopConf)
+
+          hadoopCopy(testRoot + ".fam", localTestRoot + ".fam", hadoopConf)
+          hadoopCopy(testRoot + ".bim", localTestRoot + ".bim", hadoopConf)
+          hadoopCopy(testRoot + ".bed", localTestRoot + ".bed", hadoopConf)
+
+          val exitCodeFam = s"diff ${ uriPath(localTruthRoot) }.fam ${ uriPath(localTestRoot) }.fam" !
+          val exitCodeBim = s"diff ${ uriPath(localTruthRoot) }.bim ${ uriPath(localTestRoot) }.bim" !
+          val exitCodeBed = s"diff ${ uriPath(localTruthRoot) }.bed ${ uriPath(localTestRoot) }.bed" !
+
+          exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0
         }
       }
   }

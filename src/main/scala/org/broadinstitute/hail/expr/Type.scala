@@ -123,6 +123,9 @@ abstract class Type extends BaseType {
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
   def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
+
+  /* compare values for equality, but compare Float and Double values using D_== */
+  def valuesSimilar(a1: Annotation, a2: Annotation): Boolean = a1 == a2
 }
 
 case object TBinary extends Type {
@@ -209,6 +212,9 @@ case object TFloat extends TNumeric {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 
   override def genValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
+
+  override def valuesSimilar(a1: Annotation, a2: Annotation): Boolean =
+    a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float]))
 }
 
 case object TDouble extends TNumeric {
@@ -221,6 +227,9 @@ case object TDouble extends TNumeric {
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.4e")
 
   override def genValue: Gen[Annotation] = arbitrary[Double]
+
+  override def valuesSimilar(a1: Annotation, a2: Annotation): Boolean =
+    a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double]))
 }
 
 case object TString extends Type {
@@ -285,6 +294,11 @@ case class TArray(elementType: Type) extends TIterable {
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq, Annotation](elementType.genValue)
+
+  override def valuesSimilar(a1: Annotation, a2: Annotation): Boolean =
+    a1 == a2 || (a1 != null && a2 != null
+      && a1.asInstanceOf[IndexedSeq[_]].zip(a2.asInstanceOf[IndexedSeq[_]])
+      .forall((elementType.valuesSimilar _).tupled))
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -690,4 +704,11 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         if (size < fuel) Gen.const(Annotation.empty)
         else Gen.uniformSequence(fields.map(f => f.`type`.genValue)).map(a => Annotation(a: _*)))
   }
+
+  override def valuesSimilar(a1: Annotation, a2: Annotation): Boolean =
+    a1 == a2 || (a1 != null && a2 != null
+      && fields.zip(a1.asInstanceOf[Row].toSeq).zip(a2.asInstanceOf[Row].toSeq)
+      .forall { case ((f, x1), x2) =>
+        f.`type`.valuesSimilar(x1, x2)
+      })
 }

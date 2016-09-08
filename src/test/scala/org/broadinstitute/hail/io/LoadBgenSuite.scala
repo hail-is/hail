@@ -27,10 +27,6 @@ class LoadBgenSuite extends SparkSuite {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
     val bgen = "src/test/resources/example.v11.bgen"
-    val fileRoot = tmpDir.createTempFile(prefix = "exampleInfoScoreTest")
-    val qcToolLogFile = fileRoot + ".qctool.log"
-    val statsFile = fileRoot + ".stats"
-    val qcToolPath = "qctool"
 
     hadoopDelete(bgen + ".idx", sc.hadoopConfiguration, recursive = true)
 
@@ -90,26 +86,26 @@ class LoadBgenSuite extends SparkSuite {
           gs.flatMap(_.dosage).flatten.forall(d => d >= 0.0 && d <= 1.0)
         })
 
-        val fileRoot = tmpDir.createTempFile(prefix = "testImportBgen")
+        val fileRoot = tmpDir.createTempFile("testImportBgen")
         val sampleFile = fileRoot + ".sample"
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
-        val qcToolLogFile = fileRoot + ".qctool.log"
-        val statsFile = fileRoot + ".stats"
-
-        hadoopDelete(bgenFile + ".idx", sc.hadoopConfiguration, recursive = true)
-        hadoopDelete(bgenFile, sc.hadoopConfiguration, recursive = true)
-        hadoopDelete(genFile, sc.hadoopConfiguration, recursive = true)
-        hadoopDelete(sampleFile, sc.hadoopConfiguration, recursive = true)
-        hadoopDelete(qcToolLogFile, sc.hadoopConfiguration, recursive = true)
 
         var s = State(sc, sqlContext, vds)
-
-        val origVds = s.vds
-
         s = ExportGEN.run(s, Array("-o", fileRoot))
 
-        val rc = s"qctool -force -g $genFile -s $sampleFile -og $bgenFile -log $qcToolLogFile" !
+        val localRoot = tmpDir.createLocalTempFile("testImportBgen")
+        val localGenFile = localRoot + ".gen"
+        val localSampleFile = localRoot + ".sample"
+        val localBgenFile = localRoot + ".bgen"
+        val qcToolLogFile = localRoot + ".qctool.log"
+
+        hadoopCopy(genFile, localGenFile, hadoopConf)
+        hadoopCopy(sampleFile, localSampleFile, hadoopConf)
+
+        val rc = s"qctool -force -g ${ uriPath(localGenFile) } -s ${ uriPath(localSampleFile) } -og ${ uriPath(localBgenFile) } -log ${ uriPath(qcToolLogFile) }" !
+
+        hadoopCopy(localBgenFile, bgenFile, hadoopConf)
 
         assert(rc == 0)
 
@@ -118,15 +114,15 @@ class LoadBgenSuite extends SparkSuite {
 
         val importedVds = q.vds
 
-        assert(importedVds.nSamples == origVds.nSamples)
-        assert(importedVds.nVariants == origVds.nVariants)
-        assert(importedVds.sampleIds == origVds.sampleIds)
+        assert(importedVds.nSamples == vds.nSamples)
+        assert(importedVds.nVariants == vds.nVariants)
+        assert(importedVds.sampleIds == vds.sampleIds)
 
         val importedVariants = importedVds.variants
-        val origVariants = origVds.variants
+        val origVariants = vds.variants
 
         val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
-        val originalFull = origVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
+        val originalFull = vds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
 
         originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (g1, g2)) =>
 

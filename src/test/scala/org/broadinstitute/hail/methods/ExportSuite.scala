@@ -138,19 +138,19 @@ class ExportSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
-    val tmp1 = tmpDir.createTempFile("export", ".out")
-    val tmp2 = tmpDir.createTempFile("export", ".types")
+    val out = tmpDir.createTempFile("export", ".out")
+    val types = tmpDir.createLocalTempFile("export", ".types")
 
-    ExportVariants.run(s, Array("-o", tmp1,
-      "-t", tmp2,
+    ExportVariants.run(s, Array("-o", out,
+      "-t", types,
       "-c", "v = v, va = va"))
 
     val preVDS = s.vds
 
-    s = AnnotateVariantsTable.run(s, Array(tmp1,
+    s = AnnotateVariantsTable.run(s, Array(out,
       "-e", "v",
       "-r", "va.tmp",
-      "-t", s"@$tmp2"))
+      "-t", s"@${ uriPath(types) }"))
     s = AnnotateVariantsExpr.run(s, Array("-c", "va = va.tmp.va"))
 
     assert(s.vds.same(preVDS))

@@ -18,17 +18,12 @@ class SparkSuite extends TestNGSuite {
 
   val noArgs: Array[String] = Array.empty[String]
 
-  var _tmpDir: TempDir = _
-  def tmpDir: TempDir = {
-    if (_tmpDir == null)
-      _tmpDir = TempDir("/tmp", hadoopConf)
-    _tmpDir
-  }
+  lazy val tmpDir: TempDir = TempDir(hadoopConf)
 
   @BeforeClass
   def startSpark() {
     val master = System.getProperty("hail.master")
-    sc = SparkManager.createSparkContext("Hail.TestNG", Option(master), "local")
+    sc = SparkManager.createSparkContext("Hail.TestNG", Option(master), "local[2]")
 
     sqlContext = SparkManager.createSQLContext()
 

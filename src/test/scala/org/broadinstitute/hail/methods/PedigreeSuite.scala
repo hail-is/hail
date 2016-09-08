@@ -46,7 +46,7 @@ class PedigreeSuite extends SparkSuite {
   @Test def generated() {
 
     val p = forAll(Pedigree.genWithIds()) { case (ids: IndexedSeq[String], ped: Pedigree) =>
-      val f = tmpDir.createTempFile(extension = ".fam")
+      val f = tmpDir.createTempFile("pedigree", ".fam")
       ped.write(f, hadoopConf)
       val ped2 = Pedigree.read(f, hadoopConf, ids)
       (ped.trios: IndexedSeq[Trio]) == (ped2.trios: IndexedSeq[Trio])

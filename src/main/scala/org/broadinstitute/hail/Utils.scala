@@ -788,17 +788,18 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
 }
 
 object TempDir {
-  def apply(tmpdir: String, hConf: hadoop.conf.Configuration): TempDir = {
+  def createTempDir(tmpdir: String, hConf: hadoop.conf.Configuration): String = {
     while (true) {
       try {
-        val dirname = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
+        val dir = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
 
-        hadoopMkdir(dirname, hConf)
+        hadoopMkdir(dir, hConf)
 
         val fs = hadoopFS(tmpdir, hConf)
-        fs.deleteOnExit(new hadoop.fs.Path(dirname))
+        val qDir = fs.makeQualified(new hadoop.fs.Path(dir))
+        fs.deleteOnExit(qDir)
 
-        return new TempDir(dirname)
+        return qDir.toString
       } catch {
         case e: IOException =>
         // try again
@@ -808,29 +809,36 @@ object TempDir {
     // can't happen
     null
   }
+
+  def apply(hConf: hadoop.conf.Configuration): TempDir =
+    new TempDir(createTempDir("file:///tmp", hConf),
+      createTempDir("/tmp", hConf))
 }
 
-class TempDir(val dirname: String) {
+class TempDir(localTempDir: String, tempDir: String) {
   var counter: Int = 0
 
-  def relFile(relPath: String) = dirname + "/" + relPath
-
-  def relPath(relPath: String) =
-    new URI(relFile(relPath)).getPath
-
-  def createTempFile(prefix: String = "", extension: String = ""): String = {
+  def createTempFile(tempDir: String, prefix: String, extension: String): String = {
     val i = counter
     counter += 1
 
     val sb = new StringBuilder
     sb.append(prefix)
-    if (prefix != "")
+    if (prefix.nonEmpty)
       sb += '.'
     sb.append("%05d".format(i))
+    if (extension.nonEmpty)
+      sb += '.'
     sb.append(extension)
 
-    relFile(sb.result())
+    tempDir + "/" + sb.result()
   }
+
+  def createTempFile(prefix: String = "", extension: String = ""): String =
+    createTempFile(tempDir, prefix, extension)
+
+  def createLocalTempFile(prefix: String = "", extension: String = ""): String =
+    createTempFile(localTempDir, prefix, extension)
 }
 
 object Utils extends Logging {
@@ -958,6 +966,13 @@ object Utils extends Logging {
   def hadoopFS(filename: String, hConf: hadoop.conf.Configuration): hadoop.fs.FileSystem =
     new hadoop.fs.Path(filename).getFileSystem(hConf)
 
+  def hadoopCopy(src: String, dst: String, hConf: hadoop.conf.Configuration) {
+    hadoop.fs.FileUtil.copy(
+      hadoopFS(src, hConf), new hadoop.fs.Path(src),
+      hadoopFS(dst, hConf), new hadoop.fs.Path(dst),
+      false, hConf)
+  }
+
   private def hadoopCreate(filename: String, hConf: hadoop.conf.Configuration): OutputStream = {
     val fs = hadoopFS(filename, hConf)
     val hPath = new hadoop.fs.Path(filename)
@@ -1083,7 +1098,7 @@ object Utils extends Logging {
 
     if (deleteSource) {
       srcFileStatuses.foreach {
-        case fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, true)
+        fileStatus => hadoopDelete(fileStatus.getPath.toString, hConf, recursive = true)
       }
     }
   }

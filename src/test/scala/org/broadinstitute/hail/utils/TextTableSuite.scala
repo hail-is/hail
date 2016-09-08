@@ -4,6 +4,7 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.check._
 import org.broadinstitute.hail.driver.{AnnotateVariantsExpr, AnnotateVariantsTable, ExportVariants, State}
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
 import org.testng.annotations.Test
 
@@ -79,7 +80,7 @@ class TextTableSuite extends SparkSuite {
 
   @Test def testAnnotationsReadWrite() {
     val outPath = tmpDir.createTempFile("annotationOut", ".tsv")
-    val outTypesPath = tmpDir.createTempFile("annotationOut", ".types")
+    val outTypesPath = tmpDir.createLocalTempFile("annotationOut", ".types")
     val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.realistic)
       .filter(vds => vds.nVariants > 0 && vds.vaSignature != TDouble)) { vds: VariantDataset =>
 
@@ -89,7 +90,7 @@ class TextTableSuite extends SparkSuite {
       state = AnnotateVariantsTable.run(state, Array(outPath,
         "-e", "v",
         "-c", "va = table.va",
-        "-t", s"@$outTypesPath"))
+        "-t", s"@${ uriPath(outTypesPath) }"))
 
       state.vds.same(vds)
     }
