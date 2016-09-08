@@ -958,6 +958,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
 
+  var store: Any = _
+
   def getSymRefId(ast: AST): String = {
     ast match {
       case SymRef(_, id) => id
@@ -1170,6 +1172,78 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
         `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", TDouble),
           ("max", TDouble), ("nNotMissing", TLong), ("sum", TDouble))
+
+      case (agg: TAggregable, "hist", rhs) =>
+        rhs match {
+          case Array(startAST, endAST, binsAST) =>
+
+            try {
+              val ec = EvalContext()
+              startAST.typecheck(ec)
+              endAST.typecheck(ec)
+              binsAST.typecheck(ec)
+
+              val types = Array(startAST.`type`, endAST.`type`, binsAST.`type`)
+              types match {
+                case Array(_: TNumeric, _: TNumeric, TInt) =>
+                case _ => parseError(
+                  s"""method `hist' expects arguments of type (Numeric, Numeric, Int)
+                      |  Found ${ types.mkString(", ") }""".stripMargin)
+              }
+            } catch {
+              case e: FatalException if """symbol `.*' not found""".r.findFirstIn(e.getMessage).isDefined =>
+                parseError(
+                  """all arguments to method `hist' must be numeric constants / computations
+                    |  Variable references arenot allowed """.stripMargin)
+              case e: Throwable => throw e
+            }
+            val (start, end) = AST.evalComposeNumeric[Double, Double](ec, startAST, endAST) { case (s, e) => (s, e) }
+              .apply().asInstanceOf[(Double, Double)]
+            val bins = AST.evalCompose[Int](ec, binsAST)(x => x).apply().asInstanceOf[Int]
+
+            if (bins <= 0)
+              parseError(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
+
+            val binSize = (end - start) / bins
+            if (binSize <= 0)
+              parseError(
+                s"""invalid bin size from given arguments (start = $start, end = $end, bins = $bins)
+                    |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
+                 """.stripMargin)
+
+            val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
+
+            info(
+              s"""computing histogram with the following bins:
+                  |  ${
+                val fString = math.log10(indices.length - 1).ceil.toInt
+                val longestBound = indices.map(_.formatted("%.2f").length).max
+                def formatRange(d: Double): String = d.formatted("%.2f")
+                val maxStrLength = indices.map(formatRange).map(_.length).max
+                val formatted = indices.map(formatRange).map(_.formatted(s"%${ maxStrLength }s"))
+
+                formatted.zip(formatted.tail)
+                  .zipWithIndex
+                  .map { case ((l, r), index) =>
+                    val rightBound = if (index == indices.length - 2) "]" else ")"
+                    s"bin ${ index.formatted(s"%0${ fString }d") }: [$l, $r$rightBound"
+                  }
+                  .grouped(2)
+                  .map { arr => arr.mkString(",   ")
+                  }.mkString(",\n  ")
+              }""".stripMargin)
+
+            store = new HistogramCombiner(indices)
+
+            `type` = HistogramResult.schema
+
+          case _ => parseError(
+            s"""method `hist' expects three numeric arguments (start, end, bins)
+                |  Examples:
+                |    gs.map(g => g.gq).hist(0, 100, 20)
+                |    variants.map(v => va.linreg.beta).hist(.5, 1.5, 100)
+             """.stripMargin)
+        }
 
       case (agg: TAggregable, "collect", rhs) =>
         if (rhs.nonEmpty)
@@ -1504,6 +1578,29 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         else
           Annotation(sc.mean, sc.stdev, sc.min, sc.max, sc.count, sc.sum)
       }
+
+    case (agg: TAggregable, "hist", _) =>
+      val hc = store.asInstanceOf[HistogramCombiner]
+
+      val localIdx = agg.ec.a.length
+      val localA = agg.ec.a
+      localA += null
+
+      val aggF = agg.f
+      agg.ec.aggregationFunctions += new TypedAggregator[HistogramCombiner] {
+        override def zero: HistogramCombiner = hc.copy
+
+        override def seqOp(x: Any, acc: HistogramCombiner): HistogramCombiner = {
+          aggF(x).foreach(x => acc.merge(DoubleNumericConversion.to(x)))
+          acc
+        }
+
+        override def combOp(acc1: HistogramCombiner, acc2: HistogramCombiner): HistogramCombiner = acc1.merge(acc2)
+
+        override def idx = localIdx
+      }.erase
+
+      () => localA(localIdx).asInstanceOf[HistogramCombiner].result.toAnnotation
 
 
     case (agg: TAggregable, "collect", Array()) =>

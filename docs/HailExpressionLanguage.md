@@ -240,7 +240,19 @@ annotatesamples expr -c 'sa.SNPmissingness = gs.filter(g => v.altAllele.isSNP).f
 
 **Examples:**
 
-Compute the
+This aggregator function can be used to compute counts of each allele per variant.  The result will be an "R"-numbered array (one element per allele, including the reference):
+
+```
+annotatevariants expr -c 'va.AC = gs.map(g => g.oneHotAlleles(v)).sum()
+```
+
+Count the number of total LOF heterozygous calls in the dataset:
+
+```
+annotatevariants expr -c 'va.hets = gs.filter(g => g.isHet).count()' \
+annotateglobal expr -c 'global.total_LOFs = 
+    variants.filter(v => va.isLOF).map(v => va.hets).sum()'
+```
 
 ### Stats
 
@@ -292,6 +304,46 @@ Compute statistics on number of singletons stratified by case/control:
  sampleqc
  annotateglobal expr -c 'global.caseSingletons = samples.filter(s => sa.fam.isCase).map(s => sa.qc.nSingleton).stats(),
      global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()'
+```
+
+### Hist
+
+```
+<numeric aggregable>.hist( start, end, bins )
+```
+
+This aggregable is used to compute density distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
+
+The bins are generated with these rules:
+  * bin size is calculated from `(end - start) / bins`
+  * (bins + 1) breakpoints are generated from the range `(start to end by binsize)`
+  * each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value
+  * elements greater than the max bin or smaller than the min bin will be tracked separately
+
+The result of a `hist` invocation is a struct:
+
+```
+Struct {
+    indices: Array[Double],
+    densities: Array[Long],
+    nSmaller: Long,
+    nGreater: Long
+}
+```
+
+**Examples:**
+
+Compute GQ-distributions per variant:
+
+```
+annotatevariants expr -c 'va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)'
+```
+
+Or, extend the above to compute a global gq histogram:
+
+```
+annotatevariants expr -c 'va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)'
+annotateglobal expr -c 'global.gqDensity = variants.map(v => va.gqHist.densities).sum()'
 ```
 
 ### Collect
