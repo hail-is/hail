@@ -7,10 +7,10 @@ import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.SQLContext
-import org.broadinstitute.hail.FatalException
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.io.gen.GenReport
 import org.broadinstitute.hail.io.vcf.VCFReport
+import org.broadinstitute.hail.utils.FatalException
 import org.kohsuke.args4j.{CmdLineException, CmdLineParser, Option => Args4jOption}
 
 import scala.collection.JavaConverters._

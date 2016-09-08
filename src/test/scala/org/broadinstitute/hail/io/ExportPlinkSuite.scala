@@ -1,9 +1,10 @@
 package org.broadinstitute.hail.io
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.vcf.LoadVCF
-import org.broadinstitute.hail.{SparkSuite, TempDir}
+import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.utils.TempDir
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -13,7 +14,7 @@ import scala.sys.process._
 class ExportPlinkSuite extends SparkSuite {
 
   def rewriteBimIDs(file: String) {
-    val parsed = readFile(file, sc.hadoopConfiguration) { is =>
+    val parsed = hadoopConf.readFile(file) { is =>
       Source.fromInputStream(is)
         .getLines()
         .toList
@@ -22,7 +23,7 @@ class ExportPlinkSuite extends SparkSuite {
         .map(arr =>
           s"${ arr(0) }\t${ s"${ arr(0) }:${ arr(3) }:${ arr(4) }:${ arr(5) }" }\t${ arr(2) }\t${ arr(3) }\t${ arr(4) }\t${ arr(5) }\n")
     }
-    writeTable(file, sc.hadoopConfiguration, parsed)
+    hadoopConf.writeTable(file, parsed)
   }
 
   @Test def testBiallelic() {
@@ -45,9 +46,9 @@ class ExportPlinkSuite extends SparkSuite {
     val localMergeFile = tmpDir.createLocalTempFile("merge")
 
     val localHailFile = tmpDir.createLocalTempFile("hail")
-    hadoopCopy(hailFile + ".bed", localHailFile + ".bed", hadoopConf)
-    hadoopCopy(hailFile + ".bim", localHailFile + ".bim", hadoopConf)
-    hadoopCopy(hailFile + ".fam", localHailFile + ".fam", hadoopConf)
+    hadoopConf.copy(hailFile + ".bed", localHailFile + ".bed")
+    hadoopConf.copy(hailFile + ".bim", localHailFile + ".bim")
+    hadoopConf.copy(hailFile + ".fam", localHailFile + ".fam")
 
     // use plink to assert that the concordance rate is 1
     val exitCode = s"plink --bfile ${ uriPath(localBFile) } --bmerge ${ uriPath(localHailFile) } --merge-mode 6 --out ${ uriPath(localMergeFile) }" !
@@ -57,7 +58,7 @@ class ExportPlinkSuite extends SparkSuite {
 
     // assert that the .diff file is empty of non-header columns
     assert(
-      readFile(localMergeFile + ".diff", sc.hadoopConfiguration) { is =>
+      hadoopConf.readFile(localMergeFile + ".diff") { is =>
         Source.fromInputStream(is)
           .getLines()
           .toIndexedSeq

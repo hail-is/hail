@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.utils
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.sparkextras.OrderedRDD
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.{RichPairIterator, SpanningIterator, SparkSuite}
+import org.broadinstitute.hail.SparkSuite
 import org.testng.annotations.Test
 
 class UtilsSuite extends SparkSuite {
@@ -58,11 +58,11 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testHadoopStripCodec() {
-    assert(hadoopStripCodec("file.tsv", sc.hadoopConfiguration) == "file.tsv")
-    assert(hadoopStripCodec("file.tsv.gz", sc.hadoopConfiguration) == "file.tsv")
-    assert(hadoopStripCodec("file.tsv.bgz", sc.hadoopConfiguration) == "file.tsv")
-    assert(hadoopStripCodec("file.tsv.lz4", sc.hadoopConfiguration) == "file.tsv")
-    assert(hadoopStripCodec("file", sc.hadoopConfiguration) == "file")
+    assert(hadoopConf.stripCodec("file.tsv") == "file.tsv")
+    assert(hadoopConf.stripCodec("file.tsv.gz") == "file.tsv")
+    assert(hadoopConf.stripCodec("file.tsv.bgz") == "file.tsv")
+    assert(hadoopConf.stripCodec("file.tsv.lz4") == "file.tsv")
+    assert(hadoopConf.stripCodec("file") == "file")
   }
 
   @Test def testPairRDDNoDup() {

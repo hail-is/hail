@@ -6,7 +6,7 @@ import org.broadinstitute.hail.methods.SamplePCA
 import org.broadinstitute.hail.variant.Variant
 import org.apache.spark.mllib.linalg.{Vector => SVector}
 import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 object PCA extends Command {
   def name = "pca"
@@ -40,7 +40,7 @@ object PCA extends Command {
 
     val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.lOutput != null, options.eOutput != null)) (vds)
 
-    writeTextFile(options.output, state.hadoopConf) { s =>
+    state.hadoopConf.writeTextFile(options.output) { s =>
       s.write("Sample\t" + (1 to options.k).map("PC" + _).mkString("\t") + "\n")
       for ((id, i) <- vds.sampleIds.zipWithIndex) {
         s.write(id)
@@ -62,7 +62,7 @@ object PCA extends Command {
     }
 
     eigenvalues.foreach { es =>
-      writeTextFile(options.eOutput, state.hadoopConf) { s =>
+      state.hadoopConf.writeTextFile(options.eOutput) { s =>
         for (e <- es) {
           s.write(e.toString)
           s.write("\n")

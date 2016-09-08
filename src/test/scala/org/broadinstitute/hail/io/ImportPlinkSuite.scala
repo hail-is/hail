@@ -6,8 +6,9 @@ import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.plink.PlinkLoader
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.{FatalException, SparkSuite}
+import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.utils.FatalException
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
@@ -44,13 +45,13 @@ class ImportPlinkSuite extends SparkSuite {
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
           val localTestRoot = tmpDir.createLocalTempFile("test")
 
-          hadoopCopy(truthRoot + ".fam", localTruthRoot + ".fam", hadoopConf)
-          hadoopCopy(truthRoot + ".bim", localTruthRoot + ".bim", hadoopConf)
-          hadoopCopy(truthRoot + ".bed", localTruthRoot + ".bed", hadoopConf)
+          hadoopConf.copy(truthRoot + ".fam", localTruthRoot + ".fam")
+          hadoopConf.copy(truthRoot + ".bim", localTruthRoot + ".bim")
+          hadoopConf.copy(truthRoot + ".bed", localTruthRoot + ".bed")
 
-          hadoopCopy(testRoot + ".fam", localTestRoot + ".fam", hadoopConf)
-          hadoopCopy(testRoot + ".bim", localTestRoot + ".bim", hadoopConf)
-          hadoopCopy(testRoot + ".bed", localTestRoot + ".bed", hadoopConf)
+          hadoopConf.copy(testRoot + ".fam", localTestRoot + ".fam")
+          hadoopConf.copy(testRoot + ".bim", localTestRoot + ".bim")
+          hadoopConf.copy(testRoot + ".bed", localTestRoot + ".bed")
 
           val exitCodeFam = s"diff ${ uriPath(localTruthRoot) }.fam ${ uriPath(localTestRoot) }.fam" !
           val exitCodeBim = s"diff ${ uriPath(localTruthRoot) }.bim ${ uriPath(localTestRoot) }.bim" !

@@ -2,7 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.TestUtils._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Prop
 import org.broadinstitute.hail.driver._
@@ -22,7 +22,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     val state = State(sc, sqlContext, vds)
 
     val path1 = "src/test/resources/sampleAnnotations.tsv"
-    val fileMap = readFile(path1, sc.hadoopConfiguration) { reader =>
+    val fileMap = hadoopConf.readFile(path1) { reader =>
       Source.fromInputStream(reader)
         .getLines()
         .filter(line => !line.startsWith("Sample"))
@@ -122,9 +122,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     val sampleList3 = s.vds.sampleIds.toArray
 
     val fileRoot = tmpDir.createTempFile(prefix = "sampleListAnnotator")
-    writeTable(fileRoot + "file1.txt", sc.hadoopConfiguration, sampleList1)
-    writeTable(fileRoot + "file2.txt", sc.hadoopConfiguration, sampleList2)
-    writeTable(fileRoot + "file3.txt", sc.hadoopConfiguration, sampleList3)
+    hadoopConf.writeTable(fileRoot + "file1.txt", sampleList1)
+    hadoopConf.writeTable(fileRoot + "file2.txt", sampleList2)
+    hadoopConf.writeTable(fileRoot + "file3.txt", sampleList3)
 
     s = AnnotateSamples.run(s, Array("list", "-i", fileRoot + "file1.txt", "-r", "sa.test1"))
     s = AnnotateSamples.run(s, Array("list", "-i", fileRoot + "file2.txt", "-r", "sa.test2"))
@@ -143,7 +143,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = SplitMulti.run(State(sc, sqlContext, vds), noArgs)
 
-    val fileMap = readFile("src/test/resources/variantAnnotations.tsv", sc.hadoopConfiguration) { reader =>
+    val fileMap = hadoopConf.readFile("src/test/resources/variantAnnotations.tsv") { reader =>
       Source.fromInputStream(reader)
         .getLines()
         .filter(line => !line.startsWith("Chromosome"))
@@ -431,12 +431,12 @@ class ImportAnnotationsSuite extends SparkSuite {
     val tmpf5 = tmpDir.createTempFile("f5", ".txt")
     val tmpf6 = tmpDir.createTempFile("f6", ".txt")
 
-    writeTextFile(tmpf1, hadoopConf) { out => out.write(format1) }
-    writeTextFile(tmpf2, hadoopConf) { out => out.write(format2) }
-    writeTextFile(tmpf3, hadoopConf) { out => out.write(format3) }
-    writeTextFile(tmpf4, hadoopConf) { out => out.write(format4) }
-    writeTextFile(tmpf5, hadoopConf) { out => out.write(format5) }
-    writeTextFile(tmpf6, hadoopConf) { out => out.write(format6) }
+    hadoopConf.writeTextFile(tmpf1) { out => out.write(format1) }
+    hadoopConf.writeTextFile(tmpf2) { out => out.write(format2) }
+    hadoopConf.writeTextFile(tmpf3) { out => out.write(format3) }
+    hadoopConf.writeTextFile(tmpf4) { out => out.write(format4) }
+    hadoopConf.writeTextFile(tmpf5) { out => out.write(format5) }
+    hadoopConf.writeTextFile(tmpf6) { out => out.write(format6) }
 
     val s = SplitMulti.run(State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sample.vcf")))
     val fmt1 = AnnotateVariants.run(s, Array("table", tmpf1,

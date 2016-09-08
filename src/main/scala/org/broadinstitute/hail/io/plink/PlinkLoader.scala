@@ -4,7 +4,7 @@ import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.SparkContext
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io._
@@ -23,7 +23,7 @@ object PlinkLoader {
   val plinkSchema = TStruct(("rsid", TString))
 
   private def parseBim(bimPath: String, hConf: Configuration): Array[(Variant, String)] = {
-    readLines(bimPath, hConf)(_.map(_.map { line =>
+    hConf.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, morganPos, bpPos, allele1, allele2) =>
           val recodedContig = contig match {
@@ -54,7 +54,7 @@ object PlinkLoader {
 
     val kidSet = mutable.Set[String]()
 
-    val m = readLines(filename, hConf) {
+    val m = hConf.readLines(filename) {
       _.map(_.map { line =>
 
         val Array(fam, kid, dad, mom, isFemale, pheno) = line.split(delimiter)
@@ -151,7 +151,7 @@ object PlinkLoader {
     info(s"Found $nSamples samples in fam file.")
     info(s"Found $nVariants variants in bim file.")
 
-    readFile(bedPath, sc.hadoopConfiguration) { dis =>
+    sc.hadoopConfiguration.readFile(bedPath) { dis =>
       val b1 = dis.read()
       val b2 = dis.read()
       val b3 = dis.read()
@@ -163,7 +163,7 @@ object PlinkLoader {
         fatal("Bed file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
     }
 
-    val bedSize = hadoopGetFileSize(bedPath, sc.hadoopConfiguration)
+    val bedSize = sc.hadoopConfiguration.getFileSize(bedPath)
     if (bedSize != expectedBedSize(nSamples, nVariants))
       fatal("bed file size does not match expected number of bytes based on bed and fam files")
 

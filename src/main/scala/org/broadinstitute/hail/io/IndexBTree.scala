@@ -3,7 +3,7 @@ package org.broadinstitute.hail.io
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
 import scala.collection.mutable
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 object IndexBTree {
 
@@ -12,7 +12,7 @@ object IndexBTree {
   def write(arr: Array[Long], fileName: String, hConf: Configuration) {
     require(arr.length > 0)
 
-    writeDataFile(fileName, hConf) { w =>
+    hConf.writeDataFile(fileName) { w =>
       val depth = calcDepth(arr)
 
       // Write layers above last layer if needed -- padding of -1 included
@@ -51,12 +51,12 @@ object IndexBTree {
 
 class IndexBTree(indexFileName: String, hConf: Configuration) {
   val maxDepth = calcDepth()
-  private val fs = hadoopFS(indexFileName, hConf).open(new Path(indexFileName))
+  private val fs = hConf.fileSystem(indexFileName).open(new Path(indexFileName))
 
   def close() = fs.close()
 
   def calcDepth(): Int = {
-    val numBtreeElements = hadoopGetFileSize(indexFileName, hConf) / 8
+    val numBtreeElements = hConf.getFileSize(indexFileName) / 8
     var depth = 1
     while (numBtreeElements > math.pow(1024,depth).toInt) {
       depth += 1

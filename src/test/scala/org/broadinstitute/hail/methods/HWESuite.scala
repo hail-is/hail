@@ -6,7 +6,7 @@ import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.broadinstitute.hail.stats.LeveneHaldane
 import org.testng.annotations.Test
 import org.broadinstitute.hail.check._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant._
 
 class HWESuite extends SparkSuite {

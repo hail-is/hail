@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import scala.collection.mutable
 import scala.io.Source
@@ -23,7 +23,7 @@ object RenameSamples extends Command {
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    val m = readFile(options.input, state.hadoopConf) { s =>
+    val m = state.hadoopConf.readFile(options.input) { s =>
       Source.fromInputStream(s)
         .getLines()
         .map {

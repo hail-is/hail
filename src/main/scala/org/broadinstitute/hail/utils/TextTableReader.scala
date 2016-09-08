@@ -2,7 +2,7 @@ package org.broadinstitute.hail.utils
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
@@ -108,7 +108,7 @@ object TextTableReader {
     val types = config.types
 
     val firstFile = files.head
-    val firstLines = readLines(firstFile, sc.hadoopConfiguration) { lines =>
+    val firstLines = sc.hadoopConfiguration.readLines(firstFile) { lines =>
       val filt = lines
         .filter(line => commentChar.forall(pattern => !line.value.startsWith(pattern)))
 

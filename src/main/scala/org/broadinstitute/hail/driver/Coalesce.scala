@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 object Coalesce extends Command {
 

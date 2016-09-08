@@ -1,18 +1,15 @@
 
 package org.broadinstitute.hail.driver
 
-import scala.math.min
-import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.Utils
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr.{EvalContext, Parser, TArray, TBoolean, TGenotype, TInt, TSample, TVariant}
+import org.broadinstitute.hail.expr.{EvalContext, Parser, TArray, TBoolean, TInt, TVariant}
 import org.broadinstitute.hail.methods.Filter
-import org.broadinstitute.hail.variant.{AltAllele, GTPair, Genotype, Variant}
+import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.variant.{GTPair, Genotype, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-import scala.collection.{GenTraversableOnce, mutable}
-import scala.reflect.ClassTag
+import scala.collection.mutable
+import scala.math.min
 
 object FilterAlleles extends Command {
   class Options extends BaseOptions {
@@ -122,7 +119,7 @@ object FilterAlleles extends Command {
       }
 
       def downcodePx(px: Array[Int]): Array[Int] = {
-        coalesce(px)(Utils.triangle(newCount), (_, gt) => downcodeGt(gt), Int.MaxValue) { (oldNll, nll) =>
+        coalesce(px)(triangle(newCount), (_, gt) => downcodeGt(gt), Int.MaxValue) { (oldNll, nll) =>
           min(oldNll, nll)
         }
       }

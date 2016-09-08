@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr.TString
 import org.broadinstitute.hail.variant._
@@ -36,7 +36,7 @@ object ExportGEN extends Command {
 
     def writeSampleFile() {
       //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
-      writeTable(options.output + ".sample", sc.hadoopConfiguration,
+      sc.hadoopConfiguration.writeTable(options.output + ".sample",
         "ID_1 ID_2 missing" :: "0 0 0" :: vds.sampleIds.map(s => s"$s $s 0").toList)
     }
 

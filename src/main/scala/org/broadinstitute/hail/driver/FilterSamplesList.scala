@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.methods._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -38,7 +38,7 @@ object FilterSamplesList extends Command {
       fatal("either `--keep' or `--remove' required, but not both")
 
     val keep = options.keep
-    val samples = readFile(options.input, state.hadoopConf) { reader =>
+    val samples = state.hadoopConf.readFile(options.input) { reader =>
       Source.fromInputStream(reader)
         .getLines()
         .filter(line => !line.isEmpty)

@@ -1,7 +1,7 @@
 package org.broadinstitute.hail
 
 import org.apache.commons.math3.distribution.HypergeometricDistribution
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 package object stats {
 

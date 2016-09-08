@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Prop}
@@ -17,7 +17,7 @@ class FilterVariantsSuite extends SparkSuite {
 
     val f = tmpDir.createTempFile("test", extension = ".variant_list")
     Prop.check(forAll(Gen.subset(variants), arbitrary[Boolean]) { case (subset, keep) =>
-      writeTextFile(f, s.hadoopConf) { s =>
+      hadoopConf.writeTextFile(f) { s =>
         for (v <- subset) {
           s.write(v.toString)
           s.write("\n")

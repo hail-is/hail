@@ -3,7 +3,7 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.SparkSuite
 import org.testng.annotations.Test
 import org.broadinstitute.hail.utils.TestRDDBuilder
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.driver.VariantQC
 import org.broadinstitute.hail.driver.SampleQC
 

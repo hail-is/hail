@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.stats.LeveneHaldane
@@ -229,7 +229,7 @@ object VariantQC extends Command {
     val r = results(vds).persist(StorageLevel.MEMORY_AND_DISK)
 
     if (output != null) {
-      hadoopDelete(output, state.hadoopConf, recursive = true)
+      state.hadoopConf.delete(output, recursive = true)
       r.map { case (v, comb) =>
         val sb = new StringBuilder()
         sb.append(v.contig)

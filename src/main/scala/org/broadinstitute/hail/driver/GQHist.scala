@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.GenotypeType._
 import org.broadinstitute.hail.variant.{Genotype, GenotypeType}
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -90,7 +90,7 @@ object GQHist extends Command {
       (comb1, comb2) => comb1.merge(comb2))
 
     val a = result.a
-    writeTextFile(options.output, state.hadoopConf) { s =>
+    state.hadoopConf.writeTextFile(options.output) { s =>
       s.write("GQ\tGT\tCOUNT\n")
       for (i <- a.indices) {
         val (id, gtType) = GQHistCombiner.fromIndex(i)

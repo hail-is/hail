@@ -3,7 +3,7 @@ package org.broadinstitute.hail.utils
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop, Properties}
 import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, _}
@@ -124,22 +124,22 @@ class OrderedRDDSuite extends SparkSuite {
       val schema = StructType(Array(
         StructField("variant", Variant.schema, nullable = false),
         StructField("str", StringType, nullable = false)))
-      hadoopDelete(tmpRdd, hadoopConf, recursive = true)
+      hadoopConf.delete(tmpRdd, recursive = true)
       val df = sqlContext.createDataFrame(rdd.map { case (v, s) => Row.fromSeq(Seq(v.toRow, s)) }, schema)
         .write.parquet(tmpRdd)
 
-      writeObjectFile(tmpPartitioner, hadoopConf) { out =>
+      hadoopConf.writeObjectFile(tmpPartitioner) { out =>
         rdd.partitioner.get.asInstanceOf[OrderedPartitioner[Variant, String]].write(out)
       }
 
-      val status = hadoopFileStatus(tmpPartitioner, hadoopConf)
+      val status = hadoopConf.fileStatus(tmpPartitioner)
 
       val rddReadBack = sqlContext.sortedParquetRead(tmpRdd)
         .get
         .rdd
         .map(r => (Variant.fromRow(r.getAs[Row](0)), r.getAs[String](1)))
 
-      val readBackPartitioner = readObjectFile(tmpPartitioner, hadoopConf) { in =>
+      val readBackPartitioner = hadoopConf.readObjectFile(tmpPartitioner) { in =>
         OrderedPartitioner.read[Locus, Variant](in)
       }
 

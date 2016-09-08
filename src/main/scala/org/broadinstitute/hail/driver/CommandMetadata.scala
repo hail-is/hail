@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.spi.OptionHandler
 import org.kohsuke.args4j.{Option => Args4jOption, CmdLineParser}
 import scala.collection.JavaConverters._
@@ -103,7 +103,7 @@ object CommandMetadata extends Command {
       JField("global", JObject( JField("options", JObject(globalOptions.map(optionToJSON).toList)))))))
     }
 
-    writeTextFile(options.outputFile, state.hadoopConf) { out => out.write(optionsJSON) }
+    state.hadoopConf.writeTextFile(options.outputFile) { out => out.write(optionsJSON) }
 
     state
   }

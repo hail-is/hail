@@ -9,6 +9,7 @@ import org.broadinstitute.hail.driver.{HailConfiguration, SparkManager}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{AfterClass, BeforeClass}
 import org.apache.hadoop
+import org.broadinstitute.hail.utils.TempDir
 
 class SparkSuite extends TestNGSuite {
   var sc: SparkContext = _

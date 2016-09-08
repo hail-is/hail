@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.io
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
@@ -36,11 +36,11 @@ class IndexBTreeSuite extends SparkSuite {
         val maxLong = arrayRandomStarts.takeRight(1)(0)
         val index = tmpDir.createTempFile(prefix = "testBtree", extension = ".idx")
 
-        hadoopDelete(index, sc.hadoopConfiguration, true)
+        hadoopConf.delete(index, true)
         IndexBTree.write(arrayRandomStarts, index, sc.hadoopConfiguration)
         val btree = new IndexBTree(index, sc.hadoopConfiguration)
 
-        val indexSize = hadoopGetFileSize(index, sc.hadoopConfiguration)
+        val indexSize = hadoopConf.getFileSize(index)
         val padding = 1024 - (arraySize % 1024)
         val numEntries = arraySize + padding + (1 until depth).map{math.pow(1024,_).toInt}.sum
 
@@ -77,7 +77,7 @@ class IndexBTreeSuite extends SparkSuite {
     val idxFile = tmpDir.createTempFile(prefix = "testBtree_1variant", extension = ".idx")
     val hConf = sc.hadoopConfiguration
 
-    hadoopDelete(idxFile, sc.hadoopConfiguration, true)
+    hadoopConf.delete(idxFile, recursive = true)
     IndexBTree.write(index, idxFile, hConf)
     val btree = new IndexBTree(idxFile, sc.hadoopConfiguration)
 
@@ -98,7 +98,7 @@ class IndexBTreeSuite extends SparkSuite {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
       val idxFile = tmpDir.createTempFile(prefix = "testBtree_0variant", extension = ".idx")
-      hadoopDelete(idxFile, sc.hadoopConfiguration, true)
+      hadoopConf.delete(idxFile, recursive = true)
       IndexBTree.write(index, idxFile, sc.hadoopConfiguration)
     }
   }

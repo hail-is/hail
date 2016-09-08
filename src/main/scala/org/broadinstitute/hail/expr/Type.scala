@@ -2,7 +2,7 @@ package org.broadinstitute.hail.expr
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.{Annotation, AnnotationPathException, _}
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, _}

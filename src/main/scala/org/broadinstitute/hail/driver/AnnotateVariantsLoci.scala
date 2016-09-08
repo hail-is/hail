@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils._
@@ -41,7 +41,7 @@ object AnnotateVariantsLoci extends Command with JoinAnnotator {
 
   def run(state: State, options: Options): State = {
 
-    val files = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
+    val files = state.hadoopConf.globAll(options.arguments.asScala)
     if (files.isEmpty)
       fatal("Arguments referred to no files")
 

@@ -1,16 +1,18 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.{FatalException, SparkSuite}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.driver.{RenameSamples, ImportVCF, State}
+import org.broadinstitute.hail.driver.{ImportVCF, RenameSamples, State}
+import org.broadinstitute.hail.utils.FatalException
 import org.testng.annotations.Test
+
 import scala.collection.mutable
 
 class RenameSamplesSuite extends SparkSuite {
 
   def writeSampleMap(file: String, m: mutable.Map[String, String]) {
-    writeTable(file, sc.hadoopConfiguration, m.map { case (k, v) => s"$k\t$v" })
+    hadoopConf.writeTable(file, m.map { case (k, v) => s"$k\t$v" })
   }
 
   @Test def testCollision() {

@@ -1,9 +1,9 @@
 package org.broadinstitute.hail.variant
 
-import org.broadinstitute.hail.ByteIterator
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Properties}
+import org.broadinstitute.hail.utils.ByteIterator
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 

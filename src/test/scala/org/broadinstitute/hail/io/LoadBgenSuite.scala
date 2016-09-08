@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.io
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Properties}
@@ -16,7 +16,7 @@ import scala.sys.process._
 class LoadBgenSuite extends SparkSuite {
 
   def getNumberOfLinesInFile(file: String): Long = {
-    readFile(file, sc.hadoopConfiguration) { s =>
+    hadoopConf.readFile(file) { s =>
       Source.fromInputStream(s)
         .getLines()
         .length
@@ -28,7 +28,7 @@ class LoadBgenSuite extends SparkSuite {
     val sampleFile = "src/test/resources/example.sample"
     val bgen = "src/test/resources/example.v11.bgen"
 
-    hadoopDelete(bgen + ".idx", sc.hadoopConfiguration, recursive = true)
+    hadoopConf.delete(bgen + ".idx", recursive = true)
 
     val nSamples = getNumberOfLinesInFile(sampleFile) - 2
     val nVariants = getNumberOfLinesInFile(gen)
@@ -64,7 +64,7 @@ class LoadBgenSuite extends SparkSuite {
         assert(gt1 == gt2)
       }
 
-    hadoopDelete(bgen + ".idx", sc.hadoopConfiguration, recursive = true)
+    hadoopConf.delete(bgen + ".idx", recursive = true)
   }
 
   object Spec extends Properties("ImportBGEN") {
@@ -77,7 +77,7 @@ class LoadBgenSuite extends SparkSuite {
       yield (vds, nPartitions)
 
     val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
-    writeTextFile(sampleRenameFile, sc.hadoopConfiguration)(_.write("NA\tfdsdakfasdkfla"))
+    hadoopConf.writeTextFile(sampleRenameFile)(_.write("NA\tfdsdakfasdkfla"))
 
     property("import generates same output as export") =
       forAll(compGen) { case (vds, nPartitions) =>
@@ -100,12 +100,12 @@ class LoadBgenSuite extends SparkSuite {
         val localBgenFile = localRoot + ".bgen"
         val qcToolLogFile = localRoot + ".qctool.log"
 
-        hadoopCopy(genFile, localGenFile, hadoopConf)
-        hadoopCopy(sampleFile, localSampleFile, hadoopConf)
+        hadoopConf.copy(genFile, localGenFile)
+        hadoopConf.copy(sampleFile, localSampleFile)
 
         val rc = s"qctool -force -g ${ uriPath(localGenFile) } -s ${ uriPath(localSampleFile) } -og ${ uriPath(localBgenFile) } -log ${ uriPath(qcToolLogFile) }" !
 
-        hadoopCopy(localBgenFile, bgenFile, hadoopConf)
+        hadoopConf.copy(localBgenFile, bgenFile)
 
         assert(rc == 0)
 

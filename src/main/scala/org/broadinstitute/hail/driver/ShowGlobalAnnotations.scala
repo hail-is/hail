@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 import org.json4s.jackson.JsonMethods._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -33,7 +33,7 @@ object ShowGlobalAnnotations extends Command {
 
     options.output match {
       case null => println(result)
-      case path => writeTextFile(path, state.hadoopConf) { out => out.write(result) }
+      case path => state.hadoopConf.writeTextFile(path) { out => out.write(result) }
     }
 
     state

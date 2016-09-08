@@ -5,8 +5,8 @@ import java.util
 import org.apache.spark.{SparkContext, _}
 import org.apache.spark.rdd.{PartitionPruningRDD, RDD, ShuffledRDD}
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.RichPairIterator
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.utils.richUtils.RichPairIterator
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer

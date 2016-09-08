@@ -2,7 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
@@ -79,13 +79,13 @@ class AnnotateGlobalSuite extends SparkSuite {
     val toWrite1 = Array("Gene1", "Gene2", "Gene3", "Gene4", "Gene5")
     val toWrite2 = Array("1", "5", "4", "2", "2")
 
-    writeTextFile(out1, sc.hadoopConfiguration) { out =>
+    hadoopConf.writeTextFile(out1) { out =>
       toWrite1.foreach { line =>
         out.write(line + "\n")
       }
     }
 
-    writeTextFile(out2, sc.hadoopConfiguration) { out =>
+    hadoopConf.writeTextFile(out2) { out =>
       toWrite2.foreach { line =>
         out.write(line + "\n")
       }
@@ -113,7 +113,7 @@ class AnnotateGlobalSuite extends SparkSuite {
       "Gene4\t0.9123\t10",
       "Gene5\t0.0001\t202")
 
-    writeTextFile(out1, sc.hadoopConfiguration) { out =>
+    hadoopConf.writeTextFile(out1) { out =>
       toWrite1.foreach(line => out.write(line + "\n"))
     }
 

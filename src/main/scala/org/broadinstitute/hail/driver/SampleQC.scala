@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.util.StatCounter
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
@@ -302,9 +302,8 @@ object SampleQC extends Command {
 
     if (output != null) {
       val sb = new StringBuilder()
-      hadoopDelete(output, state.hadoopConf, recursive = true)
-      writeTable(output, state.hadoopConf,
-        r.map { case (s, comb) =>
+      state.hadoopConf.delete(output, recursive = true)
+      state.hadoopConf.writeTable(output, r.map { case (s, comb) =>
           sb.clear()
           sb.append(s)
           sb += '\t'

@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.sql.Row
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.{Genotype, Variant}
@@ -128,7 +128,7 @@ object ExportVCF extends Command {
       })
 
       if (options.append != null) {
-        readFile(options.append, state.hadoopConf) { s =>
+        state.hadoopConf.readFile(options.append) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)

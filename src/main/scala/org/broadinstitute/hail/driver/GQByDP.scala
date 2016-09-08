@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.methods.GQByDPBins
 import org.kohsuke.args4j.{Option => Args4jOption}
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import sys.process._
 import scala.language.postfixOps
 
@@ -32,7 +32,7 @@ object GQByDP extends Command {
     val firstBinLow = GQByDPBins.firstBinLow
     val gqbydp = GQByDPBins(vds)
 
-    writeTextFile(options.output, state.hadoopConf) { s =>
+    state.hadoopConf.writeTextFile(options.output) { s =>
       s.write("sample")
       for (b <- 0 until nBins)
         s.write("\t" + GQByDPBins.binLow(b) + "-" + GQByDPBins.binHigh(b))

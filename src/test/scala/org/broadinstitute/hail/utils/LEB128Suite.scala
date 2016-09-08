@@ -1,14 +1,12 @@
 package org.broadinstitute.hail.utils
 
-import org.broadinstitute.hail.ByteIterator
 import org.broadinstitute.hail.check.Properties
 import org.broadinstitute.hail.check.Prop._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 import scala.collection.mutable
-
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 object LEB128Suite {
   val b = new mutable.ArrayBuilder.ofByte

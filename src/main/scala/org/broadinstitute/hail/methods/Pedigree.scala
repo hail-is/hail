@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.hadoop
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.variant.Phenotype.{Case, Control, Phenotype}
 import org.broadinstitute.hail.variant.Sex.{Female, Male, Sex}
@@ -48,7 +48,7 @@ object Pedigree {
     val sampleSet = sampleIds.toSet
 
     // .fam samples not in sampleIds are discarded
-    readFile(filename, hConf) { s =>
+    hConf.readFile(filename) { s =>
       val readSampleSet = mutable.Set[String]()
 
       val trios = Source.fromInputStream(s)
@@ -148,7 +148,7 @@ class Pedigree(val trios: IndexedSeq[Trio]) {
       ("nControlMaleTrio", nSatisfying(_.isComplete, _.isControl, _.isMale)),
       ("nControlFemaleTrio", nSatisfying(_.isComplete, _.isControl, _.isFemale)))
 
-    writeTextFile(filename, hConf) { fw =>
+    hConf.writeTextFile(filename) { fw =>
       fw.write(columns.iterator.map(_._1).mkString("\t") + "\n")
       fw.write(columns.iterator.map(_._2).mkString("\t") + "\n")
     }
@@ -161,6 +161,6 @@ class Pedigree(val trios: IndexedSeq[Trio]) {
       t.fam.getOrElse("0") + "\t" + t.kid + "\t" + sampleIdOrElse(t.dad) + "\t" +
         sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0")
     val lines = trios.map(toLine)
-    writeTable(filename, hConf, lines)
+    hConf.writeTable(filename, lines)
   }
 }

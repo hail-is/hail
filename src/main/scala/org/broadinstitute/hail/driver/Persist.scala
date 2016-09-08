@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object Persist extends Command {

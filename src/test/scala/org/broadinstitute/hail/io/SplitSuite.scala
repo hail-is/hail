@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.io
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils.simpleAssert
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties

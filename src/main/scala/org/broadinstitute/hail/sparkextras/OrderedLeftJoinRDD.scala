@@ -2,9 +2,9 @@ package org.broadinstitute.hail.sparkextras
 
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.RichPairIterator
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.utils.BufferedAdvanceableOrderedPairIterator
+import org.broadinstitute.hail.utils.richUtils.RichPairIterator
 
 import scala.reflect.ClassTag
 

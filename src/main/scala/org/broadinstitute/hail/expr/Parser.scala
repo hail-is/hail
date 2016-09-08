@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.expr
 
 import org.apache.hadoop
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
 
 import scala.io.Source
@@ -98,7 +98,7 @@ object Parser extends JavaTokenParsers {
     ec: EvalContext,
     path: String,
     hConf: hadoop.conf.Configuration): (Array[String], Array[(Type, () => Option[Any])]) = {
-    val pairs = readFile(path, hConf) { reader =>
+    val pairs = hConf.readFile(path) { reader =>
       Source.fromInputStream(reader)
         .getLines()
         .filter(!_.isEmpty)

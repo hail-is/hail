@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.io.plink.ExportBedBimFam
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -53,7 +53,7 @@ object ExportPlink extends Command {
       .sampleIds
       .map(ExportBedBimFam.makeFamRow)
 
-    writeTextFile(options.output + ".fam", state.hadoopConf)(out =>
+    state.hadoopConf.writeTextFile(options.output + ".fam")(out =>
       famRows.foreach(line => {
         out.write(line)
         out.write("\n")

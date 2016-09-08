@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.stats
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Gen._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.Properties
@@ -92,7 +92,7 @@ class FisherExactTestSuite extends SparkSuite {
         }
 
         val phenotypeFile = tmpDir.createTempFile("phenotypeAnnotation", ".txt")
-        writeTextFile(phenotypeFile, sc.hadoopConfiguration) { w =>
+        hadoopConf.writeTextFile(phenotypeFile) { w =>
           w.write("Sample\tPheno1\n")
           phenotypes.foreach { case (sample, p) => w.write(s"$sample\t$p\n") }
         }

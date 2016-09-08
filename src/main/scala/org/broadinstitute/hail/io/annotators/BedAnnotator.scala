@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.io.annotators
 
 import org.apache.hadoop
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
@@ -14,7 +14,7 @@ object BedAnnotator {
     hConf: hadoop.conf.Configuration): (IntervalTree[Locus], Option[(Type, Map[Interval[Locus], List[String]])]) = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
-    readLines(filename, hConf) { lines =>
+    hConf.readLines(filename) { lines =>
 
       val (header, remainder) = lines.span(line =>
         line.value.startsWith("browser") ||

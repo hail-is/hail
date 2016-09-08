@@ -2,7 +2,7 @@ package org.broadinstitute.hail.utils
 
 import java.util.Locale
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 object StringEscapeUtils {
 

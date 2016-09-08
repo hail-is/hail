@@ -4,7 +4,7 @@ import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.driver.{State, _}
 import org.testng.annotations.Test
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import scala.io.Source
 
 class SampleQCSuite extends SparkSuite {
@@ -25,7 +25,7 @@ class SampleQCSuite extends SparkSuite {
         |nHet = sa.qc.nHet,
         |nHomVar = sa.qc.nHomVar""".stripMargin))
 
-    val sampleQCLines = readFile(sampleQCFile, hadoopConf) { s =>
+    val sampleQCLines = hadoopConf.readFile(sampleQCFile) { s =>
       Source.fromInputStream(s)
         .getLines()
         .map { line =>
@@ -34,7 +34,7 @@ class SampleQCSuite extends SparkSuite {
         }
         .toSet
     }
-    val exportSamplesLines = readFile(exportSamplesFile, hadoopConf) { s =>
+    val exportSamplesLines = hadoopConf.readFile(exportSamplesFile) { s =>
       Source.fromInputStream(s)
         .getLines().toSet
     }

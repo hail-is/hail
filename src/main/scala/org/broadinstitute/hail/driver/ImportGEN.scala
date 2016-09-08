@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.expr._
@@ -46,7 +46,7 @@ object ImportGEN extends Command {
   def run(state: State, options: Options): State = {
     val nPartitions = if (options.nPartitions > 0) Some(options.nPartitions) else None
 
-    val inputs = hadoopGlobAll(options.arguments.asScala, state.hadoopConf)
+    val inputs = state.hadoopConf.globAll(options.arguments.asScala)
 
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
