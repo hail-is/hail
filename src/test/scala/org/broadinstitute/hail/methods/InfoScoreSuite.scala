@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.methods
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.driver._
 import org.testng.annotations.Test
 import org.broadinstitute.hail.SparkSuite
@@ -15,7 +15,7 @@ class InfoScoreSuite extends SparkSuite {
     s = ImportGEN.run(s, Array("-s", sampleFile, genFile))
     s = InfoScore.run(s, Array.empty[String])
 
-    val truthResult = sc.parallelize(readLines(truthResultFile, sc.hadoopConfiguration)(_.map(_.map { line =>
+    val truthResult = sc.parallelize(hadoopConf.readLines(truthResultFile)(_.map(_.map { line =>
       val Array(v, snpid, rsid, infoScore, nIncluded) = line.trim.split("\\s+")
       val info = infoScore match {
         case "None" => None

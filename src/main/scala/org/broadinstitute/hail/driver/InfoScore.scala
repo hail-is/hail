@@ -2,9 +2,8 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.variant.Variant
