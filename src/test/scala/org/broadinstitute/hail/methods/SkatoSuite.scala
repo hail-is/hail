@@ -308,7 +308,7 @@ class SkatoSuite extends SparkSuite {
         val tmpOutput = tmpDir.createTempFile("splatTest")
 
         val variantAnnotations = sc.parallelize(vds.variants.collect().zip(annotations))
-        val phenotypeMap = vds.sampleIds.zip(phenotypes.map { case p => Annotation(p.orNull) }).toMap
+        val phenotypeMap = vds.sampleIds.zip(phenotypes.map { p => Annotation(p.orNull) }).toMap
 
         val groupKeyQueryString =
           if (annotType == "Set")

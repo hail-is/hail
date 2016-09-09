@@ -173,7 +173,7 @@ object GroupTestSKATO extends Command {
     val rCorrArray = try {
       rCorr.split(",").map(_.toDouble)
     } catch {
-      case e: NumberFormatException => fatal(s"Arguments to --r-corr must be numeric, between 0.0 and 1.0, and comma-separated. Did not find numeric input type [${rCorr}]")
+      case e: NumberFormatException => fatal(s"Arguments to --r-corr must be numeric, between 0.0 and 1.0, and comma-separated. Did not find numeric input type [${ rCorr }]")
     }
 
     if (!rCorrArray.forall(d => d >= 0.0 && d <= 1.0))
@@ -182,7 +182,7 @@ object GroupTestSKATO extends Command {
     val weightBetaArray = try {
       weightsBeta.split(",").map(_.toDouble)
     } catch {
-      case e: NumberFormatException => fatal(s"Arguments to --weights-beta must be numeric and comma-separated. Did not find numeric input type [${weightsBeta}]")
+      case e: NumberFormatException => fatal(s"Arguments to --weights-beta must be numeric and comma-separated. Did not find numeric input type [${ weightsBeta }]")
     }
 
     if (weightBetaArray.length != 2)
@@ -219,9 +219,9 @@ object GroupTestSKATO extends Command {
     }
 
     val symTab = Map(
-      "s" ->(0, TSample),
-      "sa" ->(1, vds.saSignature),
-      "va" ->(2, vds.vaSignature))
+      "s" -> (0, TSample),
+      "sa" -> (1, vds.saSignature),
+      "va" -> (2, vds.vaSignature))
 
     val ec = EvalContext(symTab)
     val a = ec.a
@@ -242,7 +242,7 @@ object GroupTestSKATO extends Command {
       a(1) = sa
       (covQ.map(_ ()), covToDouble).zipped.map(_.map(_))
     }
-    val nCovar = covT.size
+    val nCovar = covT.length
 
     val (yDefined, covDefined, samplesDefined) =
       (ySA, covSA, sampleIds)
@@ -320,12 +320,12 @@ object GroupTestSKATO extends Command {
       key match {
         case Some(x) =>
           if (splat)
-            for (k <- x.asInstanceOf[Iterable[_]]) yield (k, (v, genotypes))
+            for (k <- x.asInstanceOf[Iterable[_]]) yield (k, genotypes)
           else
-            Some((x, (v, genotypes)))
+            Some((x, genotypes))
         case None => None
       }
-    }.groupByKey().persist(StorageLevel.MEMORY_AND_DISK)
+    }.groupByKey()
 
     val qGroupName = skatoElementSignature.query("groupName")
     val qPValue = skatoElementSignature.query("pValue")
@@ -341,20 +341,17 @@ object GroupTestSKATO extends Command {
       it.grouped(localBlockSize)
         .flatMap {
           group =>
-            val groupDistinctVariants = group.map { case (k, data) => (k, data.reduceByKey((gs1, gs2) => gs1).values) }
-            val keys = groupDistinctVariants.map(_._1).toIndexedSeq
+            val keys = group.map(_._1).toIndexedSeq
 
-            groupDistinctVariants
-              .zipWithIndex.map { case ((k, gss), ind) => (ind, gss) }
+            group
+              .zipWithIndex.map { case ((k, gss), i) => (i, gss) }
               .iterator
               .pipe(pb, printContext, printElement, printFooter, printSep)
               .map { result =>
                 val a = JSONAnnotationImpex.importAnnotation(parse(result), skatoSignature, "<root>")
                 a.asInstanceOf[IndexedSeq[_]]
-                  .sortBy(a => qGroupName(a).get.asInstanceOf[Int])
-                  .zipWithIndex
-                  .foreachBetween { case (ann, i) =>
-                    val realName = keys(i)
+                  .foreachBetween { ann =>
+                    val realName = keys(qGroupName(ann).get.asInstanceOf[Int])
                     sb.tsvAppend(realName, groupNameSep)
                     sb += '\t'
                     sb.tsvAppend(qPValue(ann))
@@ -364,14 +361,11 @@ object GroupTestSKATO extends Command {
                     sb.tsvAppend(qNMarker(ann))
                     sb += '\t'
                     sb.tsvAppend(qNMarkerTest(ann))
-                    sb += '\t'
                   }(sb += '\n')
                 sb.result()
               }
         }
     }.writeTable(options.output, Some(header), deleteTmpFiles = true)
-
-    groups.unpersist()
 
     state
   }

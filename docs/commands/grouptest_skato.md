@@ -62,13 +62,12 @@ group_5 0.607   0.582   8       2
 <div class="cmdsubsection">
 ### Implementation Details:
 
-**All Hail variants and samples in the variant dataset at the time of calling `grouptest skato` are included in the SKAT-O test** 
+**All Hail variants and samples in the variant dataset at the time of calling `grouptest skato` are included in the SKAT-O test. Duplicate variants are not removed!** 
 
 1. Hail groups variants together by the keys specified by the `-k | --group-keys` command line option.
-2. If there are duplicate variants, one is randomly chosen.
-3. The phenotype vector and covariate matrix are constructed from the command-line options `-y` and `-c | --covariates` respectively. 
-4. Genotype vectors are constructed using the value in `g.nNonRefAlleles`
-5. The following R commands are run:
+2. The phenotype vector and covariate matrix are constructed from the command-line options `-y` and `-c | --covariates` respectively. 
+3. Genotype vectors are constructed using the value in `g.nNonRefAlleles`
+4. The following R commands are run:
 
 ```
 # 1. Run Null Model
