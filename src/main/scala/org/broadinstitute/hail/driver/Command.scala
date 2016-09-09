@@ -63,6 +63,7 @@ object ToplevelCommands {
   register(ExportVCF)
   register(FilterAlleles)
   register(FilterGenotypes)
+  register(Filtermulti)
   register(FamSummary)
   register(FilterSamples)
   register(FilterVariants)
