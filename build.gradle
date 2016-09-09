@@ -52,6 +52,14 @@ compileScala {
     // scalaCompileOptions.forkOptions.jvmArgs = ['-XX:MaxPermSize=512m']
 }
 
+configurations.all {
+    resolutionStrategy {
+        // override new version pulled in by solrj
+        // http://stackoverflow.com/questions/31039367/spark-parallelize-could-not-find-creator-property-with-name-id
+        force 'com.fasterxml.jackson.core:jackson-databind:2.4.4'
+    }
+}
+
 dependencies {
     compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
@@ -92,7 +100,7 @@ dependencies {
     //compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
     //compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
 
-    compile 'org.apache.solr:solr-solrj:6.0.1'
+    compile 'org.apache.solr:solr-solrj:6.2.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
 
     compile 'com.jayway.restassured:rest-assured:2.8.0'
