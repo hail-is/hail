@@ -114,7 +114,7 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
     } else {
       val prepared = cassSession.prepare(
         s"SELECT * FROM ${ cassKeyspace }.${ cassTable } WHERE chrom=? AND start=? AND ref=? AND alt=?")
-      
+
       val futures = docs.asScala
         .map { doc =>
           val chrom = doc.getFieldValue("chrom")
@@ -126,71 +126,71 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
         }
 
       futures.flatMap { future =>
-          val cassResults = future.getUninterruptibly()
+        val cassResults = future.getUninterruptibly()
 
-          val cassColumns = cassResults.getColumnDefinitions
-          cassResults.asScala.map { r =>
-            cassColumns.asScala.zipWithIndex.flatMap { case (col, i) =>
-              if (r.isNull(i))
-                None
-              else {
-                val jv: JValue = (col.getType.getName: @unchecked) match {
-                  case DataType.Name.BOOLEAN =>
-                    JBool(r.getBool(i))
-                  case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
-                    JString(r.getString(i))
-                  case DataType.Name.TINYINT =>
-                    JInt(r.getByte(i).toInt)
-                  case DataType.Name.SMALLINT =>
-                    JInt(r.getShort(i).toInt)
-                  case DataType.Name.INT =>
-                    JInt(r.getInt(i))
-                  case DataType.Name.BIGINT | DataType.Name.COUNTER =>
-                    JInt(r.getLong(i))
-                  case DataType.Name.VARINT =>
-                    JInt(r.getVarint(i))
-                  case DataType.Name.FLOAT =>
-                    JDouble(r.getFloat(i))
-                  case DataType.Name.DOUBLE =>
-                    JDouble(r.getDouble(i))
+        val cassColumns = cassResults.getColumnDefinitions
+        cassResults.asScala.map { r =>
+          cassColumns.asScala.zipWithIndex.flatMap { case (col, i) =>
+            if (r.isNull(i))
+              None
+            else {
+              val jv: JValue = (col.getType.getName: @unchecked) match {
+                case DataType.Name.BOOLEAN =>
+                  JBool(r.getBool(i))
+                case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
+                  JString(r.getString(i))
+                case DataType.Name.TINYINT =>
+                  JInt(r.getByte(i).toInt)
+                case DataType.Name.SMALLINT =>
+                  JInt(r.getShort(i).toInt)
+                case DataType.Name.INT =>
+                  JInt(r.getInt(i))
+                case DataType.Name.BIGINT | DataType.Name.COUNTER =>
+                  JInt(r.getLong(i))
+                case DataType.Name.VARINT =>
+                  JInt(r.getVarint(i))
+                case DataType.Name.FLOAT =>
+                  JDouble(r.getFloat(i))
+                case DataType.Name.DOUBLE =>
+                  JDouble(r.getDouble(i))
 
-                  case DataType.Name.LIST =>
-                    val typeArgs = col.getType.getTypeArguments
-                    assert(typeArgs.size() == 1)
-                    (typeArgs.get(0).getName: @unchecked) match {
-                      case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
-                        JArray(r.getList(i, classOf[java.lang.String]).asScala
-                          .map(v => JString(v))
-                          .toList)
-                      case DataType.Name.TINYINT | DataType.Name.SMALLINT |
-                           DataType.Name.INT | DataType.Name.BIGINT |
-                           DataType.Name.VARINT =>
-                        JArray(r.getList(i, classOf[java.lang.Integer]).asScala
-                          .map(v => JInt(v.toInt))
-                          .toList)
-                    }
+                case DataType.Name.LIST =>
+                  val typeArgs = col.getType.getTypeArguments
+                  assert(typeArgs.size() == 1)
+                  (typeArgs.get(0).getName: @unchecked) match {
+                    case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
+                      JArray(r.getList(i, classOf[java.lang.String]).asScala
+                        .map(v => JString(v))
+                        .toList)
+                    case DataType.Name.TINYINT | DataType.Name.SMALLINT |
+                         DataType.Name.INT | DataType.Name.BIGINT |
+                         DataType.Name.VARINT =>
+                      JArray(r.getList(i, classOf[java.lang.Integer]).asScala
+                        .map(v => JInt(v.toInt))
+                        .toList)
+                  }
 
-                  case DataType.Name.SET =>
-                    val typeArgs = col.getType.getTypeArguments
-                    assert(typeArgs.size() == 1)
-                    (typeArgs.get(0).getName: @unchecked) match {
-                      case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
-                        JArray(r.getSet(i, classOf[java.lang.String]).asScala
-                          .toList
-                          .map(v => JString(v)))
-                      case DataType.Name.TINYINT | DataType.Name.SMALLINT |
-                           DataType.Name.INT | DataType.Name.BIGINT |
-                           DataType.Name.VARINT =>
-                        JArray(r.getSet(i, classOf[java.lang.Integer]).asScala
-                          .toList
-                          .map(v => JInt(v.toInt)))
-                    }
-                }
-                Some((col.getName, jv))
+                case DataType.Name.SET =>
+                  val typeArgs = col.getType.getTypeArguments
+                  assert(typeArgs.size() == 1)
+                  (typeArgs.get(0).getName: @unchecked) match {
+                    case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
+                      JArray(r.getSet(i, classOf[java.lang.String]).asScala
+                        .toList
+                        .map(v => JString(v)))
+                    case DataType.Name.TINYINT | DataType.Name.SMALLINT |
+                         DataType.Name.INT | DataType.Name.BIGINT |
+                         DataType.Name.VARINT =>
+                      JArray(r.getSet(i, classOf[java.lang.Integer]).asScala
+                        .toList
+                        .map(v => JInt(v.toInt)))
+                  }
               }
-            }.toMap
-          }
-        }.toArray
+              Some((col.getName, jv))
+            }
+          }.toMap
+        }
+      }.toArray
     }
 
     // println(variants.toSeq)
@@ -311,9 +311,12 @@ object SeqrServerCommand extends Command {
 
     val solr =
       if (url != null)
-        new HttpSolrClient(url)
+        new HttpSolrClient.Builder(url)
+          .build()
       else {
-        val cc = new CloudSolrClient(zkHost)
+        val cc = new CloudSolrClient.Builder()
+          .withZkHost(zkHost)
+          .build()
         cc.setDefaultCollection(collection)
         cc
       }

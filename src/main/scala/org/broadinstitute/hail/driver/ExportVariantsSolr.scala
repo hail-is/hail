@@ -58,7 +58,7 @@ object ExportVariantsSolr extends Command with Serializable {
     case TString => "string"
     // FIXME only 1 deep
     case i: TIterable => toSolrType(i.elementType)
-      // FIXME
+    // FIXME
     case _ => fatal("")
   }
 
@@ -117,8 +117,8 @@ object ExportVariantsSolr extends Command with Serializable {
     val exportRef = options.exportRef
 
     val vSymTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vas))
+      "v" -> (0, TVariant),
+      "va" -> (1, vas))
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
 
@@ -126,11 +126,11 @@ object ExportVariantsSolr extends Command with Serializable {
     val vparsed = Parser.parseNamedArgs(vCond, vEC)
 
     val gSymTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vas),
-      "s" ->(2, TSample),
-      "sa" ->(3, sas),
-      "g" ->(4, TGenotype))
+      "v" -> (0, TVariant),
+      "va" -> (1, vas),
+      "s" -> (2, TSample),
+      "sa" -> (3, sas),
+      "g" -> (4, TGenotype))
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
@@ -150,9 +150,12 @@ object ExportVariantsSolr extends Command with Serializable {
 
     val solr =
       if (url != null)
-        new HttpSolrClient(url)
+        new HttpSolrClient.Builder(url)
+          .build()
       else {
-        val cc = new CloudSolrClient(zkHost)
+        val cc = new CloudSolrClient.Builder()
+          .withZkHost(zkHost)
+          .build()
         cc.setDefaultCollection(collection)
         cc
       }
@@ -172,7 +175,7 @@ object ExportVariantsSolr extends Command with Serializable {
       }
     }
 
-    info(s"adding ${addFieldReqs.length} fields")
+    info(s"adding ${ addFieldReqs.length } fields")
 
     if (addFieldReqs.nonEmpty) {
       val req = new SchemaRequest.MultiUpdate((addFieldReqs.toList: List[SchemaRequest.Update]).asJava)
@@ -209,17 +212,20 @@ object ExportVariantsSolr extends Command with Serializable {
 
       val solr =
         if (url != null)
-          new HttpSolrClient(url)
+          new HttpSolrClient.Builder(url)
+            .build()
         else {
-          val cc = new CloudSolrClient(zkHost)
+          val cc = new CloudSolrClient.Builder()
+            .withZkHost(zkHost)
+            .build()
           cc.setDefaultCollection(collection)
           cc
         }
 
       var retry = true
       var retryInterval = 3 * 1000 // 3s
-      val maxRetryInterval = 3 * 60 * 1000 // 3m
-
+    val maxRetryInterval = 3 * 60 * 1000 // 3m
+      
       while (retry) {
         try {
           solr.add(documents.asJava)
