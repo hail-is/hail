@@ -53,6 +53,7 @@ object ToplevelCommands {
   register(CompareVDS)
   register(Count)
   register(DownsampleVariants)
+  register(ExportAggregate)
   register(ExportPlink)
   register(ExportGEN)
   register(ExportGenotypes)
