@@ -103,9 +103,9 @@ object Main {
     fail(msg)
   }
 
-  def expandException(cmd: Command, e: Throwable): String = {
+  def expandException(e: Throwable): String = {
     s"${ e.getClass.getName }: ${ e.getLocalizedMessage }\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
-      Option(e.getCause).map(exception => expandException(cmd, exception)).getOrElse("")
+      Option(e.getCause).map(exception => expandException(exception)).getOrElse("")
     }"
   }
 
@@ -122,7 +122,7 @@ object Main {
     } catch {
       case e: Exception =>
         handlePropagatedException(cmd, e)
-        val msg = s"hail: ${ cmd.name }: caught exception: ${ expandException(cmd, e) }"
+        val msg = s"hail: ${ cmd.name }: caught exception: ${ expandException(e) }"
         log.error(msg)
         System.err.println(msg)
         sys.exit(1)

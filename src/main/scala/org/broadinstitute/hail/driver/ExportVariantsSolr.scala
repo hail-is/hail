@@ -230,10 +230,11 @@ object ExportVariantsSolr extends Command with Serializable {
         try {
           solr.add(documents.asJava)
           solr.commit()
+          solr.close()
           retry = false
         } catch {
           case e: SolrException =>
-            warn("add documents timeout, retrying")
+            warn(s"exportvariantssolr: caught exception while adding documents: ${ Main.expandException(e) }\n\tretrying")
 
             Thread.sleep(Random.nextInt(retryInterval))
             retryInterval = (retryInterval * 2).max(maxRetryInterval)
