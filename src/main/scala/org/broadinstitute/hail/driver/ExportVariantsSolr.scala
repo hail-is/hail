@@ -180,7 +180,10 @@ object ExportVariantsSolr extends Command with Serializable {
     if (addFieldReqs.nonEmpty) {
       val req = new SchemaRequest.MultiUpdate((addFieldReqs.toList: List[SchemaRequest.Update]).asJava)
       req.process(solr)
+      solr.commit()
     }
+
+    solr.close()
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
