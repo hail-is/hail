@@ -278,13 +278,19 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
     classpath sourceSets.main.runtimeClasspath
 }
 
-task runNode(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
+task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
     args('docsTemplate.html', './commandOptions.json', 'docs/', 'index.html')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task copyCompiledHtml(type: Copy, dependsOn: runNode) {
+task runNodeFaq(type: Exec, dependsOn: ['runPandoc', 'copyJavascript', 'copyHtml']) {
+    args('faqTemplate.html', 'docs/faq/', 'faq.html')
+    executable 'build/tmp/docs/compileFaqNode.js'
+}
+
+task copyCompiledHtml(type: Copy, dependsOn: ['runNodeDocs', 'runNodeFaq']) {
     from 'build/tmp/docs/index.html'
+    from 'build/tmp/docs/faq.html'
     into 'build/docs'
 }
 
