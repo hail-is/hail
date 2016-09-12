@@ -1,5 +1,8 @@
 package org.broadinstitute.hail.driver
 
+import java.util
+
+import org.apache.solr.client.solrj.SolrResponse
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.schema.SchemaRequest
 import org.apache.solr.common.{SolrException, SolrInputDocument}
@@ -78,20 +81,24 @@ object ExportVariantsSolr extends Command with Serializable {
     sb.result()
   }
 
-  def addFieldReq(preexistingFields: Set[String], name: String, t: Type): Option[SchemaRequest.AddField] = {
+  def addFieldReq(preexistingFields: Set[String], name: String, spec: Map[String, AnyRef], t: Type): Option[SchemaRequest.AddField] = {
     val escapedName = escapeSolrFieldName(name)
     if (preexistingFields(escapedName))
       return None
 
-    val m = mutable.Map.empty[String, AnyRef]
+    var m = spec
 
-    // FIXME check type
+    if (!m.contains("name"))
+      m += "name" -> escapedName
 
-    m += "name" -> escapedName
-    m += "type" -> toSolrType(t)
-    m += "stored" -> true.asInstanceOf[AnyRef]
-    if (t.isInstanceOf[TIterable])
-      m += "multiValued" -> true.asInstanceOf[AnyRef]
+    if (!m.contains("type"))
+      m += "type" -> toSolrType(t)
+
+    if (!m.contains("stored"))
+      m += "stored" -> true.asInstanceOf[AnyRef]
+
+    if (!m.contains("multiValued"))
+      m += "multiValued" -> t.isInstanceOf[TIterable].asInstanceOf[AnyRef]
 
     val req = new SchemaRequest.AddField(m.asJava)
     Some(req)
@@ -104,6 +111,32 @@ object ExportVariantsSolr extends Command with Serializable {
       }
     } else
       document.addField(escapeSolrFieldName(name), value)
+  }
+
+  def processResponse(action: String, res: SolrResponse) {
+    val tRes = res.getResponse.asScala.map { entry =>
+      (entry.getKey, entry.getValue)
+    }.toMap[String, AnyRef]
+
+    tRes.get("errors") match {
+      case Some(es) =>
+        val errors = es.asInstanceOf[util.ArrayList[AnyRef]].asScala
+        val error = errors.head.asInstanceOf[util.Map[String, AnyRef]]
+          .asScala
+        val errorMessages = error("errorMessages")
+          .asInstanceOf[util.ArrayList[String]]
+          .asScala
+        fatal(s"error in $action:\n  ${ errorMessages.map(_.trim).mkString("\n    ") }${
+          if (errors.length > 1)
+            s"\n  and ${ errors.length - 1 } errors"
+          else
+            ""
+        }")
+
+      case None =>
+        if (tRes.keySet != Set("responseHeader"))
+          warn(s"unknown Solr response in $action: $res")
+    }
   }
 
   def run(state: State, options: Options): State = {
@@ -123,7 +156,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val vA = vEC.a
 
     // FIXME use custom parser with constraint on Solr field name
-    val vparsed = Parser.parseNamedArgs(vCond, vEC)
+    val vparsed = Parser.parseSolrNamedArgs(vCond, vEC)
 
     val gSymTab = Map(
       "v" -> (0, TVariant),
@@ -134,7 +167,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
-    val gparsed = Parser.parseNamedArgs(gCond, gEC)
+    val gparsed = Parser.parseSolrNamedArgs(gCond, gEC)
 
     val url = options.url
     val zkHost = options.zkHost
@@ -167,20 +200,28 @@ object ExportVariantsSolr extends Command with Serializable {
       .map(_.asScala("name").asInstanceOf[String])
       .toSet
 
-    val addFieldReqs = vparsed.flatMap { case (name, t, f) =>
-      addFieldReq(preexistingFields, name, t)
-    } ++ vds.sampleIds.flatMap { s =>
-      gparsed.flatMap { case (name, t, f) =>
-        addFieldReq(preexistingFields, s + "_" + name, t)
-      }
+    val addFieldReqs = vparsed.flatMap {
+      case (name, spec, t, f) =>
+        addFieldReq(preexistingFields, name, spec, t)
+    } ++ vds.sampleIds.flatMap {
+      s =>
+        gparsed.flatMap {
+          case (name, spec, t, f) =>
+            addFieldReq(preexistingFields, s + "_" + name, spec, t)
+        }
     }
 
-    info(s"adding ${ addFieldReqs.length } fields")
+    info(s"adding ${
+      addFieldReqs.length
+    } fields")
 
     if (addFieldReqs.nonEmpty) {
       val req = new SchemaRequest.MultiUpdate((addFieldReqs.toList: List[SchemaRequest.Update]).asJava)
-      req.process(solr)
-      solr.commit()
+      processResponse("add field request",
+        req.process(solr))
+
+      processResponse("commit",
+        solr.commit())
     }
 
     solr.close()
@@ -188,61 +229,70 @@ object ExportVariantsSolr extends Command with Serializable {
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
 
-    vds.rdd.foreachPartition { it =>
-      val ab = mutable.ArrayBuilder.make[AnyRef]
-      val documents = it.map { case (v, (va, gs)) =>
+    vds.rdd.foreachPartition {
+      it =>
+        val ab = mutable.ArrayBuilder.make[AnyRef]
+        val documents = it.map {
+          case (v, (va, gs)) =>
 
-        val document = new SolrInputDocument()
+            val document = new SolrInputDocument()
 
-        vparsed.foreach { case (name, t, f) =>
-          vEC.setAll(v, va)
-          f().foreach(x => documentAddField(document, name, t, x))
+            vparsed.foreach {
+              case (name, spec, t, f) =>
+                vEC.setAll(v, va)
+                f().foreach(x => documentAddField(document, name, t, x))
+            }
+
+            gs.iterator.zipWithIndex.foreach {
+              case (g, i) =>
+                if (g.isCalled && (exportRef || !g.isHomRef)) {
+                  val s = sampleIdsBc.value(i)
+                  val sa = sampleAnnotationsBc.value(i)
+                  gparsed.foreach {
+                    case (name, spec, t, f) =>
+                      gEC.setAll(v, va, s, sa, g)
+                      f().foreach(x => documentAddField(document, s + "_" + name, t, x))
+                  }
+                }
+            }
+
+            document
         }
 
-        gs.iterator.zipWithIndex.foreach { case (g, i) =>
-          if (g.isCalled && (exportRef || !g.isHomRef)) {
-            val s = sampleIdsBc.value(i)
-            val sa = sampleAnnotationsBc.value(i)
-            gparsed.foreach { case (name, t, f) =>
-              gEC.setAll(v, va, s, sa, g)
-              f().foreach(x => documentAddField(document, s + "_" + name, t, x))
-            }
+        val solr =
+          if (url != null)
+            new HttpSolrClient.Builder(url)
+              .build()
+          else {
+            val cc = new CloudSolrClient.Builder()
+              .withZkHost(zkHost)
+              .build()
+            cc.setDefaultCollection(collection)
+            cc
+          }
+
+        var retry = true
+        var retryInterval = 3 * 1000 // 3s
+      val maxRetryInterval = 3 * 60 * 1000 // 3m
+
+        while (retry) {
+          try {
+            processResponse("add documents",
+              solr.add(documents.asJava))
+            processResponse("commit",
+              solr.commit())
+            solr.close()
+            retry = false
+          } catch {
+            case e: SolrException =>
+              warn(s"exportvariantssolr: caught exception while adding documents: ${
+                Main.expandException(e)
+              }\n\tretrying")
+
+              Thread.sleep(Random.nextInt(retryInterval))
+              retryInterval = (retryInterval * 2).max(maxRetryInterval)
           }
         }
-
-        document
-      }
-
-      val solr =
-        if (url != null)
-          new HttpSolrClient.Builder(url)
-            .build()
-        else {
-          val cc = new CloudSolrClient.Builder()
-            .withZkHost(zkHost)
-            .build()
-          cc.setDefaultCollection(collection)
-          cc
-        }
-
-      var retry = true
-      var retryInterval = 3 * 1000 // 3s
-    val maxRetryInterval = 3 * 60 * 1000 // 3m
-      
-      while (retry) {
-        try {
-          solr.add(documents.asJava)
-          solr.commit()
-          solr.close()
-          retry = false
-        } catch {
-          case e: SolrException =>
-            warn(s"exportvariantssolr: caught exception while adding documents: ${ Main.expandException(e) }\n\tretrying")
-
-            Thread.sleep(Random.nextInt(retryInterval))
-            retryInterval = (retryInterval * 2).max(maxRetryInterval)
-        }
-      }
     }
 
     state
