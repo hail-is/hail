@@ -367,7 +367,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     val partCommulativeSize = mapAccumulate[Array, Int, Int, Int](partSize, 0)((s, acc) => (s + acc, s + acc))
     val totalSize = partCommulativeSize.last
 
-    val newPartEnd = (0 until maxPartitions).map { i =>
+    var newPartEnd = (0 until maxPartitions).map { i =>
       val t = totalSize * (i + 1) / maxPartitions
 
       /* j largest index not greater than t */
@@ -383,8 +383,15 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       j
     }.toArray
 
+    newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) =>
+      i == 0 || newPartEnd(i) != newPartEnd(i - 1)
+    }.map(_._1)
+
     assert(newPartEnd.last == n - 1)
-    assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i <= inext })
+    assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i < inext })
+
+    if (newPartEnd.length < maxPartitions)
+      warn(s"coalesced to ${newPartEnd.length} partitions, less than requested $maxPartitions")
 
     val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
 
