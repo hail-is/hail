@@ -425,4 +425,38 @@ object Parser extends JavaTokenParsers {
       ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields =>
         TStruct(fields)
       }
+
+  def solr_named_args: Parser[Array[(String, Map[String, AnyRef], AST)]] =
+    repsep(solr_named_arg, ",") ^^ { _.toArray }
+
+  def solr_field_spec: Parser[Map[String, AnyRef]] =
+    "{" ~> repsep(solr_field_spec1, ",") <~ "}" ^^ { _.toMap }
+
+  def solr_field_spec1: Parser[(String, AnyRef)] =
+    (identifier <~ "=") ~ solr_literal ^^ { case id ~ v => (id, v) }
+
+  def solr_literal: Parser[AnyRef] =
+    "true" ^^ { _ => true.asInstanceOf[AnyRef] } |
+      "false" ^^ { _ => false.asInstanceOf[AnyRef] } |
+      stringLiteral ^^ { _.asInstanceOf[AnyRef] }
+
+  def solr_named_arg: Parser[(String, Map[String, AnyRef], AST)] =
+    identifier ~ opt(solr_field_spec) ~ ("=" ~> expr) ^^ { case id ~ spec ~ expr => (id, spec.getOrElse(Map.empty), expr) }
+
+  def parseSolrNamedArgs(code: String, ec: EvalContext): Array[(String, Map[String, AnyRef], Type, () => Option[Any])] = {
+    val args = parseAll(solr_named_args, code) match {
+      case Success(result, _) => result.asInstanceOf[Array[(String, Map[String, AnyRef], AST)]]
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+    args.map { case (id, spec, ast) =>
+      ast.typecheck(ec)
+      val t = ast.`type` match {
+        case t: Type => t
+        case _ => fatal(
+          s"""invalid export expression resulting in unprintable type `${ ast.`type` }'""".stripMargin)
+      }
+      val f = ast.eval(ec)
+      (id, spec, t, () => Option(f()))
+    }
+  }
 }
