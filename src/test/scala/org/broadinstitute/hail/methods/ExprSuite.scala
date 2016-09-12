@@ -479,7 +479,7 @@ class ExprSuite extends SparkSuite {
       eval[IndexedSeq[Int]]("""[1] + [2,3,4] """)
     }
 
-    interceptFatal("invalid arguments") {
+    interceptFatal("No function found") {
       eval[Double](""" log(Variant("22", 123, "A", "T")) """)
     }
 

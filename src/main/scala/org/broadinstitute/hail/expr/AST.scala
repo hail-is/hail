@@ -251,63 +251,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
   override def typecheckThis(): BaseType = {
     (lhs.`type`, rhs) match {
       case (TSample, "id") => TString
-      case (TGenotype, "gt") => TInt
-      case (TGenotype, "gtj") => TInt
-      case (TGenotype, "gtk") => TInt
-      case (TGenotype, "ad") => TArray(TInt)
-      case (TGenotype, "dp") => TInt
-      case (TGenotype, "od") => TInt
-      case (TGenotype, "gq") => TInt
-      case (TGenotype, "pl") => TArray(TInt)
-      case (TGenotype, "dosage") => TArray(TDouble)
-      case (TGenotype, "isHomRef") => TBoolean
-      case (TGenotype, "isHet") => TBoolean
-      case (TGenotype, "isHomVar") => TBoolean
-      case (TGenotype, "isCalledNonRef") => TBoolean
-      case (TGenotype, "isHetNonRef") => TBoolean
-      case (TGenotype, "isHetRef") => TBoolean
-      case (TGenotype, "isCalled") => TBoolean
-      case (TGenotype, "isNotCalled") => TBoolean
-      case (TGenotype, "nNonRefAlleles") => TInt
-      case (TGenotype, "pAB") => TDouble
-      case (TGenotype, "fractionReadsRef") => TDouble
-      case (TGenotype, "fakeRef") => TBoolean
-      case (TGenotype, "isDosage") => TBoolean
-
-      case (TVariant, "contig") => TString
-      case (TVariant, "start") => TInt
-      case (TVariant, "ref") => TString
-      case (TVariant, "altAlleles") => TArray(TAltAllele)
-      case (TVariant, "nAltAlleles") => TInt
-      case (TVariant, "nAlleles") => TInt
-      case (TVariant, "isBiallelic") => TBoolean
-      case (TVariant, "nGenotypes") => TInt
-      case (TVariant, "inXPar") => TBoolean
-      case (TVariant, "inYPar") => TBoolean
-      case (TVariant, "inXNonPar") => TBoolean
-      case (TVariant, "inYNonPar") => TBoolean
-      case (TVariant, "locus") => TLocus
-
-      // assumes biallelic
-      case (TVariant, "alt") => TString
-      case (TVariant, "altAllele") => TAltAllele
-
-      case (TLocus, "contig") => TString
-      case (TLocus, "position") => TInt
-
-      case (TInterval, "start") => TLocus
-      case (TInterval, "end") => TLocus
-
-      case (TAltAllele, "ref") => TString
-      case (TAltAllele, "alt") => TString
-      case (TAltAllele, "isSNP") => TBoolean
-      case (TAltAllele, "isMNP") => TBoolean
-      case (TAltAllele, "isIndel") => TBoolean
-      case (TAltAllele, "isInsertion") => TBoolean
-      case (TAltAllele, "isDeletion") => TBoolean
-      case (TAltAllele, "isComplex") => TBoolean
-      case (TAltAllele, "isTransition") => TBoolean
-      case (TAltAllele, "isTransversion") => TBoolean
 
       case (t: TStruct, _) =>
         t.selfField(rhs) match {
@@ -317,17 +260,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
                 |  Available fields: [ ${ t.fields.map(x => prettyIdentifier(x.name)).mkString("\n  ") } ]""".stripMargin)
         }
 
-      case (t: TNumeric, "toInt") => TInt
-      case (t: TNumeric, "toLong") => TLong
-      case (t: TNumeric, "toFloat") => TFloat
-      case (t: TNumeric, "toDouble") => TDouble
-      case (TString, "toInt") => TInt
-      case (TString, "toLong") => TLong
-      case (TString, "toFloat") => TFloat
-      case (TString, "toDouble") => TDouble
-      case (t: TNumeric, "abs") => t
-      case (t: TNumeric, "signum") => TInt
-      case (TString, "length") => TInt
       case (t: TArray, "length") => TInt
       case (t: TIterable, "size") => TInt
       case (t: TIterable, "isEmpty") => TBoolean
@@ -335,159 +267,24 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t: TIterable, "toArray") => TArray(t.elementType)
       case (t: TDict, "size") => TInt
       case (t: TDict, "isEmpty") => TBoolean
-      case (TArray(elementType: TNumeric), "sum" | "min" | "max") => elementType
-      case (TSet(elementType: TNumeric), "sum" | "min" | "max") => elementType
       case (TArray(elementType), "head") => elementType
       case (t@TArray(elementType), "tail") => t
 
-      case (t, _) =>
-        parseError(
+      case (t, name) => FunctionRegistry.lookupFieldType(t, name)
+        .getOrElse(parseError(
           s"""`$t' has no field `$rhs'
               |  Hint: Don't forget empty-parentheses in a method call, e.g.
-              |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
+              |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin))
     }
   }
 
   def eval(ec: EvalContext): () => Any = ((lhs.`type`, rhs): @unchecked) match {
     case (TSample, "id") => lhs.eval(ec)
-    case (TGenotype, "gt") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(_.gt)
-    case (TGenotype, "gtj") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(_.gt.map(gtx => Genotype.gtPair(gtx).j))
-    case (TGenotype, "gtk") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(_.gt.map(gtx => Genotype.gtPair(gtx).k))
-    case (TGenotype, "ad") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.ad.map(a => a: IndexedSeq[Int]))
-    case (TGenotype, "dp") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(_.dp)
-    case (TGenotype, "od") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(_.od)
-    case (TGenotype, "gq") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(_.gq)
-    case (TGenotype, "pl") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.pl.map(a => a: IndexedSeq[Int]))
-    case (TGenotype, "dosage") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(g => g.dosage.map(a => a: IndexedSeq[Double]))
-    case (TGenotype, "isHomRef") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isHomRef)
-    case (TGenotype, "isHet") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isHet)
-    case (TGenotype, "isHomVar") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isHomVar)
-    case (TGenotype, "isCalledNonRef") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isCalledNonRef)
-    case (TGenotype, "isHetNonRef") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isHetNonRef)
-    case (TGenotype, "isHetRef") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isHetRef)
-    case (TGenotype, "isCalled") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isCalled)
-    case (TGenotype, "isNotCalled") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isNotCalled)
-    case (TGenotype, "nNonRefAlleles") => AST.evalFlatCompose[Genotype](ec, lhs)(_.nNonRefAlleles)
-    case (TGenotype, "pAB") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(_.pAB())
-    case (TGenotype, "fractionReadsRef") =>
-      AST.evalFlatCompose[Genotype](ec, lhs)(_.fractionReadsRef())
-    case (TGenotype, "fakeRef") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.fakeRef)
-    case (TGenotype, "isDosage") =>
-      AST.evalCompose[Genotype](ec, lhs)(_.isDosage)
-
-    case (TVariant, "contig") =>
-      AST.evalCompose[Variant](ec, lhs)(_.contig)
-    case (TVariant, "start") =>
-      AST.evalCompose[Variant](ec, lhs)(_.start)
-    case (TVariant, "ref") =>
-      AST.evalCompose[Variant](ec, lhs)(_.ref)
-    case (TVariant, "altAlleles") =>
-      AST.evalCompose[Variant](ec, lhs)(_.altAlleles)
-    case (TVariant, "nAltAlleles") =>
-      AST.evalCompose[Variant](ec, lhs)(_.nAltAlleles)
-    case (TVariant, "nAlleles") =>
-      AST.evalCompose[Variant](ec, lhs)(_.nAlleles)
-    case (TVariant, "isBiallelic") =>
-      AST.evalCompose[Variant](ec, lhs)(_.isBiallelic)
-    case (TVariant, "nGenotypes") =>
-      AST.evalCompose[Variant](ec, lhs)(_.nGenotypes)
-    case (TVariant, "inXPar") =>
-      AST.evalCompose[Variant](ec, lhs)(_.inXPar)
-    case (TVariant, "inYPar") =>
-      AST.evalCompose[Variant](ec, lhs)(_.inYPar)
-    case (TVariant, "inXNonPar") =>
-      AST.evalCompose[Variant](ec, lhs)(_.inXNonPar)
-    case (TVariant, "inYNonPar") =>
-      AST.evalCompose[Variant](ec, lhs)(_.inYNonPar)
-    // assumes biallelic
-    case (TVariant, "alt") =>
-      AST.evalCompose[Variant](ec, lhs)(_.alt)
-    case (TVariant, "altAllele") =>
-      AST.evalCompose[Variant](ec, lhs)(_.altAllele)
-    case (TVariant, "locus") =>
-      AST.evalCompose[Variant](ec, lhs)(_.locus)
-
-    case (TLocus, "contig") =>
-      AST.evalCompose[Locus](ec, lhs)(_.contig)
-    case (TLocus, "position") =>
-      AST.evalCompose[Locus](ec, lhs)(_.position)
-
-    case (TInterval, "start") =>
-      AST.evalCompose[Interval[Locus]](ec, lhs)(_.start)
-    case (TInterval, "end") =>
-      AST.evalCompose[Interval[Locus]](ec, lhs)(_.end)
-
-    case (TAltAllele, "ref") => AST.evalCompose[AltAllele](ec, lhs)(_.ref)
-    case (TAltAllele, "alt") => AST.evalCompose[AltAllele](ec, lhs)(_.alt)
-    case (TAltAllele, "isSNP") => AST.evalCompose[AltAllele](ec, lhs)(_.isSNP)
-    case (TAltAllele, "isMNP") => AST.evalCompose[AltAllele](ec, lhs)(_.isMNP)
-    case (TAltAllele, "isIndel") => AST.evalCompose[AltAllele](ec, lhs)(_.isIndel)
-    case (TAltAllele, "isInsertion") => AST.evalCompose[AltAllele](ec, lhs)(_.isInsertion)
-    case (TAltAllele, "isDeletion") => AST.evalCompose[AltAllele](ec, lhs)(_.isDeletion)
-    case (TAltAllele, "isComplex") => AST.evalCompose[AltAllele](ec, lhs)(_.isComplex)
-    case (TAltAllele, "isTransition") => AST.evalCompose[AltAllele](ec, lhs)(_.isTransition)
-    case (TAltAllele, "isTransversion") => AST.evalCompose[AltAllele](ec, lhs)(_.isTransversion)
 
     case (t: TStruct, _) =>
       val Some(f) = t.selfField(rhs)
       val i = f.index
       AST.evalCompose[Row](ec, lhs)(_.get(i))
-
-    case (TInt, "toInt") => lhs.eval(ec)
-    case (TInt, "toLong") => AST.evalCompose[Int](ec, lhs)(_.toLong)
-    case (TInt, "toFloat") => AST.evalCompose[Int](ec, lhs)(_.toFloat)
-    case (TInt, "toDouble") => AST.evalCompose[Int](ec, lhs)(_.toDouble)
-
-    case (TLong, "toInt") => AST.evalCompose[Long](ec, lhs)(_.toInt)
-    case (TLong, "toLong") => lhs.eval(ec)
-    case (TLong, "toFloat") => AST.evalCompose[Long](ec, lhs)(_.toFloat)
-    case (TLong, "toDouble") => AST.evalCompose[Long](ec, lhs)(_.toDouble)
-
-    case (TFloat, "toInt") => AST.evalCompose[Float](ec, lhs)(_.toInt)
-    case (TFloat, "toLong") => AST.evalCompose[Float](ec, lhs)(_.toLong)
-    case (TFloat, "toFloat") => lhs.eval(ec)
-    case (TFloat, "toDouble") => AST.evalCompose[Float](ec, lhs)(_.toDouble)
-
-    case (TDouble, "toInt") => AST.evalCompose[Double](ec, lhs)(_.toInt)
-    case (TDouble, "toLong") => AST.evalCompose[Double](ec, lhs)(_.toLong)
-    case (TDouble, "toFloat") => AST.evalCompose[Double](ec, lhs)(_.toFloat)
-    case (TDouble, "toDouble") => lhs.eval(ec)
-
-    case (TString, "toInt") => AST.evalCompose[String](ec, lhs)(_.toInt)
-    case (TString, "toLong") => AST.evalCompose[String](ec, lhs)(_.toLong)
-    case (TString, "toFloat") => AST.evalCompose[String](ec, lhs)(_.toFloat)
-    case (TString, "toDouble") => AST.evalCompose[String](ec, lhs)(_.toDouble)
-
-    case (TInt, "abs") => AST.evalCompose[Int](ec, lhs)(_.abs)
-    case (TLong, "abs") => AST.evalCompose[Long](ec, lhs)(_.abs)
-    case (TFloat, "abs") => AST.evalCompose[Float](ec, lhs)(_.abs)
-    case (TDouble, "abs") => AST.evalCompose[Double](ec, lhs)(_.abs)
-
-    case (TInt, "signum") => AST.evalCompose[Int](ec, lhs)(_.signum)
-    case (TLong, "signum") => AST.evalCompose[Long](ec, lhs)(_.signum)
-    case (TFloat, "signum") => AST.evalCompose[Float](ec, lhs)(_.signum)
-    case (TDouble, "signum") => AST.evalCompose[Double](ec, lhs)(_.signum)
-
-    case (TString, "length") => AST.evalCompose[String](ec, lhs)(_.length)
 
     case (t: TArray, "length") => AST.evalCompose[Iterable[_]](ec, lhs)(_.size)
     case (t: TIterable, "size") => AST.evalCompose[Iterable[_]](ec, lhs)(_.size)
@@ -498,64 +295,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (t: TDict, "size") => AST.evalCompose[Map[_, _]](ec, lhs)(_.size)
     case (t: TDict, "isEmpty") => AST.evalCompose[Map[_, _]](ec, lhs)(_.isEmpty)
 
-    case (TArray(TInt), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
-    case (TArray(TLong), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).sum)
-    case (TArray(TFloat), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).sum)
-    case (TArray(TDouble), "sum") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).sum)
-
-    case (TArray(TInt), "min") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).min)
-    case (TArray(TLong), "min") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).min)
-    case (TArray(TFloat), "min") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).min)
-    case (TArray(TDouble), "min") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).min)
-
-    case (TArray(TInt), "max") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).max)
-    case (TArray(TLong), "max") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).max)
-    case (TArray(TFloat), "max") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
-    case (TArray(TDouble), "max") =>
-      AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
-
-    case (TSet(TInt), "sum") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).sum)
-    case (TSet(TLong), "sum") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).sum)
-    case (TSet(TFloat), "sum") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).sum)
-    case (TSet(TDouble), "sum") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).sum)
-
-    case (TSet(TInt), "min") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).min)
-    case (TSet(TLong), "min") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).min)
-    case (TSet(TFloat), "min") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).min)
-    case (TSet(TDouble), "min") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).min)
-
-    case (TSet(TInt), "max") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Int]).max)
-    case (TSet(TLong), "max") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Long]).max)
-    case (TSet(TFloat), "max") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Float]).max)
-    case (TSet(TDouble), "max") =>
-      AST.evalCompose[Set[_]](ec, lhs)(_.filter(x => x != null).map(_.asInstanceOf[Double]).max)
-
     case (TArray(elementType), "head") =>
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.head)
     case (t@TArray(elementType), "tail") =>
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
+
+    case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
+      .getOrElse(fatal(s"No such method `$name' on object of type `$t'"))
   }
 }
 
@@ -639,78 +385,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           parseError(s"Got invalid argument `${ a.`type` } to function `$fn'")
         TString
 
-      case ("range", rhs) =>
-        val types = rhs.map(_.`type`)
-        types match {
-          case Array(TInt, TInt) | Array(TInt) => TArray(TInt)
-          case _ => parseError(
-            s"""got invalid ${ plural(types.length, "argument") } to function `range'
-                |  Expected range(Int) or range(Int, Int)
-                |  Found (${ types.mkString(", ") })""".stripMargin)
-        }
-
-      case ("Variant", _) =>
-        args.map(_.`type`) match {
-          case Array(TString) => TVariant
-          case Array(TString, TInt, TString, TString) => TVariant
-          case Array(TString, TInt, TString, TArray(TString)) => TVariant
-          case other => parseError(
-            s"""Got invalid arguments to variant constructor: (${ other.mkString(", ") })
-                |  Acceptable formats:
-                |    (String) for CHR:POS:REF:ALT or CHR:POS:REF:ALT1,ALT2,...ALTN
-                |    (String, Int, String, String) for (chr, pos, ref, alt)
-                |    (String, Int, String, Array[String]) for (chr, pos, ref, alts)""".stripMargin)
-        }
-
-      case ("Locus", _) =>
-        args.map(_.`type`) match {
-          case Array(TString) => TLocus
-          case Array(TString, TInt) => TLocus
-          case other => parseError(
-            s"""Got invalid arguments to locus constructor: (${ other.mkString(", ") })
-                |  Acceptable formats:
-                |    (String) for CHR:POS
-                |    (String, Int) for (chr, pos)""".stripMargin)
-        }
-
-      case ("Interval", _) =>
-        args.map(_.`type`) match {
-          case (Array(TLocus, TLocus)) => TInterval
-          case other => parseError(
-            s"""Got invalid arguments to interval constructor: (${ other.mkString(", ") })
-                |  Acceptable format:
-                |    (Locus, Locus) for (start, end)""".stripMargin)
-        }
-
-
-      case ("hwe", _) =>
-        args.map(_.`type`) match {
-          case Array(TInt, TInt, TInt) => TStruct(("rExpectedHetFrequency", TDouble), ("pHWE", TDouble))
-          case other =>
-            val nArgs = other.length
-            parseError(
-              s"""method `hwe' expects 3 arguments of type Int, e.g. hwe(90,10,1)
-                  |  Found $nArgs ${ plural(nArgs, "argument") }${
-                if (nArgs > 0)
-                  s"of ${ plural(nArgs, "type") } [${ other.mkString(", ") }]"
-                else ""
-              }""".stripMargin)
-        }
-
-      case ("fet", rhs) =>
-        rhs.map(_.`type`) match {
-          case Array(TInt, TInt, TInt, TInt) => TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble))
-          case other =>
-            val nArgs = other.length
-            parseError(
-              s"""method `fet' expects 4 arguments of type Int, e.g. fet(5,100,0,1000)
-                  |  Found $nArgs ${ plural(nArgs, "argument") }${
-                if (nArgs > 0)
-                  s" of ${ plural(nArgs, "type") } [${ other.mkString(", ") }]"
-                else ""
-              }""".stripMargin)
-        }
-
       case ("merge", rhs) =>
         val (t1, t2) = args.map(_.`type`) match {
           case Array(t1: TStruct, t2: TStruct) => (t1, t2)
@@ -735,15 +409,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
       case ("isDefined" | "isMissing" | "str" | "json", _) => parseError(s"`$fn' takes one argument")
 
-      case ("exp" | "log10" | "sqrt", _) => TDouble
-        args.map(_.`type`) match {
-          case Array(a: TNumeric) => TDouble
-          case other =>
-            parseError(
-              s"""invalid arguments in call to $fn: ${ other.mkString(", ") }.
-                  |  Expected exp(Double)""".stripMargin)
-        }
-
       case ("pow", _) => TDouble
         args.map(_.`type`) match {
           case Array(a: TNumeric, b: TNumeric) => TDouble
@@ -753,17 +418,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                   |  Expected $fn(Double)""".stripMargin)
         }
 
-      case ("log", _) => TDouble
-        args.map(_.`type`) match {
-          case Array(a: TNumeric) => TDouble
-          case Array(a: TNumeric, b: TNumeric) => TDouble
-          case other =>
-            parseError(
-              s"""invalid arguments in call to $fn: ${ other.mkString(", ") }.
-                  |  Expected either:
-                  |    $fn(Double)
-                  |    $fn(Double, Double)""".stripMargin)
-        }
+      case ("log", Array(a, b)) if a.`type`.isInstanceOf[TNumeric] && b.`type`.isInstanceOf[TNumeric] => TDouble
+
+      case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq)
+        .getOrElse(parseError(s"No function found with name `$fn' and argument types `${ args.map(_.`type`).mkString(", ") }'"))
     }
   }
 
@@ -871,69 +529,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val f = a.eval(ec)
       () => JsonMethods.compact(t.toJSON(f()))
 
-    case ("range", rhs) =>
-      rhs match {
-        case Array(endAST) => AST.evalCompose[Int](ec, endAST) { i => 0 until i }
-        case Array(startAST, endAST) => AST.evalCompose[Int, Int](ec, startAST, endAST) { case (start, end) =>
-          start until end
-        }
-      }
-
-    case ("Variant", _) =>
-      args match {
-        case Array(v) => AST.evalCompose[String](ec, v) { vString =>
-          val Array(chr, pos, ref, alts) = vString.split(":")
-          Variant(chr, pos.toInt, ref, alts.split(","))
-        }
-        case Array(chrAST, posAST, refAST, altAST) =>
-          (altAST.`type`: @unchecked) match {
-            case TString =>
-              AST.evalCompose[String, Int, String, String](ec, chrAST, posAST, refAST, altAST) {
-                case (chr, pos, ref, alt) =>
-                  Variant(chr, pos, ref, alt)
-              }
-            case TArray(_) => AST.evalCompose[String, Int, String, IndexedSeq[_]](ec, chrAST, posAST, refAST, altAST) {
-              case (chr, pos, ref, alts) =>
-                Variant(chr, pos, ref, alts.map(_.asInstanceOf[String]).toArray)
-            }
-          }
-      }
-
-    case ("Locus", _) =>
-      args match {
-        case Array(locusAST) => AST.evalCompose[String](ec, locusAST) { locusString =>
-          val Array(chr, pos) = locusString.split(":")
-          Locus(chr, pos.toInt)
-        }
-        case Array(chrAST, posAST) => AST.evalCompose[String, Int](ec, chrAST, posAST) { case (chr, pos) =>
-          Locus(chr, pos)
-        }
-      }
-
-    case ("Interval", Array(start, end)) =>
-      AST.evalCompose[Locus, Locus](ec, start, end) { case (s, e) => Interval(s, e) }
-
-    case ("hwe", Array(a, b, c)) =>
-      AST.evalCompose[Int, Int, Int](ec, a, b, c) {
-        case (nHomRef, nHet, nHomVar) =>
-          if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
-            fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
-          val n = nHomRef + nHet + nHomVar
-          val nAB = nHet
-          val nA = nAB + 2 * nHomRef.min(nHomVar)
-
-          val LH = LeveneHaldane(n, nA)
-          Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
-      }
-
-    case ("fet", Array(a, b, c, d)) =>
-      AST.evalCompose[Int, Int, Int, Int](ec, a, b, c, d) { case (c1, c2, c3, c4) =>
-        if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
-          fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
-        val fet = FisherExactTest(c1, c2, c3, c4)
-        Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
-      }
-
     case ("merge", Array(struct1, struct2)) =>
       val f1 = struct1.eval(ec)
       val f2 = struct2.eval(ec)
@@ -958,18 +553,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           .toMap
       }
 
-    case ("exp", Array(a)) =>
-      AST.evalComposeNumeric[Double](ec, a)(x => math.exp(x))
     case ("pow", Array(a, b)) =>
       AST.evalComposeNumeric[Double, Double](ec, a, b)((b, x) => math.pow(b, x))
-    case ("log", Array(a)) =>
-      AST.evalComposeNumeric[Double](ec, a)(x => math.log(x))
     case ("log", Array(a, b)) =>
       AST.evalComposeNumeric[Double, Double](ec, a, b)((x, b) => math.log(x) / math.log(b))
-    case ("log10", Array(a)) =>
-      AST.evalComposeNumeric[Double](ec, a)(x => math.log10(x))
-    case ("sqrt", Array(a)) =>
-      AST.evalComposeNumeric[Double](ec, a)(x => math.sqrt(x))
+
+    case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
+      .getOrElse(fatal(s"No function found with name `$fn' and argument types `${ args.map(_.`type`).mkString(", ") }'"))
   }
 
 }
