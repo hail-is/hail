@@ -525,6 +525,14 @@ class ExprSuite extends SparkSuite {
     p.check()
   }
 
+  @Test def testEscapingSimple() {
+    val p = forAll { (s: String) =>
+      s == unescapeStringSimple(escapeStringSimple(s, '_', c => c.isLetterOrDigit), '_')
+    }
+    
+    p.check()
+  }
+
   @Test def testImpexes() {
 
     val g = for {t <- Type.genArb
