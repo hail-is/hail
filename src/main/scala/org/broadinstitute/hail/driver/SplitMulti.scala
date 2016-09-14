@@ -202,7 +202,7 @@ object SplitMulti extends Command {
         .map[(Variant, (Annotation, Iterable[Genotype]))] { case (v, (va, gs)) =>
         (v, (va, gs.toGenotypeStream(v, isDosage, compress = true)))
       }
-        .toOrderedRDD[Locus](vds.rdd.orderedPartitioner.rangeBounds))
+        .toOrderedRDD(vds.rdd.orderedPartitioner))
 
     state.copy(vds = newVDS)
   }

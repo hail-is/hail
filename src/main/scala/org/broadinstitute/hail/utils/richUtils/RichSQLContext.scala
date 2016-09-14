@@ -5,7 +5,7 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.broadinstitute.hail.utils._
 
 class RichSQLContext(val sqlContext: SQLContext) extends AnyVal {
-  def sortedParquetRead(dirname: String): Option[DataFrame] = {
+  def sortedParquetRead(dirname: String): DataFrame = {
     val partRegex = ".*/?part-r-(\\d+)-.*\\.parquet.*".r
     def getPartNumber(fname: String): Int = {
       fname match {
@@ -17,9 +17,7 @@ class RichSQLContext(val sqlContext: SQLContext) extends AnyVal {
     val parquetFiles = sqlContext.sparkContext.hadoopConfiguration.globAll(Array(s"""$dirname/*.parquet"""))
       .sortBy(getPartNumber)
 
-    if (parquetFiles.isEmpty)
-      None
-    else Some(sqlContext.read.parquet(parquetFiles: _*))
+    sqlContext.read.parquet(parquetFiles: _*)
   }
 }
 

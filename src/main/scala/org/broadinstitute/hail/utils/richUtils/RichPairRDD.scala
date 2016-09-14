@@ -3,7 +3,7 @@ package org.broadinstitute.hail.utils.richUtils
 import org.apache.spark.Partitioner
 import org.apache.spark.Partitioner._
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.sparkextras.{OrderedKey, OrderedRDD}
+import org.broadinstitute.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
 import org.broadinstitute.hail.utils.SpanningIterator
 
 import scala.collection.TraversableOnce
@@ -39,13 +39,13 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
   def asOrderedRDD[PK](implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     OrderedRDD.cast[PK, K, V](rdd)
 
-  def toOrderedRDD[PK](ranges: Array[PK])(implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
-    OrderedRDD(rdd, ranges)
+  def toOrderedRDD[PK](partitioner: OrderedPartitioner[PK, K])(implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
+    OrderedRDD.shuffle(rdd, partitioner)
   }
 
-  def toOrderedRDD[PK](reducedRepresentation: Option[RDD[K]])
+  def toOrderedRDD[PK](reducedRepresentation: RDD[K])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
-    OrderedRDD[PK, K, V](rdd, reducedRepresentation)
+    OrderedRDD[PK, K, V](rdd, Some(reducedRepresentation))
 
   def toOrderedRDD[PK](implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     OrderedRDD[PK, K, V](rdd, None)

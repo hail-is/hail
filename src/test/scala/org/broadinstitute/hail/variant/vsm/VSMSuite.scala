@@ -101,7 +101,7 @@ class VSMSuite extends SparkSuite {
       (v2, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD[Locus]
+          Genotype(1)))))).toOrderedRDD
 
     // differ in variant
     val rdd2 = sc.parallelize(Seq((v1, (va1,
@@ -111,7 +111,7 @@ class VSMSuite extends SparkSuite {
       (v3, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD[Locus]
+          Genotype(1)))))).toOrderedRDD
 
     // differ in genotype
     val rdd3 = sc.parallelize(Seq((v1, (va1,
@@ -121,7 +121,7 @@ class VSMSuite extends SparkSuite {
       (v2, (va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD[Locus]
+          Genotype(1)))))).toOrderedRDD
 
     // for mdata2
     val rdd4 = sc.parallelize(Seq((v1, (va1,
@@ -129,12 +129,12 @@ class VSMSuite extends SparkSuite {
         Genotype(0)))),
       (v2, (va2, Iterable(
         Genotype(0),
-        Genotype(0)))))).toOrderedRDD[Locus]
+        Genotype(0)))))).toOrderedRDD
 
     // differ in number of variants
     val rdd5 = sc.parallelize(Seq((v1, (va1,
       Iterable(Genotype(),
-        Genotype(0)))))).toOrderedRDD[Locus]
+        Genotype(0)))))).toOrderedRDD
 
     // differ in annotations
     val rdd6 = sc.parallelize(Seq((v1, (va1,
@@ -144,7 +144,7 @@ class VSMSuite extends SparkSuite {
       (v2, (va3,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD[Locus]
+          Genotype(1)))))).toOrderedRDD
 
     val vdss = Array(new VariantDataset(mdata1, rdd1),
       new VariantDataset(mdata1, rdd2),
@@ -170,11 +170,11 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testReadWrite() {
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vsm: VariantSampleMatrix[Genotype]) =>
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
       val f = tmpDir.createTempFile(extension = ".vds")
-      vsm.write(sqlContext, f)
-      val vsm2 = VariantSampleMatrix.read(sqlContext, f)
-      vsm2.same(vsm)
+      vds.write(sqlContext, f)
+      val vds2 = VariantSampleMatrix.read(sqlContext, f)
+      vds2.same(vds)
     }
 
     p.check()
@@ -307,7 +307,7 @@ class VSMSuite extends SparkSuite {
   @Test def testCoalesce() {
     val g = for (
       vsm <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
-      k <- Gen.choose(1, vsm.nPartitions))
+      k <- Gen.choose(1, math.max(1, vsm.nPartitions)))
       yield (vsm, k)
 
     forAll(g) { case (vsm, k) =>

@@ -312,7 +312,7 @@ object VEP extends Command {
           .map { case (v, ((va, gs), vaVep)) =>
             (v, (vaVep.map(a => insertVEP(va, Some(a))).getOrElse(va), gs))
           }
-      }.asOrderedRDD[Locus]
+      }.asOrderedRDD
 
     val newVDS = vds.copy(rdd = newRDD,
       vaSignature = newVASignature)

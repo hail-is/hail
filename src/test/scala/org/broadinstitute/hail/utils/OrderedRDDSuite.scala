@@ -7,7 +7,7 @@ import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop, Properties}
 import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, _}
-import org.broadinstitute.hail.variant.{Locus, Variant}
+import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
 class OrderedRDDSuite extends SparkSuite {
@@ -22,13 +22,13 @@ class OrderedRDDSuite extends SparkSuite {
       nPar <- Gen.choose(1, 10)) yield (nPar, uniqueVariants.zip(toZip))
 
     val random = for ((n, v) <- g;
-      shuffled <- Gen.shuffle(v)) yield (n, shuffled)
+      shuffled <- Gen.shuffle(v)) yield sc.parallelize(shuffled, n)
 
     val locusSorted = for ((n, v) <- g;
-      locusSorted <- Gen.const(v.sortBy(_._1.locus))) yield (n, locusSorted)
+      locusSorted <- Gen.const(v.sortBy(_._1.locus))) yield sc.parallelize(locusSorted, n)
 
     val sorted = for ((n, v) <- g;
-      sorted <- Gen.const(v.sortBy(_._1))) yield (n, sorted)
+      sorted <- Gen.const(v.sortBy(_._1))) yield sc.parallelize(sorted, n)
 
     def check(rdd: OrderedRDD[Locus, Variant, String]): Boolean = {
       val p = rdd.orderedPartitioner
@@ -62,8 +62,8 @@ class OrderedRDDSuite extends SparkSuite {
       val rdd1 = sc.parallelize(is1, nPar1).cache()
       val rdd2 = sc.parallelize(is2, nPar2).cache()
 
-      val join: IndexedSeq[(Variant, (String, Option[String]))] = rdd1.toOrderedRDD[Locus]
-        .orderedLeftJoinDistinct(rdd2.toOrderedRDD[Locus])
+      val join: IndexedSeq[(Variant, (String, Option[String]))] = rdd1.toOrderedRDD
+        .orderedLeftJoinDistinct(rdd2.toOrderedRDD)
         .collect()
         .toIndexedSeq
 
@@ -74,16 +74,23 @@ class OrderedRDDSuite extends SparkSuite {
       check1 && check2 && check3
     }
 
-    property("randomlyOrdered") = Prop.forAll(random) { case (nPar, s) =>
-      check(sc.parallelize(s, nPar).toOrderedRDD[Locus])
+    property("randomlyOrdered") = Prop.forAll(random) { rdd =>
+      val (_, ordered) = OrderedRDD.coerce(rdd)
+      check(ordered)
     }
 
-    property("locusSorted") = Prop.forAll(locusSorted) { case (nPar, s) =>
-      check(sc.parallelize(s, nPar).toOrderedRDD[Locus])
+    property("locusSorted") = Prop.forAll(locusSorted) { rdd =>
+      val (status, ordered) = OrderedRDD.coerce(rdd)
+      check(ordered)
+      // FIXME use this when loci split across partitions can be coerced without shuffle
+      // check(ordered) && status <= OrderedRDD.LOCAL_SORT
     }
 
-    property("fullySorted") = Prop.forAll(sorted) { case (nPar, s) =>
-      check(sc.parallelize(s, nPar).toOrderedRDD[Locus])
+    property("fullySorted") = Prop.forAll(sorted) { rdd =>
+      val (status, ordered) = OrderedRDD.coerce(rdd)
+      check(ordered)
+      // FIXME use this when loci split across partitions can be coerced without shuffle
+      // check(ordered) && status == OrderedRDD.AS_IS
     }
 
     property("join1") = Prop.forAll(g, g) { case ((nPar1, is1), (nPar2, is2)) =>
@@ -97,7 +104,7 @@ class OrderedRDDSuite extends SparkSuite {
 
     val g2 = for (uniqueVariants <- Gen.buildableOf[Set, Variant](v2).map(set => set.toIndexedSeq);
       toZip <- Gen.buildableOfN[IndexedSeq, String](uniqueVariants.size, arbitrary[String]);
-      nPar <- Gen.choose(1, 25)) yield (nPar, uniqueVariants.zip(toZip))
+      nPar <- Gen.choose(1, 10)) yield (nPar, uniqueVariants.zip(toZip))
 
     property("join2") = Prop.forAll(g, g2) { case ((nPar1, is1), (nPar2, is2)) =>
       checkJoin(nPar1, is1, nPar2, is2)
@@ -120,7 +127,7 @@ class OrderedRDDSuite extends SparkSuite {
     val tmpRdd = tmpDir.createTempFile("rdd", ".parquet")
 
     property("writeRead") = Prop.forAll(g) { case (nPar, is) =>
-      val rdd = sc.parallelize(is, nPar).toOrderedRDD[Locus]
+      val rdd = sc.parallelize(is, nPar).toOrderedRDD
       val schema = StructType(Array(
         StructField("variant", Variant.schema, nullable = false),
         StructField("str", StringType, nullable = false)))
@@ -135,12 +142,10 @@ class OrderedRDDSuite extends SparkSuite {
       val status = hadoopConf.fileStatus(tmpPartitioner)
 
       val rddReadBack = sqlContext.sortedParquetRead(tmpRdd)
-        .get
-        .rdd
         .map(r => (Variant.fromRow(r.getAs[Row](0)), r.getAs[String](1)))
 
       val readBackPartitioner = hadoopConf.readObjectFile(tmpPartitioner) { in =>
-        OrderedPartitioner.read[Locus, Variant](in)
+        OrderedPartitioner.read[Locus, Variant](in, rddReadBack.partitions.length)
       }
 
       val orderedRddRB = OrderedRDD[Locus, Variant, String](rddReadBack, readBackPartitioner)
@@ -151,10 +156,29 @@ class OrderedRDDSuite extends SparkSuite {
         .collect()
         .forall { case (v1, v2) => v1 == v2 }
     }
+
+    val scrambled = for (rdd <- Gen.oneOfGen(sorted, locusSorted);
+      newPartitions <- Gen.shuffle(rdd.partitions.indices)
+    ) yield (rdd, rdd.reorderPartitions(newPartitions.toArray))
+
+    property("partitionReordering") = Prop.forAll(scrambled) { case (original, scrambled) =>
+
+      val (status, result) = OrderedRDD.coerce(original)
+      val (status2, result2) = OrderedRDD.coerce(scrambled)
+
+      status == status2 && result.fullOuterJoin(result2)
+        .forall { case (v, (s1, s2)) => s1 == s2 }
+    }
   }
 
   @Test def test() {
     Spec.check()
+  }
+
+  @Test def testEmptyPartitions() {
+    val emptyPartitions = sc.parallelize(Array[(Variant, String)](), 10)
+    val (status, rdd) = OrderedRDD.coerce(emptyPartitions)
+    assert(status == OrderedRDD.AS_IS)
   }
 }
 

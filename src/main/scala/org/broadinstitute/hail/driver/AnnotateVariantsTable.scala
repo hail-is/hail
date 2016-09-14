@@ -68,7 +68,7 @@ object AnnotateVariantsTable extends Command with JoinAnnotator {
       _.map { a =>
         variantQuery(a).map(v => (v, a))
       }.value
-    }.toOrderedRDD[Locus]
+    }.toOrderedRDD
 
     state.copy(vds = vds
       .withGenotypeStream()

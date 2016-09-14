@@ -264,7 +264,7 @@ object LoadVCF {
           }.value
           }
         }
-    }).toOrderedRDD[Locus](Some(justVariants))
+    }).toOrderedRDD(justVariants)
 
     justVariants.unpersist()
 

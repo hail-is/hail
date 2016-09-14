@@ -23,12 +23,15 @@ object Coalesce extends Command {
   def run(state: State, options: Options): State = {
     val n = state.vds.nPartitions
     val k = options.k
-    if (n < k) {
+    if (k < 1)
+      fatal(
+        s"""invalid `partitions' argument: $k
+            |  Must request positive number of partitions""".stripMargin)
+    else if (n < k) {
       warn(
         s"""cannot coalesce to a larger number of partitions:
             |  Dataset has $n partitions, requested $k partitions
-            |  In order to run with more partitions, use the --blocksize global option and reimport.
-         """.stripMargin)
+            |  In order to run with more partitions, use the --blocksize global option and reimport.""".stripMargin)
     }
 
     state.copy(vds = state.vds.coalesce(k))

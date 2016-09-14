@@ -40,7 +40,7 @@ class ImputeSexSuite extends SparkSuite {
 
         var s = State(sc, sqlContext).copy(vds = vds.copy(rdd =
           vds.rdd.map { case (v, (va, gs)) => (v.copy(contig = "X"), (va, gs)) }
-            .toOrderedRDD[Locus]))
+            .toOrderedRDD))
 
         s = SplitMulti.run(s)
         s = VariantQC.run(s)

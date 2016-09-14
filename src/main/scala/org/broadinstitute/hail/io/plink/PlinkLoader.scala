@@ -124,7 +124,7 @@ object PlinkLoader {
       case (lw, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
         (v, (Annotation(rsId), vr.getGS))
-    }.toOrderedRDD[Locus]
+    }.toOrderedRDD
 
     VariantSampleMatrix(VariantMetadata(
       sampleIds = sampleIds,

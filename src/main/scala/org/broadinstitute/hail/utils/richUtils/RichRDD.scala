@@ -4,12 +4,16 @@ import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.driver.HailConfiguration
+import org.broadinstitute.hail.sparkextras.ReorderedPartitionsRDD
 import org.broadinstitute.hail.utils._
 
 import scala.reflect.ClassTag
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
+
+  def reorderPartitions(oldIndices: Array[Int])(implicit tct: ClassTag[T]): RDD[T] =
+    new ReorderedPartitionsRDD[T](r, oldIndices)
 
   def forall(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(true)(_ && _)
 
