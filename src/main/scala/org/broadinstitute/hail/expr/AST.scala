@@ -1024,7 +1024,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
 
       case (agg: TAggregable, "map", rhs) =>
-        val Array(Lambda(_, param, body)) = rhs
+        val (param, body) = rhs match {
+          case Array(Lambda(_, p, b)) => (p, b)
+          case _ => parseError(s"method `$method' expects a lambda function (param => Any), " +
+            s"e.g. `x => x < 5' or `tc => tc.canonical'")
+        }
 
         val localIdx = agg.ec.a.length
         val localA = agg.ec.a
@@ -1044,7 +1048,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         }
 
       case (agg: TAggregable, "filter", rhs) =>
-        val Array(Lambda(_, param, body)) = rhs
+        val (param, body) = rhs match {
+          case Array(Lambda(_, p, b)) => (p, b)
+          case _ => parseError(s"method `$method' expects a lambda function (param => Boolean), " +
+            s"e.g. `x => x < 5' or `tc => tc.canonical == 1'")
+        }
 
         val localIdx = agg.ec.a.length
         val localA = agg.ec.a
