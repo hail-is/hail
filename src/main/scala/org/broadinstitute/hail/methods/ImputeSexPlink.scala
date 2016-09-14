@@ -12,7 +12,7 @@ object ImputeSexPlink {
     "nTotal" -> TInt,
     "nCalled" -> TInt,
     "expectedHoms" -> TDouble,
-    "observedHoms" -> TDouble)
+    "observedHoms" -> TInt)
 
   def determineSex(ibc: InbreedingCombiner, fFemaleThreshold: Double, fMaleThreshold: Double): Option[Boolean] = {
     ibc.Fstat
