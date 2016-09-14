@@ -166,26 +166,22 @@ object TNumeric {
     else if (types(TFloat))
       TFloat
     else {
-      assert(types == Set(TLong))
+      assert(types(TLong))
       TLong
     }
   }
 }
 
 abstract class TNumeric extends Type {
-  def makeDouble[U](a: Any): Double
+  def conv: NumericConversion[_]
 }
 
-abstract class TIntegral extends TNumeric {
-  def makeLong[U](a: Any): Long
-}
+abstract class TIntegral extends TNumeric
 
 case object TInt extends TIntegral {
   override def toString = "Int"
 
-  def makeDouble[U](a: Any): Double = a.asInstanceOf[Int].toDouble
-
-  def makeLong[U](a: Any): Long = a.asInstanceOf[Int].toLong
+  val conv = IntNumericConversion
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
@@ -195,9 +191,7 @@ case object TInt extends TIntegral {
 case object TLong extends TIntegral {
   override def toString = "Long"
 
-  def makeDouble[U](a: Any): Double = a.asInstanceOf[Long].toDouble
-
-  def makeLong[U](a: Any): Long = a.asInstanceOf[Long]
+  val conv = LongNumericConversion
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 
@@ -207,7 +201,7 @@ case object TLong extends TIntegral {
 case object TFloat extends TNumeric {
   override def toString = "Float"
 
-  def makeDouble[U](a: Any): Double = a.asInstanceOf[Float].toDouble
+  val conv = FloatNumericConversion
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 
@@ -220,7 +214,7 @@ case object TFloat extends TNumeric {
 case object TDouble extends TNumeric {
   override def toString = "Double"
 
-  def makeDouble[U](a: Any): Double = a.asInstanceOf[Double]
+  val conv = DoubleNumericConversion
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 

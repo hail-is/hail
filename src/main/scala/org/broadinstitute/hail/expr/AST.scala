@@ -582,20 +582,10 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
 
   def eval(ec: EvalContext): () => Any = {
     val f = elements.map(_.eval(ec))
-    val elementType = `type`.asInstanceOf[TArray].elementType
-    if (elementType.isInstanceOf[TNumeric]) {
-      val types = elements.map(_.`type`.asInstanceOf[TNumeric])
-      () => (types, f.map(_ ())).zipped.map { case (t, a) =>
-        (elementType: @unchecked) match {
-          case TDouble => t.makeDouble(a)
-          case TFloat => a
-          case TLong => t.asInstanceOf[TIntegral].makeLong(a)
-          case TInt => a
-        }
-      }: IndexedSeq[Any]
-    } else
-      () => f.map(_ ()): IndexedSeq[Any]
-
+    `type`.asInstanceOf[TArray].elementType match {
+      case t: TNumeric => () => f.map(v => Option(v()).map(t.conv.to(_)).orNull): IndexedSeq[Any]
+      case _           => () => f.map(_ ()): IndexedSeq[Any]
+    }
   }
 }
 

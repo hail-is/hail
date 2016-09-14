@@ -482,6 +482,14 @@ class ExprSuite extends SparkSuite {
     interceptFatal("invalid arguments") {
       eval[Double](""" log(Variant("22", 123, "A", "T")) """)
     }
+
+    assert(eval[Int]("[0, 0.toLong][0].toInt").contains(0))
+    assert(eval[Int]("[0, 0.toFloat][0].toInt").contains(0))
+    assert(eval[Int]("[0, 0.toDouble][0].toInt").contains(0))
+    assert(eval[Boolean]("[NA:Int] == [0]").contains(false))
+    assert(eval[Boolean]("[NA:Long] == [0.toLong]").contains(false))
+    assert(eval[Boolean]("[NA:Float] == [0.toFloat]").contains(false))
+    assert(eval[Boolean]("[NA:Double] == [0.toDouble]").contains(false))
   }
 
   @Test def testParseTypes() {
