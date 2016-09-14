@@ -230,7 +230,7 @@ class ExprSuite extends SparkSuite {
 
     TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Array\[Int\]""")(
       eval[Set[_]](""" [0].flatten() """))
-    
+
     TestUtils.interceptFatal("""does not take parameters, use flatten()""")(
       eval[Set[_]](""" [[0]].flatten(0) """))
 
@@ -526,10 +526,18 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testEscapingSimple() {
+    // a == 0x61, _ = 0x5f
+    assert(escapeStringSimple("abc", '_', _ => false) == "abc")
+    assert(escapeStringSimple("abc", '_', _ == 'a') == "_61bc")
+    assert(escapeStringSimple("abc_", '_', _ => false) == "abc_5f")
+    assert(unescapeStringSimple("abc", '_') == "abc")
+    assert(unescapeStringSimple("abc_5f", '_') == "abc_")
+    assert(unescapeStringSimple("_61bc", '_') == "abc")
+
     val p = forAll { (s: String) =>
-      s == unescapeStringSimple(escapeStringSimple(s, '_', c => c.isLetterOrDigit), '_')
+      s == unescapeStringSimple(escapeStringSimple(s, '_', _.isLetterOrDigit, _.isLetterOrDigit), '_')
     }
-    
+
     p.check()
   }
 

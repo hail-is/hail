@@ -5,6 +5,7 @@ import com.datastax.driver.core.querybuilder.QueryBuilder
 import org.apache.solr.client.solrj.{SolrClient, SolrQuery}
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.http4s.headers.`Content-Type`
 import org.http4s._
 import org.http4s.MediaType._
@@ -20,9 +21,12 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.{read, write}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
+import scala.collection.mutable
+
 case class SeqrRequest(page: Int,
   limit: Int,
   sort_by: Option[Array[String]],
+  sample_filters: Option[Array[String]],
   variant_filters: Option[Map[String, JValue]],
   genotype_filters: Option[Map[String, Map[String, JValue]]])
 
@@ -34,6 +38,9 @@ case class SeqrResponse(is_error: Boolean,
   variants: Option[Array[Map[String, JValue]]])
 
 class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cassKeyspace: String, cassTable: String) {
+  def unescapeString(s: String): String =
+    unescapeStringSimple(s, '_')
+
   def expandException(e: Throwable): String =
     s"${ e.getClass.getName }: ${ e.getMessage }\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
       Option(e.getCause).foreach(exception => expandException(exception))
@@ -92,9 +99,14 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
     val docs = solrResponse.getResults
     val found = docs.getNumFound
 
+    val sampleFilters = req.sample_filters.map(_.toSet)
+
     val variants: Array[Map[String, JValue]] = if (solrOnly) {
       docs.asScala.map { doc =>
-        doc.keySet.asScala.map { fname =>
+        val variants = mutable.Map.empty[String, JValue]
+        val genotypes = mutable.Map.empty[String, mutable.Map[String, JValue]]
+
+        doc.keySet.asScala.foreach { fname =>
 
           def toJSON(v: Any): JValue = v match {
             case null => JNull
@@ -108,8 +120,29 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
             case s: String => JString(s)
           }
 
-          (fname, toJSON(doc.getFieldValue(fname)))
-        }.toMap
+          val jv = toJSON(doc.getFieldValue(fname))
+          val sep = fname.indexOf("__")
+          if (sep == -1)
+            variants += ((fname, jv))
+          else {
+            val sample = fname.substring(0, sep)
+            val include = sampleFilters.forall(_(sample))
+            if (include) {
+              val subFName = fname.substring(sep + 2)
+              genotypes.updateValue(sample, mutable.Map.empty, { m =>
+                m += ((subFName, jv))
+                m
+              })
+            }
+          }
+        }
+
+        variants += (("genotypes",
+          JObject(genotypes.map { case (k, v) =>
+            (k, JObject(v.toList))
+          }.toList)))
+
+        variants.toMap
       }.toArray
     } else {
       val prepared = cassSession.prepare(

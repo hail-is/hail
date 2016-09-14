@@ -9,6 +9,7 @@ import org.apache.solr.common.{SolrException, SolrInputDocument}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -65,31 +66,17 @@ object ExportVariantsSolr extends Command with Serializable {
     case _ => fatal("")
   }
 
-  def escapeSolrFieldName(name: String): String = {
-    val sb = new StringBuilder
-
-    if (name.head.isDigit)
-      sb += '_'
-
-    name.foreach { c =>
-      if (c.isLetterOrDigit)
-        sb += c
-      else
-        sb += '_'
-    }
-
-    sb.result()
-  }
+  def escapeString(name: String): String =
+    escapeStringSimple(name, '_', _.isLetter, _.isLetterOrDigit)
 
   def addFieldReq(preexistingFields: Set[String], name: String, spec: Map[String, AnyRef], t: Type): Option[SchemaRequest.AddField] = {
-    val escapedName = escapeSolrFieldName(name)
-    if (preexistingFields(escapedName))
+    if (preexistingFields(name))
       return None
 
     var m = spec
 
     if (!m.contains("name"))
-      m += "name" -> escapedName
+      m += "name" -> name
 
     if (!m.contains("type"))
       m += "type" -> toSolrType(t)
@@ -107,10 +94,10 @@ object ExportVariantsSolr extends Command with Serializable {
   def documentAddField(document: SolrInputDocument, name: String, t: Type, value: Any) {
     if (t.isInstanceOf[TIterable]) {
       value.asInstanceOf[Traversable[_]].foreach { xi =>
-        document.addField(escapeSolrFieldName(name), xi)
+        document.addField(name, xi)
       }
     } else
-      document.addField(escapeSolrFieldName(name), value)
+      document.addField(name, value)
   }
 
   def processResponse(action: String, res: SolrResponse) {
@@ -200,14 +187,11 @@ object ExportVariantsSolr extends Command with Serializable {
       .map(_.asScala("name").asInstanceOf[String])
       .toSet
 
-    val addFieldReqs = vparsed.flatMap {
-      case (name, spec, t, f) =>
-        addFieldReq(preexistingFields, name, spec, t)
-    } ++ vds.sampleIds.flatMap {
-      s =>
-        gparsed.flatMap {
-          case (name, spec, t, f) =>
-            addFieldReq(preexistingFields, s + "_" + name, spec, t)
+    val addFieldReqs = vparsed.flatMap { case (name, spec, t, f) =>
+        addFieldReq(preexistingFields, escapeString(name), spec, t)
+    } ++ vds.sampleIds.flatMap { s =>
+        gparsed.flatMap { case (name, spec, t, f) =>
+            addFieldReq(preexistingFields, escapeString(s) + "_" + escapeString(name), spec, t)
         }
     }
 
@@ -240,7 +224,7 @@ object ExportVariantsSolr extends Command with Serializable {
             vparsed.foreach {
               case (name, spec, t, f) =>
                 vEC.setAll(v, va)
-                f().foreach(x => documentAddField(document, name, t, x))
+                f().foreach(x => documentAddField(document, escapeString(name), t, x))
             }
 
             gs.iterator.zipWithIndex.foreach {
@@ -251,7 +235,8 @@ object ExportVariantsSolr extends Command with Serializable {
                   gparsed.foreach {
                     case (name, spec, t, f) =>
                       gEC.setAll(v, va, s, sa, g)
-                      f().foreach(x => documentAddField(document, s + "_" + name, t, x))
+                      // __ can't appear in escaped string
+                      f().foreach(x => documentAddField(document, escapeString(s) + "__" + escapeString(name), t, x))
                   }
                 }
             }
