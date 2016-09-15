@@ -336,7 +336,6 @@ div.opt_required, div.opt_optional {
     display: table-cell;
     width: 50%;
     padding-right: 50px;
-    box-sizing: ;
 }
 
 dt.optkey {
