@@ -1979,15 +1979,12 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     val f2 = thenTree.eval(ec)
     val f3 = elseTree.eval(ec)
 
-    // this is necessary to avoid serializing `this` which is not serializable
-    // (and it would be an unnecessary leak anyway)
-    val ifType = `type`
+    val coerce: Any => Any = `type` match {
+      case t: TNumeric => t.conv.to
+      case _           => identity
+    }
 
     () => {
-      def coerce(value: Any): Any = ifType match {
-        case t: TNumeric => t.conv.to(value)
-        case _           => value
-      }
       val c = f1()
       if (c != null) {
         coerce(if (c.asInstanceOf[Boolean]) f2() else f3())
