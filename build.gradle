@@ -35,7 +35,7 @@ mainClassName = "org.broadinstitute.hail.driver.Main"
 
 String scalaVersion = '2.10.4'
 String scalaMajorVersion = '2.10'
-String sparkVersion = System.getProperty("spark.version","1.5.2")
+String sparkVersion = System.getProperty("spark.version","1.6.2")
 // String scalaVersion = '2.11.7'
 // String scalaMajorVersion = '2.11'
 
