@@ -146,21 +146,21 @@ object VariantSampleMatrix {
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
     val isDosage = metadata.isDosage
 
-    val df = sqlContext.sortedParquetRead(dirname + "/rdd.parquet")
-
+    val parquetFile = dirname + "/rdd.parquet"
 
     val rdd = if (skipGenotypes)
-      df.select("variant", "annotations")
+      sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
         .map(row => (row.getVariant(0),
           (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
             Iterable.empty[Genotype])))
     else
-      df.map { row =>
-        val v = row.getVariant(0)
-        (v,
-          (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-            row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
-      }
+      sqlContext.readParquetSorted(parquetFile)
+        .map { row =>
+          val v = row.getVariant(0)
+          (v,
+            (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+              row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
+        }
 
     val partitioner = try {
       Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
@@ -178,7 +178,8 @@ object VariantSampleMatrix {
         warn(
           """No partition information found: VDS is old and will experience poor performance.
             |  Please `read' and `write' this dataset to update it.""".stripMargin)
-        val fastKeys = df.select("variant").map(_.getVariant(0))
+
+        val fastKeys = sqlContext.readParquetSorted(parquetFile, Some(Array("variant"))).map(_.getVariant(0))
         rdd.toOrderedRDD(fastKeys)
     }
 

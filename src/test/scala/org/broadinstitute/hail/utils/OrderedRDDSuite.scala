@@ -141,7 +141,7 @@ class OrderedRDDSuite extends SparkSuite {
 
       val status = hadoopConf.fileStatus(tmpPartitioner)
 
-      val rddReadBack = sqlContext.sortedParquetRead(tmpRdd)
+      val rddReadBack = sqlContext.readParquetSorted(tmpRdd)
         .map(r => (Variant.fromRow(r.getAs[Row](0)), r.getAs[String](1)))
 
       val readBackPartitioner = hadoopConf.readObjectFile(tmpPartitioner) { in =>
