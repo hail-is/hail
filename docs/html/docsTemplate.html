@@ -5,46 +5,7 @@
   <meta charset="utf-8">
   <title>Hail Documentation</title>
   <meta name="description" content="Hail documentation">
-  <link rel="stylesheet" href="css/style.css">
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
-  <script src="js/buildDocs.js"></script>
-  <script>
-    jQuery.fn.extend({
-	loadReq: function(what) {
-	    var self = this;
-	    return $.get(what, function(data) {
-		self.html(data);
-	    });
-	}
-    });
-    
-    $(function() {
-	$.when(
-	    $("#Representation").loadReq("html/docs/Representation.html"),
-	    $("#ImportingGenotypeData").loadReq("html/docs/Importing.html"),
-	    $("#HailObjects").loadReq("html/docs/HailObjectProperties.html"),
-	    $("#Annotations").loadReq("html/docs/Annotations.html"),    
-	    $("#HailExpressionLanguage").loadReq("html/docs/HailExpressionLanguage.html"),
-	    $("#Filtering").loadReq("html/docs/Filtering.html"),
-	    $("#ExportingData").loadReq("html/docs/ExportingData.html"),
-	    $("#ExportingTSV").loadReq("html/docs/ExportTSV.html"),
-	    $("#SQL").loadReq("html/docs/SQL.html"),
-	    $("#GettingStarted").loadReq("html/docs/GettingStarted.html"),
-	    $("#GlobalOptions").loadReq("html/docs/GlobalOptions.html")
-	).then(function() {
-	    $.getJSON("resources/commandOptions.json", function(json) {
-		$.each(json.commands, function(commandName, data) {
-		    if (!data.hidden) {
-			buildCommand(commandName, data)
-		    }
-		});
-		$("div#GlobalOptions div.options").append(
-		    buildGlobalOptions('globalopt', json.global.options));
-		$.getScript("https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML");
-	    });
-	});
-    });
-  </script> 
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>  
