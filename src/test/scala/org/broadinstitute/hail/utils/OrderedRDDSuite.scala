@@ -81,16 +81,12 @@ class OrderedRDDSuite extends SparkSuite {
 
     property("locusSorted") = Prop.forAll(locusSorted) { rdd =>
       val (status, ordered) = OrderedRDD.coerce(rdd)
-      check(ordered)
-      // FIXME use this when loci split across partitions can be coerced without shuffle
-      // check(ordered) && status <= OrderedRDD.LOCAL_SORT
+      check(ordered) && status <= OrderedRDD.LOCAL_SORT
     }
 
     property("fullySorted") = Prop.forAll(sorted) { rdd =>
       val (status, ordered) = OrderedRDD.coerce(rdd)
-      check(ordered)
-      // FIXME use this when loci split across partitions can be coerced without shuffle
-      // check(ordered) && status == OrderedRDD.AS_IS
+      check(ordered) && status == OrderedRDD.AS_IS
     }
 
     property("join1") = Prop.forAll(g, g) { case ((nPar1, is1), (nPar2, is2)) =>
