@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object WriteHcs extends Command {
@@ -18,7 +18,7 @@ object WriteHcs extends Command {
     if (state.hcs == null)
       fatal("Run addhcs before writehcs to add hard call set to state")
 
-    hadoopDelete(options.output, state.hadoopConf, recursive = true)
+    state.hadoopConf.delete(options.output, recursive = true) // overwrite by default
     state.hcs.write(state.sqlContext, options.output)
 
     state

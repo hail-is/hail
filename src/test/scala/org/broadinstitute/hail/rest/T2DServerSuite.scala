@@ -41,12 +41,12 @@ class T2DRunnable(sc: SparkContext, sqlContext: SQLContext) extends Runnable {
 }
 
 class T2DServerSuite extends SparkSuite {
-  var r: T2DRunnable = null
-  var t: Thread = null
+  var r: T2DRunnable = _
+  var t: Thread = _
 
   @BeforeClass
-  override def beforeClass() = {
-    super.beforeClass()
+  override def startSpark() = {
+    super.startSpark()
     r = new T2DRunnable(sc, sqlContext)
     t = new Thread(r)
     t.start()
@@ -1524,9 +1524,9 @@ class T2DServerSuite extends SparkSuite {
 
 
   @AfterClass(alwaysRun = true)
-  override def afterClass() = {
+  override def stopSparkContext() = {
     r.task.shutdownNow()
     t.join()
-    super.afterClass()
+    super.stopSparkContext()
   }
 }

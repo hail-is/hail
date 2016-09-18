@@ -4,7 +4,7 @@ import collection.mutable
 import org.apache.spark.sql.DataFrame
 import org.broadinstitute.hail.methods.LinearRegression
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import breeze.linalg.{DenseMatrix, DenseVector}
 
 import org.http4s.headers.`Content-Type`

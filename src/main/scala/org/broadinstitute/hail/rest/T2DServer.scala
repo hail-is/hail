@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.rest
 
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.driver.{Command, State}
 import org.broadinstitute.hail.variant.HardCallSet
 import org.http4s.server.blaze.BlazeBuilder
@@ -40,7 +40,7 @@ object T2DServer extends Command {
 
   def readCovData(state: State, covFile: String, sampleIds: IndexedSeq[String]): Map[String, IndexedSeq[Option[Double]]] = {
     val (covNames, sampleCovs): (Array[String], Map[String, Array[Option[Double]]]) =
-      readLines(covFile, state.hadoopConf) { lines =>
+      state.hadoopConf.readLines(covFile) { lines =>
         if (lines.isEmpty)
           fatal("empty TSV file")
 
