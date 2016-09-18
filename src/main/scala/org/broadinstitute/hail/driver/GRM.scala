@@ -1,12 +1,9 @@
 package org.broadinstitute.hail.driver
 
 import java.io.DataOutputStream
-import breeze.linalg.DenseMatrix
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.methods.ToStandardizedIndexedRowMatrix
 import org.kohsuke.args4j.{Option => Args4jOption}
-
-import scala.collection.mutable
 
 object GRM extends Command {
 
@@ -51,11 +48,7 @@ object GRM extends Command {
     assert(nSamples == mat.numCols())
     val nVariants = mat.numRows() // mat cached
 
-    val bmat = mat.toBlockMatrix().cache()
-    val grm = bmat.transpose.multiply(bmat)
-          .toLocalMatrix()
-    assert(grm.numCols == nSamples
-      && grm.numRows == nSamples)
+    val grm = mat.computeGramianMatrix()
 
     if (options.idFile != null) {
       state.hadoopConf.writeTextFile(options.idFile) { s =>
