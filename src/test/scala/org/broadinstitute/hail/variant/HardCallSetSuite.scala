@@ -2,10 +2,8 @@ package org.broadinstitute.hail.variant
 
 import breeze.linalg.DenseVector
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.driver.{WriteHcs, AddHcs, SplitMulti, State}
-import org.broadinstitute.hail.methods._
+import org.broadinstitute.hail.io.vcf.LoadVCF
 import org.testng.annotations.Test
-import org.broadinstitute.hail.Utils._
 
 import scala.util.Random
 
