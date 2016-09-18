@@ -5,7 +5,7 @@ import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.Utils._
+import org.broadinstitute.hail.utils._
 
 import scala.collection.mutable
 
@@ -27,8 +27,7 @@ object HardCallSet {
   def read(sqlContext: SQLContext, dirname: String): HardCallSet = {
     require(dirname.endsWith(".hcs"))
 
-    val (sampleIds, sparseCutoff, blockWidth) = readDataFile(dirname + "/hcsInfo.ser",
-      sqlContext.sparkContext.hadoopConfiguration) { dis =>
+    val (sampleIds, sparseCutoff, blockWidth) = sqlContext.sparkContext.hadoopConfiguration.readDataFile(dirname + "/hcsInfo.ser") { dis =>
         try {
           val serializer = SparkEnv.get.serializer.newInstance()
           val ds = serializer.deserializeStream(dis)
@@ -77,8 +76,8 @@ case class HardCallSet(df: DataFrame,
       fatal("Hard call set directory must end with .hcs")
 
     val hConf = rdd.sparkContext.hadoopConfiguration
-    hadoopMkdir(dirname, hConf)
-    writeDataFile(dirname + "/hcsInfo.ser", hConf) {
+    hConf.mkDir(dirname)
+    hConf.writeDataFile(dirname + "/hcsInfo.ser") {
       dos => {
         val serializer = SparkEnv.get.serializer.newInstance()
         val ss = serializer.serializeStream(dos)

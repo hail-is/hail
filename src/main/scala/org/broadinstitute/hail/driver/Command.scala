@@ -3,11 +3,10 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.VariantDataset
+
 import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option => Args4jOption}
 
 import org.broadinstitute.hail.variant.{HardCallSet, VariantDataset}
-import org.broadinstitute.hail.FatalException
 
 import scala.collection.JavaConverters._
 import org.broadinstitute.hail.rest.T2DServer

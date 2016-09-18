@@ -2,6 +2,7 @@ package org.broadinstitute.hail.utils.richUtils
 
 import org.apache.spark.sql.Row
 import org.broadinstitute.hail.variant.{CallStream, GenotypeStream, Variant}
+import org.broadinstitute.hail.utils._
 
 import scala.collection.mutable
 
