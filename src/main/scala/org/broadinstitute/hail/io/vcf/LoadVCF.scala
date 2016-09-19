@@ -44,7 +44,7 @@ object VCFReport {
       case ADODDPPMismatch => "DP != sum(AD) + OD"
       case GQPLMismatch => "GQ != difference of two smallest PL entries"
       case GQMissingPL => "GQ present but PL missing"
-      case RefNonACGTN => "REF contains non-ACGT"
+      case RefNonACGTN => "REF contains non-ACGTN"
       case Symbolic => "Variant is symbolic"
       case ADInvalidNumber => "AD array contained the wrong number of elements"
     }
