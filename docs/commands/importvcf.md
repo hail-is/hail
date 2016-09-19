@@ -22,7 +22,7 @@ $ hail importvcf /path/to/file.vcf.bgz write -o /path/to/output.vds
 ```
 
  - Hail makes certain assumptions about the genotype fields, see [Representation](#Representation).  On import, Hail filters (sets to no-call) any genotype that violates these assumptions.  Hail interpets the format fields: GT, AD, OD, DP, GQ, PL; all others are silently dropped.
- - imporvcf does not preform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all these records will be imported and will not be collapsed into a single variant. 
+ - imporvcf does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all these records will be imported and will not be collapsed into a single variant. 
 </div>
 
 
