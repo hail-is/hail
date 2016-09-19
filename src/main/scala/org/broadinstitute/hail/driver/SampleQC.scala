@@ -312,16 +312,8 @@ object SampleQC extends Command {
         }, Some("Sample\t" + SampleQCCombiner.header))
     }
 
-    val (newSAS, insertQC) = vds.saSignature.insert(SampleQCCombiner.signature, "qc")
-    val newSampleAnnotations = vds.sampleIdsAndAnnotations
-      .map { case (s, sa) =>
-        insertQC(sa, r.get(s).map(_.asAnnotation))
-      }
-
-    state.copy(
-      vds = vds.copy(
-        sampleAnnotations = newSampleAnnotations,
-        saSignature = newSAS)
-    )
+    state.copy(vds = vds.annotateSamples(SampleQCCombiner.signature, List("qc"), { (x: String) =>
+      r.get(x).map(_.asAnnotation)
+    }))
   }
 }
