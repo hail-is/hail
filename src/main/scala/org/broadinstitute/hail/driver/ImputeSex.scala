@@ -49,16 +49,6 @@ object ImputeSex extends Command {
 
     val signature = ImputeSexPlink.schema
 
-    val (newSAS, insertSexCheck) = state.vds.saSignature.insert(signature, "imputesex")
-    val newSampleAnnotations = state.vds.sampleIdsAndAnnotations
-      .map { case (s, sa) =>
-        insertSexCheck(sa, result.get(s))
-      }
-
-    state.copy(
-      vds = state.vds.copy(
-        sampleAnnotations = newSampleAnnotations,
-        saSignature = newSAS)
-    )
+    state.copy(vds = state.vds.annotateSamples(result, signature, List("imputesex")))
   }
 }
