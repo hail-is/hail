@@ -67,6 +67,6 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
       .collect()
       .toMap
 
-    state.copy(vds = vds.annotateSamples(map, finalType, inserter))
+    state.copy(vds = vds.annotateSamples(map.get _, finalType, inserter))
   }
 }

@@ -770,14 +770,20 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def annotateSamples(annotations: Map[String, Annotation], signature: Type, path: List[String]): VariantSampleMatrix[T] = {
     val (t, i) = insertSA(signature, path)
-    annotateSamples(annotations, t, i)
+    annotateSamples(annotations.get _, t, i)
   }
 
-  def annotateSamples(annotations: Map[String, Annotation], newSignature: Type,
-    inserter: Inserter): VariantSampleMatrix[T] = {
+  def annotateSamples(signature: Type, path: List[String], annotation: (String) => Option[Annotation]): VariantSampleMatrix[T] = {
+    val (t, i) = insertSA(signature, path)
+    annotateSamples(annotation, t, i)
+  }
+
+  def annotateSamples(annotation: (String) => Option[Annotation], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
       val sa = sampleAnnotations(i)
-      inserter(sa, annotations.get(id))
+      val newAnnotation = annotation(id)
+      newAnnotation.foreach(newSignature.typeCheck)
+      inserter(sa, newAnnotation)
     }
 
     copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
