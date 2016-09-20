@@ -161,17 +161,19 @@ object OrderedRDD {
         indicesBuilder += it.head
 
       val adjustments = indicesBuilder.result().zipWithIndex.map { case (partitionIndex, index) =>
-        val f = if (index == 0)
-          if (adjustmentsBuffer.nonEmpty && min == sortedKeyInfo(adjustmentsBuffer.last.head.index).max)
-            if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use dropWhile
-              (it: Iterator[(K, V)]) => it.dropWhile(kv => kOk.project(kv._1) == min)
+        val f: (Iterator[(K, V)]) => Iterator[(K, V)] =
+          if (index == 0)
+            if (adjustmentsBuffer.nonEmpty && min == sortedKeyInfo(adjustmentsBuffer.last.head.index).max)
+              if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use dropWhile
+                _.dropWhile(kv => kOk.project(kv._1) == min)
+              else
+                _.filter(kv => kOk.project(kv._1) != min)
             else
-              (it: Iterator[(K, V)]) => it.filter(kv => kOk.project(kv._1) != min)
-          else (it: Iterator[(K, V)]) => it
-        else if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use takeWhile
-          (it: Iterator[(K, V)]) => it.takeWhile(kv => kOk.project(kv._1) == max)
-        else
-          (it: Iterator[(K, V)]) => it.filter(kv => kOk.project(kv._1) == max)
+              identity
+          else if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use takeWhile
+            _.takeWhile(kv => kOk.project(kv._1) == max)
+          else
+            _.filter(kv => kOk.project(kv._1) == max)
         Adjustment(partitionIndex, f)
       }
 
