@@ -87,18 +87,19 @@ object CommandMetadata extends Command {
       val parserGlobal = new CmdLineParser(new Main.Options)
       val globalOptions = parserGlobal.getOptions.iterator().asScala
 
-      pretty(JObject(List(JField("commands",JObject(orderedCommandList.map { c =>
+      pretty(JObject(List(JField("commands", JArray(orderedCommandList.map { c =>
         val parser = new CmdLineParser(c.newOptions)
         val options = parser.getOptions.iterator().asScala
 
-        JField(c.name, JObject(List(
+        JObject(List(
+          JField("name", JString(c.name)),
           JField("synopsis", JString(synopsis(c.name, parser))),
           JField("description", JString(c.description)),
           JField("hidden", JBool(c.hidden)),
           JField("requiresVDS", JBool(c.requiresVDS)),
           JField("supportsMultiallelic", JBool(c.supportsMultiallelic)),
           JField("options", JObject(options.map(optionToJSON).toList))
-      )))}.toList)),
+      ))}.toList)),
 
       JField("global", JObject( JField("options", JObject(globalOptions.map(optionToJSON).toList)))))))
     }

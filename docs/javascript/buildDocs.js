@@ -38,8 +38,8 @@ function buildCommandOptions(cmdId, options) {
 	 	else {return 0};
 	});
 
-	var requiredKeys = optKeys.filter(function(k){return options[k].required;});
-	var optionalKeys = optKeys.filter(function(k){return !options[k].required;});
+	var requiredKeys = optKeys.filter(k => options[k].required);
+	var optionalKeys = optKeys.filter(k => !options[k].required);
 
 	requiredKeyDefList = "<div class=opt_required><h4 class=required>Required</h4><dl class=options id=" + cmdId + ">" + requiredKeys.map(function(k) {return definitionListOption(options[k], k);}).join('') + "</dl></div>";
 	optionalKeyDefList = "<div class=opt_optional><h4 class=optional>Optional</h4><dl class=options id=" + cmdId + ">" + optionalKeys.map(function(k) {return definitionListOption(options[k], k);}).join('') + "</dl></div>";
@@ -55,20 +55,20 @@ exports.buildGlobalOptions = function (options, $) {
       return $.map(options, definitionListOption);
 }
 
-exports.buildCommand = function (commandName, data, pandocOutputDir, $) {
+exports.buildCommand = function (command, pandocOutputDir, $) {
     return new Promise(function (resolve, reject) {
-        var cmdId = commandName.replace(/\s+/g, '_').replace(/\//, '_');
+        var cmdId = command.name.replace(/\s+/g, '_').replace(/\//, '_');
         var templateFile = pandocOutputDir + "commands/" + cmdId + ".html"
 
         function addContent() {
-            $("div#" + cmdId + " div.cmdhead").append(buildHeader(commandName, cmdId));
-            $("div#" + cmdId + " div.description").append(buildDescription(cmdId, data));
-            $("div#" + cmdId + " div.options").append(buildCommandOptions(cmdId, data.options));
-            $("div#" + cmdId + " div.synopsis").append(buildSynopsis(data));
+            $("div#" + cmdId + " div.cmdhead").append(buildHeader(command.name, cmdId));
+            $("div#" + cmdId + " div.description").append(buildDescription(cmdId, command));
+            $("div#" + cmdId + " div.options").append(buildCommandOptions(cmdId, command.options));
+            $("div#" + cmdId + " div.synopsis").append(buildSynopsis(command));
         }
 
         $("body").append("<div class=command id=" + cmdId + "></div>");
-        $("#toc-commands").append("<li><a href=#" + cmdId + ">" + commandName + "</a></li>");
+        $("#toc-commands").append("<li><a href=#" + cmdId + ">" + command.name + "</a></li>");
 
         fs.exists(templateFile, function (exists) {
             if (!exists) {
