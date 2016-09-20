@@ -253,36 +253,51 @@ task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
 }
 
-task setupDocs(type: Exec) {
-    commandLine 'mkdir', '-p', 'build/docs/js/', 'build/docs/html/', 'build/docs/resources/', 'build/docs/css/'
+task setupDocsDirs(type: Exec) {
+    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/docs/'
 }
 
-task runPandoc(type: Exec, dependsOn: setupDocs) {
-    args('docs', 'build/docs/html/')
+task copyHtml(type: Copy, dependsOn: setupDocsDirs) {
+    from 'docs/html'
+    into 'build/tmp/docs'
+}
+
+task copyJavascript(type: Copy, dependsOn: setupDocsDirs) {
+    from 'docs/javascript'
+    into 'build/tmp/docs'
+}
+
+task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
+    args('docs', 'build/tmp/docs/')
     executable 'src/test/resources/runPandoc.sh'
 }
 
-task runCommandsJson(type: JavaExec, dependsOn: ['setupDocs', 'classes']) {
+task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
     main 'org.broadinstitute.hail.driver.Main'
-    args ('commandmeta', '-o', 'build/docs/resources/commandOptions.json')
+    args ('commandmeta', '-o', 'build/tmp/docs/commandOptions.json')
     classpath sourceSets.main.runtimeClasspath
 }
 
-task copyHtml(type: Copy) {
-    from 'docs/index.html'
+task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
+    args('docsTemplate.html', './commandOptions.json', 'docs/', 'index.html')
+    executable 'build/tmp/docs/compileDocsNode.js'
+}
+
+task runNodeFaq(type: Exec, dependsOn: ['runPandoc', 'copyJavascript', 'copyHtml']) {
+    args('faqTemplate.html', 'docs/faq/', 'faq.html')
+    executable 'build/tmp/docs/compileFaqNode.js'
+}
+
+task copyCompiledHtml(type: Copy, dependsOn: ['runNodeDocs', 'runNodeFaq']) {
+    from 'build/tmp/docs/index.html'
+    from 'build/tmp/docs/faq.html'
     into 'build/docs'
 }
 
 task copyCss(type: Copy) {
     from 'docs/style.css'
-    into 'build/docs/css'
+    into 'build/docs'
 }
 
-task copyJavascript(type: Copy) {
-    from 'docs/buildDocs.js'
-    into 'build/docs/js'
-}
-
-task createDocs(dependsOn: ['setupDocs','runPandoc', 'runCommandsJson', 'copyHtml', 'copyCss', 'copyJavascript']) {
-
+task createDocs(dependsOn: ['copyCss', 'copyCompiledHtml']) {
 }
