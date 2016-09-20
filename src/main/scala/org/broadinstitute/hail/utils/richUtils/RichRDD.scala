@@ -43,6 +43,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       case None => Array(tmpFileName + "/part-*")
     }
 
+    if (!hConf.exists(tmpFileName + "/_SUCCESS"))
+      fatal("write failed: no success indicator found")
+
     hConf.delete(filename, recursive = true) // overwriting by default
 
     val (_, dt) = time {
