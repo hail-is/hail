@@ -8,6 +8,37 @@ object StringEscapeUtils {
 
   def hex(ch: Char): String = Integer.toHexString(ch).toUpperCase(Locale.ENGLISH)
 
+  def escapeStringSimple(str: String, escapeChar: Char, escape: (Char) => Boolean): String = {
+    val sb = new StringBuilder
+    str.flatMap { c =>
+      if (escape(c)) {
+        val i = c.toInt
+        assert(i >= 0 && i < 256)
+        val h = Integer.toHexString(i)
+        assert(h.length == 2)
+        sb.append(h)
+      } else
+        sb += c
+    }
+    sb.result()
+  }
+
+  def unescapeStringSimple(str: String, escapeChar: Char): String = {
+    val sb = new StringBuilder
+    var i: Int = 0
+    while (i < str.length) {
+      val c = str(i)
+      if (c == escapeChar) {
+        Integer.parseInt(str.substring(i + 1, i + 3), 16)
+        i += 3
+      } else {
+        sb += c
+        i += 1
+      }
+    }
+    sb.result()
+  }
+
   def escapeString(str: String, backticked: Boolean = false): String =
     escapeString(str, new StringBuilder(capacity = str.length * 2), backticked)
 
