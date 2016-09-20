@@ -47,7 +47,7 @@ The below annotations can be accessed with `va.infoscore.<identifier>`
 
 Identifier | Type | Description
 --- | :-: | ---
-`impute` | `Double` | IMPUTE info score
+`score` | `Double` | IMPUTE info score
 `nIncluded` | `Int` | Number of samples with non-missing dosages
 
 </div>
@@ -59,7 +59,7 @@ Identifier | Type | Description
 ```
 hail importgen -s /my/path/example.sample /my/path/example.gen 
     infoscore 
-    exportvariants -c 'v, va.infoscore.impute, va.infoscore.nIncluded' 
+    exportvariants -c 'v, va.infoscore.score, va.infoscore.nIncluded' 
                    -o infoScores.tsv
 ```
 

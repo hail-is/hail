@@ -15,7 +15,7 @@ class InfoScoreSuite extends SparkSuite {
     s = ImportGEN.run(s, Array("-s", sampleFile, genFile))
     s = InfoScore.run(s, Array.empty[String])
 
-    val truthResult = sc.parallelize(hadoopConf.readLines(truthResultFile)(_.map(_.map { line =>
+    val truthResult = hadoopConf.readLines(truthResultFile)(_.map(_.map { line =>
       val Array(v, snpid, rsid, infoScore, nIncluded) = line.trim.split("\\s+")
       val info = infoScore match {
         case "None" => None
@@ -24,31 +24,26 @@ class InfoScoreSuite extends SparkSuite {
 
       (v, (info, Option(nIncluded.toInt)))
     }.value
-    ).toIndexedSeq))
+    ).toMap)
 
-    val (_, infoQuerier) = s.vds.queryVA("va.infoscore.impute")
+    val (_, infoQuerier) = s.vds.queryVA("va.infoscore.score")
     val (_, nQuerier) = s.vds.queryVA("va.infoscore.nIncluded")
 
     val hailResult = s.vds.rdd.mapValues{ case (va, gs) =>
       (infoQuerier(va).map(_.asInstanceOf[Double]), nQuerier(va).map(_.asInstanceOf[Int]))}
-      .map{case (v, (info, n)) => (v.toString, (info, n))}
+      .map{case (v, (info, n)) => (v.toString, (info, n))}.collectAsMap()
 
-    truthResult.fullOuterJoin(hailResult).forall { case (v, (t, h)) =>
-      if (!(t.isDefined && h.isDefined))
-        false
-      else {
-        val (tI, tN) = t.get
-        val (hI, hN) = h.get
+    (truthResult.keys ++ hailResult.keys).forall{v =>
+      val (tI, tN) = truthResult.getOrElse(v, (None, None))
+      val (hI, hN) = hailResult.getOrElse(v, (None, None))
 
-        val res =
-          tN == hN && ((tI.isEmpty && hI.isEmpty) || D_==(tI.get, hI.get))
+      val res =
+        tN == hN && ((tI.isEmpty && hI.isEmpty) || D_==(tI.get, hI.get))
 
-        if (!res)
-          println(s"v=$v tI=$tI tN=$tN hI=$hI hN=$hN")
+      if (!res)
+        println(s"v=$v tI=$tI tN=$tN hI=$hI hN=$hN")
 
-        res
-      }
-
+      res
     }
   }
 }

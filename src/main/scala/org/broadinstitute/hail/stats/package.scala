@@ -2,8 +2,41 @@ package org.broadinstitute.hail
 
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.variant.Genotype
 
 package object stats {
+
+  def imputeInfoScore(gs: Iterable[Genotype]) = {
+    var result = 0d
+    var expectedAlleleCount = 0d
+    var totalDosage = 0d
+    var nIncluded = 0
+
+    def expectedVariance(dosage: Array[Double]) = {
+      val mean = dosage(1) + 2 * dosage(2)
+      dosage(1) + 4 * dosage(2) - mean * mean
+    }
+
+    def thetaMLE = divOption(expectedAlleleCount, totalDosage)
+
+    gs.foreach{g => g.dosage.foreach { dx =>
+      result += expectedVariance(dx)
+      expectedAlleleCount += dx(1) + 2 * dx(2)
+      totalDosage += dx.sum
+      nIncluded += 1
+    }}
+
+    val infoScore = thetaMLE.flatMap{theta =>
+      if (theta == 1.0 || theta == 0.0)
+        Some(1d)
+      else if (nIncluded == 0)
+        None
+      else
+        Some(1d - ((result / nIncluded) / (2 * theta * (1 - theta))))
+    }
+
+    (infoScore, nIncluded)
+  }
 
   def uniroot(fn: Double => Double, min: Double, max: Double, tolerance: Double = 1.220703e-4): Option[Double] = {
     // based on C code in R source code called zeroin.c
