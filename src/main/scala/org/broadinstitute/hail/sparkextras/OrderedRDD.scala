@@ -130,56 +130,58 @@ object OrderedRDD {
   }
 
   def rangesAndAdjustments[PK, K, V](sortedKeyInfo: Array[PartitionKeyInfo[PK]])
-    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): (IndexedSeq[Adjustment[(K, V)]], Array[PK]) = {
+    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): (IndexedSeq[Array[Adjustment[(K, V)]]], Array[PK]) = {
     import kOk._
+    import scala.Ordering.Implicits._
 
     val rangeBounds = mutable.ArrayBuilder.make[PK]
-    val ab = new mutable.ArrayBuffer[Adjustment[(K, V)]]
-    val ab2 = mutable.ArrayBuilder.make[Int]
+    val adjustmentsBuffer = new mutable.ArrayBuffer[Array[Adjustment[(K, V)]]]
+    val indicesBuilder = mutable.ArrayBuilder.make[Int]
 
     val it = sortedKeyInfo.indices.iterator.buffered
 
     while (it.nonEmpty) {
+      indicesBuilder.clear()
       val i = it.next()
       val thisP = sortedKeyInfo(i)
       val min = thisP.min
       val max = thisP.max
 
-      ab2.clear()
-      while (it.hasNext && {
-        val info = sortedKeyInfo(it.head)
+      indicesBuilder += i
+
+      def overlaps(info: PartitionKeyInfo[PK]): Boolean = {
+        assert(info.min >= max)
         info.min == info.max && info.min == max
-      }) {
-        ab2 += it.next()
       }
+
+      while (it.hasNext && overlaps(sortedKeyInfo(it.head)))
+        indicesBuilder += it.next()
 
       if (it.hasNext && sortedKeyInfo(it.head).min == max)
-        ab2 += it.head
+        indicesBuilder += it.head
 
-      val toTake = ab2.result().toSeq
-
-      val drop = if (ab.nonEmpty && thisP.min == sortedKeyInfo(ab.last.originalIndex).max)
-        if (sortedKeyInfo(i).sortedness > 0) // PK sorted, so can use dropWhile
-          Some((it: Iterator[(K, V)]) => it.dropWhile(kv => kOk.project(kv._1) == min))
+      val adjustments = indicesBuilder.result().zipWithIndex.map { case (partitionIndex, index) =>
+        val f = if (index == 0)
+          if (adjustmentsBuffer.nonEmpty && min == sortedKeyInfo(adjustmentsBuffer.last.head.index).max)
+            if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use dropWhile
+              (it: Iterator[(K, V)]) => it.dropWhile(kv => kOk.project(kv._1) == min)
+            else
+              (it: Iterator[(K, V)]) => it.filter(kv => kOk.project(kv._1) != min)
+          else (it: Iterator[(K, V)]) => it
+        else if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use takeWhile
+          (it: Iterator[(K, V)]) => it.takeWhile(kv => kOk.project(kv._1) == max)
         else
-          Some((it: Iterator[(K, V)]) => it.filter(kv => kOk.project(kv._1) != min))
-      else
-        None
-
-      val take = toTake.map { i =>
-        if (sortedKeyInfo(i).sortedness > 0) // PK sorted, so can use takeWhile
-          (i, (it: Iterator[(K, V)]) => it.takeWhile(kv => kOk.project(kv._1) == max))
-        else
-          (i, (it: Iterator[(K, V)]) => it.filter(kv => kOk.project(kv._1) == max))
+          (it: Iterator[(K, V)]) => it.filter(kv => kOk.project(kv._1) == max)
+        Adjustment(partitionIndex, f)
       }
 
-      ab += Adjustment(i, drop, take)
+      adjustmentsBuffer += adjustments
 
       if (it.hasNext)
         rangeBounds += max
     }
 
-    (ab, rangeBounds.result())
+    (adjustmentsBuffer, rangeBounds.result())
   }
 
   def apply[PK, K, V](rdd: RDD[(K, V)],
