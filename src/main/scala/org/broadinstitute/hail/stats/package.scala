@@ -19,14 +19,15 @@ package object stats {
 
     def thetaMLE = divOption(expectedAlleleCount, totalDosage)
 
-    gs.foreach{g => g.dosage.foreach { dx =>
+    gs.foreach { g => g.dosage.foreach { dx =>
       result += expectedVariance(dx)
       expectedAlleleCount += dx(1) + 2 * dx(2)
       totalDosage += dx.sum
       nIncluded += 1
-    }}
+    }
+    }
 
-    val infoScore = thetaMLE.flatMap{theta =>
+    val infoScore = thetaMLE.flatMap { theta =>
       if (theta == 1.0 || theta == 0.0)
         Some(1d)
       else if (nIncluded == 0)
@@ -70,23 +71,31 @@ package object stats {
         val toleranceActual = 2 * epsilon * math.abs(b) + tolerance / 2
         var newStep = (c - b) / 2
 
-        if (math.abs(fc) < math.abs(fb)) { // swap endpoints so b is best approx
-          a = b; b = c; c = a
-          fa = fb; fb = fc; fc = fa
+        if (math.abs(fc) < math.abs(fb)) {
+          // swap endpoints so b is best approx
+          a = b;
+          b = c;
+          c = a
+          fa = fb;
+          fb = fc;
+          fc = fa
         }
 
         if (math.abs(newStep) <= toleranceActual || fb == 0d) {
           return Option(b) // acceptable approximation is found
         }
 
-        if (math.abs(previousStep) >= toleranceActual && math.abs(fa) > math.abs(fb)) { // try interpolation
-        val cb = c - b
+        if (math.abs(previousStep) >= toleranceActual && math.abs(fa) > math.abs(fb)) {
+          // try interpolation
+          val cb = c - b
 
-          if (a == c) { // if only two distinct points, linear interpolation can only be applied
-          val t1 = fb / fa
+          if (a == c) {
+            // if only two distinct points, linear interpolation can only be applied
+            val t1 = fb / fa
             p = cb * t1
             q = 1.0 - t1
-          } else { // quadric inverse interpolation
+          } else {
+            // quadric inverse interpolation
             q = fa / fc
             val t1 = fb / fc
             val t2 = fb / fa
@@ -94,7 +103,7 @@ package object stats {
             q = (q - 1d) * (t1 - 1d) * (t2 - 1d)
           }
 
-          if ( p > 0d ) //p was calculated with opposite sign
+          if (p > 0d) //p was calculated with opposite sign
             q = -q
           else
             p = -p
@@ -111,11 +120,12 @@ package object stats {
             newStep = -1 * toleranceActual
         }
 
-        a = b; fa = fb
+        a = b;
+        fa = fb
         b += newStep
         fb = fn(b)
 
-        if  ((fb > 0d && fc > 0d) || (fb < 0d && fc < 0d)) {
+        if ((fb > 0d && fc > 0d) || (fb < 0d && fc < 0d)) {
           c = a
           fc = fa
         }
@@ -126,8 +136,8 @@ package object stats {
   }
 
   def FisherExactTest(a: Int, b: Int, c: Int, d: Int,
-                      oddsRatio: Double = 1d, confidence_level: Double = 0.95,
-                      alternative: String = "two.sided"): Array[Option[Double]] = {
+    oddsRatio: Double = 1d, confidence_level: Double = 0.95,
+    alternative: String = "two.sided"): Array[Option[Double]] = {
 
     if (!(a >= 0 && b >= 0 && c >= 0 && d >= 0))
       fatal(s"All inputs must be >= 0. Found [$a, $b, $c, $d]")
@@ -164,7 +174,7 @@ package object stats {
 
     def dnhyper(ncp: Double): Array[Double] = {
       var d = logdc.zipWithIndex.map { case (hr, i) => hr + math.log(ncp) * i }
-      d = d.map (dens => math.exp(dens - d.max))
+      d = d.map(dens => math.exp(dens - d.max))
       d.map(_ / d.sum)
     }
 

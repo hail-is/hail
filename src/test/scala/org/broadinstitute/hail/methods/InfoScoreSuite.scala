@@ -29,11 +29,12 @@ class InfoScoreSuite extends SparkSuite {
     val (_, infoQuerier) = s.vds.queryVA("va.infoscore.score")
     val (_, nQuerier) = s.vds.queryVA("va.infoscore.nIncluded")
 
-    val hailResult = s.vds.rdd.mapValues{ case (va, gs) =>
-      (infoQuerier(va).map(_.asInstanceOf[Double]), nQuerier(va).map(_.asInstanceOf[Int]))}
-      .map{case (v, (info, n)) => (v.toString, (info, n))}.collectAsMap()
+    val hailResult = s.vds.rdd.mapValues { case (va, gs) =>
+      (infoQuerier(va).map(_.asInstanceOf[Double]), nQuerier(va).map(_.asInstanceOf[Int]))
+    }
+      .map { case (v, (info, n)) => (v.toString, (info, n)) }.collectAsMap()
 
-    (truthResult.keys ++ hailResult.keys).forall{v =>
+    (truthResult.keys ++ hailResult.keys).forall { v =>
       val (tI, tN) = truthResult.getOrElse(v, (None, None))
       val (hI, hN) = hailResult.getOrElse(v, (None, None))
 

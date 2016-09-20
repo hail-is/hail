@@ -33,9 +33,10 @@ object InfoScore extends Command {
     val (newVAS, insertInfoScore) = state.vds.saSignature.insert(signature, "infoscore")
 
     state.copy(
-      vds = vds.mapAnnotations{case (v, va, gs) =>
+      vds = vds.mapAnnotations { case (v, va, gs) =>
         val (infoScore, nIncluded) = imputeInfoScore(gs)
-        insertInfoScore(va, Some(Annotation(infoScore.orNull, nIncluded)))}
+        insertInfoScore(va, Some(Annotation(infoScore.orNull, nIncluded)))
+      }
         .copy(vaSignature = newVAS)
     )
   }
