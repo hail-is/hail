@@ -1,6 +1,12 @@
 # Scala Style Guide
-
 ## IntelliJ settings
+### Automatic
+
+The easiest way to comply with the style guide is to load the IntelliJ
+`code_style.xml`. You can load the xml file using the `Manage ...` button on the
+`Editor > Code Style` page. After loading it, select it from the drop-down list.
+
+### Manual
 
 Our style differs slightly from the IntelliJ Scala plugin defaults.
 Make the following changes:
