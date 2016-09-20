@@ -21,7 +21,7 @@ object SparkManager {
   var _sc: SparkContext = _
   var _sqlContext: SQLContext = _
 
-  def createSparkContext(appName: String, master: Option[String], local: String): SparkContext = {
+  def createSparkContext(appName: String, master: Option[String], local: String, gzAsBgz : Boolean): SparkContext = {
     if (_sc == null) {
       val conf = new SparkConf().setAppName(appName)
 
@@ -35,8 +35,12 @@ object SparkManager {
 
       conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       _sc = new SparkContext(conf)
-      _sc.hadoopConfiguration.set("io.compression.codecs",
-        "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
+      if(gzAsBgz)
+        _sc.hadoopConfiguration.set("io.compression.codecs",
+          "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec, org.broadinstitute.hail.io.compress.BGzipCodecGZ")
+      else
+        _sc.hadoopConfiguration.set("io.compression.codecs",
+          "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
     }
 
     _sc
@@ -57,6 +61,9 @@ object HailConfiguration {
   var installDir: String = _
 
   var tmpDir: String = _
+
+  var gzAsBgz: Boolean = _
+
 }
 
 object Main {
@@ -85,6 +92,10 @@ object Main {
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary directory")
     var tmpDir: String = "/tmp"
+
+    @Args4jOption(required = false, name = "--gz-as-bgz", usage = "When used all .gz files are read/written using BGzip codec")
+    var gzAsBgz: Boolean = false
+
   }
 
   private def fail(msg: String): Nothing = {
@@ -273,7 +284,7 @@ object Main {
           }
       }
 
-    val sc = SparkManager.createSparkContext("Hail", Option(options.master), "local[*]")
+    val sc = SparkManager.createSparkContext("Hail", Option(options.master), "local[*]",options.gzAsBgz)
 
     val conf = sc.getConf
     conf.set("spark.ui.showConsoleProgress", "false")
@@ -301,6 +312,7 @@ object Main {
 
     HailConfiguration.installDir = new File(jar).getParent + "/.."
     HailConfiguration.tmpDir = options.tmpDir
+    HailConfiguration.gzAsBgz = options.gzAsBgz
 
     runCommands(sc, sqlContext, invocations)
 

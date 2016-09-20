@@ -18,7 +18,7 @@ trait VCFImporter {
       if (!input.endsWith(".vcf")
         && !input.endsWith(".vcf.bgz")) {
         if (input.endsWith(".vcf.gz")) {
-          if (!forcegz)
+          if (!forcegz && !HailConfiguration.gzAsBgz)
             fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
         } else
           fatal("unknown input file type")
