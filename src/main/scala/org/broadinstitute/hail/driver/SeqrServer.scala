@@ -16,7 +16,7 @@ import org.http4s.server.blaze.BlazeBuilder
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import org.json4s._
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.{read, write}
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -37,7 +37,7 @@ case class SeqrResponse(is_error: Boolean,
   found: Option[Long],
   variants: Option[Array[Map[String, JValue]]])
 
-class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cassKeyspace: String, cassTable: String) {
+class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, cassSession: Session, cassKeyspace: String, cassTable: String) {
   def unescapeString(s: String): String =
     unescapeStringSimple(s, '_')
 
@@ -80,7 +80,7 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
         .mkString(" ")
     }
 
-    println("q: ", q)
+    // println("q: ", q)
     var query = new SolrQuery(q)
 
     if (!solrOnly) {
@@ -106,36 +106,44 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
         val variants = mutable.Map.empty[String, JValue]
         val genotypes = mutable.Map.empty[String, mutable.Map[String, JValue]]
 
-        doc.keySet.asScala.foreach { fname =>
+        doc.keySet.asScala
+          .filter(_ != "_version_")
+          .foreach { name =>
 
-          def toJSON(v: Any): JValue = v match {
-            case null => JNull
-            case b: java.lang.Boolean => JBool(b)
-            case i: Int => JInt(i)
-            case i: Long => JInt(i)
-            case d: Double => JDouble(d)
-            case f: Float => JDouble(f)
-            case al: java.util.ArrayList[_] =>
-              JArray(al.asScala.map(vi => toJSON(vi)).toList)
-            case s: String => JString(s)
-          }
+            def toJSON(v: Any): JValue = v match {
+              case null => JNull
+              case b: java.lang.Boolean => JBool(b)
+              case i: Int => JInt(i)
+              case i: Long => JInt(i)
+              case d: Double => JDouble(d)
+              case f: Float => JDouble(f)
+              case al: java.util.ArrayList[_] =>
+                JArray(al.asScala.map(vi => toJSON(vi)).toList)
+              case s: String => JString(s)
+            }
 
-          val jv = toJSON(doc.getFieldValue(fname))
-          val sep = fname.indexOf("__")
-          if (sep == -1)
-            variants += ((fname, jv))
-          else {
-            val sample = fname.substring(0, sep)
-            val include = sampleFilters.forall(_(sample))
-            if (include) {
-              val subFName = fname.substring(sep + 2)
-              genotypes.updateValue(sample, mutable.Map.empty, { m =>
-                m += ((subFName, jv))
-                m
-              })
+            var jv = toJSON(doc.getFieldValue(name))
+            val sep = name.indexOf("__")
+            if (sep == -1) {
+              val uname = unescapeString(name)
+
+              if (jsonFields.contains(uname)) {
+                val JString(s) = jv
+                jv = JsonMethods.parse(s)
+              }
+              variants += ((uname, jv))
+            } else {
+              val usample = unescapeString(name.substring(0, sep))
+              val include = sampleFilters.forall(_.contains(usample))
+              if (include) {
+                val subuname = unescapeString(name.substring(sep + 2))
+                genotypes.updateValue(usample, mutable.Map.empty, { m =>
+                  m += ((subuname, jv))
+                  m
+                })
+              }
             }
           }
-        }
 
         variants += (("genotypes",
           JObject(genotypes.map { case (k, v) =>
@@ -249,6 +257,7 @@ class SeqrService(solrOnly: Boolean, solr: SolrClient, cassSession: Session, cas
           val knownKeys = Set("page",
             "limit",
             "sort_by",
+            "sample_filters",
             "variant_filters",
             "genotype_filters")
 
@@ -292,6 +301,10 @@ object SeqrServerCommand extends Command {
     @Args4jOption(name = "-z", aliases = Array("--zk-host"),
       usage = "Zookeeper host string to connect to")
     var zkHost: String = _
+
+    @Args4jOption(name = "-j", aliases = Array("--json-fields"),
+      usage = "Comma-separated list of JSON-encoded fields")
+    var jsonFields: String = ""
 
     @Args4jOption(name = "--solr-only", usage = "Return results directly queried from Solr")
     var solrOnly = false
@@ -342,6 +355,8 @@ object SeqrServerCommand extends Command {
     if (solrOnly != (options.address == null))
       fatal("either --solr-only or all of -a, -k and -t required, but not both")
 
+    val jsonFields = options.jsonFields.split(",").map(_.trim).filter(_.nonEmpty).toSet
+
     val solr =
       if (url != null)
         new HttpSolrClient.Builder(url)
@@ -360,7 +375,7 @@ object SeqrServerCommand extends Command {
       else
         CassandraStuff.getSession(options.address)
 
-    val solrService = new SeqrService(solrOnly, solr, cassSession, options.keyspace, options.table)
+    val solrService = new SeqrService(solrOnly, jsonFields, solr, cassSession, options.keyspace, options.table)
 
     val task = BlazeBuilder.bindHttp(6060, "0.0.0.0")
       .mountService(solrService.service, "/")

@@ -533,6 +533,9 @@ class ExprSuite extends SparkSuite {
     assert(unescapeStringSimple("abc", '_') == "abc")
     assert(unescapeStringSimple("abc_5f", '_') == "abc_")
     assert(unescapeStringSimple("_61bc", '_') == "abc")
+    assert(unescapeStringSimple("_u0061bc", '_') == "abc")
+    assert(escapeStringSimple("my name is 名谦", '_', _ => false) == "my name is _u540d_u8c26")
+    assert(unescapeStringSimple("my name is _u540d_u8c26", '_') == "my name is 名谦")
 
     val p = forAll { (s: String) =>
       s == unescapeStringSimple(escapeStringSimple(s, '_', _.isLetterOrDigit, _.isLetterOrDigit), '_')

@@ -54,10 +54,10 @@ object ExportVariantsSolr extends Command with Serializable {
   def requiresVDS = true
 
   def toSolrType(t: Type): String = t match {
-    case TInt => "tint"
-    case TLong => "tlong"
-    case TFloat => "tfloat"
-    case TDouble => "tdouble"
+    case TInt => "int"
+    case TLong => "long"
+    case TFloat => "float"
+    case TDouble => "double"
     case TBoolean => "boolean"
     case TString => "string"
     // FIXME only 1 deep
@@ -67,7 +67,7 @@ object ExportVariantsSolr extends Command with Serializable {
   }
 
   def escapeString(name: String): String =
-    escapeStringSimple(name, '_', _.isLetter, _.isLetterOrDigit)
+    escapeStringSimple(name, '_', !_.isLetter, !_.isLetterOrDigit)
 
   def addFieldReq(preexistingFields: Set[String], name: String, spec: Map[String, AnyRef], t: Type): Option[SchemaRequest.AddField] = {
     if (preexistingFields(name))
@@ -188,11 +188,12 @@ object ExportVariantsSolr extends Command with Serializable {
       .toSet
 
     val addFieldReqs = vparsed.flatMap { case (name, spec, t, f) =>
-        addFieldReq(preexistingFields, escapeString(name), spec, t)
+      addFieldReq(preexistingFields, escapeString(name), spec, t)
     } ++ vds.sampleIds.flatMap { s =>
-        gparsed.flatMap { case (name, spec, t, f) =>
-            addFieldReq(preexistingFields, escapeString(s) + "_" + escapeString(name), spec, t)
-        }
+      gparsed.flatMap { case (name, spec, t, f) =>
+        val fname = escapeString(s) + "__" + escapeString(name)
+        addFieldReq(preexistingFields, fname, spec, t)
+      }
     }
 
     info(s"adding ${

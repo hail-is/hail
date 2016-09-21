@@ -15,15 +15,19 @@ object StringEscapeUtils {
     var i: Int = 0
     while (i < str.length) {
       val c = str(i)
-      if (c == escapeChar || escape(c) || (i == 0 && escapeFirst(c))) {
-        val i = c.toInt
-        if (i < 256) {
-          val h = Integer.toHexString(i)
-          assert(h.length == 2)
-          sb += escapeChar
-          sb.append(h)
-        } else {
+      if (c == escapeChar || escape(c) || (i == 0 && escapeFirst(c)) || c > 255) {
+        sb += escapeChar
 
+        val h = Integer.toHexString(c)
+        if (c < 256) {
+          assert(h.length <= 2)
+          val hpad = "0" * (2 - h.length) + h
+          sb.append(hpad)
+        } else {
+          val hpad = "0" * (4 - h.length) + h
+          assert(hpad.length == 4)
+          sb += 'u'
+          sb.append(h)
         }
       } else
         sb += c
@@ -33,7 +37,7 @@ object StringEscapeUtils {
   }
 
   def escapeStringSimple(str: String, escapeChar: Char, escape: (Char) => Boolean): String
-   = escapeStringSimple(str, escapeChar, escape, escape)
+  = escapeStringSimple(str, escapeChar, escape, escape)
 
   def unescapeStringSimple(str: String, escapeChar: Char): String = {
     val sb = new StringBuilder
@@ -41,8 +45,13 @@ object StringEscapeUtils {
     while (i < str.length) {
       val c = str(i)
       if (c == escapeChar) {
-        sb += Integer.parseInt(str.substring(i + 1, i + 3), 16).toChar
-        i += 3
+        if (str(i + 1) == 'u') {
+          sb += Integer.parseInt(str.substring(i + 2, i + 6), 16).toChar
+          i += 6
+        } else {
+          sb += Integer.parseInt(str.substring(i + 1, i + 3), 16).toChar
+          i += 3
+        }
       } else {
         sb += c
         i += 1
