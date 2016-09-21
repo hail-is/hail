@@ -16,12 +16,15 @@ class RichSparkContext(val sc: SparkContext) extends AnyVal {
      * since it asks for nPartitions per file instead of nPartitions over all.
      */
     val rdd = sc.textFile(files.mkString(","), nPartitions)
-    val partitionsBc = sc.broadcast(rdd.partitions)
+    val partitionFile = rdd.partitions
+      .map { p =>
+        SparkExport.hadoopPartitionSplit(p).asInstanceOf[FileSplit].getPath.toString
+      }
 
     rdd
       .mapPartitionsWithIndex { case (i, it) =>
         // FIXME subclass TextInputFormat to return (file, line)
-        val file = SparkExport.hadoopPartitionSplit(partitionsBc.value(i)).asInstanceOf[FileSplit].getPath.toString
+        val file = partitionFile(i)
         it.map { line =>
           WithContext(line, TextContext(line, file, None))
         }
