@@ -32,6 +32,9 @@ object ImportAnnotationsTable extends Command with JoinAnnotator {
     @Args4jOption(required = false, name = "-c", aliases = Array("--code"),
       usage = "Use annotation expressions select specific columns / groups")
     var code: String = _
+
+    @Args4jOption(name = "-n", aliases = Array("--npartition"), usage = "Number of partitions")
+    var nPartitions: java.lang.Integer = _
   }
 
   def newOptions = new Options
@@ -50,7 +53,13 @@ object ImportAnnotationsTable extends Command with JoinAnnotator {
     if (files.isEmpty)
       fatal("Arguments referred to no files")
 
-    val (struct, rdd) = TextTableReader.read(state.sc, files, options.config)
+    val (struct, rdd) =
+      if (options.nPartitions != null) {
+        if (options.nPartitions < 1)
+          fatal("requested number of partitions in -n/--npartitions must be positive")
+        TextTableReader.read(state.sc)(files, options.config, options.nPartitions)
+      } else
+        TextTableReader.read(state.sc)(files, options.config)
 
     val (finalType, fn): (Type, (Annotation, Option[Annotation]) => Annotation) = Option(options.code).map { code =>
       val ec = EvalContext(Map(

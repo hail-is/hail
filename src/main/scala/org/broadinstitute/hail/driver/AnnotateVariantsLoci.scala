@@ -53,7 +53,7 @@ object AnnotateVariantsLoci extends Command with JoinAnnotator {
       case _ => fatal("this module requires one of `--root' or `--code', but not both")
     }
 
-    val (struct, rdd) = TextTableReader.read(state.sc, files, options.config)
+    val (struct, rdd) = TextTableReader.read(state.sc)(files, options.config, vds.nPartitions)
 
     val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
       val ec = EvalContext(Map(
@@ -68,7 +68,7 @@ object AnnotateVariantsLoci extends Command with JoinAnnotator {
       _.map { a =>
         locusQuery(a).map(l => (l, a))
       }.value
-    }.toOrderedRDD
+    }.toOrderedRDD(vds.rdd.orderedPartitioner.mapMonotonic)
 
     state.copy(vds = vds
       .withGenotypeStream()

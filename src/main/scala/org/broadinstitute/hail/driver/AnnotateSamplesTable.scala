@@ -46,16 +46,17 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
       case _ => fatal("this module requires one of `--root' or `--code', but not both")
     }
 
-    val (struct, rdd) = TextTableReader.read(state.sc, Array(options.input), options.config)
+    val (struct, rdd) = TextTableReader.read(state.sc)(Array(options.input), options.config)
 
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
-      val ec = EvalContext(Map(
-        "sa" -> (0, vds.saSignature),
-        "table" -> (1, struct)))
-      buildInserter(code, vds.saSignature, ec, Annotation.SAMPLE_HEAD)
-
-    } else vds.insertSA(struct, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
-
+    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
+      if (expr) {
+        val ec = EvalContext(Map(
+          "sa" -> (0, vds.saSignature),
+          "table" -> (1, struct)))
+        buildInserter(code, vds.saSignature, ec, Annotation.SAMPLE_HEAD)
+      } else
+        vds.insertSA(struct, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
+    
     val sampleQuery = struct.parseInStructScope[String](options.sampleExpr, TString)
 
     val map = rdd

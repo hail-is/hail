@@ -45,13 +45,13 @@ object OrderedRDD {
       }
   }
 
-  def apply[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None)
+  def apply[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]], hintPartitioner: Option[OrderedPartitioner[PK, K]])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
-    val (_, orderedRDD) = coerce(rdd, fastKeys)
+    val (_, orderedRDD) = coerce(rdd, fastKeys, hintPartitioner)
     orderedRDD
   }
 
-  def coerce[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None)
+  def coerce[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None, hintPartitioner: Option[OrderedPartitioner[PK, K]] = None)
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): (CoercionMethod, OrderedRDD[PK, K, V]) = {
     import kOk._
 
@@ -117,8 +117,11 @@ object OrderedRDD {
       }
     } else {
       info("Ordering unsorted dataset with network shuffle")
-      val ranges = calculateKeyRanges(keys.map(kOk.project))
-      (SHUFFLE, shuffle(rdd, OrderedPartitioner(ranges, ranges.length + 1)))
+      val p = hintPartitioner.getOrElse {
+        val ranges = calculateKeyRanges(keys.map(kOk.project))
+        OrderedPartitioner(ranges, ranges.length + 1)
+      }
+      (SHUFFLE, shuffle(rdd, p))
     }
   }
 
