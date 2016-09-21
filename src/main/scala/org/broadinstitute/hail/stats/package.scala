@@ -1,9 +1,60 @@
 package org.broadinstitute.hail
 
 import org.apache.commons.math3.distribution.HypergeometricDistribution
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr.{TDouble, TInt, TStruct}
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.variant.Genotype
 
 package object stats {
+
+  object InfoScoreCombiner {
+    def signature = TStruct("score" -> TDouble, "nIncluded" -> TInt)
+  }
+
+  class InfoScoreCombiner {
+    var result = 0d
+    var expectedAlleleCount = 0d
+    var totalDosage = 0d
+    var nIncluded = 0
+
+    def expectedVariance(dosage: Array[Double], mean: Double): Double = (dosage(1) + 4 * dosage(2)) - (mean * mean)
+
+    def merge(g: Genotype): InfoScoreCombiner = {
+      g.dosage.foreach { dx =>
+        val mean = dx(1) + 2 * dx(2)
+        result += expectedVariance(dx, mean)
+        expectedAlleleCount += mean
+        totalDosage += dx.sum
+        nIncluded += 1
+      }
+      this
+    }
+
+    def merge(that: InfoScoreCombiner): InfoScoreCombiner = {
+      result += that.result
+      expectedAlleleCount += that.expectedAlleleCount
+      totalDosage += that.totalDosage
+      nIncluded += that.nIncluded
+      this
+    }
+
+    def thetaMLE = divOption(expectedAlleleCount, totalDosage)
+
+    def imputeInfoScore(theta: Double) =
+      if (theta == 1.0 || theta == 0.0)
+        Some(1d)
+      else if (nIncluded == 0)
+        None
+      else
+        Some(1d - ((result / nIncluded) / (2 * theta * (1 - theta))))
+
+    def asAnnotation: Annotation = {
+      val score = thetaMLE.flatMap { theta => imputeInfoScore(theta) }
+
+      Annotation(score.orNull, nIncluded)
+    }
+  }
 
   def uniroot(fn: Double => Double, min: Double, max: Double, tolerance: Double = 1.220703e-4): Option[Double] = {
     // based on C code in R source code called zeroin.c
@@ -37,23 +88,31 @@ package object stats {
         val toleranceActual = 2 * epsilon * math.abs(b) + tolerance / 2
         var newStep = (c - b) / 2
 
-        if (math.abs(fc) < math.abs(fb)) { // swap endpoints so b is best approx
-          a = b; b = c; c = a
-          fa = fb; fb = fc; fc = fa
+        if (math.abs(fc) < math.abs(fb)) {
+          // swap endpoints so b is best approx
+          a = b;
+          b = c;
+          c = a
+          fa = fb;
+          fb = fc;
+          fc = fa
         }
 
         if (math.abs(newStep) <= toleranceActual || fb == 0d) {
           return Option(b) // acceptable approximation is found
         }
 
-        if (math.abs(previousStep) >= toleranceActual && math.abs(fa) > math.abs(fb)) { // try interpolation
-        val cb = c - b
+        if (math.abs(previousStep) >= toleranceActual && math.abs(fa) > math.abs(fb)) {
+          // try interpolation
+          val cb = c - b
 
-          if (a == c) { // if only two distinct points, linear interpolation can only be applied
-          val t1 = fb / fa
+          if (a == c) {
+            // if only two distinct points, linear interpolation can only be applied
+            val t1 = fb / fa
             p = cb * t1
             q = 1.0 - t1
-          } else { // quadric inverse interpolation
+          } else {
+            // quadric inverse interpolation
             q = fa / fc
             val t1 = fb / fc
             val t2 = fb / fa
@@ -61,7 +120,7 @@ package object stats {
             q = (q - 1d) * (t1 - 1d) * (t2 - 1d)
           }
 
-          if ( p > 0d ) //p was calculated with opposite sign
+          if (p > 0d) //p was calculated with opposite sign
             q = -q
           else
             p = -p
@@ -78,11 +137,12 @@ package object stats {
             newStep = -1 * toleranceActual
         }
 
-        a = b; fa = fb
+        a = b;
+        fa = fb
         b += newStep
         fb = fn(b)
 
-        if  ((fb > 0d && fc > 0d) || (fb < 0d && fc < 0d)) {
+        if ((fb > 0d && fc > 0d) || (fb < 0d && fc < 0d)) {
           c = a
           fc = fa
         }
@@ -93,8 +153,8 @@ package object stats {
   }
 
   def FisherExactTest(a: Int, b: Int, c: Int, d: Int,
-                      oddsRatio: Double = 1d, confidence_level: Double = 0.95,
-                      alternative: String = "two.sided"): Array[Option[Double]] = {
+    oddsRatio: Double = 1d, confidence_level: Double = 0.95,
+    alternative: String = "two.sided"): Array[Option[Double]] = {
 
     if (!(a >= 0 && b >= 0 && c >= 0 && d >= 0))
       fatal(s"All inputs must be >= 0. Found [$a, $b, $c, $d]")
@@ -131,7 +191,7 @@ package object stats {
 
     def dnhyper(ncp: Double): Array[Double] = {
       var d = logdc.zipWithIndex.map { case (hr, i) => hr + math.log(ncp) * i }
-      d = d.map (dens => math.exp(dens - d.max))
+      d = d.map(dens => math.exp(dens - d.max))
       d.map(_ / d.sum)
     }
 
