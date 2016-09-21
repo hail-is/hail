@@ -6,6 +6,7 @@ import org.apache.spark.rdd.{PartitionPruningRDD, RDD, ShuffledRDD}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.utils._
 import org.apache.spark.{SparkContext, _}
+import org.broadinstitute.hail.variant.Variant
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -78,7 +79,6 @@ object OrderedRDD {
       else
         Iterator()
     }.collect()
-
 
     log.info(s"keyInfo = ${ keyInfo.toSeq }")
 

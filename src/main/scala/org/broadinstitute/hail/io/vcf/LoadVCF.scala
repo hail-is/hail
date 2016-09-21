@@ -1,12 +1,14 @@
 package org.broadinstitute.hail.io.vcf
 
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
+import org.apache.hadoop.mapred.FileSplit
+import org.apache.spark.sql.SparkExport
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.sparkextras.OrderedRDD
+import org.broadinstitute.hail.sparkextras.{OrderedRDD, ReorderedPartitionsRDD, ReorderedPartitionsRDDPartition}
 import org.broadinstitute.hail.variant._
 
 import scala.collection.JavaConversions._
@@ -114,8 +116,8 @@ object LoadVCF {
   }
 
   def lineVariant(s: String): Variant = {
-    val arr = s.split("\t", 6)
-    Variant(arr(0), arr(1).toInt, arr(3), arr(4))
+    val Array(contig, start, id, ref, alts, rest) = s.split("\t", 6)
+    Variant(contig, start.toInt, ref, alts.split(","))
   }
 
   def infoNumberToString(line: VCFInfoHeaderLine): String = line.getCountType match {
@@ -229,7 +231,13 @@ object LoadVCF {
     else
       files
 
-    val justVariants = sc.textFilesLines(files2, nPartitions = nPartitions.getOrElse(sc.defaultMinPartitions))
+    val lines = sc.textFilesLines(files2, nPartitions.getOrElse(sc.defaultMinPartitions))
+    val partitionFile = lines.partitions
+      .map { p =>
+        SparkExport.hadoopPartitionSplit(p).asInstanceOf[FileSplit].getPath.toString
+      }
+
+    val justVariants = lines
       .filter(_.map { line => !line.isEmpty &&
         line(0) != '#' &&
         lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
@@ -238,33 +246,39 @@ object LoadVCF {
       .map(_.map(lineVariant).value)
     justVariants.persist(StorageLevel.MEMORY_AND_DISK)
 
-    val genotypes = sc.union(files2.map { file =>
-      val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-      VCFReport.accumulators ::= (file, reportAcc)
+    val reportAccs = partitionFile.toSet.iterator
+      .map { (file: String) =>
+        val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
+        VCFReport.accumulators ::= (file, reportAcc)
+        (file, reportAcc)
+      }
+      .toMap
 
-      sc.textFileLines(file, nPartitions.getOrElse(sc.defaultMinPartitions))
-        .mapPartitions { lines =>
-          val codec = new htsjdk.variant.vcf.VCFCodec()
-          val reader = HtsjdkRecordReader(headerLinesBc.value, codec)
-          lines.flatMap { l => l.map { line =>
-            if (line.isEmpty || line(0) == '#')
+    val genotypes = lines
+      .mapPartitionsWithIndex { case (i, lines) =>
+        val file = partitionFile(i)
+        val reportAcc = reportAccs(file)
+
+        val codec = new htsjdk.variant.vcf.VCFCodec()
+        val reader = HtsjdkRecordReader(headerLinesBc.value, codec)
+        lines.flatMap { l => l.map { line =>
+          if (line.isEmpty || line(0) == '#')
+            None
+          else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
+            reportAcc += VCFReport.RefNonACGTN
+            None
+          } else {
+            val vc = codec.decode(line)
+            if (vc.isSymbolic) {
+              reportAcc += VCFReport.Symbolic
               None
-            else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
-              reportAcc += VCFReport.RefNonACGTN
-              None
-            } else {
-              val vc = codec.decode(line)
-              if (vc.isSymbolic) {
-                reportAcc += VCFReport.Symbolic
-                None
-              } else
-                Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value),
-                  settings))
-            }
-          }.value
+            } else
+              Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value),
+                settings))
           }
+        }.value
         }
-    }).toOrderedRDD(justVariants)
+      }.toOrderedRDD(justVariants)
 
     justVariants.unpersist()
 
