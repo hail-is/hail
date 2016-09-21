@@ -5,16 +5,12 @@ import java.util.Arrays.binarySearch
 
 import org.broadinstitute.hail.expr._
 
-object HistogramResult {
+object HistogramCombiner {
   def schema: Type = TStruct(
     "indices" -> TArray(TDouble),
     "densities" -> TArray(TLong),
     "nSmaller" -> TLong,
     "nGreater" -> TLong)
-}
-
-case class HistogramResult(indices: Array[Double], densities: Array[Long], nSmaller: Long, nGreater: Long) {
-  def toAnnotation: Annotation = Annotation(indices: IndexedSeq[Double], densities: IndexedSeq[Long], nSmaller, nGreater)
 }
 
 class HistogramCombiner(indices: Array[Double]) extends Serializable {
@@ -54,5 +50,5 @@ class HistogramCombiner(indices: Array[Double]) extends Serializable {
     this
   }
 
-  def result: HistogramResult = HistogramResult(indices, density, nSmaller, nGreater)
+  def toAnnotation: Annotation = Annotation(indices: IndexedSeq[Double], density: IndexedSeq[Long], nSmaller, nGreater)
 }

@@ -403,7 +403,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, {c: false, d: true}) """).contains(Annotation(null, null, false, true)))
     assert(eval[Annotation]("""merge({a: 1, b: 2}, NA: Struct{c: Boolean, d: Boolean}) """).contains(Annotation(1, 2, null, null)))
     assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, NA: Struct{c: Boolean, d: Boolean}) """).isEmpty)
-    TestUtils.interceptFatal("invalid merge operation: same-name fields")(
+    TestUtils.interceptFatal("cannot merge structs with same-name fields")(
       eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true, a: 1, b: 0}) """).contains(Annotation(1, 2, false, true)))
     TestUtils.interceptFatal("invalid arguments to `merge'")(
       eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}) """).isEmpty)
