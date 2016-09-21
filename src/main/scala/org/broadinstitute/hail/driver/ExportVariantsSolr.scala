@@ -142,7 +142,6 @@ object ExportVariantsSolr extends Command with Serializable {
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
 
-    // FIXME use custom parser with constraint on Solr field name
     val vparsed = Parser.parseSolrNamedArgs(vCond, vEC)
 
     val gSymTab = Map(

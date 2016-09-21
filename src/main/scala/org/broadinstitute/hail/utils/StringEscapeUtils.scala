@@ -36,8 +36,8 @@ object StringEscapeUtils {
     sb.result()
   }
 
-  def escapeStringSimple(str: String, escapeChar: Char, escape: (Char) => Boolean): String
-  = escapeStringSimple(str, escapeChar, escape, escape)
+  def escapeStringSimple(str: String, escapeChar: Char, escape: (Char) => Boolean): String =
+    escapeStringSimple(str, escapeChar, escape, escape)
 
   def unescapeStringSimple(str: String, escapeChar: Char): String = {
     val sb = new StringBuilder
