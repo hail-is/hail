@@ -64,19 +64,20 @@ jsdom.env(faqHtmlTemplate, function (err, window) {
             });
         }
 
-        var loadFaqPromises =  [loadReq("#general", pandocOutputDir + "General.html"),
-                                loadReq("#importingdata", pandocOutputDir + "ImportingData.html"),
-                                loadReq("#annotations", pandocOutputDir + "Annotations.html"),
-                                loadReq("#exprlang", pandocOutputDir + "ExpressionLanguage.html"),
-                                loadReq("#filteringdata", pandocOutputDir + "FilteringData.html"),
-                                loadReq("#exportingdata", pandocOutputDir + "ExportingData.html"),
-                                loadReq("#datarep", pandocOutputDir + "DataRepresentation.html"),
-                                loadReq("#methods", pandocOutputDir + "Methods.html"),
-                                loadReq("#optimizepipeline", pandocOutputDir + "OptimizePipeline.html"),
-                                loadReq("#installation", pandocOutputDir + "Installation.html"),
-                                loadReq("#devtools", pandocOutputDir + "DevTools.html"),
-                                loadReq("#errormessages", pandocOutputDir + "ErrorMessages.html")
-                                ];
+        var loadFaqPromises =  ["Annotations",
+                                "DataRepresentation",
+                                "DevTools",
+                                "ErrorMessages",
+                                "ExportingData",
+                                "ExpressionLanguage",
+                                "FilteringData",
+                                "General",
+                                "ImportingData",
+                                "Installation",
+                                "Methods",
+                                "OptimizePipeline",
+                                "Representation"]
+                                .map(name => loadReq("#" + name, pandocOutputDir + name + ".html"));;
 
         Promise.all(loadFaqPromises)
             .then(buildTOC, error)
