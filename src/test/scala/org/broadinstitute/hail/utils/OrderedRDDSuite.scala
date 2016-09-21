@@ -35,21 +35,28 @@ class OrderedRDDSuite extends SparkSuite {
 
     def check(rdd: OrderedRDD[Locus, Variant, String], original: RDD[(Variant, String)]): Boolean = {
       val p = rdd.orderedPartitioner
+
+      case class PartitionSummary(partitionIndex: Int,
+        sorted: Boolean,
+        correctPartitioning: Boolean,
+        maybeBounds: Option[(Variant, Variant)])
+
       val partitionSummaries = rdd.mapPartitionsWithIndex { case (partitionIndex, iter) =>
         val a = iter.toArray
         val keys = a.map(_._1)
         val sorted = keys.isSorted
         val correctPartitioning = keys.forall(k => p.getPartition(k) == partitionIndex)
-        Iterator((partitionIndex, sorted, correctPartitioning, if (a.nonEmpty) Some((a.head._1, a.last._1)) else None))
-      }.collect().sortBy(_._1)
+        Iterator(PartitionSummary(partitionIndex, sorted, correctPartitioning,
+          if (a.nonEmpty) Some((a.head._1, a.last._1)) else None))
+      }.collect().sortBy(_.partitionIndex)
 
       val sameElems = rdd.collect.toSet == original.collect.toSet
 
-      val validPartitions = partitionSummaries.flatMap(_._4.map(_._1)).headOption match {
+      val validPartitions = partitionSummaries.flatMap(_.maybeBounds.map(_._1)).headOption match {
         case Some(first) =>
-          val sortedWithin = partitionSummaries.forall(_._2)
-          val partitionedCorrectly = partitionSummaries.forall(_._3)
-          val sortedBetween = partitionSummaries.flatMap(_._4)
+          val sortedWithin = partitionSummaries.forall(_.sorted)
+          val partitionedCorrectly = partitionSummaries.forall(_.correctPartitioning)
+          val sortedBetween = partitionSummaries.flatMap(_.maybeBounds)
             .tail
             .foldLeft((true, first)) { case ((b, last), (start, end)) =>
               (b && start > last, end)
