@@ -11,6 +11,11 @@ import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, _}
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
+case class PartitionSummary(partitionIndex: Int,
+  sorted: Boolean,
+  correctPartitioning: Boolean,
+  maybeBounds: Option[(Variant, Variant)])
+
 class OrderedRDDSuite extends SparkSuite {
 
   object Spec extends Properties("OrderedRDDFunctions") {
@@ -35,11 +40,6 @@ class OrderedRDDSuite extends SparkSuite {
 
     def check(rdd: OrderedRDD[Locus, Variant, String], original: RDD[(Variant, String)]): Boolean = {
       val p = rdd.orderedPartitioner
-
-      case class PartitionSummary(partitionIndex: Int,
-        sorted: Boolean,
-        correctPartitioning: Boolean,
-        maybeBounds: Option[(Variant, Variant)])
 
       val partitionSummaries = rdd.mapPartitionsWithIndex { case (partitionIndex, iter) =>
         val a = iter.toArray
