@@ -1,10 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.storage.StorageLevel
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.Utils._
-import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.language.postfixOps
@@ -41,7 +41,7 @@ object TDTCommand extends Command {
 
     val newRDD = state.vds.rdd.zipPartitions(resultsRDD, preservesPartitioning = true) { case (it1, it2) =>
       it1.sortedLeftJoinDistinct(it2).map { case (v, ((va, gs), tdtResult)) => (v, (inserter(va, tdtResult.map(_.toAnnotation)), gs)) }
-    }.toOrderedRDD(_.locus)
+    }.toOrderedRDD
 
     Option(options.output).foreach { filename =>
       resultsRDD.map { case (v, tdtResult) =>
