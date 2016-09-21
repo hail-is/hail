@@ -3,9 +3,11 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.io.vcf.LoadVCF
-import org.kohsuke.args4j.{Option => Args4jOption, Argument}
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+
 import scala.collection.JavaConverters._
 import org.apache.hadoop
+import org.apache.spark.SparkContext
 
 trait VCFImporter {
   def globAllVcfs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
@@ -43,6 +45,9 @@ object ImportVCF extends Command with VCFImporter {
     @Args4jOption(name = "-f", aliases = Array("--force"), usage = "Force load .gz file")
     var force: Boolean = false
 
+    @Args4jOption(name = "--force-bgz", usage = "Force load .gz file using BGzip codec")
+    var forceBGz: Boolean = false
+
     @Args4jOption(name = "--header-file", usage = "File to load header from")
     var headerFile: String = null
 
@@ -75,25 +80,35 @@ object ImportVCF extends Command with VCFImporter {
     if (options.input)
       warn("-i deprecated, no longer needed")
 
-    val inputs = globAllVcfs(options.arguments.asScala.toArray, state.hadoopConf, options.force)
+    val inputs = globAllVcfs(options.arguments.asScala.toArray, state.hadoopConf, options.force || options.forceBGz)
 
     val headerFile = if (options.headerFile != null)
       options.headerFile
     else
       inputs.head
 
-    state.copy(vds = LoadVCF(state.sc,
-      headerFile,
-      inputs,
-      options.storeGQ,
-      !options.noCompress,
-      if (options.nPartitions != 0)
-        Some(options.nPartitions)
-      else
-        None,
-      options.skipGenotypes,
-      options.ppAsPL,
-      options.skipBadAD))
+    val codecs = state.sc.hadoopConfiguration.get("io.compression.codecs")
+
+    if(options.forceBGz)
+      state.sc.hadoopConfiguration.set("io.compression.codecs",
+        codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec","org.broadinstitute.hail.io.compress.BGzipCodecGZ"))
+
+  val vds =  LoadVCF(state.sc,
+    headerFile,
+    inputs,
+    options.storeGQ,
+    !options.noCompress,
+    if (options.nPartitions != 0)
+      Some(options.nPartitions)
+    else
+      None,
+    options.skipGenotypes,
+    options.ppAsPL,
+    options.skipBadAD)
+
+    state.sc.hadoopConfiguration.set("io.compression.codecs",codecs)
+
+    state.copy(vds = vds)
   }
 
 }
