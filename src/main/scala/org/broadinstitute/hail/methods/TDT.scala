@@ -1,10 +1,9 @@
 package org.broadinstitute.hail.methods
 
 import org.apache.spark.rdd.RDD
-import org.broadinstitute.hail.Utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.utils.MultiArray2
+import org.broadinstitute.hail.utils.{MultiArray2, _}
 import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant.GenotypeType._
 import org.broadinstitute.hail.variant._
