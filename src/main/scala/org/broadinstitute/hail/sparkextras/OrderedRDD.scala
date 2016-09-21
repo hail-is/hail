@@ -117,14 +117,16 @@ object OrderedRDD {
       }
     } else {
       info("Ordering unsorted dataset with network shuffle")
-      val p = hintPartitioner.getOrElse {
-        val ranges = calculateKeyRanges(keys.map(kOk.project))
-        OrderedPartitioner(ranges, ranges.length + 1)
-      }
+      val p = hintPartitioner
+        .filter(_.numPartitions >= rdd.partitions.length)
+        .getOrElse {
+          val ranges = calculateKeyRanges(keys.map(kOk.project))
+          OrderedPartitioner(ranges, ranges.length + 1)
+        }
       (SHUFFLE, shuffle(rdd, p))
     }
   }
-
+  
   def apply[PK, K, V](rdd: RDD[(K, V)],
     orderedPartitioner: OrderedPartitioner[PK, K])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {

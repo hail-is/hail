@@ -73,7 +73,7 @@ object Main {
 
     @Args4jOption(required = false, name = "--master", usage = "Set Spark master (default: system default or local[*])")
     var master: String = _
-    
+
     @Args4jOption(name = "-b", aliases = Array("--min-block-size"), usage = "Minimum size of file splits in MB")
     var blockSize: Int = 1
 
