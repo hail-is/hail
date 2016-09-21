@@ -1194,7 +1194,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           case TGenotype => InfoScoreCombiner.signature
           case _ => parseError(
             s"""method `$method' can not operate on `$agg'
-                |  Accepted aggregable types: `Aggregable[Genotype]'
+                |  Accepted aggregable type: `Aggregable[Genotype]'
              """.stripMargin
           )
         }

@@ -18,13 +18,11 @@ package object stats {
     var totalDosage = 0d
     var nIncluded = 0
 
-    def expectedMean(dosage: Array[Double]): Double = dosage(1) + 2 * dosage(2)
-
     def expectedVariance(dosage: Array[Double], mean: Double): Double = (dosage(1) + 4 * dosage(2)) - (mean * mean)
 
     def merge(g: Genotype): InfoScoreCombiner = {
       g.dosage.foreach { dx =>
-        val mean = expectedMean(dx)
+        val mean = dx(1) + 2 * dx(2)
         result += expectedVariance(dx, mean)
         expectedAlleleCount += mean
         totalDosage += dx.sum

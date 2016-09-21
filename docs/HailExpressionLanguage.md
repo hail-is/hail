@@ -308,6 +308,42 @@ annotatevariants expr -c 'va.hetSamples = gs.filter(g => g.isCalledNonRef).map(g
 
 The above reads, "where the genotype is called non-reference, collect the sample id".  This returns an `Array[String]`.
 
+### <a name="aggreg_infoscore"></a> InfoScore
+
+```
+<genotype aggregable>.infoScore()
+```
+
+`infoScore()` is an aggregator that computes an [IMPUTE info score](#infoscore) on an aggregable of genotypes (gs). 
+
+The following annotations are generated:
+
+ - `score [Double]`: IMPUTE info score
+ - `nIncluded [Int]`: Number of samples with non-missing dosages
+
+**Note:**
+If the genotype data was not imported using the [`importbgen`](#importbgen) or [`importgen`](#importgen) commands, then the results for all variants will be `score = null` and `nIncluded = 0`.
+
+**Examples:**
+
+Calculate the info score per variant and export the resulting annotations to a TSV file:
+
+```
+hail importgen -s /my/path/example.sample /my/path/example.gen 
+    annotatevariants expr -c 'va.infoScore = gs.infoScore()' 
+    exportvariants -c 'v, va.infoScore.score, va.infoScore.nIncluded' 
+                   -o infoScores.tsv
+```
+
+Calculate group-specific info scores per variant:
+
+```
+hail importgen -s /my/path/example.sample /my/path/example.gen
+    annotatesamples table -i phenotypes.tsv -r "sa.pheno"    
+    annotatevariants expr -c 'va.infoScoreCase = gs.filter(g => sa.pheno.Pheno1 == "Case").infoScore()
+    annotatevariants expr -c 'va.infoScoreControl = gs.filter(g => sa.pheno.Pheno1 == "Control").infoScore()    
+```
+
 ## Filtering
 
 Filtering requires an expression that evaluates to a boolean.
@@ -367,23 +403,15 @@ filtervariants expr --keep -c 'va.fet.pValue < 1e-4'
 exportvariants -o /path/my/results.tsv -c 'v, va.minorCase, va.majorCase, va.minorControl, va.majorControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'
 ```
 
-### IMPUTE Info Score (Dosage Data)
+### <a name="infoscore"></a> IMPUTE Info Score (Dosage Data)
 
-The `infoScore` method can be used to calculate the IMPUTE info score from a [genotype row aggregable](#aggregables). 
+The `infoScore` aggregator can be used to calculate the IMPUTE info score from a [genotype aggregable](#aggreg_infoscore). 
+
+**Example:**
 
 ```
 annotatevariants expr -c 'va.infoScore = gs.infoScore()'
 ```
-
-The following variant annotations are generated:
-
- - `score [Double]`: IMPUTE info score
- - `nIncluded [Int]`: Number of samples with non-missing dosages
-
-**Note:**
-If the genotype data was not imported using the `importbgen` or `importgen` commands, then the results for all variants will be `score = null` and `nIncluded = 0`.
-
-#### Algorithm
 
 We implemented the IMPUTE info measure as described in the [supplementary information from Marchini & Howie. Genotype imputation for genome-wide association studies. Nature Reviews Genetics (2010)](http://www.nature.com/nrg/journal/v11/n7/extref/nrg2796-s3.pdf).
 
@@ -402,7 +430,6 @@ $$
  - $f_{i} = p_{i1} + 4p_{i2}$
  - $\hat{\theta} = \frac{\sum_{i=1}^{N}e_{i}}{2N}$ is the MLE for the population minor allele frequency
 
-#### Consistency of results with QCTOOL
 Hail will not generate identical results as [QCTOOL](http://www.well.ox.ac.uk/~gav/qctool/#overview) for the following reasons:
  
  - The floating point number Hail stores for each dosage is slightly different than the original data due to rounding and normalization of probabilities.
@@ -410,14 +437,4 @@ Hail will not generate identical results as [QCTOOL](http://www.well.ox.ac.uk/~g
  - Hail does not use the population frequency to impute dosages when a dosage has been set to missing.
  - **Hail calculates the same statistic for sex chromosomes as autosomes while QCTOOL incorporates sex information**
 
-**The info score Hail reports will be extremely different than qctool when a SNP has a high missing rate.**
-
-#### Examples
-
-**Calculate info scores from dosage data and export annotations to a TSV file**
-```
-hail importgen -s /my/path/example.sample /my/path/example.gen 
-    annotatevariants expr -c 'va.infoScore = gs.infoScore()' 
-    exportvariants -c 'v, va.infoScore.score, va.infoScore.nIncluded' 
-                   -o infoScores.tsv
-```
+**Warning!!! The info score Hail reports will be extremely different from qctool when a SNP has a high missing rate.**
