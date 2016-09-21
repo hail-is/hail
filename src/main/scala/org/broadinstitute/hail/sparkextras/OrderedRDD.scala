@@ -6,6 +6,7 @@ import org.apache.spark.rdd.{PartitionPruningRDD, RDD, ShuffledRDD}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.utils._
 import org.apache.spark.{SparkContext, _}
+import org.broadinstitute.hail.variant.Variant
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -45,13 +46,13 @@ object OrderedRDD {
       }
   }
 
-  def apply[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None)
+  def apply[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]], hintPartitioner: Option[OrderedPartitioner[PK, K]])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
-    val (_, orderedRDD) = coerce(rdd, fastKeys)
+    val (_, orderedRDD) = coerce(rdd, fastKeys, hintPartitioner)
     orderedRDD
   }
 
-  def coerce[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None)
+  def coerce[PK, K, V](rdd: RDD[(K, V)], fastKeys: Option[RDD[K]] = None, hintPartitioner: Option[OrderedPartitioner[PK, K]] = None)
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): (CoercionMethod, OrderedRDD[PK, K, V]) = {
     import kOk._
 
@@ -78,7 +79,6 @@ object OrderedRDD {
       else
         Iterator()
     }.collect()
-
 
     log.info(s"keyInfo = ${ keyInfo.toSeq }")
 
@@ -117,11 +117,16 @@ object OrderedRDD {
       }
     } else {
       info("Ordering unsorted dataset with network shuffle")
-      val ranges = calculateKeyRanges(keys.map(kOk.project))
-      (SHUFFLE, shuffle(rdd, OrderedPartitioner(ranges, ranges.length + 1)))
+      val p = hintPartitioner
+        .filter(_.numPartitions >= rdd.partitions.length)
+        .getOrElse {
+          val ranges = calculateKeyRanges(keys.map(kOk.project))
+          OrderedPartitioner(ranges, ranges.length + 1)
+        }
+      (SHUFFLE, shuffle(rdd, p))
     }
   }
-
+  
   def apply[PK, K, V](rdd: RDD[(K, V)],
     orderedPartitioner: OrderedPartitioner[PK, K])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {

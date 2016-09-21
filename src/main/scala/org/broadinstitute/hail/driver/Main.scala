@@ -74,8 +74,8 @@ object Main {
     @Args4jOption(required = false, name = "--master", usage = "Set Spark master (default: system default or local[*])")
     var master: String = _
 
-    @Args4jOption(name = "-b", aliases = Array("--blocksize"), usage = "Minimum size of file system splits")
-    var blockSize: Int = 128
+    @Args4jOption(name = "-b", aliases = Array("--min-block-size"), usage = "Minimum size of file splits in MB")
+    var blockSize: Int = 1
 
     @Args4jOption(required = false, name = "--parquet-compression", usage = "Parquet compression codec")
     var parquetCompression = "uncompressed"

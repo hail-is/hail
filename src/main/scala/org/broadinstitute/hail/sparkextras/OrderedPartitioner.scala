@@ -13,7 +13,7 @@ import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 import scala.util.hashing.{MurmurHash3, byteswap32}
 
-case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], nPartitions: Int, ascending: Boolean = true)
+case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int, ascending: Boolean = true)
   (implicit val kOk: OrderedKey[PK, K])
   extends Partitioner {
 
@@ -21,16 +21,14 @@ case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], nPartitions: Int, a
   import kOk.pkOrd
   import Ordering.Implicits._
 
-  require(nPartitions == 0 && rangeBounds.isEmpty || nPartitions == rangeBounds.length + 1,
-    s"nPartitions = $nPartitions, ranges = ${rangeBounds.length}")
+  require(numPartitions == 0 && rangeBounds.isEmpty || numPartitions == rangeBounds.length + 1,
+    s"nPartitions = $numPartitions, ranges = ${rangeBounds.length}")
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left, right) => left < right })
 
   def write(out: ObjectOutputStream) {
     out.writeBoolean(ascending)
     out.writeObject(rangeBounds)
   }
-
-  def numPartitions: Int = nPartitions
 
   var binarySearch: (Array[PK], PK) => Int = OrderedPartitioner.makeBinarySearch[PK]
 
@@ -85,7 +83,7 @@ case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], nPartitions: Int, a
   }
 
   def mapMonotonic[K2](implicit k2Ok: OrderedKey[PK, K2]): OrderedPartitioner[PK, K2] = {
-    new OrderedPartitioner(rangeBounds, nPartitions, ascending)
+    new OrderedPartitioner(rangeBounds, numPartitions, ascending)
   }
 }
 

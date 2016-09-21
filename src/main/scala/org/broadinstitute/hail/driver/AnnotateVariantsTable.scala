@@ -53,7 +53,7 @@ object AnnotateVariantsTable extends Command with JoinAnnotator {
       case _ => fatal("this module requires one of `--root' or `--code', but not both")
     }
 
-    val (struct, rdd) = TextTableReader.read(state.sc, files, options.config)
+    val (struct, rdd) = TextTableReader.read(state.sc)(files, options.config, vds.nPartitions)
 
     val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
       val ec = EvalContext(Map(
@@ -68,7 +68,7 @@ object AnnotateVariantsTable extends Command with JoinAnnotator {
       _.map { a =>
         variantQuery(a).map(v => (v, a))
       }.value
-    }.toOrderedRDD
+    }.toOrderedRDD(vds.rdd.orderedPartitioner)
 
     state.copy(vds = vds
       .withGenotypeStream()

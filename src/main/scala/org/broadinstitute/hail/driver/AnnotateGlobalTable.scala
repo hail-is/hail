@@ -32,7 +32,7 @@ object AnnotateGlobalTable extends Command with JoinAnnotator {
 
     val path = Parser.parseAnnotationRoot(options.root, Annotation.GLOBAL_HEAD)
 
-    val (struct, rdd) = TextTableReader.read(state.sc, Array(options.input), options.config)
+    val (struct, rdd) = TextTableReader.read(state.sc)(Array(options.input), options.config)
     val arrayType = TArray(struct)
 
     val (finalType, inserter) = vds.insertGlobal(arrayType, Parser.parseAnnotationRoot(options.root, Annotation.GLOBAL_HEAD))

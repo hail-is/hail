@@ -95,9 +95,9 @@ object TextTableReader {
       Some(TString)
   }
 
-  def read(sc: SparkContext,
-    files: Array[String],
-    config: TextTableConfiguration = TextTableConfiguration()): (TStruct, RDD[WithContext[Annotation]]) = {
+  def read(sc: SparkContext)(files: Array[String],
+    config: TextTableConfiguration = TextTableConfiguration(),
+    nPartitions: Int = sc.defaultMinPartitions): (TStruct, RDD[WithContext[Annotation]]) = {
     require(files.nonEmpty)
 
     val noHeader = config.noHeader
@@ -133,7 +133,7 @@ object TextTableReader {
 
     val duplicates = columns.duplicates()
     if (duplicates.nonEmpty) {
-      fatal(s"invalid header: found duplicate columns [${duplicates.map(x => '"' + x + '"').mkString(", ")}]")
+      fatal(s"invalid header: found duplicate columns [${ duplicates.map(x => '"' + x + '"').mkString(", ") }]")
     }
 
     val sb = new StringBuilder
@@ -145,7 +145,7 @@ object TextTableReader {
         split.foreach { line =>
           line.foreach { fields =>
             if (line.value.length != nField)
-              fatal(s"""$firstFile: field number mismatch: header contained $nField fields, found ${line.value.length}""")
+              fatal(s"""$firstFile: field number mismatch: header contained $nField fields, found ${ line.value.length }""")
           }
         }
 
@@ -191,13 +191,13 @@ object TextTableReader {
       else line != firstLine
     } && commentChar.forall(ch => !line.startsWith(ch))
 
-    val rdd = sc.textFilesLines(files)
+    val rdd = sc.textFilesLines(files, nPartitions)
       .filter(line => filter(line.value))
       .map {
         _.map { line =>
           val split = line.split(separator, -1)
           if (split.length != nField)
-            fatal(s"expected $nField fields, but found ${split.length} fields")
+            fatal(s"expected $nField fields, but found ${ split.length } fields")
           Annotation.fromSeq(
             (split, namesAndTypes).zipped
               .map { case (elem, (name, t)) =>
@@ -209,7 +209,7 @@ object TextTableReader {
                 }
                 catch {
                   case e: Exception =>
-                    fatal(s"""${e.getClass.getName}: could not convert "$elem" to $t in column "$name" """)
+                    fatal(s"""${ e.getClass.getName }: could not convert "$elem" to $t in column "$name" """)
                 }
               })
         }
