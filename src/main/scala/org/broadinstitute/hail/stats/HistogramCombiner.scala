@@ -55,6 +55,4 @@ class HistogramCombiner(indices: Array[Double]) extends Serializable {
   }
 
   def result: HistogramResult = HistogramResult(indices, density, nSmaller, nGreater)
-
-  def copy: HistogramCombiner = new HistogramCombiner(indices)
 }

@@ -13,6 +13,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.{Position, Positional}
 import scala.language.existentials
+import scala.reflect.ClassTag
 
 case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
 
@@ -236,6 +237,12 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   }
 
   def parseError(msg: String): Nothing = ParserUtils.error(pos, msg)
+
+  def errorIf[T <: AST](msg: String)(implicit c: ClassTag[T]) {
+    if (c.runtimeClass.isInstance(this))
+      parseError(msg)
+    subexprs.foreach(_.errorIf[T](msg))
+  }
 }
 
 case class Const(posn: Position, value: Any, t: BaseType) extends AST(posn) {
@@ -584,7 +591,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     val f = elements.map(_.eval(ec))
     `type`.asInstanceOf[TArray].elementType match {
       case t: TNumeric => () => f.map(v => Option(v()).map(t.conv.to(_)).orNull): IndexedSeq[Any]
-      case _           => () => f.map(_ ()): IndexedSeq[Any]
+      case _ => () => f.map(_ ()): IndexedSeq[Any]
     }
   }
 }
@@ -957,9 +964,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
-
-  var store: Any = _
-
   def getSymRefId(ast: AST): String = {
     ast match {
       case SymRef(_, id) => id
@@ -1177,63 +1181,16 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         rhs match {
           case Array(startAST, endAST, binsAST) =>
 
-            try {
-              val ec = EvalContext()
-              startAST.typecheck(ec)
-              endAST.typecheck(ec)
-              binsAST.typecheck(ec)
+            rhs.foreach(_.typecheck(ec))
+            rhs.foreach(_.errorIf[SymRef]("method `hist' cannot contain variable references"))
 
-              val types = Array(startAST.`type`, endAST.`type`, binsAST.`type`)
+              val types = rhs.map(_.`type`)
               types match {
                 case Array(_: TNumeric, _: TNumeric, TInt) =>
                 case _ => parseError(
                   s"""method `hist' expects arguments of type (Numeric, Numeric, Int)
                       |  Found ${ types.mkString(", ") }""".stripMargin)
               }
-            } catch {
-              case e: FatalException if """symbol `.*' not found""".r.findFirstIn(e.getMessage).isDefined =>
-                parseError(
-                  """all arguments to method `hist' must be numeric constants / computations
-                    |  Variable references arenot allowed """.stripMargin)
-              case e: Throwable => throw e
-            }
-            val (start, end) = AST.evalComposeNumeric[Double, Double](ec, startAST, endAST) { case (s, e) => (s, e) }
-              .apply().asInstanceOf[(Double, Double)]
-            val bins = AST.evalCompose[Int](ec, binsAST)(x => x).apply().asInstanceOf[Int]
-
-            if (bins <= 0)
-              parseError(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
-
-            val binSize = (end - start) / bins
-            if (binSize <= 0)
-              parseError(
-                s"""invalid bin size from given arguments (start = $start, end = $end, bins = $bins)
-                    |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
-                 """.stripMargin)
-
-            val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
-
-            info(
-              s"""computing histogram with the following bins:
-                  |  ${
-                val fString = math.log10(indices.length - 1).ceil.toInt
-                val longestBound = indices.map(_.formatted("%.2f").length).max
-                def formatRange(d: Double): String = d.formatted("%.2f")
-                val maxStrLength = indices.map(formatRange).map(_.length).max
-                val formatted = indices.map(formatRange).map(_.formatted(s"%${ maxStrLength }s"))
-
-                formatted.zip(formatted.tail)
-                  .zipWithIndex
-                  .map { case ((l, r), index) =>
-                    val rightBound = if (index == indices.length - 2) "]" else ")"
-                    s"bin ${ index.formatted(s"%0${ fString }d") }: [$l, $r$rightBound"
-                  }
-                  .grouped(2)
-                  .map { arr => arr.mkString(",   ")
-                  }.mkString(",\n  ")
-              }""".stripMargin)
-
-            store = new HistogramCombiner(indices)
 
             `type` = HistogramResult.schema
 
@@ -1579,8 +1536,43 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           Annotation(sc.mean, sc.stdev, sc.min, sc.max, sc.count, sc.sum)
       }
 
-    case (agg: TAggregable, "hist", _) =>
-      val hc = store.asInstanceOf[HistogramCombiner]
+    case (agg: TAggregable, "hist", Array(startAST, endAST, binsAST)) =>
+
+      val start = DoubleNumericConversion.to(startAST.eval(ec)())
+      val end = DoubleNumericConversion.to(endAST.eval(ec)())
+      val bins = binsAST.eval(ec)().asInstanceOf[Int]
+
+      if (bins <= 0)
+        parseError(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
+
+      val binSize = (end - start) / bins
+      if (binSize <= 0)
+        parseError(
+          s"""invalid bin size from given arguments (start = $start, end = $end, bins = $bins)
+              |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
+                 """.stripMargin)
+
+      val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
+
+      info(
+        s"""computing histogram with the following bins:
+            |  ${
+          val fString = math.log10(indices.length - 1).ceil.toInt
+          val longestBound = indices.map(_.formatted("%.2f").length).max
+          def formatRange(d: Double): String = d.formatted("%.2f")
+          val maxStrLength = indices.map(formatRange).map(_.length).max
+          val formatted = indices.map(formatRange).map(_.formatted(s"%${ maxStrLength }s"))
+
+          formatted.zip(formatted.tail)
+            .zipWithIndex
+            .map { case ((l, r), index) =>
+              val rightBound = if (index == indices.length - 2) "]" else ")"
+              s"bin ${ index.formatted(s"%0${ fString }d") }: [$l, $r$rightBound"
+            }
+            .grouped(2)
+            .map { arr => arr.mkString(",   ")
+            }.mkString(",\n  ")
+        }""".stripMargin)
 
       val localIdx = agg.ec.a.length
       val localA = agg.ec.a
@@ -1588,7 +1580,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val aggF = agg.f
       agg.ec.aggregationFunctions += new TypedAggregator[HistogramCombiner] {
-        override def zero: HistogramCombiner = hc.copy
+        override def zero: HistogramCombiner = new HistogramCombiner(indices)
 
         override def seqOp(x: Any, acc: HistogramCombiner): HistogramCombiner = {
           aggF(x).foreach(x => acc.merge(DoubleNumericConversion.to(x)))
@@ -2065,7 +2057,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   override def typecheckThis(ec: EvalContext): BaseType = {
     (thenTree.`type`, elseTree.`type`) match {
       case (thenType, elseType) if thenType == elseType => thenType
-      case (thenType: TNumeric, elseType: TNumeric)     => TNumeric.promoteNumeric(Set(thenType, elseType))
+      case (thenType: TNumeric, elseType: TNumeric) => TNumeric.promoteNumeric(Set(thenType, elseType))
       case _ =>
         parseError(s"expected same-type `then' and `else' clause, got `${ thenTree.`type` }' and `${ elseTree.`type` }'")
     }
@@ -2078,7 +2070,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
 
     val coerce: Any => Any = `type` match {
       case t: TNumeric => t.conv.to
-      case _           => identity
+      case _ => identity
     }
 
     () => {

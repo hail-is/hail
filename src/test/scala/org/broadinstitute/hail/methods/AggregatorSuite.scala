@@ -136,8 +136,8 @@ class AggregatorSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
     var s = State(sc, sqlContext, vds)
 
-    s = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(0, 100, 20)"))
-    s.vds.rdd.collect.foreach { case (v, (va, gs)) =>
+    val s2 = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(0, 100, 20)"))
+    s2.vds.rdd.collect.foreach { case (v, (va, gs)) =>
       val r = va.asInstanceOf[Row]
 
       val densities = r.getAs[IndexedSeq[Long]](1)
@@ -149,8 +149,8 @@ class AggregatorSuite extends SparkSuite {
       assert(densities.last == definedGq.count(gq => gq >= 95))
     }
 
-    s = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(22, 80, 5)"))
-    s.vds.rdd.collect.foreach { case (v, (va, gs)) =>
+    val s3 = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(22, 80, 5)"))
+    s3.vds.rdd.collect.foreach { case (v, (va, gs)) =>
       val r = va.asInstanceOf[Row]
       val nSmaller = r.getAs[Long](2)
       val nGreater = r.getAs[Long](3)
@@ -171,6 +171,10 @@ class AggregatorSuite extends SparkSuite {
 
     TestUtils.interceptFatal("""invalid bin size""") {
       AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(10, 0, 5)"))
+    }
+
+    TestUtils.interceptFatal("""method `hist' cannot contain variable references""") {
+      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(10, 0, va.info.AC[0])"))
     }
   }
 
