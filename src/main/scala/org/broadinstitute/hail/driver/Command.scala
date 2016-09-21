@@ -80,7 +80,6 @@ object ToplevelCommands {
   register(ImportVCF)
   register(ImputeSex)
   register(IndexBGEN)
-  register(InfoScore)
   register(LinearRegressionCommand)
   register(MendelErrorsCommand)
   register(SplitMulti)

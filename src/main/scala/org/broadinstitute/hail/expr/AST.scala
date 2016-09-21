@@ -584,7 +584,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     val f = elements.map(_.eval(ec))
     `type`.asInstanceOf[TArray].elementType match {
       case t: TNumeric => () => f.map(v => Option(v()).map(t.conv.to(_)).orNull): IndexedSeq[Any]
-      case _           => () => f.map(_ ()): IndexedSeq[Any]
+      case _ => () => f.map(_ ()): IndexedSeq[Any]
     }
   }
 }
@@ -1187,7 +1187,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
                 |  Accepted aggregable types: `Aggregable[Numeric]' and `Aggregable[Array[Numeric]]'
                 |  Hint: use `.map(x => ...)' to produce a numeric aggregable""".stripMargin)
         }
-
+      case (agg: TAggregable, "infoScore", rhs) =>
+        if (rhs.nonEmpty)
+          parseError(s"""method `$method' does not take arguments""")
+        `type` = agg.elementType match {
+          case TGenotype => InfoScoreCombiner.signature
+          case _ => parseError(
+            s"""method `$method' can not operate on `$agg'
+                |  Accepted aggregable types: `Aggregable[Genotype]'
+             """.stripMargin
+          )
+        }
       case _ =>
         super.typecheck(ec)
     }
@@ -1529,6 +1539,29 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       }.erase
 
       () => localA(localIdx).asInstanceOf[ArrayBuffer[Any]].toIndexedSeq
+
+    case (agg: TAggregable, "infoScore", Array()) =>
+      val localIdx = agg.ec.a.length
+      val localA = agg.ec.a
+      localA += null
+
+      val localPos = posn
+      val aggF = agg.f
+      agg.ec.aggregationFunctions += new TypedAggregator[InfoScoreCombiner] {
+
+        override def zero: InfoScoreCombiner = new InfoScoreCombiner()
+
+        override def seqOp(x: Any, acc: InfoScoreCombiner): InfoScoreCombiner = {
+          aggF(x).foreach(x => acc.merge(x.asInstanceOf[Genotype]))
+          acc
+        }
+
+        override def combOp(acc1: InfoScoreCombiner, acc2: InfoScoreCombiner): InfoScoreCombiner = acc1.merge(acc2)
+
+        override def idx = localIdx
+      }.erase
+
+      () => localA(localIdx).asInstanceOf[InfoScoreCombiner].asAnnotation
 
     case (agg: TAggregable, "sum", Array()) =>
       val localIdx = agg.ec.a.length
@@ -1968,7 +2001,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   override def typecheckThis(ec: EvalContext): BaseType = {
     (thenTree.`type`, elseTree.`type`) match {
       case (thenType, elseType) if thenType == elseType => thenType
-      case (thenType: TNumeric, elseType: TNumeric)     => TNumeric.promoteNumeric(Set(thenType, elseType))
+      case (thenType: TNumeric, elseType: TNumeric) => TNumeric.promoteNumeric(Set(thenType, elseType))
       case _ =>
         parseError(s"expected same-type `then' and `else' clause, got `${ thenTree.`type` }' and `${ elseTree.`type` }'")
     }
@@ -1981,7 +2014,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
 
     val coerce: Any => Any = `type` match {
       case t: TNumeric => t.conv.to
-      case _           => identity
+      case _ => identity
     }
 
     () => {
