@@ -31,14 +31,19 @@ jsdom.env(docsHtmlTemplate, function (err, window) {
 
         function loadReq(selector, file) {
             return new Promise(function (resolve, reject) {
-                $(selector).load(file, function (response, status, xhr) {
-                    if (status == "error") {
-                        console.log("error when loading file: " + file);
-                        reject(status)
-                    } else {
-                        resolve(response)
-                    }
+                const s = $(selector);
+                if (s.length == 0) {
+                    reject("No elements found for selector " + selector);
+                } else {
+                    $(selector).load(file, function (response, status, xhr) {
+                        if (status == "error") {
+                            console.log("error when loading file: " + file);
+                            reject(status)
+                        } else {
+                            resolve(response)
+                        }
                     });
+                }
             });
         };
 
