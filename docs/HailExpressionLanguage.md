@@ -125,6 +125,10 @@ Several Hail commands provide the ability to perform a broad array of computatio
     - Variant: `Variant(str)`, where str is of the form `CHR:POS:REF:ALT` or `CHR:POS:REF:ALT1,ALT2...ALTN`
     - Locus: `Locus(chr, pos)`, where chr is a `String` and pos is an `Int`
     - Interval: `Interval(startLocus, endLocus)`, where startLocus and endLocus are loci
+    
+  - Apply methods:
+    
+    - range: `range(end)` or `range(start, end)`.  This function will produce an `Array[Int]`.  `range(3)` produces `[0, 1, 2]`.  `range(-2, 2)` produces `[-2, -1, 0, 1]`.
 
 **Note:**
 
