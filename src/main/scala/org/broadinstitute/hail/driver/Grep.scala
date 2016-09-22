@@ -34,11 +34,16 @@ object Grep extends Command {
     val regex = args.head.r
     val files = args.tail
 
-    sc.union(files.map { f =>
-      sc.textFile(f)
-    }).filter(line => regex.findFirstIn(line).isDefined)
+    sc.textFilesLines(files.toArray)
+      .filter(line => regex.findFirstIn(line.value).isDefined)
       .take(options.max)
-      .foreach(println)
+      .foreach { line =>
+        val source = line.source.asInstanceOf[TextContext]
+        val lineToPrint = truncate(line.value, 60)
+
+        log.info(s"${source.file}: ${line.value}")
+        println(s"${source.file}: $lineToPrint")
+      }
 
     state
   }
