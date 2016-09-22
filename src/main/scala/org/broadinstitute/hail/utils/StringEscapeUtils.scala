@@ -8,6 +8,58 @@ object StringEscapeUtils {
 
   def hex(ch: Char): String = Integer.toHexString(ch).toUpperCase(Locale.ENGLISH)
 
+  def escapeStringSimple(str: String, escapeChar: Char,
+    escapeFirst: (Char) => Boolean,
+    escape: (Char) => Boolean): String = {
+    val sb = new StringBuilder
+    var i: Int = 0
+    while (i < str.length) {
+      val c = str(i)
+      if (c == escapeChar || escape(c) || (i == 0 && escapeFirst(c)) || c > 255) {
+        sb += escapeChar
+
+        val h = Integer.toHexString(c)
+        if (c < 256) {
+          assert(h.length <= 2)
+          val hpad = "0" * (2 - h.length) + h
+          sb.append(hpad)
+        } else {
+          val hpad = "0" * (4 - h.length) + h
+          assert(hpad.length == 4)
+          sb += 'u'
+          sb.append(h)
+        }
+      } else
+        sb += c
+      i += 1
+    }
+    sb.result()
+  }
+
+  def escapeStringSimple(str: String, escapeChar: Char, escape: (Char) => Boolean): String =
+    escapeStringSimple(str, escapeChar, escape, escape)
+
+  def unescapeStringSimple(str: String, escapeChar: Char): String = {
+    val sb = new StringBuilder
+    var i: Int = 0
+    while (i < str.length) {
+      val c = str(i)
+      if (c == escapeChar) {
+        if (str(i + 1) == 'u') {
+          sb += Integer.parseInt(str.substring(i + 2, i + 6), 16).toChar
+          i += 6
+        } else {
+          sb += Integer.parseInt(str.substring(i + 1, i + 3), 16).toChar
+          i += 3
+        }
+      } else {
+        sb += c
+        i += 1
+      }
+    }
+    sb.result()
+  }
+
   def escapeString(str: String, backticked: Boolean = false): String =
     escapeString(str, new StringBuilder(capacity = str.length * 2), backticked)
 
