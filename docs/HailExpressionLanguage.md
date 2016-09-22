@@ -344,8 +344,8 @@ Calculate group-specific info scores per variant:
 ```
 hail importgen -s /my/path/example.sample /my/path/example.gen
     annotatesamples table -i phenotypes.tsv -r "sa.pheno"    
-    annotatevariants expr -c 'va.infoScoreCase = gs.filter(g => sa.pheno.Pheno1 == "Case").infoScore()
-    annotatevariants expr -c 'va.infoScoreControl = gs.filter(g => sa.pheno.Pheno1 == "Control").infoScore()    
+    annotatevariants expr -c 'va.infoScoreCase = gs.filter(g => sa.pheno.Pheno1 == "Case").infoScore()'
+    annotatevariants expr -c 'va.infoScoreControl = gs.filter(g => sa.pheno.Pheno1 == "Control").infoScore()'    
 ```
 
 ## Filtering
