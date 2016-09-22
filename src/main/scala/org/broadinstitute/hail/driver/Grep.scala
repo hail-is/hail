@@ -8,7 +8,7 @@ object Grep extends Command {
 
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "-m", aliases = Array("--max-count"), usage = "Stop after <num> matches")
-    var max: Int = 10
+    var max: Int = 100
 
     @Argument(required = true, usage = "<regex> <files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
@@ -37,12 +37,15 @@ object Grep extends Command {
     sc.textFilesLines(files.toArray)
       .filter(line => regex.findFirstIn(line.value).isDefined)
       .take(options.max)
-      .foreach { line =>
-        val source = line.source.asInstanceOf[TextContext]
-        val lineToPrint = truncate(line.value, 60)
-
-        log.info(s"${source.file}: ${line.value}")
-        println(s"${source.file}: $lineToPrint")
+      .groupBy(_.source.asInstanceOf[TextContext].file)
+      .foreach { case (file, lines) =>
+        println(s"$file:")
+        log.info(s"$file:")
+        lines.foreach { line =>
+          val lineToPrint = truncate(line.value, 60)
+          log.info("\t" + line.value)
+          println(s"\t$lineToPrint")
+        }
       }
 
     state
