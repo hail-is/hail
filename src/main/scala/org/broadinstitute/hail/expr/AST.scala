@@ -639,6 +639,16 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
           parseError(s"Got invalid argument `${ a.`type` } to function `$fn'")
         TString
 
+      case ("range", rhs) =>
+        val types = rhs.map(_.`type`)
+        types match {
+          case Array(TInt, TInt) | Array(TInt) => TArray(TInt)
+          case _ => parseError(
+            s"""got invalid ${ plural(types.length, "argument") } to function `range'
+                |  Expected range(Int) or range(Int, Int)
+                |  Found (${ types.mkString(", ") })""".stripMargin)
+        }
+
       case ("Variant", _) =>
         args.map(_.`type`) match {
           case Array(TString) => TVariant
@@ -860,6 +870,14 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       val t = a.`type`.asInstanceOf[Type]
       val f = a.eval(ec)
       () => JsonMethods.compact(t.toJSON(f()))
+
+    case ("range", rhs) =>
+      rhs match {
+        case Array(endAST) => AST.evalCompose[Int](ec, endAST) { i => 0 until i }
+        case Array(startAST, endAST) => AST.evalCompose[Int, Int](ec, startAST, endAST) { case (start, end) =>
+          start until end
+        }
+      }
 
     case ("Variant", _) =>
       args match {

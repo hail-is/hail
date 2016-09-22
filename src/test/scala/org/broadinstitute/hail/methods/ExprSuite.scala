@@ -490,6 +490,11 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("[NA:Long] == [0.toLong]").contains(false))
     assert(eval[Boolean]("[NA:Float] == [0.toFloat]").contains(false))
     assert(eval[Boolean]("[NA:Double] == [0.toDouble]").contains(false))
+
+    assert(eval[IndexedSeq[Int]]("range(5)").contains(IndexedSeq(0, 1, 2, 3, 4)))
+    assert(eval[IndexedSeq[Int]]("range(1)").contains(IndexedSeq(0)))
+    assert(eval[IndexedSeq[Int]]("range(10, 14)").contains(IndexedSeq(10, 11, 12, 13)))
+    assert(eval[IndexedSeq[Int]]("range(-2, 2)").contains(IndexedSeq(-2, -1, 0, 1)))
   }
 
   @Test def testParseTypes() {
