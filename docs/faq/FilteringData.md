@@ -4,7 +4,7 @@ Hail provides a number of commands to filter data. See the [Hail documentation o
 
 #### How do I create a sites-only VCF (all genotype data removed)?
 
-Use the [`filtersamples all`](index.html#filtersamples_all) command to remove all genotype and sample meta-information and write the output as a VCF with the [`exportvcf`](#exportvcf) command. **Make sure to add the ".vcf.bgz" extension to your filename to ensure the VCF file is block compressed!**
+Use the [`filtersamples all`](index.html#filtersamples_all) command to remove all genotype and sample meta-information and write the output as a VCF with the [`exportvcf`](index.html#exportvcf) command. **Make sure to add the ".vcf.bgz" extension to your filename to ensure the VCF file is block compressed!**
 
 ```
 filtersamples all 
