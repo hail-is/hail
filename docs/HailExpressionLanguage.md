@@ -39,7 +39,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - sqrt(x) -- the square root of `x`
 
  - String operations:
-     - apply: `str(index)` -- returns the character at `index`
+     - apply: `str[index]` -- returns the character at `index`
      - length: `str.length` -- returns the length of the string
      - concatenate: `str1 + str2` -- returns the two strings joined start-to-end
      - split: `str.split(delimiter)` -- returns an array of strings, split on the given `delimiter`
