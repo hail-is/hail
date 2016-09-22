@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.utils
 
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.SparkSuite
@@ -9,6 +10,11 @@ import org.broadinstitute.hail.check.{Gen, Prop, Properties}
 import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, _}
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
+
+case class PartitionSummary(partitionIndex: Int,
+  sorted: Boolean,
+  correctPartitioning: Boolean,
+  maybeBounds: Option[(Variant, Variant)])
 
 class OrderedRDDSuite extends SparkSuite {
 
@@ -27,24 +33,30 @@ class OrderedRDDSuite extends SparkSuite {
     val locusSorted = for ((n, v) <- g;
       locusSorted <- Gen.const(v.sortBy(_._1.locus))) yield sc.parallelize(locusSorted, n)
 
+    val scrambledInPartition = locusSorted.map(_.mapPartitions { it => Gen.shuffle(it.toIndexedSeq).sample().iterator })
+
     val sorted = for ((n, v) <- g;
       sorted <- Gen.const(v.sortBy(_._1))) yield sc.parallelize(sorted, n)
 
-    def check(rdd: OrderedRDD[Locus, Variant, String]): Boolean = {
+    def check(rdd: OrderedRDD[Locus, Variant, String], original: RDD[(Variant, String)]): Boolean = {
       val p = rdd.orderedPartitioner
+
       val partitionSummaries = rdd.mapPartitionsWithIndex { case (partitionIndex, iter) =>
         val a = iter.toArray
         val keys = a.map(_._1)
         val sorted = keys.isSorted
         val correctPartitioning = keys.forall(k => p.getPartition(k) == partitionIndex)
-        Iterator((partitionIndex, sorted, correctPartitioning, if (a.nonEmpty) Some((a.head._1, a.last._1)) else None))
-      }.collect().sortBy(_._1)
+        Iterator(PartitionSummary(partitionIndex, sorted, correctPartitioning,
+          if (a.nonEmpty) Some((a.head._1, a.last._1)) else None))
+      }.collect().sortBy(_.partitionIndex)
 
-      partitionSummaries.flatMap(_._4.map(_._1)).headOption match {
+      val sameElems = rdd.collect.toSet == original.collect.toSet
+
+      val validPartitions = partitionSummaries.flatMap(_.maybeBounds.map(_._1)).headOption match {
         case Some(first) =>
-          val sortedWithin = partitionSummaries.forall(_._2)
-          val partitionedCorrectly = partitionSummaries.forall(_._3)
-          val sortedBetween = partitionSummaries.flatMap(_._4)
+          val sortedWithin = partitionSummaries.forall(_.sorted)
+          val partitionedCorrectly = partitionSummaries.forall(_.correctPartitioning)
+          val sortedBetween = partitionSummaries.flatMap(_.maybeBounds)
             .tail
             .foldLeft((true, first)) { case ((b, last), (start, end)) =>
               (b && start > last, end)
@@ -52,6 +64,8 @@ class OrderedRDDSuite extends SparkSuite {
           sortedWithin && partitionedCorrectly && sortedBetween
         case None => true
       }
+
+      sameElems && validPartitions
     }
 
 
@@ -76,21 +90,22 @@ class OrderedRDDSuite extends SparkSuite {
 
     property("randomlyOrdered") = Prop.forAll(random) { rdd =>
       val (_, ordered) = OrderedRDD.coerce(rdd)
-      check(ordered)
+      check(ordered, rdd)
+    }
+
+    property("scrambledInPartition") = Prop.forAll(scrambledInPartition) { rdd =>
+      val (status, ordered) = OrderedRDD.coerce(rdd)
+      check(ordered, rdd) && status <= OrderedRDD.ARRAY_SORT
     }
 
     property("locusSorted") = Prop.forAll(locusSorted) { rdd =>
       val (status, ordered) = OrderedRDD.coerce(rdd)
-      check(ordered)
-      // FIXME use this when loci split across partitions can be coerced without shuffle
-      // check(ordered) && status <= OrderedRDD.LOCAL_SORT
+      check(ordered, rdd) && status <= OrderedRDD.LOCAL_SORT
     }
 
     property("fullySorted") = Prop.forAll(sorted) { rdd =>
       val (status, ordered) = OrderedRDD.coerce(rdd)
-      check(ordered)
-      // FIXME use this when loci split across partitions can be coerced without shuffle
-      // check(ordered) && status == OrderedRDD.AS_IS
+      check(ordered, rdd) && status == OrderedRDD.AS_IS
     }
 
     property("join1") = Prop.forAll(g, g) { case ((nPar1, is1), (nPar2, is2)) =>

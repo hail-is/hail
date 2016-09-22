@@ -87,31 +87,33 @@ object OrderedRDD {
 
     val sortedKeyInfo = keyInfo.sortBy(_.min)
     val partitionsSorted = sortedKeyInfo.zip(sortedKeyInfo.tail).forall { case (p, pnext) =>
-      val r = p.max < pnext.min
+      val r = p.max <= pnext.min
       if (!r)
         log.info(s"not sorted: p = $p, pnext = $pnext")
       r
     }
 
     if (partitionsSorted) {
-      val partitioner = OrderedPartitioner[PK, K](sortedKeyInfo.init.map(_.max), sortedKeyInfo.length)
+      val (adjustedPartitions, rangeBounds) = rangesAndAdjustments[PK, K, V](sortedKeyInfo)
+      val partitioner = OrderedPartitioner[PK, K](rangeBounds, adjustedPartitions.length)
       val sortedness = sortedKeyInfo.map(_.sortedness).min
       val reorderedPartitionsRDD = rdd.reorderPartitions(sortedKeyInfo.map(_.partIndex))
+      val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
       (sortedness: @unchecked) match {
         case PartitionKeyInfo.KSORTED =>
           assert(sortedness == PartitionKeyInfo.KSORTED)
           info("Coerced sorted dataset")
-          (AS_IS, OrderedRDD(reorderedPartitionsRDD, partitioner))
+          (AS_IS, OrderedRDD(adjustedRDD, partitioner))
 
         case PartitionKeyInfo.TSORTED =>
           info("Coerced almost-sorted dataset")
-          (LOCAL_SORT, OrderedRDD(reorderedPartitionsRDD.mapPartitions { it =>
+          (LOCAL_SORT, OrderedRDD(adjustedRDD.mapPartitions { it =>
             localKeySort(it)
           }, partitioner))
 
         case PartitionKeyInfo.UNSORTED =>
           info("Coerced unsorted dataset")
-          (ARRAY_SORT, OrderedRDD(reorderedPartitionsRDD.mapPartitions { it =>
+          (ARRAY_SORT, OrderedRDD(adjustedRDD.mapPartitions { it =>
             it.toArray.sortBy(_._1).iterator
           }, partitioner))
       }
@@ -126,10 +128,68 @@ object OrderedRDD {
       (SHUFFLE, shuffle(rdd, p))
     }
   }
-  
+
+  def rangesAndAdjustments[PK, K, V](sortedKeyInfo: Array[PartitionKeyInfo[PK]])
+    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): (IndexedSeq[Array[Adjustment[(K, V)]]], Array[PK]) = {
+    import kOk._
+    import scala.Ordering.Implicits._
+
+    val rangeBounds = mutable.ArrayBuilder.make[PK]
+    val adjustmentsBuffer = new mutable.ArrayBuffer[Array[Adjustment[(K, V)]]]
+    val indicesBuilder = mutable.ArrayBuilder.make[Int]
+
+    val it = sortedKeyInfo.indices.iterator.buffered
+
+    while (it.nonEmpty) {
+      indicesBuilder.clear()
+      val i = it.next()
+      val thisP = sortedKeyInfo(i)
+      val min = thisP.min
+      val max = thisP.max
+
+      indicesBuilder += i
+
+      def overlaps(info: PartitionKeyInfo[PK]): Boolean = {
+        assert(info.min >= max)
+        info.min == info.max && info.min == max
+      }
+
+      while (it.hasNext && overlaps(sortedKeyInfo(it.head)))
+        indicesBuilder += it.next()
+
+      if (it.hasNext && sortedKeyInfo(it.head).min == max)
+        indicesBuilder += it.head
+
+      val adjustments = indicesBuilder.result().zipWithIndex.map { case (partitionIndex, index) =>
+        val f: (Iterator[(K, V)]) => Iterator[(K, V)] =
+          if (index == 0)
+            if (adjustmentsBuffer.nonEmpty && min == sortedKeyInfo(adjustmentsBuffer.last.head.index).max)
+              if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use dropWhile
+                _.dropWhile(kv => kOk.project(kv._1) == min)
+              else
+                _.filter(kv => kOk.project(kv._1) != min)
+            else
+              identity
+          else if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use takeWhile
+            _.takeWhile(kv => kOk.project(kv._1) == max)
+          else
+            _.filter(kv => kOk.project(kv._1) == max)
+        Adjustment(partitionIndex, f)
+      }
+
+      adjustmentsBuffer += adjustments
+
+      if (it.hasNext)
+        rangeBounds += max
+    }
+
+    (adjustmentsBuffer, rangeBounds.result())
+  }
+
   def apply[PK, K, V](rdd: RDD[(K, V)],
     orderedPartitioner: OrderedPartitioner[PK, K])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
+
     import kOk._
 
     import Ordering.Implicits._
