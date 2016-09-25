@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import java.util
 
 import org.apache.solr.client.solrj.SolrResponse
-import org.apache.solr.client.solrj.impl.CloudSolrClient
+import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.schema.SchemaRequest
 import org.apache.solr.client.solrj.request.CollectionAdminRequest
 import org.apache.solr.common.{SolrException, SolrInputDocument}
@@ -33,6 +33,10 @@ object ExportVariantsSolr extends Command with Serializable {
     @Args4jOption(required = true, name = "-g",
       usage = "comma-separated list of fields/computations to be exported")
     var genotypeCondition: String = _
+
+    @Args4jOption(name = "-u", aliases = Array("--url"),
+      usage = "Solr instance (URL) to connect to")
+    var url: String = _
 
     @Args4jOption(name = "-z", aliases = Array("--zk-host"),
       usage = "Zookeeper host string to connect to")
@@ -157,10 +161,29 @@ object ExportVariantsSolr extends Command with Serializable {
 
     val gparsed = Parser.parseSolrNamedArgs(gCond, gEC)
 
+    val url = options.url
     val zkHost = options.zkHost
 
-    val solr = new CloudSolrClient.Builder().withZkHost(zkHost).build()
-    solr.setDefaultCollection(collection)
+    if (url == null && zkHost == null)
+      fatal("one of -u or -z required")
+
+    if (url != null && zkHost != null)
+      fatal("both -u and -z given")
+
+    if (zkHost != null && collection == null)
+      fatal("-c required with -z")
+
+    val solr =
+      if (url != null)
+        new HttpSolrClient.Builder(url)
+          .build()
+      else {
+        val cc = new CloudSolrClient.Builder()
+          .withZkHost(zkHost)
+          .build()
+        cc.setDefaultCollection(collection)
+        cc
+      }
 
     //delete and re-create the collection
     try {
@@ -239,13 +262,23 @@ object ExportVariantsSolr extends Command with Serializable {
                       // __ can't appear in escaped string
                       f().foreach(x => documentAddField(document, escapeString(s) + "__" + escapeString(name), t, x))
                   }
+                }
             }
 
             document
         }
 
-        val solr = new CloudSolrClient.Builder().withZkHost(zkHost).build()
-        solr.setDefaultCollection(collection)
+        val solr =
+          if (url != null)
+            new HttpSolrClient.Builder(url)
+              .build()
+          else {
+            val cc = new CloudSolrClient.Builder()
+              .withZkHost(zkHost)
+              .build()
+            cc.setDefaultCollection(collection)
+            cc
+          }
 
         var retry = true
         var retryInterval = 3 * 1000 // 3s
