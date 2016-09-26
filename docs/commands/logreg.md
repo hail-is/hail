@@ -43,7 +43,7 @@ Wald, LRT | `va.logreg.fit.nIter` | Int | number of iterations until convergence
 Wald, LRT | `va.logreg.fit.converged` | Boolean | true if iteration converged
 Wald, LRT | `va.logreg.fit.exploded` | Boolean | true if iteration exploded
 
-Convergence occurs when the largest absolute change in a coordinate of $\beta$ is less than $10^{-6}$. Up to 25 iterations are attempted; in testing we find 4 or 5 iterations nearly always suffice. Convergence may also fail due to explosion, which refers to low-level numerical linear algebra exceptions caused by manipulating ill-conditioned matrices. Explosion may result from (nearly) linearly dependent covariates or complete [separation](https://en.wikipedia.org/wiki/Separation_(statistics)).
+We consider iteration to have converged when every coordinate of $\beta$ changes by less than $10^{-6}$. Up to 25 iterations are attempted; in testing we find 4 or 5 iterations nearly always suffice. Convergence may also fail due to explosion, which refers to low-level numerical linear algebra exceptions caused by manipulating ill-conditioned matrices. Explosion may result from (nearly) linearly dependent covariates or complete [separation](https://en.wikipedia.org/wiki/Separation_(statistics)).
 
 A more common situation in genetics is quasi-complete seperation, e.g. variants that are observed only in cases (or controls). Such variants inevitably arise when testing millions of variants with very low minor allele count. The maximum likelihood estimate of $\beta$ under logistic regression is then undefined but convergence may still occur after a large number of iterations due to a very flat likelihood surface. In testing, we find that such variants produce a secondary bump from 10 to 15 iterations in the histogram of number of iterations per variant. We also find that this faux convergence produces large standard errors and large (insignificant) $p$-values. To not miss such variants, consider using Firth logistic regression, linear regression, or group-based tests. 
 
@@ -69,6 +69,7 @@ Phenotype and covariate sample annotations may also be specified using [programm
 if (sa.isFemale) sa.cov.age else (2 * sa.cov.age + 10)
 ```
 For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation `sa.fam.isCase` added by importing a `.fam` file with case-control phenotype, case is $1$ and control is $0$.
+
 Hail's logistic regression tests correspond to the `b.wald`, `b.lrt`, and `b.score` tests in [EPACTS](http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests). For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
 
 See [Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants](http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/) for an empirical comparison of the logistic Wald, LRT, score, and Firth tests. The theoretical foundations of the Wald, likelihood ratio, and score tests may be found in Chapter 3 of Gesine Reinert's notes [Statistical Theory](http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf).
