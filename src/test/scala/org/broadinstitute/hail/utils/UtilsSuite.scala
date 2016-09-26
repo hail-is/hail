@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.utils
 
-import org.broadinstitute.hail.utils._
+import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.sparkextras.OrderedRDD
