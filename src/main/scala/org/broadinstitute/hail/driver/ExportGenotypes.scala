@@ -54,10 +54,11 @@ object ExportGenotypes extends Command with TextExporter {
       "va" -> (1, vas),
       "s" -> (2, TSample),
       "sa" -> (3, sas),
-      "g" -> (4, TGenotype))
+      "g" -> (4, TGenotype),
+      "global" -> (5, vds.globalSignature) )
 
     val ec = EvalContext(symTab)
-
+    ec.set(5, vds.globalAnnotation)
     val (header, fs) = if (cond.endsWith(".columns")) {
       val (h, functions) = Parser.parseColumnsFile(ec, cond, sc.hadoopConfiguration)
       (Some(h), functions)
