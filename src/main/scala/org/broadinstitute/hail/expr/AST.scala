@@ -421,7 +421,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case ("log", Array(a, b)) if a.`type`.isInstanceOf[TNumeric] && b.`type`.isInstanceOf[TNumeric] => TDouble
 
       case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq)
-        .getOrElse(parseError(s"No function found with name `$fn' and argument types `${ args.map(_.`type`).mkString(", ") }'"))
+        .getOrElse(parseError(s"No function found with name `$fn' and argument ${ plural(args.size, "type") } `${ args.map(_.`type`).mkString(", ") }'"))
     }
   }
 
@@ -559,7 +559,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       AST.evalComposeNumeric[Double, Double](ec, a, b)((x, b) => math.log(x) / math.log(b))
 
     case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
-      .getOrElse(fatal(s"No function found with name `$fn' and argument types `${ args.map(_.`type`).mkString(", ") }'"))
+      .getOrElse(fatal(s"No function found with name `$fn' and argument ${ plural(args.size, "type") } `${ args.map(_.`type`).mkString(", ") }'"))
   }
 
 }
