@@ -38,6 +38,36 @@ object ExportVCF extends Command {
     case _ => "1"
   }
 
+  def emitInfo(t: Type, sb: StringBuilder, value: Annotation, fieldName: Option[String]): Boolean = {
+    assert(value != null)
+    t match {
+      case it: TIterable =>
+        val arr = value.asInstanceOf[Iterable[_]]
+        if (arr.isEmpty) {
+          sb += '.'
+          false
+        } else {
+          fieldName.foreach { name => sb.append(name); sb += '=' }
+          arr.foreachBetween(emitInfo(it.elementType, sb, _, None))(sb += ',')
+          true
+        }
+      case TBoolean => value match {
+        case true =>
+          fieldName match {
+            case Some(fname) => sb.append(fname)
+            case _ => sb.append(t.str(value)) // this means we're recursing inside an Iterable
+          }
+          true
+        case _ =>
+          false
+      }
+      case _ =>
+        fieldName.foreach { name => sb.append(name); sb += '=' }
+        sb.append(t.str(value))
+        true
+    }
+  }
+
   def infoType(t: BaseType): String = t match {
     case TArray(elementType) => infoType(elementType)
     case TInt => "Integer"
@@ -78,10 +108,10 @@ object ExportVCF extends Command {
 
     val infoSignature = vds.vaSignature
       .getAsOption[TStruct]("info")
-    val infoQuery: Querier = infoSignature match {
-      case Some(_) => vds.queryVA("va.info")._2
-      case None => a => None
-    }
+    val infoQuery: (Annotation) => Option[(Annotation, TStruct)] = infoSignature.map { struct =>
+      val (_, f) = vds.queryVA("va.info")
+      (a: Annotation) => f(a).map(value => (value, struct))
+    }.getOrElse((a: Annotation) => None)
 
     val hasSamples = vds.nSamples > 0
 
@@ -212,31 +242,22 @@ object ExportVCF extends Command {
 
       sb += '\t'
 
-      infoQuery(a).map(_.asInstanceOf[Row]) match {
-        case Some(r) =>
-          val toWrite =
-            infoSignature.get.fields
-              .zip(r.toSeq)
-              .filter { case (f, v) => Option(v).isDefined }
-          if (toWrite.isEmpty)
-            sb += '.'
-          else {
-            toWrite
-              .foreachBetween { case (f, v) =>
-                sb.append(f.name)
-                if (f.`type` != TBoolean) {
-                  sb += '='
-                  v match {
-                    case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(sb += ',')
-                    case _ => sb.append(v)
-                  }
-                }
-              }(sb += ';')
-          }
+      var wroteAnyInfo: Boolean = false
+      infoQuery(a).foreach { case (anno, struct) =>
+        val r = anno.asInstanceOf[Row]
+        val fields = struct.fields
+        assert(r.length == fields.length, "annotation/type mismatch")
 
-        case None =>
-          sb += '.'
+        var wrote: Boolean = false
+        fields.indices.foreachBetween { i =>
+          val field = fields(i)
+          val value = r.getOption(i)
+          wrote = value.exists(v => emitInfo(field.`type`, sb, v, Some(field.name)))
+          wroteAnyInfo = wroteAnyInfo || wrote
+        }(if (wrote) sb += ';')
       }
+      if (!wroteAnyInfo)
+        sb += '.'
 
       if (hasSamples) {
         sb += '\t'

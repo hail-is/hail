@@ -208,7 +208,8 @@ case object TFloat extends TNumeric {
   override def genValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation): Boolean =
-    a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float]))
+  // a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float]))
+    a1 == a2 || (a1 != null && a2 != null && str(a1) == str(a2))
 }
 
 case object TDouble extends TNumeric {
@@ -223,7 +224,8 @@ case object TDouble extends TNumeric {
   override def genValue: Gen[Annotation] = arbitrary[Double]
 
   override def valuesSimilar(a1: Annotation, a2: Annotation): Boolean =
-    a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double]))
+  // a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double]))
+    a1 == a2 || (a1 != null && a2 != null && str(a1) == str(a2))
 }
 
 case object TString extends Type {
