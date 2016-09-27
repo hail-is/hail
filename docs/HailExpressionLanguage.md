@@ -50,6 +50,9 @@ Several Hail commands provide the ability to perform a broad array of computatio
     - toLong: `str.toLong`
     - toFloat: `str.toFloat`
 
+ - Boolean coin flip:
+     - pcoin(p) -- returns `true` with probability `p`. `p` should be between 0.0 and 1.0.
+
  - Array Operations:
      - constructor: `[element1, element2, ...]` -- Create a new array from elements of the same type.
      - indexing: `arr[index]` -- get a value from the array, or NA if array or index is missing
