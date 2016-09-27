@@ -277,5 +277,6 @@ object FunctionRegistry {
   register("log", { (x: Float) => math.log(x) })
   register("log", { (x: Double) => math.log(x) })
 
+  register("pcoin", { (p: Float) => math.random < p })
   register("pcoin", { (p: Double) => math.random < p })
 }
