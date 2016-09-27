@@ -160,7 +160,16 @@ object TextTableReader {
       }]")
     }
 
+
     val rdd = sc.textFilesLines(files, nPartitions)
+      .filter { line =>
+        commentChar.forall(ch => !line.value.startsWith(ch)) && {
+          if (noHeader)
+            true
+          else
+            line.value != header
+        }
+      }
 
     val sb = new StringBuilder
 
@@ -205,13 +214,7 @@ object TextTableReader {
 
     val schema = TStruct(namesAndTypes: _*)
 
-    val filter: (String) => Boolean = (line: String) => {
-      if (noHeader)
-        true
-      else line != header
-    } && commentChar.forall(ch => !line.startsWith(ch))
-
-    val parsed = rdd.filter(line => filter(line.value))
+    val parsed = rdd
       .map {
         _.map { line =>
           val split = line.split(separator, -1)
