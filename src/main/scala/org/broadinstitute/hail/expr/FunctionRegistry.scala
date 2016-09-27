@@ -38,7 +38,7 @@ object FunctionRegistry {
   def lookupFun(ec: EvalContext)(name: String, typs: Seq[BaseType])(args: Seq[AST]): Option[() => Any] = {
     require(typs.length == args.length)
 
-    lookup(name, FunType(typs:_*)).map { fn => (fn, typs) match {
+    lookup(name, FunType(typs: _*)).map { fn => (fn, typs) match {
       case (f: UnaryFun[_, _], Seq(x)) =>
         AST.evalCompose(ec, args(0))(f)
       case (f: OptionUnaryFun[_, _], Seq(x)) =>
@@ -56,7 +56,7 @@ object FunctionRegistry {
   }
 
   def lookupFunReturnType(name: String, typs: Seq[BaseType]): Option[Type] =
-    lookup(name, FunType(typs:_*)).map(_.retType)
+    lookup(name, FunType(typs: _*)).map(_.retType)
 
   def registerField[T, U](name: String, impl: T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
@@ -105,22 +105,22 @@ object FunctionRegistry {
 
   def registerAnn[T](name: String, t: TStruct, impl: T => Annotation)
     (implicit hrt: HailRep[T]) = {
-    register(name, impl)(hrt, new HailRep[Annotation] { def typ = t })
+    register(name, impl)(hrt, new HailRep[Annotation] {def typ = t })
   }
 
   def registerAnn[T, U](name: String, t: TStruct, impl: (T, U) => Annotation)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    register(name, impl)(hrt, hru, new HailRep[Annotation] { def typ = t })
+    register(name, impl)(hrt, hru, new HailRep[Annotation] {def typ = t })
   }
 
   def registerAnn[T, U, V](name: String, t: TStruct, impl: (T, U, V) => Annotation)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    register(name, impl)(hrt, hru, hrv, new HailRep[Annotation] { def typ = t })
+    register(name, impl)(hrt, hru, hrv, new HailRep[Annotation] {def typ = t })
   }
 
   def registerAnn[T, U, V, W](name: String, t: TStruct, impl: (T, U, V, W) => Annotation)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    register(name, impl)(hrt, hru, hrv, hrw, new HailRep[Annotation] { def typ = t })
+    register(name, impl)(hrt, hru, hrv, hrw, new HailRep[Annotation] {def typ = t })
   }
 
   registerOptionField("gt", { (x: Genotype) => x.gt })
@@ -277,5 +277,5 @@ object FunctionRegistry {
   register("log", { (x: Float) => math.log(x) })
   register("log", { (x: Double) => math.log(x) })
 
+  register("pcoin", { (p: Double) => math.random < p })
 }
-

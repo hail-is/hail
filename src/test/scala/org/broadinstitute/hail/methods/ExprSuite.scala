@@ -495,6 +495,9 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[Int]]("range(1)").contains(IndexedSeq(0)))
     assert(eval[IndexedSeq[Int]]("range(10, 14)").contains(IndexedSeq(10, 11, 12, 13)))
     assert(eval[IndexedSeq[Int]]("range(-2, 2)").contains(IndexedSeq(-2, -1, 0, 1)))
+
+    assert(eval[Boolean]("pcoin(2.0)").contains(true))
+    assert(eval[Boolean]("pcoin(-1.0)").contains(false))
   }
 
   @Test def testParseTypes() {
