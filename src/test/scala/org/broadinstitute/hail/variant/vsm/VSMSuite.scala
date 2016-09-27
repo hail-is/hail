@@ -327,4 +327,30 @@ class VSMSuite extends SparkSuite {
       VSMSuite.checkOrderedRDD(coalesced.rdd) && vsm.same(coalesced)
     }.check()
   }
+
+  @Test def testUnionRead() {
+    val g = for (vds <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
+      variants <- Gen.const(vds.variants.collect());
+      groups <- Gen.buildableOfN[Array, Int](variants.length, Gen.choose(1, 3)).map(groups => variants.zip(groups).toMap)
+    ) yield (vds, groups)
+
+    forAll(g) { case (vds, groups) =>
+      val path1 = tmpDir.createTempFile("file1", ".vds")
+      val path2 = tmpDir.createTempFile("file2", ".vds")
+      val path3 = tmpDir.createTempFile("file3", ".vds")
+
+      vds.filterVariants { case (v, _, _) => groups(v) == 1 }
+        .write(sqlContext, path1)
+
+      vds.filterVariants { case (v, _, _) => groups(v) == 2 }
+        .write(sqlContext, path2)
+
+      vds.filterVariants { case (v, _, _) => groups(v) == 3 }
+        .write(sqlContext, path3)
+
+      Read.run(State(sc, sqlContext, null), Array(path1, path2, path3))
+        .vds.same(vds)
+
+    }.check()
+  }
 }
