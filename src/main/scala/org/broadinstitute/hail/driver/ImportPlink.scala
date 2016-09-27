@@ -30,7 +30,7 @@ object ImportPlink extends Command {
 
     @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
       usage = ".fam file field delimiter regex")
-    var famDelimiter: String = "\\t"
+    var famDelimiter: String = "\\\\s+"
 
     @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
       usage = ".fam identifier to be treated as missing (for case-control, in addition to `0', `-9', and non-numeric)")
