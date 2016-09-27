@@ -54,45 +54,67 @@ case class TextTableConfiguration(
 object TextTableReader {
 
   val booleanRegex = """^([Tt]rue)|([Ff]alse)|(TRUE)|(FALSE)$"""
-  val intRegex = """^-?\d+$"""
-  val doubleRegex = """^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$"""
   val variantRegex = """^.+:\d+:[ATGC]+:([ATGC]+|\*)(,([ATGC]+|\*))*$"""
   val locusRegex = """^.+:\d+$"""
-  val headToTake = 20
+  val doubleRegex = """^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$"""
+  val intRegex = """^-?\d+$"""
 
-  def guessType(values: Seq[String], missing: String): Option[Type] = {
-    require(values.nonEmpty)
+  def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
+    delimiter: String, missing: String): Array[Option[Type]] = {
+    val nFields = header.length
+    val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex)
+    val regexTypes: Array[Type] = Array(TBoolean, TVariant, TLocus, TInt, TDouble)
 
-    val size = values.size
+    val nRegex = regexes.length
+    val missingIndex = 2 * nRegex
 
-    val booleanMatch = values.exists(value => value.matches(booleanRegex))
-    val variantMatch = values.exists(value => value.matches(variantRegex))
-    val locusMatch = values.exists(value => value.matches(locusRegex))
-    val doubleMatch = values.exists(value => value.matches(doubleRegex))
-    val intMatch = values.exists(value => value.matches(intRegex))
+    def zero() = {
+      val m = MultiArray2.fill[Boolean](nFields, missingIndex + 1)(true)
+      for (i <- 0 until nFields)
+        for (j <- 0 until nRegex)
+          m.update(i, j, false)
+      m
+    }
 
-    val defined = values.filter(_ != missing)
+    val imputation = values.treeAggregate(zero())({ case (ma, line) =>
+      line.foreach { l =>
+        val split = l.split(delimiter)
+        if (split.length != nFields)
+          fatal(s"expected $nFields fields, but found ${ split.length }")
 
-    val allBoolean = defined.forall(_.matches(booleanRegex))
-    val allVariant = defined.forall(_.matches(variantRegex))
-    val allLocus = defined.forall(_.matches(locusRegex))
-    val allDouble = defined.forall(_.matches(doubleRegex))
-    val allInt = defined.forall(_.matches(intRegex))
+        for (i <- 0 until nFields) {
+          val field = split(i)
+          if (field != missing) {
+            for (j <- 0 until nRegex) {
+              ma.update(i, j, ma(i, j) || field.matches(regexes(j)))
+              ma.update(i, j + nRegex, ma(i, j + nRegex) && (field == missing || field.matches(regexes(j))))
+            }
+            ma.update(i, missingIndex, false)
+          }
+        }
+      }
+      ma
+    }, { case (ma1, ma2) =>
+      for (i <- 0 until nFields) {
+        for (j <- 0 until nRegex) {
+          ma1.update(i, j, ma1(i, j) || ma2(i, j))
+          ma1.update(i, j + nRegex, ma1(i, j + nRegex) && ma2(i, j + nRegex))
+        }
+        ma1.update(i, missingIndex, ma1(i, missingIndex) && ma2(i, missingIndex))
+      }
+      ma1
+    })
 
-    if (values.forall(_ == missing))
-      None
-    else if (allBoolean && booleanMatch)
-      Some(TBoolean)
-    else if (allVariant && variantMatch)
-      Some(TVariant)
-    else if (allLocus && locusMatch)
-      Some(TLocus)
-    else if (allInt && intMatch)
-      Some(TInt)
-    else if (allDouble && doubleMatch)
-      Some(TDouble)
-    else
-      Some(TString)
+    Array.tabulate(nFields) { i =>
+      if (imputation(i, missingIndex))
+        None
+      else {
+        Some((0 until nRegex).find { j =>
+          imputation(i, j) && imputation(i, j + nRegex)
+        }.map(regexTypes)
+          .getOrElse(TString))
+      }
+    }
   }
 
   def read(sc: SparkContext)(files: Array[String],
@@ -108,7 +130,7 @@ object TextTableReader {
     val types = config.types
 
     val firstFile = files.head
-    val firstLines = sc.hadoopConfiguration.readLines(firstFile) { lines =>
+    val header = sc.hadoopConfiguration.readLines(firstFile) { lines =>
       val filt = lines
         .filter(line => commentChar.forall(pattern => !line.value.startsWith(pattern)))
 
@@ -118,50 +140,48 @@ object TextTableReader {
               |  Offending file: `$firstFile'
            """.stripMargin)
       else
-        filt.take(headToTake).toArray
+        filt.next().value
     }
 
-    val firstLine = firstLines.head.value
-
     val columns = if (noHeader) {
-      firstLine.split(separator, -1)
+      header.split(separator, -1)
         .zipWithIndex
-        .map { case (_, i) => s"_$i" }
-    } else firstLine.split(separator, -1).map(unescapeString)
+        .map {
+          case (_, i) => s"_$i"
+        }
+    } else header.split(separator, -1).map(unescapeString)
 
     val nField = columns.length
 
     val duplicates = columns.duplicates()
     if (duplicates.nonEmpty) {
-      fatal(s"invalid header: found duplicate columns [${ duplicates.map(x => '"' + x + '"').mkString(", ") }]")
+      fatal(s"invalid header: found duplicate columns [${
+        duplicates.map(x => '"' + x + '"').mkString(", ")
+      }]")
     }
+
+    val rdd = sc.textFilesLines(files, nPartitions)
 
     val sb = new StringBuilder
 
     val namesAndTypes = {
       if (impute) {
-        sb.append(s"Reading table with type imputation from the leading $headToTake lines\n")
-        val split = firstLines.tail.map(_.map(_.split(separator)))
-        split.foreach { line =>
-          line.foreach { fields =>
-            if (line.value.length != nField)
-              fatal(s"""$firstFile: field number mismatch: header contained $nField fields, found ${ line.value.length }""")
-          }
-        }
+        info("Reading table to impute column types")
 
-        val columnValues = Array.tabulate(nField)(i => split.map(_.value(i)))
-        columns.zip(columnValues).map { case (name, col) =>
+        sb.append("Finished type imputation")
+        val imputedTypes = imputeTypes(rdd.filter(_.value != header), columns, separator, missing)
+        columns.zip(imputedTypes).map { case (name, imputedType) =>
           types.get(name) match {
             case Some(t) =>
-              sb.append(s"  Loading column `$name' as type $t (user-specified)\n")
+              sb.append(s"\n  Loading column `$name' as type $t (user-specified)")
               (name, t)
             case None =>
-              guessType(col, missing) match {
+              imputedType match {
                 case Some(t) =>
-                  sb.append(s"  Loading column `$name' as type $t (imputed)\n")
+                  sb.append(s"\n  Loading column `$name' as type $t (imputed)")
                   (name, t)
                 case None =>
-                  sb.append(s"  Loading column `$name' as type String (no non-missing values for imputation)\n")
+                  sb.append(s"\n  Loading column `$name' as type String (no non-missing values for imputation)")
                   (name, TString)
               }
           }
@@ -188,11 +208,10 @@ object TextTableReader {
     val filter: (String) => Boolean = (line: String) => {
       if (noHeader)
         true
-      else line != firstLine
+      else line != header
     } && commentChar.forall(ch => !line.startsWith(ch))
 
-    val rdd = sc.textFilesLines(files, nPartitions)
-      .filter(line => filter(line.value))
+    val parsed = rdd.filter(line => filter(line.value))
       .map {
         _.map { line =>
           val split = line.split(separator, -1)
@@ -215,6 +234,6 @@ object TextTableReader {
         }
       }
 
-    (schema, rdd)
+    (schema, parsed)
   }
 }

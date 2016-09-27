@@ -31,13 +31,25 @@ class TextTableSuite extends SparkSuite {
     variantStrings.foreach(str => assert(str matches TextTableReader.variantRegex))
     badVariantStrings.foreach(str => assert(!(str matches TextTableReader.variantRegex)))
 
-    assert(TextTableReader.guessType(Seq("123", ".", "-129", "0", "-200"), ".") == Some(TInt))
-    assert(TextTableReader.guessType(Seq("123", ".", "-129", "0", "-200", "-100.0"), ".") == Some(TDouble))
-    assert(TextTableReader.guessType(Seq("."), ".").isEmpty)
-    assert(TextTableReader.guessType(Seq("gene1", "gene2", "1230192"), ".") == Some(TString))
-    assert(TextTableReader.guessType(Seq("1:1:A:T", ".", "1:1:A:AAA"), ".") == Some(TVariant))
-    assert(TextTableReader.guessType(Seq("true", ".", "false"), ".") == Some(TBoolean))
-    assert(TextTableReader.guessType(locusStrings, ".") == Some(TLocus))
+    val rdd = sc.parallelize(Seq(
+      "123 123 . gene1 1:1:A:T true MT:123123",
+      ". . . gene2 . . .",
+      "-129 -129 . 1230192 1:1:A:AAA false GRCH12.1:151515",
+      "0 0 . gene123.1 1:100:A:* false GRCH12.1:123",
+      "-200 -200.0 . 155.2 GRCH123.2:2:A:T true 1:2"
+    ), 3).map { x => WithContext(x, TextContext(x, "none", None)) }
+
+    val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".")
+
+    assert(imputed.sameElements(Array(
+      Some(TInt),
+      Some(TDouble),
+      None,
+      Some(TString),
+      Some(TVariant),
+      Some(TBoolean),
+      Some(TLocus)
+    )))
 
     val (schema, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
       config = TextTableConfiguration().copy(impute = true))
