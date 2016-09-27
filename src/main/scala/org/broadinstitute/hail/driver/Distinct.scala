@@ -43,8 +43,9 @@ object Distinct extends Command {
 
     DistinctReport.initialize()
 
+    val acc = DistinctReport.accumulator
     state.copy(vds = vds.copy(rdd = vds.rdd.mapPartitions({ it =>
-      new SortedDistinctPairIterator(it, DistinctReport.accumulator += 1L)
+      new SortedDistinctPairIterator(it, acc += 1L)
     }, preservesPartitioning = true).asOrderedRDD))
   }
 }
