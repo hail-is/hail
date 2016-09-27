@@ -150,13 +150,32 @@ object ExportVCF extends Command {
     }
 
     val idQuery: Option[Querier] = vas.getOption("rsid")
-      .map(_ => vds.queryVA("va.rsid")._2)
+      .filter {
+        case TString => true
+        case t => warn(
+          s"""found `rsid' field, but it was an unexpected type `$t'.  Emitting missing RSID.
+              |  Expected ${ TString }""".stripMargin)
+          false
+      }.map(_ => vds.queryVA("va.rsid")._2)
 
     val qualQuery: Option[Querier] = vas.getOption("qual")
-      .map(_ => vds.queryVA("va.qual")._2)
+      .filter {
+        case TDouble => true
+        case t => warn(
+          s"""found `qual' field, but it was an unexpected type `$t'.  Emitting missing QUAL.
+              |  Expected ${ TDouble }""".stripMargin)
+          false
+      }.map(_ => vds.queryVA("va.qual")._2)
 
     val filterQuery: Option[Querier] = vas.getOption("filters")
-      .map(_ => vds.queryVA("va.filters")._2)
+      .filter {
+        case TSet(TString) => true
+        case t =>
+          warn(
+            s"""found `filters' field, but it was an unexpected type `$t'.  Emitting missing FILTERS.
+                |  Expected ${ TSet(TString) }""".stripMargin)
+          false
+      }.map(_ => vds.queryVA("va.filters")._2)
 
     def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype]) {
 
@@ -185,7 +204,7 @@ object ExportVCF extends Command {
         .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
-            f.foreachBetween(s => sb.append(s))(sb += ',')
+            f.foreachBetween(s => sb.append(s))(sb += ';')
           else
             sb += '.'
         case None => sb += '.'
