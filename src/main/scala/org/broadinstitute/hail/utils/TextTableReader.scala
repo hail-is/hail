@@ -4,6 +4,7 @@ import java.util.regex.Pattern
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
@@ -228,31 +229,32 @@ object TextTableReader {
 
     val schema = TStruct(namesAndTypes: _*)
 
+    val ab = mutable.ArrayBuilder.make[Annotation]
     val parsed = rdd
       .map {
         _.map { line =>
           val split = line.split(separator, -1)
           if (split.length != nField)
             fatal(s"expected $nField fields, but found ${ split.length } fields")
-          val ab = mutable.ArrayBuilder.make[Annotation]
 
+          ab.clear()
           var i = 0
           while (i < nField) {
             val (name, t) = namesAndTypes(i)
             val field = split(i)
             try {
               if (field == missing)
-                null
+                ab += null
               else
                 ab += TableAnnotationImpex.importAnnotation(field, t)
-            }
-            catch {
+            } catch {
               case e: Exception =>
                 fatal(s"""${ e.getClass.getName }: could not convert "$field" to $t in column "$name" """)
             }
             i += 1
           }
-          Annotation.fromSeq(ab.result())
+          val a = Annotation.fromSeq(ab.result())
+          a
         }
       }
 
