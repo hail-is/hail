@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.utils
 
+import java.util.regex.Pattern
+
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.utils._
@@ -7,6 +9,8 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.kohsuke.args4j.{Option => Args4jOption}
+
+import scala.collection.mutable
 
 trait TextTableOptions {
   @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
@@ -62,7 +66,8 @@ object TextTableReader {
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
     delimiter: String, missing: String): Array[Option[Type]] = {
     val nFields = header.length
-    val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex)
+    val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
+
     val regexTypes: Array[Type] = Array(TBoolean, TVariant, TLocus, TInt, TDouble)
 
     val nRegex = regexes.length
@@ -82,25 +87,34 @@ object TextTableReader {
         if (split.length != nFields)
           fatal(s"expected $nFields fields, but found ${ split.length }")
 
-        for (i <- 0 until nFields) {
+        var i = 0
+        while (i < nFields) {
           val field = split(i)
           if (field != missing) {
-            for (j <- 0 until nRegex) {
-              ma.update(i, j, ma(i, j) || field.matches(regexes(j)))
-              ma.update(i, j + nRegex, ma(i, j + nRegex) && (field == missing || field.matches(regexes(j))))
+            var j = 0
+            while (j < nRegex) {
+              val matches = regexes(j).matcher(field).matches()
+              ma.update(i, j, ma(i, j) || matches)
+              ma.update(i, j + nRegex, ma(i, j + nRegex) && (field == missing || matches))
+              j += 1
             }
             ma.update(i, missingIndex, false)
           }
+          i += 1
         }
       }
       ma
     }, { case (ma1, ma2) =>
-      for (i <- 0 until nFields) {
-        for (j <- 0 until nRegex) {
+      var i = 0
+      while (i < nFields) {
+        var j = 0
+        while (j < nRegex) {
           ma1.update(i, j, ma1(i, j) || ma2(i, j))
           ma1.update(i, j + nRegex, ma1(i, j + nRegex) && ma2(i, j + nRegex))
+          j += 1
         }
         ma1.update(i, missingIndex, ma1(i, missingIndex) && ma2(i, missingIndex))
+        i += 1
       }
       ma1
     })
@@ -178,7 +192,7 @@ object TextTableReader {
         info("Reading table to impute column types")
 
         sb.append("Finished type imputation")
-        val imputedTypes = imputeTypes(rdd.filter(_.value != header), columns, separator, missing)
+        val imputedTypes = imputeTypes(rdd, columns, separator, missing)
         columns.zip(imputedTypes).map { case (name, imputedType) =>
           types.get(name) match {
             case Some(t) =>
@@ -220,20 +234,25 @@ object TextTableReader {
           val split = line.split(separator, -1)
           if (split.length != nField)
             fatal(s"expected $nField fields, but found ${ split.length } fields")
-          Annotation.fromSeq(
-            (split, namesAndTypes).zipped
-              .map { case (elem, (name, t)) =>
-                try {
-                  if (elem == missing)
-                    null
-                  else
-                    TableAnnotationImpex.importAnnotation(elem, t)
-                }
-                catch {
-                  case e: Exception =>
-                    fatal(s"""${ e.getClass.getName }: could not convert "$elem" to $t in column "$name" """)
-                }
-              })
+          val ab = mutable.ArrayBuilder.make[Annotation]
+
+          var i = 0
+          while (i < nField) {
+            val (name, t) = namesAndTypes(i)
+            val field = split(i)
+            try {
+              if (field == missing)
+                null
+              else
+                ab += TableAnnotationImpex.importAnnotation(field, t)
+            }
+            catch {
+              case e: Exception =>
+                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $t in column "$name" """)
+            }
+            i += 1
+          }
+          Annotation.fromSeq(ab.result())
         }
       }
 
