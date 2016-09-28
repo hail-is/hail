@@ -48,7 +48,9 @@ function buildCommandOptions(cmdId, options) {
 }
 
 function buildSynopsis(data) {
-	return "<h3 class=synopsishead>Usage:</h3><p class=synopsis><pre class=synopsis><code>" + data.synopsis + "</code></pre></p>";
+	return "<h3 class=synopsishead>Usage:</h3><p class=synopsis><pre class=synopsis><code>" +
+	data.synopsis.replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+	"</code></pre></p>";
 }
 
 exports.buildGlobalOptions = function (options, $) {
