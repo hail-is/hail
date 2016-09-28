@@ -52,7 +52,7 @@ object ToplevelCommands {
   register(CommandMetadata)
   register(CompareVDS)
   register(Count)
-  register(Distinct)
+  register(Deduplicate)
   register(DownsampleVariants)
   register(ExportPlink)
   register(ExportGEN)

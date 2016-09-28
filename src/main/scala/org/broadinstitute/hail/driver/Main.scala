@@ -7,7 +7,7 @@ import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.SQLContext
-import org.broadinstitute.hail.driver.Distinct.DistinctReport
+import org.broadinstitute.hail.driver.Deduplicate.DeduplicateReport
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.io.gen.GenReport
 import org.broadinstitute.hail.io.vcf.VCFReport
@@ -151,7 +151,7 @@ object Main {
 
     VCFReport.report()
     GenReport.report()
-    DistinctReport.report()
+    DeduplicateReport.report()
 
     // Thread.sleep(60*60*1000)
 
