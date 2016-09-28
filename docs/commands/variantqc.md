@@ -9,7 +9,7 @@
 <div class="cmdsubsection"> 
 ### Notes:
 
- - These modules compute a variety of statistics from the genotype data, collapsing across variants.  The output from these modes can be written to TSV files, or stored within variant annotations for later use in [filtering](Filtering.md) and [export](Exporting.md). These can be accessed with `va.qc.<identifier>`.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
+ - These modules compute a variety of statistics from the genotype data, collapsing across variants.  The output from these modes can be written to TSV files, or stored within variant annotations for later use in [filtering](reference.html#Filtering) and [export](reference.html#ExportingTSV). These can be accessed with `va.qc.<identifier>`.  The statistics, their types, and brief descriptions of how they are calculated are listed below.
 
  - Standard deviations are calculated with zero degrees of freedom.
 
@@ -18,7 +18,7 @@
 </div>
 
 <div class="cmdsubsection">
-### <a href="variantqc_annotations"> Annotations:
+### <a class="jumptarget" href="variantqc_annotations"></a> Annotations:
 
 The below annotations can be accessed with `va.qc.<identifier>`
 

@@ -1,0 +1,59 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hail</title>
+  <meta name="description" content="Hail">
+  <script  src="jquery-3.1.1.min.js"></script>
+  <script src="bootstrap.min.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css" type="text/css">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    $(document).ready(function () {
+      $("#hail-navbar").load("navbar.html", function () {
+        $(".nav li").removeClass("active");
+        $('#docs').addClass('active');
+        $('#reference').addClass('active');
+      });
+    });
+  </script>
+</head>
+
+<body>
+  <nav class="navbar navbar-default navbar-fixed-top" id="hail-navbar"></nav>
+  <div class="jumptarget" id="TOC">
+    <h1>General Reference</h1>
+    <h2>Table of Contents</h2>
+    <ul>
+      <li><a href="#Representation">Data Representation</a></li>
+      <li><a href="#Importing">Importing Genotype Data</a></li>
+      <li><a href="#HailObjectProperties">Hail Object Methods</a></li>
+      <ul id="toc-hailobjects">
+        <li><a href="#variant">Variant</a></li>
+        <li><a href="#altallele">AltAllele</a></li>
+        <li><a href="#locus">Locus</a></li>
+        <li><a href="#interval">Interval</a></li>
+        <li><a href="#sample">Sample</a></li>
+        <li><a href="#genotype">Genotype</a></li>
+      </ul>
+      <li><a href="#Annotations">Annotations</a></li>
+      <li><a href="#HailExpressionLanguage">Hail Expression Language</a></li>
+      <li><a href="#Filtering">Filtering Data</a></li>
+      <li><a href="#ExportingData">Exporting Genotype Data</a></li>
+      <li><a href="#ExportingTSV">Exporting Data to TSV</a></li>
+      <li><a href="#SQL">SQL</a></li>
+    </ul>
+  </div>
+
+<div class="jumptarget" id="Representation"></div>
+<div class="jumptarget" id="Importing"></div>
+<div class="jumptarget" id="HailObjectProperties"></div>
+<div class="jumptarget" id="Annotations"></div>
+<div class="jumptarget" id="HailExpressionLanguage"></div>
+<div class="jumptarget" id="Filtering"></div>
+<div class="jumptarget" id="ExportingData"></div>
+<div class="jumptarget" id="ExportingTSV"></div>
+<div class="jumptarget" id="SQL"></div>
+</body>
+</html>

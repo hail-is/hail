@@ -1,6 +1,6 @@
 # Hail Object Methods
  
-## <a name="variant"></a>Variant
+## <a class="jumptarget" name="variant"></a>Variant
 
 **Variable Name:** `v`
 
@@ -22,7 +22,7 @@ Identifier | Type | Description
 `v.alt`                 | `String`    | Alternate allele sequence.  **Assumes biallelic.**
 `v.locus`               | `Locus`     | Chromosomal locus (chr, pos) of this variant
 
-## <a name="altallele"></a>AltAllele 
+## <a class="jumptarget" name="altallele"></a>AltAllele 
 
 **Variable Name:** `v.altAlleles[idx]` or `v.altAllele` (biallelic)
 
@@ -39,7 +39,7 @@ Identifier | Type | Description
  `<altAllele>.isTransition`   | `Boolean` | true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
  `<altAllele>.isTransversion` | `Boolean` | true if the polymorphism is a purine-pyrimidine flip
 
-## <a name="locus"></a>Locus
+## <a class="jumptarget" name="locus"></a>Locus
 
 **Variable Name:** `v.locus` or `Locus(chr, pos)`
 
@@ -48,7 +48,7 @@ Identifier | Type | Description
 `<locus>.contig`   |  `String` |  String representation of contig
 `<locus>.position` |  `Int`    |  Chromosomal position
 
-## <a name="interval"></a>Interval
+## <a class="jumptarget" name="interval"></a>Interval
 
 **Variable Name:** `Interval(locus1, locus2)`
 
@@ -58,7 +58,7 @@ Identifier | Type | Description
 `<interval>.end`   |  `Locus` | `Locus` object (see above) at the end of the interval (exclusive)
 
 
-## <a name="sample"></a>Sample
+## <a class="jumptarget" name="sample"></a>Sample
  
 **Variable Name:** `s`
 
@@ -67,7 +67,7 @@ Identifier | Type | Description
 `s.id` | `String` | The ID of this sample, as read at import-time
 
 
-## <a name="genotype"></a>Genotype
+## <a class="jumptarget" name="genotype"></a>Genotype
 
 **Variable Name:** `g`
 

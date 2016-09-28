@@ -46,7 +46,7 @@ $ hail importvcf file.vcf.bgz \
     exportvcf -o fileQC.vcf.bgz
 ```
 
-For more information about what types of functionality is available to copy and create annotations, [see the documentation here](ProgrammaticAnnotation.md)
+For more information about what types of functionality is available to copy and create annotations, [see the documentation here](reference.html#Annotations)
 
 **Hail's VCF will not contain any added sample annotations, or variant annotations not in `va.info`.**
 </div>

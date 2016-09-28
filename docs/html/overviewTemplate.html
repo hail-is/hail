@@ -1,0 +1,27 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hail</title>
+  <meta name="description" content="Hail Overview">
+  <script  src="jquery-3.1.1.min.js"></script>
+  <script src="bootstrap.min.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css" type="text/css">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    $(document).ready(function () {
+      $("#hail-navbar").load("navbar.html", function () {
+        $(".nav li").removeClass("active");
+        $('#docs').addClass('active');
+        $('#overview').addClass('active');
+      });
+    });
+  </script>
+</head>
+
+<body>
+  <nav class="navbar navbar-default navbar-fixed-top" id="hail-navbar"></nav>
+  <div id="Overview"></div>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hail</title>
+  <meta name="description" content="Hail Command Reference">
+  <script  src="jquery-3.1.1.min.js"></script>
+  <script src="bootstrap.min.js"></script>
+  <link rel="stylesheet" href="bootstrap.min.css" type="text/css">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    $(document).ready(function () {
+      $("#hail-navbar").load("navbar.html", function () {
+        $(".nav li").removeClass("active");
+        $('#docs').addClass('active');
+        $('#commands').addClass('active');
+      });
+    });
+  </script>
+</head>
+
+<body>
+  <nav class="navbar navbar-default navbar-fixed-top" id="hail-navbar"></nav>
+  <div class="jumptarget" id="TOC">
+    <h1>Command Reference</h1>
+    <h2>Table of Contents</h2>
+    <ul id="toc-commands">
+      <li><a href="#GlobalOptions">Global Options</a></li>
+    </ul>
+  </div>
+
+<div class="jumptarget" id="GlobalOptions"></div>
+</body>
+</html>

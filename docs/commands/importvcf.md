@@ -11,7 +11,7 @@
 
  - Hail is designed to be maximally compatible with files in the [VCF v4.2 spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf).
 
- - `importvcf` takes a list of VCF files to load.  All files must have the same header and the same set of samples in the same order (e.g., a dataset split by chromosome).  Files can be specified as [Hadoop glob patterns](#hadoopglob).
+ - `importvcf` takes a list of VCF files to load.  All files must have the same header and the same set of samples in the same order (e.g., a dataset split by chromosome).  Files can be specified as [Hadoop glob patterns](reference.html#hadoopglob).
  
  - Ensure that the VCF file is correctly prepared for import:
    - VCFs should be either uncompressed (".vcf") or block-compressed (".vcf.bgz").  If you have a large compressed VCF that ends in ".vcf.gz", it is likely that the file is actually block-compressed, and you should rename the file to ".vcf.bgz" accordingly.  If you actually have a standard gzipped file, it is possible to import it to hail using the `-f` option.  However, this is not recommended -- all parsing will have to take place on one node, because gzip decompression is not parallelizable.  In this case, import could take significantly longer.
@@ -21,7 +21,7 @@
 $ hail importvcf /path/to/file.vcf.bgz write -o /path/to/output.vds
 ```
 
- - Hail makes certain assumptions about the genotype fields, see [Representation](#Representation).  On import, Hail filters (sets to no-call) any genotype that violates these assumptions.  Hail interpets the format fields: GT, AD, OD, DP, GQ, PL; all others are silently dropped.
+ - Hail makes certain assumptions about the genotype fields, see [Representation](reference.html#Representation).  On import, Hail filters (sets to no-call) any genotype that violates these assumptions.  Hail interpets the format fields: GT, AD, OD, DP, GQ, PL; all others are silently dropped.
  - importvcf does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all these records will be imported and will not be collapsed into a single variant. 
 </div>
 

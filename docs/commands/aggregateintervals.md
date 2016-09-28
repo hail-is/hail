@@ -21,9 +21,9 @@ An export expression designates a list of computations to perform, and what thes
 
 Identifier | Description
 :-: | ---
-`interval` | genomic interval, see the [representation docs](#Representation) for details
+`interval` | genomic interval, see the [representation docs](reference.html#Representation) for details
 `global` | global annotation
-`variants` | Variant [aggregable](#aggregables).  Aggregator namespace below.
+`variants` | Variant [aggregable](reference.html#aggregables).  Aggregator namespace below.
 
 
 **Namespace within `variants` aggregator:**

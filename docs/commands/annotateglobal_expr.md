@@ -40,8 +40,8 @@ global.`layer one`.`layer two`.`layer three`
 Identifier | Description
 :-: | ---
 `global` | Global annotations
-`variants` | variants and their annotations, an [aggregable](#aggregables)
-`samples` | samples and their annotations, an [aggregable](#aggregables)
+`variants` | variants and their annotations, an [aggregable](reference.html#aggregables)
+`samples` | samples and their annotations, an [aggregable](reference.html#aggregables)
 
 **Namespace of `samples` aggregable:**
 

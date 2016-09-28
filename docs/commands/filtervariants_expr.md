@@ -9,17 +9,17 @@
 <div class="cmdsubsection">
 ### Description:
 
-Use the [Hail expression language](#HailExpressionLanguage) to supply a boolean expression involving the following exposed data structures:
+Use the [Hail expression language](reference.html#HailExpressionLanguage) to supply a boolean expression involving the following exposed data structures:
 
 Exposed Name | Description
 :-: | ---
 `v`  | variant
 `va` | variant annotation
 `global` | global annotation
-`gs` | genotype row [aggregable](#aggregables)
+`gs` | genotype row [aggregable](reference.html#aggregables)
 
     
-For more information about these exposed objects and how to use them, see the documentation on [representation](#Representation) and the [Hail expression language](#HailExpressionLanguage).
+For more information about these exposed objects and how to use them, see the documentation on [representation](reference.html#Representation) and the [Hail expression language](reference.html#HailExpressionLanguage).
 
 ```
 $ hail read file.vds

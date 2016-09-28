@@ -139,9 +139,9 @@ Several Hail commands provide the ability to perform a broad array of computatio
  - All variables and values are case sensitive
  - Missingness propagates up.  If any element in an expression is missing, the expression will evaluate to missing.
 
-## <a name="#aggregables"></a> Aggregables
+## <a class="jumptarget" name="#aggregables"></a> Aggregables
 
-Hail's expression language exposes a number of 'aggregables', special objects which allow users to specify computations across entire rows or columns of a dataset.  Aggregables allow a user to replicate nearly all the of the statistics generated in `sampleqc` or `variantqc`, as well as compute an unrestricted set of new metrics.
+Hail's expression language exposes a number of 'aggregables', special objects which allow users to specify computations across entire rows or columns of a dataset.  Aggregables allow a user to replicate nearly all the of the statistics generated in [`sampleqc`](commands.html#sampleqc) or [`variantqc`](commands.html#variantqc), as well as compute an unrestricted set of new metrics.
 
 **Additional namespace of `gs`:**
 
@@ -180,7 +180,7 @@ These two generic helper functions allow the proceeding calculations to be total
 
 `filter` subsets an aggregable by excluding/including elements based on a lambda expression.  Note: does not change the type of an aggregable.  `gs.filter(g => g.isHet)` produces an aggregable where only heterozygous genotypes are considered.
 
-### Count
+### <a class="jumptarget" name="#aggregables_count"></a> Count
 
 ```
 <aggregable>.count()
@@ -261,6 +261,7 @@ annotatevariants expr -c 'va.hets = gs.filter(g => g.isHet).count()' \
 annotateglobal expr -c 'global.total_LOFs = 
     variants.filter(v => va.isLOF).map(v => va.hets).sum()'
 ```
+
 
 ### Stats
 
@@ -377,7 +378,7 @@ The above example is updating the value of the `va.hetSamples` annotation. The v
   2. apply `map(g => s.id)` to convert the each kept genotype to its corresponding sample id
   3. apply `collect()` to remove `NA`s and produce an `Array` of sample ids (which are `String`s)
 
-### <a name="aggreg_infoscore"></a> InfoScore
+### <a class="jumptarget" name="aggreg_infoscore"></a> InfoScore
 
 ```
 <genotype aggregable>.infoScore()
@@ -397,7 +398,7 @@ Struct {
 In the above schema, `score` is the IMPUTE info score produced, and `nIncluded` is the number of samples with non-missing dosages.
 
 **Note:**
-If the genotype data was not imported using the [`importbgen`](#importbgen) or [`importgen`](#importgen) commands, then the results for all variants will be `score = null` and `nIncluded = 0`.
+If the genotype data was not imported using the [`importbgen`](commands.html#importbgen) or [`importgen`](commands.html#importgen) commands, then the results for all variants will be `score = null` and `nIncluded = 0`.
 
 **Examples:**
 
@@ -444,12 +445,12 @@ The below expression assumes a VDS was split from a VCF, and filters down to sit
 filtervariants expr --keep -c 'if (va.info.AC[va.aIndex - 1]) == 1'
 ```
 
-See documentation on [exporting to TSV](#ExportTSV) for more examples of what Hail's language can do.
+See documentation on [exporting to TSV](commands.html#ExportTSV) for more examples of what Hail's language can do.
 
 
-## <a name="statsFunctions"></a> Statistical Functions
+## <a class="jumptarget" name="statsFunctions"></a> Statistical Functions
 
-### Fisher's Exact Test
+### <a class="jumptarget" name="fet"></a> Fisher's Exact Test
 
 Hail's expression language exposes the `fet` function to calculate the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for 2x2 tables. This implementation of FET is identical to the version implemented in [R](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html) with default parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
 
@@ -478,7 +479,8 @@ filtervariants expr --keep -c 'va.fet.pValue < 1e-4'
 exportvariants -o /path/my/results.tsv -c 'v, va.minorCase, va.majorCase, va.minorControl, va.majorControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'
 ```
 
-### <a name="infoscore_doc"></a> IMPUTE Info Score (Dosage Data)
+
+### <a class="jumptarget" name="infoscore_doc"></a> IMPUTE Info Score (Dosage Data)
 
 The `infoScore` aggregator can be used to calculate the IMPUTE info score from a [genotype aggregable](#aggreg_infoscore). 
 
@@ -508,7 +510,7 @@ $$
 Hail will not generate identical results as [QCTOOL](http://www.well.ox.ac.uk/~gav/qctool/#overview) for the following reasons:
  
  - The floating point number Hail stores for each dosage is slightly different than the original data due to rounding and normalization of probabilities.
- - Hail automatically removes dosages that [do not meet certain requirements](#dosagefilters) on data import with [`importgen`](#importgen) and [`importbgen`](#importbgen).
+ - Hail automatically removes dosages that [do not meet certain requirements](commands.html#dosagefilters) on data import with [`importgen`](commands.html#importgen) and [`importbgen`](commands.html#importbgen).
  - Hail does not use the population frequency to impute dosages when a dosage has been set to missing.
  - **Hail calculates the same statistic for sex chromosomes as autosomes while QCTOOL incorporates sex information**
 
