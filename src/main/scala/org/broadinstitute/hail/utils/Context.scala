@@ -10,16 +10,9 @@ case class TextContext(line: String, file: String, position: Option[Int]) extend
       case _: FatalException => e.getMessage
       case _ => s"caught $e"
     }
-    val lineToPrint = truncate(line, 60)
-
-    log.error(
-      s"""
-         |$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: $msg
-         |  offending line: $line""".stripMargin)
     fatal(
-      s"""
-         |$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: $msg
-         |  offending line: $lineToPrint""".stripMargin)
+      s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: $msg
+         |  offending line: @1""".stripMargin, line, toTake = 60)
   }
 }
 

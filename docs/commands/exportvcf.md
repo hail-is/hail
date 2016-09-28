@@ -56,11 +56,11 @@ For more information about what types of functionality is available to copy and 
 
 <h4 class="example">Export the VCF as an uncompressed file</h4>
 ```
-hail read -i /path/to/file.vds exportvcf -o /path/to/file.vcf
+hail read /path/to/file.vds exportvcf -o /path/to/file.vcf
 ```
 
 <h4 class="example">Export the VCF as a block-compressed file</h4>
 ```
-hail read -i /path/to/file.vds exportvcf -o /path/to/file.vcf.bgz
+hail read /path/to/file.vds exportvcf -o /path/to/file.vcf.bgz
 ```
 </div>

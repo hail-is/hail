@@ -13,7 +13,7 @@
 
 Example `exportplink` command:
 ```
-hail read -i /path/to/file.vds exportplink -o /path/to/plink
+hail read /path/to/file.vds exportplink -o /path/to/plink
 ```
 
 Hail's output is designed to mirror Plink's own VCF conversion using the following command:

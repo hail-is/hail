@@ -32,11 +32,11 @@ $ ./build/install/hail/bin/hail importvcf src/test/resources/sample.vcf write -o
 ```
 Then to count the number of samples and variants, run
 ```
-$ ./build/install/hail/bin/hail read -i ~/sample.vds count
+$ ./build/install/hail/bin/hail read ~/sample.vds count
 ```
 To compute and output sample and variant quality control statistics, run
 ```
-$ ./build/install/hail/bin/hail read -i ~/sample.vds splitmulti variantqc -o ~/variantqc.tsv sampleqc -o ~/sampleqc.tsv
+$ ./build/install/hail/bin/hail read ~/sample.vds splitmulti variantqc -o ~/variantqc.tsv sampleqc -o ~/sampleqc.tsv
 ```
 Note that during each run Hail writes a `hail.log` file in the current directory; this is useful to developers for debugging.
 

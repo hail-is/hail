@@ -78,13 +78,13 @@ filtergenotypes -c 'g.gq < 20 || (g.gq < 30 && va.info.FS > 30)' --remove
 #### Dropping all samples / variants from a VDS
 
 ```
-$ hail read -i with_genotypes.vds 
+$ hail read with_genotypes.vds 
     filtersamples all 
     write -o sites_only.vds
 ```
 
 ```
-$ hail read -i file.vds \
+$ hail read file.vds \
     filtervariants all
     write -o variant_info_only.vds
 ```

@@ -20,14 +20,14 @@ samples.  For example, suppose you want to rename samples to remove
 spaces.  First, run:
 
 ```
-$ hail read -i /path/to/my.vds exportsamples -c 's.id, s.id' -o sample.map
+$ hail read /path/to/my.vds exportsamples -c 's.id, s.id' -o sample.map
 ```
 
 Then edit `sample.map` to remove spaces from the sample names in the
 second column.  Then run your desired analysis in Hail:
 
 ```
-$ hail read -i /path/to/my.vds renamesamples -i  sample.map ...
+$ hail read /path/to/my.vds renamesamples -i  sample.map ...
 ```
 
 Renaming samples is fast and there is no need to resave the dataset

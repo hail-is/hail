@@ -9,7 +9,7 @@ import scala.collection.JavaConverters._
 object Read extends Command {
   def name = "read"
 
-  def description = "Load file .vds as the current dataset"
+  def description = "Load .vds file(s) as the current dataset. If loading multiple files, they must have similar metadata."
 
   class Options extends BaseOptions {
     @Args4jOption(name = "-i", aliases = Array("--input"), usage = "Input file (deprecated)")
@@ -39,28 +39,32 @@ object Read extends Command {
 
     val sampleIds = vdses.head.sampleIds
     val vaSchema = vdses.head.vaSignature
+    val wasSplit = vdses.head.wasSplit
     val reference = inputs(0)
 
     vdses.indices.tail.foreach { i =>
-      val ids = vdses(i).sampleIds
-      val vas = vdses(i).vaSignature
+      val vds = vdses(i)
+      val ids = vds.sampleIds
+      val vas = vds.vaSignature
       val path = inputs(i)
       if (ids != sampleIds) {
-        log.error(s"IDs in reference file $reference: ${ sampleIds.mkString(", ") }")
-        log.error(s"IDs in problem file $path: ${ ids.mkString(", ") }")
         fatal(
           s"""cannot read datasets with different sample IDs or sample ordering
-              |  Expected IDs read from $reference
-              |  Mismatch in file $path
-              |  See log for full sample ID readout""".stripMargin)
+              |  IDs in reference file $reference: @1
+              |  IDs in file $path: @2""".stripMargin, sampleIds, ids)
+      } else if (wasSplit != vds.wasSplit) {
+        fatal(
+          s"""cannot combine split and unsplit datasets
+              |  Reference file $reference split status: $wasSplit
+              |  File $path split status: ${ vds.wasSplit }""".stripMargin)
       } else if (vas != vaSchema) {
-        log.error(s"variant annotation schema in reference file $reference: ${ vaSchema.toPrettyString(compact = true, printAttrs = true) }")
-        log.error(s"variant annotation schema in problem file $path: ${ vas.toPrettyString(compact = true, printAttrs = true) }")
         fatal(
           s"""cannot read datasets with different variant annotation schemata
-              |  Expected schema read from $reference
-              |  Mismatch in file $path
-              |  See log for full schema readout""".stripMargin)
+              |  Schema in reference file $reference: @1
+              |  Schema in file $path: @2""".stripMargin,
+          vaSchema.toPrettyString(compact = true, printAttrs = true),
+          vas.toPrettyString(compact = true, printAttrs = true)
+        )
       }
     }
 

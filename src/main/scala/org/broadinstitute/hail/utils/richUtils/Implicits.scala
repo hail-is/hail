@@ -6,6 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
+import org.broadinstitute.hail.utils.Truncatable
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
@@ -71,4 +72,23 @@ trait Implicits {
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder = new RichStringBuilder(sb)
 
+  implicit def toTruncatable(s: String): Truncatable = new Truncatable {
+    def strings(delim: String, toTake: Int): (String, String) = {
+      val short = if (s.length > toTake - 3) s.take(toTake) + "..." else s
+      (short, s)
+    }
+  }
+
+  implicit def toTruncatable(it: Iterable[_]): Truncatable = new Truncatable {
+    def strings(delim: String, toTake: Int): (String, String) = {
+      val short = if (it.size > toTake)
+        it.take(toTake).mkString(delim) + delim + "..."
+      else
+        it.mkString(delim)
+      val logged = it.mkString(delim)
+      (short, logged)
+    }
+  }
+
+  implicit def toTruncatable(arr: Array[_]): Truncatable = toTruncatable(arr: Iterable[_])
 }

@@ -13,7 +13,7 @@
 Hail expects a .variant_list file to contain a variant per in line following format: `contig:pos:ref:alt1,alt2,...,altN`.  Variants in the dataset will be kept / excluded based on the presence of the `--keep` and `--remove` flags.
 
 ```
-$ hail read -i file.vds
+$ hail read file.vds
     filtervariants list -i variants.txt --keep
     ...
 ```

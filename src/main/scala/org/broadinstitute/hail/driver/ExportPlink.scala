@@ -29,12 +29,9 @@ object ExportPlink extends Command {
     val spaceRegex = """\s+""".r
     val badSampleIds = vds.sampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
     if (badSampleIds.nonEmpty) {
-      val msg =
-        s"""Found ${ badSampleIds.length } sample IDs with whitespace.  Please run `renamesamples' to fix this problem before exporting to plink format.""".stripMargin
-      log.error(msg + s"\n  Bad sample IDs: \n  ${ badSampleIds.mkString("  \n") }")
-      fatal(msg + s"\n  Bad sample IDs: \n  ${ badSampleIds.take(10).mkString("  \n") }${
-        if (badSampleIds.length > 10) "\n  ...\n  See hail.log for full list of IDs" else ""
-      }")
+      fatal(s"""Found ${ badSampleIds.length } sample IDs with whitespace
+            |  Please run `renamesamples' to fix this problem before exporting to plink format
+           |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
     }
 
     val bedHeader = Array[Byte](108, 27, 1)

@@ -45,13 +45,13 @@ Identifier | Type | Description
 <h4 class="example"> Impute the sex of samples </h4>
 
 ```
-hail read -i /path/to/file.vds imputesex
+hail read /path/to/file.vds imputesex
 ```
 
 <h4 class="example">Output the results to a text file</h4>
 
 ```
-hail read -i /path/to/file.vds imputesex 
+hail read /path/to/file.vds imputesex 
    exportsamples -o /path/to/output.tsv 
    -c "ID=s.id, Fstat=sa.imputesex.Fstat, ImputedSex=sa.imputesex.isFemale"
 ```
@@ -59,26 +59,26 @@ hail read -i /path/to/file.vds imputesex
 <h4 class="example">Calculate the inbreeding coefficient in only common variants (Minor Allele Frequency > 5%)</h4>
 
 ```
-hail read -i /path/to/file.vds imputesex -m 0.05
+hail read /path/to/file.vds imputesex -m 0.05
 ```
 
 <h4 class="example">Use custom thresholds when imputing sex from the inbreeding coefficient</h4>
 
 ```
-hail read -i /path/to/file.vds imputesex 
+hail read /path/to/file.vds imputesex 
    --male-threshold 0.5 --female-threshold 0.5
 ```
 
 <h4 class="example">Include pseudo-autosomal variants in the inbreeding coefficient calculation</h4>
 
 ```
-hail read -i /path/to/file.vds imputesex --include-par
+hail read /path/to/file.vds imputesex --include-par
 ```
 
 <h4 class="example">Use a population reference minor allele frequency when calculating the inbreeding coefficient</h4> 
 
 ```
-hail read -i /path/to/file.vds 
+hail read /path/to/file.vds 
    annotatevariants table -i my_exac_stats.tsv -root "va.exac"  
    imputesex --pop-freq "va.exac.maf"
 ```
@@ -86,14 +86,14 @@ hail read -i /path/to/file.vds
 <h4 class="example"> Obtain identical results as PLINK v1.7</h4>
 
 ```
-hail read -i /path/to/file.vds 
+hail read /path/to/file.vds 
    splitmulti 
    imputesex --include-par
 ```
 
 <h4 class="example">Check the reported sex against the imputed sex</h4>
 ```
-hail read -i /path/to/file.vds 
+hail read /path/to/file.vds 
     annotatesamples fam -i my_cohort_phenotypes.fam -r sa.mypheno 
     imputesex 
     annotatesamples expr -c 'sa.sexcheck = sa.mypheno.isFemale == sa.imputeSex.isFemale'

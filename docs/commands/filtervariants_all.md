@@ -12,7 +12,7 @@
 <h4 class="example">Remove all variants from a VDS</h4>
 
 ```
-$ hail read -i file.vds \
+$ hail read file.vds \
     filtervariants all
     write -o sample_info_only.vds
 ```

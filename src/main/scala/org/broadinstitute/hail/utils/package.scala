@@ -14,11 +14,49 @@ package object utils extends Logging
   with richUtils.Implicits
   with utils.NumericImplicits {
 
-  class FatalException(msg: String) extends RuntimeException(msg)
+  class FatalException(msg: String, logMsg: Option[String] = None) extends RuntimeException(msg)
+
+  trait Truncatable {
+    def strings(delim: String, toTake: Int): (String, String)
+  }
+
+  val defaultToTake = 10
+  val defaultDelim = ", "
 
   def fatal(msg: String): Nothing = {
     throw new FatalException(msg)
   }
+
+  def fatal(msg: String, logMsg: String): Nothing = {
+    throw new FatalException(msg, Some(logMsg))
+  }
+
+  def fatal(msg: String, t: Truncatable, delimiter: String, toTake: Int): Nothing = {
+    val (screen, logged) = t.strings(delimiter, toTake)
+    throw new FatalException(format(msg, screen), Some(format(msg, logged)))
+  }
+
+  def fatal(msg: String, t: Truncatable, delimiter: String): Nothing = fatal(msg, t, delimiter, defaultToTake)
+
+  def fatal(msg: String, t: Truncatable, toTake: Int): Nothing = fatal(msg, t, defaultDelim, toTake)
+
+  def fatal(msg: String, t: Truncatable): Nothing = fatal(msg, t, defaultDelim, defaultToTake)
+
+  def fatal(msg: String, t1: Truncatable, t2: Truncatable,
+    delimiter: String = defaultDelim, toTake: Int = defaultToTake): Nothing = {
+    val (screen1, logged1) = t1.strings(delimiter, toTake)
+    val (screen2, logged2) = t2.strings(delimiter, toTake)
+    throw new FatalException(format(msg, screen1, screen2), Some(format(msg, logged1, logged2)))
+  }
+
+  def format(s: String, substitutions: Any*): String = {
+    substitutions.zipWithIndex.foldLeft(s)({ case (str, (value, i)) =>
+      str.replace(s"@${ i + 1 }", value.toString)
+    })
+  }
+
+  def truncateIterable(it: Iterable[_], delim: String, toTake: Int): (String, String) =
+    ((if (it.size <= toTake) it else it.take(toTake)).mkString(delim) + delim + "...", it.mkString(delim))
 
   def plural(n: Int, sing: String, plur: String = null): String =
     if (n == 1)
@@ -257,7 +295,7 @@ package object utils extends Logging
     * @tparam A
     * @tparam B
     */
-  def coalesce[A,B : ClassTag](xs: GenTraversableOnce[A])(size: Int, key: (A, Int) => Int, z: B)(combine: (B, A) => B): Array[B] = {
+  def coalesce[A, B: ClassTag](xs: GenTraversableOnce[A])(size: Int, key: (A, Int) => Int, z: B)(combine: (B, A) => B): Array[B] = {
     val a = Array.fill(size)(z)
 
     for ((x, idx) <- xs.toIterator.zipWithIndex) {

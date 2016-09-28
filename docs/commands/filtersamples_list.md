@@ -13,7 +13,7 @@
 Hail expects a sample list file to contain one sample per line, with no other fields.
 
 ```
-$ hail read -i file.vds
+$ hail read file.vds
     filtersamples list -i samples.txt --keep
     ...
 ```
