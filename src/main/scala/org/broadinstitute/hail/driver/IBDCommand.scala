@@ -22,6 +22,14 @@ object IBDCommand extends Command {
       usage = "Output TSV file for the IBD matrix")
     var outputFile: String = _
 
+    @Args4jOption(required = false, name = "--min",
+      usage = "Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]")
+    var min: java.lang.Double = _
+
+    @Args4jOption(required = false, name = "--max",
+      usage = "Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]")
+    var max: java.lang.Double = _
+
   }
 
   override def newOptions = new Options
@@ -52,15 +60,27 @@ object IBDCommand extends Command {
   }
 
   override protected def run(state: State, options: Options): State = {
+    val min = Option(options.min).map(_.doubleValue())
+    val max = Option(options.max).map(_.doubleValue())
+
+    min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
+    max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
+
+    min.liftedZip(max).foreach { case (min, max) =>
+      if (options.min <= options.max) {
+        fatal(s"minimum must be less than or equal to maximum: ${ options.min }, ${ options.max }")
+      }
+    }
+
     val computeMaf = Option(options.computeMafExpr).map(generateComputeMaf(state.vds, _))
 
-    val ibdMap = IBD(state.vds, computeMaf, !options.unbounded)
-
-    ibdMap.map { case ((i, j), ibd) =>
-        s"$i\t$j\t${ibd.ibd.Z0}\t${ibd.ibd.Z1}\t${ibd.ibd.Z2}\t${ibd.ibd.PI_HAT}"
+    IBD(state.vds, computeMaf, !options.unbounded, min, max)
+      .map { case ((i, j), ibd) =>
+        s"$i\t$j\t${ ibd.ibd.Z0 }\t${ ibd.ibd.Z1 }\t${ ibd.ibd.Z2 }\t${ ibd.ibd.PI_HAT }"
       }
       .saveAsTextFile(options.outputFile)
 
     state
   }
+
 }

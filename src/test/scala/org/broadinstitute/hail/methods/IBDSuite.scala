@@ -31,8 +31,10 @@ class IBDSuite extends SparkSuite {
   implicit object ibdAbsoluteFuzzyComparable extends AbsoluteFuzzyComparable[IBDInfo] {
     def absoluteEq(tolerance: Double, x: IBDInfo, y: IBDInfo) = {
       def feq(x: Double, y: Double) = AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y)
+      def NaNorFeq(x: Double, y: Double) =
+        x.isNaN && y.isNaN || feq(x, y)
 
-      feq(x.Z0, y.Z0) && feq(x.Z1, y.Z1) && feq(x.Z2, y.Z2) && feq(x.PI_HAT, y.PI_HAT)
+      NaNorFeq(x.Z0, y.Z0) && NaNorFeq(x.Z1, y.Z1) && NaNorFeq(x.Z2, y.Z2) && NaNorFeq(x.PI_HAT, y.PI_HAT)
     }
   }
 
@@ -44,12 +46,9 @@ class IBDSuite extends SparkSuite {
     }
   }
 
-  def plinkAndIBDAreSame(vds: VariantDataset): Unit = {
-    val sampleIds = vds.sampleIds
-    val us: Map[(String, String), ExtendedIBDInfo] = IBD(vds)
-      .map { case ((i, j), ibd) => ((sampleIds(i), sampleIds(j)), ibd) }
-      .collect()
-      .toMap
+  private def runPlinkIBD(vds: VariantDataset,
+    min: Option[Double] = None,
+    max: Option[Double] = None): Map[(String, String), ExtendedIBDInfo] = {
 
     val tmpdir = tmpDir.createTempFile(prefix = "plinkIBD")
     val vcfOutputFile = tmpdir + ".vcf"
@@ -57,7 +56,10 @@ class IBDSuite extends SparkSuite {
     var s = State(sc, sqlContext).copy(vds = vds)
     s = ExportVCF.run(s, Array("-o", vcfOutputFile))
 
-    s"plink --double-id --allow-extra-chr --vcf ${ uriPath(vcfOutputFile) } --genome full --out ${ uriPath(tmpdir) }" !
+    val thresholdString = min.map(x => s"--min $x").getOrElse("") + " " +
+      max.map(x => s"--max $x").getOrElse("")
+
+    s"plink --double-id --allow-extra-chr --vcf ${ uriPath(vcfOutputFile) } --genome full --out ${ uriPath(tmpdir) } " + thresholdString !
 
     val genomeFormat = TextTableConfiguration(
       types = Map(("IID1", TString), ("IID2", TString), ("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble),
@@ -65,7 +67,7 @@ class IBDSuite extends SparkSuite {
       separator = " +")
     val (_, rdd) = TextTableReader.read(sc)(Array(tmpdir + ".genome"), genomeFormat)
 
-    val plink: Map[(String, String), ExtendedIBDInfo] = rdd.collect()
+    rdd.collect()
       .map(_.value)
       .map { ann =>
         // _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe, dst, ppc, ratio, ibs0, ibs1, ibs2, homhom, hethet
@@ -81,35 +83,63 @@ class IBDSuite extends SparkSuite {
         val ibs2 = toI(row(17))
         ((iid1, iid2), ExtendedIBDInfo(IBDInfo(z0, z1, z2, pihat), ibs0, ibs1, ibs2))
       }
+      // if min or max is enabled, we remove NaNs, plink does not
+      .filter { case (_, eibd) => (min.isEmpty && max.isEmpty) || !eibd.hasNaNs }
       .toMap
-
-    println(s"vds samples: ${ vds.nSamples }, vds variants: ${ vds.nVariants }")
-
-    // plink rounds to the nearest ten-thousandth
-    val tolerance = 5e-5
-
-    assertSameElements(us, plink,
-      (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y))
   }
 
   object Spec extends Properties("IBD") {
+    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)
+      .resize(1000)
+      .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal })
+      .filter(vds => vds.nVariants > 2 && vds.nSamples >= 2)
+
     property("hail generates same result as plink 1.9") =
-      forAll(VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic).resize(1000)) { vds =>
-        if (vds.nVariants > 2) {
-          plinkAndIBDAreSame(vds)
-        } else {
-          println(s"HailCheck Warning: Trivial (nVariants <= 2) vds found: ${ vds }")
-        }
-        true
+      forAll(plinkSafeBiallelicVDS) { vds =>
+        val us = IBD(vds).collect().toMap
+
+        val plink = runPlinkIBD(vds)
+
+        mapSameElements(us, plink,
+          (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y))
+      }
+
+    property("hail generates same result as plink 1.9 with min and/or max") =
+      forAll(plinkSafeBiallelicVDS,
+        Gen.option(Gen.choose(0.0, 1.0), 0.8),
+        Gen.option(Gen.choose(0.0, 1.0), 0.8)) { (vds, maybeMin, maybeMax) =>
+        // ensure min <= max
+        val validMax = maybeMax.map(max => maybeMin match {
+          case None => max
+          case Some(min) if max < min => (max / min) * (1.0 - min) + min
+          case Some(min) => max
+        })
+
+        val us = IBD(vds, min = maybeMin, max = validMax).collect().toMap
+
+        val plink = runPlinkIBD(vds, maybeMin, validMax)
+
+        mapSameElements(us, plink,
+          (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y))
       }
   }
+
+  // plink rounds to the nearest ten-thousandth
+  val tolerance = 5e-5
 
   @Test def testIBDPlink() {
     Spec.check()
   }
 
   @Test def ibdPlinkSameOnRealVCF() {
-    plinkAndIBDAreSame(LoadVCF(sc, "src/test/resources/sample.vcf"))
+    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+
+    val us = IBD(vds).collect().toMap
+
+    val plink = runPlinkIBD(vds)
+
+    assert(mapSameElements(us, plink,
+      (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y)))
   }
 
   @Test def ibdLookupTable() {
