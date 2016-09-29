@@ -17,11 +17,10 @@ pruning but linkage disequilibrium may negatively influence the results.
 
 #### TSV format
 
-The `--output` flag triggers TSV output. The TSV does not contain headers. The
-columns are, in order: the first sample id, the second sample id, `Z0`, `Z1`,
-`Z2`, `PI_HAT`. For example:
+The `--output` flag triggers TSV output. For example:
 
 ```
+SAMPLE_ID_1	SAMPLE_ID_2	Z0	Z1	Z2	PI_HAT
 sample1	sample2	1.0000	0.0000	0.0000	0.0000
 sample1	sample3	1.0000	0.0000	0.0000	0.0000
 sample1	sample4	0.6807	0.0000	0.3193	0.3193
