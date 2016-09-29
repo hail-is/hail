@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.variant
 
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.utils._
@@ -178,6 +180,21 @@ object Variant {
 
       def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
     }
+
+  def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
+    sc.textFileLines(input)
+      .map {
+        _.map { line =>
+          val fields = line.split(":")
+          if (fields.length != 4)
+            fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
+          val ref = fields(2)
+          (Variant(fields(0),
+            fields(1).toInt,
+            ref,
+            fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
+        }.value
+      }
 }
 
 object VariantSubgen {
