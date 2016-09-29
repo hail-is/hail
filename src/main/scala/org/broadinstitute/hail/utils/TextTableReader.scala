@@ -4,8 +4,6 @@ import java.util.regex.Pattern
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
@@ -70,19 +68,9 @@ object TextTableReader {
     val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
 
     val regexTypes: Array[Type] = Array(TBoolean, TVariant, TLocus, TInt, TDouble)
-
     val nRegex = regexes.length
-    val missingIndex = 2 * nRegex
 
-    def zero() = {
-      val m = MultiArray2.fill[Boolean](nFields, missingIndex + 1)(true)
-      for (i <- 0 until nFields)
-        for (j <- 0 until nRegex)
-          m.update(i, j, false)
-      m
-    }
-
-    val imputation = values.treeAggregate(zero())({ case (ma, line) =>
+    val imputation = values.treeAggregate(MultiArray2.fill[Boolean](nFields, nRegex + 1)(true))({ case (ma, line) =>
       line.foreach { l =>
         val split = l.split(delimiter)
         if (split.length != nFields)
@@ -94,12 +82,10 @@ object TextTableReader {
           if (field != missing) {
             var j = 0
             while (j < nRegex) {
-              val matches = regexes(j).matcher(field).matches()
-              ma.update(i, j, ma(i, j) || matches)
-              ma.update(i, j + nRegex, ma(i, j + nRegex) && (field == missing || matches))
+              ma.update(i, j, ma(i, j) && regexes(j).matcher(field).matches())
               j += 1
             }
-            ma.update(i, missingIndex, false)
+            ma.update(i, nRegex, false)
           }
           i += 1
         }
@@ -110,26 +96,21 @@ object TextTableReader {
       while (i < nFields) {
         var j = 0
         while (j < nRegex) {
-          ma1.update(i, j, ma1(i, j) || ma2(i, j))
-          ma1.update(i, j + nRegex, ma1(i, j + nRegex) && ma2(i, j + nRegex))
+          ma1.update(i, j, ma1(i, j) && ma2(i, j))
           j += 1
         }
-        ma1.update(i, missingIndex, ma1(i, missingIndex) && ma2(i, missingIndex))
+        ma1.update(i, nRegex, ma1(i, nRegex) && ma2(i, nRegex))
         i += 1
       }
       ma1
     })
 
-    Array.tabulate(nFields) { i =>
-      if (imputation(i, missingIndex))
-        None
-      else {
-        Some((0 until nRegex).find { j =>
-          imputation(i, j) && imputation(i, j + nRegex)
-        }.map(regexTypes)
+    imputation.rowIndices.map { i =>
+      someIf(!imputation(i, nRegex),
+        (0 until nRegex).find(imputation(i, _))
+          .map(regexTypes)
           .getOrElse(TString))
-      }
-    }
+    }.toArray
   }
 
   def read(sc: SparkContext)(files: Array[String],

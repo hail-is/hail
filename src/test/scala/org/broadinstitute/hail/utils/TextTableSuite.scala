@@ -41,6 +41,7 @@ class TextTableSuite extends SparkSuite {
 
     val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".")
 
+    imputed.foreach(println)
     assert(imputed.sameElements(Array(
       Some(TInt),
       Some(TDouble),
