@@ -159,12 +159,7 @@ object TextTableReader {
 
     val rdd = sc.textFilesLines(files, nPartitions)
       .filter { line =>
-        commentChar.forall(ch => !line.value.startsWith(ch)) && {
-          if (noHeader)
-            true
-          else
-            line.value != header
-        }
+        commentChar.forall(ch => !line.value.startsWith(ch)) && noHeader || line.value != header
       }
 
     val sb = new StringBuilder
