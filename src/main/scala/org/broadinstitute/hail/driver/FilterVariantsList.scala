@@ -35,38 +35,6 @@ object FilterVariantsList extends Command {
     if (!(options.keep ^ options.remove))
       fatal("either `--keep' or `--remove' required, but not both")
 
-    val keep = options.keep
-
-    val variants: RDD[(Variant, Unit)] =
-      vds.sparkContext.textFileLines(options.input)
-        .map {
-          _.map { line =>
-            val fields = line.split(":")
-            if (fields.length != 4)
-              fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
-            val ref = fields(2)
-            (Variant(fields(0),
-              fields(1).toInt,
-              ref,
-              fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
-          }.value
-        }
-
-    state.copy(
-      vds = vds.copy(
-        rdd = vds.rdd
-          .orderedLeftJoinDistinct(variants.toOrderedRDD)
-          .mapPartitions({ it =>
-            it.flatMap { case (v, ((va, gs), o)) =>
-              o match {
-                case Some(_) =>
-                  if (keep) Some((v, (va, gs))) else None
-                case None =>
-                  if (keep) None else Some((v, (va, gs)))
-              }
-            }
-          }, preservesPartitioning = true)
-          .asOrderedRDD
-      ))
+    state.copy(vds = vds.filterVariantsList(options.input, options.keep))
   }
 }
