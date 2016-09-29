@@ -315,10 +315,11 @@ Compute statistics on number of singletons stratified by case/control:
 This aggregable is used to compute density distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
 
 The bins are generated with these rules:
-  * bin size is calculated from `(end - start) / bins`
-  * (bins + 1) breakpoints are generated from the range `(start to end by binsize)`
-  * each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value
-  * elements greater than the max bin or smaller than the min bin will be tracked separately
+
+ - bin size is calculated from `(end - start) / bins`
+ - (bins + 1) breakpoints are generated from the range `(start to end by binsize)`
+ - each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value
+ - elements greater than the max bin or smaller than the min bin will be tracked separately
 
 The result of a `hist` invocation is a struct:
 
