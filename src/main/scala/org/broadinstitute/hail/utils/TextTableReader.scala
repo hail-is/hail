@@ -33,7 +33,7 @@ trait TextTableOptions {
   var noHeader: Boolean = _
 
   @Args4jOption(required = false, name = "--impute",
-    usage = "impute column types")
+    usage = "impute column types from the file")
   var impute: Boolean = _
 
   def config: TextTableConfiguration = TextTableConfiguration(
