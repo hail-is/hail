@@ -10,6 +10,6 @@ class DistinctSuite extends SparkSuite {
       Array("src/test/resources/sample.vcf", "src/test/resources/sample.vcf"))
     Deduplicate.run(s).vds.rdd.count()
 
-    assert(Deduplicate.DeduplicateReport.accumulator.value._1 == 346L)
+    assert(Deduplicate.DuplicateReport.accumulator.value._1 == 346L)
   }
 }

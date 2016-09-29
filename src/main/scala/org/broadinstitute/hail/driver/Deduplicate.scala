@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.{Accumulator, AccumulatorParam}
+import org.apache.spark.{Accumulable, AccumulableParam, Accumulator, AccumulatorParam}
 import org.apache.spark.AccumulatorParam._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.Variant
@@ -22,7 +22,12 @@ object Deduplicate extends Command {
 
   def requiresVDS = true
 
-  object DuplicateAccumulator extends AccumulatorParam[(Long, mutable.Set[Variant])] {
+  object DuplicateAccumulator extends AccumulableParam[(Long, mutable.Set[Variant]), Variant] {
+    override def addAccumulator(r: (Long, mutable.Set[Variant]), t: Variant): (Long, mutable.Set[Variant]) = {
+      val (count, set) = r
+      (count + 1, if (set.size < 10) set += t else set)
+    }
+
     def addInPlace(t1: (Long, mutable.Set[Variant]), t2: (Long, mutable.Set[Variant])): (Long, mutable.Set[Variant]) = {
       val (count1, set1) = t1
       val (count2, set2) = t2
@@ -36,16 +41,18 @@ object Deduplicate extends Command {
       (count1 + count2, set)
     }
 
-    def zero(initialValue: (Long, mutable.Set[Variant])): (Long, mutable.Set[Variant]) = (0L, mutable.Set.empty[Variant])
+    def zero = (0L, mutable.Set.empty[Variant])
+
+    def zero(initialValue: (Long, mutable.Set[Variant])): (Long, mutable.Set[Variant]) = zero
   }
 
 
-  object DeduplicateReport {
+  object DuplicateReport {
 
-    var accumulator: Accumulator[(Long, mutable.Set[Variant])] = _
+    var accumulator: Accumulable[(Long, mutable.Set[Variant]), Variant] = _
 
     def initialize() {
-      accumulator = new Accumulator[(Long, mutable.Set[Variant])]((0L, mutable.Set.empty[Variant]), DuplicateAccumulator)
+      accumulator = new Accumulable[(Long, mutable.Set[Variant]), Variant](DuplicateAccumulator.zero, DuplicateAccumulator)
     }
 
     def report() {
@@ -66,11 +73,11 @@ object Deduplicate extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    DeduplicateReport.initialize()
+    DuplicateReport.initialize()
 
-    val acc = DeduplicateReport.accumulator
+    val acc = DuplicateReport.accumulator
     state.copy(vds = vds.copy(rdd = vds.rdd.mapPartitions({ it =>
-      new SortedDistinctPairIterator(it, (v: Variant) => acc += (1L, mutable.Set(v)))
+      new SortedDistinctPairIterator(it, (v: Variant) => acc += v)
     }, preservesPartitioning = true).asOrderedRDD))
   }
 }
