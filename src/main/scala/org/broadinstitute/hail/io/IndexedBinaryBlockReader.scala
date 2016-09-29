@@ -5,27 +5,19 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred._
-import org.broadinstitute.hail.variant.Genotype
-import org.broadinstitute.hail.annotations._
+
 import scala.collection.mutable
 
-class VariantRecord[K] extends Serializable {
-  var gs: Iterable[Genotype] = null
-  var ann: Annotation = Annotation.empty
+abstract class KeySerializedValueRecord[K, V] extends Serializable {
+  var input: Array[Byte] = _
   var key: K = _
   var warnings = mutable.Map.empty[Int, Int]
 
-  def setGS(gs: Iterable[Genotype]) {
-    this.gs = gs
+  def setSerializedValue(arr: Array[Byte]) {
+    this.input = arr
   }
 
-  def getGS: Iterable[Genotype] = gs
-
-  def setAnnotation(ann: Annotation) {
-    this.ann = ann
-  }
-
-  def getAnnotation: Annotation = ann
+  def getValue: V
 
   def setKey(k: K) {
     this.key = k
@@ -44,10 +36,10 @@ class VariantRecord[K] extends Serializable {
   }
 }
 
-abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
-  extends RecordReader[LongWritable, VariantRecord[K]] {
+abstract class IndexedBinaryBlockReader[T](job: Configuration, split: FileSplit)
+  extends RecordReader[LongWritable, T] {
 
-  val LOG: Log = LogFactory.getLog(classOf[IndexedBinaryBlockReader[K]].getName)
+  val LOG: Log = LogFactory.getLog(classOf[IndexedBinaryBlockReader[T]].getName)
   val partitionStart: Long = split.getStart
   var pos: Long = partitionStart
   val end: Long = partitionStart + split.getLength
@@ -63,7 +55,7 @@ abstract class IndexedBinaryBlockReader[K](job: Configuration, split: FileSplit)
 
   def createKey(): LongWritable = new LongWritable()
 
-  def createValue(): VariantRecord[K] = new VariantRecord[K]
+  def createValue(): T
 
   def getPos: Long = pos
 

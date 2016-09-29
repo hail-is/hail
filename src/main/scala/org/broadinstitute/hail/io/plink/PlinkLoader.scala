@@ -7,7 +7,6 @@ import org.apache.spark.SparkContext
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.broadinstitute.hail.variant._
 
@@ -117,14 +116,15 @@ object PlinkLoader {
     val variantsBc = sc.broadcast(variants)
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
 
-    val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[VariantRecord[Int]],
+    val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
+    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1 }
     val variantRDD = rdd.map {
-      case (lw, vr) =>
+      case (_, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
-        (v, (Annotation(rsId), vr.getGS))
-    }.toOrderedRDD
+        (v, (Annotation(rsId), vr.getValue))
+    }.toOrderedRDD(fastKeys)
 
     VariantSampleMatrix(VariantMetadata(
       sampleIds = sampleIds,
