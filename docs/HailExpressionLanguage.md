@@ -314,23 +314,24 @@ Compute statistics on number of singletons stratified by case/control:
 
 This aggregable is used to compute density distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
 
-The bins are generated with these rules:
-
- - bin size is calculated from `(end - start) / bins`
- - (bins + 1) breakpoints are generated from the range `(start to end by binsize)`
- - each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value
- - elements greater than the max bin or smaller than the min bin will be tracked separately
-
 The result of a `hist` invocation is a struct:
 
 ```
 Struct {
-    indices: Array[Double],
-    densities: Array[Long],
+    binEdges: Array[Double],
+    binFrequencies: Array[Long],
     nSmaller: Long,
     nGreater: Long
 }
 ```
+
+Important properties:
+
+ - Bin size is calculated from `(end - start) / bins`
+ - (bins + 1) breakpoints are generated from the range `(start to end by binsize)`
+ - `binEdges` stores an array of bin cutoffs.  Each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value.  This means that if there are N total bins, there will be N + 1 elements in binEdges.  For the invocation `hist(0, 3, 3)`, `binEdges` would be `[0, 1, 2, 3]` where the bins are `[0, 1)`, `[1, 2)`, `[2, 3]`.
+ - `binFrequencies` stores the number of elements in the aggregable that fall in each bin.  It contains one element for each bin.
+ - Elements greater than the max bin or smaller than the min bin will be tracked separately by `nSmaller` and `nGreater`
 
 **Examples:**
 

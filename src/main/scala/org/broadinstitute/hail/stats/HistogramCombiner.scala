@@ -7,8 +7,8 @@ import org.broadinstitute.hail.expr._
 
 object HistogramCombiner {
   def schema: Type = TStruct(
-    "indices" -> TArray(TDouble),
-    "densities" -> TArray(TLong),
+    "binEdges" -> TArray(TDouble),
+    "binFrequencies" -> TArray(TLong),
     "nSmaller" -> TLong,
     "nGreater" -> TLong)
 }
