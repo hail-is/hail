@@ -13,6 +13,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.{Position, Positional}
 import scala.language.existentials
+import scala.reflect.ClassTag
 
 case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
 
@@ -236,6 +237,12 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   }
 
   def parseError(msg: String): Nothing = ParserUtils.error(pos, msg)
+
+  def errorIf[T <: AST](msg: String)(implicit c: ClassTag[T]) {
+    if (c.runtimeClass.isInstance(this))
+      parseError(msg)
+    subexprs.foreach(_.errorIf[T](msg))
+  }
 }
 
 case class Const(posn: Position, value: Any, t: BaseType) extends AST(posn) {
@@ -361,8 +368,6 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
-  var store: Any = _
-
   override def typecheckThis(): BaseType = {
     (fn, args) match {
       case ("isMissing", Array(a)) =>
@@ -393,7 +398,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                 |  Expected $fn(Struct, Struct), found $fn(${ other.mkString(", ") })""".stripMargin)
         }
 
-        val (t, merger) = try {
+        val (t, _) = try {
           t1.merge(t2)
         } catch {
           case f: FatalException => parseError(
@@ -404,7 +409,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                 |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
         }
 
-        store = merger
         t
 
       case ("isDefined" | "isMissing" | "str" | "json", _) => parseError(s"`$fn' takes one argument")
@@ -451,9 +455,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
         t.getOption(key) match {
           case Some(TString) =>
-            val querier = t.query(key)
-            val (newS, deleter) = t.delete(key)
-            store = (querier, deleter)
+            val (newS, _) = t.delete(key)
             `type` = TDict(newS)
           case Some(other) => parseError(
             s"""invalid arguments for method `$fn'
@@ -492,7 +494,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
             s"""invalid arguments for method `$fn'
                 |  Duplicate ${ plural(duplicates.size, "identifier") } found: [ ${ duplicates.map(prettyIdentifier).mkString(", ") } ]""".stripMargin)
 
-        val (tNew, filterer) = try {
+        val (tNew, _) = try {
           struct.filter(identifiers.toSet, include = fn == "select")
         } catch {
           case f: FatalException => parseError(
@@ -503,7 +505,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                 |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
         }
 
-        store = filterer
         `type` = tNew
 
       case _ => super.typecheck(ec)
@@ -530,22 +531,37 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       () => JsonMethods.compact(t.toJSON(f()))
 
     case ("merge", Array(struct1, struct2)) =>
+      val (_, merger) = struct1.`type`.asInstanceOf[TStruct].merge(struct2.`type`.asInstanceOf[TStruct])
       val f1 = struct1.eval(ec)
       val f2 = struct2.eval(ec)
-      val merger = store.asInstanceOf[Merger]
       () => {
         merger(f1(), f2())
       }
 
-    case ("select" | "drop", Array(struct, _ *)) =>
-      val filterer = store.asInstanceOf[Deleter]
-      AST.evalCompose[Annotation](ec, struct) { s =>
+    case ("select" | "drop", rhs) =>
+      val (head, tail) = (rhs.head, rhs.tail)
+      val struct = head.`type`.asInstanceOf[TStruct]
+      val identifiers = tail.map { ast =>
+        (ast: @unchecked) match {
+          case SymRef(_, id) => id
+        }
+      }
+
+      val (_, filterer) = struct.filter(identifiers.toSet, include = fn == "select")
+
+
+      AST.evalCompose[Annotation](ec, head) { s =>
         filterer(s)
       }
 
-    case ("index", Array(structArray, _)) =>
-      val (querier, deleter) = store.asInstanceOf[(Querier, Deleter)]
-      // FIXME: warn for duplicate keys?
+    case ("index", Array(structArray, k)) =>
+      val key = (k: @unchecked) match {
+        case SymRef(_, id) => id
+      }
+      val t = structArray.`type`.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
+      val querier = t.query(key)
+      val (_, deleter) = t.delete(key)
+
       AST.evalCompose[IndexedSeq[_]](ec, structArray) { is =>
         is.filter(_ != null)
           .map(_.asInstanceOf[Row])
@@ -565,7 +581,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
-
   def getSymRefId(ast: AST): String = {
     ast match {
       case SymRef(_, id) => id
@@ -778,6 +793,31 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
         `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", TDouble),
           ("max", TDouble), ("nNotMissing", TLong), ("sum", TDouble))
+
+      case (agg: TAggregable, "hist", rhs) =>
+        rhs match {
+          case Array(startAST, endAST, binsAST) =>
+
+            rhs.foreach(_.typecheck(ec))
+            rhs.foreach(_.errorIf[SymRef]("method `hist' cannot contain variable references"))
+
+            val types = rhs.map(_.`type`)
+            types match {
+              case Array(_: TNumeric, _: TNumeric, TInt) =>
+              case _ => parseError(
+                s"""method `hist' expects arguments of type (Numeric, Numeric, Int)
+                    |  Found ${ types.mkString(", ") }""".stripMargin)
+            }
+
+            `type` = HistogramCombiner.schema
+
+          case _ => parseError(
+            s"""method `hist' expects three numeric arguments (start, end, bins)
+                |  Examples:
+                |    gs.map(g => g.gq).hist(0, 100, 20)
+                |    variants.map(v => va.linreg.beta).hist(.5, 1.5, 100)
+             """.stripMargin)
+        }
 
       case (agg: TAggregable, "collect", rhs) =>
         if (rhs.nonEmpty)
@@ -1122,6 +1162,64 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         else
           Annotation(sc.mean, sc.stdev, sc.min, sc.max, sc.count, sc.sum)
       }
+
+    case (agg: TAggregable, "hist", Array(startAST, endAST, binsAST)) =>
+
+      val start = DoubleNumericConversion.to(startAST.eval(ec)())
+      val end = DoubleNumericConversion.to(endAST.eval(ec)())
+      val bins = binsAST.eval(ec)().asInstanceOf[Int]
+
+      if (bins <= 0)
+        parseError(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
+
+      val binSize = (end - start) / bins
+      if (binSize <= 0)
+        parseError(
+          s"""invalid bin size from given arguments (start = $start, end = $end, bins = $bins)
+              |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
+                 """.stripMargin)
+
+      val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
+
+      info(
+        s"""computing histogram with the following bins:
+            |  ${
+          val fString = math.log10(indices.length - 1).ceil.toInt
+          val longestBound = indices.map(_.formatted("%.2f").length).max
+          def formatRange(d: Double): String = d.formatted("%.2f")
+          val maxStrLength = indices.map(formatRange).map(_.length).max
+          val formatted = indices.map(formatRange).map(_.formatted(s"%${ maxStrLength }s"))
+
+          formatted.zip(formatted.tail)
+            .zipWithIndex
+            .map { case ((l, r), index) =>
+              val rightBound = if (index == indices.length - 2) "]" else ")"
+              s"bin ${ index.formatted(s"%0${ fString }d") }: [$l, $r$rightBound"
+            }
+            .grouped(2)
+            .map { arr => arr.mkString(",   ")
+            }.mkString(",\n  ")
+        }""".stripMargin)
+
+      val localIdx = agg.ec.a.length
+      val localA = agg.ec.a
+      localA += null
+
+      val aggF = agg.f
+      agg.ec.aggregationFunctions += new TypedAggregator[HistogramCombiner] {
+        override def zero: HistogramCombiner = new HistogramCombiner(indices)
+
+        override def seqOp(x: Any, acc: HistogramCombiner): HistogramCombiner = {
+          aggF(x).foreach(x => acc.merge(DoubleNumericConversion.to(x)))
+          acc
+        }
+
+        override def combOp(acc1: HistogramCombiner, acc2: HistogramCombiner): HistogramCombiner = acc1.merge(acc2)
+
+        override def idx = localIdx
+      }.erase
+
+      () => localA(localIdx).asInstanceOf[HistogramCombiner].toAnnotation
 
 
     case (agg: TAggregable, "collect", Array()) =>
