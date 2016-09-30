@@ -27,7 +27,7 @@ object SampleQCCombiner {
     "nNonRef\t" +
     "rTiTv\t" +
     "rHetHomVar\t" +
-    "rDeletionInsertion"
+    "rInsertionDeletion"
 
   val signature = TStruct("callRate" -> TDouble,
     "nCalled" -> TInt,
@@ -48,7 +48,7 @@ object SampleQCCombiner {
     "nNonRef" -> TInt,
     "rTiTv" -> TDouble,
     "rHetHomVar" -> TDouble,
-    "rDeletionInsertion" -> TDouble)
+    "rInsertionDeletion" -> TDouble)
 }
 
 class SampleQCCombiner extends Serializable {
@@ -200,8 +200,8 @@ class SampleQCCombiner extends Serializable {
     sb.tsvAppend(divOption(nHet, nHomVar))
     sb += '\t'
 
-    // rDeletionInsertion
-    sb.tsvAppend(divOption(nDel, nIns))
+    // rInsertionDeletion
+    sb.tsvAppend(divOption(nIns, nDel))
   }
 
   def asAnnotation: Annotation =
@@ -225,7 +225,7 @@ class SampleQCCombiner extends Serializable {
       nHet + nHomVar,
       divNull(nTi, nTv),
       divNull(nHet, nHomVar),
-      divNull(nDel, nIns))
+      divNull(nIns, nDel))
 }
 
 object SampleQC extends Command {
