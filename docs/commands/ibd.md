@@ -32,8 +32,16 @@ sample1	sample5	0.1966	0.0000	0.8034	0.8034
 #### Examples
 
 ```
-... ibd --minor-allele-frequency 'va.mafs[v]' -o ibd.tsv
+... ibd --minor-allele-frequency 'va.mafs[v]' -o ibd.tsv --min 0.2 --max 0.9
 ```
 
-This invocation writes the full IBD matrix to `ibd.tsv`. It also uses the
-provided allele frequencies.
+This invocation writes only those sample pairs with `pi_hat` at or above `0.2`
+and at or below `0.9` to `ibd.tsv`. It uses the provided expression to compute
+the minor allele frequency.
+
+```
+... ibd -o ibd.tsv
+```
+
+This invocation writes the full IBD matrix to `ibd.tsv`. It computes the minor
+allele frequency from the dataset.

@@ -44,6 +44,11 @@ package object utils extends Logging
     if (!p) throw new AssertionError
   }
 
+  def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A]): Unit =
+    if (ord.lt(a, low) || ord.gt(a, high)) {
+      fatal(s"$name cannot lie outside [$low, $high]: $a")
+    }
+
   def printTime[T](block: => T) = {
     val timed = time(block)
     println("time: " + formatTime(timed._2))
@@ -263,7 +268,7 @@ package object utils extends Logging
     a
   }
 
-  def assertSameElements[K,V](l: Map[K, V], r: Map[K, V], valueEq: (V, V) => Boolean) {
+  def mapSameElements[K,V](l: Map[K, V], r: Map[K, V], valueEq: (V, V) => Boolean): Boolean = {
     def entryMismatchMessage(failures: TraversableOnce[(K, V, V)]): String = {
       require(failures.nonEmpty)
       val newline = System.lineSeparator()
@@ -285,20 +290,22 @@ package object utils extends Logging
             |  The left map is: $l
             |  The right map is: $r
       """.stripMargin)
-      assert(false)
-    }
+      false
+    } else {
+      val fs = Array.newBuilder[(K, V, V)]
+      for ((k, lv) <- l) {
+        val rv = r(k)
+        if (!valueEq(lv, rv))
+          fs += ((k, lv, rv))
+      }
+      val failures = fs.result()
 
-    val fs = Array.newBuilder[(K, V, V)]
-    for ((k, lv) <- l) {
-      val rv = r(k)
-      if (!valueEq(lv, rv))
-        fs += ((k, lv, rv))
-    }
-    val failures = fs.result()
-
-    if (!failures.isEmpty) {
-      println(entryMismatchMessage(failures))
-      assert(false)
+      if (!failures.isEmpty) {
+        println(entryMismatchMessage(failures))
+        false
+      } else {
+        true
+      }
     }
   }
 

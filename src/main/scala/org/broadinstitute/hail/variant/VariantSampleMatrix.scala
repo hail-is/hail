@@ -255,7 +255,8 @@ case class VSMSubgen[T](
   globalGen: (Type) => Gen[Annotation],
   vGen: Gen[Variant],
   tGen: (Int) => Gen[T],
-  isDosage: Boolean = false) {
+  isDosage: Boolean = false,
+  wasSplit: Boolean = false) {
 
   def gen(sc: SparkContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (size <- Gen.size;
@@ -278,7 +279,7 @@ case class VSMSubgen[T](
           ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v.nAlleles)).resize(subsubsizes(2)))
           yield (v, (va, ts))).resize(l))
       yield {
-        VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
+        VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = wasSplit, isDosage = isDosage),
           sc.parallelize(rows, nPartitions).toOrderedRDD)
       }
 }
@@ -296,8 +297,9 @@ object VSMSubgen {
     tGen = Genotype.genExtreme)
 
   val plinkSafeBiallelic = random.copy(
-    sampleIdGen = Gen.distinctBuildableOfAtLeast[IndexedSeq, String](1, Gen.plinkSafeIdentifier),
-    vGen = VariantSubgen.random.copy(nAllelesGen = Gen.const(2)).gen)
+    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.plinkSafeIdentifier),
+    vGen = VariantSubgen.random.copy(nAllelesGen = Gen.const(2)).gen,
+    wasSplit = true)
 
   val realistic = random.copy(
     tGen = Genotype.genRealistic)

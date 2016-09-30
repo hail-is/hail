@@ -148,7 +148,7 @@ object IBD {
       0, // 11 00  NA 0
       0, // 11 01  NA 1
       0, // 11 10  NA 2
-      0  // 11 11  NA NA
+      0 // 11 11  NA NA
     )
 
   final val chunkSize = 1024
@@ -173,8 +173,8 @@ object IBD {
           .map { case (gtGroup, i) => ((i, variantId / chunkSize), (vid, gtGroup)) }
       }
       .aggregateByKey(Array.tabulate(chunkSize * chunkSize)((i) => missingGT))({ case (x, (vid, gs)) =>
-          for (i <- gs.indices) x(vid*chunkSize + i) = gs(i)
-          x
+        for (i <- gs.indices) x(vid * chunkSize + i) = gs(i)
+        x
       }, { case (x, y) =>
         for (i <- y.indices)
           if (x(i) == missingGT)
@@ -253,8 +253,19 @@ object IBD {
       .filter { case ((i, j), ibd) => j > i && j < nSamples && i < nSamples }
   }
 
-  def apply(vds: VariantDataset, computeMaf: Option[(Variant, Annotation) => Double] = None, bounded: Boolean = true): RDD[((Int, Int), ExtendedIBDInfo)] = {
+  def apply(vds: VariantDataset,
+    computeMaf: Option[(Variant, Annotation) => Double] = None,
+    bounded: Boolean = true,
+    min: Option[Double] = None,
+    max: Option[Double] = None): RDD[((String, String), ExtendedIBDInfo)] = {
+
+    val sampleIds = vds.sampleIds
+
     computeIBDMatrix(vds, computeMaf, bounded)
+      .filter { case (_, ibd) =>
+        min.forall(ibd.ibd.PI_HAT >= _) &&
+        max.forall(ibd.ibd.PI_HAT <= _) }
+      .map { case ((i, j), ibd) => ((sampleIds(i), sampleIds(j)), ibd) }
   }
 
 }

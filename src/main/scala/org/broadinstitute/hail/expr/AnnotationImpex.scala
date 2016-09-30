@@ -397,7 +397,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case TInt => a.toInt
       case TLong => a.toLong
       case TFloat => a.toFloat
-      case TDouble => a.toDouble
+      case TDouble => if (a == "nan") Double.NaN else a.toDouble
       case TBoolean => a.toBoolean
       case TLocus => a.split(":") match {
         case Array(chr, pos) => Locus(chr, pos.toInt)
