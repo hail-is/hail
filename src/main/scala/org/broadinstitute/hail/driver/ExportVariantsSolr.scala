@@ -23,6 +23,9 @@ object ExportVariantsSolr extends Command with Serializable {
       usage = "SolrCloud collection")
     var collection: String = _
 
+    @Args4jOption(name = "--export-missing", usage = "export missing genotypes")
+    var exportMissing = false
+
     @Args4jOption(name = "--export-ref", usage = "export HomRef calls")
     var exportRef = false
 
@@ -99,10 +102,12 @@ object ExportVariantsSolr extends Command with Serializable {
   def documentAddField(document: SolrInputDocument, name: String, t: Type, value: Any) {
     if (t.isInstanceOf[TIterable]) {
       value.asInstanceOf[Traversable[_]].foreach { xi =>
-        document.addField(name, xi)
+        if (xi != null)
+          document.addField(name, xi)
       }
     } else
-      document.addField(name, value)
+      if (value != null)
+        document.addField(name, value)
   }
 
   def processResponse(action: String, res: SolrResponse) {
@@ -139,6 +144,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val gCond = options.genotypeCondition
     val vCond = options.variantCondition
     val collection = options.collection
+    val exportMissing = options.exportMissing
     val exportRef = options.exportRef
     val numShards = options.numShards
 
@@ -253,7 +259,7 @@ object ExportVariantsSolr extends Command with Serializable {
 
             gs.iterator.zipWithIndex.foreach {
               case (g, i) =>
-                if (g.isCalled && (exportRef || !g.isHomRef)) {
+                if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
                   val s = sampleIdsBc.value(i)
                   val sa = sampleAnnotationsBc.value(i)
                   gparsed.foreach {
