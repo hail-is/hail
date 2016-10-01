@@ -11,15 +11,14 @@ import scala.collection.mutable
 
 object LinRegStats {
   def `type`: Type = TStruct(
-    ("nMissing", TInt),
     ("beta", TDouble),
     ("se", TDouble),
     ("tstat", TDouble),
     ("pval", TDouble))
 }
 
-case class LinRegStats(nMissing: Int, beta: Double, se: Double, t: Double, p: Double) {
-  def toAnnotation: Annotation = Annotation(nMissing, beta, se, t, p)
+case class LinRegStats(beta: Double, se: Double, t: Double, p: Double) {
+  def toAnnotation: Annotation = Annotation(beta, se, t, p)
 }
 
 class LinRegBuilder extends Serializable {
@@ -75,7 +74,7 @@ class LinRegBuilder extends Serializable {
     this
   }
 
-  def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double, Int)] = {
+  def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double)] = {
     val missingRowIndicesArray = missingRowIndices.result()
     val nMissing = missingRowIndicesArray.size
     val nPresent = n - nMissing
@@ -97,14 +96,12 @@ class LinRegBuilder extends Serializable {
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * sumYMissing
 
-      Some((x, xx, xy, nMissing))
+      Some((x, xx, xy))
     }
   }
 }
 
 object LinearRegression {
-  def name = "LinearRegression"
-
   def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]]): LinearRegression = {
     require(cov.forall(_.rows == y.size))
 
@@ -141,7 +138,7 @@ object LinearRegression {
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues { lrb =>
         lrb.stats(yBc.value, n).map { stats => {
-          val (x, xx, xy, nMissing) = stats
+          val (x, xx, xy) = stats
 
           val qtx = qtBc.value * x
           val qty = qtyBc.value
@@ -154,7 +151,7 @@ object LinearRegression {
           val t = b / se
           val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-          LinRegStats(nMissing, b, se, t, p) }
+          LinRegStats(b, se, t, p) }
         }
       }
     )

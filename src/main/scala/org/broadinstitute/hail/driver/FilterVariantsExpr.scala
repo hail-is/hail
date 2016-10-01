@@ -7,8 +7,6 @@ import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-import scala.collection.mutable.ArrayBuffer
-
 object FilterVariantsExpr extends Command {
 
   class Options extends BaseOptions {
@@ -40,40 +38,9 @@ object FilterVariantsExpr extends Command {
     if (!(options.keep ^ options.remove))
       fatal("either `--keep' or `--remove' required, but not both")
 
-    val vas = vds.vaSignature
     val cond = options.condition
     val keep = options.keep
 
-    val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
-    val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
-
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
-
-    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
-
-    val aggregatorOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
-
-    val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
-      ec.setAll(v, va)
-
-      aggregatorOption.foreach(f => f(v, va, gs))
-
-      Filter.keepThis(f(), keep)
-    }
-
-    state.copy(vds = vds.filterVariants(p))
+    state.copy(vds = vds.filterVariantsExpr(cond, keep))
   }
 }

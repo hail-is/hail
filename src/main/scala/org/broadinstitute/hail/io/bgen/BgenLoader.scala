@@ -5,33 +5,83 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.io._
 import org.broadinstitute.hail.io.gen.GenReport
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.io._
 
 import scala.collection.mutable
 import scala.io.Source
 
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
-                      headerLength: Int, dataStart: Int, hasIds: Boolean)
+  headerLength: Int, dataStart: Int, hasIds: Boolean)
 
-case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))])
+case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(LongWritable, BgenRecord)])
 
 object BgenLoader {
 
-  def load(sc: SparkContext, file: String, nPartitions: Option[Int] = None, tolerance: Double = 0.02): BgenResult = {
+  def load(sc: SparkContext, files: Array[String], sampleFile: Option[String] = None,
+    tolerance: Double, compress: Boolean, nPartitions: Option[Int] = None): VariantDataset = {
+    require(files.nonEmpty)
+    val samples = sampleFile.map(file => BgenLoader.readSampleFile(sc.hadoopConfiguration, file))
+      .getOrElse(BgenLoader.readSamples(sc.hadoopConfiguration, files.head))
 
-    val bState = readState(sc.hadoopConfiguration, file)
+    val duplicateIds = samples.duplicates().toArray
+    if (duplicateIds.nonEmpty) {
+      val n = duplicateIds.length
+      log.warn(s"found $n duplicate sample ${ plural(n, "id") }:\n  ${ duplicateIds.mkString("\n  ") }")
+      warn(s"found $n duplicate sample ${ plural(n, "id") }:\n  ${ truncate(duplicateIds.mkString(",")).mkString("\n  ") }")
+    }
 
-    val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-    GenReport.accumulators ::=(file, reportAcc)
+    val nSamples = samples.length
 
-    BgenResult(file, bState.nSamples, bState.nVariants,
-      sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[VariantRecord[Variant]],
-      nPartitions.getOrElse(sc.defaultMinPartitions))
-      .map { case (lw, vr) =>
-        reportAcc ++= vr.getWarnings
-        (vr.getKey, (vr.getAnnotation, vr.getGS))})
+    sc.hadoopConfiguration.setBoolean("compressGS", compress)
+    sc.hadoopConfiguration.setDouble("tolerance", tolerance)
+
+    val results = files.map { file =>
+      val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
+      val bState = readState(sc.hadoopConfiguration, file)
+      GenReport.accumulators ::= (file, reportAcc)
+      BgenResult(file, bState.nSamples, bState.nVariants,
+        sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[BgenRecord],
+          nPartitions.getOrElse(sc.defaultMinPartitions)))
+    }
+
+    val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
+    if (unequalSamples.length > 0)
+      fatal(
+        s"""The following BGEN files did not contain the expected number of samples $nSamples:
+            |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
+
+    val noVariants = results.filter(_.nVariants == 0).map(_.file)
+    if (noVariants.length > 0)
+      fatal(
+        s"""The following BGEN files did not contain at least 1 variant:
+            |  ${ noVariants.mkString("\n  ") })""".stripMargin)
+
+    val nVariants = results.map(_.nVariants).sum
+
+    info(s"Number of BGEN files parsed: ${ results.length }")
+    info(s"Number of samples in BGEN files: $nSamples")
+    info(s"Number of variants across all BGEN files: $nVariants")
+
+    val signature = TStruct("rsid" -> TString, "varid" -> TString)
+
+    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey)))
+
+    val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
+      (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
+    })).toOrderedRDD[Locus](fastKeys)
+
+    VariantSampleMatrix(VariantMetadata(
+      sampleIds = samples,
+      sampleAnnotations = IndexedSeq.fill(nSamples)(Annotation.empty),
+      globalAnnotation = Annotation.empty,
+      saSignature = TStruct.empty,
+      vaSignature = signature,
+      globalSignature = TStruct.empty,
+      wasSplit = true,
+      isDosage = true), rdd)
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {
@@ -48,7 +98,7 @@ object BgenLoader {
       val reader = new HadoopFSDataBinaryReader(is)
       reader.seek(0)
 
-      for (i <- 1 until bState.nVariants + 1) {
+      for (i <- 1 to bState.nVariants) {
         reader.seek(position)
 
         val nRow = reader.readInt()
@@ -135,7 +185,7 @@ object BgenLoader {
       .toSeq
 
     if (magicNumber != Seq(0, 0, 0, 0) && magicNumber != Seq(98, 103, 101, 110))
-      fatal(s"expected magic number [0000] or [bgen], got [${magicNumber.mkString}]")
+      fatal(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")
 
     if (headerLength > 20)
       reader.skipBytes(headerLength.toInt - 20)

@@ -13,20 +13,20 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithTwoCov() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
       "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.pheno",
-      "--root", "sa.pheno",
+      "-i", "src/test/resources/regressionLinear.pheno",
       "-e", "Sample",
+      "--root", "sa.pheno",
       "--types", "Pheno: Double",
       "--missing", "0"))
 
@@ -43,7 +43,6 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val qMissing = s.vds.queryVA("va.linreg.nMissing")._2
     val qBeta = s.vds.queryVA("va.linreg.beta")._2
     val qSe = s.vds.queryVA("va.linreg.se")._2
     val qTstat = s.vds.queryVA("va.linreg.tstat")._2
@@ -74,7 +73,6 @@ class LinearRegressionSuite extends SparkSuite {
 
     */
 
-    assertInt(qMissing, v1, 0)
     assertDouble(qBeta, v1, -0.28589421)
     assertDouble(qSe, v1, 1.2739153)
     assertDouble(qTstat, v1, -0.22442167)
@@ -85,7 +83,6 @@ class LinearRegressionSuite extends SparkSuite {
     x = c(1, 2, 1, 2, 0, 0)
     */
 
-    assertInt(qMissing, v2, 2)
     assertDouble(qBeta, v2, -0.5417647)
     assertDouble(qSe, v2, 0.3350599)
     assertDouble(qTstat, v2, -1.616919)
@@ -96,7 +93,6 @@ class LinearRegressionSuite extends SparkSuite {
     x = c(0, 0.75, 1, 1, 1, 0.75)
     */
 
-    assertInt(qMissing, v3, 2)
     assertDouble(qBeta, v3, 1.07367185)
     assertDouble(qSe, v3, 0.6764348)
     assertDouble(qTstat, v3, 1.5872510)
@@ -112,15 +108,15 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithNoCov() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.pheno",
+      "-i", "src/test/resources/regressionLinear.pheno",
+      "-e", "Sample",
       "--root", "sa.pheno",
       "--types", "Pheno: Int",
-      "-e", "Sample",
       "--missing", "0"))
 
     s = LinearRegressionCommand.run(s, Array(
@@ -183,18 +179,18 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithImportFamBoolean() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
-      "--root", "sa.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
+      "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamplesFam.run(s, Array(
-      "-i", "src/test/resources/linearRegression.fam"))
+      "-i", "src/test/resources/regressionLinear.fam"))
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.fam.isCase",
@@ -208,7 +204,6 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val (_, qMissing) = s.vds.queryVA("va.linreg.nMissing")
     val (_, qBeta) = s.vds.queryVA("va.linreg.beta")
     val (_, qSe) = s.vds.queryVA("va.linreg.se")
     val (_, qTstat) = s.vds.queryVA("va.linreg.tstat")
@@ -239,7 +234,6 @@ class LinearRegressionSuite extends SparkSuite {
 
     */
 
-    assertInt(qMissing, v1, 0)
     assertDouble(qBeta, v1, -0.28589421)
     assertDouble(qSe, v1, 1.2739153)
     assertDouble(qTstat, v1, -0.22442167)
@@ -250,7 +244,6 @@ class LinearRegressionSuite extends SparkSuite {
     x = c(1, 2, 1, 2, 0, 0)
     */
 
-    assertInt(qMissing, v2, 2)
     assertDouble(qBeta, v2, -0.5417647)
     assertDouble(qSe, v2, 0.3350599)
     assertDouble(qTstat, v2, -1.616919)
@@ -266,18 +259,18 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithImportFam() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
-      "--root", "sa.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
+      "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamplesFam.run(s, Array(
-      "-i", "src/test/resources/linearRegression.fam",
+      "-i", "src/test/resources/regressionLinear.fam",
       "-q",
       "-m", "0"))
 
@@ -293,7 +286,6 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val qMissing = s.vds.queryVA("va.linreg.nMissing")._2
     val qBeta = s.vds.queryVA("va.linreg.beta")._2
     val qSe = s.vds.queryVA("va.linreg.se")._2
     val qTstat = s.vds.queryVA("va.linreg.tstat")._2
@@ -324,7 +316,6 @@ class LinearRegressionSuite extends SparkSuite {
 
     */
 
-    assertInt(qMissing, v1, 0)
     assertDouble(qBeta, v1, -0.28589421)
     assertDouble(qSe, v1, 1.2739153)
     assertDouble(qTstat, v1, -0.22442167)
@@ -335,7 +326,6 @@ class LinearRegressionSuite extends SparkSuite {
     x = c(1, 2, 1, 2, 0, 0)
     */
 
-    assertInt(qMissing, v2, 2)
     assertDouble(qBeta, v2, -0.5417647)
     assertDouble(qSe, v2, 0.3350599)
     assertDouble(qTstat, v2, -1.616919)
@@ -351,20 +341,20 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testNonNumericPheno() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
-      "--root", "sa.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
+      "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: Double"))
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.pheno",
-      "--root", "sa.pheno",
+      "-i", "src/test/resources/regressionLinear.pheno",
       "-e", "Sample",
+      "--root", "sa.pheno",
       "--types", "Pheno: String",
       "--missing", "0"))
 
@@ -378,20 +368,20 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testNonNumericCov() {
     var s = State(sc, sqlContext)
 
-    s = ImportVCF.run(s, Array("src/test/resources/linearRegression.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
 
     s = SplitMulti.run(s)
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.cov",
-      "--root", "sa.cov",
+      "-i", "src/test/resources/regressionLinear.cov",
       "-e", "Sample",
+      "--root", "sa.cov",
       "--types", "Cov1: Double, Cov2: String"))
 
     s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/linearRegression.pheno",
-      "--root", "sa.pheno",
+      "-i", "src/test/resources/regressionLinear.pheno",
       "-e", "Sample",
+      "--root", "sa.pheno",
       "--types", "Pheno: Double",
       "--missing", "0"))
 

@@ -12,10 +12,10 @@ object LinearRegressionCommand extends Command {
 
   def name = "linreg"
 
-  def description = "Compute beta, se, t, p-value with sample covariates"
+  def description = "Test each variant for association using the linear regression model"
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-y", aliases = Array("--y"), usage = "Response sample annotation")
+    @Args4jOption(required = true, name = "-y", aliases = Array("--response"), usage = "Response sample annotation")
     var ySA: String = _
 
     @Args4jOption(required = false, name = "-c", aliases = Array("--covariates"), usage = "Covariate sample annotations, comma-separated")

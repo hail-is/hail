@@ -37,7 +37,7 @@ The below annotations can be accessed with `sa.qc.<identifier>`
  - `nNonRef:                 Int` -- Number of Het + HomVar variants
  - `rTiTv:                Double` -- Transition/transversion ratio
  - `rHetHomVar:           Double` -- Het/HomVar ratio across all variants
- - `rDeletionInsertion:   Double` -- Deletion/Insertion ratio across all variants    
+ - `rInsertionDeletion:   Double` -- Insertion/Deletion ratio across all variants    
  - `dpMean:               Double` -- Depth mean across all variants
  - `dpStDev:              Double` -- Depth standard deviation across all variants
  

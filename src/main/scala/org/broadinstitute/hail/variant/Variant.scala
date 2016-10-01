@@ -1,5 +1,7 @@
 package org.broadinstitute.hail.variant
 
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.utils._
@@ -178,6 +180,21 @@ object Variant {
 
       def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
     }
+
+  def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
+    sc.textFileLines(input)
+      .map {
+        _.map { line =>
+          val fields = line.split(":")
+          if (fields.length != 4)
+            fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
+          val ref = fields(2)
+          (Variant(fields(0),
+            fields(1).toInt,
+            ref,
+            fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
+        }.value
+      }
 }
 
 object VariantSubgen {
@@ -219,6 +236,7 @@ case class Variant(contig: String,
   start: Int,
   ref: String,
   altAlleles: IndexedSeq[AltAllele]) extends Ordered[Variant] {
+
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
   require(start >= 0, s"invalid variant: negative position: `${this.toString}'")
@@ -247,17 +265,25 @@ case class Variant(contig: String,
 
   def locus: Locus = Locus(contig, start)
 
+  def isAutosomalOrPseudoAutosomal: Boolean =
+    !isMitochondrial && !isX && !isY || inXPar || inYPar
+
+  def isMitochondrial = contig == "m" || contig == "M" || contig == "MT" || contig == "26"
+
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
   def inXParPos: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
   def inYParPos: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
 
   // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
-  def inXPar: Boolean = (contig == "X" || contig == "23" || contig == "25") && inXParPos
-  def inYPar: Boolean = (contig == "Y" || contig == "24") && inYParPos
+  def inXPar: Boolean = isX && inXParPos
+  def inYPar: Boolean = isY && inYParPos
 
-  def inXNonPar: Boolean = (contig == "X" || contig == "23" || contig == "25") && !inXParPos
-  def inYNonPar: Boolean = (contig == "Y" || contig == "24") && !inYParPos
+  def inXNonPar: Boolean = isX && !inXParPos
+  def inYNonPar: Boolean = isY && !inYParPos
+
+  private def isX: Boolean = contig == "x" || contig == "X" || contig == "23" || contig == "25"
+  private def isY: Boolean = contig == "y" || contig == "Y" || contig == "24"
 
   import CopyState._
 
