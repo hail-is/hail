@@ -48,9 +48,12 @@ object FilterGenotypes extends Command {
       "va" ->(1, vas),
       "s" ->(2, TSample),
       "sa" ->(3, sas),
-      "g" ->(4, TGenotype))
+      "g" ->(4, TGenotype),
+      "global" -> (5, vds.globalSignature) )
+
 
     val ec = EvalContext(symTab)
+    ec.set(5, vds.globalAnnotation)
     val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
     val sampleIdsBc = vds.sampleIdsBc

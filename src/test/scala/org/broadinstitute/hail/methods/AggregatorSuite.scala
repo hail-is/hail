@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.broadinstitute.hail.utils._
@@ -129,6 +130,52 @@ class AggregatorSuite extends SparkSuite {
         }
     }
     p.check()
+  }
+
+  @Test def testHist() {
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
+    var s = State(sc, sqlContext, vds)
+
+    val s2 = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(0, 100, 20)"))
+    s2.vds.rdd.collect.foreach { case (v, (va, gs)) =>
+      val r = va.asInstanceOf[Row]
+
+      val densities = r.getAs[IndexedSeq[Long]](1)
+
+      val definedGq = gs.flatMap(_.gq)
+
+      assert(densities(0) == definedGq.count(gq => gq < 5))
+      assert(densities(1) == definedGq.count(gq => gq >= 5 && gq < 10))
+      assert(densities.last == definedGq.count(gq => gq >= 95))
+    }
+
+    val s3 = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(22, 80, 5)"))
+    s3.vds.rdd.collect.foreach { case (v, (va, gs)) =>
+      val r = va.asInstanceOf[Row]
+      val nSmaller = r.getAs[Long](2)
+      val nGreater = r.getAs[Long](3)
+
+      val definedGq = gs.flatMap(_.gq)
+
+      assert(nSmaller == definedGq.count(_ < 22))
+      assert(nGreater == definedGq.count(_ > 80))
+    }
+
+    TestUtils.interceptFatal("""invalid bin size""") {
+      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(0, 0, 10)"))
+    }
+
+    TestUtils.interceptFatal("""method `hist' expects `bins' argument to be > 0""") {
+      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(0, 10, 0)"))
+    }
+
+    TestUtils.interceptFatal("""invalid bin size""") {
+      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(10, 0, 5)"))
+    }
+
+    TestUtils.interceptFatal("""method `hist' cannot contain variable references""") {
+      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(10, 0, va.info.AC[0])"))
+    }
   }
 
   @Test def testErrorMessages() {

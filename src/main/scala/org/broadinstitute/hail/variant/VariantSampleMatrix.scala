@@ -14,7 +14,7 @@ import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
-import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.vcf.BufferedLineIterator
 import org.broadinstitute.hail.sparkextras._
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
@@ -22,6 +22,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.kududb.spark.kudu.{KuduContext, _}
 import Variant.orderedKey
+import org.broadinstitute.hail.methods.{Aggregators, Filter}
 
 import scala.io.Source
 import scala.language.implicitConversions
@@ -254,7 +255,8 @@ case class VSMSubgen[T](
   globalGen: (Type) => Gen[Annotation],
   vGen: Gen[Variant],
   tGen: (Int) => Gen[T],
-  isDosage: Boolean = false) {
+  isDosage: Boolean = false,
+  wasSplit: Boolean = false) {
 
   def gen(sc: SparkContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (size <- Gen.size;
@@ -277,7 +279,7 @@ case class VSMSubgen[T](
           ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v.nAlleles)).resize(subsubsizes(2)))
           yield (v, (va, ts))).resize(l))
       yield {
-        VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = false, isDosage = isDosage),
+        VariantSampleMatrix[T](VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = wasSplit, isDosage = isDosage),
           sc.parallelize(rows, nPartitions).toOrderedRDD)
       }
 }
@@ -293,6 +295,11 @@ object VSMSubgen {
     globalGen = (t: Type) => t.genValue,
     vGen = Variant.gen,
     tGen = Genotype.genExtreme)
+
+  val plinkSafeBiallelic = random.copy(
+    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.plinkSafeIdentifier),
+    vGen = VariantSubgen.random.copy(nAllelesGen = Gen.const(2)).gen,
+    wasSplit = true)
 
   val realistic = random.copy(
     tGen = Genotype.genRealistic)
@@ -447,6 +454,24 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) }.asOrderedRDD)
+
+  def filterVariantsList(input: String, keep: Boolean): VariantSampleMatrix[T] = {
+    copy(
+      rdd = rdd
+        .orderedLeftJoinDistinct(Variant.variantUnitRdd(sparkContext, input).toOrderedRDD)
+        .mapPartitions({ it =>
+          it.flatMap { case (v, ((va, gs), o)) =>
+            o match {
+              case Some(_) =>
+                if (keep) Some((v, (va, gs))) else None
+              case None =>
+                if (keep) None else Some((v, (va, gs)))
+            }
+          }
+        }, preservesPartitioning = true)
+        .asOrderedRDD
+    )
+  }
 
   def filterIntervals(iList: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
     val iListBc = sparkContext.broadcast(iList)
@@ -1018,5 +1043,37 @@ class RichVDS(vds: VariantDataset) {
     vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
       (va, gs.toGenotypeStream(v, isDosage, compress = compress))
     }.asOrderedRDD)
+  }
+
+  def filterVariantsExpr(cond: String, keep: Boolean): VariantDataset = {
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype),
+      "global" ->(5, vds.globalSignature)))
+    val symTab = Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "global" ->(2, vds.globalSignature),
+      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
+
+
+    val ec = EvalContext(symTab)
+    ec.set(2, vds.globalAnnotation)
+    aggregationEC.set(5, vds.globalAnnotation)
+
+    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+
+    val aggregatorOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
+
+    val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
+      ec.setAll(v, va)
+      aggregatorOption.foreach(f => f(v, va, gs))
+      Filter.keepThis(f(), keep)
+    }
+
+    vds.filterVariants(p)
   }
 }

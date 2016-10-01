@@ -1,3 +1,5 @@
+
+
 # Getting started
 
 All you'll need is the [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html) and the Hail source code. To clone the [Hail repository](https://github.com/broadinstitute/hail) using [Git](https://git-scm.com/), run
@@ -34,7 +36,7 @@ $ ./build/install/hail/bin/hail read -i ~/sample.vds count
 ```
 To compute and output sample and variant quality control statistics, run
 ```
-$ ./build/install/hail/bin/hail read -i ~/sample.vds variantqc -o ~/variantqc.tsv sampleqc -o ~/sampleqc.tsv
+$ ./build/install/hail/bin/hail read -i ~/sample.vds splitmulti variantqc -o ~/variantqc.tsv sampleqc -o ~/sampleqc.tsv
 ```
 Note that during each run Hail writes a `hail.log` file in the current directory; this is useful to developers for debugging.
 

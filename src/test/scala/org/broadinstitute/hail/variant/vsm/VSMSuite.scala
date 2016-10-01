@@ -180,6 +180,18 @@ class VSMSuite extends SparkSuite {
     p.check()
   }
 
+  @Test def testReadWriteUnpartitioned() {
+    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
+      val f = tmpDir.createTempFile(extension = ".vds")
+      vds.write(sqlContext, f)
+      hadoopConf.delete(f + "/partitioner", recursive = false)
+      val vds2 = VariantSampleMatrix.read(sqlContext, f)
+      vds2.same(vds)
+    }
+
+    p.check()
+  }
+
   @Test(enabled = false) def testKuduReadWrite() {
 
     val vcf = "src/test/resources/multipleChromosomes.vcf"

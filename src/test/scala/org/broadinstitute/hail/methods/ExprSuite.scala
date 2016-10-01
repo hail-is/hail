@@ -403,7 +403,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, {c: false, d: true}) """).contains(Annotation(null, null, false, true)))
     assert(eval[Annotation]("""merge({a: 1, b: 2}, NA: Struct{c: Boolean, d: Boolean}) """).contains(Annotation(1, 2, null, null)))
     assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, NA: Struct{c: Boolean, d: Boolean}) """).isEmpty)
-    TestUtils.interceptFatal("invalid merge operation: same-name fields")(
+    TestUtils.interceptFatal("cannot merge structs with same-name fields")(
       eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true, a: 1, b: 0}) """).contains(Annotation(1, 2, false, true)))
     TestUtils.interceptFatal("invalid arguments to `merge'")(
       eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}) """).isEmpty)
@@ -479,7 +479,7 @@ class ExprSuite extends SparkSuite {
       eval[IndexedSeq[Int]]("""[1] + [2,3,4] """)
     }
 
-    interceptFatal("invalid arguments") {
+    interceptFatal("No function found") {
       eval[Double](""" log(Variant("22", 123, "A", "T")) """)
     }
 
@@ -495,6 +495,9 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[Int]]("range(1)").contains(IndexedSeq(0)))
     assert(eval[IndexedSeq[Int]]("range(10, 14)").contains(IndexedSeq(10, 11, 12, 13)))
     assert(eval[IndexedSeq[Int]]("range(-2, 2)").contains(IndexedSeq(-2, -1, 0, 1)))
+
+    assert(eval[Boolean]("pcoin(2.0)").contains(true))
+    assert(eval[Boolean]("pcoin(-1.0)").contains(false))
   }
 
   @Test def testParseTypes() {

@@ -37,7 +37,7 @@ class ExportSuite extends SparkSuite {
         "gqMean=sa.qc.gqMean,gqStDev=sa.qc.gqStDev," +
         "nNonRef=sa.qc.nNonRef," +
         "rTiTv=sa.qc.rTiTv,rHetHomVar=sa.qc.rHetHomVar," +
-        "rDeletionInsertion=sa.qc.rDeletionInsertion"))
+        "rInsertionDeletion=sa.qc.rInsertionDeletion"))
 
     val sQcOutput = hadoopConf.readFile(sampleQCFile) { s =>
       Source.fromInputStream(s)

@@ -571,9 +571,11 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
     if (intersect.nonEmpty)
       fatal(
-        s"""invalid merge operation: same-name ${ plural(intersect.size, "field") }: [ ${
+        s"""Invalid merge operation: cannot merge structs with same-name ${ plural(intersect.size, "field") }
+            |  Found these fields in both structs: [ ${
           intersect.map(s => prettyIdentifier(s)).mkString(", ")
-        } ]""".stripMargin)
+        } ]
+            |  Hint: use `drop' or `select' to remove these fields from one side""".stripMargin)
 
     val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)))
 

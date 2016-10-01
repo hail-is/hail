@@ -1,9 +1,7 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.io.bgen.BgenLoader
-import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
@@ -51,48 +49,8 @@ object ImportBGEN extends Command {
     }
     val sc = state.sc
 
-    val samples = Option(options.sampleFile) match {
-      case Some(file) => BgenLoader.readSampleFile(sc.hadoopConfiguration, file)
-      case _ => BgenLoader.readSamples(sc.hadoopConfiguration, inputs.head)
-    }
-
-    val duplicateIds = samples.duplicates().toArray
-    if (duplicateIds.nonEmpty) {
-      val n = duplicateIds.length
-      log.warn(s"found $n duplicate sample ${ plural(n, "id") }:\n  ${ duplicateIds.mkString("\n  ") }")
-      warn(s"found $n duplicate sample ${ plural(n, "id") }:\n  ${ truncate(duplicateIds.mkString(",")).mkString("\n  ") }")
-    }
-
-    val nSamples = samples.length
-
-    sc.hadoopConfiguration.setBoolean("compressGS", !options.noCompress)
-    sc.hadoopConfiguration.setDouble("tolerance", options.tolerance)
-
-    val results = inputs.map(f => BgenLoader.load(sc, f, Option(options.nPartitions)))
-
-    val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
-    if (unequalSamples.length > 0)
-      fatal(
-        s"""The following BGEN files did not contain the expected number of samples $nSamples:
-            |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
-
-    val noVariants = results.filter(_.nVariants == 0).map(_.file)
-    if (noVariants.length > 0)
-      fatal(
-        s"""The following BGEN files did not contain at least 1 variant:
-            |  ${ noVariants.mkString("\n  ") })""".stripMargin)
-
-    val nVariants = results.map(_.nVariants).sum
-
-    info(s"Number of BGEN files parsed: ${ results.length }")
-    info(s"Number of samples in BGEN files: $nSamples")
-    info(s"Number of variants across all BGEN files: $nVariants")
-
-    val signature = TStruct("rsid" -> TString, "varid" -> TString)
-
-    val vds = VariantSampleMatrix(VariantMetadata(samples).copy(isDosage = true),
-      sc.union(results.map(_.rdd)).toOrderedRDD)
-      .copy(vaSignature = signature, wasSplit = true)
+    val vds = BgenLoader.load(sc, inputs, Option(options.sampleFile), options.tolerance,
+      !options.noCompress, Option(options.nPartitions))
 
     state.copy(vds = vds)
   }
