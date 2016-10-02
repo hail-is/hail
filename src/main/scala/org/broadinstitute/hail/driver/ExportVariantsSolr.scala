@@ -204,7 +204,11 @@ object ExportVariantsSolr extends Command with Serializable {
       //if it doesn't, you can upload it using the solr command-line client:
       //   solr create_collection -c default_config; solr delete -c default_config
       CollectionAdminRequest.createCollection(collection, "default_config", numShards, 1).process(solr)
+<<<<<<< HEAD
       info(s"created new collection ${collection} with ${numShards} shard" + if(numShards > 1) "s" else "")
+=======
+      info(s"created new collection ${collection}")
+>>>>>>> 3250eabdd2ea5fd5c6c26ef887cc9d67821239fd
     } catch {
       case e: SolrException => warn(s"exportvariantssolr: unable to create collection ${collection}: ${e}")
     }
