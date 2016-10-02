@@ -23,6 +23,9 @@ object ExportVariantsSolr extends Command with Serializable {
       usage = "SolrCloud collection")
     var collection: String = _
 
+    @Args4jOption(name = "--export-missing", usage = "export missing genotypes")
+    var exportMissing = false
+
     @Args4jOption(name = "--export-ref", usage = "export HomRef calls")
     var exportRef = false
 
@@ -99,10 +102,12 @@ object ExportVariantsSolr extends Command with Serializable {
   def documentAddField(document: SolrInputDocument, name: String, t: Type, value: Any) {
     if (t.isInstanceOf[TIterable]) {
       value.asInstanceOf[Traversable[_]].foreach { xi =>
-        document.addField(name, xi)
+        if (xi != null)
+          document.addField(name, xi)
       }
     } else
-      document.addField(name, value)
+      if (value != null)
+        document.addField(name, value)
   }
 
   def processResponse(action: String, res: SolrResponse) {
@@ -139,6 +144,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val gCond = options.genotypeCondition
     val vCond = options.variantCondition
     val collection = options.collection
+    val exportMissing = options.exportMissing
     val exportRef = options.exportRef
     val numShards = options.numShards
 
@@ -188,7 +194,7 @@ object ExportVariantsSolr extends Command with Serializable {
     //delete and re-create the collection
     try {
       CollectionAdminRequest.deleteCollection(collection).process(solr)
-      info(s"deleted collection ${collection}")
+      info(s"deleted solr collection ${collection}")
     } catch {
       case e: SolrException => warn(s"exportvariantssolr: unable to delete collection ${collection}: ${e}")
     }
@@ -198,7 +204,7 @@ object ExportVariantsSolr extends Command with Serializable {
       //if it doesn't, you can upload it using the solr command-line client:
       //   solr create_collection -c default_config; solr delete -c default_config
       CollectionAdminRequest.createCollection(collection, "default_config", numShards, 1).process(solr)
-      info(s"created new collection ${collection}")
+      info(s"created new solr collection ${collection} with ${numShards} shard" + (if(numShards > 1) "s" else ""))
     } catch {
       case e: SolrException => warn(s"exportvariantssolr: unable to create collection ${collection}: ${e}")
     }
@@ -253,7 +259,7 @@ object ExportVariantsSolr extends Command with Serializable {
 
             gs.iterator.zipWithIndex.foreach {
               case (g, i) =>
-                if (g.isCalled && (exportRef || !g.isHomRef)) {
+                if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
                   val s = sampleIdsBc.value(i)
                   val sa = sampleAnnotationsBc.value(i)
                   gparsed.foreach {
