@@ -9,17 +9,19 @@ import java.io.InputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
-class BGzipInputStream extends SplitCompressionInputStream {
+public class BGzipInputStream extends SplitCompressionInputStream {
     private static final int BGZF_MAX_BLOCK_SIZE = 64 * 1024;
     private static final int INPUT_BUFFER_CAPACITY = 2 * BGZF_MAX_BLOCK_SIZE;
     private static final int OUTPUT_BUFFER_CAPACITY = BGZF_MAX_BLOCK_SIZE;
 
-    private class BGzipHeader {
+    public static class BGzipHeader {
         /* `bsize' is the size of the current BGZF block.
            It is the `BSIZE' entry of the BGZF extra subfield + 1.  */
         int bsize = 0;
 
         int isize = 0;
+
+        public int getBlockSize() { return bsize; }
 
         public BGzipHeader(byte[] buf, int off, int bufSize) throws ZipException {
             if (off + 26 > bufSize)
@@ -89,20 +91,22 @@ class BGzipInputStream extends SplitCompressionInputStream {
     int outputBufferSize = 0;
     int outputBufferPos = 0;
 
+    long currentPos;
+
     public BGzipInputStream(InputStream in, long start, long end, SplittableCompressionCodec.READ_MODE readMode) throws IOException {
         super(in, start, end);
 
         assert (readMode == SplittableCompressionCodec.READ_MODE.BYBLOCK);
         ((Seekable) in).seek(start);
-        inputBufferInPos = start;
         resetState();
+        decompressNextBlock();
 
-        // FIXME adjust start and end
+        currentPos = start;
     }
 
     @Override
     public long getPos() {
-        return inputBufferInPos;
+        return currentPos;
     }
 
     public BGzipInputStream(InputStream in) throws IOException {
@@ -133,9 +137,7 @@ class BGzipInputStream extends SplitCompressionInputStream {
 
         fillInputBuffer();
         assert (inputBufferPos == 0);
-        if (inputBufferSize != 0
-            // && inputBufferInPos <= getAdjustedEnd()
-                ) {
+        if (inputBufferSize != 0) {
             bgzipHeader = new BGzipHeader(inputBuffer, inputBufferPos, inputBufferSize);
         } else {
             bgzipHeader = null;
@@ -151,7 +153,6 @@ class BGzipInputStream extends SplitCompressionInputStream {
             return;
         }
 
-        // FIXME tune buffer
         InputStream decompIS
                 = new GZIPInputStream(new ByteArrayInputStream(inputBuffer, 0, bsize));
 
@@ -166,15 +167,21 @@ class BGzipInputStream extends SplitCompressionInputStream {
     }
 
     public int read(byte[] b, int off, int len) throws IOException {
-        if (outputBufferPos == outputBufferSize)
-            decompressNextBlock();
+        if (len == 0)
+            return 0;
         if (outputBufferSize == 0)
             return -1;  // EOF
-        assert(outputBufferPos != outputBufferSize);
+        assert(outputBufferPos < outputBufferSize);
+
+        if (outputBufferPos == 0)
+          currentPos = inputBufferInPos + 1;
 
         int toCopy = Math.min(len, outputBufferSize - outputBufferPos);
         System.arraycopy(outputBuffer, outputBufferPos, b, off, toCopy);
         outputBufferPos += toCopy;
+
+        if (outputBufferPos == outputBufferSize)
+            decompressNextBlock();
 
         return toCopy;
     }

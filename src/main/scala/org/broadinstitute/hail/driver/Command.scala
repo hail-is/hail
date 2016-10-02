@@ -48,6 +48,7 @@ object ToplevelCommands {
   register(AnnotateSamples)
   register(AnnotateVariants)
   register(AnnotateGlobal)
+  register(BGZipBlocks)
   register(Cache)
   register(CommandMetadata)
   register(CompareVDS)

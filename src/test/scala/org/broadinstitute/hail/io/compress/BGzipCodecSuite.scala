@@ -1,69 +1,118 @@
 package org.broadinstitute.hail.io.compress
 
-import java.io.{FileWriter, File}
-import java.net.URI
-import java.nio.file.{Paths, Files}
-
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.{Path, FileSystem}
-import org.apache.hadoop.io.compress.SplittableCompressionCodec.READ_MODE
+import org.apache.{hadoop => hd}
 import org.broadinstitute.hail.SparkSuite
-import org.scalatest.testng.TestNGSuite
+import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.check.Prop.forAll
 import org.testng.annotations.Test
-import org.apache.hadoop.conf.Configuration
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.util.Random
+import scala.io.Source
+
+class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
+  override def getSplits(job: hd.mapreduce.JobContext): java.util.List[hd.mapreduce.InputSplit] = {
+    val hConf = job.getConfiguration
+
+    val splitPoints = hConf.get("bgz.test.splits").split(",").map(_.toLong)
+    println(splitPoints.toSeq)
+
+    val splits = new mutable.ArrayBuffer[hd.mapreduce.InputSplit]
+    val files = listStatus(job).asScala
+    assert(files.length == 1)
+
+    val file = files.head
+    val path = file.getPath
+    val length = file.getLen
+    val fs = path.getFileSystem(hConf)
+    val blkLocations = fs.getFileBlockLocations(file, 0, length)
+
+    Array.tabulate(splitPoints.length - 1) { i =>
+      val s = splitPoints(i)
+      val e = splitPoints(i + 1)
+      val splitSize = e - s
+
+      val blkIndex = getBlockIndex(blkLocations, s)
+      splits += makeSplit(path, s, splitSize, blkLocations(blkIndex).getHosts, blkLocations(blkIndex).getCachedHosts)
+    }
+
+    splits.asJava
+  }
+}
 
 class BGzipCodecSuite extends SparkSuite {
   @Test def test() {
     sc.hadoopConfiguration.set("io.compression.codecs", "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
 
-    val uncompFilename = "src/test/resources/sample.vcf"
-    val compFilename = "src/test/resources/sample.vcf.bgz"
+    val uncompPath = "src/test/resources/sample.vcf"
 
-    val uncomp: Array[Byte] = Files.readAllBytes(Paths.get(uncompFilename))
+    /*
+     * bgz.test.sample.vcf.bgz was created as follows:
+     *  - split sample.vcf into 60-line chunks: `split -l 60 sample.vcf sample.vcf.`
+     *  - move the line boundary on two chunks by 1 character in different directions
+     *  - bgzip compressed the chunks
+     *  - stripped the empty terminate block in chunks except ad and ag (the last)
+     *  - concatenated the chunks
+     */
+    val compPath = "src/test/resources/bgz.test.sample.vcf.bgz"
 
-    val bgzipCodec = new BGzipCodec()
+    val uncompHPath = new hd.fs.Path(uncompPath)
+    val compHPath = new hd.fs.Path(compPath)
 
-    val conf = new Configuration()
-    val fs = FileSystem.get(URI.create(compFilename), conf)
+    val fs = uncompHPath.getFileSystem(hadoopConf)
 
-    val decomp = IOUtils.toByteArray(
-      bgzipCodec.createInputStream(fs.open(new Path(compFilename))))
+    val uncompIS = fs.open(uncompHPath)
+    val uncomp = IOUtils.toByteArray(uncompIS)
+    uncompIS.close()
+
+    val decompIS = new BGzipInputStream(fs.open(compHPath))
+    val decomp = IOUtils.toByteArray(decompIS)
+    decompIS.close()
+
     assert(uncomp.sameElements(decomp))
 
-    val compSize = new File(compFilename).length().toInt
+    val lines = Source.fromBytes(uncomp).getLines.toArray
 
-    for (i <- 0 until 100) {
-      val nSplits = Random.nextInt(10)
-      val splits = Array.fill[Int](nSplits)(Random.nextInt(compSize)).sorted
-      val splitRanges = (0 +: splits) zip (splits.map(_ - 1) :+ (compSize - 1))
-      // println(splitRanges.mkString(","))
-      val decomp: Array[Byte] = splitRanges.flatMap { case (start, end) =>
-        val b = new mutable.ArrayBuilder.ofByte()
-        val in = bgzipCodec.createInputStream(fs.open(new Path(compFilename)),
-          null, start, end, READ_MODE.BYBLOCK)
-        var done = false
-        do {
-          val ch = in.read()
-          if (ch != -1 && in.getPos <= end)
-            b += ch.toByte
-          else
-            done = true
-        } while (!done)
-        b.result()
-      }
+    assert(sc.textFile(uncompPath).collectOrdered()
+      .sameElements(lines))
 
-      assert(uncomp.sameElements(decomp))
+    for (i <- 1 until 20) {
+      val linesRDD = sc.textFile(compPath, i)
+      assert(linesRDD.partitions.length == i)
+      assert(linesRDD.collectOrdered().sameElements(lines))
     }
 
-    val uncompLines = sc.textFile(uncompFilename)
+    val compLength = 195353
+    val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310, 112477, 112505, 124593,
+      136405, 144293, 157375, 169172, 175174, 186973, 195325)
 
-    val decompLines = sc.textFile(compFilename, 10)
-    assert(decompLines.partitions.size == 10)
+    val g = for (n <- Gen.oneOfGen(
+      Gen.choose(0, 10),
+      Gen.choose(0, 100));
+    splits <- Gen.buildableOfN[Array, Long](n,
+      Gen.oneOfGen(Gen.choose(0, compLength),
+        Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1),
+          Gen.oneOfSeq(compSplits))))
+      .map { splits =>
+        (Array(0L, compLength) ++ splits).distinct.sorted
+      }) yield splits
 
-    assert(uncompLines.collect().toSet
-      == decompLines.collect().toSet)
+    val p = forAll(g) { splits =>
+
+      val jobConf = new hd.conf.Configuration(hadoopConf)
+      jobConf.set("bgz.test.splits", splits.mkString(","))
+      val rdd = sc.newAPIHadoopFile[hd.io.LongWritable, hd.io.Text, TestFileInputFormat](
+        compPath,
+        classOf[TestFileInputFormat],
+        classOf[hd.io.LongWritable],
+        classOf[hd.io.Text],
+        jobConf)
+
+      val rddLines = rdd.map(_._2.toString).collectOrdered()
+      rddLines.sameElements(lines)
+    }
+    p.check()
   }
 }

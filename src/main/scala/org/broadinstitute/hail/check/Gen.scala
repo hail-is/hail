@@ -208,27 +208,27 @@ object Gen {
     * elements in finite time.
     */
   def distinctBuildableOfAtLeast[C[_], T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-    Gen { (p: Parameters) =>
-      val b = cbf()
-      if (p.size < min) {
-        throw new RuntimeException(s"Size (${ p.size }) is too small for buildable of size at least $min")
-      } else if (p.size == 0)
-        b.result()
-      else {
-        val s = p.rng.nextInt(min, p.size)
-        val part = partition(p.rng, p.size, s)
-        val t = mutable.Set.empty[T]
-        for (i <- 0 until s) {
-          var element = g.resize(part(i))(p)
-          while (t.contains(element)) {
-            element = g.resize(part(i))(p)
-          }
-          t += element
+  Gen { (p: Parameters) =>
+    val b = cbf()
+    if (p.size < min) {
+      throw new RuntimeException(s"Size (${ p.size }) is too small for buildable of size at least $min")
+    } else if (p.size == 0)
+      b.result()
+    else {
+      val s = p.rng.nextInt(min, p.size)
+      val part = partition(p.rng, p.size, s)
+      val t = mutable.Set.empty[T]
+      for (i <- 0 until s) {
+        var element = g.resize(part(i))(p)
+        while (t.contains(element)) {
+          element = g.resize(part(i))(p)
         }
-        b ++= t
-        b.result()
+        t += element
       }
+      b ++= t
+      b.result()
     }
+  }
 
   def buildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
@@ -302,6 +302,11 @@ object Gen {
 
   def sized[T](f: (Int) => Gen[T]): Gen[T] = Gen { (p: Parameters) => f(p.size)(p) }
 
+  def applyGen[T, S](gf: Gen[(T) => S], gx: Gen[T]): Gen[S] = Gen { p =>
+    val f = gf(p)
+    val x = gx(p)
+    f(x)
+  }
 }
 
 class Gen[+T](val gen: (Parameters) => T) extends AnyVal {

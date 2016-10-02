@@ -58,4 +58,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       hConf.delete(tmpFileName, recursive = true)
     }
   }
+
+  def collectOrdered()(implicit tct: ClassTag[T]): Array[T] =
+    r.zipWithIndex().collect().sortBy(_._2).map(_._1).toArray
 }
