@@ -155,8 +155,9 @@ object Gen {
     * traversable.
     *
     **/
-  def uniformSequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-  partitionSize(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C, T])
+  def uniformSequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] = {
+    partitionSize(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C, T])
+  }
 
   private def resizeMany[T](gs: Traversable[Gen[T]], partition: Array[Int]): Iterable[Gen[T]] =
     (gs.toIterable, partition).zipped.map((gen, size) => gen.resize(size))
@@ -207,26 +208,27 @@ object Gen {
     * This function terminates with probability equal to the probability of {@code g} generating {@code min} distinct
     * elements in finite time.
     */
-  def distinctBuildableOfAtLeast[C[_], T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-  Gen { (p: Parameters) =>
-    val b = cbf()
-    if (p.size < min) {
-      throw new RuntimeException(s"Size (${ p.size }) is too small for buildable of size at least $min")
-    } else if (p.size == 0)
-      b.result()
-    else {
-      val s = p.rng.nextInt(min, p.size)
-      val part = partition(p.rng, p.size, s)
-      val t = mutable.Set.empty[T]
-      for (i <- 0 until s) {
-        var element = g.resize(part(i))(p)
-        while (t.contains(element)) {
-          element = g.resize(part(i))(p)
+  def distinctBuildableOfAtLeast[C[_], T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] = {
+    Gen { (p: Parameters) =>
+      val b = cbf()
+      if (p.size < min) {
+        throw new RuntimeException(s"Size (${ p.size }) is too small for buildable of size at least $min")
+      } else if (p.size == 0)
+        b.result()
+      else {
+        val s = p.rng.nextInt(min, p.size)
+        val part = partition(p.rng, p.size, s)
+        val t = mutable.Set.empty[T]
+        for (i <- 0 until s) {
+          var element = g.resize(part(i))(p)
+          while (t.contains(element)) {
+            element = g.resize(part(i))(p)
+          }
+          t += element
         }
-        t += element
+        b ++= t
+        b.result()
       }
-      b ++= t
-      b.result()
     }
   }
 

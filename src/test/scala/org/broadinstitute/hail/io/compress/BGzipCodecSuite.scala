@@ -91,13 +91,12 @@ class BGzipCodecSuite extends SparkSuite {
     val g = for (n <- Gen.oneOfGen(
       Gen.choose(0, 10),
       Gen.choose(0, 100));
-    splits <- Gen.buildableOfN[Array, Long](n,
-      Gen.oneOfGen(Gen.choose(0, compLength),
-        Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1),
-          Gen.oneOfSeq(compSplits))))
-      .map { splits =>
-        (Array(0L, compLength) ++ splits).distinct.sorted
-      }) yield splits
+      rawSplits <- Gen.buildableOfN[Array, Long](n,
+        Gen.oneOfGen(Gen.choose(0, compLength),
+          Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1),
+            Gen.oneOfSeq(compSplits)))))
+      yield
+        (Array(0L, compLength) ++ rawSplits).distinct.sorted
 
     val p = forAll(g) { splits =>
 
