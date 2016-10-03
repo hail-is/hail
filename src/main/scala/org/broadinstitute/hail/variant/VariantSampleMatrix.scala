@@ -1070,6 +1070,43 @@ class RichVDS(vds: VariantDataset) {
     }.asOrderedRDD)
   }
 
+  def filterVariantsAST(cond: AST, keep: java.lang.Boolean): VariantDataset = {
+    val aggregationEC = EvalContext(Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "s" ->(2, TSample),
+      "sa" ->(3, vds.saSignature),
+      "g" ->(4, TGenotype),
+      "global" ->(5, vds.globalSignature)))
+    val symTab = Map(
+      "v" ->(0, TVariant),
+      "va" ->(1, vds.vaSignature),
+      "global" ->(2, vds.globalSignature),
+      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
+
+    val ec = EvalContext(symTab)
+    ec.set(2, vds.globalAnnotation)
+    aggregationEC.set(5, vds.globalAnnotation)
+
+    cond.typecheck(ec)
+    val t = cond.`type`
+    if (t != TBoolean)
+      fatal(s"expression has wrong type: expected `Boolean', got $t")
+
+    val condf = cond.eval(ec)
+    val f: () => Option[Boolean] = () => Option(condf()).map(_.asInstanceOf[Boolean])
+
+    val aggregatorOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
+
+    val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
+      ec.setAll(v, va)
+      aggregatorOption.foreach(f => f(v, va, gs))
+      Filter.keepThis(f(), keep)
+    }
+
+    vds.filterVariants(p)
+  }
+
   def filterVariantsExpr(cond: String, keep: Boolean): VariantDataset = {
     val aggregationEC = EvalContext(Map(
       "v" -> (0, TVariant),

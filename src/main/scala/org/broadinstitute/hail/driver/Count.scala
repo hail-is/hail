@@ -2,9 +2,12 @@ package org.broadinstitute.hail.driver
 
 import java.text.NumberFormat
 import java.util.Locale
+import java.util
 
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.collection.JavaConverters._
 
 object Count extends Command {
 
@@ -43,15 +46,15 @@ object Count extends Command {
 
 
     sb.append("count:\n")
-    sb.append(s"  nSamples   ${format(vds.nSamples)}\n")
-    sb.append(s"  nVariants  ${format(nVariants)}")
+    sb.append(s"  nSamples   ${ format(vds.nSamples) }\n")
+    sb.append(s"  nVariants  ${ format(nVariants) }")
 
     nCalledOption.foreach { nCalled =>
       val nGenotypes = nVariants * vds.nSamples
       val callRate = divOption(nCalled, nGenotypes)
       sb += '\n'
-      sb.append(s"  nCalled    ${format(nCalled)}\n")
-      sb.append(s"  callRate   ${"%15s".format(callRate.map(r => (r * 100).formatted("%.3f%%")).getOrElse("NA"))}")
+      sb.append(s"  nCalled    ${ format(nCalled) }\n")
+      sb.append(s"  callRate   ${ "%15s".format(callRate.map(r => (r * 100).formatted("%.3f%%")).getOrElse("NA")) }")
     }
 
     info(sb.result())

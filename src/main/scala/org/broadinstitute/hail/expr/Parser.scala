@@ -9,16 +9,31 @@ import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 import scala.collection.mutable
 
+case class PythonPosition(path: String,
+  line: Int,
+  lineContents: String) extends Position {
+  def column = 0
+}
+
 object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
-    val lineContents = pos.longString.split("\n").head
-    val prefix = s"<input>:${ pos.line }:"
-    fatal(
-      s"""$msg
-         |$prefix$lineContents
-         |${ " " * prefix.length }${
-        lineContents.take(pos.column - 1).map { c => if (c == '\t') c else ' ' }
-      }^""".stripMargin)
+    pos match {
+      case pypos: PythonPosition =>
+        val prefix = s"${ pypos.path }:${ pypos.line }: "
+        fatal(
+          s"""$msg
+             |$prefix${ pypos.lineContents }""".stripMargin)
+
+      case _ =>
+        val lineContents = pos.longString.split("\n").head
+        val prefix = s"<input>:${ pos.line }:"
+        fatal(
+          s"""$msg
+             |$prefix$lineContents
+             |${ " " * prefix.length }${
+            lineContents.take(pos.column - 1).map { c => if (c == '\t') c else ' ' }
+          }^""".stripMargin)
+    }
   }
 }
 

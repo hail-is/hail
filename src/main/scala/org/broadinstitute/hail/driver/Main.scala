@@ -57,7 +57,7 @@ object HailConfiguration {
 
   var installDir: String = _
 
-  var tmpDir: String = _
+  var tmpDir: String = "/tmp"
 
   var branchingFactor: Int = _
 
