@@ -199,11 +199,7 @@ class VariantQCCombiner extends Serializable {
 
 object VariantQC extends Command {
 
-  class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
-      usage = "Output file")
-    var output: String = _
-  }
+  class Options extends BaseOptions
 
   def newOptions = new Options
 
@@ -223,38 +219,13 @@ object VariantQC extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val output = options.output
-
-    // don't recompute QC in case there are multiple downstream actions
-    val r = results(vds).persist(StorageLevel.MEMORY_AND_DISK)
-
-    if (output != null) {
-      state.hadoopConf.delete(output, recursive = true)
-      r.map { case (v, comb) =>
-        val sb = new StringBuilder()
-        sb.append(v.contig)
-        sb += '\t'
-        sb.append(v.start)
-        sb += '\t'
-        sb.append(v.ref)
-        sb += '\t'
-        sb.append(v.alt)
-        sb += '\t'
-        comb.emit(sb)
-        sb.result()
-      }.writeTable(output, Some("Chrom\tPos\tRef\tAlt\t" + VariantQCCombiner.header))
-    }
-
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature, "qc")
-    state.copy(
-      vds = vds.copy(
-        rdd = vds.rdd.zipPartitions(r, preservesPartitioning = true) { case (it, jt) =>
-          it.zip(jt).map { case ((v, (va, gs)), (v2, comb)) =>
-            assert(v == v2)
-            (v, (insertQC(va, Some(comb.asAnnotation)), gs))
-          }
-        }.asOrderedRDD, vaSignature = newVAS)
-    )
-  }
+    val newVDS = vds
+      .mapAnnotationsWithAggregate(new VariantQCCombiner, newVAS)((comb, v, va, s, sa, g) => comb.merge(g),
+        (comb1, comb2) => comb1.merge(comb2),
+        (va, comb) => insertQC(va, Some(comb.asAnnotation)))
 
+    state.copy(
+      vds = newVDS)
+  }
 }
