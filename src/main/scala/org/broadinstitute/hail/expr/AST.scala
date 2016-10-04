@@ -1719,7 +1719,12 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     val f3 = elseTree.eval(ec)
 
     val coerce: Any => Any = `type` match {
-      case t: TNumeric => t.conv.to
+      case t: TNumeric =>
+        (a: Any) =>
+          if (a == null)
+            null
+          else
+            t.conv.to(a)
       case _ => identity
     }
 
