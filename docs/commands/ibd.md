@@ -30,8 +30,11 @@ sample1	sample5	0.1966	0.0000	0.8034	0.8034
 
 #### Examples
 
+Suppose we have already added a variant annotation va`.panel_maf` with allele 
+frequencies computed from a reference panel.
+
 ```
-... ibd --minor-allele-frequency 'va.maf' -o ibd.tsv --min 0.2 --max 0.9
+... ibd --minor-allele-frequency 'va.panel_maf' -o ibd.tsv --min 0.2 --max 0.9
 ```
 
 This invocation writes only those sample pairs with `pi_hat` at or above `0.2`
