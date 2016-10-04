@@ -498,6 +498,8 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("pcoin(2.0)").contains(true))
     assert(eval[Boolean]("pcoin(-1.0)").contains(false))
+
+    assert(eval[Any]("if (true) NA: Double else 0.0").isEmpty)
   }
 
   @Test def testParseTypes() {
