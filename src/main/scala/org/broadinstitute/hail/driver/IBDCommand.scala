@@ -10,8 +10,8 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 object IBDCommand extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-m", aliases = Array("--minor-allele-frequency"),
-      usage = "An expression for the minor allele frequency of the current variant, `v', given the variant annotations `va'")
+    @Args4jOption(required = false, name = "-maf", aliases = Array("--minor-allele-frequency"),
+      usage = "An expression for the minor allele frequency of the current variant, `v', given the variant annotations `va'. If unspecified, MAF will be estimated from the dataset.")
     var computeMafExpr: String = _
 
     @Args4jOption(required = false, name = "--unbounded",
