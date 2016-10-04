@@ -211,8 +211,9 @@ object LoadVCF {
 
     val headerLine = headerLines.last
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
-      fatal(s"corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'" +
-        s"\n  found: ${ truncate(headerLine) }")
+      fatal(
+        s"""corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'
+            |  found: @1""".stripMargin, headerLine)
 
     val sampleIds: Array[String] =
       if (skipGenotypes)

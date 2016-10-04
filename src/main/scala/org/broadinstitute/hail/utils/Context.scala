@@ -12,7 +12,7 @@ case class TextContext(line: String, file: String, position: Option[Int]) extend
     }
     fatal(
       s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: $msg
-         |  offending line: @1""".stripMargin, line, toTake = 60)
+         |  offending line: @1""".stripMargin, line)
   }
 }
 

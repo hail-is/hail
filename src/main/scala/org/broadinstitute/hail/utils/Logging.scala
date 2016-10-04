@@ -16,8 +16,8 @@ trait Logging {
     System.err.println("hail: info: " + msg)
   }
 
-  def info(msg: String, t: Truncatable, delimiter: String = defaultDelim, toTake: Int = defaultToTake) {
-    val (screen, logged) = t.strings(delimiter, toTake)
+  def info(msg: String, t: Truncatable) {
+    val (screen, logged) = t.strings
 
     log.info(format(msg, logged))
     System.err.println("hail: info: " + format(msg, screen))
@@ -28,8 +28,8 @@ trait Logging {
     System.err.println("hail: warning: " + msg)
   }
 
-  def warn(msg: String, t: Truncatable, delimiter: String = defaultDelim, toTake: Int = defaultToTake) {
-    val (screen, logged) = t.strings(delimiter, toTake)
+  def warn(msg: String, t: Truncatable) {
+    val (screen, logged) = t.strings
 
     log.warn(format(msg, logged))
     System.err.println("hail: warning: " + format(msg, screen))

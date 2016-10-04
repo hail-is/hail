@@ -70,25 +70,13 @@ trait Implicits {
 
   implicit def toRichSortedPairIterator[K, V](it: Iterator[(K, V)]): RichPairIterator[K, V] = new RichPairIterator(it)
 
+  implicit def toRichString(str: String): RichString = new RichString(str)
+
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder = new RichStringBuilder(sb)
 
-  implicit def toTruncatable(s: String): Truncatable = new Truncatable {
-    def strings(delim: String, toTake: Int): (String, String) = {
-      val short = if (s.length > toTake - 3) s.take(toTake) + "..." else s
-      (short, s)
-    }
-  }
+  implicit def toTruncatable(s: String): Truncatable = s.truncatable()
 
-  implicit def toTruncatable(it: Iterable[_]): Truncatable = new Truncatable {
-    def strings(delim: String, toTake: Int): (String, String) = {
-      val short = if (it.size > toTake)
-        it.take(toTake).mkString(delim) + delim + "..."
-      else
-        it.mkString(delim)
-      val logged = it.mkString(delim)
-      (short, logged)
-    }
-  }
+  implicit def toTruncatable[T](it: Iterable[T]): Truncatable = it.truncatable()
 
   implicit def toTruncatable(arr: Array[_]): Truncatable = toTruncatable(arr: Iterable[_])
 }
