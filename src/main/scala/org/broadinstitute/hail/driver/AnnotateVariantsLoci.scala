@@ -71,7 +71,6 @@ object AnnotateVariantsLoci extends Command with JoinAnnotator {
     }.toOrderedRDD(vds.rdd.orderedPartitioner.mapMonotonic)
 
     state.copy(vds = vds
-      .withGenotypeStream()
       .annotateLoci(lociRDD, finalType, inserter))
   }
 }

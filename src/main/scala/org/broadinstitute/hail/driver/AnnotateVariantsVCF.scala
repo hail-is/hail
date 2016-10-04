@@ -68,7 +68,6 @@ object AnnotateVariantsVCF extends Command with VCFImporter with JoinAnnotator {
     } else vds.insertVA(otherVds.vaSignature, Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD))
 
     state.copy(vds = vds
-      .withGenotypeStream()
       .annotateVariants(otherVds.variantsAndAnnotations, finalType, inserter))
   }
 }

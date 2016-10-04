@@ -46,6 +46,8 @@ object ExportPlink extends Command {
     plinkRDD.map { case (v, bed) => ExportBedBimFam.makeBimRow(v) }
       .writeTable(options.output + ".bim")
 
+    plinkRDD.unpersist()
+
     val famRows = vds
       .sampleIds
       .map(ExportBedBimFam.makeFamRow)

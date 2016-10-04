@@ -1038,7 +1038,7 @@ class RichVDS(vds: VariantDataset) {
       vds
   }
 
-  def withGenotypeStream(compress: Boolean = false): VariantDataset = {
+  def withGenotypeStream(compress: Boolean = true): VariantDataset = {
     val isDosage = vds.isDosage
     vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
       (va, gs.toGenotypeStream(v, isDosage, compress = compress))
