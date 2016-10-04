@@ -33,7 +33,7 @@
 
 <h4 class="example"> Export the current VDS dataset to a GEN and sample file</h4>
 ```
-hail read -i /path/to/file.vds exportgen -o /path/to/mygenfile
+hail read /path/to/file.vds exportgen -o /path/to/mygenfile
 ```
 
 </div>

@@ -29,8 +29,8 @@ object BgenLoader {
     val duplicateIds = samples.duplicates().toArray
     if (duplicateIds.nonEmpty) {
       val n = duplicateIds.length
-      log.warn(s"found $n duplicate sample ${ plural(n, "id") }:\n  ${ duplicateIds.mkString("\n  ") }")
-      warn(s"found $n duplicate sample ${ plural(n, "id") }:\n  ${ truncate(duplicateIds.mkString(",")).mkString("\n  ") }")
+      warn(s"""found $n duplicate sample ${plural(n, "ID")}
+               |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
     val nSamples = samples.length

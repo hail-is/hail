@@ -57,8 +57,9 @@ object AnnotateSamplesFam extends Command {
     val duplicateIds = info.map(_._1).duplicates().toArray
     if (duplicateIds.nonEmpty) {
       val n = duplicateIds.length
-      log.error(s"found $n duplicate sample ${plural(n, "id")}:\n  ${duplicateIds.mkString("\n  ")}")
-      fatal(s"found $n duplicate sample ${plural(n, "id")}:\n  ${truncate(duplicateIds.mkString(",")).mkString("\n  ")}")
+      fatal(
+        s"""found $n duplicate sample ${plural(n, "id")}:
+           |  @1""".stripMargin, duplicateIds)
     }
 
     val annotated = vds.annotateSamples(info.toMap, signature, Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))

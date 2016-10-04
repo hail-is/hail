@@ -73,7 +73,7 @@ Notice that the schema is nested. The `annotations` type corresponds to the vari
  annotation schema that is displayed using Hail's `printschema` command:
 
 ```
-$ hail read -i sample.vds printschema
+$ hail read sample.vds printschema
 ```
 
 ```

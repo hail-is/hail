@@ -14,10 +14,33 @@ package object utils extends Logging
   with richUtils.Implicits
   with utils.NumericImplicits {
 
-  class FatalException(msg: String) extends RuntimeException(msg)
+  class FatalException(msg: String, logMsg: Option[String] = None) extends RuntimeException(msg)
+
+  trait Truncatable {
+    def truncate: String
+
+    def strings: (String, String)
+  }
 
   def fatal(msg: String): Nothing = {
     throw new FatalException(msg)
+  }
+
+  def fatal(msg: String, t: Truncatable): Nothing = {
+    val (screen, logged) = t.strings
+    throw new FatalException(format(msg, screen), Some(format(msg, logged)))
+  }
+
+  def fatal(msg: String, t1: Truncatable, t2: Truncatable): Nothing = {
+    val (screen1, logged1) = t1.strings
+    val (screen2, logged2) = t2.strings
+    throw new FatalException(format(msg, screen1, screen2), Some(format(msg, logged1, logged2)))
+  }
+
+  def format(s: String, substitutions: Any*): String = {
+    substitutions.zipWithIndex.foldLeft(s) { case (str, (value, i)) =>
+      str.replace(s"@${ i + 1 }", value.toString)
+    }
   }
 
   def plural(n: Int, sing: String, plur: String = null): String =
@@ -27,14 +50,6 @@ package object utils extends Logging
       sing + "s"
     else
       plur
-
-  def truncate(str: String, length: Int = 60): String = {
-    require(length > 3)
-    if (str.length > length)
-      str.take(length - 3) + " ..."
-    else
-      str
-  }
 
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
@@ -257,7 +272,7 @@ package object utils extends Logging
     * @tparam A
     * @tparam B
     */
-  def coalesce[A,B : ClassTag](xs: GenTraversableOnce[A])(size: Int, key: (A, Int) => Int, z: B)(combine: (B, A) => B): Array[B] = {
+  def coalesce[A, B: ClassTag](xs: GenTraversableOnce[A])(size: Int, key: (A, Int) => Int, z: B)(combine: (B, A) => B): Array[B] = {
     val a = Array.fill(size)(z)
 
     for ((x, idx) <- xs.toIterator.zipWithIndex) {
@@ -268,14 +283,14 @@ package object utils extends Logging
     a
   }
 
-  def mapSameElements[K,V](l: Map[K, V], r: Map[K, V], valueEq: (V, V) => Boolean): Boolean = {
+  def mapSameElements[K, V](l: Map[K, V], r: Map[K, V], valueEq: (V, V) => Boolean): Boolean = {
     def entryMismatchMessage(failures: TraversableOnce[(K, V, V)]): String = {
       require(failures.nonEmpty)
       val newline = System.lineSeparator()
       val sb = new StringBuilder
       sb ++= "The maps do not have the same entries:" + newline
       for (failure <- failures) {
-        sb ++= s"  At key ${failure._1}, the left map has ${failure._2} and the right map has ${failure._3}" + newline
+        sb ++= s"  At key ${ failure._1 }, the left map has ${ failure._2 } and the right map has ${ failure._3 }" + newline
       }
       sb ++= s"  The left map is: $l" + newline
       sb ++= s"  The right map is: $r" + newline
@@ -285,8 +300,8 @@ package object utils extends Logging
     if (l.keySet != r.keySet) {
       println(
         s"""The maps do not have the same keys.
-            |  These keys are unique to the left-hand map: ${l.keySet -- r.keySet}
-            |  These keys are unique to the right-hand map: ${r.keySet -- l.keySet}
+            |  These keys are unique to the left-hand map: ${ l.keySet -- r.keySet }
+            |  These keys are unique to the right-hand map: ${ r.keySet -- l.keySet }
             |  The left map is: $l
             |  The right map is: $r
       """.stripMargin)

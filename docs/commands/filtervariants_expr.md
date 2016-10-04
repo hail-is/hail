@@ -22,7 +22,7 @@ Exposed Name | Description
 For more information about these exposed objects and how to use them, see the documentation on [representation](#Representation) and the [Hail expression language](#HailExpressionLanguage).
 
 ```
-$ hail read -i file.vds
+$ hail read file.vds
     filtervariants expr -c 'v.contig == "X"' --keep
     ...
 ```

@@ -6,6 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
+import org.broadinstitute.hail.utils.Truncatable
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
@@ -69,6 +70,13 @@ trait Implicits {
 
   implicit def toRichSortedPairIterator[K, V](it: Iterator[(K, V)]): RichPairIterator[K, V] = new RichPairIterator(it)
 
+  implicit def toRichString(str: String): RichString = new RichString(str)
+
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder = new RichStringBuilder(sb)
 
+  implicit def toTruncatable(s: String): Truncatable = s.truncatable()
+
+  implicit def toTruncatable[T](it: Iterable[T]): Truncatable = it.truncatable()
+
+  implicit def toTruncatable(arr: Array[_]): Truncatable = toTruncatable(arr: Iterable[_])
 }

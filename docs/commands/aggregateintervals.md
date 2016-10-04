@@ -53,7 +53,7 @@ Perhaps we want to calculate the total number of SNPs, indels, and total variant
 
 ```
 $ hail 
-    read -i dataset.vds
+    read dataset.vds
     aggregateintervals
         -i capture_intervals.txt
         -o out.txt
@@ -83,7 +83,7 @@ $ cat intervals.txt
 
 ```
 $ hail 
-    read -i dataset.vds
+    read dataset.vds
     annotatevariants expr -c 'va.n_calls = gs.filter(g.isCalledNonRef).count()'
     aggregateintervals
         -i intervals.txt

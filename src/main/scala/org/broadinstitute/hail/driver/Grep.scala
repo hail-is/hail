@@ -39,12 +39,11 @@ object Grep extends Command {
       .take(options.max)
       .groupBy(_.source.asInstanceOf[TextContext].file)
       .foreach { case (file, lines) =>
-        println(s"$file:")
-        log.info(s"$file:")
-        lines.foreach { line =>
-          val lineToPrint = truncate(line.value, 60)
-          log.info("\t" + line.value)
-          println(s"\t$lineToPrint")
+        info(s"$file: ${ lines.length } ${ plural(lines.length, "match", "matches") }:")
+        lines.map(_.value).foreach { line =>
+          val (screen, logged) = line.truncatable().strings
+          log.info("\t" + logged)
+          println(s"\t$screen")
         }
       }
 

@@ -19,13 +19,13 @@ Gene3   NA      NA
 Gene4   0.9123  10
 Gene5   0.0001  202
 
-$ hail read -i ../data/profile.vds/ \
+$ hail read ../data/profile.vds/ \
     annotateglobal table -i /tmp/file1.txt -r global.genes -t "PLI: Double, EXAC_LOF_COUNT: Int" \
     printschema --global \
     showglobals
     
     
-hail: info: running: read -i ../data/profile.vds/
+hail: info: running: read ../data/profile.vds/
 hail: info: running: annotateglobal table -i /tmp/file1.txt -r global.genes -t 'PLI: Double, EXAC_LOF_COUNT: Int'
 hail: info: running: printschema --global
 Global annotation schema:

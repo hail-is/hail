@@ -138,4 +138,13 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         seen += x
     dups.toSet
   }
+
+  def truncatable(delim: String = ", ", toTake: Int = 10): Truncatable = new Truncatable {
+    def truncate: String = if (i.size > toTake)
+      i.take(toTake).mkString(delim) + delim + "..."
+    else
+      i.mkString(delim)
+
+    def strings: (String, String) = (truncate, i.mkString(delim))
+  }
 }

@@ -22,13 +22,13 @@ TSC1
 TSC2
 
 $ hail 
-    read -i file.vds \ 
+    read file.vds \ 
     annotateglobal list -i /tmp/genes.txt -r global.genes \
     printschema --global \
     showglobals
     
           
-hail: info: running: read -i ../data/profile.vds/   
+hail: info: running: read ../data/profile.vds/   
 hail: info: running: annotateglobal list -i /tmp/genes.txt -r global.genes
 hail: info: running: printschema --global    
    Global annotation schema:
@@ -45,7 +45,7 @@ hail: info: running: showglobals
 <h4 class="example>Filter variants from a user-defined gene list</h4>
 ```
 $ hail 
-    read -i file.vds \ 
+    read file.vds \ 
     annotateglobal list -i /tmp/genes.txt -r global.genes --as-set \
     filtervariants expr --keep -c 'global.genes.contains(va.gene)' \
     write -o genes_of_interest.vds

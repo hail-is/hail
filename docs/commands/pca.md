@@ -43,6 +43,6 @@ As input, PCA expects a `.vds` file with biallelic autosomal variants. The analy
 
 Example usage:
 ```
-$ hail read -i /path/to/file.vds pca -o /path/to/file.tsv
+$ hail read /path/to/file.vds pca -o /path/to/file.tsv
 ```
 </div>
