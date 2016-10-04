@@ -1,10 +1,13 @@
 package org.broadinstitute.hail.driver
 
 object Cache extends Command {
+
   class Options extends BaseOptions
+
   def newOptions = new Options
 
   def name = "cache"
+
   def description = "Cache current dataset in memory"
 
   def supportsMultiallelic = true
@@ -12,6 +15,8 @@ object Cache extends Command {
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    state.copy(vds = state.vds.cache())
+    state.copy(vds = state.vds
+      .withGenotypeStream()
+      .cache())
   }
 }

@@ -324,4 +324,12 @@ package object utils extends Logging
     }
   }
 
+  def getIteratorSize[T](iterator: Iterator[T]): Int = {
+    var count = 0
+    while (iterator.hasNext) {
+      count += 1
+      iterator.next()
+    }
+    count
+  }
 }

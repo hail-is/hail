@@ -35,7 +35,6 @@ object Coalesce extends Command {
     }
 
     state.copy(vds = state.vds
-      .withGenotypeStream(compress = true)
       .coalesce(k))
   }
 }

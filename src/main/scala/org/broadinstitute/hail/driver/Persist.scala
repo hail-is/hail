@@ -29,10 +29,12 @@ object Persist extends Command {
       StorageLevel.fromString(options.level)
     } catch {
       case e: IllegalArgumentException =>
-      fatal(s"unknown StorageLevel `${options.level}'")
+        fatal(s"unknown StorageLevel `${ options.level }'")
     }
 
     state.copy(
-      vds = vds.copy(rdd = vds.rdd.persist(level)))
+      vds = vds
+        .withGenotypeStream()
+        .copy(rdd = vds.rdd.persist(level)))
   }
 }
