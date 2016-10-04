@@ -42,8 +42,12 @@ object ExportVariantsSolr extends Command with Serializable {
       usage = "Zookeeper host string to connect to")
     var zkHost: String = _
 
+    @Args4jOption(name = "-d", aliases = Array("--drop"),
+      usage = "delete and re-create solr collection before exporting")
+    var drop: Boolean = false
+
     @Args4jOption(name = "-s", aliases = Array("--num-shards"),
-      usage = "Number of shards to split the collection into. Default: 1")
+      usage = "number of shards to split the collection into. Default: 1")
     var numShards: Int = 1
 
   }
@@ -140,6 +144,7 @@ object ExportVariantsSolr extends Command with Serializable {
     val vCond = options.variantCondition
     val collection = options.collection
     val exportRef = options.exportRef
+    val drop = options.drop
     val numShards = options.numShards
 
     val vSymTab = Map(
@@ -186,21 +191,24 @@ object ExportVariantsSolr extends Command with Serializable {
       }
 
     //delete and re-create the collection
-    try {
-      CollectionAdminRequest.deleteCollection(collection).process(solr)
-      info(s"deleted collection ${collection}")
-    } catch {
-      case e: SolrException => warn(s"exportvariantssolr: unable to delete collection ${collection}: ${e}")
+    if(drop) {
+      try {
+        CollectionAdminRequest.deleteCollection(collection).process(solr)
+        info(s"deleted collection ${collection}")
+      } catch {
+        case e: SolrException => warn(s"exportvariantssolr: unable to delete collection ${collection}: ${e}")
+      }
     }
 
     try {
       //zookeeper needs to already have a pre-loaded config named "default_config".
       //if it doesn't, you can upload it using the solr command-line client:
       //   solr create_collection -c default_config; solr delete -c default_config
+      //CollectionAdminRequest.listCollections().process(solr)
       CollectionAdminRequest.createCollection(collection, "default_config", numShards, 1).process(solr)
       info(s"created new collection ${collection}")
     } catch {
-      case e: SolrException => warn(s"exportvariantssolr: unable to create collection ${collection}: ${e}")
+      case e: SolrException => fatal(s"exportvariantssolr: unable to create collection ${collection}: ${e}")
     }
 
     // retrieve current fields
