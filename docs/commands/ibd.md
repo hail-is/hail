@@ -30,13 +30,16 @@ sample1	sample5	0.1966	0.0000	0.8034	0.8034
 
 #### Examples
 
+Suppose we have already added a variant annotation `va.panel_maf` with allele 
+frequencies computed from a reference panel. In that case, the invocation,
+
 ```
-... ibd --minor-allele-frequency 'va.mafs[v]' -o ibd.tsv --min 0.2 --max 0.9
+... ibd -maf 'va.panel_maf' -o ibd.tsv --min 0.2 --max 0.9
 ```
 
-This invocation writes only those sample pairs with `pi_hat` at or above `0.2`
-and at or below `0.9` to `ibd.tsv`. It uses the provided expression to compute
-the minor allele frequency.
+writes only those sample pairs with `pi_hat` between `0.2` and `0.9` inclusive
+to `ibd.tsv`. It uses the provided expression to compute the minor allele 
+frequency.
 
 ```
 ... ibd -o ibd.tsv
