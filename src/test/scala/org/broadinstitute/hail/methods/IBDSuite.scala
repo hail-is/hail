@@ -51,20 +51,31 @@ class IBDSuite extends SparkSuite {
     max: Option[Double] = None): Map[(String, String), ExtendedIBDInfo] = {
 
     val tmpdir = tmpDir.createTempFile(prefix = "plinkIBD")
-    val vcfOutputFile = tmpdir + ".vcf"
+    val localTmpdir = tmpDir.createLocalTempFile(prefix = "plinkIBD")
+
+    val vcfFile = tmpdir + ".vcf"
+    val localVCFFile = localTmpdir + ".vcf"
 
     var s = State(sc, sqlContext).copy(vds = vds)
-    s = ExportVCF.run(s, Array("-o", vcfOutputFile))
+    s = ExportVCF.run(s, Array("-o", vcfFile))
+
+    hadoopConf.copy(vcfFile, localVCFFile)
 
     val thresholdString = min.map(x => s"--min $x").getOrElse("") + " " +
       max.map(x => s"--max $x").getOrElse("")
 
-    s"plink --double-id --allow-extra-chr --vcf ${ uriPath(vcfOutputFile) } --genome full --out ${ uriPath(tmpdir) } " + thresholdString !
+    s"plink --double-id --allow-extra-chr --vcf ${ uriPath(localVCFFile) } --genome full --out ${ uriPath(localTmpdir) } " + thresholdString !
 
     val genomeFormat = TextTableConfiguration(
       types = Map(("IID1", TString), ("IID2", TString), ("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble),
         ("PI_HAT", TDouble), ("IBS0", TInt), ("IBS1", TInt), ("IBS2", TInt)),
       separator = " +")
+
+    val genomeFile = tmpdir + ".genome"
+    val localGenomeFile = localTmpdir + ".genome"
+
+    hadoopConf.copy(localGenomeFile, genomeFile)
+
     val (_, rdd) = TextTableReader.read(sc)(Array(tmpdir + ".genome"), genomeFormat)
 
     rdd.collect()
