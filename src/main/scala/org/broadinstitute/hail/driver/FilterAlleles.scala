@@ -5,7 +5,7 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr.{EvalContext, Parser, TArray, TBoolean, TInt, TVariant}
 import org.broadinstitute.hail.methods.Filter
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.{GTPair, Genotype, Variant}
+import org.broadinstitute.hail.variant.{GTPair, Genotype, GenotypeType, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.mutable
@@ -19,15 +19,27 @@ object FilterAlleles extends Command {
     @Args4jOption(required = false, name = "--remove", usage = "Remove variants matching condition")
     var remove: Boolean = false
 
+    @Args4jOption(required = false, name = "--downcode", usage = "If set, downcodes the PL and AD." +
+      "Genotype and GQ are set based on the resulting PLs.")
+    var downcode: Boolean = false
+
+    @Args4jOption(required = false, name = "--subset", usage = "If set, subsets the PL and AD." +
+      "Genotype and GQ are set based on the resulting PLs.")
+    var subset: Boolean = false
+
+    @Args4jOption(required = false, name = "--filterAlteredGenotypes", usage = "If set, any genotype call that would change due" +
+      " to filtering an allele would be set to missig instead.")
+    var filterAlteredGenotypes: Boolean = false
+
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = "Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)",
       metaVar = "COND_EXPR")
     var condition: String = _
 
-    @Args4jOption(required = true, name = "-a", aliases = Array("--annotation"),
+    @Args4jOption(required = false, name = "-a", aliases = Array("--annotation"),
       usage = "Annotation modifying expression involving v (new variant), va (old variant annotations), and aIndices (maps from new to old indices)",
       metaVar = "ANNO_EXPR")
-    var annotation: String = _
+    var annotation: String = "va = va"
   }
 
   override def newOptions: Options = new Options
@@ -47,6 +59,9 @@ object FilterAlleles extends Command {
     if (!(options.keep ^ options.remove))
       fatal("either `--keep' or `--remove' required, but not both")
 
+    if (!(options.downcode ^ options.subset))
+      fatal("either `--downcode' or `--subset' required, but not both")
+
     val conditionEC = EvalContext(Map(
       "v" -> (0, TVariant),
       "va" -> (1, state.vds.vaSignature),
@@ -64,9 +79,12 @@ object FilterAlleles extends Command {
       inserterBuilder += i
       newVas
     }
+    val updateAnn = state.vds.vaSignature != finalType
     val inserters = inserterBuilder.result()
 
     val keep = options.keep
+    val downcode = options.downcode
+    val filterAlteredGenotypes = options.filterAlteredGenotypes
 
     def filterAllelesInVariant(v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], Array[Int])] = {
       var alive = 0
@@ -126,23 +144,52 @@ object FilterAlleles extends Command {
 
       def downcodeGenotype(g: Genotype): Genotype = {
         val px = g.px.map(downcodePx)
-        val gq = px.map(Genotype.gqFromPL)
-        Genotype(g.gt.map(downcodeGt),
-          g.ad.map(downcodeAd),
-          g.dp,
-          gq,
-          px,
-          g.fakeRef,
-          g.isDosage
+        g.copy(gt = g.gt.map(downcodeGt),
+          ad = g.ad.map(downcodeAd),
+          gq = px.map(Genotype.gqFromPL),
+          px = px
         )
       }
 
-      gs.map(downcodeGenotype)
+      def subsetPx(px: Array[Int]): Array[Int] = {
+        val (newPx,minP) = px.zipWithIndex
+          .filter({
+            case (p, i) =>
+              val gTPair = Genotype.gtPair(i)
+              (gTPair.j == 0 || oldToNew(gTPair.j) != 0) && (gTPair.k ==0 || oldToNew(gTPair.k) != 0)
+          })
+          .foldLeft((Array.fill(triangle(newCount))(0),Int.MaxValue))({
+            case((newPx,minP),(p,i)) =>
+              newPx(downcodeGt(i)) = p
+              (newPx,min(p,minP))
+          })
+
+        newPx.map(_ - minP)
+      }
+
+      def subsetGenotype(g: Genotype) : Genotype = {
+        val px  = g.px.map(subsetPx)
+        g.copy(
+          gt = px.map(_.zipWithIndex.min._2),
+          ad = g.ad.map(_.zipWithIndex.filter({case(d,i) => i ==0 || oldToNew(i) != 0}).map(_._1)),
+          gq = px.map(Genotype.gqFromPL),
+          px = px
+        )
+      }
+
+      gs.map({
+        g =>
+          val newG = if(downcode) downcodeGenotype(g) else subsetGenotype(g)
+          if(filterAlteredGenotypes && newG.gt != g.gt)
+            newG.copy(gt = None)
+          else
+            newG
+      })
     }
 
     def updateOrFilterRow(v: Variant, va: Annotation, gs: Iterable[Genotype]): Option[(Variant, (Annotation, Iterable[Genotype]))] =
       filterAllelesInVariant(v, va).map { case (newV, newToOld, oldToNew) =>
-        val newVa = updateAnnotation(v, va, newToOld)
+        val newVa = if(updateAnn) updateAnnotation(v, va, newToOld) else va
         val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
         (newV, (newVa, newGs))
       }
