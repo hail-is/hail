@@ -34,6 +34,8 @@ object Coalesce extends Command {
             |  In order to run with more partitions, use the --blocksize global option and reimport.""".stripMargin)
     }
 
-    state.copy(vds = state.vds.coalesce(k))
+    state.copy(vds = state.vds
+      .withGenotypeStream(compress = true)
+      .coalesce(k))
   }
 }

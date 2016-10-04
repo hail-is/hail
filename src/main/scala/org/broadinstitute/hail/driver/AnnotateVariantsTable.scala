@@ -71,7 +71,6 @@ object AnnotateVariantsTable extends Command with JoinAnnotator {
     }.toOrderedRDD(vds.rdd.orderedPartitioner)
 
     state.copy(vds = vds
-      .withGenotypeStream()
       .annotateVariants(keyedRDD, finalType, inserter))
   }
 }
