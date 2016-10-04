@@ -5,6 +5,7 @@ import java.util
 import org.apache.solr.client.solrj.SolrResponse
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.schema.SchemaRequest
+import org.apache.solr.client.solrj.request.CollectionAdminRequest
 import org.apache.solr.common.{SolrException, SolrInputDocument}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
@@ -25,6 +26,10 @@ object ExportVariantsSolr extends Command with Serializable {
     @Args4jOption(name = "--export-ref", usage = "export HomRef calls")
     var exportRef = false
 
+    @Args4jOption(required = true, name = "-v",
+      usage = "comma-separated list of fields/computations to be exported")
+    var variantCondition: String = _
+
     @Args4jOption(required = true, name = "-g",
       usage = "comma-separated list of fields/computations to be exported")
     var genotypeCondition: String = _
@@ -33,13 +38,17 @@ object ExportVariantsSolr extends Command with Serializable {
       usage = "Solr instance (URL) to connect to")
     var url: String = _
 
-    @Args4jOption(required = true, name = "-v",
-      usage = "comma-separated list of fields/computations to be exported")
-    var variantCondition: String = _
-
     @Args4jOption(name = "-z", aliases = Array("--zk-host"),
       usage = "Zookeeper host string to connect to")
     var zkHost: String = _
+
+    @Args4jOption(name = "-d", aliases = Array("--drop"),
+      usage = "delete and re-create solr collection before exporting")
+    var drop: Boolean = false
+
+    @Args4jOption(name = "-s", aliases = Array("--num-shards"),
+      usage = "number of shards to split the collection into. Default: 1")
+    var numShards: Int = 1
 
   }
 
@@ -135,6 +144,8 @@ object ExportVariantsSolr extends Command with Serializable {
     val vCond = options.variantCondition
     val collection = options.collection
     val exportRef = options.exportRef
+    val drop = options.drop
+    val numShards = options.numShards
 
     val vSymTab = Map(
       "v" -> (0, TVariant),
@@ -178,6 +189,27 @@ object ExportVariantsSolr extends Command with Serializable {
         cc.setDefaultCollection(collection)
         cc
       }
+
+    //delete and re-create the collection
+    if(drop) {
+      try {
+        CollectionAdminRequest.deleteCollection(collection).process(solr)
+        info(s"deleted collection ${collection}")
+      } catch {
+        case e: SolrException => warn(s"exportvariantssolr: unable to delete collection ${collection}: ${e}")
+      }
+    }
+
+    try {
+      //zookeeper needs to already have a pre-loaded config named "default_config".
+      //if it doesn't, you can upload it using the solr command-line client:
+      //   solr create_collection -c default_config; solr delete -c default_config
+      //CollectionAdminRequest.listCollections().process(solr)
+      CollectionAdminRequest.createCollection(collection, "default_config", numShards, 1).process(solr)
+      info(s"created new collection ${collection}")
+    } catch {
+      case e: SolrException => fatal(s"exportvariantssolr: unable to create collection ${collection}: ${e}")
+    }
 
     // retrieve current fields
     val fieldsResponse = new SchemaRequest.Fields().process(solr)
@@ -258,7 +290,7 @@ object ExportVariantsSolr extends Command with Serializable {
 
         var retry = true
         var retryInterval = 3 * 1000 // 3s
-      val maxRetryInterval = 3 * 60 * 1000 // 3m
+        val maxRetryInterval = 3 * 60 * 1000 // 3m
 
         while (retry) {
           try {
