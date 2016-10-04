@@ -155,8 +155,9 @@ object Gen {
     * traversable.
     *
     **/
-  def uniformSequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-  partitionSize(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C, T])
+  def uniformSequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] = {
+    partitionSize(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C, T])
+  }
 
   private def resizeMany[T](gs: Traversable[Gen[T]], partition: Array[Int]): Iterable[Gen[T]] =
     (gs.toIterable, partition).zipped.map((gen, size) => gen.resize(size))
@@ -207,7 +208,7 @@ object Gen {
     * This function terminates with probability equal to the probability of {@code g} generating {@code min} distinct
     * elements in finite time.
     */
-  def distinctBuildableOfAtLeast[C[_], T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+  def distinctBuildableOfAtLeast[C[_], T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] = {
     Gen { (p: Parameters) =>
       val b = cbf()
       if (p.size < min) {
@@ -229,6 +230,7 @@ object Gen {
         b.result()
       }
     }
+  }
 
   def buildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
@@ -302,6 +304,11 @@ object Gen {
 
   def sized[T](f: (Int) => Gen[T]): Gen[T] = Gen { (p: Parameters) => f(p.size)(p) }
 
+  def applyGen[T, S](gf: Gen[(T) => S], gx: Gen[T]): Gen[S] = Gen { p =>
+    val f = gf(p)
+    val x = gx(p)
+    f(x)
+  }
 }
 
 class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
