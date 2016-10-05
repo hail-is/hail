@@ -377,10 +377,16 @@ The above reads, "where the genotype is called non-reference, collect the sample
 
 `infoScore()` is an aggregator that computes an [IMPUTE info score](#infoscore) on an aggregable of genotypes (gs). 
 
-The following annotations are generated:
+The result of `infoScore()` is a struct:
 
- - `score [Double]`: IMPUTE info score
- - `nIncluded [Int]`: Number of samples with non-missing dosages
+```
+Struct {
+    score: Double,
+    nIncluded: Int
+}
+```
+
+In the above schema, `score` is the IMPUTE info score produced, and `nIncluded` is the number of samples with non-missing dosages.
 
 **Note:**
 If the genotype data was not imported using the [`importbgen`](#importbgen) or [`importgen`](#importgen) commands, then the results for all variants will be `score = null` and `nIncluded = 0`.
