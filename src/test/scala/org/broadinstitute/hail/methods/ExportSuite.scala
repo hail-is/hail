@@ -51,32 +51,6 @@ class ExportSuite extends SparkSuite {
     println(sQcOutput.toArray.sorted.toSeq)
 
     assert(sQcOutput == sExportOutput)
-
-    val variantQCFile = tmpDir.createTempFile("variantqc", ".tsv")
-    val exportVariantsFile = tmpDir.createTempFile("exportvariants", ".tsv")
-
-    VariantQC.run(state, Array("-o", variantQCFile))
-    val postVariantQC = VariantQC.run(state, Array.empty[String])
-
-    ExportVariants.run(postVariantQC, Array("-o", exportVariantsFile, "-c",
-      "Chrom=v.contig,Pos=v.start,Ref=v.ref,Alt=v.alt,callRate=va.qc.callRate,AC=va.qc.AC,AF=va.qc.AF," +
-        "nCalled=va.qc.nCalled,nNotCalled=va.qc.nNotCalled," +
-        "nHomRef=va.qc.nHomRef,nHet=va.qc.nHet,nHomVar=va.qc.nHomVar,dpMean=va.qc.dpMean,dpStDev=va.qc.dpStDev," +
-        "gqMean=va.qc.gqMean,gqStDev=va.qc.gqStDev," +
-        "nNonRef=va.qc.nNonRef," +
-        "rHeterozygosity=va.qc.rHeterozygosity,rHetHomVar=va.qc.rHetHomVar,rExpectedHetFrequency=va.qc.rExpectedHetFrequency," +
-        "pHWE=va.qc.pHWE"))
-
-    val vQcOutput = hadoopConf.readFile(variantQCFile) { s =>
-      Source.fromInputStream(s)
-        .getLines().toSet
-    }
-    val vExportOutput = hadoopConf.readFile(exportVariantsFile) { s =>
-      Source.fromInputStream(s)
-        .getLines().toSet
-    }
-
-    assert(vQcOutput == vExportOutput)
   }
 
   @Test def testExportSamples() {
