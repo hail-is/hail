@@ -364,10 +364,17 @@ annotateglobal expr -c 'global.gqDensity = variants.map(v => va.gqHist.densities
 `collect()` is an aggregator that allows a set of elements of an aggregator to be collected into an `Array`.  For example, one can collect the list of non-ref sample IDs per variant with the following:
 
 ```
-annotatevariants expr -c 'va.hetSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'
+annotatevariants expr \
+  -c 'va.hetSamples = gs.filter(g => g.isCalledNonRef)
+                        .map(g => s.id)
+                        .collect()'
 ```
 
-The above reads, "where the genotype is called non-reference, collect the sample id".  This returns an `Array[String]`.
+The above example is updating the value of the `va.hetSamples` annotation. The value is calculated by transforming the array of genotypes, `gs`, in three steps.
+
+  1. apply `filter(g => g.isCalledNonRef)` to keep only those genotypes which are non-reference
+  2. apply `map(g => s.id)` to convert the each kept genotype to its corresponding sample id
+  3. apply `collect()` to remove `NA`s and produce an `Array` of sample ids (which are `String`s)
 
 ### <a name="aggreg_infoscore"></a> InfoScore
 
