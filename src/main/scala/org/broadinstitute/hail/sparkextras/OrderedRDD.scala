@@ -371,7 +371,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     val partSize = rdd.context.runJob(rdd, getIteratorSize _)
     info(s"partSize = ${ partSize.toSeq }")
 
-    val partCommulativeSize = mapAccumulate[Array, Int, Int, Int](partSize, 0)((s, acc) => (s + acc, s + acc))
+    val partCommulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
     val totalSize = partCommulativeSize.last
 
     var newPartEnd = (0 until maxPartitions).map { i =>
