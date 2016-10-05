@@ -12,6 +12,7 @@ import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.driver.Main
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr.{EvalContext, _}
@@ -61,11 +62,14 @@ object VariantSampleMatrix {
 
     val json = try {
       hConf.readFile(metadataFile)(
-        in => JsonMethods.parse(Source.fromInputStream(in).mkString)
-      )
+        in => JsonMethods.parse(in))
     } catch {
-      case e: Throwable => fatal(s"corrupt VDS: invalid metadata file: ${ e.getMessage }.\n  " +
-        s"Recreate VDS with current version of Hail")
+      case e: Throwable => fatal(
+        s"""
+           |corrupt VDS: invalid metadata file.
+           |  Recreate VDS with current version of Hail.
+           |  caught exception: ${ Main.expandException(e) }
+         """.stripMargin)
     }
 
     val fields = json match {
