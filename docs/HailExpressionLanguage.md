@@ -375,7 +375,7 @@ The above reads, "where the genotype is called non-reference, collect the sample
 <genotype aggregable>.infoScore()
 ```
 
-`infoScore()` is an aggregator that computes an [IMPUTE info score](#infoscore) on an aggregable of genotypes (gs). 
+`infoScore()` is an aggregator that computes an [IMPUTE info score](#infoscore_doc) on an aggregable of genotypes (gs). 
 
 The following annotations are generated:
 
@@ -464,7 +464,7 @@ filtervariants expr --keep -c 'va.fet.pValue < 1e-4'
 exportvariants -o /path/my/results.tsv -c 'v, va.minorCase, va.majorCase, va.minorControl, va.majorControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'
 ```
 
-### <a name="infoscore"></a> IMPUTE Info Score (Dosage Data)
+### <a name="infoscore_doc"></a> IMPUTE Info Score (Dosage Data)
 
 The `infoScore` aggregator can be used to calculate the IMPUTE info score from a [genotype aggregable](#aggreg_infoscore). 
 
