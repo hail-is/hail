@@ -79,7 +79,6 @@ object FilterAlleles extends Command {
       inserterBuilder += i
       newVas
     }
-    val updateAnn = state.vds.vaSignature != finalType
     val inserters = inserterBuilder.result()
 
     val keep = options.keep
@@ -189,13 +188,14 @@ object FilterAlleles extends Command {
 
     def updateOrFilterRow(v: Variant, va: Annotation, gs: Iterable[Genotype]): Option[(Variant, (Annotation, Iterable[Genotype]))] =
       filterAllelesInVariant(v, va).map { case (newV, newToOld, oldToNew) =>
-        val newVa = if(updateAnn) updateAnnotation(v, va, newToOld) else va
+        val newVa = updateAnnotation(v, va, newToOld)
         val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
         (newV, (newVa, newGs))
       }
 
     val newVds = state.vds
       .flatMapVariants { case (v, va, gs) => updateOrFilterRow(v, va, gs) }
+      .copy(vaSignature = finalType)
 
     state.copy(vds = newVds)
   }
