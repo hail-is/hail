@@ -109,56 +109,21 @@ class Genotype(private val _gt: Int,
       .append(isDosage)
       .toHashCode
 
-  def gt: Option[Int] =
-    if (_gt >= 0)
-      Some(_gt)
-    else
-      None
+  def gt: Option[Int] = someIf(_gt >= 0, _gt)
 
   def ad: Option[Array[Int]] = Option(_ad)
 
-  def dp: Option[Int] =
-    if (_dp >= 0)
-      Some(_dp)
-    else
-      None
+  def dp: Option[Int] = someIf(_dp >= 0, _dp)
 
-  def od: Option[Int] =
-    if (_dp >= 0 && _ad != null)
-      Some(_dp - _ad.sum)
-    else
-      None
+  def od: Option[Int] = someIf(_dp >= 0 && _ad != null, _dp - _ad.sum)
 
-  def gq: Option[Int] =
-    if (_gq >= 0)
-      Some(_gq)
-    else
-      None
+  def gq: Option[Int] = someIf(_gq >= 0, _gq)
 
-  def px: Option[Array[Int]] = {
-    if (_px != null)
-      Option(_px)
-    else
-      None
-  }
+  def px: Option[Array[Int]] = Option(_px)
 
-  def pl: Option[Array[Int]] = {
-    if (_px == null)
-      None
-    else if (!isDosage)
-      Option(_px)
-    else
-      Option(Genotype.linearToPhred(_px))
-  }
+  def pl: Option[Array[Int]] = Option(_px).map(px => if (isDosage) Genotype.linearToPhred(px) else px)
 
-  def dosage: Option[Array[Double]] = {
-    if (_px == null)
-      None
-    else if (isDosage)
-      Option(_px.map(_ / 32768.0))
-    else
-      Option(Genotype.phredToDosage(_px))
-  }
+  def dosage: Option[Array[Double]] = Option(_px).map(px => if (isDosage) px.map(_ / 32768d) else Genotype.phredToDosage(px))
 
   def isHomRef: Boolean = Genotype.isHomRef(_gt)
 
