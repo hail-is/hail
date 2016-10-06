@@ -2,6 +2,7 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.utils.MultiArray2
 import org.broadinstitute.hail.variant._
 
@@ -41,9 +42,14 @@ object Aggregators {
     } else None
   }
 
-  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(String) => Unit] = {
+  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext, branchingFactor: Option[Int]): Option[(String) => Unit] = {
     val aggregators = ec.aggregationFunctions.toArray
     val aggregatorA = ec.a
+
+    val depth = branchingFactor
+      .map(b => (math.log(vds.nPartitions) / math.log(b) + 0.5).toInt.max(2))
+      .getOrElse(2)
+    log.info(s"in buildSampleAggregations: depth = $depth")
 
     if (aggregators.isEmpty)
       None
@@ -80,8 +86,7 @@ object Aggregators {
           arr1.update(i, j, aggregators(j).combOp(arr1(i, j), arr2(i, j)))
         }
         arr1
-      }
-      )
+      }, depth = depth)
 
       val sampleIndex = vds.sampleIds.zipWithIndex.toMap
       Some((s: String) => {
