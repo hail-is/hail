@@ -18,7 +18,7 @@ case class BlockedRDDPartition(@transient rdd: RDD[_],
 }
 
 class BlockedRDD[T](@transient var prev: RDD[T],
-  newPartEnd: Array[Int])(implicit tct: ClassTag[T]) extends RDD[T](prev.sparkContext, Nil) {
+  @transient newPartEnd: Array[Int])(implicit tct: ClassTag[T]) extends RDD[T](prev.sparkContext, Nil) {
 
   override def getPartitions: Array[Partition] = {
     newPartEnd.zipWithIndex.map { case (end, i) =>
