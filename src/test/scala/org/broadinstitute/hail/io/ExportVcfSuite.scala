@@ -28,7 +28,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsNew = LoadVCF(sc, outFile, nPartitions = Some(10))
 
-    assert(vdsOrig.same(vdsNew))
+    assert(vdsOrig.same(vdsNew, 1e-3))
   }
 
   @Test def testSameAsOrigNoCompression() {
@@ -53,7 +53,7 @@ class ExportVcfSuite extends SparkSuite {
 
     ExportVCF.run(stateOrig.copy(vds = vdsNewMissingInfo), Array("-o", outFile2))
 
-    assert(LoadVCF(sc, outFile2).eraseSplit.same(vdsNewMissingInfo.eraseSplit))
+    assert(LoadVCF(sc, outFile2).eraseSplit.same(vdsNewMissingInfo.eraseSplit, 1e-2))
   }
 
   @Test def testSorted() {
@@ -103,7 +103,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsNew = LoadVCF(sc, out, nPartitions = Some(10), ppAsPL = true)
 
-    assert(s.vds.same(vdsNew))
+    assert(s.vds.same(vdsNew, 1e-3))
   }
 
   @Test def testGeneratedInfo() {

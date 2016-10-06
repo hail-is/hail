@@ -596,13 +596,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.mapValues { case (va, gs) => gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g)) }
 
-  def sampleAnnotationsSimilar(that: VariantSampleMatrix[T]): Boolean = {
+  def sampleAnnotationsSimilar(that: VariantSampleMatrix[T], tolerance: Double = 1e-6): Boolean = {
     require(saSignature == that.saSignature)
     sampleAnnotations.zip(that.sampleAnnotations)
-      .forall((saSignature.valuesSimilar _).tupled)
+      .forall { case (s1, s2) => saSignature.valuesSimilar(s1, s2, tolerance) }
   }
 
-  def same(that: VariantSampleMatrix[T]): Boolean = {
+  def same(that: VariantSampleMatrix[T], tolerance: Double = 1e-6): Boolean = {
     var metadataSame = true
     if (vaSignature != that.vaSignature) {
       metadataSame = false
@@ -632,7 +632,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
             |  left:  $sampleIds
             |  right: ${ that.sampleIds }""".stripMargin)
     }
-    if (!sampleAnnotationsSimilar(that)) {
+    if (!sampleAnnotationsSimilar(that, tolerance)) {
       metadataSame = false
       println(
         s"""different sample annotations:
@@ -662,7 +662,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         .fullOuterJoin(that.rdd)
         .forall {
           case (v, (Some((va1, it1)), Some((va2, it2)))) =>
-            val annotationsSame = vaSignatureBc.value.valuesSimilar(va1, va2)
+            val annotationsSame = vaSignatureBc.value.valuesSimilar(va1, va2, tolerance)
             if (!annotationsSame && !printed) {
               println(
                 s"""at variant `$v', annotations were not the same:

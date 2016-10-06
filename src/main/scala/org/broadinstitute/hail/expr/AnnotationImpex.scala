@@ -8,6 +8,9 @@ import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Sample, Variant}
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+import scala.collection.JavaConverters._
+
+
 
 abstract class AnnotationImpex[T, A] {
   // FIXME for now, schema must be specified on import
@@ -380,7 +383,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case d: TDict => JsonMethods.compact(d.toJSON(a))
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
         case t: TStruct => JsonMethods.compact(t.toJSON(a))
-        case TGenotype => JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(a, t))
+        case TGenotype => JsonMethods.compact(t.toJSON(a))
         case TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
           if (i.start.contig == i.end.contig)

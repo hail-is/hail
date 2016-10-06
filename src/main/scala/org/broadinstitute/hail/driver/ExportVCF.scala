@@ -38,34 +38,34 @@ object ExportVCF extends Command {
     case _ => "1"
   }
 
-  def emitInfo(t: Type, sb: StringBuilder, value: Annotation, fieldName: Option[String]): Boolean = {
-    assert(value != null)
-    t match {
-      case it: TIterable =>
-        val arr = value.asInstanceOf[Iterable[_]]
-        if (arr.isEmpty) {
-          sb += '.'
-          false
-        } else {
-          fieldName.foreach { name => sb.append(name); sb += '=' }
-          arr.foreachBetween(emitInfo(it.elementType, sb, _, None))(sb += ',')
-          true
-        }
-      case TBoolean => value match {
-        case true =>
-          fieldName match {
-            case Some(fname) => sb.append(fname)
-            case _ => sb.append(t.str(value)) // this means we're recursing inside an Iterable
+  def emitInfo(f: Field, sb: StringBuilder, value: Annotation): Boolean = {
+    if (value == null)
+      false
+    else
+      f.`type` match {
+        case it: TIterable =>
+          val arr = value.asInstanceOf[Iterable[_]]
+          if (arr.isEmpty) {
+            false // missing and empty iterables treated the same
+          } else {
+            sb.append(f.name)
+            sb += '='
+            arr.foreachBetween(a => sb.append(it.elementType.str(a)))(sb += ',')
+            true
           }
+        case TBoolean => value match {
+          case true =>
+            sb.append(f.name)
+            true
+          case _ =>
+            false
+        }
+        case t =>
+          sb.append(f.name)
+          sb += '='
+          sb.append(t.str(value))
           true
-        case _ =>
-          false
       }
-      case _ =>
-        fieldName.foreach { name => sb.append(name); sb += '=' }
-        sb.append(t.str(value))
-        true
-    }
   }
 
   def infoType(t: BaseType): String = t match {
@@ -250,9 +250,7 @@ object ExportVCF extends Command {
 
         var wrote: Boolean = false
         fields.indices.foreachBetween { i =>
-          val field = fields(i)
-          val value = r.getOption(i)
-          wrote = value.exists(v => emitInfo(field.`type`, sb, v, Some(field.name)))
+          wrote = emitInfo(fields(i), sb, r.get(i))
           wroteAnyInfo = wroteAnyInfo || wrote
         }(if (wrote) sb += ';')
       }
