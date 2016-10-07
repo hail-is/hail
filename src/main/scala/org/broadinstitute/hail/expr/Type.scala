@@ -124,8 +124,7 @@ abstract class Type extends BaseType {
 
   def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
 
-  /* compare values for equality, but compare Float and 
-  values using D_== */
+  /* compare values for equality, but compare Float and values using D_== */
   def valuesSimilar(a1: Annotation, a2: Annotation): Boolean = a1 == a2
 }
 
