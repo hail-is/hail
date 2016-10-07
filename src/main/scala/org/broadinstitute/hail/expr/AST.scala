@@ -4,6 +4,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
+import org.broadinstitute.hail.methods._
 import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.utils.{FatalException, Interval}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
@@ -1081,18 +1082,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       localA += null
 
       val aggF = agg.f
-      agg.ec.aggregationFunctions += new TypedAggregator[Long] {
-        override def zero: Long = 0L
 
-        override def seqOp(x: Any, acc: Long): Long = {
-          aggF(x).map(_ => acc + 1).getOrElse(acc)
-        }
-
-        override def combOp(acc1: Long, acc2: Long): Long = acc1 + acc2
-
-        override def idx = localIdx
-      }.erase
-
+      agg.ec.aggregationFunctions += new CountAggregator(aggF, localIdx)
       () => localA(localIdx)
 
     case (agg: TAggregable, "fraction", Array(Lambda(_, param, body))) =>
@@ -1105,27 +1096,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val bodyFn = body.eval(agg.ec.copy(st = agg.ec.st + (param -> (lambdaIdx, agg.elementType))))
 
       val aggF = agg.f
-      agg.ec.aggregationFunctions += new TypedAggregator[(Long, Long)] {
-        override def zero: (Long, Long) = (0L, 0L)
 
-        override def seqOp(x: Any, acc: (Long, Long)): (Long, Long) = {
-          val (numerator, denominator) = acc
-          aggF(x).map { value =>
-            localA(lambdaIdx) = value
-            val numToAdd = if (bodyFn().asInstanceOf[Boolean]) 1 else 0
-            (numerator + numToAdd, denominator + 1)
-          }.getOrElse((numerator, denominator))
-        }
-
-        override def combOp(acc1: (Long, Long), acc2: (Long, Long)): (Long, Long) = (acc1._1 + acc2._1, acc1._2 + acc2._2)
-
-        override def idx = localIdx
-      }.erase
-
-      () => {
-        val (num: Long, denom: Long) = localA(localIdx)
-        divNull(num.toDouble, denom)
-      }
+      agg.ec.aggregationFunctions += new FractionAggregator(aggF, localIdx, localA, bodyFn, lambdaIdx)
+      () => localA(localIdx).asInstanceOf[Option[Double]].orNull
 
     case (agg: TAggregable, "stats", Array()) =>
       val localA = agg.ec.a
@@ -1135,18 +1108,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val t = agg.elementType
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new TypedAggregator[StatCounter] {
-        override def zero: StatCounter = new StatCounter()
-
-        override def seqOp(x: Any, acc: StatCounter): StatCounter = {
-          aggF(x).foreach(x => acc.merge(DoubleNumericConversion.to(x)))
-          acc
-        }
-
-        override def combOp(acc1: StatCounter, acc2: StatCounter): StatCounter = acc1.merge(acc2)
-
-        override def idx = localIdx
-      }.erase
+      agg.ec.aggregationFunctions += new StatAggregable(aggF, localIdx)
 
       val getOp = (a: Any) => {
         val sc = a.asInstanceOf[StatCounter]
@@ -1207,19 +1169,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       localA += null
 
       val aggF = agg.f
-      agg.ec.aggregationFunctions += new TypedAggregator[HistogramCombiner] {
-        override def zero: HistogramCombiner = new HistogramCombiner(indices)
 
-        override def seqOp(x: Any, acc: HistogramCombiner): HistogramCombiner = {
-          aggF(x).foreach(x => acc.merge(DoubleNumericConversion.to(x)))
-          acc
-        }
-
-        override def combOp(acc1: HistogramCombiner, acc2: HistogramCombiner): HistogramCombiner = acc1.merge(acc2)
-
-        override def idx = localIdx
-      }.erase
-
+      agg.ec.aggregationFunctions += new HistAggregator(aggF, localIdx, indices)
       () => localA(localIdx).asInstanceOf[HistogramCombiner].toAnnotation
 
 
@@ -1229,22 +1180,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       localA += null
 
       val aggF = agg.f
-      agg.ec.aggregationFunctions += new TypedAggregator[ArrayBuffer[Any]] {
-        override def zero: ArrayBuffer[Any] = new ArrayBuffer[Any]
 
-        override def seqOp(x: Any, acc: ArrayBuffer[Any]): ArrayBuffer[Any] = {
-          aggF(x).foreach(elem => acc += elem)
-          acc
-        }
-
-        override def combOp(acc1: ArrayBuffer[Any], acc2: ArrayBuffer[Any]): ArrayBuffer[Any] = {
-          acc1 ++= acc2
-          acc1
-        }
-
-        override def idx = localIdx
-      }.erase
-
+      agg.ec.aggregationFunctions += new CollectAggregator(aggF, localIdx)
       () => localA(localIdx).asInstanceOf[ArrayBuffer[Any]].toIndexedSeq
 
     case (agg: TAggregable, "infoScore", Array()) =>
@@ -1254,20 +1191,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val localPos = posn
       val aggF = agg.f
-      agg.ec.aggregationFunctions += new TypedAggregator[InfoScoreCombiner] {
 
-        override def zero: InfoScoreCombiner = new InfoScoreCombiner()
-
-        override def seqOp(x: Any, acc: InfoScoreCombiner): InfoScoreCombiner = {
-          aggF(x).foreach(x => acc.merge(x.asInstanceOf[Genotype]))
-          acc
-        }
-
-        override def combOp(acc1: InfoScoreCombiner, acc2: InfoScoreCombiner): InfoScoreCombiner = acc1.merge(acc2)
-
-        override def idx = localIdx
-      }.erase
-
+      agg.ec.aggregationFunctions += new InfoScoreAggregator(aggF, localIdx)
       () => localA(localIdx).asInstanceOf[InfoScoreCombiner].asAnnotation
 
     case (agg: TAggregable, "sum", Array()) =>
@@ -1277,47 +1202,10 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val localPos = posn
       val aggF = agg.f
+
       (`type`: @unchecked) match {
-        case TDouble => agg.ec.aggregationFunctions += new TypedAggregator[Double] {
-          override def zero: Double = 0d
-
-          override def seqOp(x: Any, acc: Double): Double = aggF(x)
-            .map(elem => DoubleNumericConversion.to(elem) + acc)
-            .getOrElse(acc)
-
-          override def combOp(acc1: Double, acc2: Double): Double = acc1 + acc2
-
-          override def idx: Int = localIdx
-        }.erase
-
-        case TArray(TDouble) => agg.ec.aggregationFunctions += new TypedAggregator[IndexedSeq[Double]] {
-          override def zero: IndexedSeq[Double] = null
-
-          override def seqOp(x: Any, acc: IndexedSeq[Double]): IndexedSeq[Double] = aggF(x)
-            .map(_.asInstanceOf[IndexedSeq[_]])
-            .map { arr =>
-              val cast = arr.map(a => if (a == null) 0d else DoubleNumericConversion.to(a))
-              if (acc == null)
-                cast
-              else {
-                if (acc.length != cast.length)
-                  ParserUtils.error(localPos,
-                    s"""cannot aggregate arrays of unequal length with `sum'
-                        |  Found conflicting arrays of size (${ acc.size }) and (${ cast.size })""".stripMargin)
-                (acc, cast).zipped.map(_ + _)
-              }
-            }.getOrElse(acc)
-
-          override def combOp(acc1: IndexedSeq[Double], acc2: IndexedSeq[Double]): IndexedSeq[Double] = {
-            if (acc1.length != acc2.length)
-              ParserUtils.error(localPos,
-                s"""cannot aggregate arrays of unequal length with `sum'
-                    |  Found conflicting arrays of size (${ acc1.size }) and (${ acc2.size })""".stripMargin)
-            (acc1, acc2).zipped.map(_ + _)
-          }
-
-          override def idx: Int = localIdx
-        }.erase
+        case TDouble => agg.ec.aggregationFunctions += new SumAggregator(aggF, localIdx)
+        case TArray(TDouble) => agg.ec.aggregationFunctions += new SumArrayAggregator(aggF, localIdx, localPos)
       }
 
       () => localA(localIdx)
