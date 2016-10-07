@@ -6,7 +6,6 @@ import org.apache.spark.rdd.{PartitionPruningRDD, RDD, ShuffledRDD}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.utils._
 import org.apache.spark.{SparkContext, _}
-import org.broadinstitute.hail.variant.Variant
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -369,14 +368,10 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     if (maxPartitions >= n)
       return this
 
-    val persisted = rdd.persist(StorageLevel.MEMORY_AND_DISK)
+    val partSize = rdd.context.runJob(rdd, getIteratorSize _)
+    info(s"partSize = ${ partSize.toSeq }")
 
-    val partSize = new Array[Int](n)
-    persisted.mapPartitionsWithIndex((i, it) => Iterator((i, it.length)))
-      .collect()
-      .foreach { case (i, size) => partSize(i) = size }
-
-    val partCommulativeSize = mapAccumulate[Array, Int, Int, Int](partSize, 0)((s, acc) => (s + acc, s + acc))
+    val partCommulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
     val totalSize = partCommulativeSize.last
 
     var newPartEnd = (0 until maxPartitions).map { i =>
@@ -398,6 +393,8 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) => i == 0 || newPartEnd(i) != newPartEnd(i - 1) }
       .map(_._1)
 
+    info(s"newPartEnd = ${ newPartEnd.toSeq }")
+
     assert(newPartEnd.last == n - 1)
     assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i < inext })
 
@@ -406,7 +403,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
     val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
     val partitioner = new OrderedPartitioner(newRangeBounds, newPartEnd.length)
-    new OrderedRDD[PK, K, V](new BlockedRDD(persisted, newPartEnd), partitioner)
+    new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd), partitioner)
   }
 }
 
