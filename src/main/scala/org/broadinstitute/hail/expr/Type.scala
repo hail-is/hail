@@ -205,6 +205,8 @@ case object TFloat extends TNumeric {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 
+  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
+
   override def genValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation): Boolean =
