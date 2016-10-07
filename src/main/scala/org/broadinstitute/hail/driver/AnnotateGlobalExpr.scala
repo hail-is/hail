@@ -64,7 +64,7 @@ object AnnotateGlobalExpr extends Command {
       val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions(aggECV)
 
       val result = vds.variantsAndAnnotations
-        .treeAggregate(zVal)(seqOp, combOp)
+        .treeAggregate(zVal)(seqOp, combOp, depth = HailConfiguration.treeAggDepth(vds.nPartitions))
       resOp(result)
     }
 

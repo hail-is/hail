@@ -235,6 +235,10 @@ object SampleQC extends Command {
     @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
       usage = "Output file")
     var output: String = _
+
+    @Args4jOption(name = "-b", aliases = Array("--branching-factor"),
+      usage = "Branching factor to use in tree aggregate")
+    var branchingFactor: java.lang.Integer = _
   }
 
   def newOptions = new Options
@@ -248,6 +252,7 @@ object SampleQC extends Command {
   def requiresVDS = true
 
   def results(vds: VariantDataset): Map[String, SampleQCCombiner] = {
+    val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
     vds.sampleIds.iterator
       .zip(
         vds
@@ -261,7 +266,7 @@ object SampleQC extends Command {
             for (i <- comb1.indices)
               comb1(i).merge(comb2(i))
             comb1
-          })
+          }, depth)
           .iterator)
       .toMap
   }
@@ -295,6 +300,7 @@ object SampleQC extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+    val branchingFactor = Option(options.branchingFactor).map(x => x: Int)
 
     val output = options.output
 

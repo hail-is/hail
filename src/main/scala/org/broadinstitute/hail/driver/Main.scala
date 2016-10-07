@@ -58,6 +58,12 @@ object HailConfiguration {
   var installDir: String = _
 
   var tmpDir: String = _
+
+  var branchingFactor: Int = _
+
+  def treeAggDepth(nPartitions: Int): Int = {
+    (math.log(nPartitions) / math.log(branchingFactor) + 0.5).toInt.max(1)
+  }
 }
 
 object Main {
@@ -77,6 +83,9 @@ object Main {
 
     @Args4jOption(name = "-b", aliases = Array("--min-block-size"), usage = "Minimum size of file splits in MB")
     var blockSize: Int = 1
+
+    @Args4jOption(name = "-w", aliases = Array("--branching-factor"), usage = "Branching factor to use in tree aggregate")
+    var branchingFactor: Int = 50
 
     @Args4jOption(required = false, name = "--parquet-compression", usage = "Parquet compression codec")
     var parquetCompression = "uncompressed"
@@ -303,6 +312,7 @@ object Main {
 
     HailConfiguration.installDir = new File(jar).getParent + "/.."
     HailConfiguration.tmpDir = options.tmpDir
+    HailConfiguration.branchingFactor = options.branchingFactor
 
     runCommands(sc, sqlContext, invocations)
 

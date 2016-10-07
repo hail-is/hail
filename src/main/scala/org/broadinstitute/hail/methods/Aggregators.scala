@@ -1,7 +1,9 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.utils.MultiArray2
 import org.broadinstitute.hail.variant._
 
@@ -54,6 +56,7 @@ object Aggregators {
 
       val nAggregations = aggregators.length
       val nSamples = vds.nSamples
+      val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
 
       val baseArray = MultiArray2.fill[Any](nSamples, nAggregations)(null)
       for (i <- 0 until nSamples; j <- 0 until nAggregations) {
@@ -80,8 +83,7 @@ object Aggregators {
           arr1.update(i, j, aggregators(j).combOp(arr1(i, j), arr2(i, j)))
         }
         arr1
-      }
-      )
+      }, depth = depth)
 
       val sampleIndex = vds.sampleIds.zipWithIndex.toMap
       Some((s: String) => {

@@ -21,7 +21,6 @@ object ExportSamples extends Command with TextExporter {
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Write the types of parse expressions to a file at the given path")
     var typesFile: String = _
-
   }
 
   def newOptions = new Options
