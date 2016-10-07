@@ -10,10 +10,8 @@ case class AdjustedPartitionsRDDPartition[T](index: Int, adjustments: Array[Adju
 case class Adjustment[T](index: Int, f: Iterator[T] => Iterator[T])
 
 class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
-  adjustments: IndexedSeq[Array[Adjustment[T]]])(implicit tct: ClassTag[T])
+  @transient adjustments: IndexedSeq[Array[Adjustment[T]]])(implicit tct: ClassTag[T])
   extends RDD[T](prev.sparkContext, Nil) {
-  require(adjustments.length <= prev.partitions.length,
-    "invalid adjustments: size greater than previous partitions size")
   require(adjustments.forall(adj => adj.nonEmpty))
 
   private val parentPartitions = prev.partitions
