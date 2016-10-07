@@ -51,7 +51,7 @@ class FilterSuite extends SparkSuite {
       .vds.nSamples == 7)
 
     assert(FilterSamplesExpr.run(stateWithSampleQC, Array("--keep", "-c", "if (\"^C1048\" ~ s.id) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3"))
-      .vds.nSamples == 14)
+      .vds.nSamples == 16)
 
     val stateWithVariantQC = VariantQC.run(state, Array.empty[String])
 
