@@ -104,17 +104,17 @@ object Main {
   }
 
   def handleFatal(e: Exception): Nothing = {
-    val msg = s"hail: fatal: ${e.getMessage}"
+    val msg = s"hail: fatal: ${ e.getMessage }"
     fail(msg)
   }
 
   def handleFatal(cmd: Command, e: Exception): Nothing = {
-    val msg = s"hail: fatal: ${cmd.name}: ${e.getMessage}"
+    val msg = s"hail: fatal: ${ cmd.name }: ${ e.getMessage }"
     fail(msg)
   }
 
   def expandException(e: Throwable): String = {
-    s"${e.getClass.getName}: ${e.getLocalizedMessage}\n\tat ${e.getStackTrace.mkString("\n\tat ")}${
+    s"${ e.getClass.getName }: ${ e.getLocalizedMessage }\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
       Option(e.getCause).map(exception => expandException(exception)).getOrElse("")
     }"
   }
@@ -132,7 +132,7 @@ object Main {
     } catch {
       case e: Exception =>
         handlePropagatedException(cmd, e)
-        val msg = s"hail: ${cmd.name}: caught exception: ${expandException(e)}"
+        val msg = s"hail: ${ cmd.name }: caught exception: ${ expandException(e) }"
         log.error(msg)
         System.err.println(msg)
         sys.exit(1)
@@ -140,8 +140,8 @@ object Main {
   }
 
   def runCommands(sc: SparkContext,
-                  sqlContext: SQLContext,
-                  invocations: Array[(Command, Command#Options, Array[String])]) {
+    sqlContext: SQLContext,
+    invocations: Array[(Command, Command#Options, Array[String])]) {
 
     val times = mutable.ArrayBuffer.empty[(String, Long)]
 
@@ -185,7 +185,7 @@ object Main {
     }
 
     def splitBefore[T](a: Array[T], p: (T) => Boolean)
-                      (implicit tct: ClassTag[T]): Array[Array[T]] = {
+      (implicit tct: ClassTag[T]): Array[Array[T]] = {
       val r = mutable.ArrayBuilder.make[Array[T]]()
       val b = mutable.ArrayBuilder.make[T]()
       a.foreach {
