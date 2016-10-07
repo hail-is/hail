@@ -5,7 +5,9 @@ import org.apache.spark.{Dependency, NarrowDependency, Partition, TaskContext}
 
 import scala.reflect.ClassTag
 
-case class AdjustedPartitionsRDDPartition[T](index: Int, adjustments: Array[Adjustment[T]]) extends Partition
+case class AdjustedPartitionsRDDPartition[T](index: Int, adjustments: Array[InternalAdjustment[T]]) extends Partition
+
+case class InternalAdjustment[T](parentPartition: Partition, f: Iterator[T] => Iterator[T])
 
 case class Adjustment[T](index: Int, f: Iterator[T] => Iterator[T])
 
@@ -14,12 +16,10 @@ class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
   extends RDD[T](prev.sparkContext, Nil) {
   require(adjustments.forall(adj => adj.nonEmpty))
 
-  private val parentPartitions = prev.partitions
-
   override def getPartitions: Array[Partition] = {
-    val parentPartitions = dependencies.head.rdd.asInstanceOf[RDD[T]].partitions
+    val parentPartitions = prev.partitions
     Array.tabulate(adjustments.length) { i =>
-      AdjustedPartitionsRDDPartition(i, adjustments(i))
+      AdjustedPartitionsRDDPartition(i, adjustments(i).map(a => InternalAdjustment(parentPartitions(a.index), a.f)))
     }
   }
 
@@ -29,7 +29,7 @@ class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
       .adjustments
       .iterator
       .flatMap { adj =>
-        adj.f(parent.compute(parentPartitions(adj.index), context))
+        adj.f(parent.compute(adj.parentPartition, context))
       }
   }
 
@@ -46,7 +46,7 @@ class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
     val adjustedPartition = partition.asInstanceOf[AdjustedPartitionsRDDPartition[T]]
 
     val prevPartitions = prev.partitions
-    val range = adjustedPartition.adjustments.map(_.index)
+    val range = adjustedPartition.adjustments.map(_.parentPartition.index)
 
     val locationAvail = range.flatMap(i =>
       prev.preferredLocations(prevPartitions(i)))
