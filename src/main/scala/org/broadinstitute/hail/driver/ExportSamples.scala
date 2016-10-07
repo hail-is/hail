@@ -14,7 +14,7 @@ object ExportSamples extends Command with TextExporter {
       usage = "path of output tsv")
     var output: String = _
 
-    @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
+    @Args4jOption(required = true, name = "-c", aliases = Array("--columns"),
       usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
 
