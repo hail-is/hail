@@ -56,7 +56,10 @@ object PlinkLoader {
     val m = hConf.readLines(filename) {
       _.map(_.map { line =>
 
-        val Array(fam, kid, dad, mom, isFemale, pheno) = line.split(delimiter)
+        val split = line.split(delimiter)
+        if (split.length != 6)
+          fatal(s"expected 6 fields, but found ${ split.length }")
+        val Array(fam, kid, dad, mom, isFemale, pheno) = split
 
         if (kidSet(kid))
           fatal(s".fam sample name is not unique: $kid")
