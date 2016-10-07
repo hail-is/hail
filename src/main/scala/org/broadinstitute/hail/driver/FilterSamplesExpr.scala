@@ -20,10 +20,6 @@ object FilterSamplesExpr extends Command {
 
     @Args4jOption(required = false, name = "--remove", usage = "Remove listed samples from current dataset")
     var remove: Boolean = false
-
-    @Args4jOption(name = "-b", aliases = Array("--branching-factor"),
-      usage = "Branching factor to use in tree aggregate")
-    var branchingFactor: java.lang.Integer = _
   }
 
   def newOptions = new Options
@@ -38,7 +34,6 @@ object FilterSamplesExpr extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val branchingFactor = Option(options.branchingFactor).map(x => x: Int)
 
     if (!(options.keep ^ options.remove))
       fatal("either `--keep' or `--remove' required, but not both")
@@ -68,7 +63,7 @@ object FilterSamplesExpr extends Command {
     val aggregatorA = aggregationEC.a
     val aggregators = ec.aggregationFunctions
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC, branchingFactor)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
 
     val sampleIds = state.vds.sampleIds

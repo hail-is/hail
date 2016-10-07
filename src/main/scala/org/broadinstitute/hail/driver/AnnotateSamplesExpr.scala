@@ -14,10 +14,6 @@ object AnnotateSamplesExpr extends Command {
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
       usage = "Annotation condition")
     var condition: String = _
-
-    @Args4jOption(name = "-b", aliases = Array("--branching-factor"),
-      usage = "Branching factor to use in tree aggregate")
-    var branchingFactor: java.lang.Integer = _
   }
 
   def newOptions = new Options
@@ -32,7 +28,6 @@ object AnnotateSamplesExpr extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val branchingFactor = Option(options.branchingFactor).map(x => x: Int)
 
     val cond = options.condition
     val aggregationEC = EvalContext(Map(
@@ -65,7 +60,7 @@ object AnnotateSamplesExpr extends Command {
 
     val aggregatorA = aggregationEC.a
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC, branchingFactor)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     val newAnnotations = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
 

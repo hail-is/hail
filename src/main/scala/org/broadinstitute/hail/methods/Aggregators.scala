@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.utils.MultiArray2
@@ -42,14 +43,9 @@ object Aggregators {
     } else None
   }
 
-  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext, branchingFactor: Option[Int]): Option[(String) => Unit] = {
+  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(String) => Unit] = {
     val aggregators = ec.aggregationFunctions.toArray
     val aggregatorA = ec.a
-
-    val depth = branchingFactor
-      .map(b => (math.log(vds.nPartitions) / math.log(b) + 0.5).toInt.max(2))
-      .getOrElse(2)
-    log.info(s"in buildSampleAggregations: depth = $depth")
 
     if (aggregators.isEmpty)
       None
@@ -60,6 +56,7 @@ object Aggregators {
 
       val nAggregations = aggregators.length
       val nSamples = vds.nSamples
+      val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
 
       val baseArray = MultiArray2.fill[Any](nSamples, nAggregations)(null)
       for (i <- 0 until nSamples; j <- 0 until nAggregations) {

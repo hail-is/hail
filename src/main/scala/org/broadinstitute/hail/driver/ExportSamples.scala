@@ -21,10 +21,6 @@ object ExportSamples extends Command with TextExporter {
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Write the types of parse expressions to a file at the given path")
     var typesFile: String = _
-
-    @Args4jOption(name = "-b", aliases = Array("--branching-factor"),
-      usage = "Branching factor to use in tree aggregate")
-    var branchingFactor: java.lang.Integer = _
   }
 
   def newOptions = new Options
@@ -43,7 +39,6 @@ object ExportSamples extends Command with TextExporter {
     val sas = vds.saSignature
     val cond = options.condition
     val output = options.output
-    val branchingFactor = Option(options.branchingFactor).map(x => x: Int)
 
     val aggregationEC = EvalContext(Map(
       "v" -> (0, TVariant),
@@ -77,7 +72,7 @@ object ExportSamples extends Command with TextExporter {
       exportTypes(file, state.hadoopConf, typeInfo)
     }
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC, branchingFactor)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
 
     hConf.delete(output, recursive = true)
 

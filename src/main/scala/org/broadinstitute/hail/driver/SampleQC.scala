@@ -251,12 +251,8 @@ object SampleQC extends Command {
 
   def requiresVDS = true
 
-  def results(vds: VariantDataset, branchingFactor: Option[Int]): Map[String, SampleQCCombiner] = {
-    val depth = branchingFactor
-      .map(b => (math.log(vds.nPartitions) / math.log(b) + 0.5).toInt.max(2))
-      .getOrElse(2)
-    log.info(s"in sampleqc: depth = $depth")
-
+  def results(vds: VariantDataset): Map[String, SampleQCCombiner] = {
+    val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
     vds.sampleIds.iterator
       .zip(
         vds
