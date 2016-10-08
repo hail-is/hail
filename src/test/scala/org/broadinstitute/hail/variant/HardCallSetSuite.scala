@@ -75,7 +75,7 @@ class HardCallSetSuite extends SparkSuite {
 
 
   @Test def hcsTest() {
-    val vds = LoadVCF(sc, "src/test/resources/linearRegression.vcf")
+    val vds = LoadVCF(sc, "src/test/resources/regressionLinear.vcf")
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (2, ., 2, ., 0, 0)
