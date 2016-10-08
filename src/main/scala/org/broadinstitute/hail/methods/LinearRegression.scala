@@ -215,7 +215,7 @@ object LinearRegression {
               if (p.isNaN)
                 None
               else
-                Some(LinRegStats(nMissing, b, se, t, p))
+                Some(LinRegStats(b, se, t, p))
             }
           }
         }
