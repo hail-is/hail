@@ -312,4 +312,8 @@ object FunctionRegistry {
 
   register("pcoin", { (p: Float) => math.random < p })
   register("pcoin", { (p: Double) => math.random < p })
+  register("runif", { (min: Float, max: Float) => min + (max - min) * math.random.toFloat })
+  register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
+  register("rnorm", { (mean: Float, sd: Float) => mean + sd * scala.util.Random.nextGaussian().toFloat })
+  register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() })
 }

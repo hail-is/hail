@@ -54,8 +54,10 @@ Several Hail commands provide the ability to perform a broad array of computatio
     - toLong: `str.toLong`
     - toFloat: `str.toFloat`
 
- - Boolean coin flip:
-     - pcoin(p) -- returns `true` with probability `p`. `p` should be between 0.0 and 1.0.
+ - Random Booleans and doubles:
+     - pcoin(p) -- returns `true` with probability `p`. `p` should be between 0.0 and 1.0
+     - runif(min, max) -- returns a random draw from a uniform distribution on \[`min`, `max`). `min` should be less than or equal to `max`
+     - rnorm(mean, sd) -- returns a random draw from a normal distribution with mean `mean` and standard deviation `sd`. `sd` should be non-negative
 
  - Array Operations:
      - constructor: `[element1, element2, ...]` -- Create a new array from elements of the same type.
