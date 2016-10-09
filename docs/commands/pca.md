@@ -1,3 +1,4 @@
+
 <div class="cmdhead"></div>
 
 <div class="description"></div>
@@ -25,7 +26,7 @@ M = USV^T
 $$
 where columns of $U$ are left singular vectors (orthonormal in $\mathbb{R}^n$), columns of $V$ are right singular vectors (orthonormal in $\mathbb{R}^m$), and $S=\mathrm{diag}(s_1, s_2, \ldots)$ with ordered singular values $s_1 \ge s_2 \ge \cdots \ge 0$. Typically one computes only the first $k$ singular vectors and values, yielding the best rank $k$ approximation $U_k S_k V_k^T$ of $M$; the truncations $U_k$, $S_k$ and $V_k$ are $n\times k$, $k\times k$ and $m\times k$ respectively.
 
-From the perspective of the samples or rows of $M$ as data, $V_k$ contains the variant loadings for the first $k$ PCs while $MV_k = U_k S_k$ contains the first $k$ PC scores of each sample. The loadings represent a new basis of features while the scores represent the projected data on those features. The eigenvalues of the GRM $MM^T$ are the squares of the singular values $s_1^2, s_2^2, \ldots$, which represent the variances carried by the respective PCs.
+From the perspective of the samples or rows of $M$ as data, $V_k$ contains the variant loadings for the first $k$ PCs while $MV_k = U_k S_k$ contains the first $k$ PC scores of each sample. The loadings represent a new basis of features while the scores represent the projected data on those features. The eigenvalues of the GRM $MM^T$ are the squares of the singular values $s_1^2, s_2^2, \ldots$, which represent the variances carried by the respective PCs. By defualt, Hail only computes the loadings if the `-l` option is specified.
 
 **Note:** In PLINK/GCTA the GRM is taken as the starting point and it is computed slightly differently with regard to missing data. Here the $ij$ entry of $MM^T$ is simply the dot product of rows $i$ and $j$ of $M$; in terms of $C$ it is
 $$
@@ -39,10 +40,13 @@ Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even igno
 <div class="cmdsubsection">
 ### Examples:
 
-As input, PCA expects a `.vds` file with biallelic autosomal variants. The analysis is with respect to a standardized genotype matrix; see below for details. The default output is a `.tsv` file recording the first 10 principal component (PC) scores of each sample. Format: one line per sample plus a header, with columns `SAMPLE`, `PC1`, `PC2`, etc.
-
-Example usage:
+As input, PCA expects a `.vds` file with biallelic autosomal variants. The analysis is with respect to a standardized genotype matrix; see above for details. The default scores output is a `.tsv` file recording the first 10 principal component (PC) scores of each sample. Format: one line per sample plus a header, with columns `SAMPLE`, `PC1`, `PC2`, etc. Default usage:
 ```
-$ hail read /path/to/file.vds pca -o /path/to/file.tsv
+$ hail read -i file.vds pca -o scores.tsv
+```
+
+The following command computes the first 5 principal component scores and loadings, and outputs the scores, loadings, and eigenvalues to `.tsv` files:
+```
+$ hail read -i file.vds pca -k 5 -o scores.tsv -l loadings.tsv -e evals.tsv
 ```
 </div>

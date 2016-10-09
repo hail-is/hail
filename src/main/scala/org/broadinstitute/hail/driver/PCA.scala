@@ -3,8 +3,6 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.RangePartitioner
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.methods.SamplePCA
-import org.broadinstitute.hail.variant.Variant
-import org.apache.spark.mllib.linalg.{Vector => SVector}
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.utils._
 
@@ -14,16 +12,16 @@ object PCA extends Command {
   def description = "Run principle component analysis on the matrix of genotypes"
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
+    @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file for scores")
     var output: String = _
 
     @Args4jOption(required = false, name = "-k", aliases = Array("--components"), usage = "Number of principal components")
     var k: Int = 10
 
-    @Args4jOption(required = false, name = "-l", aliases = Array("--loadings"), usage = "Compute loadings")
+    @Args4jOption(required = false, name = "-l", aliases = Array("--loadings"), usage = "Output file for loadings")
     var lOutput: String = _
 
-    @Args4jOption(required = false, name = "-e", aliases = Array("--eigenvalues"), usage = "Compute eigenvalues")
+    @Args4jOption(required = false, name = "-e", aliases = Array("--eigenvalues"), usage = "Output file for eigenvalues")
     var eOutput: String = _
 
   }
