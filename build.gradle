@@ -105,6 +105,9 @@ dependencies {
 
     compile 'com.jayway.restassured:rest-assured:2.8.0'
 
+    compile group: 'org.ow2.asm', name: 'asm', version: '5.1'
+    compile group: 'org.ow2.asm', name: 'asm-util', version: '5.1'
+
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 }
