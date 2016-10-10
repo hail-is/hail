@@ -273,7 +273,8 @@ abstract class TIterable extends Type {
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null
-      && a1.asInstanceOf[Iterable[_]].zip(a2.asInstanceOf[IndexedSeq[_]])
+      && (a1.asInstanceOf[Iterable[_]].size == a2.asInstanceOf[Iterable[_]].size)
+      && a1.asInstanceOf[Iterable[_]].zip(a2.asInstanceOf[Iterable[_]])
       .forall { case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance) })
 }
 
@@ -329,9 +330,11 @@ case class TDict(elementType: Type) extends Type {
     Gen.buildableOf2[Map, String, Annotation](Gen.zip(arbitrary[String], elementType.genValue))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
-    a1 == a2 || (a1 != null && a2 != null
-      && a1.asInstanceOf[Map[String, _]].zip(a2.asInstanceOf[Map[String, _]])
-      .forall { case ((k1, v1), (k2, v2)) => k1 == k2 && elementType.valuesSimilar(v1, v2, tolerance) })
+    a1 == a2 || (a1 != null && a2 != null) ||
+      a1.asInstanceOf[Map[String, _]].outerJoin(a2.asInstanceOf[Map[String, _]])
+        .forall { case (_, (o1, o2)) =>
+          o1.liftedZip(o2).exists { case (v1, v2) => elementType.valuesSimilar(v1, v2, tolerance) }
+        }
 }
 
 case object TSample extends Type {
