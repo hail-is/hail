@@ -58,17 +58,11 @@ object ExportSamples extends Command with TextExporter {
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val (header, fs) = if (cond.endsWith(".columns")) {
-      val (h, functions) = Parser.parseColumnsFile(ec, cond, hConf)
-      (Some(h), functions)
-    }
-    else
-      Parser.parseExportArgs(cond, ec)
-
+    val (header, types, f) = Parser.parseExportArgs(cond, ec)
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
-        .getOrElse(fs.indices.map(i => s"_$i").toArray)
-        .zip(fs.map(_._1))
+        .getOrElse(types.indices.map(i => s"_$i").toArray)
+        .zip(types)
       exportTypes(file, state.hadoopConf, typeInfo)
     }
 
@@ -85,9 +79,7 @@ object ExportSamples extends Command with TextExporter {
       sampleAggregationOption.foreach(f => f.apply(s))
 
       var first = true
-      fs.foreachBetween { case (t, f) =>
-        sb.append(f().map(TableAnnotationImpex.exportAnnotation(_, t)).getOrElse("NA"))
-      } { sb += '\t' }
+      f().foreachBetween(x => sb.append(x))(sb += '\t')
       sb.result()
     }
 

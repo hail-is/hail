@@ -430,6 +430,8 @@ case class Field(name: String, `type`: Type,
   }
 }
 
+case class TSplat(struct: TStruct) extends BaseType
+
 object TStruct {
   def empty: TStruct = TStruct(Array.empty[Field])
 

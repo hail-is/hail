@@ -260,6 +260,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     (lhs.`type`, rhs) match {
       case (TSample, "id") => TString
 
+      case (t: TStruct, "*") => TSplat(t)
       case (t: TStruct, _) =>
         t.selfField(rhs) match {
           case Some(f) => f.`type`
@@ -288,6 +289,18 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
   def eval(ec: EvalContext): () => Any = ((lhs.`type`, rhs): @unchecked) match {
     case (TSample, "id") => lhs.eval(ec)
+
+    case (t: TStruct, "*") =>
+      val f = lhs.eval(ec)
+      () => {
+        val r = f()
+        if (r == null)
+          IndexedSeq.fill(t.size)(null)
+        else {
+          val row = r.asInstanceOf[Row]
+          IndexedSeq.tabulate(t.size)(row.get)
+        }
+      }
 
     case (t: TStruct, _) =>
       val Some(f) = t.selfField(rhs)

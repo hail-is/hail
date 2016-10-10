@@ -97,8 +97,8 @@ object ExportVariantsCass extends Command {
     case TFloat => "float"
     case TDouble => "double"
     case TString => "text"
-    case TArray(elementType) => s"list<${toCassType(elementType)}>"
-    case TSet(elementType) => s"set<${toCassType(elementType)}>"
+    case TArray(elementType) => s"list<${ toCassType(elementType) }>"
+    case TSet(elementType) => s"set<${ toCassType(elementType) }>"
     case _ =>
       fatal("unsupported type: $t")
   }
@@ -149,7 +149,7 @@ object ExportVariantsCass extends Command {
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
 
-    val vparsed = Parser.parseNamedArgs(vCond, vEC)
+    val (vHeader, vTypes, vf) = Parser.parseNamedArgs(vCond, vEC)
 
     val gSymTab = Map(
       "v" -> (0, TVariant),
@@ -160,28 +160,26 @@ object ExportVariantsCass extends Command {
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
-    val gparsed = Parser.parseNamedArgs(gCond, gEC)
+    val (gHeader, gTypes, gf) = Parser.parseNamedArgs(gCond, gEC)
 
     val symTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, vas))
     val ec = EvalContext(symTab)
-    val a = ec.a
 
-    val fields = (vparsed.map { case (name, t, f) => (escapeString(name), t) }
-      ++ vds.sampleIds.flatMap { s =>
-      gparsed.map { case (name, t, f) => (escapeString(s) + "__" + escapeString(name), t) }
-    })
+    val fields = vHeader.map(escapeString).zip(vTypes) ++ vds.sampleIds.flatMap { s =>
+      gHeader.map(field => s"${ escapeString(s) }__${ escapeString(field) }").zip(gTypes)
+    }
 
     val session = CassandraStuff.getSession(address)
 
     val keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
     if (keyspaceMetadata == null) {
-       throw new IllegalArgumentException("keyspace not found: " + keyspace)
+      throw new IllegalArgumentException("keyspace not found: " + keyspace)
     }
     val tableMetadata = keyspaceMetadata.getTable(table)
     if (tableMetadata == null) {
-       throw new IllegalArgumentException("table not found: " + table)
+      throw new IllegalArgumentException("table not found: " + table)
     }
 
     val preexistingFields = tableMetadata.getColumns.asScala.map(_.getName).toSet
@@ -190,7 +188,7 @@ object ExportVariantsCass extends Command {
 
     if (toAdd.nonEmpty) {
       session.execute(s"ALTER TABLE $qualifiedTable ADD (${
-        toAdd.map { case (name, t) => s""""$name" ${toCassType(t)}""" }.mkString(",")
+        toAdd.map { case (name, t) => s""""$name" ${ toCassType(t) }""" }.mkString(",")
       })")
     }
 
@@ -211,24 +209,20 @@ object ExportVariantsCass extends Command {
             nb.clear()
             vb.clear()
 
-            vparsed.foreach { case (name, t, f) =>
-              vEC.setAll(v, va)
-              f().foreach { a =>
-                nb += escapeString(name)
-                vb += toCassValue(a, t)
-              }
+            vEC.setAll(v, va)
+            vf().zipWithIndex.foreach { case (a, i) =>
+              nb += escapeString(vHeader(i))
+              vb += toCassValue(a, vTypes(i))
             }
 
             gs.iterator.zipWithIndex.foreach { case (g, i) =>
               val s = sampleIdsBc.value(i)
               val sa = sampleAnnotationsBc.value(i)
-              gparsed.foreach { case (name, t, f) =>
-                if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
-                  gEC.setAll(v, va, s, sa, g)
-                  f().foreach { a =>
-                    nb += '"' + escapeString(s) + "__" + escapeString(name) + '"'
-                    vb += toCassValue(a, t)
-                  }
+              if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
+                gEC.setAll(v, va, s, sa, g)
+                gf().zipWithIndex.foreach { case (a, j) =>
+                  nb += s""""${ escapeString(s) }__${ escapeString(gHeader(j)) }""""
+                  vb += toCassValue(a, gTypes(j))
                 }
               }
             }
@@ -248,5 +242,4 @@ object ExportVariantsCass extends Command {
 
     state
   }
-
 }
