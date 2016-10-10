@@ -27,7 +27,7 @@ object AnnotateVariantsBed extends Command {
 
   def description = "Annotate variants with UCSC BED file"
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic = true
 
   def requiresVDS = true
 
