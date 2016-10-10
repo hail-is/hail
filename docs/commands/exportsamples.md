@@ -17,39 +17,50 @@ One line per sample in the VDS will be printed.  The accessible namespace includ
    - `sa` (sample annotations)
    - `global` (global annotations)
    - `gs` (genotype column [aggregable](reference.html#aggregables))
-   
-#### Designating output with .columns files
-
-Hail supports reading in a file ending with ".columns" to assign column names and expressions.  This file should contain one line per desired column.  Each line should contain two fields, separated by a tab: the header name in the first, the expression in the second.  Below is an example of a .columns file:
-
-```
-$ cat exportSamples.columns
-SAMPLE	s
-CALL_RATE	sa.qc.callRate
-NHET	sa.qc.nHet
-```
- 
-The corresponding command line using the .columns file from above is as follows:
-
-```
-exportsamples -c 'exportSamples.columns' -o file.tsv
-```
 
 #### Designating output with an expression
 
-Much like [filtering](reference.html#Filtering) modules, exporting allows flexible expressions to be written on the command line.  While the filtering modules expect an expression that evaluates to true or false, export modules expect a comma-separated list of fields to print.  These fields should take the form `IDENTIFIER = <expression>`.  Below is an example of `exportsamples` with an export expression:
+Much like [filtering](#Filtering) modules, exporting allows flexible expressions to be written on the command line.  While the filtering modules expect an expression that evaluates to true or false, export modules expect a comma-separated list of fields to print.  These fields should take the form `IDENTIFIER = <expression>`.  Below is an example of `exportsamples` with an export expression:
 
 ```
 exportsamples -c 'SAMPLE = s, CALL_RATE = sa.qc.callRate, NHET = sa.qc.nHet' -o file.tsv
 ```
-
-Note that the above expression will result in identical output to the example .columns file above.
 
 It is also possible to export without identifiers, which will result in a file with no header.  In this case, the expressions should look like the examples below:
 ```
 exportsamples -c 's.id, sa.qc.rTiTv' -o file.tsv
 ```
 
-**Note:** if some fields have identifiers and some do not, Hail will throw an exception.  Either each field must be identified, or each field should include only an expression.
+**Note:** Either all fields must be named, or no field must be named.
+
+Much like [filtering](reference.html#Filtering) modules, exporting allows flexible expressions to be written on the command line.  While the filtering modules expect an expression that evaluates to true or false, export modules expect a comma-separated list of fields to print.  These fields should take the form `IDENTIFIER = <expression>`.  Below is an example of `exportsamples` with an export expression:
+
+```
+exportsamples -c 'sample = s.id, phenotype = sa.fam.phenotype, PC1 = sa.pca.PC1, PC2 = sa.pca.PC2' -o file
+```
+
+In the common case that a group of annotations needs to be exported (for example, the annotations produced by `sampleqc`), one can use the `struct.*` syntax.  This syntax produces one column per field in the struct, and names them according to the struct field name.  
+
+For example, the following invocation:
+
+```
+exportsamples -c 'sample = s.id, sa.qc.*' -o file.tsv
+```
+
+...will produce the following set of columns:
+
+```
+sample  callRate  nCalled  nNotCalled  nHomRef  ...
+```
+
+Note that using the `.*` syntax always results in named arguments, so it is not possible to export header-less files in this manner.  However, naming the "splatted" struct will apply the name in front of each column like so:
+
+```
+exportsamples -c 'sample = s.id, QC = sa.qc.*' -o file.tsv
+```
+
+```
+sample  QC.callRate  QC.nCalled  QC.nNotCalled  QC.nHomRef  ...
+```
 
 </div>
