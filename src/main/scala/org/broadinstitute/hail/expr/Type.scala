@@ -430,7 +430,9 @@ case class Field(name: String, `type`: Type,
   }
 }
 
-case class TSplat(struct: TStruct) extends BaseType
+case class TSplat(struct: TStruct) extends BaseType {
+  override def toString: String = "Splat"
+}
 
 object TStruct {
   def empty: TStruct = TStruct(Array.empty[Field])
