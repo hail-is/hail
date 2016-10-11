@@ -18,6 +18,9 @@ object Read extends Command {
     @Args4jOption(name = "--skip-genotypes", usage = "Don't load genotypes")
     var skipGenotypes: Boolean = false
 
+    @Args4jOption(name = "--skip-variants", usage = "Don't load variants")
+    var skipVariants: Boolean = false
+
     @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
