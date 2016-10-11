@@ -83,6 +83,7 @@ object ToplevelCommands {
   register(ImportVCF)
   register(ImputeSex)
   register(IndexBGEN)
+  register(Join)
   register(LinearRegressionCommand)
   register(LogisticRegressionCommand)
   register(MendelErrorsCommand)
