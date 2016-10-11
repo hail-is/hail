@@ -361,7 +361,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     val annoMap = vds.sampleIds.map(id => (id, 5))
       .toMap
     val vds2 = vds.filterSamples({ case (s, sa) => scala.util.Random.nextFloat > 0.5 })
-      .annotateSamples(annoMap, TInt, List("test"))
+      .annotateSamples(annoMap, TInt, "sa.test")
 
     val q = vds2.querySA("sa.test")._2
 

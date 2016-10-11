@@ -1,8 +1,10 @@
 package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr.{TArray, TDouble, TStruct}
 import org.broadinstitute.hail.io.vcf.LoadVCF
+import org.broadinstitute.hail.variant.Variant
 import org.testng.annotations.Test
 
 class PCASuite extends SparkSuite {
@@ -10,30 +12,35 @@ class PCASuite extends SparkSuite {
   @Test def test() {
 
     val vds = LoadVCF(sc, "src/test/resources/tiny_m.vcf")
-    val (scores, loadings, eigenvalues) = (new SamplePCA(3, true, true)) (vds)
+    val (scores, loadings, eigenvalues) = SamplePCA(vds, 3, true, true, true)
+    val (scoresStruct, loadingsStruct, eigenvaluesStruct) = SamplePCA(vds, 3, true, true, false)
 
     // comparing against numbers computed via Python script test/resources/PCA.py
 
-    val s = scores.toArray
-    val s0 = Array(-0.55141958610810227, -0.69169598151052825, 1.487286902938745,
-      -0.24417133532011465, 0.64807667470610686, -0.76268431853393925,
-      -0.082127077618646974, 0.19673472144647919, -0.3559869584014228,
-      -0.13868806289543653, -0.099016362486852916, 0.59369138378371245)
+    val arrayT = TArray(TDouble)
+    val structT = TStruct("PC1" -> TDouble, "PC2" -> TDouble, "PC3" -> TDouble)
 
-    s.zip(s0).foreach { case (x, y) => assert(D_==(x, y, 1.0E-12)) }
+    val pyScores = Map("C1046::HG02024" -> IndexedSeq(-0.55141958610810227, 0.6480766747061064, -0.3559869584014231),
+      "C1046::HG02025" -> IndexedSeq(-0.6916959815105279, -0.7626843185339386, -0.13868806289543628),
+      "C1046::HG02026" -> IndexedSeq(1.487286902938744, -0.08212707761864713, -0.09901636248685303),
+      "C1047::HG00731" -> IndexedSeq(-0.2441713353201146, 0.19673472144647947, 0.5936913837837123))
+    val pyScoresStruct = pyScores.mapValues(Annotation.fromSeq)
 
+    scores.foreach { case (id, score) => assert(arrayT.valuesSimilar(score, pyScores(id))) }
+    scoresStruct.foreach { case (id, score) => assert(structT.valuesSimilar(score, pyScoresStruct(id))) }
 
-    val l = loadings.get.sortByKey().collect().flatMap { case (v, a) => a }
-    val l0 = Array(-0.28047799618430819, 0.41201694824790025, -0.8669337506481809,
-      -0.27956988837183494, -0.89909450929475165, -0.33685269907155235,
-      0.91824439621061382, -0.14788880184962339, -0.3673637585762754)
+    val pyLoadings = Map(Variant("20", 10019093, "A", "G") -> IndexedSeq(-0.2804779961843084, 0.41201694824790014, -0.866933750648181),
+      Variant("20", 10026348, "A", "G") -> IndexedSeq(-0.27956988837183483, -0.8990945092947515, -0.33685269907155196),
+      Variant("20", 10026357, "T", "C") -> IndexedSeq(0.918244396210614, -0.14788880184962383, -0.36736375857627535))
+    val pyLoadingsStruct = pyLoadings.mapValues(Annotation.fromSeq)
 
-    l.zip(l0).foreach { case (x, y) => assert(D_==(x, y, 1.0E-12)) }
+    loadings.get.collect().foreach { case (v, l) => assert(arrayT.valuesSimilar(l, pyLoadings(v))) }
+    loadingsStruct.get.collect().foreach { case (v, l) => assert(structT.valuesSimilar(l, pyLoadingsStruct(v))) }
 
-    val e = eigenvalues.get
-    val e0 = Array(3.0541488634265739, 1.0471401535365061, 0.5082347925607319)
+    val pyEigen = IndexedSeq(3.0541488634265739, 1.0471401535365061, 0.5082347925607319)
+    val pyEigenStruct = Annotation.fromSeq(pyEigen)
 
-    e.zip(e0).foreach { case (x, y) => assert(D_==(x, y, 1.0E-12)) }
-
+    assert(arrayT.valuesSimilar(eigenvalues.get, pyEigen))
+    assert(structT.valuesSimilar(eigenvaluesStruct.get, pyEigenStruct))
   }
 }

@@ -1,10 +1,8 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.RangePartitioner
-import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.methods.SamplePCA
-import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.utils._
+import org.kohsuke.args4j.{Option => Args4jOption}
 
 object PCA extends Command {
   def name = "pca"
@@ -12,62 +10,60 @@ object PCA extends Command {
   def description = "Run principle component analysis on the matrix of genotypes"
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file for scores")
-    var output: String = _
+    @Args4jOption(required = true, name = "-s", aliases = Array("--scores"),
+      usage = "Sample annotation path for scores (period-delimited path starting in `sa')")
+    var sRoot: String = _
 
-    @Args4jOption(required = false, name = "-k", aliases = Array("--components"), usage = "Number of principal components")
+    @Args4jOption(required = false, name = "-k", aliases = Array("--components"),
+      usage = "Number of principal components")
     var k: Int = 10
 
-    @Args4jOption(required = false, name = "-l", aliases = Array("--loadings"), usage = "Output file for loadings")
-    var lOutput: String = _
+    @Args4jOption(required = false, name = "-l", aliases = Array("--loadings"),
+      usage = "Variant annotation path for site loadings (period-delimited path starting in `va')")
+    var lRoot: String = _
 
-    @Args4jOption(required = false, name = "-e", aliases = Array("--eigenvalues"), usage = "Output file for eigenvalues")
-    var eOutput: String = _
+    @Args4jOption(required = false, name = "-e", aliases = Array("--eigenvalues"),
+      usage = "Global annotation path for eigenvalues (period-delimited path starting in `global'")
+    var eRoot: String = _
+
+    @Args4jOption(required = false, name = "-a", aliases = Array("--arrays"),
+      usage = "Store score and loading results as arrays, rather than structs")
+    var arrays: Boolean = false
 
   }
 
   def newOptions = new Options
 
-  def supportsMultiallelic = true
+  def supportsMultiallelic = false
 
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
+    var vds = state.vds
 
-    val vds = state.vds
+    val asArray = options.arrays
 
-    val (scores, loadings, eigenvalues) = (new SamplePCA(options.k, options.lOutput != null, options.eOutput != null)) (vds)
+    val k = options.k
+    if (k < 1)
+      fatal(
+        s"""requested invalid number of components: $k
+            |  Expect componenents >= 1""".stripMargin)
 
-    state.hadoopConf.writeTextFile(options.output) { s =>
-      s.write("Sample\t" + (1 to options.k).map("PC" + _).mkString("\t") + "\n")
-      for ((id, i) <- vds.sampleIds.zipWithIndex) {
-        s.write(id)
-        for (j <- 0 until options.k)
-          s.write("\t" + scores(i, j))
-        s.write("\n")
-      }
+    val pcSchema = SamplePCA.pcSchema(asArray, k)
+
+    val (scores, loadings, eigenvalues) =
+      SamplePCA(vds, options.k, Option(options.lRoot).isDefined, Option(options.eRoot).isDefined, asArray)
+
+    vds = vds.annotateSamples(scores, pcSchema, options.sRoot)
+
+    loadings.foreach { rdd =>
+      vds = vds.annotateVariants(rdd.orderedRepartitionBy(vds.rdd.orderedPartitioner), pcSchema, options.lRoot)
     }
 
-    loadings.foreach { l =>
-      l.persist(StorageLevel.MEMORY_AND_DISK)
-      val lSorted = l.repartitionAndSortWithinPartitions(new RangePartitioner(l.partitions.length, l))
-      lSorted.persist(StorageLevel.MEMORY_AND_DISK)
-      lSorted
-        .map { case (v, vl) => v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + vl.mkString("\t") }
-        .writeTable(options.lOutput, Some("chrom\tpos\tref\talt\t" + (1 to options.k).map("PC" + _).mkString("\t")))
-      lSorted.unpersist()
-      l.unpersist()
+    eigenvalues.foreach { eig =>
+      vds = vds.annotateGlobal(eig, pcSchema, options.eRoot)
     }
 
-    eigenvalues.foreach { es =>
-      state.hadoopConf.writeTextFile(options.eOutput) { s =>
-        for (e <- es) {
-          s.write(e.toString)
-          s.write("\n")
-        }
-      }
-    }
-
-    state
+    state.copy(vds = vds)
   }
 }

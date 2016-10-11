@@ -32,15 +32,15 @@ object AnnotateSamplesList extends Command {
 
     val samplesInList = state.hadoopConf.readLines(options.input) { lines =>
       if (lines.isEmpty)
-        warn(s"Empty annotation file given ${options.input}")
+        warn(s"Empty annotation file given ${ options.input }")
 
       lines.map(_.value).toSet
     }
 
     val sampleAnnotations = vds.sampleIds.map { s => (s, samplesInList.contains(s)) }.toMap
 
-    val annotated = vds.annotateSamples(sampleAnnotations, TBoolean,
-      Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
+    val annotated = vds.annotateSamples(sampleAnnotations, TBoolean, options.root)
+
     state.copy(vds = annotated)
   }
 }

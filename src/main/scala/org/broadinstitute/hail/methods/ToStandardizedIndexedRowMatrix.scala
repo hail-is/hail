@@ -38,5 +38,4 @@ object ToStandardizedIndexedRowMatrix {
 
     (variants, new IndexedRowMatrix(standardized.cache(), nVariants, nSamples))
   }
-
 }

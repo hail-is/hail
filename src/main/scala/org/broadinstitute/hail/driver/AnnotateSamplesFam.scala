@@ -62,7 +62,7 @@ object AnnotateSamplesFam extends Command {
            |  @1""".stripMargin, duplicateIds)
     }
 
-    val annotated = vds.annotateSamples(info.toMap, signature, Parser.parseAnnotationRoot(options.root, Annotation.SAMPLE_HEAD))
+    val annotated = vds.annotateSamples(info.toMap, signature, options.root)
     state.copy(vds = annotated)
   }
 }
