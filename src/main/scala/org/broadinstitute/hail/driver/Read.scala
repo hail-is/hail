@@ -38,7 +38,8 @@ object Read extends Command {
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
 
-    val vdses = inputs.map(input => VariantSampleMatrix.read(state.sqlContext, input, options.skipGenotypes))
+    val vdses = inputs.map(input => VariantSampleMatrix.read(state.sqlContext, input,
+      skipGenotypes = options.skipGenotypes, skipVariants = options.skipVariants))
 
     val sampleIds = vdses.head.sampleIds
     val vaSchema = vdses.head.vaSignature

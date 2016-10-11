@@ -142,7 +142,6 @@ object VariantSampleMatrix {
 
   def read(sqlContext: SQLContext, dirname: String,
     skipGenotypes: Boolean = false, skipVariants: Boolean = false): VariantDataset = {
-    require(!(skipVariants && skipGenotypes), "got conflicting boolean arguments skipVariants and skipGenotypes")
 
     val sc = sqlContext.sparkContext
     val hConf = sc.hadoopConfiguration
@@ -171,6 +170,7 @@ object VariantSampleMatrix {
               (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
                 row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
           }
+
       val p = try {
         Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
           OrderedPartitioner.read[Locus, Variant](in, rdd.partitions.length)
