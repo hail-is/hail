@@ -12,6 +12,9 @@ Several Hail commands provide the ability to perform a broad array of computatio
 
  - Boolean comparisons: `a || b`, `a && b`  Boolean comparisons short circuit.  If `a` is true, `a || b` is `true` without evaluating `b`.  If `a` is missing, `b` is evaluated and the comparison returns `true` if `b` is true, otherwise missing.
 
+ - Boolean conversion
+    - toInt: `b.toInt` -- returns `1` if `true`, `0` if `false`
+
  - Missingness:
      - isMissing: `isMissing(a)` -- returns true if `a` is missing
      - isDefined: `isDefined(a)` -- returns true if `a` is defined
