@@ -191,6 +191,8 @@ object FunctionRegistry {
   registerField("toFloat", { (x: Float) => x })
   registerField("toDouble", { (x: Float) => x.toDouble })
 
+  registerField("toInt", { (x: Boolean) => if (x) 1 else 0})
+
   registerField("toInt", { (x: Double) => x.toInt })
   registerField("toLong", { (x: Double) => x.toLong })
   registerField("toFloat", { (x: Double) => x.toFloat })
