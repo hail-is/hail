@@ -1,4 +1,4 @@
-## <a name="methods"></a> Methods
+## <a class="jumptarget" name="methods"></a> Methods
 
 ### Summary Statistics
 

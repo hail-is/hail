@@ -7,18 +7,18 @@ Hail includes three filtering modules:
 
 The `filtervariants` module contains the following submodules:
 
-- `intervals`: filter by an interval list [(skip to)](#filtervariants_intervals)
-- `list`: filter by a variant list [(skip to)](#filtervariants_list)
-- `expr`: filter by Hail expressions [(skip to)](#filtervariants_expr)
-- `all`: drop all variants [(skip to)](#filtervariants_all)
+- `intervals`: filter by an interval list [(skip to)](commands.html#filtervariants_intervals)
+- `list`: filter by a variant list [(skip to)](commands.html#filtervariants_list)
+- `expr`: filter by Hail expressions [(skip to)](commands.html#filtervariants_expr)
+- `all`: drop all variants [(skip to)](commands.html#filtervariants_all)
 
 The `filtersamples` module contains the following submodules:
 
-- `list`: filter by a sample list [(skip to)](#filtersamples_list)
-- `expr`: filter by Hail expressions [(skip to)](#filtersamples_expr)
-- `all`: drop all samples [(skip to)](#filtersamples_all)
+- `list`: filter by a sample list [(skip to)](commands.html#filtersamples_list)
+- `expr`: filter by Hail expressions [(skip to)](commands.html#filtersamples_expr)
+- `all`: drop all samples [(skip to)](commands.html#filtersamples_all)
 
-The `filtergenotypes` module filters solely on Hail expressions. [(skip to)](#filtergenotypes)
+The `filtergenotypes` module filters solely on Hail expressions. [(skip to)](commands.html#filtergenotypes)
 
 ### Examples: 
 

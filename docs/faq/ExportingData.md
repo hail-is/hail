@@ -1,4 +1,4 @@
-## <a name="exportingdata"></a> Exporting Data
+## <a class="jumptarget" name="exportingdata"></a> Exporting Data
 
 #### When exporting the VDS to a VCF file, what file extension should I use?
 

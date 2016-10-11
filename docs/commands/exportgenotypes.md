@@ -9,7 +9,7 @@
 <div class="cmdsubsection">
 ### Notes:
  
-This module takes a condition argument (`-c`) similar to [filtering](#Filtering) expressions, with a similar namespace as well.  However, the expression is not parsed as a boolean, but rather a comma-delimited list of fields or expressions to print.  These fields will be printed in the order they appear in the expression in the header and on each line.
+This module takes a condition argument (`-c`) similar to [filtering](reference.html#Filtering) expressions, with a similar namespace as well.  However, the expression is not parsed as a boolean, but rather a comma-delimited list of fields or expressions to print.  These fields will be printed in the order they appear in the expression in the header and on each line.
 
 One line per cell (genotype) in the VDS<sup>*</sup> will be printed.  The accessible namespace includes:
 
@@ -47,7 +47,7 @@ exportgenotypes -c 'exportGenotypes.columns' -o file.tsv
 
 #### Designating output with an expression
 
-Much like [filtering](#Filtering) modules, exporting allows flexible expressions to be written on the command line.  While the filtering modules expect an expression that evaluates to true or false, export modules expect a comma-separated list of fields to print.  These fields should take the form `IDENTIFIER = <expression>`.  Below is an example of using `exportgenotypes` with an export expression:
+Much like [filtering](reference.html#Filtering) modules, exporting allows flexible expressions to be written on the command line.  While the filtering modules expect an expression that evaluates to true or false, export modules expect a comma-separated list of fields to print.  These fields should take the form `IDENTIFIER = <expression>`.  Below is an example of using `exportgenotypes` with an export expression:
 
 ```
 exportgenotypes -c 'SAMPLE=s,VARIANT=v,GQ=g.gq,DP=g.dp,ANNO1=va.MyAnnotations.anno1,ANNO2=va.MyAnnotations.anno2' -o file.tsv

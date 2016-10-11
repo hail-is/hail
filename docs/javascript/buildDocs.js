@@ -20,7 +20,7 @@ function definitionListOption(attr, key) {
 }
 
 function buildHeader(commandName, cmdId) {
-	return "<a name=" + cmdId + "></a><h1 class=cmdhead>" + commandName + " <span style=\"font-size: 50%; vertical-align: middle; color: #555\">[ <a href=\"https://github.com/hail-is/hail/edit/master/docs/commands/"+cmdId+".md\" target=\"_blank\">edit</a> ]</span></h1>";
+	return "<a class=jumptarget name=" + cmdId + "></a><h1 class=cmdhead>" + commandName + " <span style=\"font-size: 50%; vertical-align: middle; color: #555\">[ <a href=\"https://github.com/hail-is/hail/edit/master/docs/commands/"+cmdId+".md\" target=\"_blank\">edit</a> ]</span></h1>";
 }
 
 function buildDescription(cmdId, data) {
@@ -60,7 +60,7 @@ exports.buildGlobalOptions = function (options, $) {
 exports.buildCommand = function (command, pandocOutputDir, $) {
     return new Promise(function (resolve, reject) {
         var cmdId = command.name.replace(/\s+/g, '_').replace(/\//, '_');
-        var templateFile = pandocOutputDir + "commands/" + cmdId + ".html"
+        var templateFile = pandocOutputDir + cmdId + ".html";
 
         function addContent() {
             $("div#" + cmdId + " div.cmdhead").append(buildHeader(command.name, cmdId));
@@ -79,12 +79,28 @@ exports.buildCommand = function (command, pandocOutputDir, $) {
                 addContent();
                 resolve();
             } else {
-                $("div#" + cmdId).load(pandocOutputDir + "commands/" + cmdId + ".html", function (response, status, xhr) {
+                $("div#" + cmdId).load(pandocOutputDir + cmdId + ".html", function (response, status, xhr) {
                     addContent();
                     resolve();
                 });
             }
         });
     });
+}
 
+exports.buildFaqTOC = function ($) {
+  return new Promise(function (resolve, reject) {
+      function listItem(id, text) { return "<li><a href=#" + id + ">" + text + "</a></li>"; }
+      function anchor(id) { return "<a class=jumptarget name=" + id + "></a>"; }
+
+      $("h4").each(function () {
+          var element = $(this);
+          var id = element.attr("id");
+          var text = element.text();
+          $("#TOC ul").append(listItem(id, text));
+          element.prepend(anchor(id));
+      });
+
+      resolve();
+  });
 }

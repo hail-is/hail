@@ -11,7 +11,7 @@
 
 The filter genotypes module has only one function, the `expr` function, so it is not broken into submodules.  
 
-Removed genotypes will be set to missing.  Use the [Hail expression language](#HailExpressionLanguage) to supply a boolean expression involving the following exposed data structures:
+Removed genotypes will be set to missing.  Use the [Hail expression language](reference.html#HailExpressionLanguage) to supply a boolean expression involving the following exposed data structures:
 
 Exposed Name | Description
 :-: | ---
@@ -23,5 +23,5 @@ Exposed Name | Description
  `global` | global annotation
 
    
-For more information about these exposed objects and how to use them, see the documentation on [representation](#Representation) and the [Hail expression language](#HailExpressionLanguage).
+For more information about these exposed objects and how to use them, see the documentation on [representation](reference.html#Representation) and the [Hail expression language](reference.html#HailExpressionLanguage).
 </div>

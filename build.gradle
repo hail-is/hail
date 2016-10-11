@@ -254,7 +254,7 @@ task wrapper(type: Wrapper) {
 }
 
 task setupDocsDirs(type: Exec) {
-    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/docs/'
+    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/', 'build/tmp/tutorial/'
 }
 
 task copyHtml(type: Copy, dependsOn: setupDocsDirs) {
@@ -267,9 +267,30 @@ task copyJavascript(type: Copy, dependsOn: setupDocsDirs) {
     into 'build/tmp/docs'
 }
 
+task copyTutorialImages(type: Copy, dependsOn: setupDocsDirs) {
+    from 'docs/tutorial/'
+    into 'build/www'
+    include '**/*.png'
+}
+
+task copyTex(type: Copy, dependsOn: setupDocsDirs) {
+    from 'docs/LeveneHaldane.tex'
+    into 'build/www'
+}
+
+task copyWebsiteContent(type: Copy, dependsOn: setupDocsDirs) {
+    from 'www/'
+    into 'build/www'
+}
+
 task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
     args('docs', 'build/tmp/docs/')
     executable 'src/test/resources/runPandoc.sh'
+}
+
+task makeTutorial(type: Exec, dependsOn: setupDocsDirs) {
+    args('docs/tutorial/Tutorial.md','docs/tutorial/', 'build/tmp/tutorial/', 'build/www/')
+    executable 'docs/tutorial/packageTutorial.sh'
 }
 
 task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
@@ -279,25 +300,21 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
 }
 
 task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
-    args('docsTemplate.html', './commandOptions.json', 'docs/', 'index.html')
+    args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'tutorialTemplate.html', 'overviewTemplate.html', 'gettingStartedTemplate.html', './commandOptions.json', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task runNodeFaq(type: Exec, dependsOn: ['runPandoc', 'copyJavascript', 'copyHtml']) {
-    args('faqTemplate.html', 'docs/faq/', 'faq.html')
-    executable 'build/tmp/docs/compileFaqNode.js'
-}
-
-task copyCompiledHtml(type: Copy, dependsOn: ['runNodeDocs', 'runNodeFaq']) {
-    from 'build/tmp/docs/index.html'
+task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/faq.html'
-    into 'build/docs'
+    from 'build/tmp/docs/commands.html'
+    from 'build/tmp/docs/reference.html'
+    from 'build/tmp/docs/tutorial.html'
+    from 'build/tmp/docs/overview.html'
+    from 'build/tmp/docs/getting_started.html'
+    into 'build/www'
 }
 
-task copyCss(type: Copy) {
-    from 'docs/style.css'
-    into 'build/docs'
+task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial']) {
 }
 
-task createDocs(dependsOn: ['copyCss', 'copyCompiledHtml']) {
-}
+task createDocs(dependsOn: createWebsite)

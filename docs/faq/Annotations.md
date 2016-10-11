@@ -1,8 +1,8 @@
-## <a name="annotations"></a> Annotations 
+## <a class="jumptarget" name="annotations"></a> Annotations 
 
 #### How can I find the current schema of variant, sample, and global annotations?
 
-Use the [`printschema`](index.html#printschema) command. By default the schemas for variant, sample, and global annotations are printed to stdout.
+Use the [`printschema`](commands.html#printschema) command. By default the schemas for variant, sample, and global annotations are printed to stdout.
 
 To specify which schemas you would like to view use the following flags: variant annotations (`--va`), sample annotations (`--sa`), global annotations (`--global`).
 
@@ -32,7 +32,7 @@ annotateglobal expr -c '
 
 #### How do I import annotations from a PLINK fam file?
 
-Use the [`annotatesamples fam`](index.html#annotatesamples_fam) command. For quantitative phenotypes, make sure to add the `-q` flag!
+Use the [`annotatesamples fam`](commands.html#annotatesamples_fam) command. For quantitative phenotypes, make sure to add the `-q` flag!
 
 ```
 annotatesamples fam -i myStudy.fam -q

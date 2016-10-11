@@ -41,7 +41,7 @@ Identifier | Description
 `s` | Sample
 `sa` | Sample annotations
 `global` | global annotation
-`gs` | Genotype column [aggregable](#aggregables)
+`gs` | Genotype column [aggregable](reference.html#aggregables)
 </div>
 
 <div class="cmdsubsection">

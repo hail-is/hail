@@ -64,7 +64,7 @@ linfit <- lm(y ~ x)
 ```
 The resulting $p$-values for the genotype coefficient are $0.991$, $0.00085$, and $0.0016$, respectively. The erroneous value $0.991$ is due to quasi-complete separation. Moving one of the 10 hets from case to control eliminates this quasi-complete separation; the p-values from R are then $0.0373$, $0.0111$, and $0.0116$, respectively, as expected for a less significant association.
 
-Phenotype and covariate sample annotations may also be specified using [programmatic expressions](https://github.com/broadinstitute/hail/blob/master/docs/ProgrammaticAnnotation.md) without identifiers, such as
+Phenotype and covariate sample annotations may also be specified using [programmatic expressions](reference.html#HailExpressionLanguage) without identifiers, such as
 ```
 if (sa.isFemale) sa.cov.age else (2 * sa.cov.age + 10)
 ```

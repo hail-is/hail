@@ -30,7 +30,7 @@ Annotation | Type | Value
 `va.linreg.tstat` | Double | $t$-statistic, equal to $\hat\beta_1 / \widehat{\mathrm{se}}$
 `va.linreg.pval` | Double | $p$-value
 
-Phenotype and covariate sample annotations may also be specified using [programmatic expressions](https://github.com/broadinstitute/hail/blob/master/docs/ProgrammaticAnnotation.md) without identifiers, such as
+Phenotype and covariate sample annotations may also be specified using [programmatic expressions](reference.html#HailExpressionLanguage) without identifiers, such as
 ```
 if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)
 ```

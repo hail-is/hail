@@ -6,13 +6,13 @@ Hail does not operate directly on input files.  Hail uses a fast and storage-eff
 
 Hail Command | Extensions | File Spec
 --- | :-: | ---
-[`importvcf`](#importvcf) | .vcf .vcf.bgz .vcf.gz     | [VCF file](https://samtools.github.io/hts-specs/VCFv4.2.pdf)
-[`importplink`](#importplink) | .bed .bim .fam | [PLINK binary dataset](http://pngu.mgh.harvard.edu/~purcell/plink/data.shtml#bed)
-[`importgen`](#importgen) | .gen .sample     | [GEN file](http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300)
-[`importbgen`](#importbgen) | .bgen .sample     | [BGEN file](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.1.html)
+[`importvcf`](commands.html#importvcf) | .vcf .vcf.bgz .vcf.gz     | [VCF file](https://samtools.github.io/hts-specs/VCFv4.2.pdf)
+[`importplink`](commands.html#importplink) | .bed .bim .fam | [PLINK binary dataset](http://pngu.mgh.harvard.edu/~purcell/plink/data.shtml#bed)
+[`importgen`](commands.html#importgen) | .gen .sample     | [GEN file](http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300)
+[`importbgen`](commands.html#importbgen) | .bgen .sample     | [BGEN file](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.1.html)
 
 
-### <a name="hadoopglob"></a> Hadoop Glob Patterns:
+### <a class="jumptarget" name="hadoopglob"></a> Hadoop Glob Patterns:
 All of these commands take a list of files to load. Files can be specified as Hadoop glob patterns:
 
 Character | Description

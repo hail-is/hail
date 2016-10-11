@@ -12,7 +12,7 @@ The generality of this module allows it to load delimited text files, json, or a
 
 **Using the `--locus-expr` argument:**
 
-This argument tells Hail how to get a variant out of your table.  To do this, you are given the [Hail Expression Language](#HailExpressionLanguage), and each column in the table is exposed.  Since a `Variant` is not a simple string, using this is a little bit more complicated than using `--sample-expr` in `annotatesamples table`.  There are three ways to make a variant out of a table:
+This argument tells Hail how to get a variant out of your table.  To do this, you are given the [Hail Expression Language](reference.html#HailExpressionLanguage), and each column in the table is exposed.  Since a `Variant` is not a simple string, using this is a little bit more complicated than using `--sample-expr` in `annotatesamples table`.  There are three ways to make a variant out of a table:
   
   1. Use a column of type `Locus`.  These columns look like `CHR:POS`.  You can get a column of type `Locus` by explictly typing it using `--types` (`-t locusCol: Locus`), or by allowing Hail to do type imputation with `--impute`.  The `--locus-expr` argument in this second case looks like `-e <locusCol>`.  
   2. Use a string column that takes the format designated above in an expr locus constructor.  This looks like `-e Locus(<stringCol>)` 

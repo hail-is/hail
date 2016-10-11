@@ -1,10 +1,10 @@
-## <a name="filtering"></a> Filtering Data
+## <a class="jumptarget" name="filtering"></a> Filtering Data
 
-Hail provides a number of commands to filter data. See the [Hail documentation on Filtering](index.html#Filtering) for an overview of available commands.
+Hail provides a number of commands to filter data. See the [Hail documentation on Filtering](reference.html#Filtering) for an overview of available commands.
 
 #### How do I create a sites-only VCF (all genotype data removed)?
 
-Use the [`filtersamples all`](index.html#filtersamples_all) command to remove all genotype and sample meta-information and write the output as a VCF with the [`exportvcf`](index.html#exportvcf) command. **Make sure to add the ".vcf.bgz" extension to your filename to ensure the VCF file is block compressed!**
+Use the [`filtersamples all`](commands.html#filtersamples_all) command to remove all genotype and sample meta-information and write the output as a VCF with the [`exportvcf`](commands.html#exportvcf) command. **Make sure to add the ".vcf.bgz" extension to your filename to ensure the VCF file is block compressed!**
 
 ```
 filtersamples all 
@@ -14,7 +14,7 @@ exportvcf -o /path/to/sitesonly.vcf.bgz
 
 #### How do I filter out samples listed in a text file?
 
-Use the [`filtersamples list`](index.html#filtersamples_list) command, which takes as input a text file with one sample ID per line. Equivalent to `--remove` in PLINK.
+Use the [`filtersamples list`](commands.html#filtersamples_list) command, which takes as input a text file with one sample ID per line. Equivalent to `--remove` in PLINK.
 
 ```
 filtersamples list --remove -i /path/to/badSamples.sample_list
@@ -23,7 +23,7 @@ filtersamples list --remove -i /path/to/badSamples.sample_list
 
 #### How do I only keep the samples listed in a text file?
 
-Use the [`filtersamples list`](index.html#filtersamples_list) command, which takes as input a text file with one sample ID per line. Equivalent to `--keep` in PLINK.
+Use the [`filtersamples list`](commands.html#filtersamples_list) command, which takes as input a text file with one sample ID per line. Equivalent to `--keep` in PLINK.
 
 ```
 filtersamples list --keep -i /path/to/goodSamples.sample_list
@@ -32,7 +32,7 @@ filtersamples list --keep -i /path/to/goodSamples.sample_list
 
 #### How do I subset the dataset to one chromosome?
 
-Use the [`filtervariants expr`](index.html#filtervariants_expr) command, which takes as input a boolean expression. 
+Use the [`filtervariants expr`](commands.html#filtervariants_expr) command, which takes as input a boolean expression. 
 To access the chromosome name, use the `v.contig` method, which results in a `String` type. 
 Double quotes around the chromosome name are necessary to ensure Hail interprets the chromosome as a string. 
 Equivalent to `--chr 1` in PLINK.
@@ -44,7 +44,7 @@ filtervariants expr --keep -c 'v.contig == "1"'
 
 #### How do I filter the VDS to a subset of chromosomes?
 
-To subset on multiple chromosomes, use the `let` function in the [Hail Expression Language](index.html#HailExpressionLanguage) to create a set containing the desired chromosome values and then check whether `v.contig` is in the set. 
+To subset on multiple chromosomes, use the `let` function in the [Hail Expression Language](reference.html#HailExpressionLanguage) to create a set containing the desired chromosome values and then check whether `v.contig` is in the set. 
 Equivalent to `--chr 1, 2, 3` in PLINK
 
 ```
@@ -92,25 +92,25 @@ filtervariants expr --keep -c 'v.contig == "X" && !v.inParX'
 
 Example: Remove samples with a call rate less than 95% 
 
-First use the [`sampleqc`](index.html#sampleqc) command to calculate the call rate per sample.
-The output of the [`sampleqc`](index.html#sampleqc) command will be stored as a sample annotation that can be accessed with `sa.qc.callRate`.
-Lastly, use the [`filtersamples expr`](index.html#filtersamples_expr) command with the `--keep` flag to only keep samples where `sa.qc.callRate` is greater than a desired cutoff.
+First use the [`sampleqc`](commands.html#sampleqc) command to calculate the call rate per sample.
+The output of the [`sampleqc`](commands.html#sampleqc) command will be stored as a sample annotation that can be accessed with `sa.qc.callRate`.
+Lastly, use the [`filtersamples expr`](commands.html#filtersamples_expr) command with the `--keep` flag to only keep samples where `sa.qc.callRate` is greater than a desired cutoff.
  
 ```
 sampleqc 
 filtersamples expr --keep -c 'sa.qc.callRate >= 0.95'
 ```
 
-See the [documentation for `sampleqc`](index.html#sampleqc) for additional sample QC summary statistics that can be used for filtering.
+See the [documentation for `sampleqc`](commands.html#sampleqc) for additional sample QC summary statistics that can be used for filtering.
 
 
 #### How do I remove variants from my dataset based on summary statistics calculated from variant QC?
 
 Example: Remove variants with a call rate less than 95% 
 
-First use the [`variantqc`](index.html#variantqc) command to calculate the call rate per variant.
-The output of the [`variantqc`](index.html#variantqc) command will be stored as a variant annotation that can be accessed with `va.qc.callRate`.
-Lastly, use the [`filtervariants expr`](index.html#filtervariants_expr) command with the `--keep` flag to only keep variants where `va.qc.callRate` is greater than a desired cutoff.
+First use the [`variantqc`](commands.html#variantqc) command to calculate the call rate per variant.
+The output of the [`variantqc`](commands.html#variantqc) command will be stored as a variant annotation that can be accessed with `va.qc.callRate`.
+Lastly, use the [`filtervariants expr`](commands.html#filtervariants_expr) command with the `--keep` flag to only keep variants where `va.qc.callRate` is greater than a desired cutoff.
  
 ```
 variantqc 
@@ -118,15 +118,15 @@ filtervariants expr --keep -c 'va.qc.callRate >= 0.95 &&
     va.qc.dpMean >= 20 && va.qc.pHWE > 1e-6 && va.pass'
 ```
 
-See the [documentation for `variantqc`](index.html#variantqc) for additional variant QC summary statistics that can be used for filtering.
+See the [documentation for `variantqc`](commands.html#variantqc) for additional variant QC summary statistics that can be used for filtering.
 
 
 #### How do I filter genotypes using genotype meta-information such as PL or DP?
 
-Use the [`filtergenotypes`](index.html#filtergenotypes) command which takes a boolean expression as input and either a `--keep` or `--remove` flag. 
+Use the [`filtergenotypes`](commands.html#filtergenotypes) command which takes a boolean expression as input and either a `--keep` or `--remove` flag. 
 The PL and DP fields can be accessed with `g.pl` and `g.dp` respectively. 
-Other available fields can be found in the [Documentation for the Genotype object](index.html#genotype).
-See the documentation of the [Hail Expression Language](index.html#HailExpressionLanguage) for additional information on creating expressions.
+Other available fields can be found in the [Documentation for the Genotype object](reference.html#genotype).
+See the documentation of the [Hail Expression Language](reference.html#HailExpressionLanguage) for additional information on creating expressions.
 
 ``` 
 filtergenotypes --remove -c 'g.dp < 10 || 

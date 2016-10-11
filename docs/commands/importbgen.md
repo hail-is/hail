@@ -53,7 +53,7 @@ $ hail indexbgen /path/to/file.bgen
 
 To import data, first run [`indexbgen`](#indexbgen) and then `importbgen`.  The below command will first create an index for the .bgen file, then read the .bgen and a .sample files, and lastly write to a .vds file (Hail's preferred format).
 
-To load multiple files at the same time, use [Hadoop glob patterns](#hadoopglob):
+To load multiple files at the same time, use [Hadoop glob patterns](reference.html#hadoopglob):
 ``` 
 $ hail indexbgen /path/to/file.chr*.bgen
     importbgen -s /path/to/file.sample /path/to/file.chr*.bgen write -o /path/to/output.vds

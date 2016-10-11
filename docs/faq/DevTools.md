@@ -1,4 +1,4 @@
-## <a name="devtools"></a> Developer Tools
+## <a class="jumptarget" name="devtools"></a> Developer Tools
 
 ### Gradle
 

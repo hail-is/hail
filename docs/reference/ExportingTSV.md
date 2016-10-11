@@ -2,25 +2,25 @@
 
 Hail has three export modules which write to TSVs:
  
- - [`exportsamples`](#exportsamples)
- - [`exportvariants`](#exportvariants)
- - [`exportgenotypes`](#exportgenotypes)
+ - [`exportsamples`](commands.html#exportsamples)
+ - [`exportvariants`](commands.html#exportvariants)
+ - [`exportgenotypes`](commands.html#exportgenotypes)
  
 These three export modules take a condition argument (`-c`) similar to [filtering](#Filtering) expressions, with a similar namespace as well.  However, the expression is not parsed as a boolean, but rather a comma-delimited list of fields or expressions to print.  These fields will be printed in the order they appear in the expression in the header and on each line.
 
 ## Export modules
 
-1. `exportsamples` will print one line per sample in the VDS.  The accessible namespace includes:
+1. [`exportsamples`](commands.html#exportsamples) will print one line per sample in the VDS.  The accessible namespace includes:
    - `s` (sample)
    - `sa` (sample annotations)
    - `global` (global annotations)
    - `gs` (genotype column [aggregable](#aggregables))
-2. `exportvariants` will print one line per variant in the VDS.  The accessible namespace includes:
+2. [`exportvariants`](commands.html#exportvariants) will print one line per variant in the VDS.  The accessible namespace includes:
    - `v` (variant)
    - `va` (variant annotations)
    - `global` (global annotations)
    - `gs` (genotype row [aggregable](#aggregables))
-3. `exportgenotypes` will print one line per cell (genotype) in the VDS<sup>*</sup>.  The accessible namespace includes:
+3. [`exportgenotypes`](commands.html#exportgenotypes) will print one line per cell (genotype) in the VDS<sup>*</sup>.  The accessible namespace includes:
    - `g` (genotype)
    - `s` (sample)
    - `sa` (sample annotations)
@@ -28,7 +28,7 @@ These three export modules take a condition argument (`-c`) similar to [filterin
    - `va` (variant annotations).
    - `global` (global annotations)
    
-<sup>*</sup>The `exportgenotypes` module does not print hom-ref or missing genotypes by default, in order to restrict the size of the file produced.  There are command line arguments to turn on these print modes:
+<sup>*</sup>The [`exportgenotypes`](commands.html#exportgenotypes) module does not print hom-ref or missing genotypes by default, in order to restrict the size of the file produced.  There are command line arguments to turn on these print modes:
  
  - `--print-ref`
  - `--print-missing`
