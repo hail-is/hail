@@ -30,14 +30,14 @@ object Join extends Command {
         s"""cannot join split and unsplit datasets
             |  left was split: ${ left.wasSplit }
             |  light was split: ${ right.wasSplit }""".stripMargin)
-    } else if (left.vaSignature != right.vaSignature) {
+    } else if (left.saSignature != right.saSignature) {
       fatal(
-        s"""cannot join datasets with different variant schemata
-            |  left variant schema: @1
-            |  right variant schema: @2""".
+        s"""cannot join datasets with different sample schemata
+            |  left sample schema: @1
+            |  right sample schema: @2""".
           stripMargin,
-        left.vaSignature.toPrettyString(compact = true, printAttrs = true),
-        right.vaSignature.toPrettyString(compact = true, printAttrs = true))
+        left.saSignature.toPrettyString(compact = true, printAttrs = true),
+        right.saSignature.toPrettyString(compact = true, printAttrs = true))
     }
 
     val joined = left.rdd.orderedLeftJoinDistinct(right.rdd)
