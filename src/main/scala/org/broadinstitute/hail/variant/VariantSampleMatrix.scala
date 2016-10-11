@@ -2,29 +2,26 @@ package org.broadinstitute.hail.variant
 
 import java.io.{FileNotFoundException, InvalidClassException}
 import java.nio.ByteBuffer
-import java.util
 
 import org.apache.hadoop
-import org.apache.hadoop.fs.PathIOException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkContext, SparkEnv}
-import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.driver.Main
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.driver.{HailConfiguration, Main}
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.vcf.BufferedLineIterator
+import org.broadinstitute.hail.methods.{Aggregators, Filter}
 import org.broadinstitute.hail.sparkextras._
-import org.broadinstitute.hail.utils.{Interval, IntervalTree}
+import org.broadinstitute.hail.utils.{Interval, IntervalTree, _}
+import org.broadinstitute.hail.variant.Variant.orderedKey
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.kududb.spark.kudu.{KuduContext, _}
-import Variant.orderedKey
-import org.broadinstitute.hail.methods.{Aggregators, Filter}
 
+import scala.collection.mutable
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -818,6 +815,217 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
   }
 
+  def filterSamples(cond: String, keep: Boolean)(implicit et: ExprMapping[T]): VariantSampleMatrix[T] = {
+    val aggregationEC = EvalContext(Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, saSignature),
+      "global" -> (4, globalSignature)))
+
+    val symTab = Map(
+      "s" -> (0, TSample),
+      "sa" -> (1, saSignature),
+      "global" -> (2, globalSignature),
+      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
+
+    val ec = EvalContext(symTab)
+    ec.set(2, globalAnnotation)
+    aggregationEC.set(4, globalAnnotation)
+    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+
+    val aggregatorA = aggregationEC.a
+    val aggregators = ec.aggregationFunctions
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(this, aggregationEC)
+
+    val p = (s: String, sa: Annotation) => {
+      ec.setAll(s, sa)
+
+      sampleAggregationOption.foreach(f => f.apply(s))
+
+      Filter.keepThis(f(), keep)
+    }
+
+    filterSamples(p)
+  }
+
+  def filterVariants(cond: String, keep: Boolean)(implicit et: ExprMapping[T]): VariantSampleMatrix[T] = {
+    val aggregationEC = EvalContext(Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, saSignature),
+      "global" -> (4, globalSignature)))
+    val symTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "global" -> (2, globalSignature),
+      "gs" -> (-1, BaseAggregable(aggregationEC, et.t)))
+
+
+    val ec = EvalContext(symTab)
+    ec.set(2, globalAnnotation)
+    aggregationEC.set(4, globalAnnotation)
+
+    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+
+    val aggregatorOption = Aggregators.buildVariantAggregations(this, aggregationEC)
+
+    val p = (v: Variant, va: Annotation, gs: Iterable[T]) => {
+      ec.setAll(v, va)
+      aggregatorOption.foreach(f => f(v, va, gs))
+      Filter.keepThis(f(), keep)
+    }
+
+    filterVariants(p)
+  }
+
+  def annotateSamples(expr: String)(implicit et: ExprMapping[T]): VariantSampleMatrix[T] = {
+    val aggregationEC = EvalContext(Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, saSignature),
+      "global" -> (4, globalSignature)))
+
+    val symTab = Map(
+      "s" -> (0, TSample),
+      "sa" -> (1, saSignature),
+      "global" -> (2, globalSignature),
+      "gs" -> (-1, BaseAggregable(aggregationEC, et.t)))
+
+    val ec = EvalContext(symTab)
+    ec.set(2, globalAnnotation)
+    aggregationEC.set(4, globalAnnotation)
+
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(expr, ec, Annotation.SAMPLE_HEAD)
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val finalType = parseTypes.foldLeft(saSignature) { case (sas, (ids, signature)) =>
+
+      val (s, i) = sas.insert(signature, ids)
+      inserterBuilder += i
+      s
+    }
+    val inserters = inserterBuilder.result()
+
+    val aggregatorA = aggregationEC.a
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(this, aggregationEC)
+
+    val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) =>
+      ec.setAll(s, sa)
+      sampleAggregationOption.foreach(f => f(s))
+      fns.zip(inserters)
+        .foldLeft(sa) { case (sa, (fn, inserter)) =>
+          inserter(sa, fn())
+        }
+    }
+
+    copy(sampleAnnotations = newAnnotations, saSignature = finalType)
+  }
+
+  def annotateVariants(expr: String)(implicit et: ExprMapping[T]): VariantSampleMatrix[T] = {
+    val aggregationEC = EvalContext(Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, saSignature),
+      "global" -> (4, globalSignature)))
+    val symTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "global" -> (2, globalSignature),
+      "gs" -> (-1, BaseAggregable(aggregationEC, et.t)))
+
+
+    val ec = EvalContext(symTab)
+    ec.set(2, globalAnnotation)
+    aggregationEC.set(4, globalAnnotation)
+
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(expr, ec, Annotation.VARIANT_HEAD)
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val finalType = parseTypes.foldLeft(vaSignature) { case (vas, (ids, signature)) =>
+      val (s, i) = vas.insert(signature, ids)
+      inserterBuilder += i
+      s
+    }
+    val inserters = inserterBuilder.result()
+
+    val aggregateOption = Aggregators.buildVariantAggregations(this, aggregationEC)
+
+    mapAnnotations { case (v, va, gs) =>
+      ec.setAll(v, va)
+
+      aggregateOption.foreach(f => f(v, va, gs))
+      fns.zip(inserters)
+        .foldLeft(va) { case (va, (fn, inserter)) =>
+          inserter(va, fn())
+        }
+    }.copy(vaSignature = finalType)
+  }
+
+  def annotateGlobal(expr: String): VariantSampleMatrix[T] = {
+    val aggECV = EvalContext(Map(
+      "va" -> (0, vaSignature),
+      "global" -> (1, globalSignature)))
+    val aggECS = EvalContext(Map(
+      "sa" -> (0, saSignature),
+      "global" -> (1, globalSignature)))
+    val symTab = Map(
+      "global" -> (0, globalSignature),
+      "variants" -> (-1, BaseAggregable(aggECV, TVariant)),
+      "samples" -> (-1, BaseAggregable(aggECS, TSample)))
+
+
+    val ec = EvalContext(symTab)
+    aggECS.set(1, globalAnnotation)
+    aggECV.set(1, globalAnnotation)
+
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(expr, ec, Annotation.GLOBAL_HEAD)
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+
+    val finalType = parseTypes.foldLeft(globalSignature) { case (v, (ids, signature)) =>
+      val (s, i) = v.insert(signature, ids)
+      inserterBuilder += i
+      s
+    }
+
+    val inserters = inserterBuilder.result()
+
+    if (aggECV.aggregationFunctions.nonEmpty) {
+      val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions(aggECV)
+
+      val result = variantsAndAnnotations
+        .treeAggregate(zVal)(seqOp, combOp, depth = HailConfiguration.treeAggDepth(nPartitions))
+      resOp(result)
+    }
+
+    if (aggECS.aggregationFunctions.nonEmpty) {
+
+      val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions(aggECS)
+
+      val result = sampleIdsAndAnnotations
+        .aggregate(zVal)(seqOp, combOp)
+      resOp(result)
+    }
+
+    ec.set(0, globalAnnotation)
+
+    val ga = inserters
+      .zip(fns.map(_ ()))
+      .foldLeft(globalAnnotation) { case (a, (ins, res)) =>
+        ins(a, res)
+      }
+
+    copy(
+      globalAnnotation = ga,
+      globalSignature = finalType)
+  }
+
   def queryVA(code: String): (BaseType, Querier) = {
 
     val st = Map(Annotation.VARIANT_HEAD -> (0, vaSignature))
@@ -1047,37 +1255,5 @@ class RichVDS(vds: VariantDataset) {
     vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
       (va, gs.toGenotypeStream(v, isDosage, compress = compress))
     }.asOrderedRDD)
-  }
-
-  def filterVariantsExpr(cond: String, keep: Boolean): VariantDataset = {
-    val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
-    val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
-
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
-
-    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
-
-    val aggregatorOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
-
-    val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
-      ec.setAll(v, va)
-      aggregatorOption.foreach(f => f(v, va, gs))
-      Filter.keepThis(f(), keep)
-    }
-
-    vds.filterVariants(p)
   }
 }

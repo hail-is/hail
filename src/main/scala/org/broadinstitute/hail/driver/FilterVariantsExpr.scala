@@ -38,9 +38,8 @@ object FilterVariantsExpr extends Command {
     if (!(options.keep ^ options.remove))
       fatal("either `--keep' or `--remove' required, but not both")
 
-    val cond = options.condition
     val keep = options.keep
 
-    state.copy(vds = vds.filterVariantsExpr(cond, keep))
+    state.copy(vds = vds.filterVariants(options.condition, keep))
   }
 }

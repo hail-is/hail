@@ -39,42 +39,7 @@ object FilterSamplesExpr extends Command {
       fatal("either `--keep' or `--remove' required, but not both")
 
     val keep = options.keep
-    val sas = vds.saSignature
-    val cond = options.condition
-    val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
 
-    val symTab = Map(
-      "s" ->(0, TSample),
-      "sa" ->(1, vds.saSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
-    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
-
-    val aggregatorA = aggregationEC.a
-    val aggregators = ec.aggregationFunctions
-
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
-
-
-    val sampleIds = state.vds.sampleIds
-    val p = (s: String, sa: Annotation) => {
-      ec.setAll(s, sa)
-
-      sampleAggregationOption.foreach(f => f.apply(s))
-
-      Filter.keepThis(f(), keep)
-    }
-
-    state.copy(vds = vds.filterSamples(p))
+    state.copy(vds = state.vds.filterSamples(options.condition, keep))
   }
 }

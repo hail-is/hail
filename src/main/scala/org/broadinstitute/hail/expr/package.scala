@@ -1,5 +1,7 @@
 package org.broadinstitute.hail
 
+import org.broadinstitute.hail.variant._
+
 package object expr {
   type SymbolTable = Map[String, (Int, BaseType)]
 
@@ -22,4 +24,12 @@ package object expr {
   implicit val toLong = LongNumericConversion
   implicit val toFloat = FloatNumericConversion
   implicit val toDouble = DoubleNumericConversion
+
+  case class ExprMapping[T](t: Type)
+
+  implicit def genotypeType = ExprMapping[Genotype](TGenotype)
+
+  implicit def variantType = ExprMapping[Variant](TVariant)
+
+  implicit def locusType = ExprMapping[Locus](TLocus)
 }

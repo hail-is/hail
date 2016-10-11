@@ -9,7 +9,7 @@ import org.broadinstitute.hail.variant._
 
 object Aggregators {
 
-  def buildVariantAggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
+  def buildVariantAggregations(vds: VariantSampleMatrix[_], ec: EvalContext): Option[(Variant, Annotation, Iterable[_]) => Unit] = {
     val aggregators = ec.aggregationFunctions.toArray
     val aggregatorA = ec.a
 
@@ -18,7 +18,7 @@ object Aggregators {
       val localSamplesBc = vds.sampleIdsBc
       val localAnnotationsBc = vds.sampleAnnotationsBc
 
-      val f = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
+      val f = (v: Variant, va: Annotation, gs: Iterable[_]) => {
         val aggregations = aggregators.map(_.zero)
         aggregatorA(0) = v
         aggregatorA(1) = va
@@ -43,7 +43,7 @@ object Aggregators {
     } else None
   }
 
-  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(String) => Unit] = {
+  def buildSampleAggregations(vds: VariantSampleMatrix[_], ec: EvalContext): Option[(String) => Unit] = {
     val aggregators = ec.aggregationFunctions.toArray
     val aggregatorA = ec.a
 
@@ -56,14 +56,16 @@ object Aggregators {
 
       val nAggregations = aggregators.length
       val nSamples = vds.nSamples
-      val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
 
-      val baseArray = MultiArray2.fill[Any](nSamples, nAggregations)(null)
-      for (i <- 0 until nSamples; j <- 0 until nAggregations) {
-        baseArray.update(i, j, aggregators(j).zero)
+      def zero() = {
+        val baseArray = MultiArray2.fill[Any](nSamples, nAggregations)(null)
+        for (i <- 0 until nSamples; j <- 0 until nAggregations) {
+          baseArray.update(i, j, aggregators(j).zero)
+        }
+        baseArray
       }
 
-      val result = vds.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
+      val result = vds.rdd.treeAggregate(zero())({ case (arr, (v, (va, gs))) =>
         aggregatorA(0) = v
         aggregatorA(1) = va
         gs.iterator
@@ -83,7 +85,7 @@ object Aggregators {
           arr1.update(i, j, aggregators(j).combOp(arr1(i, j), arr2(i, j)))
         }
         arr1
-      }, depth = depth)
+      }, depth = HailConfiguration.treeAggDepth(vds.nPartitions))
 
       val sampleIndex = vds.sampleIds.zipWithIndex.toMap
       Some((s: String) => {
