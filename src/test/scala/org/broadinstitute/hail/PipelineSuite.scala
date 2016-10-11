@@ -26,7 +26,7 @@ class PipelineSuite extends SparkSuite {
 
     s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.AF > 0.01 && va.qc.AF < 0.99"))
 
-    s = PCA.run(s, Array("-o", pcaFile))
+    s = PCA.run(s, Array("-s", "sa.scores"))
 
     /*
     val linregFile = tmpDir.createTempFile("linreg", extension = ".tsv")

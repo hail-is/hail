@@ -773,6 +773,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       vaSignature = newSignature)
   }
 
+  def annotateVariants(otherRDD: OrderedRDD[Locus, Variant, Annotation], signature: Type,
+    code: String): VariantSampleMatrix[T] = {
+    val (newSignature, ins) = insertVA(signature, Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD))
+    annotateVariants(otherRDD, newSignature, ins)
+  }
+
+
   def annotateVariants(otherRDD: OrderedRDD[Locus, Variant, Annotation], newSignature: Type,
     inserter: Inserter): VariantSampleMatrix[T] = {
     val newRDD = rdd.orderedLeftJoinDistinct(otherRDD)
@@ -797,8 +804,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(rdd = orderedRDD, vaSignature = newSignature)
   }
 
-  def annotateSamples(annotations: Map[String, Annotation], signature: Type, path: List[String]): VariantSampleMatrix[T] = {
-    val (t, i) = insertSA(signature, path)
+  def annotateSamples(annotations: Map[String, Annotation], signature: Type, code: String): VariantSampleMatrix[T] = {
+    val (t, i) = insertSA(signature, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
     annotateSamples(annotations.get _, t, i)
   }
 
@@ -816,6 +823,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     }
 
     copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
+  }
+
+  def annotateGlobal(a: Annotation, t: Type, code: String): VariantSampleMatrix[T] = {
+    val (newT, i) = insertGlobal(t, Parser.parseAnnotationRoot(code, Annotation.GLOBAL_HEAD))
+    copy(globalSignature = newT, globalAnnotation = i(globalAnnotation, Option(a)))
   }
 
   def queryVA(code: String): (BaseType, Querier) = {
@@ -1051,17 +1063,17 @@ class RichVDS(vds: VariantDataset) {
 
   def filterVariantsExpr(cond: String, keep: Boolean): VariantDataset = {
     val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, vds.saSignature),
+      "g" -> (4, TGenotype),
+      "global" -> (5, vds.globalSignature)))
     val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "global" -> (2, vds.globalSignature),
+      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
 
 
     val ec = EvalContext(symTab)

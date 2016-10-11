@@ -40,13 +40,13 @@ Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even igno
 <div class="cmdsubsection">
 ### Examples:
 
-As input, PCA expects a `.vds` file with biallelic autosomal variants. The analysis is with respect to a standardized genotype matrix; see above for details. The default scores output is a `.tsv` file recording the first 10 principal component (PC) scores of each sample. Format: one line per sample plus a header, with columns `SAMPLE`, `PC1`, `PC2`, etc. Default usage:
+As input, PCA expects a `.vds` file with biallelic autosomal variants. The analysis is with respect to a standardized genotype matrix; see above for details. The scores are computed by default and written to sample annotations; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
 ```
-$ hail read -i file.vds pca -o scores.tsv
+$ hail read -i file.vds pca --scores sa.pca
 ```
 
-The following command computes the first 5 principal component scores and loadings, and outputs the scores, loadings, and eigenvalues to `.tsv` files:
+The following command computes the first 5 principal component scores, loadings, and eigenvalues, writing them to annotations:
 ```
-$ hail read -i file.vds pca -k 5 -o scores.tsv -l loadings.tsv -e evals.tsv
+$ hail read -i file.vds pca -k 5 --scores sa.pca --loadings va.loadings --eigenvalues global.eigen
 ```
 </div>
