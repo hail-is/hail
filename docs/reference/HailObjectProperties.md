@@ -94,6 +94,7 @@ Identifier | Type | Description
 `g.fakeRef`        | `Boolean` | true if this genotype was downcoded in [`splitmulti`](#splitmulti).  This can happen if a `1/2` call is split to `0/1`, `0/1`
 `g.isDosage` |`Boolean` | true if the data was imported from `importgen` or `importbgen`
 `g.oneHotAlleles(Variant)` | `Array[Int]` | Produces an array of called counts for each allele in the variant (including reference).  For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce `[2, 0]`, `[1, 1]`, and `[0, 2]` respectively.
+`g.oneHotGenotype(Variant)` | `Array[Int]` | Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0.  For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce `[1, 0, 0]`, `[0, 1, 0]`, and `[0, 0, 1]` respectively.
 `g.gtj`             | `Int`     | the index of allele `j` for call `j/k` (0 = ref, 1 = first alt allele, etc.)
 `g.gtk`             | `Int`     | the index of allele `k` for call `j/k` (0 = ref, 1 = first alt allele, etc.)
 
