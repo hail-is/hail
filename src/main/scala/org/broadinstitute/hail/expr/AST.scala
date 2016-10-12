@@ -1108,7 +1108,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val t = agg.elementType
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new StatAggregable(aggF, localIdx)
+      agg.ec.aggregationFunctions += new StatAggregator(aggF, localIdx)
 
       val getOp = (a: Any) => {
         val sc = a.asInstanceOf[StatCounter]

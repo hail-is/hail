@@ -140,7 +140,7 @@ class CountAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAg
 
   override def seqOp(x: Any) = aggF(x).foreach { _ => _state += 1 }
 
-  override def combOp(agg2: TypedAggregator[Any]): Unit = _state += agg2.result.asInstanceOf[Long]
+  override def combOp(agg2: TypedAggregator[Any]): Unit = _state += agg2.asInstanceOf[CountAggregator]._state
 
   override def copy() = new CountAggregator(aggF, localIdx)
 
@@ -165,7 +165,7 @@ class FractionAggregator(aggF: (Any) => Option[Any], localIdx: Int, localA: Arra
   }
 
   override def combOp(agg2: TypedAggregator[Any]) = {
-    val fracAgg = agg2.asInstanceOf[this.type]
+    val fracAgg = agg2.asInstanceOf[FractionAggregator]
     _num += fracAgg._num
     _denom += fracAgg._denom
   }
@@ -175,7 +175,7 @@ class FractionAggregator(aggF: (Any) => Option[Any], localIdx: Int, localA: Arra
   override def idx = localIdx
 }
 
-class StatAggregable(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggregator[StatCounter] {
+class StatAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggregator[StatCounter] {
   def zero: StatCounter = new StatCounter()
 
   var _state = zero
@@ -184,9 +184,9 @@ class StatAggregable(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAgg
 
   override def seqOp(x: Any) = aggF(x).foreach(x => _state = _state.merge(DoubleNumericConversion.to(x)))
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.result.asInstanceOf[StatCounter])
+  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.asInstanceOf[StatAggregator]._state)
 
-  override def copy() = new StatAggregable(aggF, localIdx)
+  override def copy() = new StatAggregator(aggF, localIdx)
 
   override def idx = localIdx
 }
@@ -200,7 +200,7 @@ class HistAggregator(aggF: (Any) => Option[Any], localIdx: Int, indices: Array[D
 
   override def seqOp(x: Any) = aggF(x).foreach(x => _state = _state.merge(DoubleNumericConversion.to(x)))
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.result.asInstanceOf[HistogramCombiner])
+  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.asInstanceOf[HistAggregator]._state)
 
   override def copy() = new HistAggregator(aggF, localIdx, indices)
 
@@ -216,7 +216,7 @@ class CollectAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends Typed
 
   override def seqOp(x: Any) = aggF(x).foreach(elem => _state += elem)
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state ++= agg2.result.asInstanceOf[ArrayBuffer[Any]]
+  override def combOp(agg2: TypedAggregator[Any]) = _state ++= agg2.asInstanceOf[CollectAggregator]._state
 
   override def copy() = new CollectAggregator(aggF, localIdx)
 
@@ -232,7 +232,7 @@ class InfoScoreAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends Typ
 
   override def seqOp(x: Any) = aggF(x).foreach(x => _state = _state.merge(x.asInstanceOf[Genotype]))
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.asInstanceOf[InfoScoreCombiner])
+  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.asInstanceOf[InfoScoreAggregator]._state)
 
   override def copy() = new InfoScoreAggregator(aggF, localIdx)
 
@@ -248,7 +248,7 @@ class SumAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggr
 
   override def seqOp(x: Any) = aggF(x).foreach(elem => _state += DoubleNumericConversion.to(elem))
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state += agg2.result.asInstanceOf[Double]
+  override def combOp(agg2: TypedAggregator[Any]) = _state += agg2.asInstanceOf[SumAggregator]._state
 
   override def copy() = new SumAggregator(aggF, localIdx)
 
@@ -279,7 +279,7 @@ class SumArrayAggregator(aggF: (Any) => Option[Any], localIdx: Int, localPos: Po
     }
 
   override def combOp(agg2: TypedAggregator[Any]) = {
-    val agg2result = agg2.result.asInstanceOf[IndexedSeq[Double]]
+    val agg2result = agg2.asInstanceOf[SumArrayAggregator]._state
     if (_state.length != agg2result.length)
       ParserUtils.error(localPos,
         s"""cannot aggregate arrays of unequal length with `sum'
