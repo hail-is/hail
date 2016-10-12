@@ -29,7 +29,7 @@ This tutorial can be done in two different ways:
 (3) Download a tarball containing the Jupyter/iPython Notebook file using [wget](https://www.google.com/search?q=install+wget) or [curl](https://www.google.com/search?q=install+curl).
 
 ```
-wget https://hail.is/docs/devel/Hail_Tutorial-v1.tgz
+wget https://hail.is/Hail_Tutorial-v1.tgz
 ```
 
 (4) Decompress the tarball using [tar](https://www.google.com/search?q=decompress+tarball)
