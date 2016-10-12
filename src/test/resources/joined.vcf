@@ -22,6 +22,6 @@
 ##INFO=<ID=QD,Number=1,Type=Float,Description="Variant Confidence/Quality by Depth">
 ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float,Description="Z-score from Wilcoxon rank sum test of Alt vs. Ref read position bias">
 ##INFO=<ID=set,Number=1,Type=String,Description="Source VCF for the merged record in CombineVariants">
-#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	A	B	Bd	D
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	A	B	C	D
 22	16050115	.	G	A	134.13	.	AC=20;AF=7.252e-03;AN=2758;BaseQRankSum=5.043;ClippingRankSum=0.096;DP=3067;FS=0.000;InbreedingCoeff=-0.0770;MLEAC=14;MLEAF=5.076e-03;MQ=29.93;MQ0=0;MQRankSum=0.318;QD=4.63;ReadPosRankSum=0.299	GT:AD:DP:GQ:PL	./.	0/0:1,0:1:3:0,3,22	./.	0/0:1,0:1:3:0,3,22
 22	17399133	.	CA	CAA,C	260.79	.	AC=129,183;AF=0.026,0.036;AN=5018;BaseQRankSum=-2.041;ClippingRankSum=-2.818;DP=18429;FS=0.665;InbreedingCoeff=0.0591;MLEAC=30,37;MLEAF=5.978e-03,7.373e-03;MQ=58.53;MQ0=0;MQRankSum=1.843;QD=0.11;ReadPosRankSum=-3.127	GT:AD:DP:GQ:PL	0/0:5,0,0:5:15:0,15,132,15,133,133	0/0:8,1,0:9:2:0,2,186,26,190,224	0/0:11,0,0:11:33:0,33,290,33,292,293	0/0:9,0,1:10:2:0,30,244,2,212,212

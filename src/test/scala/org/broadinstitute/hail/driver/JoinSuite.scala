@@ -11,7 +11,7 @@ class JoinSuite extends SparkSuite {
     var s = State(sc, sqlContext)
 
     val rightPath = tmpDir.createTempFile("joinright", "vds")
-    val joinedPath = tmpDir.createTempFile("joined", "vds)")
+    val joinedPath = tmpDir.createTempFile("joined", "vds")
 
     s = ImportVCF.run(s, Array("src/test/resources/joinright.vcf"))
     s = Write.run(s, Array("-o", rightPath))
