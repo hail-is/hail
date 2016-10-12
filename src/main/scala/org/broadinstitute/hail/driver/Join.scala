@@ -26,47 +26,34 @@ object Join extends Command {
     val right = VariantSampleMatrix.read(state.sqlContext, options.right)
 
     if (left.wasSplit != right.wasSplit) {
-      fatal(
+      warn(
         s"""cannot join split and unsplit datasets
             |  left was split: ${ left.wasSplit }
             |  light was split: ${ right.wasSplit }""".stripMargin)
-    } else if (left.saSignature != right.saSignature) {
+    }
+
+    if (left.saSignature != right.saSignature) {
       fatal(
         s"""cannot join datasets with different sample schemata
             |  left sample schema: @1
-            |  right sample schema: @2""".
-          stripMargin,
+            |  right sample schema: @2""".stripMargin,
         left.saSignature.toPrettyString(compact = true, printAttrs = true),
         right.saSignature.toPrettyString(compact = true, printAttrs = true))
     }
 
-    val joined = left.rdd.orderedLeftJoinDistinct(right.rdd)
-      .flatMapValues { case ((lva, lgs), None) =>
-        None
-      case ((lva, lgs), Some((rva, rgs))) =>
-        Some((lva, lgs ++ rgs))
-      }
-      .toOrderedRDD
+    val newSampleIds = left.sampleIds ++ right.sampleIds
+    val duplicates = newSampleIds.duplicates()
+    if (duplicates.nonEmpty)
+      fatal("duplicate sample IDs: @1", duplicates)
 
-    var sampleSet = left.sampleIds.toSet
-    assert(sampleSet.size == left.nSamples)
-
-    val newRightSampleIds = right.sampleIds.map { s =>
-      var s2 = s
-      var changed = false
-      while (sampleSet.contains(s2)) {
-        s2 = s2 + "d"
-        changed = true
-      }
-      if (changed)
-        info(s"renamed right sampleId $s to $s2")
-      sampleSet += s2
-      s2
-    }
+    val joined = left.rdd.orderedInnerJoinDistinct(right.rdd)
+      .mapValues { case ((lva, lgs), (rva, rgs)) =>
+        (lva, lgs ++ rgs)
+      }.asOrderedRDD
 
     state.copy(
       vds = left.copy(
-        sampleIds = left.sampleIds ++ newRightSampleIds,
+        sampleIds = newSampleIds,
         sampleAnnotations = left.sampleAnnotations ++ right.sampleAnnotations,
         rdd = joined))
   }
