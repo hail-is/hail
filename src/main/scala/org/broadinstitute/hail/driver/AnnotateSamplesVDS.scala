@@ -48,7 +48,7 @@ object AnnotateSamplesVDS extends Command with JoinAnnotator {
         "sa" -> (0, vds.saSignature),
         "vds" -> (1, otherVds.saSignature)))
       buildInserter(code, vds.saSignature, ec, Annotation.SAMPLE_HEAD)
-    } else vds.insertVA(otherVds.vaSignature, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
+    } else vds.insertSA(otherVds.vaSignature, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
 
     state.copy(vds = vds
       .annotateSamples(otherVds.sampleIdsAndAnnotations.toMap.get(_), finalType, inserter))
