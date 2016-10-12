@@ -155,6 +155,14 @@ class Genotype(private val _gt: Int,
     }
   }
 
+  def oneHotGenotype(v: Variant): Option[Array[Int]] = {
+    gt.map { call =>
+      val a = Array.fill(v.nGenotypes)(0)
+      a(call) = 1
+      a
+    }
+  }
+
   override def toString: String = {
     val b = new StringBuilder
 

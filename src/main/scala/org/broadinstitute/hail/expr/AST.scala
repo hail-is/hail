@@ -874,6 +874,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         t
 
       case (TGenotype, "oneHotAlleles", Array(TVariant)) => TArray(TInt)
+      case (TGenotype, "oneHotGenotype", Array(TVariant)) => TArray(TInt)
 
       case (t, _, _) =>
         parseError(s"`no matching signature for `$method(${ rhsTypes.mkString(", ") })' on `$t'")
@@ -1334,6 +1335,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
     case (TGenotype, "oneHotAlleles", Array(v)) =>
       AST.evalCompose[Genotype, Variant](ec, lhs, v) { case (g, v) => g.oneHotAlleles(v).map(_.toIndexedSeq).orNull }
+
+    case (TGenotype, "oneHotGenotype", Array(v)) =>
+      AST.evalCompose[Genotype, Variant](ec, lhs, v) { case (g, v) => g.oneHotGenotype(v).map(_.toIndexedSeq).orNull }
 
     case (TString, "replace", Array(a, b)) =>
       AST.evalCompose[String, String, String](ec, lhs, a, b) { case (str, pattern1, pattern2) =>
