@@ -92,8 +92,8 @@ object Aggregators {
     }
   }
 
-  def makeFunctions(ec: EvalContext): (Array[Any], (Array[Any], (Any, Any)) => Array[Any],
-    (Array[Any], Array[Any]) => Array[Any], (Array[Any]) => Unit) = {
+  def makeFunctions(ec: EvalContext): (Array[Aggregator], (Array[Aggregator], (Any, Any)) => Array[Aggregator],
+    (Array[Aggregator], Array[Aggregator]) => Array[Aggregator], (Array[Aggregator]) => Unit) = {
 
     val aggregators = ec.aggregationFunctions.toArray
 
@@ -101,32 +101,29 @@ object Aggregators {
 
     val baseArray = Array.fill[Aggregator](aggregators.length)(null)
 
-    val zero: Array[Any] = {
+    val zero = {
       for (i <- baseArray.indices)
         baseArray(i) = aggregators(i).copy()
-      baseArray.map(_.asInstanceOf[Any])
+      baseArray
     }
 
-    val seqOp: (Array[Any], (Any, Any)) => Array[Any] = (array: Array[Any], b) => {
+    val seqOp = (array: Array[Aggregator], b: (Any, Any)) => {
       val (aggT, annotation) = b
       ec.set(0, annotation)
       for (i <- array.indices) {
-        array(i).asInstanceOf[Aggregator].seqOp(aggT)
+        array(i).seqOp(aggT)
       }
       array
     }
 
-    val combOp: (Array[Any], Array[Any]) => Array[Any] = (arr1, arr2) => {
+    val combOp = (arr1: Array[Aggregator], arr2: Array[Aggregator]) => {
       for (i <- arr1.indices) {
-        arr1(i).asInstanceOf[Aggregator].combOp(arr2(i).asInstanceOf[Aggregator])
+        arr1(i).combOp(arr2(i))
       }
       arr1
     }
 
-    val resultOp = (array: Array[Any]) => array.foreach{res =>
-      val agg = res.asInstanceOf[Aggregator]
-      arr(agg.idx) = agg.result
-    }
+    val resultOp = (array: Array[Aggregator]) => array.foreach{res => arr(res.idx) = res.result}
 
     (zero, seqOp, combOp, resultOp)
   }
