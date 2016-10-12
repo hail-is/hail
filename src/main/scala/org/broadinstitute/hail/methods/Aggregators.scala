@@ -31,10 +31,12 @@ object Aggregators {
             case (g, s, sa) =>
               aggregatorA(2) = s
               aggregatorA(3) = sa
-              baseArray.foreach { _.seqOp(g) }
+              baseArray.foreach {
+                _.seqOp(g)
+              }
           }
 
-          baseArray.foreach { agg => aggregatorA(agg.idx) = agg.result}
+        baseArray.foreach { agg => aggregatorA(agg.idx) = agg.result }
       }
       Some(f)
     } else None
@@ -123,7 +125,7 @@ object Aggregators {
       arr1
     }
 
-    val resultOp = (array: Array[Aggregator]) => array.foreach{res => arr(res.idx) = res.result}
+    val resultOp = (array: Array[Aggregator]) => array.foreach { res => arr(res.idx) = res.result }
 
     (zero, seqOp, combOp, resultOp)
   }
@@ -136,7 +138,7 @@ class CountAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAg
 
   override def result = _state
 
-  override def seqOp(x: Any) = aggF(x).foreach{ _ => _state += 1 }
+  override def seqOp(x: Any) = aggF(x).foreach { _ => _state += 1 }
 
   override def combOp(agg2: TypedAggregator[Any]): Unit = _state += agg2.result.asInstanceOf[Long]
 
@@ -255,6 +257,7 @@ class SumAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggr
 
 class SumArrayAggregator(aggF: (Any) => Option[Any], localIdx: Int, localPos: Position) extends TypedAggregator[IndexedSeq[Double]] {
   def zero = Array.empty[Double]
+
   var _state = zero
 
   override def result = _state.toIndexedSeq

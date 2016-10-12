@@ -1332,12 +1332,12 @@ case class BinaryOp(posn: Position, lhs: AST, operation: String, rhs: AST) exten
           val localPos = posn
           val localOperation = operation
           AST.evalCompose[IndexedSeq[_], IndexedSeq[_]](ec, lhs, rhs) { case (left, right) =>
-          if (left.length != right.length) ParserUtils.error(localPos,
-            s"""cannot apply operation `$localOperation' to arrays of unequal length
-                |  Left: ${ left.length } elements
-                |  Right: ${ right.length } elements""".stripMargin)
-          (left, right).zipped.map(f)
-        }
+            if (left.length != right.length) ParserUtils.error(localPos,
+              s"""cannot apply operation `$localOperation' to arrays of unequal length
+                  |  Left: ${ left.length } elements
+                  |  Right: ${ right.length } elements""".stripMargin)
+            (left, right).zipped.map(f)
+          }
         case (_, TArray(_)) => AST.evalCompose[Any, IndexedSeq[_]](ec, lhs, rhs) { case (num, arr) =>
           arr.map(elem => f(num, elem))
         }
