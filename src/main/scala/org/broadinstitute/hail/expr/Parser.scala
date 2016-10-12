@@ -310,6 +310,7 @@ object Parser extends JavaTokenParsers {
       | withPos("[") ~ expr ~ "]"
       | withPos("[") ~ opt(expr) ~ ":" ~ opt(expr) ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
+        case (dot: Positioned[_]) ~ "*" => Splat(dot.pos, acc)
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
         case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
           ApplyMethod(dot.pos, acc, sym, args)

@@ -260,7 +260,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     (lhs.`type`, rhs) match {
       case (TSample, "id") => TString
 
-      case (t: TStruct, "*") => TSplat(t)
       case (t: TStruct, _) =>
         t.selfField(rhs) match {
           case Some(f) => f.`type`
@@ -289,18 +288,6 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
   def eval(ec: EvalContext): () => Any = ((lhs.`type`, rhs): @unchecked) match {
     case (TSample, "id") => lhs.eval(ec)
-
-    case (t: TStruct, "*") =>
-      val f = lhs.eval(ec)
-      () => {
-        val r = f()
-        if (r == null)
-          IndexedSeq.fill(t.size)(null)
-        else {
-          val row = r.asInstanceOf[Row]
-          IndexedSeq.tabulate(t.size)(row.get)
-        }
-      }
 
     case (t: TStruct, _) =>
       val Some(f) = t.selfField(rhs)
@@ -1677,6 +1664,29 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
         coerce(if (c.asInstanceOf[Boolean]) f2() else f3())
       } else
         null
+    }
+  }
+}
+
+case class Splat(pos: Position, lhs: AST) extends AST(pos, lhs) {
+  override def typecheckThis(): BaseType = {
+    lhs.`type` match {
+      case t: TStruct => TSplat(t)
+      case t => parseError(
+        s"""splatting ( <identifier>.* ) operations are only supported on `Struct'
+            |  Found `$t'
+         """.stripMargin)
+    }
+  }
+
+  override def eval(ec: EvalContext): () => Any = {
+    val nElem = `type`.asInstanceOf[TSplat].struct.size
+    val f = lhs.eval(ec)
+    () => (f(): @unchecked) match {
+      case null => (0 until nElem).map(_ => null)
+      case r: Row =>
+        assert(r.size == nElem)
+        (0 until nElem).map(r.get)
     }
   }
 }
