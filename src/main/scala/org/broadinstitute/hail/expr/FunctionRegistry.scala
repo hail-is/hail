@@ -143,7 +143,6 @@ object FunctionRegistry {
   registerOptionField("nNonRefAlleles", { (x: Genotype) => x.nNonRefAlleles })
   registerOptionField("pAB", { (x: Genotype) => x.pAB() })
   registerOptionField("fractionReadsRef", { (x: Genotype) => x.fractionReadsRef() })
-  registerOptionField("fractionReadsRef", { (x: Genotype) => x.fractionReadsRef() })
   registerField("fakeRef", { (x: Genotype) => x.fakeRef })
   registerField("isDosage", { (x: Genotype) => x.isDosage })
   registerField("contig", { (x: Variant) => x.contig })
