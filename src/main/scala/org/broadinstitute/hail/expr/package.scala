@@ -2,20 +2,14 @@ package org.broadinstitute.hail
 
 package object expr {
   type SymbolTable = Map[String, (Int, BaseType)]
-
   type Aggregator = TypedAggregator[Any]
 
-  abstract class TypedAggregator[S] extends Serializable { self =>
-    def zero: S
-    def seqOp(x: Any, acc: S): S
-    def combOp(acc1: S, acc2: S): S
+  abstract class TypedAggregator[+S] extends Serializable {
+    def seqOp(x: Any): Unit
+    def combOp(agg2: TypedAggregator[Any]): Unit
+    def result: S
+    def copy(): TypedAggregator[S]
     def idx: Int
-    def erase: Aggregator = new TypedAggregator[Any] {
-      def zero = self.zero
-      def seqOp(x: Any, acc: Any) = self.seqOp(x, acc.asInstanceOf[S])
-      def combOp(acc1: Any, acc2: Any) = self.combOp(acc1.asInstanceOf[S], acc2.asInstanceOf[S])
-      def idx = self.idx
-    }
   }
 
   implicit val toInt = IntNumericConversion

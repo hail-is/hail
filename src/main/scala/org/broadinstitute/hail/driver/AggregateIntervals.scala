@@ -70,7 +70,7 @@ object AggregateIntervals extends Command {
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
 
-    val zvf: () => Array[Any] = () => zVals.indices.map(zVals).toArray
+    val zvf = () => zVals.indices.map(zVals).toArray
 
     val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
 

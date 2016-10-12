@@ -13,7 +13,7 @@ package object stats {
     def signature = TStruct("score" -> TDouble, "nIncluded" -> TInt)
   }
 
-  class InfoScoreCombiner {
+  class InfoScoreCombiner extends Serializable {
     var result = 0d
     var expectedAlleleCount = 0d
     var totalDosage = 0d
