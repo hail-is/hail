@@ -27,7 +27,7 @@ class HistogramCombiner(indices: Array[Double]) extends Serializable {
       nSmaller += 1
     else if (d > max)
       nGreater += 1
-    else {
+    else if (d != Double.NaN) {
       val bs = binarySearch(indices, d)
       val ind = if (bs < 0)
         -bs - 2
