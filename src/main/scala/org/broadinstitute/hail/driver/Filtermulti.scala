@@ -8,7 +8,8 @@ object Filtermulti extends Command {
 
   def name = "filtermulti"
 
-  def description = "Filter multi-allelic sites in the current dataset and returns a VDS with the splitmulti flag on."
+  def description = "Filter multi-allelic sites in the current dataset.  " +
+    "Useful for running commands that require biallelic variants without an expensive `splitmulti' step."
 
   class Options extends BaseOptions {
   }
