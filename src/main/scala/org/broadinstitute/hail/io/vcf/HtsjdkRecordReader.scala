@@ -86,7 +86,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala
-      assert(alleles.length == 2)
+      assert(alleles.length == 2, s"expected 2 alleles in genotype, but found ${alleles.length}")
       val a0 = alleles(0)
       val a1 = alleles(1)
 
