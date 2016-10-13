@@ -4,8 +4,8 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.stats.{CallStats, CallStatsCombiner, HistogramCombiner, InfoScoreCombiner}
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.stats.{HistogramCombiner, InfoScoreCombiner}
 import org.broadinstitute.hail.variant._
 
 import scala.collection.mutable.ArrayBuffer
@@ -65,21 +65,23 @@ object Aggregators {
       val result = vds.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
         aggregatorA(0) = v
         aggregatorA(1) = va
-        gs.iterator
-          .zipWithIndex
-          .foreach { case (g, i) =>
-            aggregatorA(2) = localSamplesBc.value(i)
-            aggregatorA(3) = localAnnotationsBc.value(i)
+        var i = 0
+        gs.foreach { g =>
+          aggregatorA(2) = localSamplesBc.value(i)
+          aggregatorA(3) = localAnnotationsBc.value(i)
 
-            for (j <- 0 until nAggregations) {
-              arr(i, j).seqOp(g)
-            }
+          var j = 0
+          while (j < nAggregations) {
+            arr(i, j).seqOp(g)
+            j += 1
           }
-
+          i += 1
+        }
         arr
       }, { case (arr1, arr2) =>
         for (i <- 0 until nSamples; j <- 0 until nAggregations) {
-          arr1(i, j).combOp(arr2(i, j))
+          val a1 = arr1(i, j)
+          a1.combOp(arr2(i, j).asInstanceOf[a1.type])
         }
         arr1
       }, depth = depth)
@@ -120,7 +122,8 @@ object Aggregators {
 
     val combOp = (arr1: Array[Aggregator], arr2: Array[Aggregator]) => {
       for (i <- arr1.indices) {
-        arr1(i).combOp(arr2(i))
+        val a1 = arr1(i)
+        a1.combOp(arr2(i).asInstanceOf[a1.type])
       }
       arr1
     }
@@ -131,164 +134,222 @@ object Aggregators {
   }
 }
 
-class CountAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggregator[Long] {
-  def zero: Long = 0L
+class CountAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Long] {
 
-  var _state = zero
+  var _state = 0L
 
   override def result = _state
 
-  override def seqOp(x: Any) = aggF(x).foreach { _ => _state += 1 }
+  override def seqOp(x: Any) {
+    val v = f(x)
+    if (f(x) != null)
+      _state += 1
+  }
 
-  override def combOp(agg2: TypedAggregator[Any]): Unit = _state += agg2.asInstanceOf[CountAggregator]._state
+  override def combOp(agg2: this.type) {
+    _state += agg2._state
+  }
 
-  override def copy() = new CountAggregator(aggF, localIdx)
-
-  override def idx = localIdx
+  override def copy() = new CountAggregator(f, idx)
 }
 
-class FractionAggregator(aggF: (Any) => Option[Any], localIdx: Int, localA: ArrayBuffer[Any], bodyFn: () => Any, lambdaIdx: Int) extends TypedAggregator[Option[Double]] {
+class FractionAggregator(f: (Any) => Any, val idx: Int, localA: ArrayBuffer[Any], bodyFn: () => Any, lambdaIdx: Int)
+  extends TypedAggregator[java.lang.Double] {
+
   var _num = 0L
   var _denom = 0L
 
-  override def result = {
-    divOption(_num.toDouble, _denom)
-  }
+  override def result =
+    if (_denom == 0L)
+      null
+    else
+      _num.toDouble / _denom
 
-  override def seqOp(x: Any) = {
-    aggF(x).foreach { value =>
-      localA(lambdaIdx) = value
-      val numToAdd = if (bodyFn().asInstanceOf[Boolean]) 1 else 0
-      _num += numToAdd
+  override def seqOp(x: Any) {
+    val r = f(x)
+    if (r != null) {
       _denom += 1
+      localA(lambdaIdx) = r
+      if (bodyFn().asInstanceOf[Boolean])
+        _num += 1
     }
   }
 
-  override def combOp(agg2: TypedAggregator[Any]) = {
-    val fracAgg = agg2.asInstanceOf[FractionAggregator]
-    _num += fracAgg._num
-    _denom += fracAgg._denom
+  override def combOp(agg2: this.type) {
+    _num += agg2._num
+    _denom += agg2._denom
   }
 
-  override def copy() = new FractionAggregator(aggF, localIdx, localA, bodyFn, lambdaIdx)
-
-  override def idx = localIdx
+  override def copy() = new FractionAggregator(f, idx, localA, bodyFn, lambdaIdx)
 }
 
-class StatAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggregator[StatCounter] {
-  def zero: StatCounter = new StatCounter()
+class StatAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[StatCounter] {
 
-  var _state = zero
+  var _state = new StatCounter()
 
   override def result = _state
 
-  override def seqOp(x: Any) = aggF(x).foreach(x => _state = _state.merge(DoubleNumericConversion.to(x)))
+  override def seqOp(x: Any) {
+    val r = f(x)
+    if (r != null)
+      _state.merge(DoubleNumericConversion.to(r))
+  }
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.asInstanceOf[StatAggregator]._state)
+  override def combOp(agg2: this.type) {
+    _state.merge(agg2._state)
+  }
 
-  override def copy() = new StatAggregator(aggF, localIdx)
-
-  override def idx = localIdx
+  override def copy() = new StatAggregator(f, idx)
 }
 
-class HistAggregator(aggF: (Any) => Option[Any], localIdx: Int, indices: Array[Double]) extends TypedAggregator[HistogramCombiner] {
-  def zero = new HistogramCombiner(indices)
+class HistAggregator(f: (Any) => Any, val idx: Int, indices: Array[Double])
+  extends TypedAggregator[HistogramCombiner] {
 
-  var _state = zero
+  var _state = new HistogramCombiner(indices)
 
   override def result = _state
 
-  override def seqOp(x: Any) = aggF(x).foreach(x => _state = _state.merge(DoubleNumericConversion.to(x)))
+  override def seqOp(x: Any) {
+    val r = f(x)
+    if (r != null)
+      _state.merge(DoubleNumericConversion.to(r))
+  }
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.asInstanceOf[HistAggregator]._state)
+  override def combOp(agg2: this.type) {
+    _state.merge(agg2._state)
+  }
 
-  override def copy() = new HistAggregator(aggF, localIdx, indices)
-
-  override def idx = localIdx
+  override def copy() = new HistAggregator(f, idx, indices)
 }
 
-class CollectAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggregator[ArrayBuffer[Any]] {
-  def zero = new ArrayBuffer[Any]
+class CollectAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[ArrayBuffer[Any]] {
 
-  var _state = zero
+  var _state = new ArrayBuffer[Any]
 
   override def result = _state
 
-  override def seqOp(x: Any) = aggF(x).foreach(elem => _state += elem)
+  override def seqOp(x: Any) {
+    val r = f(x)
+    if (r != null)
+      _state += f(x)
+  }
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state ++= agg2.asInstanceOf[CollectAggregator]._state
+  override def combOp(agg2: this.type) = _state ++= agg2._state
 
-  override def copy() = new CollectAggregator(aggF, localIdx)
-
-  override def idx = localIdx
+  override def copy() = new CollectAggregator(f, idx)
 }
 
-class InfoScoreAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggregator[InfoScoreCombiner] {
-  def zero = new InfoScoreCombiner()
+class InfoScoreAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[InfoScoreCombiner] {
 
-  var _state = zero
+  var _state = new InfoScoreCombiner()
 
   override def result = _state
 
-  override def seqOp(x: Any) = aggF(x).foreach(x => _state = _state.merge(x.asInstanceOf[Genotype]))
+  override def seqOp(x: Any) {
+    val r = f(x)
+    if (r != null)
+      _state.merge(r.asInstanceOf[Genotype])
+  }
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state = _state.merge(agg2.asInstanceOf[InfoScoreAggregator]._state)
+  override def combOp(agg2: this.type) {
+    _state.merge(agg2._state)
+  }
 
-  override def copy() = new InfoScoreAggregator(aggF, localIdx)
-
-  override def idx = localIdx
+  override def copy() = new InfoScoreAggregator(f, idx)
 }
 
-class SumAggregator(aggF: (Any) => Option[Any], localIdx: Int) extends TypedAggregator[Double] {
-  def zero = 0d
-
-  var _state = zero
+class SumAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Double] {
+  var _state = 0d
 
   override def result = _state
 
-  override def seqOp(x: Any) = aggF(x).foreach(elem => _state += DoubleNumericConversion.to(elem))
+  override def seqOp(x: Any) {
+    val r = f(x)
+    if (r != null)
+      _state += DoubleNumericConversion.to(r)
+  }
 
-  override def combOp(agg2: TypedAggregator[Any]) = _state += agg2.asInstanceOf[SumAggregator]._state
+  override def combOp(agg2: this.type) = _state += agg2._state
 
-  override def copy() = new SumAggregator(aggF, localIdx)
-
-  override def idx = localIdx
+  override def copy() = new SumAggregator(f, idx)
 }
 
-class SumArrayAggregator(aggF: (Any) => Option[Any], localIdx: Int, localPos: Position) extends TypedAggregator[IndexedSeq[Double]] {
-  def zero = Array.empty[Double]
+class SumArrayAggregator(f: (Any) => Any, val idx: Int, localPos: Position)
+  extends TypedAggregator[IndexedSeq[Double]] {
 
-  var _state = zero
+  var _state: Array[Double] = _
 
-  override def result = _state.toIndexedSeq
+  override def result = _state
 
-  override def seqOp(x: Any) = aggF(x)
-    .map(_.asInstanceOf[IndexedSeq[_]])
-    .foreach { arr =>
-      val cast = arr.map(a => if (a == null) 0d else DoubleNumericConversion.to(a))
-      if (_state.isEmpty)
-        _state = cast.toArray
+  override def seqOp(x: Any) {
+    val r = f(x).asInstanceOf[IndexedSeq[Any]]
+    if (r != null) {
+      if (_state == null)
+        _state = r.map(DoubleNumericConversion.to).toArray
       else {
-        if (_state.length != cast.length)
+        if (r.length != _state.length)
           ParserUtils.error(localPos,
             s"""cannot aggregate arrays of unequal length with `sum'
-                |  Found conflicting arrays of size (${ _state.size }) and (${ cast.size })""".stripMargin)
-        for (i <- _state.indices)
-          _state(i) += cast(i)
+                |Found conflicting arrays of size (${ _state.length }) and (${ r.length })""".stripMargin)
+        else {
+          var i = 0
+          while (i < _state.length) {
+            _state(i) += DoubleNumericConversion.to(r(i))
+            i += 1
+          }
+        }
       }
     }
-
-  override def combOp(agg2: TypedAggregator[Any]) = {
-    val agg2result = agg2.asInstanceOf[SumArrayAggregator]._state
-    if (_state.length != agg2result.length)
-      ParserUtils.error(localPos,
-        s"""cannot aggregate arrays of unequal length with `sum'
-            |  Found conflicting arrays of size (${ _state.size }) and (${ agg2result.size })""".stripMargin)
-    for (i <- _state.indices)
-      _state(i) += agg2result(i)
   }
 
-  override def copy() = new SumArrayAggregator(aggF, localIdx, localPos)
+  override def combOp(agg2: this.type) = {
+    val agg2state = agg2._state
+    if (_state.length != agg2state.length)
+      ParserUtils.error(localPos,
+        s"""cannot aggregate arrays of unequal length with `sum'
+            |  Found conflicting arrays of size (${ _state.length }) and (${ agg2state.length })""".stripMargin)
+    for (i <- _state.indices)
+      _state(i) += agg2state(i)
+  }
 
-  override def idx = localIdx
+  override def copy() = new SumArrayAggregator(f, idx, localPos)
+}
+
+class CallStatsAggregator(f: (Any) => Any, val idx: Int, variantF: () => Any)
+  extends TypedAggregator[CallStats] {
+
+  var first = true
+  var combiner: CallStatsCombiner = _
+
+  def result: CallStats =
+    if (combiner != null)
+      combiner.result()
+    else
+      null
+
+  override def seqOp(x: Any) {
+    if (first) {
+      first = false
+
+      val v = variantF()
+      if (v != null)
+        combiner = new CallStatsCombiner(v.asInstanceOf[Variant])
+    }
+
+    if (combiner != null) {
+      val r = f(x)
+      if (r != null)
+        combiner.merge(r.asInstanceOf[Genotype])
+    }
+  }
+
+  def merge(x: Genotype) {
+    combiner.merge(x)
+  }
+
+  def combOp(agg2: this.type) {
+    combiner.merge(agg2.combiner)
+  }
+
+  def copy(): TypedAggregator[CallStats] = new CallStatsAggregator(f, idx, variantF)
 }

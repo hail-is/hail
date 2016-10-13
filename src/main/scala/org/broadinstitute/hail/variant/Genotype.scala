@@ -109,21 +109,49 @@ class Genotype(private val _gt: Int,
       .append(isDosage)
       .toHashCode
 
-  def gt: Option[Int] = someIf(_gt >= 0, _gt)
+  def gt: Option[Int] =
+    if (_gt >= 0)
+      Some(_gt)
+    else
+      None
 
   def ad: Option[Array[Int]] = Option(_ad)
 
-  def dp: Option[Int] = someIf(_dp >= 0, _dp)
+  def dp: Option[Int] =
+    if (_dp >= 0)
+      Some(_dp)
+    else
+      None
 
-  def od: Option[Int] = someIf(_dp >= 0 && _ad != null, _dp - _ad.sum)
+  def od: Option[Int] =
+    if (_dp >= 0 && _ad != null)
+      Some(_dp - _ad.sum)
+    else
+      None
 
-  def gq: Option[Int] = someIf(_gq >= 0, _gq)
+  def gq: Option[Int] =
+    if (_gq >= 0)
+      Some(_gq)
+    else
+      None
 
   def px: Option[Array[Int]] = Option(_px)
 
-  def pl: Option[Array[Int]] = Option(_px).map(px => if (isDosage) Genotype.linearToPhred(px) else px)
+  def pl: Option[Array[Int]] =
+    if (_px == null)
+      None
+    else if (!isDosage)
+      Some(_px)
+    else
+      Some(Genotype.linearToPhred(_px))
 
-  def dosage: Option[Array[Double]] = Option(_px).map(px => if (isDosage) px.map(_ / 32768d) else Genotype.phredToDosage(px))
+  def dosage: Option[Array[Double]] =
+    if (_px == null)
+      None
+    else if (isDosage)
+      Some(_px.map(_ / 32768.0))
+    else
+      Some(Genotype.phredToDosage(_px))
 
   def isHomRef: Boolean = Genotype.isHomRef(_gt)
 
@@ -145,21 +173,45 @@ class Genotype(private val _gt: Int,
 
   def nNonRefAlleles: Option[Int] = Genotype.nNonRefAlleles(_gt)
 
-  def oneHotAlleles(v: Variant): Option[Array[Int]] = {
+  def oneHotAlleles(v: Variant): Option[IndexedSeq[Int]] = {
     gt.map { call =>
       val gtPair = Genotype.gtPair(call)
-      val a = Array.fill(v.nAlleles)(0)
-      a(gtPair.j) += 1
-      a(gtPair.k) += 1
-      a
+      val j = gtPair.j
+      val k = gtPair.k
+      val nAlleles = v.nAlleles
+      new IndexedSeq[Int] {
+        def length: Int = nAlleles
+
+        def apply(idx: Int): Int = {
+          if (idx < 0 || idx >= nAlleles)
+            throw new ArrayIndexOutOfBoundsException(idx)
+          var r = 0
+          if (idx == j)
+            r += 1
+          if (idx == k)
+            r += 1
+          r
+        }
+      }
     }
   }
 
-  def oneHotGenotype(v: Variant): Option[Array[Int]] = {
+  def oneHotGenotype(v: Variant): Option[IndexedSeq[Int]] = {
     gt.map { call =>
-      val a = Array.fill(v.nGenotypes)(0)
-      a(call) = 1
-      a
+      val nGenotypes = v.nGenotypes
+
+      new IndexedSeq[Int] {
+        def length: Int = nGenotypes
+
+        def apply(idx: Int): Int = {
+          if (idx < 0 || idx >= nGenotypes)
+            throw new ArrayIndexOutOfBoundsException(idx)
+          if (idx == call)
+            1
+          else
+            0
+        }
+      }
     }
   }
 

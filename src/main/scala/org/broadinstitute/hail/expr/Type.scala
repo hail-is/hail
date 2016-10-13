@@ -243,17 +243,23 @@ abstract class TAggregable extends BaseType {
 
   def elementType: Type
 
-  def f: (Any) => Option[Any]
+  def f: (Any) => Any
 }
 
 case class BaseAggregable(ec: EvalContext, elementType: Type) extends TAggregable {
-  def f: (Any) => Option[Any] = a => Some(a)
+  def f: (Any) => Any = identity
 }
 
 case class FilteredAggregable(parent: TAggregable, filterF: (Any) => Boolean) extends TAggregable {
-  def f: (Any) => Option[Any] = {
+  def f: (Any) => Any = {
     val parentF = parent.f
-    (a: Any) => parentF(a).filter(filterF)
+    (a: Any) => {
+      val prev = parentF(a)
+      if (prev != null && filterF(prev))
+        prev
+      else
+        null
+    }
   }
 
   override def elementType: Type = parent.elementType
@@ -262,9 +268,15 @@ case class FilteredAggregable(parent: TAggregable, filterF: (Any) => Boolean) ex
 }
 
 case class MappedAggregable(parent: TAggregable, elementType: Type, mapF: (Any) => Any) extends TAggregable {
-  def f: (Any) => Option[Any] = {
+  def f: (Any) => Any = {
     val parentF = parent.f
-    (a: Any) => parentF(a).flatMap(x => Option(mapF(x)))
+    (a: Any) => {
+      val prev = parentF(a)
+      if (prev != null)
+        mapF(prev)
+      else
+        null
+    }
   }
 
   override def ec: EvalContext = parent.ec

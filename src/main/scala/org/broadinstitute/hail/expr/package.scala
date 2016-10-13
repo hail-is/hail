@@ -6,9 +6,13 @@ package object expr {
 
   abstract class TypedAggregator[+S] extends Serializable {
     def seqOp(x: Any): Unit
-    def combOp(agg2: TypedAggregator[Any]): Unit
+
+    def combOp(agg2: this.type): Unit
+
     def result: S
+
     def copy(): TypedAggregator[S]
+
     def idx: Int
   }
 

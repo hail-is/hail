@@ -381,6 +381,38 @@ The above example is updating the value of the `va.hetSamples` annotation. The v
   2. apply `map(g => s.id)` to convert the each kept genotype to its corresponding sample id
   3. apply `collect()` to remove `NA`s and produce an `Array` of sample ids (which are `String`s)
 
+### Call Stats
+
+```
+<aggregable>.callStats( Variant )
+```
+
+`callStats` is an aggregator which operates on an `Aggregable[Genotype]` that computes four commonly-used metrics over a set of genotypes in a variant.  The resulting annotation is a struct:
+
+```
+Struct {
+    AC: Array[Int],
+    AF: Array[Double],
+    AN: Int,
+    GC: Array[Int]
+}
+```
+
+In the above schema, the types mean the following:
+
+ * `AC`: Allele count.  One element per allele **including reference**.  There are two elements for a biallelic variant, or 4 for a variant with three alternate alleles.
+ * `AF`: Allele frequency.  One element per allele **including reference**.  Sums to 1.
+ * `AN`: Allele number.  This is equal to the sum of AC, or 2 * the total number of called genotypes in the aggregable.
+ * `GC`: Genotype count.  One element per possible genotype, including reference genotypes -- 3 for biallelic, 6 for triallelic, 10 for 3 alt alleles, and so on.  The sum of this array is the number of called genotypes in the aggregable.
+ 
+**Example:** compute population-specific call statistics.  After the below command, `va.eur_stats.AC` will be the AC computed from individuals marked as "EUR".
+
+```
+annotatevariants expr -c "va.eur_stats = gs.filter(g => sa.pop == "EUR").callStats(v),
+                          va.afr_stats = gs.filter(g => sa.pop == "AFR").callStats(v),
+                          va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(v)"
+```
+
 ### <a class="jumptarget" name="aggreg_infoscore"></a> InfoScore
 
 ```

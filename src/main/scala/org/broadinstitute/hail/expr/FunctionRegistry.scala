@@ -105,22 +105,30 @@ object FunctionRegistry {
 
   def registerAnn[T](name: String, t: TStruct, impl: T => Annotation)
     (implicit hrt: HailRep[T]) = {
-    register(name, impl)(hrt, new HailRep[Annotation] {def typ = t })
+    register(name, impl)(hrt, new HailRep[Annotation] {
+      def typ = t
+    })
   }
 
   def registerAnn[T, U](name: String, t: TStruct, impl: (T, U) => Annotation)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    register(name, impl)(hrt, hru, new HailRep[Annotation] {def typ = t })
+    register(name, impl)(hrt, hru, new HailRep[Annotation] {
+      def typ = t
+    })
   }
 
   def registerAnn[T, U, V](name: String, t: TStruct, impl: (T, U, V) => Annotation)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    register(name, impl)(hrt, hru, hrv, new HailRep[Annotation] {def typ = t })
+    register(name, impl)(hrt, hru, hrv, new HailRep[Annotation] {
+      def typ = t
+    })
   }
 
   def registerAnn[T, U, V, W](name: String, t: TStruct, impl: (T, U, V, W) => Annotation)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    register(name, impl)(hrt, hru, hrv, hrw, new HailRep[Annotation] {def typ = t })
+    register(name, impl)(hrt, hru, hrv, hrw, new HailRep[Annotation] {
+      def typ = t
+    })
   }
 
   registerOptionField("gt", { (x: Genotype) => x.gt })
@@ -191,7 +199,7 @@ object FunctionRegistry {
   registerField("toFloat", { (x: Float) => x })
   registerField("toDouble", { (x: Float) => x.toDouble })
 
-  registerField("toInt", { (x: Boolean) => if (x) 1 else 0})
+  registerField("toInt", { (x: Boolean) => if (x) 1 else 0 })
 
   registerField("toInt", { (x: Double) => x.toInt })
   registerField("toLong", { (x: Double) => x.toLong })
@@ -230,8 +238,31 @@ object FunctionRegistry {
   registerUnaryNAFilteredCollectionField("max", { (x: TraversableOnce[Float]) => x.max })
   registerUnaryNAFilteredCollectionField("max", { (x: TraversableOnce[Double]) => x.max })
 
-  register("range", { (x: Int) => (0 until x).toArray: IndexedSeq[Int] })
-  register("range", { (x: Int, y: Int) => (x until y).toArray: IndexedSeq[Int] })
+  register("range", { (x: Int) =>
+    val l = math.max(x, 0)
+    new IndexedSeq[Int] {
+      def length = l
+
+      def apply(i: Int): Int = {
+        if (i < 0 || i >= l)
+          throw new ArrayIndexOutOfBoundsException(i)
+        i
+      }
+    }
+  })
+  register("range", { (x: Int, y: Int) =>
+    val l = math.max(y - x, 0)
+    new IndexedSeq[Int] {
+      def length = l
+
+      def apply(i: Int): Int = {
+        if (i < 0 || i >= l)
+          throw new ArrayIndexOutOfBoundsException(i)
+        x + i
+      }
+    }
+  })
+  register("range", { (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int] })
   register("Variant", { (x: String) =>
     val Array(chr, pos, ref, alts) = x.split(":")
     Variant(chr, pos.toInt, ref, alts.split(","))
