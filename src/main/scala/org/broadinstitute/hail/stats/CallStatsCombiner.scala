@@ -14,12 +14,12 @@ object CallStats {
   )
 }
 
-case class CallStats(alleleCount: IndexedSeq[Int], alleleFrequency: IndexedSeq[Double], alleleNumber: Int,
+case class CallStats(alleleCount: IndexedSeq[Int], alleleFrequency: Option[IndexedSeq[Double]], alleleNumber: Int,
   genotypeCount: IndexedSeq[Int]) {
   require(alleleNumber == genotypeCount.sum * 2, s"AN was not equal to 2 * GC sum: $this")
-  require(D_==(alleleFrequency.sum, 1d), s"AF did not sum to 1: $this")
+  require(alleleFrequency.forall(f => D_==(f.sum, 1d)), s"AF did not sum to 1: $this")
 
-  def asAnnotation: Annotation = Annotation(alleleCount, alleleFrequency, alleleNumber, genotypeCount)
+  def asAnnotation: Annotation = Annotation(alleleCount, alleleFrequency.orNull, alleleNumber, genotypeCount)
 }
 
 
@@ -47,9 +47,9 @@ class CallStatsCombiner(v: Variant) extends Serializable {
     val alleleNumber = alleleCount.sum
     val alleleFrequency =
       if (alleleNumber == 0)
-        null
+        None
       else
-        alleleCount.map(_.toDouble / alleleNumber)
+        Some(alleleCount.map(_.toDouble / alleleNumber): IndexedSeq[Double])
     CallStats(alleleCount, alleleFrequency, alleleNumber, genotypeCount)
   }
 }
