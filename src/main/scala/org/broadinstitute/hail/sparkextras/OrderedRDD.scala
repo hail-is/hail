@@ -375,54 +375,52 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
   override def coalesce(maxPartitions: Int, shuffle: Boolean = false)
     (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
-    if (maxPartitions == partitions.length || rdd.partitions.isEmpty)
+    val n = rdd.partitions.length
+    if (maxPartitions == n || n == 0 || !shuffle && (n >= maxPartitions))
       return this
     if (shuffle) {
       val shuffled = super.coalesce(maxPartitions, shuffle)
       val ranges = OrderedRDD.calculateKeyRanges(shuffled.keys.map(kOk.project))
-      return OrderedRDD.shuffle(shuffled, OrderedPartitioner(ranges, ranges.length + 1))
+      OrderedRDD.shuffle(shuffled, OrderedPartitioner(ranges, ranges.length + 1))
+    } else {
+
+      val partSize = rdd.context.runJob(rdd, getIteratorSize _)
+      info(s"partSize = ${ partSize.toSeq }")
+
+      val partCumulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
+      val totalSize = partCumulativeSize.last
+
+      var newPartEnd = (0 until maxPartitions).map { i =>
+        val t = totalSize * (i + 1) / maxPartitions
+
+        /* j largest index not greater than t */
+        var j = util.Arrays.binarySearch(partCumulativeSize, t)
+        if (j < 0)
+          j = -j - 1
+        while (j < partCumulativeSize.length - 1
+          && partCumulativeSize(j + 1) == t)
+          j += 1
+        assert(t <= partCumulativeSize(j) &&
+          (j == partCumulativeSize.length - 1 ||
+            t < partCumulativeSize(j + 1)))
+        j
+      }.toArray
+
+      newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) => i == 0 || newPartEnd(i) != newPartEnd(i - 1) }
+        .map(_._1)
+
+      info(s"newPartEnd = ${ newPartEnd.toSeq }")
+
+      assert(newPartEnd.last == n - 1)
+      assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i < inext })
+
+      if (newPartEnd.length < maxPartitions)
+        warn(s"coalesced to ${ newPartEnd.length } partitions, less than requested $maxPartitions")
+
+      val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
+      val partitioner = new OrderedPartitioner(newRangeBounds, newPartEnd.length)
+      new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd), partitioner)
     }
-
-    val n = rdd.partitions.length
-    if (maxPartitions >= n)
-      return this
-
-    val partSize = rdd.context.runJob(rdd, getIteratorSize _)
-    info(s"partSize = ${ partSize.toSeq }")
-
-    val partCumulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
-    val totalSize = partCumulativeSize.last
-
-    var newPartEnd = (0 until maxPartitions).map { i =>
-      val t = totalSize * (i + 1) / maxPartitions
-
-      /* j largest index not greater than t */
-      var j = util.Arrays.binarySearch(partCumulativeSize, t)
-      if (j < 0)
-        j = -j - 1
-      while (j < partCumulativeSize.length - 1
-        && partCumulativeSize(j + 1) == t)
-        j += 1
-      assert(t <= partCumulativeSize(j) &&
-        (j == partCumulativeSize.length - 1 ||
-          t < partCumulativeSize(j + 1)))
-      j
-    }.toArray
-
-    newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) => i == 0 || newPartEnd(i) != newPartEnd(i - 1) }
-      .map(_._1)
-
-    info(s"newPartEnd = ${ newPartEnd.toSeq }")
-
-    assert(newPartEnd.last == n - 1)
-    assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i < inext })
-
-    if (newPartEnd.length < maxPartitions)
-      warn(s"coalesced to ${ newPartEnd.length } partitions, less than requested $maxPartitions")
-
-    val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
-    val partitioner = new OrderedPartitioner(newRangeBounds, newPartEnd.length)
-    new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd), partitioner)
   }
 }
 
