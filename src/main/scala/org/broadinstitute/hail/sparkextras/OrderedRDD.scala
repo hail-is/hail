@@ -373,8 +373,10 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
   override def coalesce(maxPartitions: Int, shuffle: Boolean = false)(implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
+    if (maxPartitions == partitions.length)
+      return this
     if (shuffle)
-      return super.coalesce(maxPartitions, shuffle)(ord)
+      return super.coalesce(maxPartitions, shuffle)(ord).toOrderedRDD
 
     val n = rdd.partitions.length
     if (maxPartitions >= n)
