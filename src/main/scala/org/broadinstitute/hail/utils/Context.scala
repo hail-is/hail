@@ -1,11 +1,11 @@
 package org.broadinstitute.hail.utils
 
 abstract class Context {
-  def wrapException(e: Exception): Nothing
+  def wrapException(e: Throwable): Nothing
 }
 
 case class TextContext(line: String, file: String, position: Option[Int]) extends Context {
-  def wrapException(e: Exception): Nothing = {
+  def wrapException(e: Throwable): Nothing = {
     val msg = e match {
       case _: FatalException => e.getMessage
       case _ => s"caught $e"
@@ -21,7 +21,7 @@ case class WithContext[T](value: T, source: Context) {
     try {
       copy[U](value = f(value))
     } catch {
-      case e: Exception => source.wrapException(e)
+      case e: Throwable => source.wrapException(e)
     }
   }
 
