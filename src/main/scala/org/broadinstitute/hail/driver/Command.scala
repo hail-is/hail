@@ -12,7 +12,8 @@ import scala.collection.mutable
 case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
-  vds: VariantDataset = null) {
+  vds: VariantDataset = null,
+  env: Map[String, VariantDataset] = Map.empty) {
   def hadoopConf = sc.hadoopConfiguration
 }
 
@@ -50,6 +51,7 @@ object ToplevelCommands {
   register(AnnotateGlobal)
   register(BGZipBlocks)
   register(Cache)
+  register(Clear)
   register(CommandMetadata)
   register(CompareVDS)
   register(Count)
@@ -70,6 +72,7 @@ object ToplevelCommands {
   register(FilterSamples)
   register(FilterVariants)
   register(GenDataset)
+  register(Get)
   register(Grep)
   register(GRM)
   register(GQByDP)
@@ -90,6 +93,7 @@ object ToplevelCommands {
   register(SplitMulti)
   register(PCA)
   register(Persist)
+  register(Put)
   register(Read)
   register(ReadKudu)
   register(RenameSamples)
@@ -232,7 +236,7 @@ abstract class Command {
       }
     } catch {
       case e: CmdLineException =>
-        fatal(s"parse error: ${e.getMessage}")
+        fatal(s"parse error: ${ e.getMessage }")
     }
 
     options
