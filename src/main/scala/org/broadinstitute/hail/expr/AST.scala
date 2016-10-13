@@ -1115,7 +1115,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val aggF = agg.f
 
       agg.ec.aggregationFunctions += new FractionAggregator(aggF, localIdx, localA, bodyFn, lambdaIdx)
-      () => localA(localIdx).asInstanceOf[Option[Double]].orNull
+      () => localA(localIdx)
 
     case (agg: TAggregable, "stats", Array()) =>
       val localA = agg.ec.a
@@ -1156,8 +1156,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       agg.ec.aggregationFunctions += new CallStatsAggregator(aggF, localIdx, vf)
 
       () => {
-        val cs = localA(localIdx).asInstanceOf[Option[CallStats]]
-        cs.map(_.asAnnotation).orNull
+        val cs = localA(localIdx).asInstanceOf[CallStats]
+        if (cs != null)
+          cs.asAnnotation
+        else
+          null
       }
 
     case (agg: TAggregable, "hist", Array(startAST, endAST, binsAST)) =>

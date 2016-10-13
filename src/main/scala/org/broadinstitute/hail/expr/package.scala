@@ -2,25 +2,16 @@ package org.broadinstitute.hail
 
 package object expr {
   type SymbolTable = Map[String, (Int, BaseType)]
-  type Aggregator = TypedAggregator[_, _]
+  type Aggregator = TypedAggregator[Any]
 
-  abstract class TypedAggregator[+S, E] extends Serializable {
+  abstract class TypedAggregator[+S] extends Serializable {
+    def seqOp(x: Any): Unit
 
-    val f: (Any) => Any
-
-    def merge(x: E): Unit
-
-    def seqOp(x: Any): Unit = {
-      val r = f(x)
-      if (r != null)
-        merge(r.asInstanceOf[E])
-    }
-
-    def combOp(agg2: TypedAggregator[_, _]): Unit
+    def combOp(agg2: this.type): Unit
 
     def result: S
 
-    def copy(): TypedAggregator[S, E]
+    def copy(): TypedAggregator[S]
 
     def idx: Int
   }
