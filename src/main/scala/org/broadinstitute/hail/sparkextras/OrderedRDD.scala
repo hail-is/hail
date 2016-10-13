@@ -375,12 +375,12 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
   override def coalesce(maxPartitions: Int, shuffle: Boolean = false)
     (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
-    if (maxPartitions == partitions.length)
+    if (maxPartitions == partitions.length || rdd.partitions.isEmpty)
       return this
     if (shuffle) {
       val shuffled = super.coalesce(maxPartitions, shuffle)
       val ranges = OrderedRDD.calculateKeyRanges(shuffled.keys.map(kOk.project))
-      return OrderedRDD(shuffled, OrderedPartitioner(ranges, ranges.length + 1))
+      return OrderedRDD.shuffle(shuffled, OrderedPartitioner(ranges, ranges.length + 1))
     }
 
     val n = rdd.partitions.length
