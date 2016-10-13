@@ -102,7 +102,6 @@ class ExportVcfSuite extends SparkSuite {
     ExportVCF.run(s, Array("-o", out, "--export-pp"))
 
     val vdsNew = LoadVCF(sc, out, nPartitions = Some(10), ppAsPL = true)
-    Count.run(State(sc, sqlContext,vdsNew), Array("--genotypes"))
 
     assert(s.vds.same(vdsNew))
   }
