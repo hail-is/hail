@@ -390,22 +390,22 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     val partSize = rdd.context.runJob(rdd, getIteratorSize _)
     info(s"partSize = ${ partSize.toSeq }")
 
-    val partCommulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
-    val totalSize = partCommulativeSize.last
+    val partCumulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
+    val totalSize = partCumulativeSize.last
 
     var newPartEnd = (0 until maxPartitions).map { i =>
       val t = totalSize * (i + 1) / maxPartitions
 
       /* j largest index not greater than t */
-      var j = util.Arrays.binarySearch(partCommulativeSize, t)
+      var j = util.Arrays.binarySearch(partCumulativeSize, t)
       if (j < 0)
         j = -j - 1
-      while (j < partCommulativeSize.length - 1
-        && partCommulativeSize(j + 1) == t)
+      while (j < partCumulativeSize.length - 1
+        && partCumulativeSize(j + 1) == t)
         j += 1
-      assert(t <= partCommulativeSize(j) &&
-        (j == partCommulativeSize.length - 1 ||
-          t < partCommulativeSize(j + 1)))
+      assert(t <= partCumulativeSize(j) &&
+        (j == partCumulativeSize.length - 1 ||
+          t < partCumulativeSize(j + 1)))
       j
     }.toArray
 
