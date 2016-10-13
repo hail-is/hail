@@ -196,4 +196,32 @@ class AggregatorSuite extends SparkSuite {
     TestUtils.interceptFatal("""Got invalid type `Aggregable\[Genotype\]'""")(
       AnnotateVariants.run(s, Array("expr", "-c", "va = gs.filter(g => true)")))
   }
+
+  @Test def testCallStats() {
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
+    var s = State(sc, sqlContext, vds)
+    s = AnnotateVariantsExpr.run(s, Array("-c",
+      """va.callStats = gs.callStats(v),
+        |va.AC = gs.map(g => g.oneHotAlleles(v)).sum().map(x => x.toInt),
+        |va.GC = gs.map(g => g.oneHotGenotype(v)).sum().map(x => x.toInt),
+        |va.AN = gs.filter(g => g.isCalled).count() * 2""".stripMargin))
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va.AF = va.AC / va.AN"))
+    val (_, csAC) = s.vds.queryVA("va.callStats.AC")
+    val (_, csAF) = s.vds.queryVA("va.callStats.AF")
+    val (_, csAN) = s.vds.queryVA("va.callStats.AN")
+    val (_, csGC) = s.vds.queryVA("va.callStats.GC")
+    val (_, ac) = s.vds.queryVA("va.AC")
+    val (_, af) = s.vds.queryVA("va.AF")
+    val (_, an) = s.vds.queryVA("va.AN")
+    val (_, gc) = s.vds.queryVA("va.GC")
+
+    s.vds.variantsAndAnnotations
+      .collect()
+      .foreach { case (_, va) =>
+        assert(csAC(va) == ac(va), s"AC was different")
+        assert(csAN(va) == an(va), s"AN was different")
+        assert(csAF(va) == af(va), s"AF was different")
+        assert(csGC(va) == gc(va), s"GC was different")
+      }
+  }
 }

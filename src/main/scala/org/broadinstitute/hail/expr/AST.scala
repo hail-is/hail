@@ -795,6 +795,23 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", TDouble),
           ("max", TDouble), ("nNotMissing", TLong), ("sum", TDouble))
 
+      case (agg: TAggregable, "callStats", rhs) =>
+        rhs.foreach(_.typecheck(ec))
+        agg.elementType match {
+          case TGenotype =>
+          case t => parseError(
+            s"""method `$method' can only operate on Aggregable[Genotype]
+                |  Found `$agg'""".stripMargin)
+        }
+        val rhsTypes = rhs.map(_.`type`)
+        `type` = rhsTypes match {
+          case Array(TVariant) => CallStats.schema
+          case other => parseError(
+            s"""invalid arguments for method `$method'
+                |  Expected $method(Variant)
+                |  Found $method(${ other.mkString(", ") })""".stripMargin)
+        }
+
       case (agg: TAggregable, "hist", rhs) =>
         rhs match {
           case Array(startAST, endAST, binsAST) =>
@@ -1124,6 +1141,23 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           null
         else
           Annotation(sc.mean, sc.stdev, sc.min, sc.max, sc.count, sc.sum)
+      }
+
+    case (agg: TAggregable, "callStats", Array(vAST)) =>
+      val localA = agg.ec.a
+      val localIdx = localA.length
+      localA += null
+
+      val t = agg.elementType
+      val aggF = agg.f
+
+      val vf = vAST.eval(ec)
+
+      agg.ec.aggregationFunctions += new CallStatsAggregator(aggF, localIdx, vf)
+
+      () => {
+        val cs = localA(localIdx).asInstanceOf[Option[CallStats]]
+        cs.map(_.asAnnotation).orNull
       }
 
     case (agg: TAggregable, "hist", Array(startAST, endAST, binsAST)) =>
