@@ -2,7 +2,7 @@ package org.broadinstitute.hail.driver
 
 import java.util
 
-import org.apache.solr.client.solrj.SolrResponse
+import org.apache.solr.client.solrj.{SolrClient, SolrResponse}
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.schema.SchemaRequest
 import org.apache.solr.client.solrj.request.CollectionAdminRequest
@@ -53,6 +53,8 @@ object ExportVariantsSolr extends Command with Serializable {
       usage = "number of shards to split the collection into. Default: 1")
     var numShards: Int = 1
 
+    @Args4jOption(name = "--block-size", usage = "Variants per SolrClient.add")
+    var blockSize = 100
   }
 
   def newOptions = new Options
@@ -109,9 +111,8 @@ object ExportVariantsSolr extends Command with Serializable {
         if (xi != null)
           document.addField(name, xi)
       }
-    } else
-      if (value != null)
-        document.addField(name, value)
+    } else if (value != null)
+      document.addField(name, value)
   }
 
   def processResponse(action: String, res: SolrResponse) {
@@ -139,6 +140,18 @@ object ExportVariantsSolr extends Command with Serializable {
           warn(s"unknown Solr response in $action: $res")
     }
   }
+
+  def connect(url: String, zkHost: String, collection: String): SolrClient =
+    if (url != null)
+      new HttpSolrClient.Builder(url)
+        .build()
+    else {
+      val cc = new CloudSolrClient.Builder()
+        .withZkHost(zkHost)
+        .build()
+      cc.setDefaultCollection(collection)
+      cc
+    }
 
   def run(state: State, options: Options): State = {
     val sc = state.vds.sparkContext
@@ -197,12 +210,12 @@ object ExportVariantsSolr extends Command with Serializable {
       }
 
     //delete and re-create the collection
-    if(drop) {
+    if (drop) {
       try {
         CollectionAdminRequest.deleteCollection(collection).process(solr)
-        info(s"deleted collection ${collection}")
+        info(s"deleted collection ${ collection }")
       } catch {
-        case e: SolrException => warn(s"exportvariantssolr: unable to delete collection ${collection}: ${e}")
+        case e: SolrException => warn(s"exportvariantssolr: unable to delete collection ${ collection }: ${ e }")
       }
     }
 
@@ -212,9 +225,9 @@ object ExportVariantsSolr extends Command with Serializable {
       //   solr create_collection -c default_config; solr delete -c default_config
       //CollectionAdminRequest.listCollections().process(solr)
       CollectionAdminRequest.createCollection(collection, "default_config", numShards, 1).process(solr)
-      info(s"created new solr collection ${collection} with ${numShards} shard" + (if(numShards > 1) "s" else ""))
+      info(s"created new solr collection ${ collection } with ${ numShards } shard" + (if (numShards > 1) "s" else ""))
     } catch {
-      case e: SolrException => fatal(s"exportvariantssolr: unable to create collection ${collection}: ${e}")
+      case e: SolrException => fatal(s"exportvariantssolr: unable to create collection ${ collection }: ${ e }")
     }
 
     // retrieve current fields
@@ -250,72 +263,80 @@ object ExportVariantsSolr extends Command with Serializable {
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
+    val localBlockSize = options.blockSize
+    val maxRetryInterval = 3 * 60 * 1000 // 3m
 
-    vds.rdd.foreachPartition {
-      it =>
-        val ab = mutable.ArrayBuilder.make[AnyRef]
-        val documents = it.map {
-          case (v, (va, gs)) =>
+    vds.rdd.foreachPartition { it =>
 
-            val document = new SolrInputDocument()
+      var solr = connect(url, zkHost, collection)
 
-            vparsed.foreach {
-              case (name, spec, t, f) =>
-                vEC.setAll(v, va)
-                f().foreach(x => documentAddField(document, escapeString(name), t, x))
-            }
+      it
+        .grouped(localBlockSize)
+        .foreach { block =>
 
-            gs.iterator.zipWithIndex.foreach {
-              case (g, i) =>
-                if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
-                  val s = sampleIdsBc.value(i)
-                  val sa = sampleAnnotationsBc.value(i)
-                  gparsed.foreach {
-                    case (name, spec, t, f) =>
-                      gEC.setAll(v, va, s, sa, g)
-                      // __ can't appear in escaped string
-                      f().foreach(x => documentAddField(document, escapeString(s) + "__" + escapeString(name), t, x))
+          val documents = block.map {
+            case (v, (va, gs)) =>
+
+              val document = new SolrInputDocument()
+
+              vparsed.foreach {
+                case (name, spec, t, f) =>
+                  vEC.setAll(v, va)
+                  f().foreach(x => documentAddField(document, escapeString(name), t, x))
+              }
+
+              gs.iterator.zipWithIndex.foreach {
+                case (g, i) =>
+                  if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
+                    val s = sampleIdsBc.value(i)
+                    val sa = sampleAnnotationsBc.value(i)
+                    gparsed.foreach {
+                      case (name, spec, t, f) =>
+                        gEC.setAll(v, va, s, sa, g)
+                        // __ can't appear in escaped string
+                        f().foreach(x => documentAddField(document, escapeString(s) + "__" + escapeString(name), t, x))
+                    }
                   }
+              }
+
+              document
+          }
+
+          var retry = true
+          var retryInterval = 3 * 1000 // 3s
+
+          while (retry) {
+            try {
+              processResponse("add documents",
+                solr.add(documents.asJava))
+              retry = false
+            } catch {
+              case t: Throwable =>
+                warn(s"caught exception while adding documents: ${
+                  Main.expandException(t)
+                }\n\tretrying")
+
+                try {
+                  solr.close()
+                } catch {
+                  case t: Throwable =>
+                    warn(s"caught exception while closing SorlClient: ${
+                      Main.expandException(t)
+                    }\n\tignoring")
                 }
+
+                solr = connect(url, zkHost, collection)
+
+                Thread.sleep(Random.nextInt(retryInterval))
+                retryInterval = (retryInterval * 2).max(maxRetryInterval)
             }
-
-            document
-        }
-
-        val solr =
-          if (url != null)
-            new HttpSolrClient.Builder(url)
-              .build()
-          else {
-            val cc = new CloudSolrClient.Builder()
-              .withZkHost(zkHost)
-              .build()
-            cc.setDefaultCollection(collection)
-            cc
-          }
-
-        var retry = true
-        var retryInterval = 3 * 1000 // 3s
-        val maxRetryInterval = 3 * 60 * 1000 // 3m
-
-        while (retry) {
-          try {
-            processResponse("add documents",
-              solr.add(documents.asJava))
-            processResponse("commit",
-              solr.commit())
-            solr.close()
-            retry = false
-          } catch {
-            case e: SolrException =>
-              warn(s"exportvariantssolr: caught exception while adding documents: ${
-                Main.expandException(e)
-              }\n\tretrying")
-
-              Thread.sleep(Random.nextInt(retryInterval))
-              retryInterval = (retryInterval * 2).max(maxRetryInterval)
           }
         }
+      
+      processResponse("commit",
+        solr.commit())
+
+      solr.close()
     }
 
     state
