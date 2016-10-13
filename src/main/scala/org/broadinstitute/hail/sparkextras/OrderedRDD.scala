@@ -307,7 +307,7 @@ object OrderedRDD {
 }
 
 class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: OrderedPartitioner[PK, K])
-  extends RDD[(K, V)](rdd) {
+  (implicit vct: ClassTag[V]) extends RDD[(K, V)](rdd) {
   implicit val kOk: OrderedKey[PK, K] = orderedPartitioner.kOk
 
   import kOk._
@@ -336,10 +336,11 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       }
 
   def orderedOuterJoinDistinct[V2](other: OrderedRDD[PK, K, V2])
-    (implicit vct: ClassTag[V], vct2: ClassTag[V2]): RDD[(K, (Option[V], Option[V2]))] =
+    (implicit vct2: ClassTag[V2]): RDD[(K, (Option[V], Option[V2]))] =
     OrderedOuterJoinRDD[PK, K, V, V2](this, other)
 
-  def mapMonotonic[K2, V2](mapKey: OrderedKeyFunction[PK, K, PK, K2], mapValue: (K, V) => (V2)): OrderedRDD[PK, K2, V2] = {
+  def mapMonotonic[K2, V2](mapKey: OrderedKeyFunction[PK, K, PK, K2], mapValue: (K, V) => (V2))
+    (implicit vct2: ClassTag[V2]): OrderedRDD[PK, K2, V2] = {
     new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.map { case (k, v) => (mapKey(k), mapValue(k, v)) }),
       orderedPartitioner.mapMonotonic(mapKey.k2ok))
   }
@@ -353,7 +354,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     *
     * - the TraversableOnce is sorted according to kOk.kOrd
     */
-  def flatMapMonotonic[V2](f: (K, V) => TraversableOnce[(K, V2)]): OrderedRDD[PK, K, V2] = {
+  def flatMapMonotonic[V2](f: (K, V) => TraversableOnce[(K, V2)])(implicit vct2: ClassTag[V2]): OrderedRDD[PK, K, V2] = {
     new OrderedRDD[PK, K, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner)
   }
 
@@ -367,16 +368,20 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     * - the TraversableOnce is sorted according to k2Ok.kOrd
     */
   def flatMapMonotonic[K2, V2](f: (K, V) => TraversableOnce[(K2, V2)])
-    (implicit k2Ok: OrderedKey[PK, K2]): OrderedRDD[PK, K2, V2] = {
+    (implicit k2Ok: OrderedKey[PK, K2], vct2: ClassTag[V2]): OrderedRDD[PK, K2, V2] = {
     new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner.mapMonotonic)
   }
 
-  override def coalesce(maxPartitions: Int, shuffle: Boolean = false)(implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
+  override def coalesce(maxPartitions: Int, shuffle: Boolean = false)
+    (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
     if (maxPartitions == partitions.length)
       return this
-    if (shuffle)
-      return super.coalesce(maxPartitions, shuffle)(ord).toOrderedRDD
+    if (shuffle) {
+      val shuffled = super.coalesce(maxPartitions, shuffle)
+      val ranges = OrderedRDD.calculateKeyRanges(shuffled.keys.map(kOk.project))
+      return OrderedRDD(shuffled, OrderedPartitioner(ranges, ranges.length + 1))
+    }
 
     val n = rdd.partitions.length
     if (maxPartitions >= n)
