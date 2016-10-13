@@ -13,7 +13,7 @@ object SamplePCA {
     if (asArray)
       TArray(TDouble)
     else
-      TStruct((1 until k).map(i => (s"PC$i", TDouble)): _*)
+      TStruct((1 to k).map(i => (s"PC$i", TDouble)): _*)
 
   def makeAnnotation(is: IndexedSeq[Double], asArray: Boolean): Annotation =
     if (asArray)
