@@ -7,8 +7,8 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 object Join extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-r", aliases = Array("--right"), usage = ".vds file to join on the right")
-    var right: String = _
+    @Args4jOption(required = true, name = "-r", aliases = Array("--right"), usage = "Name of dataset in environment to join on the right")
+    var rightName: String = _
   }
 
   def newOptions = new Options
@@ -23,7 +23,13 @@ object Join extends Command {
 
   def run(state: State, options: Options): State = {
     val left = state.vds
-    val right = VariantSampleMatrix.read(state.sqlContext, options.right)
+    val rightName = options.rightName
+
+    val right = state.env.get(rightName) match {
+      case Some(r) => r
+      case None =>
+        fatal("no such dataset $name in environment")
+    }
 
     if (left.wasSplit != right.wasSplit) {
       warn(
