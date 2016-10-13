@@ -98,11 +98,11 @@ class ExportVcfSuite extends SparkSuite {
   @Test def testPPs() {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array("src/test/resources/sample.PPs.vcf", "--pp-as-pl"))
-    Count.run(s, Array("--genotypes"))
     val out = tmpDir.createTempFile("exportPPs", ".vcf")
     ExportVCF.run(s, Array("-o", out, "--export-pp"))
 
     val vdsNew = LoadVCF(sc, out, nPartitions = Some(10), ppAsPL = true)
+    Count.run(State(sc, sqlContext,vdsNew), Array("--genotypes"))
 
     assert(s.vds.same(vdsNew))
   }

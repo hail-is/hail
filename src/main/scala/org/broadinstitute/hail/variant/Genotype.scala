@@ -130,8 +130,8 @@ class Genotype(private val _gt: Int,
       None
 
   def gq: Option[Int] =
-    if (_gt >= 0)
-      Some(_gt)
+    if (_gq >= 0)
+      Some(_gq)
     else
       None
 
