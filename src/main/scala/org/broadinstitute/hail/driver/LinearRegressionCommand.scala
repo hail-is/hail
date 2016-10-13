@@ -21,6 +21,12 @@ object LinearRegressionCommand extends Command {
     @Args4jOption(required = false, name = "-c", aliases = Array("--covariates"), usage = "Covariate sample annotations, comma-separated")
     var covSA: String = ""
 
+    @Args4jOption(required = false, name = "-mac", aliases = Array("--minimum-allele-count"), usage = "Minimum alternate allele count")
+    var minAC: Int = 1
+
+    @Args4jOption(required = false, name = "-maf", aliases = Array("--minimum-allele-freq"), usage = "Minimum alternate allele frequency")
+    var minAF: Double = 0d
+
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"), usage = "Variant annotation root, a period-delimited path starting with `va'")
     var root: String = "va.linreg"
   }
@@ -33,6 +39,12 @@ object LinearRegressionCommand extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+
+    if (options.minAC < 1)
+      fatal(s"Minumum alternate allele count must be a positive integer, got ${ options.minAC }")
+
+    if (options.minAF < 0d || options.minAF > 1d)
+      fatal(s"Minumum alternate allele frequency must be between 0.0 and 1.0, got ${ options.minAF }")
 
     val pathVA = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
 
@@ -90,7 +102,9 @@ object LinearRegressionCommand extends Command {
     val completeSampleSet = completeSamples.toSet
     val vdsForCompleteSamples = vds.filterSamples((s, sa) => completeSampleSet(s))
 
-    val linreg = LinearRegression(vdsForCompleteSamples, y, cov)
+    val minAC = math.max(options.minAC, (math.ceil(2 * y.size * options.minAF) + 0.5).toInt)
+
+    val linreg = LinearRegression(vdsForCompleteSamples, y, cov, minAC)
 
     val (newVAS, inserter) = vdsForCompleteSamples.insertVA(LinRegStats.`type`, pathVA)
 

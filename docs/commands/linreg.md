@@ -11,6 +11,8 @@
 
 The `linreg` command computes, for each variant, statistics of the $t$-test for the genotype coefficient of the linear function of best fit from sample genotype and covariates to quantitative phenotype or case-control status. Hail only includes samples for which phenotype and all covariates are defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
 
+One can restrict computation to those variants with at least $k$ observed alternate alleles (AC) or alternate allele frequency (AF) at least $p$ in the included samples using the options `-mac k` or `maf p`, respectively. Unlike the `filtervariants` command, these filters do not remove variants from the underlying variant dataset. Adding both filters is equivalent to applying the more stringent of the two, as AF equals AC over twice the number of included samples.
+
 Assuming there are sample annotations `sa.pheno.height`, `sa.cov.age`, `sa.cov.isFemale`, and `sa.cov.PC1`, the command
 ```
 linreg -y sa.pheno.height -c sa.cov.age,sa.cov.isFemale,sa.cov.PC1
