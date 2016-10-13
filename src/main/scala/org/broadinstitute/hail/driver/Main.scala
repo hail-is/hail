@@ -164,6 +164,8 @@ object Main {
 
     // Thread.sleep(60*60*1000)
 
+    times += "total" -> times.map(_._2).sum
+
     info(s"timing:\n${
       times.map {
         case (name, duration) =>
