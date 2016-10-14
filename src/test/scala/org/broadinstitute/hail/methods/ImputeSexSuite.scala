@@ -46,7 +46,7 @@ class ImputeSexSuite extends SparkSuite {
         var s = State(sc, sqlContext).copy(vds = vds.copy(rdd =
           vds.rdd.map { case (v, (va, gs)) => (v.copy(contig = "X"), (va, gs)) }
             .toOrderedRDD))
-        
+
         s = VariantQC.run(s)
         s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8"))
 

@@ -455,6 +455,51 @@ hail importgen -s /my/path/example.sample /my/path/example.gen
     annotatevariants expr -c 'va.infoScoreControl = gs.filter(g => sa.pheno.Pheno1 == "Control").infoScore()'    
 ```
 
+### <a class="jumptarget" name="aggreg_ibc"></a> Inbreeding Coefficient
+
+```
+<genotype aggregable>.ibc(maf)
+```
+
+`ibc()` is an aggregator that computes the [Inbreeding Coefficient](#ibc_doc) on an aggregable of genotypes (gs) with a required parameter that is an expression for the minor allele frequency per variant (example: `va.qc.AF`).
+
+The result of `ibc()` is a struct:
+
+```
+Struct {
+    Fstat: Double,
+    nTotal: Int,
+    nCalled: Int,
+    expectedHoms: Double,
+    observedHoms: Int
+}
+```
+
+In the above schema, `Fstat` is the Inbreeding Coefficient produced, `nTotal` is the number of variants analyzed, `nCalled` is the number of variants with non-missing calls, `expectedHoms` is the expected number of homozygote calls, and `observedHoms` is the total number of homozygote calls observed.
+
+**Examples:**
+
+Calculate the inbreeding coefficient per sample and export the resulting annotations to a TSV file:
+
+```
+hail read ... 
+    variantqc
+    annotatesamples expr -c 'sa.het = gs.ibc(va.qc.AF)' 
+    exportsamples -c 'Sample = s, Fstat = sa.het.Fstat' -o ibc_stats.tsv
+```
+
+To obtain the same answer as [PLINK](https://www.cog-genomics.org/plink2), use the following series of commands:
+
+```
+read ... 
+variantqc 
+filtervariants expr --keep -c 'va.qc.AC > 1 && va.qc.AF >= 1e-8 && 
+    va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 &&
+    v.isAutosomal' 
+annotatesamples expr -c 'sa.het = gs.ibc(va.qc.AF)'
+```
+
+
 ## Filtering
 
 Filtering requires an expression that evaluates to a boolean.
@@ -550,3 +595,16 @@ Hail will not generate identical results as [QCTOOL](http://www.well.ox.ac.uk/~g
  - **Hail calculates the same statistic for sex chromosomes as autosomes while QCTOOL incorporates sex information**
 
 **Warning!!! The info score Hail reports will be extremely different from qctool when a SNP has a high missing rate.**
+
+### <a class="jumptarget" name="ibc_doc"></a> Inbreeding Coefficient
+
+The `ibc` aggregator can be used to calculate the Inbreeding Coefficient from a [genotype aggregable](#aggreg_ibc).
+This is equivalent to the [`--het` method in PLINK](https://www.cog-genomics.org/plink2/basic_stats#ibc).
+
+The Inbreeding Coefficient (F) is computed as follows:
+
+2. For each variant and sample with a non-missing genotype call, `E`, the expected number of homozygotes (computed from user-defined expression for minor allele frequency), is computed as `1.0 - (2.0*maf*(1.0-maf))`
+3. For each variant and sample with a non-missing genotype call, `O`, the observed number of homozygotes, is computed as `0 = heterozygote; 1 = homozygote`
+4. For each variant and sample with a non-missing genotype call, `N` is incremented by 1
+5. For each sample, `E`, `O`, and `N` are combined across variants
+6. `F` is calculated by `(O - E) / (N - E)`

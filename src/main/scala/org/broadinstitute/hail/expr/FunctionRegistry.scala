@@ -183,6 +183,7 @@ object FunctionRegistry {
   registerField("isComplex", { (x: AltAllele) => x.isComplex })
   registerField("isTransition", { (x: AltAllele) => x.isTransition })
   registerField("isTransversion", { (x: AltAllele) => x.isTransversion })
+  registerField("isAutosomal", {(x: Variant) => x.isAutosomal})
 
   registerField("toInt", { (x: Int) => x })
   registerField("toLong", { (x: Int) => x.toLong })

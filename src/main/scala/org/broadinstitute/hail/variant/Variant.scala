@@ -268,6 +268,8 @@ case class Variant(contig: String,
   def isAutosomalOrPseudoAutosomal: Boolean =
     (!isMitochondrial && !isX && !isY) || inXPar || inYPar
 
+  def isAutosomal = !isMitochondrial && !isX && !isY
+
   def isMitochondrial = contig.toUpperCase == "M" || contig.toUpperCase == "MT" || contig == "26"
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
@@ -282,8 +284,8 @@ case class Variant(contig: String,
   def inXNonPar: Boolean = isX && !inXParPos
   def inYNonPar: Boolean = isY && !inYParPos
 
-  private def isX: Boolean = contig == "x" || contig == "X" || contig == "23" || contig == "25"
-  private def isY: Boolean = contig == "y" || contig == "Y" || contig == "24"
+  private def isX: Boolean = contig.toUpperCase == "X" || contig == "23" || contig == "25"
+  private def isY: Boolean = contig.toUpperCase == "Y" || contig == "24"
 
   import CopyState._
 

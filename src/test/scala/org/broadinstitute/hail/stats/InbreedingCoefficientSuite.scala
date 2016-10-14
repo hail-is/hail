@@ -60,8 +60,6 @@ class InbreedingCoefficientSuite extends SparkSuite {
 
           s"plink --vcf ${ uriPath(localVCFFile) } --allow-extra-chr --const-fid --het --silent --out ${ uriPath(localRoot) }" !
 
-          println(vds.variants.map(_.toString).collect().mkString("\n"))
-
           hadoopConf.copy(localIbcFile, ibcFile)
 
           val plinkResult = parsePlinkHet(ibcFile)
