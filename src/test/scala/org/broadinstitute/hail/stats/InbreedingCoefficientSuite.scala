@@ -31,7 +31,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
 
     val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
-      .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal && v.contig != "X" && v.contig != "x" })
+      .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal && v.contig.toUpperCase != "X" && v.contig.toUpperCase != "Y" })
       .filter(vds => vds.nVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same results as PLINK v1.9") =
@@ -40,7 +40,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
         var s = State(sc, sqlContext).copy(vds = vds)
 
         s = VariantQC.run(s)
-        s = FilterVariantsExpr.run(s, Array("--keep", "-c", """va.qc.AC > 0"""))
+        s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8"))
 
         if (s.vds.nSamples < 5 || s.vds.nVariants < 5) {
           true
@@ -104,7 +104,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
   }
 
   @Test def testIbcPlinkVersion() {
-    Spec.check(count = 1000)
+    Spec.check()
   }
 }
 

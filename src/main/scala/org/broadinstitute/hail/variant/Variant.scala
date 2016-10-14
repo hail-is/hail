@@ -266,9 +266,9 @@ case class Variant(contig: String,
   def locus: Locus = Locus(contig, start)
 
   def isAutosomalOrPseudoAutosomal: Boolean =
-    !isMitochondrial && !isX && !isY || inXPar || inYPar
+    (!isMitochondrial && !isX && !isY) || inXPar || inYPar
 
-  def isMitochondrial = contig == "m" || contig == "M" || contig == "MT" || contig == "26"
+  def isMitochondrial = contig.toUpperCase == "M" || contig.toUpperCase == "MT" || contig == "26"
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
