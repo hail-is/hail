@@ -3,6 +3,7 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.stats.InbreedingCombiner
 import org.broadinstitute.hail.variant.VariantDataset
 
 object ImputeSexPlink {

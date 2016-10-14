@@ -4,10 +4,9 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.stats.{CallStats, CallStatsCombiner, HistogramCombiner, InfoScoreCombiner}
+import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant._
-
 import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.Position
 
