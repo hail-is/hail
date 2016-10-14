@@ -23,10 +23,6 @@ object AnnotateVariantsVDS extends Command with JoinAnnotator {
       usage = "Use annotation expressions to join with the table (this argument or --root required)")
     var code: String = _
 
-    @Args4jOption(required = false, name = "--split",
-      usage = "split multiallelic variants in the input VDS")
-    var split: Boolean = false
-
   }
 
   def newOptions = new Options
@@ -62,9 +58,6 @@ object AnnotateVariantsVDS extends Command with JoinAnnotator {
             fatal(s"no such dataset ${ options.name } in environment")
         }
       }
-
-    if (options.split)
-      otherVDS = SplitMulti.run(state.copy(vds = otherVDS)).vds
 
     splitWarning(vds.wasSplit, "VDS", otherVDS.wasSplit, "VDS")
 
