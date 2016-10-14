@@ -1,13 +1,10 @@
 package org.broadinstitute.hail.driver
 
-import java.io.IOException
-
 import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, Path}
-import org.apache.hadoop.io.{LongWritable, Text}
-import org.apache.hadoop.mapred.{JobConf, Reporter}
+import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapreduce.{InputSplit => NewInputSplit, RecordReader => NewRecordReader, TaskAttemptContext => NewTaskAttemptContext}
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat => NewFileInputFormat, FileSplit => NewFileSplit}
-import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+import org.kohsuke.args4j.Argument
 
 import scala.collection.JavaConverters._
 
