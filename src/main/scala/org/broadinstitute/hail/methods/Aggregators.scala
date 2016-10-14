@@ -353,3 +353,25 @@ class CallStatsAggregator(f: (Any) => Any, val idx: Int, variantF: () => Any)
 
   def copy(): TypedAggregator[CallStats] = new CallStatsAggregator(f, idx, variantF)
 }
+
+class InbreedingAggregator(f: (Any) => Any, localIdx: Int, maf: () => Any) extends TypedAggregator[InbreedingCombiner] {
+  def zero = new InbreedingCombiner()
+
+  var _state = zero
+
+  override def result = _state
+
+  override def seqOp(x: Any) = {
+    val r = f(x)
+    val af = maf()
+
+    if (r != null && af != null)
+      _state.merge(r.asInstanceOf[Genotype], DoubleNumericConversion.to(af))
+  }
+
+  override def combOp(agg2: this.type) = _state.merge(agg2.asInstanceOf[InbreedingAggregator]._state)
+
+  override def copy() = new InbreedingAggregator(f, localIdx, maf)
+
+  override def idx = localIdx
+}

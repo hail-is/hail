@@ -19,6 +19,16 @@ abstract class Prop {
     rng.reSeed(Prop.seed)
     apply(Parameters(rng, size, count))
   }
+
+  def check(count: Int) {
+    val size = System.getProperty("check.size", "1000").toInt
+
+    println(s"check: size = $size, count = $count")
+
+    val rng = new RandomDataGenerator()
+    rng.reSeed(Prop.seed)
+    apply(Parameters(rng, size, count))
+  }
 }
 
 class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {

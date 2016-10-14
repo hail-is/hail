@@ -327,6 +327,10 @@ class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
     apply(p.copy(size = newSize))
   }
 
+  def count(newCount: Int): Gen[T] = Gen { (p: Parameters) =>
+    apply(p.copy(count = newCount))
+  }
+
   // FIXME should be non-strict
   def withFilter(f: (T) => Boolean): Gen[T] = Gen { (p: Parameters) =>
     var x = apply(p)

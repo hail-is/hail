@@ -853,6 +853,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
                 |  Accepted aggregable types: `Aggregable[Numeric]' and `Aggregable[Array[Numeric]]'
                 |  Hint: use `.map(x => ...)' to produce a numeric aggregable""".stripMargin)
         }
+
       case (agg: TAggregable, "infoScore", rhs) =>
         if (rhs.nonEmpty)
           parseError(s"""method `$method' does not take arguments""")
@@ -864,6 +865,18 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
              """.stripMargin
           )
         }
+
+      case (agg: TAggregable, "ibc", rhs) =>
+        rhs.foreach(_.typecheck(agg.ec))
+
+        val types = rhs.map(_.`type`)
+        `type` = types match {
+          case Array(TDouble) => InbreedingCombiner.signature
+          case _ => parseError(
+            s"""method `ibc' expects arguments of type (Double)
+                |  Found (${ types.mkString(", ") })""".stripMargin)
+        }
+
       case _ =>
         super.typecheck(ec)
     }
@@ -1231,6 +1244,18 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       agg.ec.aggregationFunctions += new InfoScoreAggregator(aggF, localIdx)
       () => localA(localIdx).asInstanceOf[InfoScoreCombiner].asAnnotation
+
+    case (agg: TAggregable, "ibc", Array(mafAST)) =>
+      val localIdx = agg.ec.a.length
+      val localA = agg.ec.a
+      localA += null
+
+      val localPos = posn
+      val aggF = agg.f
+      val maf = mafAST.eval(agg.ec)
+
+      agg.ec.aggregationFunctions += new InbreedingAggregator(aggF, localIdx, maf)
+      () => localA(localIdx).asInstanceOf[InbreedingCombiner].asAnnotation
 
     case (agg: TAggregable, "sum", Array()) =>
       val localIdx = agg.ec.a.length

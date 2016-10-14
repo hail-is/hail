@@ -1,7 +1,17 @@
 package org.broadinstitute.hail.methods
 
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant.Genotype
 import org.broadinstitute.hail.utils._
+
+object InbreedingCombiner {
+  def signature = TStruct("Fstat" -> TDouble,
+    "nTotal" -> TInt,
+    "nCalled" -> TInt,
+    "expectedHoms" -> TDouble,
+    "observedHoms" -> TInt)
+}
 
 class InbreedingCombiner extends Serializable {
   var nCalled = 0
@@ -9,7 +19,7 @@ class InbreedingCombiner extends Serializable {
   var observedHoms = 0
   var total = 0
 
-  def addCount(gt:Genotype, maf: Double): InbreedingCombiner = {
+  def merge(gt:Genotype, maf: Double): InbreedingCombiner = {
     total += 1
     if (gt.isCalled) {
       nCalled += 1
@@ -21,7 +31,7 @@ class InbreedingCombiner extends Serializable {
     this
   }
 
-  def combineCounts(other: InbreedingCombiner): InbreedingCombiner = {
+  def merge(other: InbreedingCombiner): InbreedingCombiner = {
     nCalled += other.nCalled
     expectedHoms += other.expectedHoms
     observedHoms += other.observedHoms
@@ -30,4 +40,6 @@ class InbreedingCombiner extends Serializable {
   }
 
   def Fstat: Option[Double] = divOption(observedHoms - expectedHoms, nCalled - expectedHoms)
+
+  def asAnnotation: Annotation = Annotation(Fstat.orNull, total, nCalled, expectedHoms, observedHoms)
 }
