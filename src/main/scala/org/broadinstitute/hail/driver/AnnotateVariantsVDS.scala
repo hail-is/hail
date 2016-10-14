@@ -48,7 +48,7 @@ object AnnotateVariantsVDS extends Command with JoinAnnotator {
       case _ => fatal("this module requires one of `--root' or `--code', but not both")
     }
 
-    if (!((options.input == null) ^ (options.name != null)))
+    if (!((options.input != null) ^ (options.name != null)))
       fatal("either `--input' or `--name' required, but not both")
 
     var otherVDS =
