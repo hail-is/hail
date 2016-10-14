@@ -138,4 +138,11 @@ class UtilsSuite extends SparkSuite {
 
     p.check()
   }
+
+  @Test def testSortFileStatus() {
+    val parquetFileNames = Array("part-r-00000-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet",
+    "part-r-00100-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet",
+    "part-r-01000-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet",
+    "part-r-10000-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet")
+  }
 }

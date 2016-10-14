@@ -3,7 +3,7 @@ package org.broadinstitute.hail.utils.richUtils
 import java.io._
 
 import org.apache.hadoop
-import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.fs.{FileStatus, PathIOException}
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.broadinstitute.hail.io.compress.BGzipCodec
@@ -89,6 +89,14 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.toArray
   }
 
+  def sort(filename1: FileStatus, filename2: FileStatus): Int = {
+    val partRegex = ".*/?part-r-(\\d+)-.*\\.parquet.*".r
+    (filename1, filename2) match {
+        case (partRegex(i), partRegex(j)) => i.toInt - j.toInt
+        case _ => filename1.compareTo(filename2)
+      }
+    }
+
   def globAndSort(filename: String): Array[FileStatus] = {
     val fs = fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
@@ -97,7 +105,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     if (files == null)
       return Array.empty[FileStatus]
 
-    files.sortWith(_.compareTo(_) < 0)
+    files.sortWith(sort(_, _) < 0)
   }
 
   def copy(src: String, dst: String) {
@@ -108,7 +116,6 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   }
 
   def copyMerge(srcFilenames: Array[String], destFilename: String, deleteSource: Boolean = true) {
-
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = fileSystem(destFilename)
 
