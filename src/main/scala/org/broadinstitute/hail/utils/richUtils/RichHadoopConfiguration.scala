@@ -89,14 +89,6 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.toArray
   }
 
-  def sort(filename1: FileStatus, filename2: FileStatus): Int = {
-    val partRegex = ".*/?part-r-(\\d+)-.*\\.parquet.*".r
-    (filename1, filename2) match {
-        case (partRegex(i), partRegex(j)) => i.toInt - j.toInt
-        case _ => filename1.compareTo(filename2)
-      }
-    }
-
   def globAndSort(filename: String): Array[FileStatus] = {
     val fs = fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
@@ -104,8 +96,8 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     val files = fs.globStatus(path)
     if (files == null)
       return Array.empty[FileStatus]
-
-    files.sortWith(sort(_, _) < 0)
+    
+    files.sortBy(fs => getPartNumber(fs.toString))
   }
 
   def copy(src: String, dst: String) {

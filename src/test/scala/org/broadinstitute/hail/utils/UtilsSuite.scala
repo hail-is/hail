@@ -5,6 +5,7 @@ import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.sparkextras.OrderedRDD
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.utils.richUtils.RichHadoopConfiguration
 import org.testng.annotations.Test
 
 class UtilsSuite extends SparkSuite {
@@ -140,9 +141,12 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testSortFileStatus() {
-    val parquetFileNames = Array("part-r-00000-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet",
-    "part-r-00100-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet",
-    "part-r-01000-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet",
-    "part-r-10000-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet")
+    val parquetFilePath = "src/test/resources/part-r-*-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet"
+
+    val rhc = new RichHadoopConfiguration(sc.hadoopConfiguration)
+    val fileStatuses = rhc.globAndSort(parquetFilePath)
+
+    assert(fileStatuses(0).getPath.getName == "part-r-40001-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet" &&
+      fileStatuses(1).getPath.getName == "part-r-100001-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet")
   }
 }
