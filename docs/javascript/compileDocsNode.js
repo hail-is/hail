@@ -13,8 +13,9 @@ const faqHtmlTemplate = __dirname + "/" + process.argv[4];
 const tutorialHtmlTemplate = __dirname + "/" + process.argv[5];
 const overviewHtmlTemplate = __dirname + "/" + process.argv[6];
 const gettingStartedHtmlTemplate = __dirname + "/" + process.argv[7];
-const jsonCommandsFile = process.argv[8];
-const pandocOutputDir = __dirname + "/" + process.argv[9];
+const indexHtmlTemplate = __dirname + "/" + process.argv[8];
+const jsonCommandsFile = process.argv[9];
+const pandocOutputDir = __dirname + "/" + process.argv[10];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
@@ -31,6 +32,7 @@ buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
 buildSinglePage(tutorialHtmlTemplate, "#Tutorial", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html");
 buildSinglePage(overviewHtmlTemplate, "#Overview", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html");
 buildSinglePage(gettingStartedHtmlTemplate, "#GettingStarted", pandocOutputDir + "reference/GettingStarted.html", __dirname + "/getting_started.html");
+buildIndex(indexHtmlTemplate, "#Home", "README.html", __dirname + "/index.html");
 
 
 function error(message) {
@@ -176,6 +178,33 @@ function buildSinglePage(htmlTemplate, selector, pandocInput, outputFileName) {
         Promise.all(loadTutorialPromises)
             .then(function() {
                  var document = jsdom.jsdom($('html').html());
+                 runMathJax(document, function(html) {
+                    fs.writeFile(outputFileName, html);
+                 });
+            }, error)
+            .catch(error);
+    });
+}
+
+function buildIndex(htmlTemplate, selector, pandocInput, outputFileName) {
+    jsdom.env(htmlTemplate, function (err, window) {
+        window.addEventListener("error", function (event) {
+          console.error("script error!!", event.error);
+          process.exit(1);
+        });
+
+        const $ = require('jquery')(window);
+
+        var loadTutorialPromises = [loadReq(selector, pandocInput, $)];
+
+        Promise.all(loadTutorialPromises)
+            .then(function() {
+                 $("h1#hail").remove();
+                 $('a[href*="badge"]').remove();
+                 $('a[href="https://hail.is"]').replaceWith("Hail");
+
+                 var document = jsdom.jsdom($('html').html());
+
                  runMathJax(document, function(html) {
                     fs.writeFile(outputFileName, html);
                  });

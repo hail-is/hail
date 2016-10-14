@@ -11,7 +11,7 @@ outDir=$2 # output directory to put html files in
 
 mkdir -p $outDir
 
-for mdFile in $(find $inDir -name '*.md'); do
+for mdFile in $(find $inDir -name '*.md') README.md; do
     mkdir -p $outDir$(dirname $mdFile)
     pandoc $mdFile -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o $outDir${mdFile/%md/html}
 done
