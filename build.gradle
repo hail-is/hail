@@ -300,7 +300,7 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
 }
 
 task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
-    args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'tutorialTemplate.html', 'overviewTemplate.html', 'gettingStartedTemplate.html', 'indexTemplate.html', './commandOptions.json', 'docs/')
+    args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'template.html', './commandOptions.json', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 

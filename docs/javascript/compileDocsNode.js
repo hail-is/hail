@@ -10,12 +10,9 @@ process.on('uncaughtException', function (err) {
 const referenceHtmlTemplate = __dirname + "/" + process.argv[2];
 const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
 const faqHtmlTemplate = __dirname + "/" + process.argv[4];
-const tutorialHtmlTemplate = __dirname + "/" + process.argv[5];
-const overviewHtmlTemplate = __dirname + "/" + process.argv[6];
-const gettingStartedHtmlTemplate = __dirname + "/" + process.argv[7];
-const indexHtmlTemplate = __dirname + "/" + process.argv[8];
-const jsonCommandsFile = process.argv[9];
-const pandocOutputDir = __dirname + "/" + process.argv[10];
+const template = __dirname + "/" + process.argv[5];
+const jsonCommandsFile = process.argv[6];
+const pandocOutputDir = __dirname + "/" + process.argv[7];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
@@ -27,12 +24,21 @@ const jsonData = require(jsonCommandsFile);
 mjAPI.start();
 
 buildFAQ(faqHtmlTemplate, __dirname + "/faq.html");
+
 buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
+
 buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
-buildSinglePage(tutorialHtmlTemplate, "#Tutorial", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html");
-buildSinglePage(overviewHtmlTemplate, "#Overview", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html");
-buildSinglePage(gettingStartedHtmlTemplate, "#GettingStarted", pandocOutputDir + "reference/GettingStarted.html", __dirname + "/getting_started.html");
-buildIndex(indexHtmlTemplate, "#Home", "README.html", __dirname + "/index.html");
+
+buildSinglePage(template, "#Body", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html",
+    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#tutorial").addClass("active");});});</script>');
+
+buildSinglePage(template, "#Body", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html",
+    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#overview").addClass("active");});});</script>');
+
+buildSinglePage(template, "#Body", pandocOutputDir + "reference/GettingStarted.html", __dirname + "/getting_started.html",
+    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#getting_started").addClass("active");});});</script>');
+
+buildIndex(template, "#Body", "README.html", __dirname + "/index.html");
 
 
 function error(message) {
@@ -164,7 +170,7 @@ function buildFAQ(htmlTemplate, outputFileName) {
     });
 }
 
-function buildSinglePage(htmlTemplate, selector, pandocInput, outputFileName) {
+function buildSinglePage(htmlTemplate, selector, pandocInput, outputFileName, scriptTag) {
     jsdom.env(htmlTemplate, function (err, window) {
         window.addEventListener("error", function (event) {
           console.error("script error!!", event.error);
@@ -177,6 +183,7 @@ function buildSinglePage(htmlTemplate, selector, pandocInput, outputFileName) {
 
         Promise.all(loadTutorialPromises)
             .then(function() {
+                $("head").append(scriptTag);
                  var document = jsdom.jsdom($('html').html());
                  runMathJax(document, function(html) {
                     fs.writeFile(outputFileName, html);
@@ -202,6 +209,7 @@ function buildIndex(htmlTemplate, selector, pandocInput, outputFileName) {
                  $("h1#hail").remove();
                  $('a[href*="badge"]').remove();
                  $('a[href="https://hail.is"]').replaceWith("Hail");
+                 $("head").append('<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#home").addClass("active");});});</script>')
 
                  var document = jsdom.jsdom($('html').html());
 
