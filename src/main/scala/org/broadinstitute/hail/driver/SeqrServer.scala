@@ -26,7 +26,7 @@ import scala.collection.mutable
 case class SeqrRequest(page: Int,
   limit: Int,
   sort_by: Option[Array[String]],
-  sample_filters: Option[Array[String]],
+  sample_ids: Option[Array[String]],
   variant_filters: Option[Map[String, JValue]],
   genotype_filters: Option[Map[String, Map[String, JValue]]])
 
@@ -45,6 +45,15 @@ class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, 
     s"${ e.getClass.getName }: ${ e.getMessage }\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
       Option(e.getCause).foreach(exception => expandException(exception))
     }"
+
+  def unescapeColumnName(escaped: String): Either[String, (String, String)] = {
+    val sep = escaped.indexOf("__")
+    if (sep == -1)
+      Left(unescapeString(escaped))
+    else
+      Right((unescapeString(escaped.substring(0, sep)),
+        unescapeString(escaped.substring(sep + 2))))
+  }
 
   def process(req: SeqrRequest): SeqrResponse = {
     // println(req)
@@ -85,7 +94,7 @@ class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, 
 
     if (!solrOnly) {
       query.addField("chrom")
-      query.addField("start")
+      query.addField("pos")
       query.addField("ref")
       query.addField("alt")
     }
@@ -99,7 +108,7 @@ class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, 
     val docs = solrResponse.getResults
     val found = docs.getNumFound
 
-    val sampleFilters = req.sample_filters.map(_.toSet)
+    val sampleFilters = req.sample_ids.map(_.toSet)
 
     val variants: Array[Map[String, JValue]] = if (solrOnly) {
       docs.asScala.map { doc =>
@@ -123,59 +132,58 @@ class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, 
             }
 
             var jv = toJSON(doc.getFieldValue(name))
-            val sep = name.indexOf("__")
-            if (sep == -1) {
-              val uname = unescapeString(name)
+            unescapeColumnName(name) match {
+              case Left(vfield) =>
+                if (jsonFields.contains(vfield)) {
+                  val JString(s) = jv
+                  jv = JsonMethods.parse(s)
+                }
+                variants += ((vfield, jv))
 
-              if (jsonFields.contains(uname)) {
-                val JString(s) = jv
-                jv = JsonMethods.parse(s)
-              }
-              variants += ((uname, jv))
-            } else {
-              val usample = unescapeString(name.substring(0, sep))
-              val include = sampleFilters.forall(_.contains(usample))
-              if (include) {
-                val subuname = unescapeString(name.substring(sep + 2))
-                genotypes.updateValue(usample, mutable.Map.empty, { m =>
-                  m += ((subuname, jv))
-                  m
-                })
-              }
+              case Right((sample, gfield)) =>
+                val include = sampleFilters.forall(_.contains(sample))
+                if (include) {
+                  genotypes.updateValue(sample, mutable.Map.empty, { m =>
+                    m += ((gfield, jv))
+                    m
+                  })
+                }
             }
           }
 
-        variants += (("genotypes",
-          JObject(genotypes.map { case (k, v) =>
-            (k, JObject(v.toList))
-          }.toList)))
+        if (genotypes.nonEmpty)
+          variants += (("genotypes",
+            JObject(genotypes.map { case (k, v) =>
+              (k, JObject(v.toList))
+            }.toList)))
 
         variants.toMap
       }.toArray
     } else {
       val prepared = cassSession.prepare(
-        s"SELECT * FROM ${ cassKeyspace }.${ cassTable } WHERE chrom=? AND start=? AND ref=? AND alt=?")
+        s"SELECT * FROM ${ cassKeyspace }.${ cassTable } WHERE chrom=? AND pos=? AND ref=? AND alt=?")
 
       val futures = docs.asScala
         .map { doc =>
           val chrom = doc.getFieldValue("chrom")
-          val start = doc.getFieldValue("start")
+          val pos = doc.getFieldValue("pos")
           val ref = doc.getFieldValue("ref")
           val alt = doc.getFieldValue("alt")
 
-          cassSession.executeAsync(prepared.bind(chrom, start, ref, alt))
+          cassSession.executeAsync(prepared.bind(chrom, pos, ref, alt))
         }
 
-      futures.flatMap { future =>
+      futures.map { future =>
         val cassResults = future.getUninterruptibly()
 
+        val variants = mutable.Map.empty[String, JValue]
+        val genotypes = mutable.Map.empty[String, mutable.Map[String, JValue]]
+
         val cassColumns = cassResults.getColumnDefinitions
-        cassResults.asScala.map { r =>
-          cassColumns.asScala.zipWithIndex.flatMap { case (col, i) =>
-            if (r.isNull(i))
-              None
-            else {
-              val jv: JValue = (col.getType.getName: @unchecked) match {
+        cassResults.asScala.foreach { r =>
+          cassColumns.asScala.zipWithIndex.foreach { case (col, i) =>
+            if (!r.isNull(i)) {
+              var jv: JValue = (col.getType.getName: @unchecked) match {
                 case DataType.Name.BOOLEAN =>
                   JBool(r.getBool(i))
                 case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR =>
@@ -227,10 +235,35 @@ class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, 
                         .map(v => JInt(v.toInt)))
                   }
               }
-              Some((col.getName, jv))
+
+              unescapeColumnName(col.getName) match {
+                case Left(vfield) =>
+                  if (jsonFields.contains(vfield)) {
+                    val JString(s) = jv
+                    jv = JsonMethods.parse(s)
+                  }
+                  variants += ((vfield, jv))
+
+                case Right((sample, gfield)) =>
+                  val include = sampleFilters.forall(_.contains(sample))
+                  if (include) {
+                    genotypes.updateValue(sample, mutable.Map.empty, { m =>
+                      m += ((gfield, jv))
+                      m
+                    })
+                  }
+              }
             }
-          }.toMap
+          }
         }
+
+        if (genotypes.nonEmpty)
+          variants += (("genotypes",
+            JObject(genotypes.map { case (k, v) =>
+              (k, JObject(v.toList))
+            }.toList)))
+
+        variants.toMap
       }.toArray
     }
 
@@ -257,7 +290,7 @@ class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, 
           val knownKeys = Set("page",
             "limit",
             "sort_by",
-            "sample_filters",
+            "sample_ids",
             "variant_filters",
             "genotype_filters")
 

@@ -4,6 +4,7 @@ import com.datastax.driver.core._
 import com.datastax.driver.core.querybuilder.QueryBuilder
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils.StringEscapeUtils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.JavaConverters._
@@ -58,6 +59,9 @@ object ExportVariantsCass extends Command {
     @Args4jOption(name = "--export-ref", usage = "export HomRef calls")
     var exportRef = false
 
+    @Args4jOption(name = "--export-missing", usage = "export missing genotypes")
+    var exportMissing = false
+
     @Args4jOption(required = true, name = "-g",
       usage = "comma-separated list of fields/computations to be exported")
     var genotypeCondition: String = _
@@ -82,7 +86,7 @@ object ExportVariantsCass extends Command {
 
   def description = "Export variant information to Cassandra"
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic = true
 
   def requiresVDS = true
 
@@ -104,6 +108,9 @@ object ExportVariantsCass extends Command {
     case TSet(elementType) => a.asInstanceOf[Set[_]].asJava
     case _ => a.asInstanceOf[AnyRef]
   }
+
+  def escapeString(name: String): String =
+    escapeStringSimple(name, '_', !_.isLetter, !_.isLetterOrDigit)
 
   def escapeCassColumnName(name: String): String = {
     val sb = new StringBuilder
@@ -130,6 +137,7 @@ object ExportVariantsCass extends Command {
     val vCond = options.variantCondition
     val address = options.address
     val exportRef = options.exportRef
+    val exportMissing = options.exportMissing
 
     val keyspace = options.keyspace
     val table = options.table
@@ -160,20 +168,20 @@ object ExportVariantsCass extends Command {
     val ec = EvalContext(symTab)
     val a = ec.a
 
-    val fields = (vparsed.map { case (name, t, f) => (escapeCassColumnName(name), t) }
+    val fields = (vparsed.map { case (name, t, f) => (escapeString(name), t) }
       ++ vds.sampleIds.flatMap { s =>
-      gparsed.map { case (name, t, f) => (escapeCassColumnName(s + "_" + name), t) }
+      gparsed.map { case (name, t, f) => (escapeString(s) + "__" + escapeString(name), t) }
     })
 
     val session = CassandraStuff.getSession(address)
 
-    val keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace);
+    val keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
     if (keyspaceMetadata == null) {
-       throw new IllegalArgumentException("keyspace not found: " + keyspace);
+       throw new IllegalArgumentException("keyspace not found: " + keyspace)
     }
     val tableMetadata = keyspaceMetadata.getTable(table)
     if (tableMetadata == null) {
-       throw new IllegalArgumentException("table not found: " + table);
+       throw new IllegalArgumentException("table not found: " + table)
     }
 
     val preexistingFields = tableMetadata.getColumns.asScala.map(_.getName).toSet
@@ -182,7 +190,7 @@ object ExportVariantsCass extends Command {
 
     if (toAdd.nonEmpty) {
       session.execute(s"ALTER TABLE $qualifiedTable ADD (${
-        toAdd.map { case (name, t) => s"$name ${toCassType(t)}" }.mkString(",")
+        toAdd.map { case (name, t) => s""""$name" ${toCassType(t)}""" }.mkString(",")
       })")
     }
 
@@ -206,7 +214,7 @@ object ExportVariantsCass extends Command {
             vparsed.foreach { case (name, t, f) =>
               vEC.setAll(v, va)
               f().foreach { a =>
-                nb += escapeCassColumnName(name)
+                nb += escapeString(name)
                 vb += toCassValue(a, t)
               }
             }
@@ -215,10 +223,10 @@ object ExportVariantsCass extends Command {
               val s = sampleIdsBc.value(i)
               val sa = sampleAnnotationsBc.value(i)
               gparsed.foreach { case (name, t, f) =>
-                if (g.isCalled && (exportRef || !g.isHomRef)) {
+                if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
                   gEC.setAll(v, va, s, sa, g)
                   f().foreach { a =>
-                    nb += escapeCassColumnName(s + "_" + name)
+                    nb += '"' + escapeString(s) + "__" + escapeString(name) + '"'
                     vb += toCassValue(a, t)
                   }
                 }
