@@ -80,9 +80,10 @@ class LinRegBuilder extends Serializable {
     val missingRowIndicesArray = missingRowIndices.result()
     val nMissing = missingRowIndicesArray.size
     val nPresent = n - nMissing
+    val allHet = sumX == nPresent && sumXX == nPresent
+    val allHomVar = sumX == 2 * nPresent
 
-    // all HomRef or all Missing or AC < minAC || all HomVar || all Het
-    if (sumX < minAC || sumX == 2 * nPresent || (sumX == nPresent && sumXX == nPresent))
+    if (sumX < minAC || allHomVar || allHet)
       None
     else {
       val rowsXArray = rowsX.result()

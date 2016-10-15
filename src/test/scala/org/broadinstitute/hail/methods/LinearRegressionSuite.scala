@@ -474,7 +474,7 @@ class LinearRegressionSuite extends SparkSuite {
         "-mac", "0"))
     }
 
-    interceptFatal("Minumum alternate allele frequency must be between 0.0 and 1.0") {
+    interceptFatal("Minumum alternate allele frequency must lie in") {
       LinearRegressionCommand.run(s, Array(
         "-y", "sa.pheno.Pheno",
         "-maf", "2.0"))
