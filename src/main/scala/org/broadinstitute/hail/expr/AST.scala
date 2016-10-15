@@ -345,8 +345,6 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
   override def typecheckThis(ec: EvalContext): Type = {
-    if (elements.isEmpty)
-      parseError("Hail does not currently support declaring empty structs.")
     elements.foreach(_.typecheck(ec))
     val types = elements.map(_.`type`)
       .map {
