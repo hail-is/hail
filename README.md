@@ -2,7 +2,9 @@
 
 [![Gitter](https://badges.gitter.im/hail-is/hail.svg)](https://gitter.im/hail-is/hail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-[Hail](https://hail.is) is an open-source framework for scalable genetic data analysis. To get started using Hail:
+[Hail](https://hail.is) is an open-source framework for scalable genetic data analysis.
+
+To get started using Hail:
 
 - read the docs ([Getting Started](https://hail.is/getting_started.html), [Overview](https://hail.is/overview.html), [Tutorial](https://hail.is/tutorial.html), [General Reference](https://hail.is/reference.html), [Command Reference](https://hail.is/commands.html), [FAQ](https://hail.is/faq.html))
 - join the [discussion forum](http://discuss.hail.is)
