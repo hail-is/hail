@@ -1,10 +1,14 @@
 package org.broadinstitute.hail.driver
 
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, Path}
 import org.apache.hadoop.io.LongWritable
+import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.hadoop.mapreduce.{InputSplit => NewInputSplit, RecordReader => NewRecordReader, TaskAttemptContext => NewTaskAttemptContext}
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat => NewFileInputFormat, FileSplit => NewFileSplit}
-import org.kohsuke.args4j.Argument
+import org.broadinstitute.hail.io.compress.BGzipInputStream
+import org.broadinstitute.hail.utils.richUtils.RichHadoopConfiguration
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 
@@ -15,6 +19,7 @@ class CountBytesRecordReader extends NewRecordReader[LongWritable, LongWritable]
   var in: FSDataInputStream = _
   var key: LongWritable = _
   var value: LongWritable = _
+  var bgzCompressed: Boolean = _
 
   def initialize(genericSplit: NewInputSplit, context: NewTaskAttemptContext) {
     val split = genericSplit.asInstanceOf[NewFileSplit]
@@ -23,6 +28,12 @@ class CountBytesRecordReader extends NewRecordReader[LongWritable, LongWritable]
     start = split.getStart
     end = start + split.getLength
     val file: Path = split.getPath
+
+    val forceBGz = job.getBoolean("forceBGz", false)
+
+    val path = file.toUri.getPath
+    println("path", path)
+    bgzCompressed = (path.endsWith(".gz") && forceBGz) || path.endsWith(".bgz")
 
     // open the file and seek to the start of the split
     val fs: FileSystem = file.getFileSystem(job)
@@ -42,22 +53,36 @@ class CountBytesRecordReader extends NewRecordReader[LongWritable, LongWritable]
       if (value == null)
         value = new LongWritable
 
-      val buf = new Array[Byte](128 * 1024)
+      val buf = new Array[Byte](64 * 1024)
       var bytes = 0L
-      var pos = start
 
-      def f() {
-        val needed = end - (start + bytes)
-        if (needed > 0) {
-          val read = in.read(buf, 0, buf.length.toLong.min(needed).toInt)
-          if (read > 0) {
-            bytes += read
-            f()
-          } else
-            assert(read == -1)
+      if (bgzCompressed) {
+        val cin = new BGzipInputStream(in, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
+        def f() {
+          if (cin.blockPos() < end) {
+            val read = cin.readBlock(buf)
+            if (read > 0) {
+              bytes += read
+              f()
+            } else
+              assert(read == -1)
+          }
         }
+        f()
+      } else {
+        def f() {
+          val needed = end - (start + bytes)
+          if (needed > 0) {
+            val read = in.read(buf, 0, buf.length.toLong.min(needed).toInt)
+            if (read > 0) {
+              bytes += read
+              f()
+            } else
+              assert(read == -1)
+          }
+        }
+        f()
       }
-      f()
 
       value.set(bytes)
       true
@@ -95,6 +120,9 @@ class CountBytesInputFormat extends NewFileInputFormat[LongWritable, LongWritabl
 object CountBytes extends Command {
 
   class Options extends BaseOptions {
+    @Args4jOption(name = "--force-bgz", usage = "Force load .gz file using BGzip codec")
+    var forceBGz: Boolean = false
+
     @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
@@ -112,8 +140,15 @@ object CountBytes extends Command {
   override def hidden = true
 
   def run(state: State, options: Options): State = {
+    val jobConf = new Configuration(state.hadoopConf)
+
+    jobConf.set("forceBGz", options.forceBGz.toString)
     val bytes =
-      state.sc.newAPIHadoopFile[LongWritable, LongWritable, CountBytesInputFormat](options.arguments.asScala.mkString(","))
+      state.sc.newAPIHadoopFile[LongWritable, LongWritable, CountBytesInputFormat](options.arguments.asScala.mkString(","),
+        classOf[CountBytesInputFormat],
+        classOf[LongWritable],
+        classOf[LongWritable],
+        jobConf)
         .map { case (k, v) => v.get }
         .aggregate(0L)(_ + _, _ + _)
 
