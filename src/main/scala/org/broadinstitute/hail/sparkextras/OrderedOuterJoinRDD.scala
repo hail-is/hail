@@ -3,12 +3,42 @@ package org.broadinstitute.hail.sparkextras
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 
+import scala.reflect.ClassTag
+
 case class OrderedOverlapPartition[PK](index: Int, parent: Partition, rightDeps: Seq[Partition],
   leftCutoff: Option[PK], rightCutoff: Option[PK]) extends Partition
 
-class OrderedOuterJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: OrderedRDD[PK, K, V2])
+object OrderedOuterJoinRDD {
+  def apply[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: OrderedRDD[PK, K, V2])
+    (implicit vct1: ClassTag[V1], vct2: ClassTag[V2]): RDD[(K, (Option[V1], Option[V2]))] = {
+    import left.kOk
+    import left.kOk._
+
+    val nLeftPartitions = left.partitions.length
+    val nRightPartitions = right.partitions.length
+
+    val rdd: RDD[(K, (Option[V1], Option[V2]))] = if (nLeftPartitions == 0 && nRightPartitions == 0)
+      OrderedRDD.empty[PK, K, (Option[V1], Option[V2])](left.sparkContext)
+    else if (nLeftPartitions == 0)
+      right.mapValues(v => (None, Some(v)))
+    else if (nRightPartitions == 0)
+      left.mapValues(v => (Some(v), None))
+    else if (nRightPartitions > nLeftPartitions) {
+      val join = new OrderedOuterJoinRDD(right, left)
+      join.mapValues { case (v1, v2) => (v2, v1) }
+    } else {
+      assert(nLeftPartitions >= nRightPartitions)
+      new OrderedOuterJoinRDD(left, right)
+    }
+    assert(rdd.partitions.length == math.max(nLeftPartitions, nRightPartitions))
+    rdd
+  }
+}
+
+class OrderedOuterJoinRDD[PK, K, V1, V2] private(left: OrderedRDD[PK, K, V1], right: OrderedRDD[PK, K, V2])
   extends RDD[(K, (Option[V1], Option[V2]))](left.sparkContext, Seq(new OneToOneDependency(left),
     new OrderedDependency(left.orderedPartitioner, right.orderedPartitioner, right)): Seq[Dependency[_]]) {
+  require(left.partitions.length > 0 && right.partitions.length > 0)
 
   override val partitioner = Some(left.orderedPartitioner)
 

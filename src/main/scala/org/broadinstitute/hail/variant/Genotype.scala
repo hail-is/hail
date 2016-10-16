@@ -109,6 +109,8 @@ class Genotype(private val _gt: Int,
       .append(isDosage)
       .toHashCode
 
+  def unboxedGT: Int = _gt
+
   def gt: Option[Int] =
     if (_gt >= 0)
       Some(_gt)

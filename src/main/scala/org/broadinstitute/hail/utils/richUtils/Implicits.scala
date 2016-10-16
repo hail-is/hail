@@ -6,7 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
-import org.broadinstitute.hail.utils.Truncatable
+import org.broadinstitute.hail.utils.{MultiArray2, Truncatable}
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
@@ -43,6 +43,9 @@ trait Implicits {
   implicit def toRichIteratorOfByte(i: Iterator[Byte]): RichIteratorOfByte = new RichIteratorOfByte(i)
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
+
+  implicit def toRichMultiArray2[T](ma: MultiArray2[T]): RichMultiArray2Numeric[T] =
+    new RichMultiArray2Numeric(ma)
 
   implicit def toRichMutableMap[K, V](m: mutable.Map[K, V]): RichMutableMap[K, V] = new RichMutableMap(m)
 
