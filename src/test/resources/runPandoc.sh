@@ -6,6 +6,8 @@
 # directory
 ###################################################################
 
+set -ex
+
 inDir=$1 # input directory with markdown files
 outDir=$2 # output directory to put html files in
 
