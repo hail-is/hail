@@ -40,11 +40,13 @@ object Concordance extends Command {
     if (!right.wasSplit) {
       fatal(
         s"""The right dataset $rightName was not split
-            |  Run `splitmulti' on this dataset before calculating concordance.
-         """.stripMargin)
+            |  Run `splitmulti' on this dataset before calculating concordance.""".stripMargin)
     }
 
     val (samples, variants) = CalculateConcordance(left, right)
+
+    info(s"Storing sites-only VDS with global and variant concordance annotations in environment as `${ options.variantName }'")
+    info(s"Storing samples-only VDS with global and sample concordance annotations in environment as `${ options.sampleName }'")
 
     state.copy(env = state.env + (options.sampleName -> samples) + (options.variantName -> variants))
   }

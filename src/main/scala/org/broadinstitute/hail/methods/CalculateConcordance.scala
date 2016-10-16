@@ -54,8 +54,6 @@ class ConcordanceCombiner extends Serializable {
   }
 
   def toAnnotation = (0 until 5).map(i => (0 until 5).map(j => mapping(i, j)))
-
-  //  def toAnnotation = Annotation(mapping.toArray.grouped(5).map(a => a: IndexedSeq[Long]).toIndexedSeq)
 }
 
 object CalculateConcordance {
@@ -129,7 +127,8 @@ object CalculateConcordance {
       arr1
     }
 
-    val global = sampleResults.reduce(_.merge(_))
+    val global = new ConcordanceCombiner
+    sampleResults.foreach(global.merge)
 
     global.report()
 
