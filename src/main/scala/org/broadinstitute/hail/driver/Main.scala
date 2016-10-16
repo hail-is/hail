@@ -82,7 +82,7 @@ object Main {
     var master: String = _
 
     @Args4jOption(name = "-b", aliases = Array("--min-block-size"), usage = "Minimum size of file splits in MB")
-    var blockSize: Int = 1
+    var blockSize: Long = 1
 
     @Args4jOption(name = "-w", aliases = Array("--branching-factor"), usage = "Branching factor to use in tree aggregate")
     var branchingFactor: Int = 50
@@ -294,7 +294,7 @@ object Main {
 
     conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
 
-    sc.hadoopConfiguration.setInt("mapreduce.input.fileinputformat.split.minsize", options.blockSize * 1024 * 1024)
+    sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", options.blockSize * 1024L * 1024L)
 
     /* `DataFrame.write` writes one file per partition.  Without this, read will split files larger than the default
      * parquet block size into multiple partitions.  This causes `OrderedRDD` to fail since the per-partition range

@@ -166,6 +166,26 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         decompIS.close();
     }
 
+    public long blockPos() {
+        assert(outputBufferPos == 0);
+        return inputBufferInPos;
+    }
+
+    public int readBlock(byte[] b) throws IOException {
+        if (outputBufferSize == 0)
+            return -1;  // EOF
+        assert(outputBufferPos == 0);
+        assert(outputBufferSize > 0);
+
+        int blockSize = outputBufferSize;
+        System.arraycopy(outputBuffer, 0, b, 0, outputBufferSize);
+
+        outputBufferPos = outputBufferSize;
+        decompressNextBlock();
+
+        return blockSize;
+    }
+
     public int read(byte[] b, int off, int len) throws IOException {
         if (len == 0)
             return 0;
