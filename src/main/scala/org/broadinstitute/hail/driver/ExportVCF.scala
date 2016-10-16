@@ -38,6 +38,36 @@ object ExportVCF extends Command {
     case _ => "1"
   }
 
+  def emitInfo(f: Field, sb: StringBuilder, value: Annotation): Boolean = {
+    if (value == null)
+      false
+    else
+      f.`type` match {
+        case it: TIterable =>
+          val arr = value.asInstanceOf[Iterable[_]]
+          if (arr.isEmpty) {
+            false // missing and empty iterables treated the same
+          } else {
+            sb.append(f.name)
+            sb += '='
+            arr.foreachBetween(a => sb.append(it.elementType.str(a)))(sb += ',')
+            true
+          }
+        case TBoolean => value match {
+          case true =>
+            sb.append(f.name)
+            true
+          case _ =>
+            false
+        }
+        case t =>
+          sb.append(f.name)
+          sb += '='
+          sb.append(t.str(value))
+          true
+      }
+  }
+
   def infoType(t: BaseType): String = t match {
     case TArray(elementType) => infoType(elementType)
     case TInt => "Integer"
@@ -78,10 +108,10 @@ object ExportVCF extends Command {
 
     val infoSignature = vds.vaSignature
       .getAsOption[TStruct]("info")
-    val infoQuery: Querier = infoSignature match {
-      case Some(_) => vds.queryVA("va.info")._2
-      case None => a => None
-    }
+    val infoQuery: (Annotation) => Option[(Annotation, TStruct)] = infoSignature.map { struct =>
+      val (_, f) = vds.queryVA("va.info")
+      (a: Annotation) => f(a).map(value => (value, struct))
+    }.getOrElse((a: Annotation) => None)
 
     val hasSamples = vds.nSamples > 0
 
@@ -150,13 +180,32 @@ object ExportVCF extends Command {
     }
 
     val idQuery: Option[Querier] = vas.getOption("rsid")
-      .map(_ => vds.queryVA("va.rsid")._2)
+      .filter {
+        case TString => true
+        case t => warn(
+          s"""found `rsid' field, but it was an unexpected type `$t'.  Emitting missing RSID.
+              |  Expected ${ TString }""".stripMargin)
+          false
+      }.map(_ => vds.queryVA("va.rsid")._2)
 
     val qualQuery: Option[Querier] = vas.getOption("qual")
-      .map(_ => vds.queryVA("va.qual")._2)
+      .filter {
+        case TDouble => true
+        case t => warn(
+          s"""found `qual' field, but it was an unexpected type `$t'.  Emitting missing QUAL.
+              |  Expected ${ TDouble }""".stripMargin)
+          false
+      }.map(_ => vds.queryVA("va.qual")._2)
 
     val filterQuery: Option[Querier] = vas.getOption("filters")
-      .map(_ => vds.queryVA("va.filters")._2)
+      .filter {
+        case TSet(TString) => true
+        case t =>
+          warn(
+            s"""found `filters' field, but it was an unexpected type `$t'.  Emitting missing FILTERS.
+                |  Expected ${ TSet(TString) }""".stripMargin)
+          false
+      }.map(_ => vds.queryVA("va.filters")._2)
 
     def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype]) {
 
@@ -185,7 +234,7 @@ object ExportVCF extends Command {
         .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)
-            f.foreachBetween(s => sb.append(s))(sb += ',')
+            f.foreachBetween(s => sb.append(s))(sb += ';')
           else
             sb += '.'
         case None => sb += '.'
@@ -193,31 +242,20 @@ object ExportVCF extends Command {
 
       sb += '\t'
 
-      infoQuery(a).map(_.asInstanceOf[Row]) match {
-        case Some(r) =>
-          val toWrite =
-            infoSignature.get.fields
-              .zip(r.toSeq)
-              .filter { case (f, v) => Option(v).isDefined }
-          if (toWrite.isEmpty)
-            sb += '.'
-          else {
-            toWrite
-              .foreachBetween { case (f, v) =>
-                sb.append(f.name)
-                if (f.`type` != TBoolean) {
-                  sb += '='
-                  v match {
-                    case i: Iterable[_] => i.foreachBetween(elem => sb.append(elem))(sb += ',')
-                    case _ => sb.append(v)
-                  }
-                }
-              }(sb += ';')
-          }
+      var wroteAnyInfo: Boolean = false
+      infoQuery(a).foreach { case (anno, struct) =>
+        val r = anno.asInstanceOf[Row]
+        val fields = struct.fields
+        assert(r.length == fields.length, "annotation/type mismatch")
 
-        case None =>
-          sb += '.'
+        var wrote: Boolean = false
+        fields.indices.foreachBetween { i =>
+          wrote = emitInfo(fields(i), sb, r.get(i))
+          wroteAnyInfo = wroteAnyInfo || wrote
+        }(if (wrote) sb += ';')
       }
+      if (!wroteAnyInfo)
+        sb += '.'
 
       if (hasSamples) {
         sb += '\t'
