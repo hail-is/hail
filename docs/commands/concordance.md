@@ -33,9 +33,9 @@ hail read RightDataset.vds
   read -i LeftDataset.vds
   concordance --right right --variants site_concordance --samples sample_concordance
   get -n site_concordance
-  // aggregate/export site concordance metrics
+  < aggregate/export site concordance metrics > 
   get -n sample_concordance
-  // aggregate/export sample concordance metrics
+  < aggregate/export sample concordance metrics >
 ```
 
 </div>
