@@ -34,13 +34,13 @@ class LinearRegressionSuite extends SparkSuite {
       "-y", "sa.pheno.Pheno",
       "-c", "sa.cov.Cov1, sa.cov.Cov2 + 1 - 1"))
 
-    val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
-    val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
-    val v3 = Variant("1", 3, "C", "T")   // x = (0, ., 1, 1, 1, .)
-    val v6 = Variant("1", 6, "C", "T")   // x = (0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")   // x = (1, 1, 1, 1, 1, 1)
-    val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2)
-    val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
+    val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
+    val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
+    val v3 = Variant("1", 3, "C", "T") // x = (0, ., 1, 1, 1, .)
+    val v6 = Variant("1", 6, "C", "T") // x = (0, 0, 0, 0, 0, 0)
+    val v7 = Variant("1", 7, "C", "T") // x = (1, 1, 1, 1, 1, 1)
+    val v8 = Variant("1", 8, "C", "T") // x = (2, 2, 2, 2, 2, 2)
+    val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
     val qBeta = s.vds.queryVA("va.linreg.beta")._2
@@ -196,12 +196,12 @@ class LinearRegressionSuite extends SparkSuite {
       "-y", "sa.fam.isCase",
       "-c", "sa.cov.Cov1,sa.cov.Cov2"))
 
-    val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
-    val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
-    val v6 = Variant("1", 6, "C", "T")   // x = (0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")   // x = (1, 1, 1, 1, 1, 1)
-    val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2)
-    val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
+    val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
+    val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
+    val v6 = Variant("1", 6, "C", "T") // x = (0, 0, 0, 0, 0, 0)
+    val v7 = Variant("1", 7, "C", "T") // x = (1, 1, 1, 1, 1, 1)
+    val v8 = Variant("1", 8, "C", "T") // x = (2, 2, 2, 2, 2, 2)
+    val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
     val (_, qBeta) = s.vds.queryVA("va.linreg.beta")
@@ -278,12 +278,12 @@ class LinearRegressionSuite extends SparkSuite {
       "-y", "sa.fam.qPheno",
       "-c", "sa.cov.Cov1,sa.cov.Cov2"))
 
-    val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
-    val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
-    val v6 = Variant("1", 6, "C", "T")   // x = (0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")   // x = (1, 1, 1, 1, 1, 1)
-    val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2)
-    val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
+    val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
+    val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
+    val v6 = Variant("1", 6, "C", "T") // x = (0, 0, 0, 0, 0, 0)
+    val v7 = Variant("1", 7, "C", "T") // x = (1, 1, 1, 1, 1, 1)
+    val v8 = Variant("1", 8, "C", "T") // x = (2, 2, 2, 2, 2, 2)
+    val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
     val qBeta = s.vds.queryVA("va.linreg.beta")._2
@@ -389,6 +389,95 @@ class LinearRegressionSuite extends SparkSuite {
       LinearRegressionCommand.run(s, Array(
         "-y", "sa.pheno.Pheno",
         "-c", "sa.cov.Cov1,sa.cov.Cov2"))
+    }
+  }
+
+  @Test def testFilters() {
+    var s = State(sc, sqlContext)
+
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
+
+    s = SplitMulti.run(s)
+
+    s = AnnotateSamples.run(s, Array("table",
+      "-i", "src/test/resources/regressionLinear.pheno",
+      "-e", "Sample",
+      "--root", "sa.pheno",
+      "--types", "Pheno: Int",
+      "--missing", "0"))
+
+    val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
+    val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
+
+    def qBeta = s.vds.queryVA("va.linreg.beta")._2
+
+    def annotationMap = s.vds.variantsAndAnnotations
+      .collect()
+      .toMap
+
+    s = LinearRegressionCommand.run(s, Array(
+      "-y", "sa.pheno.Pheno",
+      "-mac", "4"))
+
+    assert(qBeta(annotationMap(v1)).isEmpty)
+    assert(qBeta(annotationMap(v2)).isDefined)
+
+    // only 6 samples are included, so 12 alleles total
+    s = LinearRegressionCommand.run(s, Array(
+      "-y", "sa.pheno.Pheno",
+      "-maf", "0.3"))
+
+    assert(qBeta(annotationMap(v1)).isEmpty)
+    assert(qBeta(annotationMap(v2)).isDefined)
+
+    s = LinearRegressionCommand.run(s, Array(
+      "-y", "sa.pheno.Pheno",
+      "-maf", "0.4"))
+
+    assert(qBeta(annotationMap(v1)).isEmpty)
+    assert(qBeta(annotationMap(v2)).isEmpty)
+
+    s = LinearRegressionCommand.run(s, Array(
+      "-y", "sa.pheno.Pheno",
+      "-mac", "1",
+      "-maf", "0.3"))
+
+    assert(qBeta(annotationMap(v1)).isEmpty)
+    assert(qBeta(annotationMap(v2)).isDefined)
+
+    s = LinearRegressionCommand.run(s, Array(
+      "-y", "sa.pheno.Pheno",
+      "-mac", "5",
+      "-maf", "0.1"))
+
+    assert(qBeta(annotationMap(v1)).isEmpty)
+    assert(qBeta(annotationMap(v2)).isEmpty)
+  }
+
+  @Test def testFiltersFatals() {
+    var s = State(sc, sqlContext)
+
+    s = ImportVCF.run(s, Array("src/test/resources/regressionLinear.vcf"))
+
+    s = SplitMulti.run(s)
+
+    s = AnnotateSamples.run(s, Array("table",
+      "-i", "src/test/resources/regressionLinear.pheno",
+      "-e", "Sample",
+      "--root", "sa.pheno",
+      "--types", "Pheno: Int",
+      "--missing", "0"))
+
+    interceptFatal("Minumum alternate allele count must be a positive integer, got 0") {
+      LinearRegressionCommand.run(s, Array(
+        "-y", "sa.pheno.Pheno",
+        "-mac", "0"))
+    }
+
+    interceptFatal("Minumum alternate allele frequency must lie in") {
+      LinearRegressionCommand.run(s, Array(
+        "-y", "sa.pheno.Pheno",
+        "-maf", "2.0"))
     }
   }
 }

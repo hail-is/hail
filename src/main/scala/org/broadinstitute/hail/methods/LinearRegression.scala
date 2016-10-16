@@ -74,13 +74,16 @@ class LinRegBuilder extends Serializable {
     this
   }
 
-  def stats(y: DenseVector[Double], n: Int): Option[(SparseVector[Double], Double, Double)] = {
+  def stats(y: DenseVector[Double], n: Int, minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
+    require(minAC > 0)
+
     val missingRowIndicesArray = missingRowIndices.result()
     val nMissing = missingRowIndicesArray.size
     val nPresent = n - nMissing
+    val allHet = sumX == nPresent && sumXX == nPresent
+    val allHomVar = sumX == 2 * nPresent
 
-    // all HomRef | all Het | all HomVar
-    if (sumX == 0 || (sumX == nPresent && sumXX == nPresent) || sumX == 2 * nPresent)
+    if (sumX < minAC || allHomVar || allHet)
       None
     else {
       val rowsXArray = rowsX.result()
@@ -102,7 +105,7 @@ class LinRegBuilder extends Serializable {
 }
 
 object LinearRegression {
-  def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]]): LinearRegression = {
+  def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]], minAC: Int): LinearRegression = {
     require(cov.forall(_.rows == y.size))
 
     val n = y.size
@@ -137,7 +140,7 @@ object LinearRegression {
         (lrb, v, s, g) => lrb.merge(sampleIndexBc.value(s), g, yBc.value),
         (lrb1, lrb2) => lrb1.merge(lrb2))
       .mapValues { lrb =>
-        lrb.stats(yBc.value, n).map { stats => {
+        lrb.stats(yBc.value, n, minAC).map { stats => {
           val (x, xx, xy) = stats
 
           val qtx = qtBc.value * x
