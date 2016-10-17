@@ -14,7 +14,7 @@ import scala.sys.process._
 
 class InbreedingCoefficientSuite extends SparkSuite {
 
-  def parsePlinkHet(file: String): Map[String, (Option[Double], Option[Int], Option[Double], Option[Int])] =
+  def parsePlinkHet(file: String): Map[String, (Option[Double], Option[Long], Option[Double], Option[Long])] =
     hadoopConf.readLines(file)(_.drop(1).map(_.map { line =>
       val Array(fid, iid, obsHom, expHom, numCalled, f) = line.trim.split("\\s+")
       val fMod = f match {
@@ -23,7 +23,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
         case _ => throw new IllegalArgumentException
       }
 
-      (iid, (fMod, Option(obsHom.toInt), Option(expHom.toDouble), Option(numCalled.toInt)))
+      (iid, (fMod, Option(obsHom.toLong), Option(expHom.toDouble), Option(numCalled.toLong)))
     }.value
     ).toMap)
 
@@ -70,7 +70,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val (_, nCalledQuery) = s.vds.querySA("sa.het.nCalled")
 
           val hailResult = s.vds.sampleIdsAndAnnotations.map { case (sample, sa) =>
-            (sample, (fQuery(sa).map(_.asInstanceOf[Double]), obsHomQuery(sa).map(_.asInstanceOf[Int]), expHomQuery(sa).map(_.asInstanceOf[Double]), nCalledQuery(sa).map(_.asInstanceOf[Int])))
+            (sample, (fQuery(sa).map(_.asInstanceOf[Double]), obsHomQuery(sa).map(_.asInstanceOf[Long]), expHomQuery(sa).map(_.asInstanceOf[Double]), nCalledQuery(sa).map(_.asInstanceOf[Long])))
           }.toMap
 
           assert(plinkResult.keySet == hailResult.keySet)
