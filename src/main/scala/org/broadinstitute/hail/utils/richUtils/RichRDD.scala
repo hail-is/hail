@@ -38,9 +38,11 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       case None => r.saveAsTextFile(tmpFileName)
     }
 
+    val partFileStatuses = hConf.glob(tmpFileName + "/part-*").sortBy(f => getPartNumber(f.getPath.getName))
+
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName + "/part-*")
-      case None => Array(tmpFileName + "/part-*")
+      case Some(_) => hConf.glob(tmpFileName + ".header" + headerExt) ++ partFileStatuses
+      case None => partFileStatuses
     }
 
     if (!hConf.exists(tmpFileName + "/_SUCCESS"))

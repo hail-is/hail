@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.utils.richUtils
 
+import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -22,9 +23,11 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       }
     }
 
+    val partFileStatuses = hConf.glob(tmpFileName + "/part-*").sortBy(f => getPartNumber(f.getPath.getName))
+
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header", tmpFileName + "/part-*")
-      case None => Array(tmpFileName + "/part-*")
+      case Some(_) => hConf.glob(tmpFileName + ".header") ++ partFileStatuses
+      case None => partFileStatuses
     }
 
     val rMapped = r.mapPartitions { iter =>
