@@ -2,6 +2,7 @@ package org.broadinstitute.hail
 
 import java.net.URI
 
+import org.apache.hadoop.fs.{FileStatus, PathIOException}
 import org.apache.spark.AccumulableParam
 import org.broadinstitute.hail.check.Gen
 
@@ -209,6 +210,19 @@ package object utils extends Logging
   }
 
   def uriPath(uri: String): String = new URI(uri).getPath
+
+  def getPartNumber(fileStatus: FileStatus): Int = getPartNumber(fileStatus.getPath.getName)
+
+  def getPartNumber(fname: String): Int = {
+    val parquetRegex = ".*/?part-r-(\\d+)-.*\\.parquet.*".r
+    val partRegex = """.*/?part-(\d+).*""".r
+
+    fname match {
+      case parquetRegex(i) => i.toInt
+      case partRegex(i) => i.toInt
+      case _ => throw new PathIOException(s"invalid parquet file `$fname'")
+    }
+  }
 
   def extendOrderingToNull[T](implicit ord: Ordering[T]): Ordering[Any] = {
     new Ordering[Any] {

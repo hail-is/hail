@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.utils.richUtils
 
+import org.apache.hadoop.fs.{FileStatus, PathIOException}
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -10,6 +11,16 @@ import scala.reflect.ClassTag
 
 class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
+    def getPartNumber(fileStatus: FileStatus): Int = {
+      val partRegex = """.*/?part-(\d+).*""".r
+
+      val fname = fileStatus.getPath.getName
+      fname match {
+        case partRegex(i) => i.toInt
+        case _ => throw new PathIOException(s"invalid parquet file `$fname'")
+      }
+    }
+
     val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
     val bytesClassTag = implicitly[ClassTag[BytesOnlyWritable]]
     val hConf = r.sparkContext.hadoopConfiguration
@@ -23,8 +34,8 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     }
 
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header", tmpFileName + "/part-*")
-      case None => Array(tmpFileName + "/part-*")
+      case Some(_) => Array((tmpFileName + ".header", null), (tmpFileName + "/part-*", getPartNumber _))
+      case None => Array((tmpFileName + "/part-*", getPartNumber _))
     }
 
     val rMapped = r.mapPartitions { iter =>

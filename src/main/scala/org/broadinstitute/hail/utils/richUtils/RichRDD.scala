@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.utils.richUtils
 
 import org.apache.hadoop
+import org.apache.hadoop.fs.{FileStatus, PathIOException}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -20,6 +21,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def exists(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(false)(_ || _)
 
   def writeTable(filename: String, header: Option[String] = None, deleteTmpFiles: Boolean = true) {
+
     val hConf = r.sparkContext.hadoopConfiguration
     val tmpFileName = hConf.getTemporaryFile(HailConfiguration.tmpDir)
     val codecFactory = new CompressionCodecFactory(hConf)
@@ -39,8 +41,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
 
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header" + headerExt, tmpFileName + "/part-*")
-      case None => Array(tmpFileName + "/part-*")
+      case Some(_) => Array((tmpFileName + ".header" + headerExt, null), (tmpFileName + "/part-*", getPartNumber: (FileStatus) => Int))
+      case None => Array((tmpFileName + "/part-*", getPartNumber: (FileStatus) => Int))
     }
 
     if (!hConf.exists(tmpFileName + "/_SUCCESS"))
