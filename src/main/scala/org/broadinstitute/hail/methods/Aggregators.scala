@@ -354,9 +354,8 @@ class CallStatsAggregator(f: (Any) => Any, val idx: Int, variantF: () => Any)
 }
 
 class InbreedingAggregator(f: (Any) => Any, localIdx: Int, maf: () => Any) extends TypedAggregator[InbreedingCombiner] {
-  def zero = new InbreedingCombiner()
 
-  var _state = zero
+  var _state = new InbreedingCombiner()
 
   override def result = _state
 
