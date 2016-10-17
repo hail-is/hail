@@ -185,14 +185,6 @@ package object utils extends Logging
     .resize(12)
     .filter(s => !s.isEmpty)
 
-  def getPartNumber(fname: String): Int = {
-    val partRegex = ".*/?part-r-(\\d+)-.*\\.parquet.*".r
-    fname match {
-      case partRegex(i) => i.toInt
-      case _ => throw new PathIOException(s"invalid parquet file `$fname'")
-    }
-  }
-
   implicit def accumulableMapInt[K]: AccumulableParam[mutable.Map[K, Int], K] = new AccumulableParam[mutable.Map[K, Int], K] {
     def addAccumulator(r: mutable.Map[K, Int], t: K): mutable.Map[K, Int] = {
       r.updateValue(t, 0, _ + 1)

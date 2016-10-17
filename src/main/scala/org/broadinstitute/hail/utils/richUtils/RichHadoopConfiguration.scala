@@ -96,8 +96,8 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     val files = fs.globStatus(path)
     if (files == null)
       return Array.empty[FileStatus]
-    
-    files.sortBy(fs => getPartNumber(fs.toString))
+
+    files.sortWith(_.compareTo(_) < 0)
   }
 
   def copy(src: String, dst: String) {
