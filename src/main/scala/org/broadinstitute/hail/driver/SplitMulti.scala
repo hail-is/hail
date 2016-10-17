@@ -198,11 +198,7 @@ object SplitMulti extends Command {
           isDosage = isDosage, { (va, index, wasSplit) =>
             insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
           })
-      }
-        .map[(Variant, (Annotation, Iterable[Genotype]))] { case (v, (va, gs)) =>
-        (v, (va, gs))
-      }
-        .orderedRepartitionBy(vds.rdd.orderedPartitioner))
+      }.orderedRepartitionBy(vds.rdd.orderedPartitioner))
 
     state.copy(vds = newVDS)
   }
