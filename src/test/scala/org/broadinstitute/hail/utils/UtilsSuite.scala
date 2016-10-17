@@ -141,15 +141,10 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testSortFileStatus() {
-    val partitionFilePath = "src/test/resources/part-*"
+    val rhc = new RichHadoopConfiguration(sc.hadoopConfiguration)
+    val partFileNames = rhc.globAll(Array("src/test/resources/part-*")).sortBy(f => getPartNumber(f))
 
-
-//    val parquetFilePath = "src/test/resources/part-r-*-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet"
-//
-//    val rhc = new RichHadoopConfiguration(sc.hadoopConfiguration)
-//    val fileStatuses = rhc.glob(parquetFilePath)
-//
-//    assert(fileStatuses(0).getPath.getName == "part-r-40001-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet" &&
-//      fileStatuses(1).getPath.getName == "part-r-100001-8fd1217c-f5bf-4591-a4c5-08b1a812df09.gz.parquet")
+    assert(partFileNames(0) == "src/test/resources/part-40001" &&
+      partFileNames(1) == "src/test/resources/part-100001")
   }
 }

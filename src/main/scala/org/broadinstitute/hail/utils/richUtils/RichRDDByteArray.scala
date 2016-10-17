@@ -23,11 +23,11 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       }
     }
 
-    val partFileStatuses = hConf.glob(tmpFileName + "/part-*").sortBy(f => getPartNumber(f.getPath.getName))
+    val partFileNames = hConf.globAll(Array(tmpFileName + "/part-*")).sortBy(f => getPartNumber(f))
 
     val filesToMerge = header match {
-      case Some(_) => hConf.glob(tmpFileName + ".header") ++ partFileStatuses
-      case None => partFileStatuses
+      case Some(_) => Array(tmpFileName + ".header") ++ partFileNames
+      case None => partFileNames
     }
 
     val rMapped = r.mapPartitions { iter =>

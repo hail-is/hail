@@ -93,7 +93,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     val fs = fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
-    val files = fs.globStatus(path)
+    val files = fs.globStatus(path) // sorts files by name
     if (files == null)
       return Array.empty[FileStatus]
 
@@ -107,13 +107,15 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       false, hConf)
   }
 
-  def copyMerge(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
+  def copyMerge(srcFilenames: Array[String], destFilename: String, deleteSource: Boolean = true) {
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = fileSystem(destFilename)
 
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
     val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
+
+    val srcFileStatuses = srcFilenames.flatMap(f => glob(f))
 
     require(srcFileStatuses.forall {
       fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
