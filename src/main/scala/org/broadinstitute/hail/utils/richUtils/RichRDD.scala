@@ -20,7 +20,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
   def exists(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(false)(_ || _)
 
-  def writeTable(filename: String, header: Option[String] = None, parallelWrite: Boolean = false, deleteTmpFiles: Boolean = true) {
+  def writeTable(filename: String, header: Option[String] = None, parallelWrite: Boolean = false) {
     val hConf = r.sparkContext.hadoopConfiguration
 
     val codecFactory = new CompressionCodecFactory(hConf)
@@ -35,34 +35,35 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       } else
         hConf.getTemporaryFile(HailConfiguration.tmpDir)
 
+    val rWithHeader = header.map { h =>
+        if (parallelWrite)
+          r.mapPartitions { it => Iterator(h) ++ it }
+        else
+          r.mapPartitionsWithIndex { case (i, it) =>
+            if (i == 0)
+              Iterator(h) ++ it
+            else
+              it
+          }
+      }.getOrElse(r)
+
     codec match {
-      case Some(x) => r.saveAsTextFile(parallelOutputPath, x.getClass)
-      case None => r.saveAsTextFile(parallelOutputPath)
+      case Some(x) => rWithHeader.saveAsTextFile(parallelOutputPath, x.getClass)
+      case None => rWithHeader.saveAsTextFile(parallelOutputPath)
     }
 
     if (!hConf.exists(parallelOutputPath + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
-    header.foreach { str =>
-      // header will appear first in path sorted order since - comes before 0-9
-      val headerPath = parallelOutputPath + "/part--header" + headerExt
-
-      hConf.writeTextFile(headerPath) { s =>
-        s.write(str)
-        s.write("\n")
-      }
-    }
-
     if (!parallelWrite) {
       val filesToMerge = hConf.glob(parallelOutputPath + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
 
       val (_, dt) = time {
-        hConf.copyMerge(filesToMerge, filename, deleteTmpFiles)
+        hConf.copyMerge(filesToMerge, filename, deleteSource = true)
       }
       info(s"while writing:\n    $filename\n  merge time: ${ formatTime(dt) }")
 
-      if (deleteTmpFiles)
-        hConf.delete(parallelOutputPath, recursive = true)
+      hConf.delete(parallelOutputPath, recursive = true)
     }
   }
 

@@ -100,7 +100,7 @@ object ExportGEN extends Command {
             appendRow(sb, v, va, gs, rsidQuery, varidQuery)
             sb.result()
           }
-        }.writeTable(options.output + ".gen", None, deleteTmpFiles = true)
+        }.writeTable(options.output + ".gen", None)
       kvRDD.unpersist()
     }
 
