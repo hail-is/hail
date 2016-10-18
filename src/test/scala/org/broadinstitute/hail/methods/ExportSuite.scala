@@ -27,7 +27,7 @@ class ExportSuite extends SparkSuite {
 
     sb.clear()
     sb.tsvAppend(5.124)
-    assert(sb.result() == "5.1240e+00")
+    assert(sb.result() == "5.12400e+00")
 
     ExportSamples.run(postSampleQC, Array("-o", exportSamplesFile, "-c",
       "Sample=s.id, callRate=sa.qc.callRate,nCalled=sa.qc.nCalled,nNotCalled=sa.qc.nNotCalled,nHomRef=sa.qc.nHomRef," +
