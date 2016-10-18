@@ -76,16 +76,36 @@ class OrderedRDDSuite extends SparkSuite {
       val rdd1 = sc.parallelize(is1, nPar1).cache()
       val rdd2 = sc.parallelize(is2, nPar2).cache()
 
-      val join: IndexedSeq[(Variant, (String, Option[String]))] = rdd1.toOrderedRDD
+      val leftJoin: IndexedSeq[(Variant, (String, Option[String]))] = rdd1.toOrderedRDD
         .orderedLeftJoinDistinct(rdd2.toOrderedRDD)
         .collect()
         .toIndexedSeq
 
-      val check1 = is1.toMap == join.map { case (k, (v1, _)) => (k, v1) }.toMap
-      val check2 = join.forall { case (k, (_, v2)) => v2 == m2.get(k) }
-      val check3 = rdd1.leftOuterJoinDistinct(rdd2).collect().toMap == join.toMap
+      val check1 = is1.toSet == leftJoin.map { case (k, (v1, _)) => (k, v1) }.toSet
+      val check2 = leftJoin.forall { case (k, (_, v2)) => v2 == m2.get(k) }
+      val check3 = rdd1.leftOuterJoinDistinct(rdd2).collect().toMap == leftJoin.toMap
 
-      check1 && check2 && check3
+      val outerJoin: IndexedSeq[(Variant, (Option[String], Option[String]))] = rdd1.toOrderedRDD
+        .orderedOuterJoinDistinct(rdd2.toOrderedRDD)
+        .collect()
+        .toIndexedSeq
+
+      val map1 = is1.toMap
+      val map2 = is2.toMap
+
+      val check4 = is1.toSet == outerJoin.flatMap { case (k, (v1, _)) => v1.map(v => (k, v)) }.toSet
+      val check5 = is2.toSet == outerJoin.flatMap { case (k, (_, v2)) => v2.map(v => (k, v)) }.toSet
+      val check6 = outerJoin.toSet == (map1.keySet ++ map2.keySet).map(k => (k, (map1.get(k), map2.get(k))))
+
+      val p = check1 && check2 && check3 && check4 && check5 && check6
+      if (!p)
+        println(s"""check1 : $check1
+              |check2 : $check2
+              |check3 : $check3
+              |check4 : $check4
+              |check5 : $check5
+              |check6 : $check6""".stripMargin)
+      p
     }
 
     property("randomlyOrdered") = Prop.forAll(random) { rdd =>

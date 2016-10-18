@@ -302,7 +302,7 @@ object VSMSubgen {
 
   val plinkSafeBiallelic = random.copy(
     sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.plinkSafeIdentifier),
-    vGen = VariantSubgen.random.copy(nAllelesGen = Gen.const(2)).gen,
+    vGen = VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2)).gen,
     wasSplit = true)
 
   val realistic = random.copy(

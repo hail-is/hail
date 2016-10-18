@@ -335,6 +335,10 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
         Some((lv, rv))
       }
 
+  def orderedOuterJoinDistinct[V2](other: OrderedRDD[PK, K, V2])
+    (implicit vct: ClassTag[V], vct2: ClassTag[V2]): RDD[(K, (Option[V], Option[V2]))] =
+    OrderedOuterJoinRDD[PK, K, V, V2](this, other)
+
   def mapMonotonic[K2, V2](mapKey: OrderedKeyFunction[PK, K, PK, K2], mapValue: (K, V) => (V2)): OrderedRDD[PK, K2, V2] = {
     new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.map { case (k, v) => (mapKey(k), mapValue(k, v)) }),
       orderedPartitioner.mapMonotonic(mapKey.k2ok))

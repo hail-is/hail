@@ -28,7 +28,7 @@ object Join extends Command {
     val right = state.env.get(rightName) match {
       case Some(r) => r
       case None =>
-        fatal("no such dataset $name in environment")
+        fatal(s"no such dataset $name in environment")
     }
 
     if (left.wasSplit != right.wasSplit) {

@@ -712,8 +712,11 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     if (fields.isEmpty)
       a == null
     else a == null ||
-      a.isInstanceOf[Row] &&
-        a.asInstanceOf[Row].toSeq.zip(fields).forall { case (v, f) => f.`type`.typeCheck(v) }
+      a.isInstanceOf[Row] && {
+        val r = a.asInstanceOf[Row]
+        r.length == fields.length &&
+          r.toSeq.zip(fields).forall { case (v, f) => f.`type`.typeCheck(v) }
+      }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
