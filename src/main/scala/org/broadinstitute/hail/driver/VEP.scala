@@ -12,6 +12,7 @@ import org.broadinstitute.hail.variant._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.kohsuke.args4j.{Option => Args4jOption}
+import scala.util.matching.Regex
 
 import scala.collection.JavaConverters._
 
@@ -29,6 +30,9 @@ object VEP extends Command {
 
     @Args4jOption(name = "--force", usage = "Force VEP annotation from scratch")
     var force: Boolean = false
+
+    @Args4jOption(name = "--csq", usage = "Annotates with the VCF CSQ field as a string, rather than the full nested struct schema")
+    var csq: Boolean = false
 
   }
 
@@ -200,6 +204,8 @@ object VEP extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
+    val csq = options.csq
+
     val root = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
 
     val rootType =
@@ -254,11 +260,12 @@ object VEP extends Command {
     if (conservationFile == null)
       fatal("property `hail.vep.conservation_file' required")
 
-    val cmd = Array(
+    val cmd =
+      Array(
       perl,
       s"$location",
       "--format", "vcf",
-      "--json",
+        if(csq) "--vcf" else "--json",
       "--everything",
       "--allele_number",
       "--no_stats",
@@ -271,6 +278,8 @@ object VEP extends Command {
       "-o", "STDOUT")
 
     val inputQuery = vepSignature.query("input")
+
+    val csq_regex = "CSQ=[^;^\\t]+".r
 
     val localBlockSize = options.blockSize
 
@@ -293,10 +302,15 @@ object VEP extends Command {
             printElement,
             _ => ())
             .map { s =>
-              val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
-              val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
-              (v, a)
+              if(csq) {
+                csq_regex.findFirstIn(s).map(x => (variantFromInput(s), x.substring(4)))
+              }else{
+                val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
+                val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
+                Option((v, a))
+              }
             }
+            .flatten
             .toArray
             .sortBy(_._1))
       }, preservesPartitioning = true)
@@ -304,7 +318,7 @@ object VEP extends Command {
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    val (newVASignature, insertVEP) = vds.vaSignature.insert(vepSignature, root)
+    val (newVASignature, insertVEP) = vds.vaSignature.insert( if(csq) TString else vepSignature, root)
 
     val newRDD = vds.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
