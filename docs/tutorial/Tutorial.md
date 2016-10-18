@@ -135,7 +135,7 @@ hail importvcf $vcf \
   callRate           98.674%
 </pre>
 
-If this step triggers a `Exception in thread "main" java.net.BindException`, check the [FAQ](https://hail.is/faq.html) for a fix to this issue.
+If this step triggers a `Exception in thread "main" java.net.BindException`, check the [FAQ](https://hail.is/faq.html#how-do-i-fix-exception-in-thread-main-java.net.bindexception-cant-assign-requested-address-...) for a fix to this issue.
 
 We can print the schema of the sample annotations that were loaded above with the [`printschema`](commands.html#printschema) command and the `--sa` flag. 
 Notice how the 6 sample annotation variables we loaded above are nested inside `sa.pheno` as defined by the `--root` flag in the [`annotatesamples table`](commands.html#annotatesamples_table) command.
