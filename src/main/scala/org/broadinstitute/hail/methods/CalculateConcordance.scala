@@ -34,7 +34,7 @@ class ConcordanceCombiner extends Serializable {
   }
 
   def reset() {
-    val a = mapping.toArray
+    val a = mapping.array
     var i = 0
     while (i < 25) {
       a(i) = 0L

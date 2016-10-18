@@ -57,7 +57,7 @@ class MultiArray2[T](val n1: Int,
     update(t._1,t._2,x)
   }
 
-  def toArray: Array[T] = a
+  def array: Array[T] = a
 
   def zip[S](other: MultiArray2[S]): MultiArray2[(T,S)] = {
     require(n1 == other.n1 && n2 == other.n2)
