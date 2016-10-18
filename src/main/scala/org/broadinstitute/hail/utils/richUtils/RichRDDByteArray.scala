@@ -42,10 +42,10 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     val sortFn = (fs1: FileStatus, fs2: FileStatus) =>
       getPartNumber(fs1.getPath.getName) - getPartNumber(fs2.getPath.getName) < 0
 
-    val partFileStatuses = hConf.globAndSort(tmpFileName + "/part-*", Option(sortFn))
+    val partFileStatuses = hConf.glob(tmpFileName + "/part-*").sortWith(sortFn)
 
     val filesToMerge = header match {
-      case Some(_) => hConf.globAndSort(tmpFileName + ".header") ++ partFileStatuses
+      case Some(_) => hConf.glob(tmpFileName + ".header") ++ partFileStatuses
       case None => partFileStatuses
     }
 

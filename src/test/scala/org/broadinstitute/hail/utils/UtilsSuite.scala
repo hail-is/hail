@@ -147,7 +147,7 @@ class UtilsSuite extends SparkSuite {
     val sortFn = (fs1: FileStatus, fs2: FileStatus) =>
       getPartNumber(fs1.getPath.getName) - getPartNumber(fs2.getPath.getName) < 0
 
-    val partFileNames = rhc.globAndSort("src/test/resources/part-*", Option(sortFn)).map(_.getPath.getName)
+    val partFileNames = rhc.glob("src/test/resources/part-*").sortWith(sortFn).map(_.getPath.getName)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }

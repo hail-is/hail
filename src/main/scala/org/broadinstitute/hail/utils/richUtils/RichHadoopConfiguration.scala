@@ -81,7 +81,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def globAll(filenames: Iterable[String]): Array[String] = {
     filenames.iterator
       .flatMap { arg =>
-        val fss = globAndSort(arg)
+        val fss = glob(arg)
         val files = fss.map(_.getPath.toString)
         if (files.isEmpty)
           warn(s"`$arg' refers to no files")
@@ -89,18 +89,15 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.toArray
   }
 
-  def globAndSort(filename: String, sortFn: Option[(FileStatus, FileStatus) => Boolean] = None): Array[FileStatus] = {
+  def glob(filename: String): Array[FileStatus] = {
     val fs = fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
-    val files = fs.globStatus(path) // this sorts by file name
+    val files = fs.globStatus(path)
     if (files == null)
       return Array.empty[FileStatus]
 
-    sortFn match {
-      case Some(fn) => files.sortWith(fn)
-      case None => files
-    }
+    files
   }
 
   def copy(src: String, dst: String) {
