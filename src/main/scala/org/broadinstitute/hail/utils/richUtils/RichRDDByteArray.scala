@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.utils.richUtils
 
+import org.apache.hadoop.fs.{FileStatus, PathIOException}
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -10,6 +11,7 @@ import scala.reflect.ClassTag
 
 class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
+
     val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
     val bytesClassTag = implicitly[ClassTag[BytesOnlyWritable]]
     val hConf = r.sparkContext.hadoopConfiguration
@@ -22,9 +24,11 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       }
     }
 
+    val sortFn = (fs1: FileStatus, fs2: FileStatus) => getPartNumber(fs1.getPath.getName) - getPartNumber(fs2.getPath.getName) < 0
+
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header", tmpFileName + "/part-*")
-      case None => Array(tmpFileName + "/part-*")
+      case Some(_) => Array((tmpFileName + ".header", None), (tmpFileName + "/part-*", Option(sortFn)))
+      case None => Array((tmpFileName + "/part-*", Option(sortFn)))
     }
 
     val rMapped = r.mapPartitions { iter =>
