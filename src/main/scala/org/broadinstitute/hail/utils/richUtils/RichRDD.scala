@@ -20,45 +20,49 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
   def exists(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(false)(_ || _)
 
-  def writeTable(filename: String, header: Option[String] = None, deleteTmpFiles: Boolean = true) {
+  def writeTable(filename: String, header: Option[String] = None, parallelWrite: Boolean = false, deleteTmpFiles: Boolean = true) {
     val hConf = r.sparkContext.hadoopConfiguration
-    val tmpFileName = hConf.getTemporaryFile(HailConfiguration.tmpDir)
+
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
     val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
 
+    hConf.delete(filename, recursive = true) // overwriting by default
+
+    val parallelOutputPath =
+      if (parallelWrite) {
+        filename
+      } else
+        hConf.getTemporaryFile(HailConfiguration.tmpDir)
+
+    codec match {
+      case Some(x) => r.saveAsTextFile(parallelOutputPath, x.getClass)
+      case None => r.saveAsTextFile(parallelOutputPath)
+    }
+
+    if (!hConf.exists(parallelOutputPath + "/_SUCCESS"))
+      fatal("write failed: no success indicator found")
+
     header.foreach { str =>
-      hConf.writeTextFile(tmpFileName + ".header" + headerExt) { s =>
+      // header will appear first in path sorted order since - comes before 0-9
+      val headerPath = parallelOutputPath + "/part--header" + headerExt
+
+      hConf.writeTextFile(headerPath) { s =>
         s.write(str)
         s.write("\n")
       }
     }
 
-    codec match {
-      case Some(x) => r.saveAsTextFile(tmpFileName, x.getClass)
-      case None => r.saveAsTextFile(tmpFileName)
-    }
+    if (!parallelWrite) {
+      val filesToMerge = hConf.glob(parallelOutputPath + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
 
-    val partFileStatuses = hConf.glob(tmpFileName + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
+      val (_, dt) = time {
+        hConf.copyMerge(filesToMerge, filename, deleteTmpFiles)
+      }
+      info(s"while writing:\n    $filename\n  merge time: ${ formatTime(dt) }")
 
-    val filesToMerge = header match {
-      case Some(_) => hConf.glob(tmpFileName + ".header" + headerExt) ++ partFileStatuses
-      case None => partFileStatuses
-    }
-
-    if (!hConf.exists(tmpFileName + "/_SUCCESS"))
-      fatal("write failed: no success indicator found")
-
-    hConf.delete(filename, recursive = true) // overwriting by default
-
-    val (_, dt) = time {
-      hConf.copyMerge(filesToMerge, filename, deleteTmpFiles)
-    }
-    info(s"while writing:\n    $filename\n  merge time: ${ formatTime(dt) }")
-
-    if (deleteTmpFiles) {
-      hConf.delete(tmpFileName + ".header" + headerExt, recursive = false)
-      hConf.delete(tmpFileName, recursive = true)
+      if (deleteTmpFiles)
+        hConf.delete(parallelOutputPath, recursive = true)
     }
   }
 
