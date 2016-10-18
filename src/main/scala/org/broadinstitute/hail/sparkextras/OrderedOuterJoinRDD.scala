@@ -79,27 +79,28 @@ class OrderedOuterJoinRDD[PK, K, V1, V2] private(left: OrderedRDD[PK, K, V1], ri
         (rightIt.hasNext && rightCutoff.forall(pk => project(rightIt.head._1) <= pk))
 
       def next(): (K, (Option[V1], Option[V2])) = {
-        if (leftIt.isEmpty) {
-          val (k, v2) = rightIt.next()
-          (k, (None, Some(v2)))
-        } else if (rightIt.isEmpty) {
+        if (rightIt.hasNext) {
+          if (leftIt.hasNext) {
+            val leftK = leftIt.head._1
+            val rightK = rightIt.head._1
+            if (leftK == rightK) {
+              val (_, v1) = leftIt.next()
+              val (_, v2) = rightIt.next()
+              (leftK, (Some(v1), Some(v2)))
+            } else if (leftK < rightK) {
+              val (_, v1) = leftIt.next()
+              (leftK, (Some(v1), None))
+            } else {
+              val (_, v2) = rightIt.next()
+              (rightK, (None, Some(v2)))
+            }
+          } else {
+            val (k, v2) = rightIt.next()
+            (k, (None, Some(v2)))
+          }
+        } else {
           val (k, v1) = leftIt.next()
           (k, (Some(v1), None))
-        } else {
-          val leftK = leftIt.head._1
-          val rightK = rightIt.head._1
-
-          if (leftK == rightK) {
-            val (_, v1) = leftIt.next()
-            val (_, v2) = rightIt.next()
-            (leftK, (Some(v1), Some(v2)))
-          } else if (leftK < rightK) {
-            val (_, v1) = leftIt.next()
-            (leftK, (Some(v1), None))
-          } else {
-            val (_, v2) = rightIt.next()
-            (rightK, (None, Some(v2)))
-          }
         }
       }
     }
