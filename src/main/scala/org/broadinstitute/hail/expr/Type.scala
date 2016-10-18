@@ -219,7 +219,7 @@ case object TDouble extends TNumeric {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
-  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.4e")
+  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
 
   override def genValue: Gen[Annotation] = arbitrary[Double]
 

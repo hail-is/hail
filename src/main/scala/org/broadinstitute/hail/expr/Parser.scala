@@ -123,11 +123,11 @@ object Parser extends JavaTokenParsers {
 
     val names = nb.result()
 
-    (someIf(names.nonEmpty, names), tb.result(), () => computations.flatMap(_()))
+    (someIf(names.nonEmpty, names), tb.result(), () => computations.flatMap(_ ()))
   }
 
   def parseNamedArgs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[String]) = {
-    val (headerOption, ts,  f) = parseExportArgs(code, ec)
+    val (headerOption, ts, f) = parseExportArgs(code, ec)
     val header = headerOption match {
       case Some(h) => h
       case None => fatal(
@@ -252,9 +252,7 @@ object Parser extends JavaTokenParsers {
   def export_args: Parser[Array[(Option[String], AST)]] =
   // FIXME | not backtracking properly.  Why?
     rep1sep(expr ^^ { e => (None, e) } |||
-      named_arg ^^ { case (name, expr) => (Some(name), expr) }, ",") ^^ {
-      _.toArray
-    }
+      named_arg ^^ { case (name, expr) => (Some(name), expr) }, ",") ^^ (_.toArray)
 
   def named_args: Parser[Array[(String, AST)]] =
     named_arg ~ rep("," ~ named_arg) ^^ { case arg ~ lst =>
@@ -424,14 +422,10 @@ object Parser extends JavaTokenParsers {
       }
 
   def solr_named_args: Parser[Array[(String, Map[String, AnyRef], AST)]] =
-    repsep(solr_named_arg, ",") ^^ {
-      _.toArray
-    }
+    repsep(solr_named_arg, ",") ^^ (_.toArray)
 
   def solr_field_spec: Parser[Map[String, AnyRef]] =
-    "{" ~> repsep(solr_field_spec1, ",") <~ "}" ^^ {
-      _.toMap
-    }
+    "{" ~> repsep(solr_field_spec1, ",") <~ "}" ^^ (_.toMap)
 
   def solr_field_spec1: Parser[(String, AnyRef)] =
     (identifier <~ "=") ~ solr_literal ^^ { case id ~ v => (id, v) }
@@ -439,9 +433,7 @@ object Parser extends JavaTokenParsers {
   def solr_literal: Parser[AnyRef] =
     "true" ^^ { _ => true.asInstanceOf[AnyRef] } |
       "false" ^^ { _ => false.asInstanceOf[AnyRef] } |
-      stringLiteral ^^ {
-        _.asInstanceOf[AnyRef]
-      }
+      stringLiteral ^^ (_.asInstanceOf[AnyRef])
 
   def solr_named_arg: Parser[(String, Map[String, AnyRef], AST)] =
     identifier ~ opt(solr_field_spec) ~ ("=" ~> expr) ^^ { case id ~ spec ~ expr => (id, spec.getOrElse(Map.empty), expr) }
