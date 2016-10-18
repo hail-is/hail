@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.utils.richUtils
 
+import org.apache.hadoop.fs.{FileStatus, PathIOException}
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -22,11 +23,6 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       }
     }
 
-    val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header", tmpFileName + "/part-*")
-      case None => Array(tmpFileName + "/part-*")
-    }
-
     val rMapped = r.mapPartitions { iter =>
       val bw = new BytesOnlyWritable()
       iter.map { bb =>
@@ -42,6 +38,13 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     hConf.delete(filename, recursive = true) // overwriting by default
+
+    val partFileStatuses = hConf.glob(tmpFileName + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
+
+    val filesToMerge = header match {
+      case Some(_) => hConf.glob(tmpFileName + ".header") ++ partFileStatuses
+      case None => partFileStatuses
+    }
 
     val (_, dt) = time {
       hConf.copyMerge(filesToMerge, filename, deleteTmpFiles)
