@@ -6,7 +6,7 @@
 # Package into tarball
 ###################################################################
 
-set -ex
+set -e
 
 markdownFile=$1
 imageDirectory=$2
