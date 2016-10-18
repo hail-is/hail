@@ -189,8 +189,12 @@ object FilterAlleles extends Command {
     def updateOrFilterRow(v: Variant, va: Annotation, gs: Iterable[Genotype]): Option[(Variant, (Annotation, Iterable[Genotype]))] =
       filterAllelesInVariant(v, va).map { case (newV, newToOld, oldToNew) =>
         val newVa = updateAnnotation(v, va, newToOld)
-        val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
-        (newV, (newVa, newGs))
+        if(newV == v)
+          (v,(newVa,gs))
+        else {
+          val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
+          (newV, (newVa, newGs))
+        }
       }
 
     val newVds = state.vds
