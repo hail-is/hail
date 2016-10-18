@@ -435,7 +435,10 @@ Struct {
 In the above schema, `score` is the IMPUTE info score produced, and `nIncluded` is the number of samples with non-missing dosages.
 
 **Note:**
-If the genotype data was not imported using the [`importbgen`](commands.html#importbgen) or [`importgen`](commands.html#importgen) commands, then the results for all variants will be `score = null` and `nIncluded = 0`.
+If the genotype data was not imported using the [`importbgen`](commands.html#importbgen) or [`importgen`](commands.html#importgen) commands, then the results for all variants will be `score = NA` and `nIncluded = 0`.
+
+**Note:**
+It only makes sense to compute info score for an `Aggregable[Genotype]` per variant.  While a per-sample info score will run complete, the result is meaningless. 
 
 **Examples:**
 
@@ -456,6 +459,63 @@ hail importgen -s /my/path/example.sample /my/path/example.gen
     annotatevariants expr -c 'va.infoScoreCase = gs.filter(g => sa.pheno.Pheno1 == "Case").infoScore()'
     annotatevariants expr -c 'va.infoScoreControl = gs.filter(g => sa.pheno.Pheno1 == "Control").infoScore()'    
 ```
+
+### <a class="jumptarget" name="aggreg_ibc"></a> Inbreeding
+
+```
+<genotype aggregable>.inbreeding( allele frequency: Double )
+```
+
+`inbreeding` is an aggregator that computes [inbreeding metrics](#ibc_doc) on an `Aggregable[Genotype]`.  It takes an expression for alt allele frequency as a required parameter.
+
+The result of `inbreeding` is a struct:
+
+```
+Struct {
+    fStat: Double,
+    nTotal: Int,
+    nCalled: Int,
+    expectedHoms: Double,
+    observedHoms: Int
+}
+```
+
+In the above schema, `fStat` is the inbreeding coefficient produced, `nTotal` is the number of genotypes analyzed, `nCalled` is the number of genotypes with non-missing calls, `expectedHoms` is the expected number of homozygote calls, and `observedHoms` is the total number of homozygote calls observed.
+
+**Note:** in the case of multiallelics, the allele frequency passed to this function should be the sum of all alternate allele frequencies.
+
+**Examples:**
+
+Calculate the inbreeding metrics per sample and export the resulting annotations to a TSV file:
+
+```
+hail read ... 
+    variantqc
+    annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(va.qc.AF)' 
+    exportsamples -c 'Sample = s, sa.inbreeding.*' -o ib_stats.tsv
+```
+
+Calculate the inbreeding metrics per variant and export these metrics to a TSV file:
+
+```
+hail read ...
+    variantqc
+    annotatevariants expr -c 'va.inbreeding = gs.inbreeding(va.qc.AF)'
+    exportvariants -c 'Variant = v, va.inbreeding.*' -o ib_stats_variants.tsv
+
+```
+
+To obtain the same answer as [PLINK](https://www.cog-genomics.org/plink2), use the following series of commands:
+
+```
+read ... 
+variantqc 
+filtervariants expr --keep -c 'va.qc.AC > 1 && va.qc.AF >= 1e-8 && 
+    va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 &&
+    v.isAutosomal' 
+annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(va.qc.AF)'
+```
+
 
 ## Filtering
 
@@ -552,3 +612,16 @@ Hail will not generate identical results as [QCTOOL](http://www.well.ox.ac.uk/~g
  - **Hail calculates the same statistic for sex chromosomes as autosomes while QCTOOL incorporates sex information**
 
 **Warning!!! The info score Hail reports will be extremely different from qctool when a SNP has a high missing rate.**
+
+### <a class="jumptarget" name="ibc_doc"></a> Inbreeding Coefficient
+
+The `ibc` aggregator can be used to calculate the Inbreeding Coefficient from a [genotype aggregable](#aggreg_ibc).
+This is equivalent to the [`--het` method in PLINK](https://www.cog-genomics.org/plink2/basic_stats#ibc).
+
+The Inbreeding Coefficient (F) is computed as follows:
+
+2. For each variant and sample with a non-missing genotype call, `E`, the expected number of homozygotes (computed from user-defined expression for minor allele frequency), is computed as `1.0 - (2.0*maf*(1.0-maf))`
+3. For each variant and sample with a non-missing genotype call, `O`, the observed number of homozygotes, is computed as `0 = heterozygote; 1 = homozygote`
+4. For each variant and sample with a non-missing genotype call, `N` is incremented by 1
+5. For each sample, `E`, `O`, and `N` are combined across variants
+6. `F` is calculated by `(O - E) / (N - E)`

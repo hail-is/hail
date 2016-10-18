@@ -21,6 +21,7 @@ Identifier | Type | Description
 `v.altAllele`           | `AltAllele` | The alternate allele (schema below).  **Assumes biallelic.**
 `v.alt`                 | `String`    | Alternate allele sequence.  **Assumes biallelic.**
 `v.locus`               | `Locus`     | Chromosomal locus (chr, pos) of this variant
+`v.isAutosomal`         | `Boolean`   | true if chromosome is not X, not Y, and not MT
 
 ## <a class="jumptarget" name="altallele"></a>AltAllele 
 

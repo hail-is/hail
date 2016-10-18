@@ -4,10 +4,9 @@ import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.driver.HailConfiguration
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.stats.{CallStats, CallStatsCombiner, HistogramCombiner, InfoScoreCombiner}
+import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant._
-
 import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.Position
 
@@ -352,4 +351,25 @@ class CallStatsAggregator(f: (Any) => Any, val idx: Int, variantF: () => Any)
   }
 
   def copy(): TypedAggregator[CallStats] = new CallStatsAggregator(f, idx, variantF)
+}
+
+class InbreedingAggregator(f: (Any) => Any, localIdx: Int, getAF: () => Any) extends TypedAggregator[InbreedingCombiner] {
+
+  var _state = new InbreedingCombiner()
+
+  override def result = _state
+
+  override def seqOp(x: Any) = {
+    val r = f(x)
+    val af = getAF()
+
+    if (r != null && af != null)
+      _state.merge(r.asInstanceOf[Genotype], DoubleNumericConversion.to(af))
+  }
+
+  override def combOp(agg2: this.type) = _state.merge(agg2.asInstanceOf[InbreedingAggregator]._state)
+
+  override def copy() = new InbreedingAggregator(f, localIdx, getAF)
+
+  override def idx = localIdx
 }

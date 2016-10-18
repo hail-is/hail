@@ -266,9 +266,14 @@ case class Variant(contig: String,
   def locus: Locus = Locus(contig, start)
 
   def isAutosomalOrPseudoAutosomal: Boolean =
-    !isMitochondrial && !isX && !isY || inXPar || inYPar
+    isAutosomal || inXPar || inYPar
 
-  def isMitochondrial = contig == "m" || contig == "M" || contig == "MT" || contig == "26"
+  def isAutosomal = !(inX || inY || isMitochondrial)
+
+  def isMitochondrial = {
+    val c = contig.toUpperCase
+    c == "MT" || c == "M" || c == "26"
+  }
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
@@ -276,14 +281,14 @@ case class Variant(contig: String,
   def inYParPos: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
 
   // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
-  def inXPar: Boolean = isX && inXParPos
-  def inYPar: Boolean = isY && inYParPos
+  def inXPar: Boolean = inX && inXParPos
+  def inYPar: Boolean = inY && inYParPos
 
-  def inXNonPar: Boolean = isX && !inXParPos
-  def inYNonPar: Boolean = isY && !inYParPos
+  def inXNonPar: Boolean = inX && !inXParPos
+  def inYNonPar: Boolean = inY && !inYParPos
 
-  private def isX: Boolean = contig == "x" || contig == "X" || contig == "23" || contig == "25"
-  private def isY: Boolean = contig == "y" || contig == "Y" || contig == "24"
+  private def inX: Boolean = contig.toUpperCase == "X" || contig == "23" || contig == "25"
+  private def inY: Boolean = contig.toUpperCase == "Y" || contig == "24"
 
   import CopyState._
 

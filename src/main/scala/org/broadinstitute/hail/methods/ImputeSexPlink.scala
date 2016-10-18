@@ -3,6 +3,7 @@ package org.broadinstitute.hail.methods
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.stats.InbreedingCombiner
 import org.broadinstitute.hail.variant.VariantDataset
 
 object ImputeSexPlink {
@@ -65,9 +66,9 @@ object ImputeSexPlink {
       }
       .filterVariants { case (v, va, _) => Option(va).exists(_.asInstanceOf[Double] > mafThreshold) }
       .aggregateBySampleWithAll(new InbreedingCombiner)({ case (ibc, _, va, _, _, gt) =>
-        ibc.addCount(gt, va.asInstanceOf[Double])
+        ibc.merge(gt, va.asInstanceOf[Double])
       }, { case (ibc1, ibc2) =>
-        ibc1.combineCounts(ibc2)
+        ibc1.merge(ibc2)
       })
       .collect()
       .toMap
