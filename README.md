@@ -16,7 +16,7 @@ We encourage use of the [discussion forum](http://discuss.hail.is) for user and 
 
 The Hail team is based in the [Neale lab](https://nealelab.squarespace.com/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/scientific-community/science/programs/psychiatric-disease/stanley-center-psychiatric-research/stanle) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
 
-Contact the Hail team at [hail@broadinstitute.org](mailto:hail@broadinstitute.org).
+Contact the Hail team at hail@broadinstitute.org.
 
 
 #### Citing Hail
