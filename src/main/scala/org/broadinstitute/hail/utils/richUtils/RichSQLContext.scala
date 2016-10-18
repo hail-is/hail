@@ -2,7 +2,7 @@ package org.broadinstitute.hail.utils.richUtils
 
 import java.lang.reflect.Method
 
-import org.apache.hadoop.fs.{Path, PathIOException}
+import org.apache.hadoop.fs.Path
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext, SparkExport}
 import org.apache.spark.sql.functions._
@@ -40,7 +40,7 @@ class RichSQLContext(val sqlContext: SQLContext) extends AnyVal {
         }
         val m = f(parquetInputSplit.getClass, "getPath")
         val path = m.invoke(parquetInputSplit).asInstanceOf[Path]
-        getPartNumber(path.getName)
+        getParquetPartNumber(path.getName)
       }
       .zipWithIndex
       .sortBy(_._1)

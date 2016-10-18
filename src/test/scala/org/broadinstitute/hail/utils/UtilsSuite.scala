@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.utils
 
+import org.apache.hadoop.fs.FileStatus
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.sparkextras.OrderedRDD
@@ -143,7 +144,8 @@ class UtilsSuite extends SparkSuite {
   @Test def testPartitionSort() {
     val rhc = new RichHadoopConfiguration(sc.hadoopConfiguration)
     val src = "src/test/resources/part-*"
-    val fileSort = rhc.globAndSort(src, getPartNumber).map(_.getPath.getName)
+    val sortFn = (fs1: FileStatus, fs2: FileStatus) => getPartNumber(fs1.getPath.getName) - getPartNumber(fs2.getPath.getName) < 0
+    val fileSort = rhc.globAndSort(src, Option(sortFn)).map(_.getPath.getName)
 
     assert(fileSort(0) == "part-40001" && fileSort(1) == "part-100001")
   }
