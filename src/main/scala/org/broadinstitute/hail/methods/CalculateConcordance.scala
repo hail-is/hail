@@ -58,8 +58,6 @@ class ConcordanceCombiner extends Serializable {
 
 object CalculateConcordance {
 
-  val schema = TStruct("concordance" -> ConcordanceCombiner.schema)
-
   def apply(left: VariantDataset, right: VariantDataset): (VariantDataset, VariantDataset) = {
     require(left.wasSplit && right.wasSplit, "passed unsplit dataset to Concordance")
     val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
@@ -73,6 +71,24 @@ object CalculateConcordance {
 
     val leftFiltered = left.filterSamples { case (s, _) => overlap(s) }
     val rightFiltered = right.filterSamples { case (s, _) => overlap(s) }
+
+    val globalSchema = TStruct(
+      "concordance" -> ConcordanceCombiner.schema,
+      "left" -> left.globalSignature,
+      "right" -> right.globalSignature
+    )
+
+    val sampleSchema = TStruct(
+      "concordance" -> ConcordanceCombiner.schema,
+      "left" -> left.saSignature,
+      "right" -> right.saSignature
+    )
+
+    val vaSchema = TStruct(
+      "concordance" -> ConcordanceCombiner.schema,
+      "left" -> left.vaSignature,
+      "right" -> right.vaSignature
+    )
 
     val leftIds = leftFiltered.sampleIds
     val rightIds = rightFiltered.sampleIds
@@ -127,25 +143,6 @@ object CalculateConcordance {
       arr1
     }
 
-    val global = new ConcordanceCombiner
-    sampleResults.foreach(global.merge)
-
-    global.report()
-
-
-    val samples = VariantSampleMatrix(VariantMetadata(leftIds,
-      sampleAnnotations = sampleResults.map { comb =>
-        val anno = Annotation(comb.toAnnotation)
-        assert(schema.typeCheck(anno))
-        anno
-      },
-      globalAnnotation = Annotation(global.toAnnotation),
-      saSignature = schema,
-      vaSignature = TStruct.empty,
-      globalSignature = schema,
-      wasSplit = true),
-      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](left.sparkContext))
-
     val variantResults = join.mapPartitions({ it =>
       val arr = Array.ofDim[Int](nSamples)
       val comb = new ConcordanceCombiner
@@ -173,18 +170,41 @@ object CalculateConcordance {
           case (Some((_, gs1)), None) =>
             gs1.foreach { g => comb.mergeLeft(g.unboxedGT) }
         }
-        val va = Annotation(comb.toAnnotation)
-        assert(schema.typeCheck(va))
+        val va = Annotation(comb.toAnnotation, value1.map(_._1).orNull, value2.map(_._1).orNull)
+        assert(vaSchema.typeCheck(va))
         (v, (va, Iterable.empty[Genotype]))
       }
     }, preservesPartitioning = true).asOrderedRDD
 
+    val global = new ConcordanceCombiner
+    sampleResults.foreach(global.merge)
+
+    global.report()
+
+    val globalAnnotation = Annotation(global.toAnnotation, left.globalAnnotation, right.globalAnnotation)
+    assert(globalSchema.typeCheck(globalAnnotation))
+
+    val rightSampleAnnotations = rightFiltered.sampleIdsAndAnnotations.toMap
+
+    val samples = VariantSampleMatrix(VariantMetadata(leftIds,
+      sampleAnnotations = leftFiltered.sampleIdsAndAnnotations.zip(sampleResults).map { case ((s, leftSA), comb) =>
+        val anno = Annotation(comb.toAnnotation, leftSA, rightSampleAnnotations(s))
+        assert(sampleSchema.typeCheck(anno))
+        anno
+      },
+      globalAnnotation = globalAnnotation,
+      saSignature = sampleSchema,
+      vaSignature = TStruct.empty,
+      globalSignature = globalSchema,
+      wasSplit = true),
+      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](left.sparkContext))
+
     val variants = VariantSampleMatrix(VariantMetadata(IndexedSeq.empty[String],
       sampleAnnotations = IndexedSeq.empty[Annotation],
-      globalAnnotation = Annotation(global.toAnnotation),
+      globalAnnotation = globalAnnotation,
       saSignature = TStruct.empty,
-      vaSignature = schema,
-      globalSignature = schema,
+      vaSignature = vaSchema,
+      globalSignature = globalSchema,
       wasSplit = true),
       variantResults)
 
