@@ -255,5 +255,7 @@ abstract class Command {
   def run(state: State, args: Array[String] = Array.empty): State =
     runCommand(state, parseArgs(args))
 
+  def run(state: State, args: String*): State = run(state, args.toArray)
+
   protected def run(state: State, options: Options): State
 }

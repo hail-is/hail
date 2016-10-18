@@ -55,21 +55,16 @@ object ExportGenotypes extends Command with TextExporter {
       "s" -> (2, TSample),
       "sa" -> (3, sas),
       "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature) )
+      "global" -> (5, vds.globalSignature))
 
     val ec = EvalContext(symTab)
     ec.set(5, vds.globalAnnotation)
-    val (header, fs) = if (cond.endsWith(".columns")) {
-      val (h, functions) = Parser.parseColumnsFile(ec, cond, sc.hadoopConfiguration)
-      (Some(h), functions)
-    }
-    else
-      Parser.parseExportArgs(cond, ec)
+    val (header, ts, f) = Parser.parseExportArgs(cond, ec)
 
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
-        .getOrElse(fs.indices.map(i => s"_$i").toArray)
-        .zip(fs.map(_._1))
+        .getOrElse(ts.indices.map(i => s"_$i").toArray)
+        .zip(ts)
       exportTypes(file, state.hadoopConf, typeInfo)
     }
 
@@ -92,9 +87,7 @@ object ExportGenotypes extends Command with TextExporter {
           ec.setAll(v, va, s, sa, g)
           sb.clear()
 
-          fs.foreachBetween { case (t, f) =>
-            sb.append(f().map(TableAnnotationImpex.exportAnnotation(_, t)).getOrElse("NA"))
-          } { sb += '\t' }
+          f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }
     }.writeTable(output, header.map(_.mkString("\t")))

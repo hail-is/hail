@@ -9,7 +9,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
     a match {
       case null | None => sb.append("NA")
       case Some(x) => tsvAppend(x)
-      case d: Double => sb.append(d.formatted("%.4e"))
+      case d: Double => sb.append(d.formatted("%.5e"))
       case v: Variant =>
         sb.append(v.contig)
         sb += ':'

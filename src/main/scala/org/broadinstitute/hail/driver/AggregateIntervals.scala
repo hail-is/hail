@@ -58,12 +58,7 @@ object AggregateIntervals extends Command {
     ec.set(1, vds.globalAnnotation)
     aggregationEC.set(1, vds.globalAnnotation)
 
-    val (header, parseResults) = if (cond.endsWith(".columns")) {
-      Parser.parseColumnsFile(ec, cond, vds.sparkContext.hadoopConfiguration)
-    } else {
-      val ret = Parser.parseNamedArgs(cond, ec)
-      (ret.map(_._1), ret.map(x => (x._2, x._3)))
-    }
+    val (header, _, f) = Parser.parseNamedArgs(cond, ec)
 
     if (header.isEmpty)
       fatal("this module requires one or more named expr arguments")
@@ -108,9 +103,9 @@ object AggregateIntervals extends Command {
           resultOp(res)
 
           ec.set(0, interval)
-          parseResults.foreach { case (t, f) =>
+          f().foreach { field =>
             sb += '\t'
-            sb.append(t.str(f().getOrElse("NA")))
+            sb.append(field)
           }
         }(sb += '\n')
 

@@ -7,6 +7,7 @@ import org.broadinstitute.hail.utils.StringEscapeUtils._
 import scala.io.Source
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
+import scala.collection.mutable
 
 object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
@@ -75,71 +76,65 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
-  def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[(Type, () => Option[Any])]) = {
-    val (header, ts) = parseAll(export_args, code) match {
-      case Success(result, _) => result.asInstanceOf[(Option[Array[String]], Array[AST])]
+  def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
+    val result = parseAll(export_args, code) match {
+      case Success(r, _) => r
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    ts.foreach(_.typecheck(ec))
-    val fs = ts.map { ast =>
-      ast.`type` match {
-        case t: Type =>
-          val f = ast.eval(ec)
-          (t, () => Option(f()))
-        case bt => fatal(s"""tried to export invalid type `$bt'""")
-      }
-    }
+    var noneNamed = true
+    var allNamed = true
 
-    (header, fs)
-  }
+    val nb = mutable.ArrayBuilder.make[String]
+    val tb = mutable.ArrayBuilder.make[Type]
 
-  def parseColumnsFile(
-    ec: EvalContext,
-    path: String,
-    hConf: hadoop.conf.Configuration): (Array[String], Array[(Type, () => Option[Any])]) = {
-    val pairs = hConf.readFile(path) { reader =>
-      Source.fromInputStream(reader)
-        .getLines()
-        .filter(!_.isEmpty)
-        .map { line =>
-          val cols = line.split("\t")
-          if (cols.length != 2)
-            fatal("invalid .columns file.  Include 2 columns, separated by a tab")
-          (cols(0), cols(1))
-        }.toArray
-    }
-
-    val header = pairs.map(_._1)
-    val fs = pairs.map { case (_, e) =>
-      val (bt, f) = parse(e, ec)
-      bt match {
-        case t: Type => (t, f)
-        case _ => fatal(
-          s"""invalid export expression resulting in unprintable type `$bt'
-              |  Offending expression: `$e'
-             """.stripMargin)
-      }
-    }
-
-    (header, fs)
-  }
-
-  def parseNamedArgs(code: String, ec: EvalContext): (Array[(String, Type, () => Option[Any])]) = {
-    val args = parseAll(named_args, code) match {
-      case Success(result, _) => result.asInstanceOf[Array[(String, AST)]]
-      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
-    args.map { case (id, ast) =>
+    val computations = result.map { case (name, ast) =>
       ast.typecheck(ec)
-      val t = ast.`type` match {
-        case t: Type => t
-        case _ => fatal(
-          s"""invalid export expression resulting in unprintable type `${ ast.`type` }'""".stripMargin)
+      ast.`type` match {
+        case s: TSplat =>
+          val eval = ast.eval(ec)
+          noneNamed = false
+          s.struct.fields.map { f =>
+            nb += name.map(x => s"$x.${ f.name }").getOrElse(f.name)
+            tb += f.`type`
+          }
+          val types = s.struct.fields.map(_.`type`)
+          () => eval().asInstanceOf[IndexedSeq[Any]].iterator
+            .zip(types.iterator).map { case (value, t) => t.str(value) }
+        case t: Type =>
+          name match {
+            case Some(n) =>
+              noneNamed = false
+              nb += n
+            case None =>
+              allNamed = false
+          }
+          tb += t
+          val f = ast.eval(ec)
+          () => Iterator(t.str(f()))
+        case bt => fatal(s"tried to export invalid type `$bt'")
       }
-      val f = ast.eval(ec)
-      (id, t, () => Option(f()))
     }
+
+    if (!(noneNamed || allNamed))
+      fatal(
+        """export expressions require either all arguments named or none
+          |  Hint: exploded structs (e.g. va.info.*) count as named arguments """.stripMargin)
+
+    val names = nb.result()
+
+    (someIf(names.nonEmpty, names), tb.result(), () => computations.flatMap(_ ()))
+  }
+
+  def parseNamedArgs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[String]) = {
+    val (headerOption, ts, f) = parseExportArgs(code, ec)
+    val header = headerOption match {
+      case Some(h) => h
+      case None => fatal(
+        """this module requires named export arguments
+          |  e.g. `gene = va.gene, csq = va.csq' rather than `va.gene, va.csq'""".stripMargin)
+    }
+    (header, ts, f)
   }
 
   def parseAnnotationArgs(code: String, ec: EvalContext, expectedHead: String): (Array[(List[String], Type)], Array[() => Option[Any]]) = {
@@ -254,12 +249,10 @@ object Parser extends JavaTokenParsers {
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
     }
 
-  def export_args: Parser[(Option[Array[String]], Array[AST])] =
+  def export_args: Parser[Array[(Option[String], AST)]] =
   // FIXME | not backtracking properly.  Why?
-    args ^^ { a => (None, a) } |||
-      named_args ^^ { a =>
-        (Some(a.map(_._1)), a.map(_._2))
-      }
+    rep1sep(expr ^^ { e => (None, e) } |||
+      named_arg ^^ { case (name, expr) => (Some(name), expr) }, ",") ^^ (_.toArray)
 
   def named_args: Parser[Array[(String, AST)]] =
     named_arg ~ rep("," ~ named_arg) ^^ { case arg ~ lst =>
@@ -311,9 +304,11 @@ object Parser extends JavaTokenParsers {
   def dot_expr: Parser[AST] =
     primary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
       | (withPos(".") ~ identifier)
+      | (withPos(".") ~ "*")
       | withPos("[") ~ expr ~ "]"
       | withPos("[") ~ opt(expr) ~ ":" ~ opt(expr) ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
+        case (dot: Positioned[_]) ~ "*" => Splat(dot.pos, acc)
         case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
         case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
           ApplyMethod(dot.pos, acc, sym, args)
@@ -427,10 +422,10 @@ object Parser extends JavaTokenParsers {
       }
 
   def solr_named_args: Parser[Array[(String, Map[String, AnyRef], AST)]] =
-    repsep(solr_named_arg, ",") ^^ { _.toArray }
+    repsep(solr_named_arg, ",") ^^ (_.toArray)
 
   def solr_field_spec: Parser[Map[String, AnyRef]] =
-    "{" ~> repsep(solr_field_spec1, ",") <~ "}" ^^ { _.toMap }
+    "{" ~> repsep(solr_field_spec1, ",") <~ "}" ^^ (_.toMap)
 
   def solr_field_spec1: Parser[(String, AnyRef)] =
     (identifier <~ "=") ~ solr_literal ^^ { case id ~ v => (id, v) }
@@ -438,7 +433,7 @@ object Parser extends JavaTokenParsers {
   def solr_literal: Parser[AnyRef] =
     "true" ^^ { _ => true.asInstanceOf[AnyRef] } |
       "false" ^^ { _ => false.asInstanceOf[AnyRef] } |
-      stringLiteral ^^ { _.asInstanceOf[AnyRef] }
+      stringLiteral ^^ (_.asInstanceOf[AnyRef])
 
   def solr_named_arg: Parser[(String, Map[String, AnyRef], AST)] =
     identifier ~ opt(solr_field_spec) ~ ("=" ~> expr) ^^ { case id ~ spec ~ expr => (id, spec.getOrElse(Map.empty), expr) }
