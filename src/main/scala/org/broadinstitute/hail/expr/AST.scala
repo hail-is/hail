@@ -866,15 +866,15 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           )
         }
 
-      case (agg: TAggregable, "ibc", rhs) =>
+      case (agg: TAggregable, "inbreeding", rhs) =>
         rhs.foreach(_.typecheck(agg.ec))
 
         val types = rhs.map(_.`type`)
         `type` = types match {
           case Array(TDouble) => InbreedingCombiner.signature
           case _ => parseError(
-            s"""method `ibc' expects arguments of type (Double)
-                |  Found (${ types.mkString(", ") })""".stripMargin)
+            s"""method `$method' expects one argument of type (Double)
+                |  Found ${ types.length } arguments of types (${ types.mkString(", ") })""".stripMargin)
         }
 
       case _ =>
@@ -1245,7 +1245,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       agg.ec.aggregationFunctions += new InfoScoreAggregator(aggF, localIdx)
       () => localA(localIdx).asInstanceOf[InfoScoreCombiner].asAnnotation
 
-    case (agg: TAggregable, "ibc", Array(mafAST)) =>
+    case (agg: TAggregable, "inbreeding", Array(mafAST)) =>
       val localIdx = agg.ec.a.length
       val localA = agg.ec.a
       localA += null

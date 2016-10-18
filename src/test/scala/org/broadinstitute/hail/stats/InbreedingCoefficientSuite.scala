@@ -53,7 +53,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val vcfFile = root + ".vcf"
           val ibcFile = root + ".het"
 
-          s = AnnotateSamplesExpr.run(s, Array("-c", "sa.het = gs.ibc(va.qc.AF)"))
+          s = AnnotateSamplesExpr.run(s, Array("-c", "sa.het = gs.inbreeding(va.qc.AF)"))
           s = ExportVCF.run(s, Array("-o", vcfFile))
 
           hadoopConf.copy(vcfFile, localVCFFile)
