@@ -23,16 +23,6 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       }
     }
 
-    val sortFn = (fs1: FileStatus, fs2: FileStatus) =>
-      getPartNumber(fs1.getPath.getName) - getPartNumber(fs2.getPath.getName) < 0
-
-    val partFileStatuses = hConf.globAndSort(tmpFileName + "/part-*", Option(sortFn))
-
-    val filesToMerge = header match {
-      case Some(_) => hConf.globAndSort(tmpFileName + ".header") ++ partFileStatuses
-      case None => partFileStatuses
-    }
-
     val rMapped = r.mapPartitions { iter =>
       val bw = new BytesOnlyWritable()
       iter.map { bb =>
@@ -48,6 +38,16 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     hConf.delete(filename, recursive = true) // overwriting by default
+
+    val sortFn = (fs1: FileStatus, fs2: FileStatus) =>
+      getPartNumber(fs1.getPath.getName) - getPartNumber(fs2.getPath.getName) < 0
+
+    val partFileStatuses = hConf.globAndSort(tmpFileName + "/part-*", Option(sortFn))
+
+    val filesToMerge = header match {
+      case Some(_) => hConf.globAndSort(tmpFileName + ".header") ++ partFileStatuses
+      case None => partFileStatuses
+    }
 
     val (_, dt) = time {
       hConf.copyMerge(filesToMerge, filename, deleteTmpFiles)
