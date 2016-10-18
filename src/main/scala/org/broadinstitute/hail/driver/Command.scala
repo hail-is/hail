@@ -54,6 +54,7 @@ object ToplevelCommands {
   register(Clear)
   register(CommandMetadata)
   register(CompareVDS)
+  register(Concordance)
   register(Count)
   register(CountBytes)
   register(Deduplicate)
