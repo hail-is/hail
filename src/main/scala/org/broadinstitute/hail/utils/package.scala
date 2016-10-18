@@ -181,13 +181,20 @@ package object utils extends Logging
   def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
 
   def getPartNumber(fname: String): Int = {
-    val parquetRegex = ".*/?part-r-(\\d+)-.*\\.parquet.*".r
     val partRegex = """.*/?part-(\d+).*""".r
 
     fname match {
-      case parquetRegex(i) => i.toInt
       case partRegex(i) => i.toInt
       case _ => throw new PathIOException(s"invalid partition file `$fname'")
+    }
+  }
+
+  def getParquetPartNumber(fname: String): Int = {
+    val parquetRegex = ".*/?part-r-(\\d+)-.*\\.parquet.*".r
+
+    fname match {
+      case parquetRegex(i) => i.toInt
+      case _ => throw new PathIOException(s"invalid parquet file `$fname'")
     }
   }
 

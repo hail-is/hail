@@ -81,7 +81,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def globAll(filenames: Iterable[String]): Array[String] = {
     filenames.iterator
       .flatMap { arg =>
-        val fss = glob(arg)
+        val fss = globAndSort(arg)
         val files = fss.map(_.getPath.toString)
         if (files.isEmpty)
           warn(s"`$arg' refers to no files")
@@ -89,15 +89,18 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.toArray
   }
 
-  def glob(filename: String): Array[FileStatus] = {
+  def globAndSort(filename: String, sortFn: Option[(FileStatus, FileStatus) => Boolean] = None): Array[FileStatus] = {
     val fs = fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
-    val files = fs.globStatus(path) // sorts files by name
+    val files = fs.globStatus(path) // this sorts by file name
     if (files == null)
       return Array.empty[FileStatus]
 
-    files
+    sortFn match {
+      case Some(fn) => files.sortWith(fn)
+      case None => files
+    }
   }
 
   def copy(src: String, dst: String) {
@@ -107,15 +110,13 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       false, hConf)
   }
 
-  def copyMerge(srcFilenames: Array[String], destFilename: String, deleteSource: Boolean = true) {
+  def copyMerge(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = fileSystem(destFilename)
 
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
     val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
-
-    val srcFileStatuses = srcFilenames.flatMap(f => glob(f))
 
     require(srcFileStatuses.forall {
       fileStatus => fileStatus.getPath != destPath && fileStatus.isFile

@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.utils.richUtils
 
 import org.apache.hadoop
+import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.driver.HailConfiguration
@@ -38,11 +39,14 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       case None => r.saveAsTextFile(tmpFileName)
     }
 
-    val partFileNames = hConf.globAll(Array(tmpFileName + "/part-*")).sortBy(f => getPartNumber(f))
+    val sortFn = (fs1: FileStatus, fs2: FileStatus) =>
+      getPartNumber(fs1.getPath.getName) - getPartNumber(fs2.getPath.getName) < 0
+
+    val partFileStatuses = hConf.globAndSort(tmpFileName + "/part-*", Option(sortFn))
 
     val filesToMerge = header match {
-      case Some(_) => Array(tmpFileName + ".header" + headerExt) ++ partFileNames
-      case None => partFileNames
+      case Some(_) => hConf.globAndSort(tmpFileName + ".header" + headerExt) ++ partFileStatuses
+      case None => partFileStatuses
     }
 
     if (!hConf.exists(tmpFileName + "/_SUCCESS"))

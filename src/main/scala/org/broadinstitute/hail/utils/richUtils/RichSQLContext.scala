@@ -40,7 +40,7 @@ class RichSQLContext(val sqlContext: SQLContext) extends AnyVal {
         }
         val m = f(parquetInputSplit.getClass, "getPath")
         val path = m.invoke(parquetInputSplit).asInstanceOf[Path]
-        getPartNumber(path.getName)
+        getParquetPartNumber(path.getName)
       }
       .zipWithIndex
       .sortBy(_._1)
