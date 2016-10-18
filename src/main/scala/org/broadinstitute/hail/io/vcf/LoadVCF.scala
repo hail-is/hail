@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.io.vcf
 
+import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.spark.sql.SparkExport
@@ -178,9 +179,15 @@ object LoadVCF {
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
 
-    val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
-      .getHeaderValue
-      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+    val header = try {
+      codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+        .getHeaderValue
+        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+    } catch {
+      case e: TribbleException => fatal(
+        s"""encountered problem with file $file1
+            |  ${ e.getLocalizedMessage }""".stripMargin)
+    }
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
     val filters: Map[String, String] = header
