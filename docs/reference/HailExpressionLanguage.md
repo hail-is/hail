@@ -436,7 +436,7 @@ In the above schema, `score` is the IMPUTE info score produced, and `nIncluded` 
 If the genotype data was not imported using the [`importbgen`](commands.html#importbgen) or [`importgen`](commands.html#importgen) commands, then the results for all variants will be `score = NA` and `nIncluded = 0`.
 
 **Note:**
-It only makes sense to compute info score for an `Aggregable[Genotype]` per variant.  While performing a per-sample info score will run 
+It only makes sense to compute info score for an `Aggregable[Genotype]` per variant.  While a per-sample info score will run complete, the result is meaningless. 
 
 **Examples:**
 
@@ -493,7 +493,7 @@ hail read ...
     exportsamples -c 'Sample = s, sa.inbreeding.*' -o ib_stats.tsv
 ```
 
-Calculate the inbreeding metrics per variant and export these mtrics to a TSV file:
+Calculate the inbreeding metrics per variant and export these metrics to a TSV file:
 
 ```
 hail read ...
