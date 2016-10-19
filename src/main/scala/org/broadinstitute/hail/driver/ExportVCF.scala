@@ -20,6 +20,9 @@ object ExportVCF extends Command {
 
     @Args4jOption(name = "--export-pp", usage = "Export Hail PLs as a PP format field")
     var exportPP: Boolean = false
+
+    @Args4jOption(name = "--parallel", usage = "Export VCF in parallel")
+    var parallel: Boolean = false
   }
 
   def newOptions = new Options
@@ -116,6 +119,7 @@ object ExportVCF extends Command {
     val hasSamples = vds.nSamples > 0
 
     val exportPP = options.exportPP
+    val parallel = options.parallel
 
     def header: String = {
       val sb = new StringBuilder()
@@ -316,7 +320,7 @@ object ExportVCF extends Command {
         appendRow(sb, v, va, gs)
         sb.result()
       }
-    }.writeTable(options.output, Some(header), deleteTmpFiles = true)
+    }.writeTable(options.output, Some(header), parallelWrite = parallel)
     state
   }
 
