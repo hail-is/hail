@@ -4,7 +4,7 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.Aggregators
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.Variant
+import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AddKeyTable extends Command {
@@ -68,6 +68,26 @@ object AddKeyTable extends Command {
     if (header.isEmpty)
       fatal("this module requires one or more named expr arguments")
 
+//    def buildKeyAggregations(vds: VariantDataset, ec: EvalContext) = {
+//      val aggregators = ec.aggregationFunctions.toArray
+//      val aggregatorA = ec.a
+//
+//      if (aggregators.isEmpty)
+//        None
+//      else {
+//
+//        val localSamplesBc = vds.sampleIdsBc
+//        val localAnnotationsBc = vds.sampleAnnotationsBc
+//
+//        val nAggregations = aggregators.length
+//        val nSamples = vds.nSamples
+//        val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
+//
+//        val baseArray = MultiArray2.fill[Aggregator](nSamples, nAggregations)(null)
+//        for (i <- 0 until nSamples; j <- 0 until nAggregations) {
+//          baseArray.update(i, j, aggregators(j).copy())
+//        }
+//      }
 
 
     println(header.mkString("\n"))
