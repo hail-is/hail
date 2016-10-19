@@ -615,7 +615,7 @@ Hail will not generate identical results as [QCTOOL](http://www.well.ox.ac.uk/~g
 
 ### <a class="jumptarget" name="ibc_doc"></a> Inbreeding Coefficient
 
-The `ibc` aggregator can be used to calculate the Inbreeding Coefficient from a [genotype aggregable](#aggreg_ibc).
+The `inbreeding` aggregator can be used to calculate the Inbreeding Coefficient from a [genotype aggregable](#aggreg_ibc).
 This is equivalent to the [`--het` method in PLINK](https://www.cog-genomics.org/plink2/basic_stats#ibc).
 
 The Inbreeding Coefficient (F) is computed as follows:
