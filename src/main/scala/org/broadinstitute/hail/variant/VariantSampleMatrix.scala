@@ -357,8 +357,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def cache(): VariantSampleMatrix[T] = copy[T](rdd = rdd.cache())
 
-  def coalesce(k: Int): VariantSampleMatrix[T] =
-    copy[T](rdd = rdd.coalesce(k)(null).asOrderedRDD)
+  def coalesce(k: Int, shuffle: Boolean = true): VariantSampleMatrix[T] =
+    copy[T](rdd = rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
 
   def nPartitions: Int = rdd.partitions.length
 

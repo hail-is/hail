@@ -307,7 +307,7 @@ object OrderedRDD {
 }
 
 class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: OrderedPartitioner[PK, K])
-  extends RDD[(K, V)](rdd) {
+  (implicit vct: ClassTag[V]) extends RDD[(K, V)](rdd) {
   implicit val kOk: OrderedKey[PK, K] = orderedPartitioner.kOk
 
   import kOk._
@@ -336,10 +336,11 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       }
 
   def orderedOuterJoinDistinct[V2](other: OrderedRDD[PK, K, V2])
-    (implicit vct: ClassTag[V], vct2: ClassTag[V2]): RDD[(K, (Option[V], Option[V2]))] =
+    (implicit vct2: ClassTag[V2]): RDD[(K, (Option[V], Option[V2]))] =
     OrderedOuterJoinRDD[PK, K, V, V2](this, other)
 
-  def mapMonotonic[K2, V2](mapKey: OrderedKeyFunction[PK, K, PK, K2], mapValue: (K, V) => (V2)): OrderedRDD[PK, K2, V2] = {
+  def mapMonotonic[K2, V2](mapKey: OrderedKeyFunction[PK, K, PK, K2], mapValue: (K, V) => (V2))
+    (implicit vct2: ClassTag[V2]): OrderedRDD[PK, K2, V2] = {
     new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.map { case (k, v) => (mapKey(k), mapValue(k, v)) }),
       orderedPartitioner.mapMonotonic(mapKey.k2ok))
   }
@@ -353,7 +354,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     *
     * - the TraversableOnce is sorted according to kOk.kOrd
     */
-  def flatMapMonotonic[V2](f: (K, V) => TraversableOnce[(K, V2)]): OrderedRDD[PK, K, V2] = {
+  def flatMapMonotonic[V2](f: (K, V) => TraversableOnce[(K, V2)])(implicit vct2: ClassTag[V2]): OrderedRDD[PK, K, V2] = {
     new OrderedRDD[PK, K, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner)
   }
 
@@ -367,55 +368,59 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     * - the TraversableOnce is sorted according to k2Ok.kOrd
     */
   def flatMapMonotonic[K2, V2](f: (K, V) => TraversableOnce[(K2, V2)])
-    (implicit k2Ok: OrderedKey[PK, K2]): OrderedRDD[PK, K2, V2] = {
+    (implicit k2Ok: OrderedKey[PK, K2], vct2: ClassTag[V2]): OrderedRDD[PK, K2, V2] = {
     new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner.mapMonotonic)
   }
 
-  override def coalesce(maxPartitions: Int, shuffle: Boolean = false)(implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
+  override def coalesce(maxPartitions: Int, shuffle: Boolean = false)
+    (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
-    if (shuffle)
-      return super.coalesce(maxPartitions, shuffle)(ord)
-
     val n = rdd.partitions.length
-    if (maxPartitions >= n)
+    if (maxPartitions == n || n == 0 || !shuffle && (n >= maxPartitions))
       return this
+    if (shuffle) {
+      val shuffled = super.coalesce(maxPartitions, shuffle)
+      val ranges = OrderedRDD.calculateKeyRanges(shuffled.keys.map(kOk.project))
+      OrderedRDD.shuffle(shuffled, OrderedPartitioner(ranges, ranges.length + 1))
+    } else {
 
-    val partSize = rdd.context.runJob(rdd, getIteratorSize _)
-    info(s"partSize = ${ partSize.toSeq }")
+      val partSize = rdd.context.runJob(rdd, getIteratorSize _)
+      info(s"partSize = ${ partSize.toSeq }")
 
-    val partCommulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
-    val totalSize = partCommulativeSize.last
+      val partCumulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
+      val totalSize = partCumulativeSize.last
 
-    var newPartEnd = (0 until maxPartitions).map { i =>
-      val t = totalSize * (i + 1) / maxPartitions
+      var newPartEnd = (0 until maxPartitions).map { i =>
+        val t = totalSize * (i + 1) / maxPartitions
 
-      /* j largest index not greater than t */
-      var j = util.Arrays.binarySearch(partCommulativeSize, t)
-      if (j < 0)
-        j = -j - 1
-      while (j < partCommulativeSize.length - 1
-        && partCommulativeSize(j + 1) == t)
-        j += 1
-      assert(t <= partCommulativeSize(j) &&
-        (j == partCommulativeSize.length - 1 ||
-          t < partCommulativeSize(j + 1)))
-      j
-    }.toArray
+        /* j largest index not greater than t */
+        var j = util.Arrays.binarySearch(partCumulativeSize, t)
+        if (j < 0)
+          j = -j - 1
+        while (j < partCumulativeSize.length - 1
+          && partCumulativeSize(j + 1) == t)
+          j += 1
+        assert(t <= partCumulativeSize(j) &&
+          (j == partCumulativeSize.length - 1 ||
+            t < partCumulativeSize(j + 1)))
+        j
+      }.toArray
 
-    newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) => i == 0 || newPartEnd(i) != newPartEnd(i - 1) }
-      .map(_._1)
+      newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) => i == 0 || newPartEnd(i) != newPartEnd(i - 1) }
+        .map(_._1)
 
-    info(s"newPartEnd = ${ newPartEnd.toSeq }")
+      info(s"newPartEnd = ${ newPartEnd.toSeq }")
 
-    assert(newPartEnd.last == n - 1)
-    assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i < inext })
+      assert(newPartEnd.last == n - 1)
+      assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i < inext })
 
-    if (newPartEnd.length < maxPartitions)
-      warn(s"coalesced to ${ newPartEnd.length } partitions, less than requested $maxPartitions")
+      if (newPartEnd.length < maxPartitions)
+        warn(s"coalesced to ${ newPartEnd.length } partitions, less than requested $maxPartitions")
 
-    val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
-    val partitioner = new OrderedPartitioner(newRangeBounds, newPartEnd.length)
-    new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd), partitioner)
+      val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
+      val partitioner = new OrderedPartitioner(newRangeBounds, newPartEnd.length)
+      new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd), partitioner)
+    }
   }
 }
 
