@@ -20,10 +20,10 @@ object LinearRegressionCommand extends Command {
     @Args4jOption(required = false, name = "-c", aliases = Array("--covariates"), usage = "Covariate sample annotations, comma-separated")
     var covSA: String = ""
 
-    @Args4jOption(required = false, name = "-mac", aliases = Array("--minimum-allele-count"), usage = "Minimum alternate allele count")
+    @Args4jOption(required = false, name = "--mac", aliases = Array("--minimum-allele-count"), usage = "Minimum alternate allele count")
     var minAC: Int = 1
 
-    @Args4jOption(required = false, name = "-maf", aliases = Array("--minimum-allele-freq"), usage = "Minimum alternate allele frequency")
+    @Args4jOption(required = false, name = "--maf", aliases = Array("--minimum-allele-freq"), usage = "Minimum alternate allele frequency")
     var minAF: java.lang.Double = _
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"), usage = "Variant annotation root, a period-delimited path starting with `va'")
