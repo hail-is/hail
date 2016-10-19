@@ -27,12 +27,16 @@ class HistogramCombiner(indices: Array[Double]) extends Serializable {
       nSmaller += 1
     else if (d > max)
       nGreater += 1
-    else {
+    else if (!d.isNaN) {
       val bs = binarySearch(indices, d)
       val ind = if (bs < 0)
         -bs - 2
       else
         math.min(bs, density.length - 1)
+      assert(ind < density.length && ind >= 0, s"""found out of bounds index $ind
+        |  Resulted from trying to merge $d
+        |  Indices are [${indices.mkString(", ")}]
+        |  Binary search index was $bs""".stripMargin)
       density(ind) += 1
     }
 
