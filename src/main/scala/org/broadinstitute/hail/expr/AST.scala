@@ -309,7 +309,9 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
-      .getOrElse(fatal(s"No such method `$name' on object of type `$t'"))
+      .getOrElse(fatal(s"""`$t' has neither a field nor a method named `$name'
+                          |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+                          |    counts.sum""".stripMargin))
   }
 }
 
