@@ -187,30 +187,7 @@ object IBD {
       // optimization: Ignore chunks below the diagonal
       .filter { case (_, ((i, _), (j, _))) => j >= i }
       .map { case (_, ((s1, gs1), (s2, gs2))) =>
-        val arr = new Array[Int](chunkSize * chunkSize * 3)
-        var vi = 0
-        var si = 0
-        var sj = 0
-        while (vi != chunkSize * chunkSize) {
-          var arri = 0
-          while (si != chunkSize) {
-            val left = gs1(vi + si)
-            while (sj != chunkSize) {
-              val right = gs2(vi + sj)
-              if (left != 3 && right != 3) {
-                val l = ibsLookupTable(left << 2 | right)
-                arr(arri + l) += 1
-              }
-              sj += 1
-              arri += 3
-            }
-            sj = 0
-            si += 1
-          }
-          si = 0
-          vi += chunkSize
-        }
-        ((s1, s2), arr)
+        ((s1, s2), IBDFFI)
       }
       .reduceByKey { (a, b) =>
         var i = 0
