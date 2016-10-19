@@ -67,8 +67,6 @@ object AggregateIntervals extends Command {
 
     val zvf = () => zVals.indices.map(zVals).toArray
 
-    val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
-
     val iList = IntervalListAnnotator.read(options.input, sc.hadoopConfiguration)
     val iListBc = sc.broadcast(iList)
 
