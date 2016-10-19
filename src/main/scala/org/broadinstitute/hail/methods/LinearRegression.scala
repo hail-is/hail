@@ -2,74 +2,48 @@ package org.broadinstitute.hail.methods
 
 import breeze.linalg._
 import org.apache.commons.math3.distribution.TDistribution
-import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.variant._
 import scala.collection.mutable
 
-object LinRegStats {
-  def `type`: Type = TStruct(
-    ("beta", TDouble),
-    ("se", TDouble),
-    ("tstat", TDouble),
-    ("pval", TDouble))
-}
-
-case class LinRegStats(beta: Double, se: Double, t: Double, p: Double) {
-  def toAnnotation: Annotation = Annotation(beta, se, t, p)
-}
-
-class LinRegBuilder extends Serializable {
+class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
   private val missingRowIndices = new mutable.ArrayBuilder.ofInt()
   private val rowsX = new mutable.ArrayBuilder.ofInt()
   private val valsX = new mutable.ArrayBuilder.ofDouble()
+  private var row = 0
   private var sparseLength = 0 // length of rowsX and valsX (ArrayBuilder has no length), used to track missingRowIndices
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0
   private var sumYMissing = 0.0
 
-  def merge(row: Int, g: Genotype, y: DenseVector[Double]): LinRegBuilder = {
-    g.gt match {
-      case Some(0) =>
-      case Some(1) =>
+  def merge(g: Genotype): LinRegBuilder = {
+    (g.unboxedGT: @unchecked) match {
+      case 0 =>
+      case 1 =>
         rowsX += row
         valsX += 1d
         sparseLength += 1
         sumX += 1
         sumXX += 1
         sumXY += y(row)
-      case Some(2) =>
+      case 2 =>
         rowsX += row
         valsX += 2d
         sparseLength += 1
         sumX += 2
         sumXX += 4
         sumXY += 2 * y(row)
-      case None =>
+      case -1 =>
         missingRowIndices += sparseLength
         rowsX += row
         valsX += 0d // placeholder for meanX
         sparseLength += 1
         sumYMissing += y(row)
-      case _ => throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
     }
-
-    this
-  }
-
-  // variant is atomic => combOp merge not called
-  def merge(that: LinRegBuilder): LinRegBuilder = {
-    missingRowIndices ++= that.missingRowIndices.result().map(_ + sparseLength)
-    rowsX ++= that.rowsX.result()
-    valsX ++= that.valsX.result()
-    sparseLength += that.sparseLength
-    sumX += that.sumX
-    sumXX += that.sumXX
-    sumXY += that.sumXY
-    sumYMissing += that.sumYMissing
+    row += 1
 
     this
   }
@@ -105,7 +79,13 @@ class LinRegBuilder extends Serializable {
 }
 
 object LinearRegression {
-  def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]], minAC: Int): LinearRegression = {
+  def schema: Type = TStruct(
+    ("beta", TDouble),
+    ("se", TDouble),
+    ("tstat", TDouble),
+    ("pval", TDouble))
+
+  def apply(vds: VariantDataset, pathVA: List[String], completeSamples: IndexedSeq[String], y: DenseVector[Double], cov: Option[DenseMatrix[Double]], minAC: Int): VariantDataset = {
     require(cov.forall(_.rows == y.size))
 
     val n = y.size
@@ -117,48 +97,49 @@ object LinearRegression {
 
     info(s"Running linreg on $n samples with $k sample ${plural(k, "covariate")}...")
 
+    val completeSamplesSet = completeSamples.toSet
+    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
+
+    val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
+
     val covAndOnes: DenseMatrix[Double] = cov match {
       case Some(dm) => DenseMatrix.horzcat(dm, DenseMatrix.ones[Double](n, 1))
       case None => DenseMatrix.ones[Double](n, 1)
     }
 
-    val qt = qr.reduced.justQ(covAndOnes).t
-    val qty = qt * y
+    val Qt = qr.reduced.justQ(covAndOnes).t
+    val Qty = Qt * y
 
     val sc = vds.sparkContext
+    val sampleMaskBc = sc.broadcast(sampleMask)
     val yBc = sc.broadcast(y)
-    val qtBc = sc.broadcast(qt)
-    val qtyBc = sc.broadcast(qty)
-    val yypBc = sc.broadcast((y dot y) - (qty dot qty))
+    val QtBc = sc.broadcast(Qt)
+    val QtyBc = sc.broadcast(Qty)
+    val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
-    // FIXME: worth making a version of aggregateByVariantWithKeys using sample index rather than sample name?
-    val sampleIndexBc = sc.broadcast(vds.sampleIds.zipWithIndex.toMap)
+    vds.mapAnnotations{ case (v, va, gs) =>
+      val lrb = new LinRegBuilder(yBc.value)
+      gs.iterator.zipWithIndex.foreach { case (g, i) => if (sampleMaskBc.value(i)) lrb.merge(g) }
 
-    new LinearRegression(vds
-      .aggregateByVariantWithKeys[LinRegBuilder](new LinRegBuilder())(
-        (lrb, v, s, g) => lrb.merge(sampleIndexBc.value(s), g, yBc.value),
-        (lrb1, lrb2) => lrb1.merge(lrb2))
-      .mapValues { lrb =>
-        lrb.stats(yBc.value, n, minAC).map { stats => {
-          val (x, xx, xy) = stats
+      val linRegStat = lrb.stats(yBc.value, n, minAC).map { stats =>
+        val (x, xx, xy) = stats
 
-          val qtx = qtBc.value * x
-          val qty = qtyBc.value
-          val xxp: Double = xx - (qtx dot qtx)
-          val xyp: Double = xy - (qtx dot qty)
-          val yyp: Double = yypBc.value
+        val qtx = QtBc.value * x
+        val qty = QtyBc.value
+        val xxp: Double = xx - (qtx dot qtx)
+        val xyp: Double = xy - (qtx dot qty)
+        val yyp: Double = yypBc.value
 
-          val b: Double = xyp / xxp
-          val se = math.sqrt((yyp / xxp - b * b) / d)
-          val t = b / se
-          val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+        val b = xyp / xxp
+        val se = math.sqrt((yyp / xxp - b * b) / d)
+        val t = b / se
+        val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-          LinRegStats(b, se, t, p) }
-        }
+        Annotation(b, se, t, p)
       }
-    )
+
+      inserter(va, linRegStat)
+    }.copy(vaSignature = newVAS)
   }
 }
-
-case class LinearRegression(rdd: RDD[(Variant, Option[LinRegStats])])

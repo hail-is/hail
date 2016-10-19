@@ -1,11 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import breeze.linalg.{DenseMatrix, DenseVector}
-import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.methods.{LinRegStats, LinearRegression}
-import org.broadinstitute.hail.variant.Locus
+import org.broadinstitute.hail.methods.LinearRegression
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object LinearRegressionCommand extends Command {
@@ -102,25 +101,8 @@ object LinearRegressionCommand extends Command {
           majorStride = k,
           isTranspose = true))
 
-    val completeSampleSet = completeSamples.toSet
-    val vdsForCompleteSamples = vds.filterSamples((s, sa) => completeSampleSet(s))
-
     val minAC = math.max(options.minAC, minAF.map(af => (math.ceil(2 * y.size * af) + 0.5).toInt).getOrElse(1))
 
-    val linreg = LinearRegression(vdsForCompleteSamples, y, cov, minAC)
-
-    val (newVAS, inserter) = vdsForCompleteSamples.insertVA(LinRegStats.`type`, pathVA)
-
-    state.copy(
-      vds = vds.copy(
-        rdd = vds.rdd.zipPartitions(linreg.rdd, preservesPartitioning = true) { case (it, jt) =>
-          it.zip(jt).map { case ((v, (va, gs)), (v2, comb)) =>
-            assert(v == v2)
-            (v, (inserter(va, comb.map(_.toAnnotation)), gs))
-          }
-        }.asOrderedRDD,
-        vaSignature = newVAS
-      )
-    )
+    state.copy(vds = LinearRegression(vds, pathVA, completeSamples, y, cov, minAC))
   }
 }
