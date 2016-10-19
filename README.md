@@ -28,7 +28,7 @@ If you use Hail for published work, please cite the software:
 
 and either the forthcoming manuscript describing Hail (if possible):
 
- - Cotton Seed, Alex Bloemendal, Jonathan M Bloom, Jacqueline I Goldstein, Daniel King, Timothy Poterba.  _Hail: An Open-Source Framework for Scalable Genetic Data Analysis_.  In preparation.
+ - Cotton Seed, Alex Bloemendal, Jonathan M Bloom, Jacqueline I Goldstein, Daniel King, Timothy Poterba, Benjamin M. Neale.  _Hail: An Open-Source Framework for Scalable Genetic Data Analysis_.  In preparation.
 
 or the following paper which includes a brief introduction to Hail in the online methods:
 
