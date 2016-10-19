@@ -30,7 +30,7 @@ Annotation | Type | Value
 `va.linreg.tstat` | Double | $t$-statistic, equal to $\hat\beta_1 / \widehat{\mathrm{se}}$
 `va.linreg.pval` | Double | $p$-value
 
-`linreg` skips variants that don't vary across the included samples, such as when all genotypes are homozygous reference. One can further restrict computation to those variants with at least $k$ observed alternate alleles (AC) or alternate allele frequency (AF) at least $p$ in the included samples using the options `-mac k` or `maf p`, respectively. Unlike the `filtervariants` command, these filters do not remove variants from the underlying variant dataset. Adding both filters is equivalent to applying the more stringent of the two, as AF equals AC over twice the number of included samples.
+`linreg` skips variants that don't vary across the included samples, such as when all genotypes are homozygous reference. One can further restrict computation to those variants with at least $k$ observed alternate alleles (AC) or alternate allele frequency (AF) at least $p$ in the included samples using the options `--mac k` or `--maf p`, respectively. Unlike the `filtervariants` command, these filters do not remove variants from the underlying variant dataset. Adding both filters is equivalent to applying the more stringent of the two, as AF equals AC over twice the number of included samples.
 
 Phenotype and covariate sample annotations may also be specified using [programmatic expressions](reference.html#HailExpressionLanguage) without identifiers, such as
 ```

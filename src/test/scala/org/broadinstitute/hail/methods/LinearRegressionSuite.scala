@@ -417,7 +417,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.pheno.Pheno",
-      "-mac", "4"))
+      "--mac", "4"))
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
@@ -425,30 +425,30 @@ class LinearRegressionSuite extends SparkSuite {
     // only 6 samples are included, so 12 alleles total
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.pheno.Pheno",
-      "-maf", "0.3"))
+      "--maf", "0.3"))
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.pheno.Pheno",
-      "-maf", "0.4"))
+      "--maf", "0.4"))
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isEmpty)
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.pheno.Pheno",
-      "-mac", "1",
-      "-maf", "0.3"))
+      "--mac", "1",
+      "--maf", "0.3"))
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
 
     s = LinearRegressionCommand.run(s, Array(
       "-y", "sa.pheno.Pheno",
-      "-mac", "5",
-      "-maf", "0.1"))
+      "--mac", "5",
+      "--maf", "0.1"))
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isEmpty)
@@ -471,13 +471,13 @@ class LinearRegressionSuite extends SparkSuite {
     interceptFatal("Minumum alternate allele count must be a positive integer, got 0") {
       LinearRegressionCommand.run(s, Array(
         "-y", "sa.pheno.Pheno",
-        "-mac", "0"))
+        "--mac", "0"))
     }
 
     interceptFatal("Minumum alternate allele frequency must lie in") {
       LinearRegressionCommand.run(s, Array(
         "-y", "sa.pheno.Pheno",
-        "-maf", "2.0"))
+        "--maf", "2.0"))
     }
   }
 }

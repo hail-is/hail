@@ -34,7 +34,7 @@ Suppose we have already added a variant annotation `va.panel_maf` with allele
 frequencies computed from a reference panel. In that case, the invocation,
 
 ```
-... ibd -maf 'va.panel_maf' -o ibd.tsv --min 0.2 --max 0.9
+... ibd --maf 'va.panel_maf' -o ibd.tsv --min 0.2 --max 0.9
 ```
 
 writes only those sample pairs with `pi_hat` between `0.2` and `0.9` inclusive
