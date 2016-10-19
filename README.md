@@ -10,7 +10,7 @@ To get started using Hail:
 - join the [discussion forum](http://discuss.hail.is)
 - chat with the Hail team and other users on [Hail Gitter](https://gitter.im/hail-is/hail)
 
-Hail has a robust software test suite and is used for [research](http://biorxiv.org/content/early/2016/06/06/050195) and large-scale genetics projects, including [ExACv2](http://exac.broadinstitute.org/) (200k exomes) and gnomAD (20k whole genomes). At the same time, Hail is under very active development as we work toward a stable release, so we do not guarentee forward compatibility of formats and interfaces. If you're interested to get involved in development, check out the [Github repo](https://github.com/hail-is/hail) and chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev).
+Hail has a robust software test suite and is used for [research](http://biorxiv.org/content/early/2016/06/06/050195) and large-scale genetics projects, including [ExACv2](http://exac.broadinstitute.org/) and [gnomAD](http://gnomad.broadinstitute.org/). At the same time, Hail is under very active development as we work toward a stable release, so we do not guarentee forward compatibility of formats and interfaces. If you're interested to get involved in development, check out the [Github repo](https://github.com/hail-is/hail) and chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev).
 
 We encourage use of the [discussion forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Please report any suspected bugs directly to [issues](https://github.com/hail-is/hail/issues).
 
