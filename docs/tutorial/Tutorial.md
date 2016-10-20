@@ -329,7 +329,8 @@ The fields in this file are described in the documentation for [`variantqc`](com
 ```
 hail read -i test.filtersamples.vds \
     \
-    variantqc -o test.variantqc.tsv
+    variantqc \
+     exportvariants -o test.variantqc.tsv -c "Variant = v, va.qc.*"
 ```
 
 We've used R to make histograms of 4 summary statistics (call rate, minor allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated includes all populations.
@@ -688,12 +689,10 @@ hail read -i test.sexcheck.vds \
     \
     filtervariants intervals --keep -i $prunedVariants \
     \
-    pca -o test.pca.tsv \
-    \
-    annotatesamples table -e Sample -r sa.pca -i test.pca.tsv --impute \
+    pca --scores sa.pca \
     \
     exportsamples -c 'Sample = s, SuperPopulation = sa.pheno.SuperPopulation, 
-                      Population = sa.pheno.Population, PC1 = sa.pca.PC1, 
+                      Population = sa.pheno.Population, PC1 = sa.pca.PC1,
                       PC2 = sa.pca.PC2, PC3 = sa.pca.PC3' \
                   -o test.pcaPlusPop.tsv
 ```
@@ -982,7 +981,8 @@ hail read -i test.filtergeno.vds \
 
 hail read -i test.filtersamples.vds \
     \
-    variantqc -o test.variantqc.tsv \
+    variantqc \
+    exportvariants -o test.variantqc.tsv -c "Variant = v, va.qc.*" \
     \
     annotatevariants expr -c 'va.hweByPop.hweEUR = 
                                 if (v.contig != "X") 
@@ -1064,8 +1064,10 @@ hail read -i test.sexcheck.vds \
     \
     filtervariants intervals --keep -i $prunedVariants \
     \
-    pca -o test.pca.tsv
-
+    pca --scores sa.pca \
+    \
+    exportsamples -c 'Sample = s, sa.pca.*' \
+                  -o test.pca.tsv
 
 hail read -i test.sexcheck.vds \
     \
