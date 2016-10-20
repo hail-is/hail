@@ -63,10 +63,22 @@ exports.buildCommand = function (command, pandocOutputDir, $) {
         var templateFile = pandocOutputDir + cmdId + ".html";
 
         function addContent() {
-            $("div#" + cmdId + " div.cmdhead").append(buildHeader(command.name, cmdId));
-            $("div#" + cmdId + " div.description").append(buildDescription(cmdId, command));
-            $("div#" + cmdId + " div.options").append(buildCommandOptions(cmdId, command.options));
-            $("div#" + cmdId + " div.synopsis").append(buildSynopsis(command));
+            var content = [{selector: "div#" + cmdId + " div.cmdhead", result: buildHeader(command.name, cmdId), required: true},
+                           {selector: "div#" + cmdId + " div.description", result: buildDescription(cmdId, command), required: false},
+                           {selector: "div#" + cmdId + " div.options", result: buildCommandOptions(cmdId, command.options), required: true},
+                           {selector: "div#" + cmdId + " div.synopsis", result: buildSynopsis(command), required: true}
+                           ];
+
+            content.forEach(function (c) {
+                if ($(c.selector).length > 0) {
+                    $(c.selector).append(c.result);
+                } else {
+                    console.log("Could not find selector: " + c.selector);
+                    if (c.required) {
+                        reject("Could not build command " + command.name + ". Check the markdown file for required elements: div.cmdhead, div.options, div.synopsis.");
+                    }
+                }
+            });
         }
 
         $("body").append("<div class=command id=" + cmdId + "></div>");
