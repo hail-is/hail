@@ -316,4 +316,5 @@ object FunctionRegistry {
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
   register("rnorm", { (mean: Float, sd: Float) => mean + sd * scala.util.Random.nextGaussian().toFloat })
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() })
+  register("rsample", { (seq: Array[_]) => seq(scala.util.Random.nextInt(seq.length)) })
 }

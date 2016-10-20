@@ -68,6 +68,11 @@ object AddKeyTable extends Command {
     if (header.isEmpty)
       fatal("this module requires one or more named expr arguments")
 
+    val aggregateOption = Aggregators.buildVariantAggregationsByGroup(vds, aggregationEC, f)
+
+    vds.rdd.map{ case (v, (va, gs)) =>
+      aggregateOption.foreach(f => f(v, va, gs))
+    }
 //    def buildKeyAggregations(vds: VariantDataset, ec: EvalContext) = {
 //      val aggregators = ec.aggregationFunctions.toArray
 //      val aggregatorA = ec.a
