@@ -125,6 +125,8 @@ object ExportAggregate extends Command {
     val res = vds.rdd.map { case (v, (va, gs)) => (mapOp(v, va), (v, (va, gs))) }
       .aggregateByKey(zero())(seqOp, combOp)
 
+    res.map{case (key, agg) => key.mkString(",")}.collect().foreach(println(_))
+
 //
 //    def getLine(sampleGroupIndex: Integer, values: MultiArray2[Any], sb:StringBuilder) : String = {
 //      for (j <- 0 until nAggregations) {
