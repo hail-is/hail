@@ -11,9 +11,6 @@ class AddKeyTableSuite extends SparkSuite {
     s = AnnotateVariantsExpr.run(s, Array("-c", "va.foo = gs.filter(g => g.isHet).count()"))
     s = AnnotateSamplesExpr.run(s, Array("-c", "sa.foo = gs.filter(g => g.isHet).count()"))
     s = AnnotateGlobalExpr.run(s, Array("-c", "global.foo = variants.count()"))
-    s = PrintSchema.run(s, Array.empty[String])
-    s = ExportAggregate.run(s, Array("-k", "foo = va.foo, foo1 = global.foo, foo2 = sa.foo, foo3 = 5", "-a", "nHet = gs.filter(g => g.isHet).count()"))
-    s = Count.run(s, Array.empty[String])
-//    s = AddKeyTable.run(s, Array("-k", "foo = va.foo, foo1 = global.foo, foo2 = sa.foo"))
+    s = AddKeyTable.run(s, Array("-k", "foo1 = va.foo, foo2 = sa.foo", "-a", "hetCount = gs.filter(g => g.isHet).count(), totalCount = gs.count()", "-o", "testKeyTable.tsv"))
   }
 }

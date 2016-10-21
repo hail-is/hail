@@ -42,49 +42,6 @@ object Aggregators {
     } else None
   }
 
-  def buildVariantAggregationsByGroup(vds: VariantDataset, ec: EvalContext, keyFn: () => Array[_]): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
-    val aggregators = ec.aggregationFunctions.toArray
-    val aggregatorA = ec.a
-    val nAggregators = aggregators.length
-
-    if (aggregators.nonEmpty) {
-
-      val localSamplesBc = vds.sampleIdsBc
-      val localAnnotationsBc = vds.sampleAnnotationsBc
-
-      val sampleGroups = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-        ec.set(2, s)
-        ec.set(3, sa)
-
-        keyFn()
-      }
-
-      val distinctSampleGroupMap = sampleGroups.distinct.zipWithIndex.toMap
-      val siToGroupIndex = sampleGroups.map(distinctSampleGroupMap)
-      val nGroups = distinctSampleGroupMap.size
-
-      val f = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
-        val baseArray = MultiArray2.fill[Aggregator](nGroups, nAggregators)(null)
-
-        aggregatorA(0) = v
-        aggregatorA(1) = va
-
-        gs.zip(localSamplesBc.value).zip(localAnnotationsBc.value).zip(siToGroupIndex)
-//        (gs, localSamplesBc.value, localAnnotationsBc.value).zipped
-          .foreach {
-            case ((((g, s), sa), gi)) =>
-              aggregatorA(2) = s
-              aggregatorA(3) = sa
-              for (j <- 0 until baseArray.n2)
-              baseArray(gi, j).seqOp(g)
-          }
-
-        baseArray.foreach { agg => aggregatorA(agg.idx) = agg.result }
-      }
-      Some(f)
-    } else None
-  }
-
   def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(String) => Unit] = {
     val aggregators = ec.aggregationFunctions.toArray
     val aggregatorA = ec.a
@@ -139,109 +96,6 @@ object Aggregators {
     }
   }
 
-  def buildGroupedSampleAggregations(vds: VariantDataset, ec: EvalContext, keyFn: () => Array[_]): Option[(Array[_]) => Unit] = {
-    val aggregators = ec.aggregationFunctions.toArray
-    val aggregatorA = ec.a
-
-    if (aggregators.isEmpty)
-      None
-    else {
-
-      val localSamplesBc = vds.sampleIdsBc
-      val localAnnotationsBc = vds.sampleAnnotationsBc
-
-      val sampleGroups = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-        ec.set(2, s)
-        ec.set(3, sa)
-
-        keyFn()
-      }
-
-      val distinctSampleGroupMap = sampleGroups.distinct.zipWithIndex.toMap
-      val siToGroupIndex = sampleGroups.map(distinctSampleGroupMap)
-      val nGroups = distinctSampleGroupMap.size
-
-      val nAggregations = aggregators.length
-      val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
-
-      val baseArray = MultiArray2.fill[Aggregator](nGroups, nAggregations)(null)
-      for (i <- 0 until nGroups; j <- 0 until nAggregations) {
-        baseArray.update(i, j, aggregators(j).copy())
-      }
-
-      val result = vds.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
-        aggregatorA(0) = v
-        aggregatorA(1) = va
-        var i = 0
-        gs.foreach { g =>
-          aggregatorA(2) = localSamplesBc.value(i)
-          aggregatorA(3) = localAnnotationsBc.value(i)
-
-          val gi = siToGroupIndex(i)
-          var ai = 0
-          while (ai < nAggregations) {
-            arr(gi, ai).seqOp(g)
-            ai += 1
-          }
-          i += 1
-        }
-        arr
-      }, { case (arr1, arr2) =>
-        for (i <- 0 until nGroups; j <- 0 until nAggregations) {
-          val a1 = arr1(i, j)
-          a1.combOp(arr2(i, j).asInstanceOf[a1.type])
-        }
-        arr1
-      }, depth = depth)
-
-      Some((s: Array[_]) => {
-        val i = distinctSampleGroupMap(s)
-        for (j <- 0 until nAggregations) {
-          aggregatorA(aggregators(j).idx) = result(i, j).result
-        }
-      })
-    }
-  }
-//  def makeGroupedFunctions(ec: EvalContext, keyFn: () => Array[String]): (MultiArray2[Aggregator], (MultiArray2[Aggregator], (Any, Any)) => MultiArray2[Aggregator],
-//    (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator], (MultiArray2[Aggregator]) => Unit) = {
-//
-//    val aggregators = ec.aggregationFunctions.toArray
-//    val nAggregators = aggregators.length
-//
-//    val nGroups = ???
-//
-//    val arr = ec.a
-//
-//    val baseArray = MultiArray2.fill[Aggregator](nGroups, nAggregators)(null)
-//
-//    val zero = {
-//      for ((i, j) <- baseArray.indices)
-//        baseArray(i, j) = aggregators(j).copy()
-//      baseArray
-//    }
-//
-//    val seqOp = (array: MultiArray2[Aggregator], b: (Any, Any)) => {
-//      val (aggT, annotation) = b
-//      ec.set(0, annotation)
-//      for ((i, j) <- array.indices) {
-//        array(i, j).seqOp(aggT)
-//      }
-//      array
-//    }
-//
-//    val combOp = (arr1: MultiArray2[Aggregator], arr2: MultiArray2[Aggregator]) => {
-//      for ((i, j) <- arr1.indices) {
-//        val a1 = arr1(i, j)
-//        a1.combOp(arr2(i, j).asInstanceOf[a1.type])
-//      }
-//      arr1
-//    }
-//
-//    val resultOp = (array: MultiArray2[Aggregator]) => array.foreach { res => arr(res.idx) = res.result }
-//
-//    (zero, seqOp, combOp, resultOp)
-//  }
-
   def makeFunctions(ec: EvalContext): (Array[Aggregator], (Array[Aggregator], (Any, Any)) => Array[Aggregator],
     (Array[Aggregator], Array[Aggregator]) => Array[Aggregator], (Array[Aggregator]) => Unit) = {
 
@@ -260,6 +114,46 @@ object Aggregators {
     val seqOp = (array: Array[Aggregator], b: (Any, Any)) => {
       val (aggT, annotation) = b
       ec.set(0, annotation)
+      for (i <- array.indices) {
+        array(i).seqOp(aggT)
+      }
+      array
+    }
+
+    val combOp = (arr1: Array[Aggregator], arr2: Array[Aggregator]) => {
+      for (i <- arr1.indices) {
+        val a1 = arr1(i)
+        a1.combOp(arr2(i).asInstanceOf[a1.type])
+      }
+      arr1
+    }
+
+    val resultOp = (array: Array[Aggregator]) => array.foreach { res => arr(res.idx) = res.result }
+
+    (zero, seqOp, combOp, resultOp)
+  }
+
+  def makeKeyFunctions(ec: EvalContext): (Array[Aggregator], (Array[Aggregator], (Any, Any, Any, Any, Any)) => Array[Aggregator],
+    (Array[Aggregator], Array[Aggregator]) => Array[Aggregator], (Array[Aggregator]) => Unit) = {
+
+    val aggregators = ec.aggregationFunctions.toArray
+
+    val arr = ec.a
+
+    val baseArray = Array.fill[Aggregator](aggregators.length)(null)
+
+    val zero = {
+      for (i <- baseArray.indices)
+        baseArray(i) = aggregators(i).copy()
+      baseArray
+    }
+
+    val seqOp = (array: Array[Aggregator], b: (Any, Any, Any, Any, Any)) => {
+      val (v, va, s, sa, aggT) = b
+      ec.set(0, v)
+      ec.set(1, va)
+      ec.set(2, s)
+      ec.set(3, sa)
       for (i <- array.indices) {
         array(i).seqOp(aggT)
       }
