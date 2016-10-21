@@ -91,6 +91,7 @@ exports.buildCommand = function (command, pandocOutputDir, $) {
 exports.buildFaqHeader = function (name, $) {
     return new Promise(function (resolve, reject) {
         $("#" + name + " h2").append("<span style=\"font-size: 50%; vertical-align: middle; color: #555\"> [ <a href=\"https://github.com/hail-is/hail/edit/master/docs/faq/"+name+".md\" target=\"_blank\">edit</a> ]</span>");
+        resolve();
     });
 }
 
