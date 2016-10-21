@@ -80,6 +80,14 @@ object ExportAggregate extends Command {
       keyParseResult._3.apply().toIndexedSeq
     }
 
+    //    val variantGroupEC = EvalContext( Map(
+    //      "v" -> (0, TVariant),
+    //      "va" -> (1, vds.vaSignature),
+    //      "global" -> (2, vds.globalSignature)))
+    //    variantGroupEC.set(2,vds.globalSignature)
+    //
+    //    val variantGroupParseResult = Parser.parseNamedArgs(options.byV ,variantGroupEC)
+
     val distinctSampleGroupMap = sampleGroups.distinct.zipWithIndex.toMap
     val siToGroupIndex = sampleGroups.map(distinctSampleGroupMap)
     val nSampleGroups = distinctSampleGroupMap.size
@@ -125,7 +133,7 @@ object ExportAggregate extends Command {
     val res = vds.rdd.map { case (v, (va, gs)) => (mapOp(v, va), (v, (va, gs))) }
       .aggregateByKey(zero())(seqOp, combOp)
 
-    res.map{case (key, agg) => key.mkString(",")}.collect().foreach(println(_))
+//    res.map{case (key, agg) => key.mkString(",")}.collect().foreach(println(_))
 
 //
 //    def getLine(sampleGroupIndex: Integer, values: MultiArray2[Any], sb:StringBuilder) : String = {
@@ -155,13 +163,7 @@ object ExportAggregate extends Command {
 //            sampleGroupsParseResult.map(_._1).mkString("\t") + "\t" +
 //            aggregationHeader.mkString("\t")))
 //
-//    val variantGroupEC = EvalContext( Map(
-//      "v" -> (0, TVariant),
-//      "va" -> (1, vds.vaSignature),
-//      "global" -> (2, vds.globalSignature)))
-//    variantGroupEC.set(2,vds.globalSignature)
-//
-//    val variantGroupParseResult = Parser.parseNamedArgs(options.byV ,variantGroupEC)
+
 //
     state
   }
