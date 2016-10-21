@@ -1,10 +1,8 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.Aggregators
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AddKeyTable extends Command {
@@ -13,13 +11,13 @@ object AddKeyTable extends Command {
       usage = "Struct with expr defining keys")
     var keyCond: String = _
 
-    @Args4jOption(required = false, name = "-c", aliases = Array("--cond"),
+    @Args4jOption(required = true, name = "-a", aliases = Array("--agg-cond"),
       usage = "Aggregation condition")
-    var cond: String = _
+    var aggCond: String = _
 
-    @Args4jOption(required = false, name = "-o", aliases = Array("--output"),
+    @Args4jOption(required = true, name = "-o", aliases = Array("--output"),
       usage = "output file")
-    var outFile: String = _
+    var output: String = _
   }
 
   def newOptions = new Options
@@ -37,9 +35,9 @@ object AddKeyTable extends Command {
   def run(state: State, options: Options): State = {
 
     val vds = state.vds
-    val splat = false
+    val sc = state.sc
 
-//    val cond = options.cond
+    val aggCond = options.aggCond
     val keyCond = options.keyCond
 
     val aggregationEC = EvalContext(Map(
@@ -63,79 +61,44 @@ object AddKeyTable extends Command {
     ec.set(4, vds.globalAnnotation)
     aggregationEC.set(4, vds.globalAnnotation)
 
-    val (header, parseTypes, f) = Parser.parseNamedArgs(keyCond, ec)
+    val (keyNames, keyParseTypes, keyF) = Parser.parseNamedArgs(keyCond, ec)
+    val (aggNames, aggParseTypes, aggF) = Parser.parseNamedArgs(aggCond, ec)
 
-    if (header.isEmpty)
-      fatal("this module requires one or more named expr arguments")
+    if (keyNames.isEmpty)
+      fatal("this module requires one or more named expr arguments as keys")
+    if (aggNames.isEmpty)
+      fatal("this module requires one or more named expr arguments to aggregate by key")
 
-    val aggregateOption = Aggregators.buildVariantAggregationsByGroup(vds, aggregationEC, f)
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeKeyFunctions(aggregationEC)
+    val zvf = () => zVals.indices.map(zVals).toArray
 
-    vds.rdd.map{ case (v, (va, gs)) =>
-      aggregateOption.foreach(f => f(v, va, gs))
+    val results = vds.mapPartitionsWithAll{ it =>
+      it.map { case (v, va, s, sa, g) =>
+        ec.setAll(v, va, s, sa, g)
+        val key = keyF().toIndexedSeq
+        (key, (v, va, s, sa, g))
+        }
+    }.aggregateByKey(zvf())(seqOp, combOp).collectAsMap()
+
+    sc.hadoopConfiguration.writeTextFile(options.output) { out =>
+      val sb = new StringBuilder
+      val headerNames = keyNames ++ aggNames
+      headerNames.foreachBetween(k => sb.append(k))(sb += '\t')
+      sb += '\n'
+
+      results.foreachBetween { case (key, agg) =>
+        key.foreachBetween(k => sb.append(k))(sb += '\t')
+
+        resultOp(agg)
+
+        aggF().foreach { field =>
+          sb += '\t'
+          sb.append(field)
+        }
+      }(sb += '\n')
+
+      out.write(sb.result())
     }
-//    def buildKeyAggregations(vds: VariantDataset, ec: EvalContext) = {
-//      val aggregators = ec.aggregationFunctions.toArray
-//      val aggregatorA = ec.a
-//
-//      if (aggregators.isEmpty)
-//        None
-//      else {
-//
-//        val localSamplesBc = vds.sampleIdsBc
-//        val localAnnotationsBc = vds.sampleAnnotationsBc
-//
-//        val nAggregations = aggregators.length
-//        val nSamples = vds.nSamples
-//        val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
-//
-//        val baseArray = MultiArray2.fill[Aggregator](nSamples, nAggregations)(null)
-//        for (i <- 0 until nSamples; j <- 0 until nAggregations) {
-//          baseArray.update(i, j, aggregators(j).copy())
-//        }
-//      }
-
-
-    println(header.mkString("\n"))
-    println(parseTypes.mkString("\n"))
-    println(f().mkString("\n"))
-
-    val foo = vds.rdd.map{case (v, (va, gs)) =>
-      ec.set(0, v)
-      ec.set(1, va)
-      val (header, parseTypes, f) = Parser.parseNamedArgs(keyCond, ec)
-      f()
-    }
-
-//    println(foo.collect().map(_.mkString(",")).mkString("\n"))
-
-
-
-//    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
-//
-//    val zvf = () => zVals.indices.map(zVals).toArray
-//
-//    val results = vds.variantsAndAnnotations.flatMap { case (v, va) => i => (i, (v, va)) }
-//    }
-//      .aggregateByKey(zvf())(seqOp, combOp)
-//      .collectAsMap()
-
-//    println(parseTypes.mkString("\n"))
-
-
-//    val groups = vds.rdd.flatMap { case (v, (va, gs)) =>
-//      val key = qGroupKey(va)
-//      val genotypes = gs.map { g => g.nNonRefAlleles.getOrElse(9) } //SKAT-O null value is +9
-//      key match {
-//        case Some(x) =>
-//          if (splat)
-//            for (k <- x.asInstanceOf[Iterable[_]]) yield (k, genotypes)
-//          else
-//            Some((x, genotypes))
-//        case None => None
-//      }
-//    }.groupByKey()
-
-
 
     state
   }
