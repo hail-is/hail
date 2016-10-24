@@ -106,6 +106,7 @@ exports.buildFaqTOC = function ($) {
           var text = element.text();
           $("#TOC ul").append(listItem(id, text));
           element.prepend(anchor(id));
+          element.addClass("faq");
       });
 
       resolve();
