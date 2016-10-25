@@ -1,12 +1,11 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.TextExporter
-import org.broadinstitute.hail.methods._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object ExportVariants extends Command with TextExporter {
+object ExportKeyTable extends Command with TextExporter {
 
   class Options extends BaseOptions {
 
@@ -18,6 +17,10 @@ object ExportVariants extends Command with TextExporter {
       usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
     var condition: String = _
 
+    @Args4jOption(required = true, name = "-n", aliases = Array("--name"),
+      usage = "name of key table to be printed to tsv")
+    var name: String = _
+
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
       usage = "Write the types of parse expressions to a file at the given path")
     var typesFile: String = _
@@ -26,39 +29,38 @@ object ExportVariants extends Command with TextExporter {
 
   def newOptions = new Options
 
-  def name = "exportvariants"
+  def name = "ktexport"
 
-  def description = "Export list of variant information to tsv"
+  def description = "Export information from key table to tsv"
 
   def supportsMultiallelic = true
 
-  def requiresVDS = true
+  def requiresVDS = false
+
+  override def hidden = true
 
   def run(state: State, options: Options): State = {
-    val vds = state.vds
-    val vas = vds.vaSignature
-    val hConf = vds.sparkContext.hadoopConfiguration
+
+    val kt = state.ktEnv.get(options.name) match {
+      case Some(newKT) =>
+        newKT
+      case None =>
+        fatal("no such key table $name in environment")
+    }
+
+    val ks = kt.keySignature
+    val vs = kt.valueSignature
+
     val cond = options.condition
     val output = options.output
 
-    val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature)))
-
     val symTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
-
+      "k" -> (0, kt.keySignature),
+      "ka" -> (1, kt.valueSignature),
+      "global" -> (2, state.vds.globalSignature)
+    )
 
     val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
 
     val (header, types, f) = Parser.parseExportArgs(cond, ec)
 
@@ -69,19 +71,15 @@ object ExportVariants extends Command with TextExporter {
       exportTypes(file, state.hadoopConf, typeInfo)
     }
 
-    val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
-
     state.hadoopConf.delete(output, recursive = true)
 
-    vds.rdd
+    kt.rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
-        it.map { case (v, (va, gs)) =>
-
-          variantAggregations.foreach { f => f(v, va, gs) }
+        it.map { case (k, v) =>
           sb.clear()
 
-          ec.setAll(v, va)
+          ec.setAll(k, v)
 
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
@@ -91,3 +89,4 @@ object ExportVariants extends Command with TextExporter {
     state
   }
 }
+
