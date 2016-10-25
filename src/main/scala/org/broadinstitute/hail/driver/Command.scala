@@ -45,6 +45,7 @@ object ToplevelCommands {
         + cmd.description))
   }
 
+  register(AddKeyTable)
   register(AggregateIntervals)
   register(AnnotateSamples)
   register(AnnotateVariants)

@@ -6,13 +6,14 @@ import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AddKeyTable extends Command {
+
   class Options extends BaseOptions with TextTableOptions {
     @Args4jOption(required = true, name = "-k", aliases = Array("--key-cond"),
-      usage = "Struct with expr defining keys")
+      usage = "Named key condition", metaVar = "EXPR")
     var keyCond: String = _
 
     @Args4jOption(required = true, name = "-a", aliases = Array("--agg-cond"),
-      usage = "Aggregation condition")
+      usage = "Named aggregation condition", metaVar = "EXPR")
     var aggCond: String = _
 
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"),
@@ -24,7 +25,7 @@ object AddKeyTable extends Command {
 
   def name = "addkeytable"
 
-  def description = "Creates new key table with key determined by an expression"
+  def description = "Creates a new key table with key(s) determined by named expressions and additional columns determined by named aggregator expressions"
 
   def supportsMultiallelic = true
 
@@ -69,36 +70,33 @@ object AddKeyTable extends Command {
     if (aggNames.isEmpty)
       fatal("this module requires one or more named expr arguments to aggregate by key")
 
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeKeyFunctions(aggregationEC)
+    val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
     val zvf = () => zVals.indices.map(zVals).toArray
 
-    val results = vds.mapPartitionsWithAll{ it =>
+    val seqOp = (array: Array[Aggregator], b: (Any, Any, Any, Any, Any)) => {
+      val (v, va, s, sa, aggT) = b
+      ec.set(0, v)
+      ec.set(1, va)
+      ec.set(2, s)
+      ec.set(3, sa)
+      for (i <- array.indices) {
+        array(i).seqOp(aggT)
+      }
+      array
+    }
+
+    vds.mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
         ec.setAll(v, va, s, sa, g)
         val key = keyF().toIndexedSeq
         (key, (v, va, s, sa, g))
-        }
-    }.aggregateByKey(zvf())(seqOp, combOp).collectAsMap()
-
-    sc.hadoopConfiguration.writeTextFile(options.output) { out =>
-      val sb = new StringBuilder
-      val headerNames = keyNames ++ aggNames
-      headerNames.foreachBetween(k => sb.append(k))(sb += '\t')
-      sb += '\n'
-
-      results.foreachBetween { case (key, agg) =>
-        key.foreachBetween(k => sb.append(k))(sb += '\t')
-
+      }
+    }.aggregateByKey(zvf())(seqOp, combOp)
+      .map { case (k, agg) =>
         resultOp(agg)
-
-        aggF().foreach { field =>
-          sb += '\t'
-          sb.append(field)
-        }
-      }(sb += '\n')
-
-      out.write(sb.result())
-    }
+        (k ++ aggF()).mkString("\t")
+      }
+      .writeTable(options.output, Option((keyNames ++ aggNames).mkString("\t")))
 
     state
   }
