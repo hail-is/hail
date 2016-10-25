@@ -22,7 +22,7 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
   def hasNaNs: Boolean = Array(Z0, Z1, Z2, PI_HAT).exists(_.isNaN)
 }
 
-case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Int, ibs1: Int, ibs2: Int) {
+case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
   def pointwiseMinus(that: ExtendedIBDInfo): ExtendedIBDInfo =
     ExtendedIBDInfo(ibd.pointwiseMinus(that.ibd), ibs0 - that.ibs0, ibs1 - that.ibs1, ibs2 - that.ibs2)
 
@@ -37,7 +37,7 @@ case class IBSExpectations(
   def normalized: IBSExpectations =
     IBSExpectations(E00 / nonNaNCount, E10 / nonNaNCount, E20 / nonNaNCount, E11 / nonNaNCount, E21 / nonNaNCount, E22, this.nonNaNCount)
 
-  def scaled(N: Int): IBSExpectations =
+  def scaled(N: Long): IBSExpectations =
     IBSExpectations(E00 * N, E10 * N, E20 * N, E11 * N, E21 * N, E22 * N, this.nonNaNCount)
 
   def join(that: IBSExpectations): IBSExpectations =
@@ -100,7 +100,7 @@ object IBD {
     IBSExpectations(a00, a10, a20, a11, a21)
   }
 
-  def calculateIBDInfo(N0: Int, N1: Int, N2: Int, ibse: IBSExpectations, bounded: Boolean): ExtendedIBDInfo = {
+  def calculateIBDInfo(N0: Long, N1: Long, N2: Long, ibse: IBSExpectations, bounded: Boolean): ExtendedIBDInfo = {
     val ibseN = ibse.scaled(N0 + N1 + N2)
     val Z0 = N0 / ibseN.E00
     val Z1 = (N1 - Z0 * ibseN.E10) / ibseN.E11
@@ -187,7 +187,7 @@ object IBD {
       // optimization: Ignore chunks below the diagonal
       .filter { case (_, ((i, _), (j, _))) => j >= i }
       .map { case (_, ((s1, gs1), (s2, gs2))) =>
-        ((s1, s2), IBDFFI)
+        ((s1, s2), IBSFFI.ibs(chunkSize, chunkSize, gs1, gs2))
       }
       .reduceByKey { (a, b) =>
         var i = 0

@@ -26,7 +26,7 @@ object IBSFFI {
         while (vBlocki != packedLength) {
           val k = si + vBlocki*64*nSamples
           sampleOrientedGenotypes(si * length + vBlocki) =
-            gs(k)                 << 62 | gs(k + 1 * nSamples)  << 60 | gs(k + 2 * nSamples)  << 58 | gs(k + 3 * nSamples)  << 56 |
+              gs(k)                 << 62 | gs(k + 1 * nSamples)  << 60 | gs(k + 2 * nSamples)  << 58 | gs(k + 3 * nSamples)  << 56 |
               gs(k + 4 * nSamples)  << 54 | gs(k + 5 * nSamples)  << 52 | gs(k + 6 * nSamples)  << 50 | gs(k + 7 * nSamples)  << 48 |
               gs(k + 8 * nSamples)  << 46 | gs(k + 9 * nSamples)  << 44 | gs(k + 10 * nSamples) << 42 | gs(k + 11 * nSamples) << 40 |
               gs(k + 12 * nSamples) << 38 | gs(k + 13 * nSamples) << 36 | gs(k + 14 * nSamples) << 34 | gs(k + 15 * nSamples) << 32 |
