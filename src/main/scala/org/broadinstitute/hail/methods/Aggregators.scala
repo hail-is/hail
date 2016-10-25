@@ -131,46 +131,6 @@ object Aggregators {
 
     (zero, seqOp, combOp, resultOp)
   }
-
-  def makeKeyFunctions(ec: EvalContext): (Array[Aggregator], (Array[Aggregator], (Any, Any, Any, Any, Any)) => Array[Aggregator],
-    (Array[Aggregator], Array[Aggregator]) => Array[Aggregator], (Array[Aggregator]) => Unit) = {
-
-    val aggregators = ec.aggregationFunctions.toArray
-
-    val arr = ec.a
-
-    val baseArray = Array.fill[Aggregator](aggregators.length)(null)
-
-    val zero = {
-      for (i <- baseArray.indices)
-        baseArray(i) = aggregators(i).copy()
-      baseArray
-    }
-
-    val seqOp = (array: Array[Aggregator], b: (Any, Any, Any, Any, Any)) => {
-      val (v, va, s, sa, aggT) = b
-      ec.set(0, v)
-      ec.set(1, va)
-      ec.set(2, s)
-      ec.set(3, sa)
-      for (i <- array.indices) {
-        array(i).seqOp(aggT)
-      }
-      array
-    }
-
-    val combOp = (arr1: Array[Aggregator], arr2: Array[Aggregator]) => {
-      for (i <- arr1.indices) {
-        val a1 = arr1(i)
-        a1.combOp(arr2(i).asInstanceOf[a1.type])
-      }
-      arr1
-    }
-
-    val resultOp = (array: Array[Aggregator]) => array.foreach { res => arr(res.idx) = res.result }
-
-    (zero, seqOp, combOp, resultOp)
-  }
 }
 
 class CountAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Long] {
