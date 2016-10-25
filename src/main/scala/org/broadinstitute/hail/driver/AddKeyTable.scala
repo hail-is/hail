@@ -1,6 +1,8 @@
 package org.broadinstitute.hail.driver
 
+import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.methods.Aggregators
 import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -16,9 +18,9 @@ object AddKeyTable extends Command {
       usage = "Named aggregation condition", metaVar = "EXPR")
     var aggCond: String = _
 
-    @Args4jOption(required = true, name = "-o", aliases = Array("--output"),
-      usage = "output file")
-    var output: String = _
+    @Args4jOption(required = true, name = "-n", aliases = Array("--name"),
+      usage = "Name of new key table")
+    var name: String = _
   }
 
   def newOptions = new Options
@@ -65,6 +67,9 @@ object AddKeyTable extends Command {
     val (keyNames, keyParseTypes, keyF) = Parser.parseNamedArgs(keyCond, ec)
     val (aggNames, aggParseTypes, aggF) = Parser.parseNamedArgs(aggCond, ec)
 
+    val keySignature = TStruct(keyNames.zip(keyParseTypes): _*)
+    val aggSignature = TStruct(aggNames.zip(aggParseTypes): _*)
+
     if (keyNames.isEmpty)
       fatal("this module requires one or more named expr arguments as keys")
     if (aggNames.isEmpty)
@@ -85,19 +90,18 @@ object AddKeyTable extends Command {
       array
     }
 
-    vds.mapPartitionsWithAll { it =>
+    val kt = KeyTable(vds.mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
         ec.setAll(v, va, s, sa, g)
-        val key: IndexedSeq[String] = keyF()
+        val key = Annotation.fromSeq(keyF())
         (key, (v, va, s, sa, g))
       }
     }.aggregateByKey(zvf())(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
-        (k ++ aggF()).mkString("\t")
-      }
-      .writeTable(options.output, Option((keyNames ++ aggNames).mkString("\t")))
+        (k, Annotation.fromSeq(aggF()))
+      }, keySignature, aggSignature)
 
-    state
+    state.copy(ktEnv = state.ktEnv + (options.name -> kt))
   }
 }
