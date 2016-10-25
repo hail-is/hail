@@ -56,14 +56,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     if (!parallelWrite) {
-      val filesToMerge = hConf.glob(parallelOutputPath + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
-
-      val (_, dt) = time {
-        hConf.copyMerge(filesToMerge, filename, deleteSource = true)
-      }
-      info(s"while writing:\n    $filename\n  merge time: ${ formatTime(dt) }")
-
-      hConf.delete(parallelOutputPath, recursive = true)
+      hConf.copyMerge(parallelOutputPath, filename, true, false)
     }
   }
 

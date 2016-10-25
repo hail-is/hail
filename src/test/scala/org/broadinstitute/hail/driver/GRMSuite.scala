@@ -3,16 +3,20 @@ package org.broadinstitute.hail.driver
 import java.io.DataInputStream
 
 import breeze.linalg.DenseMatrix
+import org.apache.hadoop.io.NullWritable
+import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Prop}
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.utils.TempDir
+import org.apache.spark.WritableConverter._
 import org.testng.annotations.Test
 
 import scala.io.Source
 import scala.language.postfixOps
+import scala.reflect.ClassTag
 import scala.sys.process._
 
 class GRMSuite extends SparkSuite {
@@ -25,6 +29,40 @@ class GRMSuite extends SparkSuite {
           assert(s.length == 2)
           s(1)
         }.toArray
+    }
+  }
+
+  def loadHDFSMatrix[T](nSamples: Int, lines: RDD[T])(f: T => TraversableOnce[(Int, Int, Float)])(implicit ctu: ClassTag[Float]): DenseMatrix[Float] = {
+    val zero: DenseMatrix[Float] = new DenseMatrix[Float](rows = nSamples, cols = nSamples)
+
+    lines.aggregate(zero)({ case (m, line) =>
+      for ((i, j, x) <- f(line)) {
+        m(i, j) = x
+      }
+      m
+    }, { case (l, r) =>
+      for (i <- 0 until nSamples;
+        j <- 0 until nSamples) {
+        l(i, j) += r(i, j)
+      }
+      l
+    })
+  }
+
+  def loadRelHDFS(nSamples: Int, file: String): DenseMatrix[Float] = {
+    val lines = sc.textFile(file)
+    assert(lines.count() == nSamples)
+
+    val vectors = lines.map(_.split("\t").map(_.toFloat))
+      .sortBy(_.length)
+      .zipWithIndex()
+
+    loadHDFSMatrix(nSamples, vectors) { case (row, i)  =>
+      if (row.length != i + 1) {
+        throw new AssertionError(s"row.length, ${row.length}, did not equal i + 1, ${i + 1}")
+      }
+      // FIXME: Possible overflow error at i.toInt
+      for ((x, j) <- row.zipWithIndex) yield (i.toInt, j, x)
     }
   }
 
@@ -47,6 +85,23 @@ class GRMSuite extends SparkSuite {
     }
 
     m
+  }
+
+  def loadGRMHDFS(nSamples: Int, nVariants: Int, file: String): DenseMatrix[Float] = {
+    val lines = sc.textFile(file)
+    assert(lines.count() == nSamples * (nSamples + 1) / 2)
+
+    loadHDFSMatrix(nSamples, lines) { line =>
+      val s = line.split("\t")
+      val i = s(0).toInt - 1
+      val j = s(1).toInt - 1
+      val nNonMissing = s(2).toInt
+      val x = s(3).toFloat
+
+      if (nNonMissing != nVariants)
+        throw new AssertionError(s"expected nNonMissing $nNonMissing to equal nVariants $nVariants")
+      Array((i, j, x))
+    }
   }
 
   def loadGRM(nSamples: Int, nVariants: Int, file: String): DenseMatrix[Float] = {
@@ -112,7 +167,7 @@ class GRMSuite extends SparkSuite {
         val a = mat1(i, j)
         val b = mat2(i, j)
         if ((a - b).abs >= 1e-3) {
-          println(s"$a $b")
+          println(s"($i, $j): $a $b")
           return false
         }
       }
@@ -163,7 +218,7 @@ class GRMSuite extends SparkSuite {
               == vsm.sampleIds)
 
             compare(loadRel(nSamples, bFile + ".rel"),
-              loadRel(nSamples, relFile))
+              loadRelHDFS(nSamples, relFile))
 
           case "gcta-grm" =>
             s"plink --bfile ${ uriPath(bFile) } --make-grm-gz --out ${ uriPath(bFile) }" !
@@ -174,7 +229,7 @@ class GRMSuite extends SparkSuite {
             GRM.run(s, Array("-f", "gcta-grm", "-o", grmFile))
 
             compare(loadGRM(nSamples, nVariants, bFile + ".grm.gz"),
-              loadGRM(nSamples, nVariants, grmFile))
+              loadGRMHDFS(nSamples, nVariants, grmFile))
 
           case "gcta-grm-bin" =>
             s"plink --bfile ${ uriPath(bFile) } --make-grm-bin --out ${ uriPath(bFile) }" !

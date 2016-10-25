@@ -1,7 +1,10 @@
 package org.broadinstitute.hail.driver
 
 import java.io.DataOutputStream
+
 import breeze.linalg.DenseMatrix
+import org.apache.hadoop.io.{BytesWritable, IntWritable, LongWritable, NullWritable}
+import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.methods.ToStandardizedIndexedRowMatrix
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -53,7 +56,7 @@ object GRM extends Command {
 
     val bmat = mat.toBlockMatrix().cache()
     val grm = bmat.transpose.multiply(bmat)
-          .toLocalMatrix()
+
     assert(grm.numCols == nSamples
       && grm.numRows == nSamples)
 
@@ -72,32 +75,68 @@ object GRM extends Command {
       && options.nFile != null)
       warn(s"format ${options.format}: ignoring `--N-file'")
 
+    val tmpFileName = state.hadoopConf.getTemporaryFile(HailConfiguration.tmpDir)
+
     options.format match {
       case "rel" =>
-        state.hadoopConf.writeTextFile(options.output) { s =>
-          for (i <- 0 until nSamples) {
-            for (j <- 0 to i) {
+        grm.toIndexedRowMatrix()
+          .rows
+          .map { (row: IndexedRow) =>
+            val i = row.index
+            val arr = row.vector.toArray
+            val sb = new StringBuilder
+            var j = 0
+            while (j <= i) {
               if (j > 0)
-                s.write("\t")
-              s.write(grm(i, j).toString)
+                sb.append("\t")
+              sb.append(arr(j))
+              j += 1
             }
-            s.write("\n")
+            sb.toString()
           }
-        }
+          .saveAsTextFile(tmpFileName)
+
+        state.hadoopConf.copyMerge(tmpFileName, options.output, true, false)
 
       case "gcta-grm" =>
-        state.hadoopConf.writeTextFile(options.output) { s =>
-          for (i <- 0 until nSamples)
-            for (j <- 0 to i)
-              s.write(s"${i + 1}\t${j + 1}\t$nVariants\t${grm(i, j)}\n")
-        }
+        grm.toIndexedRowMatrix()
+          .rows
+          .map { (row: IndexedRow) =>
+            val i = row.index
+            val arr = row.vector.toArray
+            val sb = new StringBuilder
+            var j = 0
+            while (j <= i) {
+              sb.append(s"${i + 1}\t${j + 1}\t$nVariants\t${arr(j)}")
+              if (j < i) { sb.append("\n") }
+              j += 1
+            }
+            sb.toString()
+          }
+          .saveAsTextFile(tmpFileName)
+
+        state.hadoopConf.copyMerge(tmpFileName, options.output, true, false)
 
       case "gcta-grm-bin" =>
-        state.hadoopConf.writeDataFile(options.output) { s =>
-          for (i <- 0 until nSamples)
-            for (j <- 0 to i)
-              writeFloatLittleEndian(s, grm(i, j).toFloat)
-        }
+        grm.toIndexedRowMatrix()
+          .rows
+          .sortBy(row => row.index)
+          .map { (row: IndexedRow) =>
+            val i = row.index
+            val arr = row.vector.toArray
+            val ab = mutable.ArrayBuilder.make[Byte]()
+            var j = 0
+            while (j <= i) {
+              val bits: Int = java.lang.Float.floatToRawIntBits(arr(j).toFloat)
+              ab += (bits & 0xff).toByte
+              ab += ((bits >> 8) & 0xff).toByte
+              ab += ((bits >> 16) & 0xff).toByte
+              ab += (bits >> 24).toByte
+              j += 1
+            }
+            ab.result()
+          }
+          .saveFromByteArrays(options.output)
 
         if (options.nFile != null) {
           state.hadoopConf.writeDataFile(options.nFile) { s =>
