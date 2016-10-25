@@ -88,7 +88,7 @@ object AddKeyTable extends Command {
     vds.mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
         ec.setAll(v, va, s, sa, g)
-        val key = keyF().toIndexedSeq
+        val key: IndexedSeq[String] = keyF()
         (key, (v, va, s, sa, g))
       }
     }.aggregateByKey(zvf())(seqOp, combOp)
