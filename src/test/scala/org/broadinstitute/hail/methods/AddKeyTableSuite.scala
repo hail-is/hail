@@ -65,8 +65,9 @@ class AddKeyTableSuite extends SparkSuite {
         (comb1, comb2) => (comb1._1 + comb2._1, comb1._2 + comb2._2, comb1._3 + comb2._3)).collectAsMap()
 
       s = AddKeyTable.run(s, Array("-k", (sampleKeyNames.map(k => k + " = " + "sa.keys." + k) ++ variantKeyNames.map(k => k + " = " + "va.keys." + k)).mkString(","),
-        "-a", "nHet = gs.filter(g => g.isHet).count(), nCalled = gs.filter(g => g.isCalled).count(), nTotal = gs.count()",
-        "-o", outputFile))
+        "-a", "nHet = gs.filter(g => g.isHet).count(), nCalled = gs.filter(g => g.isCalled).count(), nTotal = gs.count()", "-n", "foo"))
+
+      s = ExportKeyTable.run(s, Array("-o", outputFile, "-c", "k.*, ka.*", "-n", "foo"))
 
       val ktr = hadoopConf.readLines(outputFile)(_.map(_.map { line =>
         line.trim.split("\\s+")
