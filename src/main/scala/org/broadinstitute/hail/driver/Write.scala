@@ -10,6 +10,9 @@ object Write extends Command {
 
     @Args4jOption(required = false, name = "--no-compress", usage = "Don't compress genotype streams")
     var noCompress: Boolean = false
+
+    @Args4jOption(required = false, name = "--overwrite", usage = "Delete existing file at output location")
+    var overwrite: Boolean = false
   }
   def newOptions = new Options
 
@@ -22,7 +25,13 @@ object Write extends Command {
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    state.hadoopConf.delete(options.output, true)
+    if (options.overwrite)
+      state.hadoopConf.delete(options.output, recursive =  true)
+    else if (state.hadoopConf.exists(options.output))
+      fatal(
+        s"""File already exists at ${options.output}
+           |  Clear this path or rerun `write' with --overwrite flag,
+           |  but do NOT overwrite the same VDS being read.""".stripMargin)
     state.vds.write(state.sqlContext, options.output, compress = !options.noCompress)
     state
   }

@@ -496,6 +496,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .filter(vds => vds.nVariants > 0)) { vds: VariantDataset =>
 
       var state = State(sc, sqlContext, vds)
+      hadoopConf.delete(outPath, recursive = true)
       state = Write.run(state, Array("-o", outPath))
 
       state = AnnotateVariantsVDS.run(state, Array(
