@@ -20,6 +20,8 @@ object ClearKT extends Command {
 
   def requiresVDS = false
 
+  override def hidden = true
+
   def run(state: State, options: Options): State = {
     val name = options.name
     state.copy(
