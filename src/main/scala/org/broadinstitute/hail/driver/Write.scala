@@ -30,8 +30,8 @@ object Write extends Command {
     else if (state.hadoopConf.exists(options.output))
       fatal(
         s"""File already exists at ${options.output}
-           |  Clear this path or rerun `write' with --overwrite flag,
-           |  but do NOT overwrite the same VDS being read.""".stripMargin)
+           |  Choose this path or rerun with --overwrite flag,
+           |  but do NOT overwrite a VDS being read.""".stripMargin)
     state.vds.write(state.sqlContext, options.output, compress = !options.noCompress)
     state
   }

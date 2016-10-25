@@ -2,7 +2,7 @@ package org.broadinstitute.hail.variant.vsm
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.{Gen, Parameters}
 import org.broadinstitute.hail.check.Prop._
@@ -352,5 +352,17 @@ class VSMSuite extends SparkSuite {
         .vds.same(vds)
 
     }.check()
+  }
+
+  @Test def testOverwrite() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
+
+    val out = tmpDir.createTempFile("out", "vds")
+    Write.run(s, "-o", out)
+
+    TestUtils.interceptFatal("""File already exists""") {
+      Write.run(s, "-o", out)
+    }
   }
 }
