@@ -11,7 +11,7 @@ object AnnotateSamplesVDS extends Command with JoinAnnotator {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-n", aliases = Array("--name"),
       usage = "name of VDS in environment")
-    var input: String = _
+    var name: String = _
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
       usage = "Period-delimited path starting with `sa' (this argument or --code required)")
@@ -41,7 +41,7 @@ object AnnotateSamplesVDS extends Command with JoinAnnotator {
       case _ => fatal("this module requires one of `--root' or `--code', but not both")
     }
 
-    val otherVds = VariantSampleMatrix.read(state.sqlContext, options.input, skipVariants = true)
+    val otherVds = state.env.getOrElse(options.name, fatal(s"no VDS found with name `${options.name}'"))
 
     val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
       val ec = EvalContext(Map(
