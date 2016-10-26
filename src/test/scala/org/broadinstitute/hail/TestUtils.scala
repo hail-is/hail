@@ -1,6 +1,6 @@
 package org.broadinstitute.hail
 
-import breeze.linalg.Matrix
+import breeze.linalg.{Matrix, Vector}
 import org.broadinstitute.hail.utils._
 import org.apache.spark.SparkContext
 import org.broadinstitute.hail.annotations.Annotation
@@ -40,6 +40,17 @@ object TestUtils {
     ).toOrderedRDD
 
     new VariantDataset(VariantMetadata(sampleIds), rdd)
+  }
+
+  def assertVectorEqualityDouble(A: Vector[Double], B: Vector[Double], tolerance: Double = 1e-6) {
+    assert(A.size == B.size)
+    assert((0 until A.size).forall(i => D_==(A(i), B(i), tolerance)))
+  }
+
+  def assertMatrixEqualityDouble(A: Matrix[Double], B: Matrix[Double], tolerance: Double = 1e-6) {
+    assert(A.rows == B.rows)
+    assert(A.cols == B.cols)
+    assert((0 until A.rows).forall(i => (0 until A.cols).forall(j => D_==(A(i, j), B(i, j), tolerance))))
   }
 }
 
