@@ -9,8 +9,8 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 object AnnotateSamplesVDS extends Command with JoinAnnotator {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-i", aliases = Array("--input"),
-      usage = "VDS file path")
+    @Args4jOption(required = true, name = "-n", aliases = Array("--name"),
+      usage = "name of VDS in environment")
     var input: String = _
 
     @Args4jOption(required = false, name = "-r", aliases = Array("--root"),
