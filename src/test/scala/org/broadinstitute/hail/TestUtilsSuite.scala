@@ -1,6 +1,6 @@
 package org.broadinstitute.hail
 
-import breeze.linalg.DenseMatrix
+import breeze.linalg.{DenseMatrix, svd}
 import org.broadinstitute.hail.variant.Variant
 import org.testng.annotations.Test
 
@@ -19,5 +19,12 @@ class TestUtilsSuite extends SparkSuite {
     for (i <- 0 to 2)
       for (j <- 0 to 1)
         assert(G(i, j) == G1(i, j))
+  }
+
+  @Test def baldingNicholsTest() = {
+    val G = TestUtils.baldingNichols(4, 10, 20)
+    val G0 = TestUtils.baldingNichols(4, 10, 20, 0)
+
+    assert(G == G0)
   }
 }
