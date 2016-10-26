@@ -49,6 +49,7 @@ object ToplevelCommands {
   register(AnnotateSamples)
   register(AnnotateVariants)
   register(AnnotateGlobal)
+  register(BaldingNicholsModelCommand)
   register(BGZipBlocks)
   register(Cache)
   register(Clear)

@@ -1,11 +1,13 @@
 package org.broadinstitute.hail
 
+import breeze.linalg.Matrix
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 import org.apache.commons.math3.special.Gamma
+import org.apache.spark.SparkContext
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr.{TDouble, TInt, TStruct}
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.Genotype
+import org.broadinstitute.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
 
 package object stats {
 
@@ -279,5 +281,34 @@ package object stats {
       var x: T = _
     }
     (new A).x
+  }
+
+  // genotypes(i,j) is genotype of variant j in sample i encoded as one of {-1, 0, 1, 2}; i and j are 0-based indices
+  // sample i is "i" by default
+  // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
+  def vdsFromMatrix(sc: SparkContext)(
+    genotypes: Matrix[Int],
+    samplesIdsOpt: Option[Array[String]] = None,
+    nPartitions: Int = sc.defaultMinPartitions): VariantDataset = {
+
+    require(samplesIdsOpt.forall(_.length == genotypes.rows))
+    require(samplesIdsOpt.forall(_.areDistinct()))
+
+    val sampleIds = samplesIdsOpt.getOrElse((0 until genotypes.rows).map(_.toString).toArray)
+
+    val rdd = sc.parallelize(
+      (0 until genotypes.cols).map { j =>
+        (Variant("1", j + 1, "A", "C"),
+          (Annotation.empty,
+            (0 until genotypes.rows).map { i =>
+              Genotype(genotypes(i, j))
+            }: Iterable[Genotype]
+            )
+          )
+      },
+      nPartitions
+    ).toOrderedRDD
+
+    new VariantDataset(VariantMetadata(sampleIds, wasSplit = true), rdd)
   }
 }

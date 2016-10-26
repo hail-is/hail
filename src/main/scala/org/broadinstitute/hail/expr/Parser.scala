@@ -76,6 +76,13 @@ object Parser extends JavaTokenParsers {
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
+  def parseCommaDelimitedDoubles(code: String): Array[Double] = {
+    parseAll(comma_delimited_doubles, code) match {
+      case Success(r, _) => r
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+  }
+
   def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
     val result = parseAll(export_args, code) match {
       case Success(r, _) => r
@@ -253,6 +260,9 @@ object Parser extends JavaTokenParsers {
   // FIXME | not backtracking properly.  Why?
     rep1sep(expr ^^ { e => (None, e) } |||
       named_arg ^^ { case (name, expr) => (Some(name), expr) }, ",") ^^ (_.toArray)
+
+  def comma_delimited_doubles: Parser[Array[Double]] =
+    repsep(floatingPointNumber, ",") ^^ (_.map(_.toDouble).toArray)
 
   def named_args: Parser[Array[(String, AST)]] =
     named_arg ~ rep("," ~ named_arg) ^^ { case arg ~ lst =>
