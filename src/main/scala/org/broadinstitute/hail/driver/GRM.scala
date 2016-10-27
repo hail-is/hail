@@ -81,6 +81,7 @@ object GRM extends Command {
       case "rel" =>
         grm.toIndexedRowMatrix()
           .rows
+          .sortBy(row => row.index)
           .map { (row: IndexedRow) =>
             val i = row.index
             val arr = row.vector.toArray
@@ -101,6 +102,7 @@ object GRM extends Command {
       case "gcta-grm" =>
         grm.toIndexedRowMatrix()
           .rows
+          .sortBy(row => row.index)
           .map { (row: IndexedRow) =>
             val i = row.index
             val arr = row.vector.toArray
