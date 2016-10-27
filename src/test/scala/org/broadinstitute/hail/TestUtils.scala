@@ -69,30 +69,14 @@ object TestUtils {
     val p0_m = DenseVector.fill[Double](M)(P0.draw())
 
     val p_km = DenseMatrix.zeros[Double](K, M)
-
-    var k = 0
-    var m = 0
-    while (k < K) {
-      m = 0
-      while (m < M) {
-        p_km(k,m) = new Beta((1 - p0_m(m)) * F1(k), p0_m(m) * F1(k)).draw()
-        m += 1
-      }
-      k += 1
-    }
+    (0 until K).foreach(k =>
+      (0 until M).foreach(m =>
+        p_km(k,m) = new Beta((1 - p0_m(m)) * F1(k), p0_m(m) * F1(k)).draw()))
 
     val g_nm = DenseMatrix.zeros[Int](N,M)
-
-    var n = 0
-    while (n < N) {
-      m = 0
-      while (m < M) {
-        val p_nm = p_km(k_n(n), m)
-        g_nm(n, m) = Binomial(2, p_nm).draw()
-        m += 1
-      }
-      n += 1
-    }
+    (0 until N).foreach(n =>
+      (0 until M).foreach(m =>
+        g_nm(n, m) = Binomial(2, p_km(k_n(n), m)).draw()))
 
     g_nm
   }
