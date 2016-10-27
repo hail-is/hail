@@ -26,9 +26,9 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def array(): Unit = {
     val hb = new Function1Builder[Int, Int]
-    val (create, arr) = hb.newArray[Int](3)
+    val arr = hb.newLocal[Array[Int]]()
     val h = hb.result(Code(
-      create,
+      arr.store(hb.newArray[Int](3)),
       arr(0) = 6,
       arr(1) = 7,
       arr(2) = -6,
@@ -65,18 +65,16 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def newInstance(): Unit = {
     val fb = new Function0Builder[Int]
-    val (create, inst) = fb.newInstance[A]()
-    val f = fb.result(Code(
-      create,
-      inst.invoke[Int]("f")))
+    val f = fb.result(
+      fb.newInstance[A]().invoke[Int]("f"))
     assert(f() == 6)
   }
 
   @Test def put(): Unit = {
     val fb = new Function0Builder[Int]
-    val (create, inst) = fb.newInstance[A]()
+    val inst = fb.newLocal[A]()
     val f = fb.result(Code(
-      create,
+      inst.store(fb.newInstance[A]()),
       inst.put("i", -2),
       inst.get("i")))
     assert(f() == -2)
@@ -84,9 +82,9 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def staticPut(): Unit = {
     val fb = new Function0Builder[Int]
-    val (create, inst) = fb.newInstance[A]()
+    val inst = fb.newLocal[A]()
     val f = fb.result(Code(
-      create,
+      inst.store(fb.newInstance[A]()),
       inst.put("j", -2),
       fb.getStatic[A, Int]("j")))
     assert(f() == -2)
@@ -135,12 +133,11 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def anewarray(): Unit = {
     val fb = new Function0Builder[Int]
-    val (createarr, arr) = fb.newArray[A](2)
-    val (createa, a) = fb.newInstance[A]()
+    val arr = fb.newLocal[Array[A]]()
     val f = fb.result(Code(
-      createarr,
-      createa, arr(0) = a,
-      createa, arr(1) = a,
+      arr.store(fb.newArray[A](2)),
+      arr(0) = fb.newInstance[A](),
+      arr(1) = fb.newInstance[A](),
       arr(0).get[Int]("i") + arr(1).get[Int]("i")
     ))
     assert(f() == 10)

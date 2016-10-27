@@ -23,7 +23,7 @@ object FunctionBuilder {
 }
 
 abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnTypeInfo: TypeInfo[R],
-                                  packageName: String = "is/hail/codegen/generated") {
+  packageName: String = "is/hail/codegen/generated") {
 
   import FunctionBuilder._
 
@@ -34,7 +34,7 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
   cn.name = packageName + "/C" + newUniqueID()
   cn.superName = "java/lang/Object"
 
-  def signature: String = s"(${parameterTypeInfo.map(_.name).mkString})${returnTypeInfo.name}"
+  def signature: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
   val mn = new MethodNode(ACC_PUBLIC + ACC_STATIC, "f", signature, null, null)
   // FIXME why is cast necessary?
@@ -88,49 +88,34 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
     f.put(null, rhs)
   }
 
-  def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T],
-                                   atti: TypeInfo[Array[T]]): (Code[Unit], Code[Array[T]]) = {
-    val arri = allocLocal[Array[T]]()
-    (new Code[Unit] {
+  def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T], atti: TypeInfo[Array[T]]): Code[Array[T]] = {
+    new Code[Array[T]] {
       def emit(il: InsnList): Unit = {
         size.emit(il)
         il.add(tti.newArray())
-        il.add(new IntInsnNode(atti.storeOp, arri))
       }
-    }, new Code[Array[T]] {
-      def emit(il: InsnList): Unit = {
-        il.add(new IntInsnNode(atti.loadOp, arri))
-      }
-    })
+    }
   }
 
-  def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): (Code[Unit], Code[T]) = {
-    val inst = allocLocal[T]()
-    val ctor = Invokeable.lookupConstructor[T](Array()).invoke(null, Array())
-    (new Code[Unit] {
+  def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
+    new Code[T] {
       def emit(il: InsnList): Unit = {
         il.add(new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass)))
         il.add(new InsnNode(DUP))
-        il.add(new IntInsnNode(tti.storeOp, inst))
-        ctor.emit(il)
+        Invokeable.lookupConstructor[T](Array()).invoke(null, Array()).emit(il)
       }
-    },
-      new Code[T] {
-        def emit(il: InsnList): Unit = {
-          il.add(new IntInsnNode(tti.loadOp, inst))
-        }
-      })
+    }
   }
 
-  def newInstance[T]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): (Code[Unit], Code[T]) =
+  def newInstance[T]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
     newInstance[T](Array[Class[_]](), Array[Code[_]]())
 
   def newInstance[T, A1](a1: Code[A1])(implicit a1ct: ClassTag[A1],
-                                       tct: ClassTag[T], tti: TypeInfo[T]): (Code[Unit], Code[T]) =
+    tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
 
   def newInstance[T, A1, A2](a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-                                                         tct: ClassTag[T], tti: TypeInfo[T]): (Code[Unit], Code[T]) =
+    tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
@@ -187,7 +172,7 @@ class Function0Builder[R](implicit rti: TypeInfo[R]) extends FunctionBuilder[R](
 }
 
 class Function1Builder[A, R](implicit act: ClassTag[A], ati: TypeInfo[A],
-                             rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](ati), rti) {
+  rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](ati), rti) {
   def arg1 = getArg[A](0)
 
   def result(c: Code[R]): (A) => R = {
@@ -198,8 +183,8 @@ class Function1Builder[A, R](implicit act: ClassTag[A], ati: TypeInfo[A],
 }
 
 class Function2Builder[A1, A2, R](implicit a1ct: ClassTag[A1], a1ti: TypeInfo[A1],
-                                  a2ct: ClassTag[A2], a2ti: TypeInfo[A2],
-                                  rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](a1ti, a2ti), rti) {
+  a2ct: ClassTag[A2], a2ti: TypeInfo[A2],
+  rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](a1ti, a2ti), rti) {
   def arg1 = getArg[A1](0)
 
   def arg2 = getArg[A2](1)

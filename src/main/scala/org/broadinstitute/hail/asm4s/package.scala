@@ -172,6 +172,8 @@ package object asm4s {
 
   implicit def toCodeDouble(f: LocalRef[Double]): CodeDouble = new CodeDouble(f.load())
 
+  implicit def toCodeArray[T](f: LocalRef[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(f.load())
+
   implicit def toCodeBoolean(f: LocalRef[Boolean]): CodeBoolean = new CodeBoolean(f.load())
 
   implicit def toCodeObject[T <: AnyRef](f: LocalRef[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] = new CodeObject[T](f.load())
