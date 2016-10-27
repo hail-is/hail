@@ -1,7 +1,8 @@
-package org.broadinstitute.hail.driver
+package org.broadinstitute.hail.driver.keytable
 
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.driver.{Command, State}
+import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.methods.Aggregators
 import org.broadinstitute.hail.utils._
@@ -21,6 +22,14 @@ object AddKeyTable extends Command {
     @Args4jOption(required = true, name = "-n", aliases = Array("--name"),
       usage = "Name of new key table")
     var name: String = _
+
+    @Args4jOption(required = false, name = "--key-id",
+      usage = "ID of key in expressions")
+    var keyId: String = "k"
+
+    @Args4jOption(required = false, name = "--annotation-id",
+      usage = "ID of key in expressions")
+    var valueId: String = "ka"
   }
 
   def newOptions = new Options
@@ -72,7 +81,8 @@ object AddKeyTable extends Command {
 
     if (keyNames.isEmpty)
       fatal("this module requires one or more named expr arguments as keys")
-    if (aggNames.isEmpty)
+
+    if (aggNames.isEmpty) // FIXME: Make empty Annotation
       fatal("this module requires one or more named expr arguments to aggregate by key")
 
     val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
@@ -100,7 +110,7 @@ object AddKeyTable extends Command {
       .map { case (k, agg) =>
         resultOp(agg)
         (k, Annotation.fromSeq(aggF()))
-      }, keySignature, aggSignature)
+      }, keySignature, aggSignature, options.keyId, options.valueId)
 
     state.copy(ktEnv = state.ktEnv + (options.name -> kt))
   }

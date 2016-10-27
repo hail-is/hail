@@ -1,8 +1,9 @@
-package org.broadinstitute.hail.driver
+package org.broadinstitute.hail.driver.keytable
 
-import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.driver.{Command, State}
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.TextExporter
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ExportKeyTable extends Command with TextExporter {
@@ -48,15 +49,12 @@ object ExportKeyTable extends Command with TextExporter {
         fatal("no such key table $name in environment")
     }
 
-    val ks = kt.keySignature
-    val vs = kt.valueSignature
-
     val cond = options.condition
     val output = options.output
 
     val symTab = Map(
-      "k" -> (0, kt.keySignature),
-      "ka" -> (1, kt.valueSignature),
+      kt.keyIdentifier -> (0, kt.keySignature),
+      kt.valueIdentifier -> (1, kt.valueSignature),
       "global" -> (2, state.vds.globalSignature)
     )
 

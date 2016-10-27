@@ -1,5 +1,6 @@
-package org.broadinstitute.hail.driver
+package org.broadinstitute.hail.driver.keytable
 
+import org.broadinstitute.hail.driver.{Command, State}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ClearKT extends Command {
@@ -24,6 +25,7 @@ object ClearKT extends Command {
 
   def run(state: State, options: Options): State = {
     val name = options.name
+    // Fixme: check name in state first
     state.copy(
       ktEnv = state.ktEnv - name)
   }

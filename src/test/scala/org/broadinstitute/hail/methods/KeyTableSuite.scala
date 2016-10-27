@@ -5,12 +5,14 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Properties}
 import org.broadinstitute.hail.driver._
+import org.broadinstitute.hail.driver.keytable.{AddKeyTable, ExportKeyTable}
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.keytable._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, VariantDataset, VariantSampleMatrix}
 import org.testng.annotations.Test
 
-class AddKeyTableSuite extends SparkSuite {
+class KeyTableSuite extends SparkSuite {
 
   def createKey(nItems: Int, nCategories: Int) =
     Gen.buildableOfN[Array, Option[String]](nItems, Gen.option(Gen.oneOfSeq((0 until nCategories).map("group" + _)), 0.95))
@@ -18,7 +20,7 @@ class AddKeyTableSuite extends SparkSuite {
   def createKeys(nKeys: Int, nItems: Int) =
     Gen.buildableOfN[Array, Array[Option[String]]](nKeys, createKey(nItems, Gen.choose(1, 10).sample()))
 
-  object Spec extends Properties("CreateKeyTable") {
+  object Spec extends Properties("KeyTable") {
     val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random).filter(vds => vds.nVariants > 0 && vds.nSamples > 0);
       nKeys <- Gen.choose(1, 5);
       nSampleKeys <- Gen.choose(0, nKeys);
@@ -27,7 +29,15 @@ class AddKeyTableSuite extends SparkSuite {
       variantGroups <- createKeys(nVariantKeys, vds.nVariants.toInt)
     ) yield (vds, sampleGroups, variantGroups)
 
-    property("aggregate by sample and variants same") = forAll(compGen) { case (vds, sampleGroups, variantGroups) =>
+    property("write read equals original") = forAll(KeyTable.gen(sc, KTSubgen.random)) { kt =>
+      val outputFile = tmpDir.createTempFile("keytable")
+      kt.write(sqlContext, outputFile)
+      val kt2 = KeyTable.read(sqlContext, outputFile)
+
+      kt.same(kt2)
+    }
+
+    property("same as aggregate by hand") = forAll(compGen) { case (vds, sampleGroups, variantGroups) =>
       val outputFile = tmpDir.createTempFile("keyTableTest", "tsv")
 
       val nKeys = sampleGroups.length + variantGroups.length

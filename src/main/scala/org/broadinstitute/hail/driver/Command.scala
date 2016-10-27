@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
+import org.broadinstitute.hail.driver.keytable.AddKeyTable
 import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.VariantDataset
