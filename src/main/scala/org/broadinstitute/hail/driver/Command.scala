@@ -2,7 +2,6 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
-import org.broadinstitute.hail.driver.keytable.AddKeyTable
 import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.VariantDataset
@@ -62,6 +61,7 @@ object ToplevelCommands {
   register(CountBytes)
   register(Deduplicate)
   register(DownsampleVariants)
+  register(ExportKeyTable)
   register(ExportPlink)
   register(ExportGEN)
   register(ExportGenotypes)
@@ -100,6 +100,7 @@ object ToplevelCommands {
   register(Persist)
   register(Put)
   register(Read)
+  register(ReadKeyTable)
   register(ReadKudu)
   register(RenameSamples)
   register(Coalesce)
@@ -110,6 +111,7 @@ object ToplevelCommands {
   register(VariantQC)
   register(VEP)
   register(Write)
+  register(WriteKeyTable)
   register(WriteKudu)
 
   // example commands

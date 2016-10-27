@@ -5,7 +5,6 @@ import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Prop._
 import org.broadinstitute.hail.check.{Gen, Properties}
 import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.driver.keytable.{AddKeyTable, ExportKeyTable}
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.keytable._
 import org.broadinstitute.hail.utils._
@@ -31,9 +30,10 @@ class KeyTableSuite extends SparkSuite {
 
     property("write read equals original") = forAll(KeyTable.gen(sc, KTSubgen.random)) { kt =>
       val outputFile = tmpDir.createTempFile("keytable")
-      kt.write(sqlContext, outputFile)
-      val kt2 = KeyTable.read(sqlContext, outputFile)
-
+      var s = State(sc, sqlContext, ktEnv = Map("foo" -> kt))
+      s = WriteKeyTable.run(s, Array("--name", "foo", "-o", outputFile))
+      s = ReadKeyTable.run(s, Array("--name", "foo2", "-i", outputFile))
+      val kt2 = s.ktEnv("foo2")
       kt.same(kt2)
     }
 

@@ -1,6 +1,5 @@
-package org.broadinstitute.hail.driver.keytable
+package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.driver.{Command, State}
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.TextExporter
 import org.broadinstitute.hail.utils._

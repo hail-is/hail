@@ -7,7 +7,7 @@ import org.apache.spark.sql.types.{StructField, StructType}
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.driver.Main
-import org.broadinstitute.hail.expr.{Parser, SparkAnnotationImpex, Type}
+import org.broadinstitute.hail.expr.{BaseType, EvalContext, Parser, SparkAnnotationImpex, Type}
 import org.broadinstitute.hail.utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
@@ -157,10 +157,6 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: Type, valu
       valueIdentifier == other.valueIdentifier &&
       rdd.groupByKey().fullOuterJoin(other.rdd.groupByKey()).forall { case (k, (v1, v2)) => v1 == v2 }
   }
-
-  def mapAnnotations(f: ((Annotation, Annotation)) => Annotation): KeyTable = copy(rdd = rdd.mapValuesWithKey { case (k, ka) =>
-    f(k, ka)
-  })
 
   def schema: StructType = StructType(Array(
     StructField(keyIdentifier, keySignature.schema, nullable = false),
