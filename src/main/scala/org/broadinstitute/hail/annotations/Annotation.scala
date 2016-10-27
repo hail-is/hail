@@ -19,7 +19,7 @@ object Annotation {
     a match {
       case null => "Null"
       case r: Row =>
-        "Row:\n" +
+        "Struct:\n" +
           r.toSeq.zipWithIndex.map { case (elem, index) =>
             s"""$spaces[$index] ${ printAnnotation(elem, nSpace + 4) }"""
           }

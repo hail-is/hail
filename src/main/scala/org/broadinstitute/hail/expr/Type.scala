@@ -11,6 +11,7 @@ import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 sealed abstract class BaseType extends Serializable
