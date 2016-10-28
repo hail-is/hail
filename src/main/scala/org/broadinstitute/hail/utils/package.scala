@@ -151,28 +151,29 @@ package object utils extends Logging
   def divNull[T](num: T, denom: T)(implicit ev: T => Double): Any =
     nullIfNot(denom != 0, ev(num) / denom)
 
+  val defaultTolerance = 1e-6
 
-  def D_epsilon(a: Double, b: Double, tolerance: Double = 1.0E-6): Double =
+  def D_epsilon(a: Double, b: Double, tolerance: Double = defaultTolerance): Double =
     math.max(java.lang.Double.MIN_NORMAL, tolerance * math.max(math.abs(a), math.abs(b)))
 
-  def D_==(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
+  def D_==(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean = {
     a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
   }
 
-  def D_!=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean = {
+  def D_!=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean = {
     !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
   }
 
-  def D_<(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+  def D_<(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
     !(a == b) && a - b < -D_epsilon(a, b, tolerance)
 
-  def D_<=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+  def D_<=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
     (a == b) || a - b <= D_epsilon(a, b, tolerance)
 
-  def D_>(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+  def D_>(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
     !(a == b) && a - b > D_epsilon(a, b, tolerance)
 
-  def D_>=(a: Double, b: Double, tolerance: Double = 1.0E-6): Boolean =
+  def D_>=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
     (a == b) || a - b >= -D_epsilon(a, b, tolerance)
 
   def flushDouble(a: Double): Double =

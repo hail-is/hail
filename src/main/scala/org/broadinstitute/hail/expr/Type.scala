@@ -6,6 +6,7 @@ import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.{Annotation, AnnotationPathException, _}
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, _}
+import org.broadinstitute.hail.utils
 import org.broadinstitute.hail.utils.{Interval, StringEscapeUtils}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.json4s._
@@ -124,7 +125,7 @@ abstract class Type extends BaseType {
   def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
 
   /* compare values for equality, but compare Float and Double values using D_== */
-  def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = 1e-6): Boolean = a1 == a2
+  def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
 }
 
 case object TBinary extends Type {

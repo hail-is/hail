@@ -24,6 +24,7 @@ import org.json4s.jackson.JsonMethods
 import org.kududb.spark.kudu.{KuduContext, _}
 import Variant.orderedKey
 import org.broadinstitute.hail.methods.{Aggregators, Filter}
+import org.broadinstitute.hail.utils
 
 import scala.io.Source
 import scala.language.implicitConversions
@@ -622,13 +623,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   def foldByVariant(zeroValue: T)(combOp: (T, T) => T): RDD[(Variant, T)] =
     rdd.mapValues { case (va, gs) => gs.foldLeft(zeroValue)((acc, g) => combOp(acc, g)) }
 
-  def sampleAnnotationsSimilar(that: VariantSampleMatrix[T], tolerance: Double = 1e-6): Boolean = {
+  def sampleAnnotationsSimilar(that: VariantSampleMatrix[T], tolerance: Double = utils.defaultTolerance): Boolean = {
     require(saSignature == that.saSignature)
     sampleAnnotations.zip(that.sampleAnnotations)
       .forall { case (s1, s2) => saSignature.valuesSimilar(s1, s2, tolerance) }
   }
 
-  def same(that: VariantSampleMatrix[T], tolerance: Double = 1e-6): Boolean = {
+  def same(that: VariantSampleMatrix[T], tolerance: Double = utils.defaultTolerance): Boolean = {
     var metadataSame = true
     if (vaSignature != that.vaSignature) {
       metadataSame = false
