@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import com.datastax.driver.core._
 import com.datastax.driver.core.querybuilder.QueryBuilder
+import com.datastax.driver.core.schemabuilder.SchemaBuilder
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
@@ -9,8 +10,6 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-
-// FIXME add drop/create table option
 
 object CassandraStuff {
   private var cluster: Cluster = null
@@ -78,6 +77,10 @@ object ExportVariantsCass extends Command {
       usage = "comma-separated list of fields/computations to be exported")
     var variantCondition: String = _
 
+    @Args4jOption(name = "-d", aliases = Array("--drop"),
+      usage = "drop and re-create cassandra table before exporting")
+    var drop: Boolean = false
+
   }
 
   def newOptions = new Options
@@ -138,6 +141,7 @@ object ExportVariantsCass extends Command {
     val address = options.address
     val exportRef = options.exportRef
     val exportMissing = options.exportMissing
+    val drop = options.drop
 
     val keyspace = options.keyspace
     val table = options.table
@@ -173,13 +177,40 @@ object ExportVariantsCass extends Command {
 
     val session = CassandraStuff.getSession(address)
 
-    val keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
+    // get keyspace (create it if it doesn't exist)
+    var keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
     if (keyspaceMetadata == null) {
-      throw new IllegalArgumentException("keyspace not found: " + keyspace)
+      info(s"creating keyspace ${keyspace}")
+      try {
+        session.execute(s"CREATE KEYSPACE ${keyspace} " +
+          "WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true")
+      } catch {
+        case e: Exception => fatal(s"exportvariantscass: unable to create keyspace ${keyspace}: ${e}")
+      }
+      keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
     }
-    val tableMetadata = keyspaceMetadata.getTable(table)
+
+    // get table (drop and create it if necessary)
+    if(drop) {
+      info(s"dropping table ${qualifiedTable}")
+      try {
+        session.execute(SchemaBuilder.dropTable(keyspace, table).ifExists());
+      } catch {
+        case e: Exception => warn(s"exportvariantscass: unable to drop table ${qualifiedTable}: ${e}")
+      }
+    }
+
+    var tableMetadata = keyspaceMetadata.getTable(table)
     if (tableMetadata == null) {
-      throw new IllegalArgumentException("table not found: " + table)
+      info(s"creating table ${qualifiedTable}")
+      try {
+        session.execute(s"CREATE TABLE $qualifiedTable (chrom text, start int, end int, ref text, alt text, " +
+          "PRIMARY KEY ((chrom, start, end), ref, alt))") // WITH COMPACT STORAGE")
+      } catch {
+        case e: Exception => fatal(s"exportvariantscass: unable to create table ${qualifiedTable}: ${e}")
+      }
+      //info(s"table ${qualifiedTable} created")
+      tableMetadata = keyspaceMetadata.getTable(table)
     }
 
     val preexistingFields = tableMetadata.getColumns.asScala.map(_.getName).toSet
