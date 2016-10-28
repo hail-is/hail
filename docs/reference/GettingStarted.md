@@ -34,10 +34,25 @@ Then to count the number of samples and variants, run
 ```
 $ ./build/install/hail/bin/hail read ~/sample.vds count
 ```
-To compute and output sample and variant quality control statistics, run
+To compute sample and variant quality control statistics and write these metrics to files, run:
 ```
-$ ./build/install/hail/bin/hail read ~/sample.vds splitmulti variantqc -o ~/variantqc.tsv sampleqc -o ~/sampleqc.tsv
+$ ./build/install/hail/bin/hail read ~/sample.vds \
+  splitmulti \
+  sampleqc -o ~/sampleqc.tsv \
+  variantqc \
+  exportvariants -o ~/variantqc.tsv -c 'Variant = v, va.qc.*' \
 ```
+
+To get a feel for the powerful annotation system inside Hail, you can print the schema produced by these commands:
+
+```
+$ ./build/install/hail/bin/hail read ~/sample.vds \
+  splitmulti \
+  sampleqc \
+  variantqc \
+  printschema -o schema.txt
+```
+
 Note that during each run Hail writes a `hail.log` file in the current directory; this is useful to developers for debugging.
 
 ### Spark cluster
