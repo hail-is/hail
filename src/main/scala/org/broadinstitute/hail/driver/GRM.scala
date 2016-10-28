@@ -94,7 +94,7 @@ object GRM extends Command {
             var j = 0
             while (j <= i) {
               if (j > 0)
-                sb.append("\t")
+                sb += '\t'
               sb.append(arr(j))
               j += 1
             }
