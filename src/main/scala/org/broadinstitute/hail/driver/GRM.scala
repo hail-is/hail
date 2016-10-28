@@ -2,14 +2,11 @@ package org.broadinstitute.hail.driver
 
 import java.io.DataOutputStream
 
-import breeze.linalg.DenseMatrix
-import org.apache.hadoop.io.{BytesWritable, IntWritable, LongWritable, NullWritable}
+import breeze.linalg.SparseVector
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
-import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.methods.ToStandardizedIndexedRowMatrix
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
-
-import scala.collection.mutable
 
 object GRM extends Command {
 
@@ -75,13 +72,21 @@ object GRM extends Command {
       && options.nFile != null)
       warn(s"format ${options.format}: ignoring `--N-file'")
 
-    val tmpFileName = state.hadoopConf.getTemporaryFile(HailConfiguration.tmpDir)
+    val zeroVector = SparseVector.zeros[Double](nSamples)
+
+    val indexSortedRowMatrix = grm.toIndexedRowMatrix()
+      .rows
+      .map(x => (x.index, x.vector))
+      .rightOuterJoin(state.sc.parallelize(0L until nSamples).map(x => (x, ())))
+      .map {
+        case (idx, (Some(v), _)) => IndexedRow(idx, v)
+        case (idx, (None, _)) => IndexedRow(idx, zeroVector)
+      }
+      .sortBy(_.index)
 
     options.format match {
       case "rel" =>
-        grm.toIndexedRowMatrix()
-          .rows
-          .sortBy(row => row.index)
+        indexSortedRowMatrix
           .map { (row: IndexedRow) =>
             val i = row.index
             val arr = row.vector.toArray
@@ -95,14 +100,10 @@ object GRM extends Command {
             }
             sb.toString()
           }
-          .saveAsTextFile(tmpFileName)
-
-        state.hadoopConf.copyMerge(tmpFileName, options.output, true, false)
+          .writeTable(options.output)
 
       case "gcta-grm" =>
-        grm.toIndexedRowMatrix()
-          .rows
-          .sortBy(row => row.index)
+        indexSortedRowMatrix
           .map { (row: IndexedRow) =>
             val i = row.index
             val arr = row.vector.toArray
@@ -115,28 +116,24 @@ object GRM extends Command {
             }
             sb.toString()
           }
-          .saveAsTextFile(tmpFileName)
-
-        state.hadoopConf.copyMerge(tmpFileName, options.output, true, false)
+          .writeTable(options.output)
 
       case "gcta-grm-bin" =>
-        grm.toIndexedRowMatrix()
-          .rows
-          .sortBy(row => row.index)
+        indexSortedRowMatrix
           .map { (row: IndexedRow) =>
             val i = row.index
             val arr = row.vector.toArray
-            val ab = mutable.ArrayBuilder.make[Byte]()
+            val result = new Array[Byte](4*i.toInt+4)
             var j = 0
             while (j <= i) {
               val bits: Int = java.lang.Float.floatToRawIntBits(arr(j).toFloat)
-              ab += (bits & 0xff).toByte
-              ab += ((bits >> 8) & 0xff).toByte
-              ab += ((bits >> 16) & 0xff).toByte
-              ab += (bits >> 24).toByte
+              result(j*4) = (bits & 0xff).toByte
+              result(j*4+1) = ((bits >> 8) & 0xff).toByte
+              result(j*4+2) = ((bits >> 16) & 0xff).toByte
+              result(j*4+3) = (bits >> 24).toByte
               j += 1
             }
-            ab.result()
+            result
           }
           .saveFromByteArrays(options.output)
 
