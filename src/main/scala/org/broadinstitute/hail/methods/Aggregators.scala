@@ -293,7 +293,8 @@ class SumArrayAggregator(f: (Any) => Any, val idx: Int, localPos: Position)
         else {
           var i = 0
           while (i < _state.length) {
-            _state(i) += DoubleNumericConversion.to(r(i))
+            if (r(i) != null)
+              _state(i) += DoubleNumericConversion.to(r(i))
             i += 1
           }
         }
