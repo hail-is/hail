@@ -12,6 +12,10 @@ Exception in thread "main" java.net.BindException: Can't assign requested addres
 
 This error is often caused by running spark on a machine connected to a VPN or a personal wi-fi hotspot (i.e. tethering to a phone). Try running `hail` while disconnected from any VPN or personal wi-fi hotspot.
 
+#### When running Hail locally, how do I set the Spark local directory (scratch space) to something other than the default `/tmp`?
+
+Set this environment variable with `export SPARK_LOCAL_DIRS=/path/to/myTmp` before running Hail, which should have write permission to `myTmp`. This can resolve I/O errors that arise when `/tmp` has little space or is cleaned by the system while Hail is running.
+
 ### IntelliJ
 
 #### How do I fix this error message in IntelliJ: `Error:Cause: org.gradle.api.tasks.scala.ScalaCompileOptions.getForce()Ljava/lang/String;`?
