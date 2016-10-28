@@ -325,8 +325,8 @@ class VSMSuite extends SparkSuite {
     forAll(g) { case (vsm, k) =>
       val coalesced = vsm.coalesce(k)
       val n = coalesced.nPartitions
-      val partitionCheck = n == 1 || n < k
-      VSMSuite.checkOrderedRDD(coalesced.rdd) && vsm.same(coalesced)
+      val partitionCheck = n == 1 || n <= k
+      VSMSuite.checkOrderedRDD(coalesced.rdd) && vsm.same(coalesced) && partitionCheck
     }.check()
   }
 
