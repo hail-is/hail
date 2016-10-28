@@ -42,12 +42,12 @@ object TestUtils {
     new VariantDataset(VariantMetadata(sampleIds), rdd)
   }
 
-  def assertVectorEqualityDouble(A: Vector[Double], B: Vector[Double], tolerance: Double = 1e-6) {
+  def assertVectorEqualityDouble(A: Vector[Double], B: Vector[Double], tolerance: Double = utils.defaultTolerance) {
     assert(A.size == B.size)
     assert((0 until A.size).forall(i => D_==(A(i), B(i), tolerance)))
   }
 
-  def assertMatrixEqualityDouble(A: Matrix[Double], B: Matrix[Double], tolerance: Double = 1e-6) {
+  def assertMatrixEqualityDouble(A: Matrix[Double], B: Matrix[Double], tolerance: Double = utils.defaultTolerance) {
     assert(A.rows == B.rows)
     assert(A.cols == B.cols)
     assert((0 until A.rows).forall(i => (0 until A.cols).forall(j => D_==(A(i, j), B(i, j), tolerance))))
