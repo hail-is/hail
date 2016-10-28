@@ -357,9 +357,6 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def cache(): VariantSampleMatrix[T] = copy[T](rdd = rdd.cache())
 
-  def coalesce(k: Int, shuffle: Boolean = true): VariantSampleMatrix[T] =
-    copy[T](rdd = rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
-
   def nPartitions: Int = rdd.partitions.length
 
   def variants: RDD[Variant] = rdd.keys
@@ -919,6 +916,13 @@ class RichVDS(vds: VariantDataset) {
 
   def makeSchemaForKudu(): StructType =
     makeSchema().add(StructField("sample_group", StringType, nullable = false))
+
+  def coalesce(k: Int, shuffle: Boolean = true): VariantDataset = {
+    val start = if (shuffle)
+      vds.withGenotypeStream(compress = true)
+    else vds
+    start.copy(rdd = start.rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
+  }
 
   private def writeMetadata(sqlContext: SQLContext, dirname: String, compress: Boolean = true) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))

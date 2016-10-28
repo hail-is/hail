@@ -87,13 +87,7 @@ object ExportGEN extends Command {
 
       val isDosage = vds.isDosage
 
-      val kvRDD = vds.rdd.map { case (v, (a, gs)) =>
-        (v, (a, gs.toGenotypeStream(v, isDosage, compress = false)))
-      }
-      kvRDD.persist(StorageLevel.MEMORY_AND_DISK)
-      kvRDD
-        .repartitionAndSortWithinPartitions(new RangePartitioner[Variant, (Annotation, Iterable[Genotype])](vds.rdd.partitions.length, kvRDD))
-        .mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
+      vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
           val sb = new StringBuilder
           it.map { case (v, (va, gs)) =>
             sb.clear()
@@ -101,7 +95,6 @@ object ExportGEN extends Command {
             sb.result()
           }
         }.writeTable(options.output + ".gen", None)
-      kvRDD.unpersist()
     }
 
     writeSampleFile()

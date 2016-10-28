@@ -376,7 +376,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
     val n = rdd.partitions.length
-    if (maxPartitions == n || n == 0 || !shuffle && (n >= maxPartitions))
+    if (maxPartitions == n || n == 0 || !shuffle && (maxPartitions > n))
       return this
     if (shuffle) {
       val shuffled = super.coalesce(maxPartitions, shuffle)
@@ -385,7 +385,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     } else {
 
       val partSize = rdd.context.runJob(rdd, getIteratorSize _)
-      info(s"partSize = ${ partSize.toSeq }")
+      log.info(s"partSize = ${ partSize.toSeq }")
 
       val partCumulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
       val totalSize = partCumulativeSize.last
