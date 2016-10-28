@@ -36,16 +36,16 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
         hConf.getTemporaryFile(HailConfiguration.tmpDir)
 
     val rWithHeader = header.map { h =>
-        if (parallelWrite)
-          r.mapPartitions { it => Iterator(h) ++ it }
-        else
-          r.mapPartitionsWithIndex { case (i, it) =>
-            if (i == 0)
-              Iterator(h) ++ it
-            else
-              it
-          }
-      }.getOrElse(r)
+      if (parallelWrite)
+        r.mapPartitions { it => Iterator(h) ++ it }
+      else
+        r.mapPartitionsWithIndex { case (i, it) =>
+          if (i == 0)
+            Iterator(h) ++ it
+          else
+            it
+        }
+    }.getOrElse(r)
 
     codec match {
       case Some(x) => rWithHeader.saveAsTextFile(parallelOutputPath, x.getClass)
@@ -68,5 +68,10 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def collectOrdered()(implicit tct: ClassTag[T]): Array[T] =
-    r.zipWithIndex().collect().sortBy(_._2).map(_._1).toArray
+    r.zipWithIndex().collect().sortBy(_._2).map(_._1)
+
+  def find(f: T => Boolean): Option[T] = r.filter(f).take(1) match {
+    case Array(elem) => Some(elem)
+    case _ => None
+  }
 }
