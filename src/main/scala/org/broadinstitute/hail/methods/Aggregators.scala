@@ -284,7 +284,7 @@ class SumArrayAggregator(f: (Any) => Any, val idx: Int, localPos: Position)
     val r = f(x).asInstanceOf[IndexedSeq[Any]]
     if (r != null) {
       if (_state == null)
-        _state = r.map(DoubleNumericConversion.to).toArray
+        _state = r.map(x => if (x == null) 0d else DoubleNumericConversion.to(x)).toArray
       else {
         if (r.length != _state.length)
           ParserUtils.error(localPos,
