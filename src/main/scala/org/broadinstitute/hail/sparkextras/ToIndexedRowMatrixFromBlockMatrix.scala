@@ -4,7 +4,8 @@ import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, SparseMatrix}
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.broadinstitute.hail.utils
 
-// Copied with modification from Spark 2.0 so as to avoid going through CoordinateMatrix as in Spark 1.6
+// Back-ported with modification from Spark 2.0 so as to avoid going through CoordinateMatrix as in Spark 1.5 and 1.6
+// Specialized for dense blocks with GRM in mind
 object ToIndexedRowMatrixFromBlockMatrix {
   def apply(bm: BlockMatrix): IndexedRowMatrix = {
     val cols = bm.numCols().toInt
