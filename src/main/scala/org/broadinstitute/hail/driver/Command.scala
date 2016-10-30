@@ -92,6 +92,7 @@ object ToplevelCommands {
   register(LinearRegressionCommand)
   register(LogisticRegressionCommand)
   register(MendelErrorsCommand)
+  register(SparkInfo)
   register(SplitMulti)
   register(PCA)
   register(Persist)
@@ -249,8 +250,11 @@ abstract class Command {
       fatal("this module requires a VDS.\n  Provide a VDS through a `read' or `import' command first.")
     else if (!supportsMultiallelic && !state.vds.wasSplit)
       fatal("this module does not support multiallelic variants.\n  Please run `splitmulti' first.")
-    else
+    else {
+      if (requiresVDS)
+        log.info(s"sparkinfo: ${state.vds.nPartitions} partitions, ${state.vds.rdd.getStorageLevel}")
       run(state, options)
+    }
   }
 
   def run(state: State, args: Array[String] = Array.empty): State =
