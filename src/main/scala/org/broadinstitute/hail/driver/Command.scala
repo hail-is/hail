@@ -59,6 +59,7 @@ object ToplevelCommands {
   register(CountBytes)
   register(Deduplicate)
   register(DownsampleVariants)
+  register(ExportAggregate)
   register(ExportPlink)
   register(ExportGEN)
   register(ExportGenotypes)
