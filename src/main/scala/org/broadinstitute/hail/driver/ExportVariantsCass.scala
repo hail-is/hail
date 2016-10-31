@@ -211,7 +211,7 @@ object ExportVariantsCass extends Command {
 
             vEC.setAll(v, va)
             vf().zipWithIndex.foreach { case (a, i) =>
-              nb += escapeString(vHeader(i))
+              nb += s""""${ escapeString(vHeader(i)) }""""
               vb += toCassValue(a, vTypes(i))
             }
 
