@@ -308,7 +308,7 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq, Annotation](elementType.genValue)
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 }
 
 case class TSet(elementType: Type) extends TIterable {

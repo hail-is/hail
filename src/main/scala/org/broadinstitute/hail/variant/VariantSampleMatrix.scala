@@ -985,6 +985,7 @@ class RichVDS(vds: VariantDataset) {
     }
 
     val isDosage = vds.isDosage
+
     val rowRDD = ordered.map { case (v, (va, gs)) =>
       Row.fromSeq(Array(v.toRow,
         if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
