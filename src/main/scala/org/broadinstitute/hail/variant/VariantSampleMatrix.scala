@@ -141,7 +141,8 @@ object VariantSampleMatrix {
       saSignature, vaSignature, globalSignature, wasSplit, isDosage)
   }
 
-  def read(sqlContext: SQLContext, dirname: String, skipGenotypes: Boolean = false): VariantDataset = {
+  def read(sqlContext: SQLContext, dirname: String,
+    skipGenotypes: Boolean = false, skipVariants: Boolean = false): VariantDataset = {
 
     val sc = sqlContext.sparkContext
     val hConf = sc.hadoopConfiguration
@@ -154,39 +155,42 @@ object VariantSampleMatrix {
 
     val parquetFile = dirname + "/rdd.parquet"
 
-    val rdd = if (skipGenotypes)
-      sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
-        .map(row => (row.getVariant(0),
-          (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-            Iterable.empty[Genotype])))
-    else
-      sqlContext.readParquetSorted(parquetFile)
-        .map { row =>
-          val v = row.getVariant(0)
-          (v,
+    val orderedRDD = if (skipVariants)
+      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
+    else {
+      val rdd = if (skipGenotypes)
+        sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
+          .map(row => (row.getVariant(0),
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
-        }
+              Iterable.empty[Genotype])))
+      else
+        sqlContext.readParquetSorted(parquetFile)
+          .map { row =>
+            val v = row.getVariant(0)
+            (v,
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
+          }
 
-    val partitioner = try {
-      Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
-        OrderedPartitioner.read[Locus, Variant](in, rdd.partitions.length)
-      })
-    } catch {
-      case _: InvalidClassException => None
-      case _: FileNotFoundException => None
-    }
+      val p = try {
+        Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
+          OrderedPartitioner.read[Locus, Variant](in, rdd.partitions.length)
+        })
+      } catch {
+        case _: InvalidClassException => None
+        case _: FileNotFoundException => None
+      }
+      p match {
+        case Some(partitioner) =>
+          OrderedRDD(rdd, partitioner)
+        case None =>
+          warn(
+            """No partition information found: VDS is old and will experience poor performance.
+              |  Please `read' and `write' this dataset to update it.""".stripMargin)
 
-    val orderedRDD = partitioner match {
-      case Some(p) =>
-        OrderedRDD(rdd, p)
-      case None =>
-        warn(
-          """No partition information found: VDS is old and will experience poor performance.
-            |  Please `read' and `write' this dataset to update it.""".stripMargin)
-
-        val fastKeys = sqlContext.readParquetSorted(parquetFile, Some(Array("variant"))).map(_.getVariant(0))
-        rdd.toOrderedRDD(fastKeys)
+          val fastKeys = sqlContext.readParquetSorted(parquetFile, Some(Array("variant"))).map(_.getVariant(0))
+          rdd.toOrderedRDD(fastKeys)
+      }
     }
 
     new VariantSampleMatrix[Genotype](

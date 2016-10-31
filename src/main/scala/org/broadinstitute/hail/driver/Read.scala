@@ -18,6 +18,9 @@ object Read extends Command {
     @Args4jOption(name = "--skip-genotypes", usage = "Don't load genotypes")
     var skipGenotypes: Boolean = false
 
+    @Args4jOption(name = "--skip-variants", usage = "Don't load variants")
+    var skipVariants: Boolean = false
+
     @Argument(usage = "<files...>")
     var arguments: java.util.ArrayList[String] = new java.util.ArrayList[String]()
   }
@@ -35,7 +38,8 @@ object Read extends Command {
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
 
-    val vdses = inputs.map(input => VariantSampleMatrix.read(state.sqlContext, input, options.skipGenotypes))
+    val vdses = inputs.map(input => VariantSampleMatrix.read(state.sqlContext, input,
+      skipGenotypes = options.skipGenotypes, skipVariants = options.skipVariants))
 
     val sampleIds = vdses.head.sampleIds
     val vaSchema = vdses.head.vaSignature
