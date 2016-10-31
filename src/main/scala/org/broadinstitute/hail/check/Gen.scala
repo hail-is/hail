@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.check
 
+import breeze.linalg.DenseMatrix
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
@@ -101,6 +102,10 @@ object Gen {
     p.rng.nextUniform(min, max, true)
   }
 
+  def gaussian(mu: Double, sigma: Double): Gen[Double] = Gen { (p: Parameters) =>
+    p.rng.nextGaussian(mu, sigma)
+  }
+
   def shuffle[T](is: IndexedSeq[T]): Gen[IndexedSeq[T]] = {
     Gen { (p: Parameters) =>
       if (is.isEmpty)
@@ -147,6 +152,12 @@ object Gen {
       gs.foreach { g => b += g(p) }
       b.result()
     }
+
+  def denseMatrix[T](n: Int, m: Int)(g: Gen[T]): Gen[DenseMatrix[T]] =
+    Gen { (p: Parameters) =>
+      DenseMatrix.fill[T](n, m)(g.resize(p.size / (n * m))(p))
+    }
+
 
   /**
     * In general, for any Traversable type T and any Monad M, we may convert an {@code F[M[T]]} to an {@code M[F[T]]} by
