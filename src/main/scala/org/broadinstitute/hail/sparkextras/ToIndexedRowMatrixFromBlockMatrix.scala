@@ -9,13 +9,12 @@ import org.broadinstitute.hail.utils
 object ToIndexedRowMatrixFromBlockMatrix {
   def apply(bm: BlockMatrix): IndexedRowMatrix = {
     val cols = bm.numCols().toInt
-    val blocks = bm.blocks
     val rowsPerBlock = bm.rowsPerBlock
     val colsPerBlock = bm.colsPerBlock
 
     require(cols < Int.MaxValue, s"The number of columns should be less than Int.MaxValue ($cols).")
 
-    val rows = blocks.flatMap { case ((blockRowIdx, blockColIdx), mat) =>
+    val rows = bm.blocks.flatMap { case ((blockRowIdx, blockColIdx), mat) =>
       val dmat = mat match {
         case mat: DenseMatrix => mat
         case mat: SparseMatrix => mat.toDense
