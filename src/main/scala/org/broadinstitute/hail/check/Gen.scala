@@ -7,6 +7,7 @@ import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
 import scala.math.Numeric.Implicits._
 import scala.language.higherKinds
+import scala.reflect.ClassTag
 
 object Parameters {
   val default = Parameters(new RandomDataGenerator(), 1000, 10)
@@ -153,7 +154,7 @@ object Gen {
       b.result()
     }
 
-  def denseMatrix[T](n: Int, m: Int)(g: Gen[T]): Gen[DenseMatrix[T]] =
+  def denseMatrix[T](n: Int, m: Int)(g: Gen[T])(implicit tct: ClassTag[T]): Gen[DenseMatrix[T]] =
     Gen { (p: Parameters) =>
       DenseMatrix.fill[T](n, m)(g.resize(p.size / (n * m))(p))
     }
