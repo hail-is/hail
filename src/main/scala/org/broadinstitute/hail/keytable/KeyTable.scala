@@ -155,7 +155,13 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: Type, valu
       keyIdentifier == other.keyIdentifier &&
       valueSignature == other.valueSignature &&
       valueIdentifier == other.valueIdentifier &&
-      rdd.groupByKey().fullOuterJoin(other.rdd.groupByKey()).forall { case (k, (v1, v2)) => v1 == v2 }
+      rdd.groupByKey().fullOuterJoin(other.rdd.groupByKey()).forall { case (k, (v1, v2)) =>
+        (v1, v2) match {
+          case (None, None) => true
+          case (Some(x), Some(y)) => x.toSet == y.toSet
+          case _ => false
+        }
+      }
   }
 
   def schema: StructType = StructType(Array(
