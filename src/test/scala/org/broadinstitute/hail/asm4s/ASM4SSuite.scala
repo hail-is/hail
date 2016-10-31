@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.asm4s
 
+import org.broadinstitute.hail.check.{Gen, Prop}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -141,5 +142,41 @@ class ASM4SSuite extends TestNGSuite {
       arr(0).get[Int]("i") + arr(1).get[Int]("i")
     ))
     assert(f() == 10)
-  }  
+  }
+
+  def fibonacciReference(i: Int): Int = i match {
+    case 0 => 0
+    case 1 => 1
+    case n => fibonacciReference(n-1) + fibonacciReference(n-2)
+  }
+
+  @Test def fibonacci(): Unit = {
+    val fb = new Function1Builder[Int, Int]
+    val i = fb.arg1
+    val n = fb.newLocal[Int]
+    val vn_2 = fb.newLocal[Int]
+    val vn_1 = fb.newLocal[Int]
+    val temp = fb.newLocal[Int]
+    val f = fb.result(
+      (i < 3).mux(1, Code(
+        vn_2.store(1),
+        vn_1.store(1),
+        fb.whileLoop(
+          i > 3,
+          Code(
+            temp.store(vn_2 + vn_1),
+            vn_2.store(vn_2),
+            vn_1.store(temp),
+            i.store(i - 1)
+          )
+        ),
+        vn_2 + vn_1
+      ))
+    )
+
+    Prop.forAll(Gen.choose(0, 100)) { i =>
+      fibonacciReference(i) == f(i)
+    }
+  }
+
 }

@@ -23,7 +23,7 @@ package object asm4s {
     def newArray(): AbstractInsnNode
   }
 
-  implicit object BooealnInfo extends TypeInfo[Boolean] {
+  implicit object BooleanInfo extends TypeInfo[Boolean] {
     val name = "Z"
     val loadOp = ILOAD
     val storeOp = ISTORE
