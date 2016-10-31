@@ -299,6 +299,8 @@ class ContextTests(unittest.TestCase):
               .key_by(["v", "v2"]))
         sample2.annotate_variants_keytable(kt, "va.foo = table.va", ["v", "v"])
 
+        sample_split.ld_prune()
+
     def test_keytable(self):
         test_resources = 'src/test/resources'
 
