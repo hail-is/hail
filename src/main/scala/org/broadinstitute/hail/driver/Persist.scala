@@ -7,8 +7,10 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 object Persist extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-s", aliases = Array("--storage-level"), usage = "Storage level, one of: NONE, DISK_ONLY, DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER, MEMORY_ONLY_SER_2, MEMORY_AND_DISK, MEMORY_AND_DISK_2, MEMORY_AND_DISK_SER, MEMORY_AND_DISK_SER_2, OFF_HEAP")
-    var level: String = _
+    @Args4jOption(required = false, name = "-s", aliases = Array("--storage-level"),
+      usage = "Storage level, one of: NONE, DISK_ONLY, DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER, " +
+        "MEMORY_ONLY_SER_2, MEMORY_AND_DISK, MEMORY_AND_DISK_2, MEMORY_AND_DISK_SER, MEMORY_AND_DISK_SER_2, OFF_HEAP")
+    var level: String = "MEMORY_AND_DISK"
 
   }
 
