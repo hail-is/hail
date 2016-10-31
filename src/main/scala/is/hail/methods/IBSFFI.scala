@@ -12,12 +12,12 @@ object IBSFFI {
   @native
   def ibsMat(result: Array[Long], nSamples: Long, nPacks: Long, genotypes1: Array[Long], genotypes2: Array[Long])
 
-  Native.register("ibs");
+  Native.register("ibs")
 
   val genotypesPerPack = 32
 
   def pack(nSamples: Int, nGenotypes: Int, gs: Array[Byte]): Array[Long] = {
-    require(nGenotypes % 32 == 0);
+    require(nGenotypes % 32 == 0)
 
     val nPacks = nGenotypes / genotypesPerPack
 
@@ -45,7 +45,7 @@ object IBSFFI {
   }
 
   def ibs(nSamples: Int, nGenotypes: Int, gs1: Array[Long], gs2: Array[Long]): Array[Long] = {
-    require(nGenotypes % 32 == 0);
+    require(nGenotypes % 32 == 0)
 
     val nPacks = nGenotypes / genotypesPerPack
     val ibs = new Array[Long](nSamples * nSamples * 3)

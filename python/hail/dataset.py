@@ -2426,6 +2426,56 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
+    def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
+        """Prune variants in linkage disequilibrium (LD).
+
+        .. include:: requireTGenotype.rst
+
+        **Examples**
+
+        Export the set of common LD pruned variants to a file:
+
+        >>> vds_result = (vds.variant_qc()
+        ...                  .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
+        ...                  .ld_prune()
+        ...                  .export_variants("output/ldpruned.variants", "v"))
+
+        **Notes**
+
+        Variants are pruned in each contig from smallest start position to largest.
+        A variant is included in the pruned set if the pair-wise correlation with
+        all variants within a given ``window`` size in the pruned set is less than :math:`R^2`.
+
+        :py:meth:`.ld_prune` is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``. The results will be different because Hail mean-imputes missing values and the order in which variant pairs are tested is not the same as PLINK.
+
+        Be sure to provide enough disk space per worker. :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ up to 3 copies of the data to both memory and disk.
+        The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``. The number of bytes stored in memory per variant is estimated to be ``nSamples / 4 + 50``.
+
+        .. warning::
+
+            The variants in the pruned set are not guaranteed to be identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
+            :py:meth:`.export_variants` for future use.
+
+
+        :param float r2: Maximum :math:`R^2` threshold between two variants in the pruned set within a given window.
+
+        :param int window: Number of base pair window to compute pair-wise :math:`R^2` values.
+
+        :param float memory_per_core: Total amount of memory available for each core in MB. We recommend using the default value.
+
+        :param int num_cores: The number of cores available. Equivalent to the total number of workers (preemptible & non-preemptible) times the number of cores per worker.
+
+        :return: A filtered dataset with variants that have been pruned.
+
+        :rtype: VariantDataset
+        """
+
+        memory_per_core = int(memory_per_core * 1024 * 1024)
+        jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @requireTGenotype
     def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association using linear regression.
 
