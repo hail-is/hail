@@ -309,9 +309,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
-      .getOrElse(fatal(s"""`$t' has neither a field nor a method named `$name'
-                          |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-                          |    counts.sum""".stripMargin))
+      .getOrElse(fatal(
+        s"""`$t' has neither a field nor a method named `$name'
+            |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+            |    counts.sum""".stripMargin))
   }
 }
 
@@ -777,10 +778,16 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       case (agg: TAggregable, "fraction", rhs) =>
         val (param, body) = rhs match {
           case Array(Lambda(_, p, b)) => (p, b)
-          case _ => parseError(s"method `$method' expects a lambda function (param => Boolean), " +
+          case _ => parseError(s"method `$method' expects a lambda function (${ agg.elementType } => Boolean), " +
             s"e.g. `g => g.gq < 5' or `x => x == 2'")
         }
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, agg.elementType)))))
+        `type` = body.`type` match {
+          case TBoolean => TDouble
+          case t => parseError(
+            s"""method `$method' expects a lambda function (${ agg.elementType } => Boolean)
+                |  Found (${ agg.elementType } => $t)""".stripMargin)
+        }
 
         `type` = TDouble
 
