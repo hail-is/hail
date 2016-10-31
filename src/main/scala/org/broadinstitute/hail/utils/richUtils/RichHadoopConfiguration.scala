@@ -107,7 +107,32 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       false, hConf)
   }
 
-  def copyMerge(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
+  def copyMerge(sourceFolder: String, destinationFile: String, deleteSource: Boolean = true, hasHeader: Boolean = true) {
+    if (!exists(sourceFolder + "/_SUCCESS"))
+      fatal("write failed: no success indicator found")
+
+    delete(destinationFile, recursive = true) // overwriting by default
+
+    val partFileStatuses = glob(sourceFolder + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
+
+    val filesToMerge =
+      if (hasHeader) glob(sourceFolder + ".header") ++ partFileStatuses
+      else partFileStatuses
+
+    val (_, dt) = time {
+      copyMergeList(filesToMerge, destinationFile, deleteSource)
+    }
+
+    info(s"while writing:\n    $destinationFile\n  merge time: ${ formatTime(dt) }")
+
+    if (deleteSource) {
+      hConf.delete(sourceFolder, recursive = true)
+      if (hasHeader)
+        hConf.delete(sourceFolder + ".header", recursive = false)
+    }
+  }
+
+  private def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = fileSystem(destFilename)
 

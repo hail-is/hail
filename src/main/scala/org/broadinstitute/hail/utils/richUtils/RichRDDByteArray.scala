@@ -34,26 +34,6 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
       .saveAsHadoopFile[ByteArrayOutputFormat](tmpFileName)
 
-    if (!hConf.exists(tmpFileName + "/_SUCCESS"))
-      fatal("write failed: no success indicator found")
-
-    hConf.delete(filename, recursive = true) // overwriting by default
-
-    val partFileStatuses = hConf.glob(tmpFileName + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
-
-    val filesToMerge = header match {
-      case Some(_) => hConf.glob(tmpFileName + ".header") ++ partFileStatuses
-      case None => partFileStatuses
-    }
-
-    val (_, dt) = time {
-      hConf.copyMerge(filesToMerge, filename, deleteTmpFiles)
-    }
-    println("merge time: " + formatTime(dt))
-
-    if (deleteTmpFiles) {
-      hConf.delete(tmpFileName + ".header", recursive = false)
-      hConf.delete(tmpFileName, recursive = true)
-    }
+    hConf.copyMerge(tmpFileName, filename, deleteTmpFiles, header.isDefined)
   }
 }
