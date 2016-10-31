@@ -79,7 +79,7 @@ abstract class Type extends BaseType {
 
   def delete(path: List[String]): (Type, Deleter) = {
     if (path.nonEmpty)
-      throw new AnnotationPathException()
+      throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
       (TStruct.empty, a => Annotation.empty)
   }
@@ -97,7 +97,7 @@ abstract class Type extends BaseType {
 
   def query(path: List[String]): Querier = {
     if (path.nonEmpty)
-      throw new AnnotationPathException()
+      throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
       a => Option(a)
   }
@@ -485,7 +485,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
               None
             else
               q(a.asInstanceOf[Row].get(localIndex))
-        case None => throw new AnnotationPathException()
+        case None => throw new AnnotationPathException(s"struct has no field ${ p.head }")
       }
     }
   }
