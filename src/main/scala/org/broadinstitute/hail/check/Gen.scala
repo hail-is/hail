@@ -1,6 +1,7 @@
 package org.broadinstitute.hail.check
 
 import breeze.linalg.DenseMatrix
+import breeze.storage.Zero
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
@@ -154,7 +155,7 @@ object Gen {
       b.result()
     }
 
-  def denseMatrix[T](n: Int, m: Int)(g: Gen[T])(implicit tct: ClassTag[T]): Gen[DenseMatrix[T]] =
+  def denseMatrix[T](n: Int, m: Int)(g: Gen[T])(implicit tct: ClassTag[T], tzero: Zero[T]): Gen[DenseMatrix[T]] =
     Gen { (p: Parameters) =>
       DenseMatrix.fill[T](n, m)(g.resize(p.size / (n * m))(p))
     }
