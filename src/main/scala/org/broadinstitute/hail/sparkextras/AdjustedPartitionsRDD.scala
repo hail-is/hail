@@ -29,7 +29,7 @@ class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
       .adjustments
       .iterator
       .flatMap { adj =>
-        adj.f(parent.compute(adj.parentPartition, context))
+        adj.f(parent.iterator(adj.parentPartition, context))
       }
   }
 

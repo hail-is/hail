@@ -222,6 +222,8 @@ class ContextTests(unittest.TestCase):
 
         kt = sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
 
+        sample_split.ld_prune()
+
     def test_keytable(self):
         test_resources = 'src/test/resources'
         
