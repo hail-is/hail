@@ -1,11 +1,13 @@
 package org.broadinstitute.hail.utils
 
-import org.apache.hadoop.fs.FileStatus
+import breeze.linalg.{DenseMatrix => BDenseMatrix}
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, SparseMatrix}
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop}
-import org.broadinstitute.hail.sparkextras.OrderedRDD
+import org.broadinstitute.hail.sparkextras.{OrderedRDD, ToIndexedRowMatrixFromBlockMatrix}
 import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.SparkSuite
+import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.broadinstitute.hail.utils.richUtils.RichHadoopConfiguration
 import org.testng.annotations.Test
 
@@ -147,5 +149,40 @@ class UtilsSuite extends SparkSuite {
     val partFileNames = rhc.glob("src/test/resources/part-*").sortBy(fs => getPartNumber(fs.getPath.getName)).map(_.getPath.getName)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
+  }
+
+  @Test def toIndexedRowMatrixFromDenseBlockMatrixTest() = {
+
+    val n = 5
+    val m = 10
+
+    Prop.forAll(Gen.denseMatrix(n, m)(Gen.gaussian(0.0, 1.0))) { bmat =>
+      val smat = new DenseMatrix(n, m, bmat.data)
+
+      val blockmat = new IndexedRowMatrix(sc.parallelize(((0 until n).map(_.toLong),
+        ToIndexedRowMatrixFromBlockMatrix.rowIter(smat).toIterable)
+        .zipped.map(IndexedRow)), n, m).toBlockMatrix()
+
+      val gram1 = blockmat.multiply(blockmat.transpose)
+
+      val gram1a = smat.multiply(smat.transpose)
+      val gram1b = gram1.toIndexedRowMatrix().toBlockMatrix().toLocalMatrix()
+      val gram1c = ToIndexedRowMatrixFromBlockMatrix(gram1).toBlockMatrix().toLocalMatrix()
+
+      TestUtils.assertMatrixEqualityDouble(new BDenseMatrix(n, n, gram1a.toArray), new BDenseMatrix(n, n, gram1b.toArray))
+      TestUtils.assertMatrixEqualityDouble(new BDenseMatrix(n, n, gram1b.toArray), new BDenseMatrix(n, n, gram1c.toArray))
+
+
+      val gram2 = blockmat.transpose.multiply(blockmat)
+
+      val gram2a = smat.transpose.multiply(smat)
+      val gram2b = gram2.toIndexedRowMatrix().toBlockMatrix().toLocalMatrix()
+      val gram2c = ToIndexedRowMatrixFromBlockMatrix(gram2).toBlockMatrix().toLocalMatrix()
+
+      TestUtils.assertMatrixEqualityDouble(new BDenseMatrix(n, n, gram2a.toArray), new BDenseMatrix(n, n, gram2b.toArray))
+      TestUtils.assertMatrixEqualityDouble(new BDenseMatrix(n, n, gram2b.toArray), new BDenseMatrix(n, n, gram2c.toArray))
+
+      true
+    }
   }
 }
