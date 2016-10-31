@@ -15,7 +15,7 @@ If the `-a/--all` option is given and a fourth column is present, the
 annotation will be the set (possibly empty) of fourth column strings
 as a `Set[String]` for all intervals that overlap the given variant.
 
-**NOTE:** UCSC BED files are 0-indexed, which means that the line "5  100  105" will *not* include the locus "5:100", but *will* include the locus "5:105"
+**NOTE:** UCSC BED files are 0-indexed, which means that the line "5  100  105" will include the loci `5:99, 5:100, 5:101, 5:102, 5:103`.  The last locus included in this interval is two smaller than the listed end!
 
 </div>
 
