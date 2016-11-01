@@ -152,7 +152,7 @@ case class MendelErrors(trios:        IndexedSeq[CompleteTrio],
     val nuclearFamsBc = sc.broadcast(nuclearFams)
     val lines = nErrorPerNuclearFamily.map{ case ((dad, mom), (n, nSNP)) =>
       trioFamBc.value.getOrElse(dad, "0") + "\t" + dad + "\t" + mom + "\t" +
-        nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\t" + nSNP + "\n"
+        nuclearFamsBc.value((dad, mom)).size + "\t" + n + "\t" + nSNP
     }.collect()
     sc.hadoopConfiguration.writeTable(filename, lines, Some("FID\tPAT\tMAT\tCHLD\tN\tNSNP"))
   }
@@ -161,7 +161,7 @@ case class MendelErrors(trios:        IndexedSeq[CompleteTrio],
     val trioFamBc = sc.broadcast(trioFam)
     val sampleIdsBc = sc.broadcast(sampleIds)
     val lines = nErrorPerIndiv.map { case (s, (n, nSNP)) =>
-      trioFamBc.value.getOrElse(s, "0") + "\t" + s + "\t" + n + "\t" + nSNP + "\n"
+      trioFamBc.value.getOrElse(s, "0") + "\t" + s + "\t" + n + "\t" + nSNP
     }.collect()
     sc.hadoopConfiguration.writeTable(filename, lines, Some("FID\tIID\tN\tNSNP"))
   }
