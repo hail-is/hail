@@ -4,12 +4,11 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.methods.Aggregators
-import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
-object AddKeyTable extends Command {
+object AggregateByKey extends Command {
 
-  class Options extends BaseOptions with TextTableOptions {
+  class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-k", aliases = Array("--key-cond"),
       usage = "Named key condition", metaVar = "EXPR")
     var keyCond: String = _
@@ -25,7 +24,7 @@ object AddKeyTable extends Command {
 
   def newOptions = new Options
 
-  def name = "addkeytable"
+  def name = "aggregatebykey"
 
   def description = "Creates a new key table with key(s) determined by named expressions and additional columns determined by named aggregator expressions"
 
@@ -69,11 +68,6 @@ object AddKeyTable extends Command {
 
     val keySignature = TStruct(keyNames.zip(keyParseTypes): _*)
     val aggSignature = TStruct(aggNames.zip(aggParseTypes): _*)
-
-    if (keyNames.isEmpty)
-      fatal("this module requires one or more named expr arguments as keys")
-    if (aggNames.isEmpty)
-      fatal("this module requires one or more named expr arguments to aggregate by key")
 
     val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
     val zvf = () => zVals.indices.map(zVals).toArray
