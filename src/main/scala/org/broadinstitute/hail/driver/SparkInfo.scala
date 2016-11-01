@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.utils.info
+import org.broadinstitute.hail.utils._
 
 object SparkInfo extends Command {
 
@@ -17,7 +17,7 @@ object SparkInfo extends Command {
   def description = "Displays the number of partitions and storage level of the current vds"
 
   def run(state: State, options: Options): State = {
-    info(s"${state.vds.nPartitions} partitions, ${state.vds.rdd.getStorageLevel}")
+    info(s"${state.vds.nPartitions} partitions, ${state.vds.rdd.getStorageLevel.toReadableString()}")
 
     state
   }

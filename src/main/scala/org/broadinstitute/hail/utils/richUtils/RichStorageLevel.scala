@@ -1,10 +1,10 @@
-package org.broadinstitute.hail.sparkextras
+package org.broadinstitute.hail.utils.richUtils
 
 import org.apache.spark.storage.StorageLevel
 
-object StorageLevelString {
+class RichStorageLevel(val sl: StorageLevel) extends AnyVal {
 
-  def apply(sl: StorageLevel): String = {
+  def toReadableString(): String = {
     val rep = if (sl.replication == 1) "" else s"_${ sl.replication }"
 
     (sl.useDisk, sl.useMemory, sl.useOffHeap, sl.deserialized) match {
