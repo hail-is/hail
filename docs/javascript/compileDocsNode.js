@@ -208,7 +208,7 @@ function buildIndex(htmlTemplate, selector, pandocInput, outputFileName) {
             .then(function() {
                  $("h1#hail").remove();
                  $('a[href*="badge"]').remove();
-                 $('a[href*="statusIcon"]').remove();
+                 $('a[href*="buildTypeStatusDiv"]').remove();
                  $('a[href="https://hail.is"]').replaceWith("Hail");
                  $("head").append('<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#home").addClass("active");});});</script>')
 
