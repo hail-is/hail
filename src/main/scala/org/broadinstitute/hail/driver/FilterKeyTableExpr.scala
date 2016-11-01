@@ -1,7 +1,5 @@
 package org.broadinstitute.hail.driver
 
-
-import org.broadinstitute.hail.expr.EvalContext
 import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -34,7 +32,7 @@ object FilterKeyTableExpr extends Command {
 
   def supportsMultiallelic = true
 
-  def requiresVDS = true
+  def requiresVDS = false
 
   override def hidden = true
 
@@ -53,7 +51,7 @@ object FilterKeyTableExpr extends Command {
     val keep = options.keep
     val dest = options.dest
 
-    state.copy(ktEnv = state.ktEnv + ( dest -> kt.filterRowsExpr(cond, keep)))
+    state.copy(ktEnv = state.ktEnv + ( dest -> kt.filterExpr(cond, keep)))
 
     state
   }
