@@ -13,10 +13,6 @@ object ExportKeyTable extends Command with TextExporter {
       usage = "path of output tsv")
     var output: String = _
 
-    @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
-      usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
-    var condition: String = _
-
     @Args4jOption(required = true, name = "-n", aliases = Array("--name"),
       usage = "name of key table to be printed to tsv")
     var name: String = _
@@ -29,9 +25,9 @@ object ExportKeyTable extends Command with TextExporter {
 
   def newOptions = new Options
 
-  def name = "ktexport"
+  def name = "exportkeytable"
 
-  def description = "Export information from key table to tsv"
+  def description = "Export key table to tsv"
 
   def supportsMultiallelic = true
 
@@ -48,21 +44,14 @@ object ExportKeyTable extends Command with TextExporter {
         fatal("no such key table $name in environment")
     }
 
-    val ks = kt.keySignature
-    val vs = kt.valueSignature
-
-    val cond = options.condition
     val output = options.output
 
-    val symTab = Map(
-      "k" -> (0, kt.keySignature),
-      "ka" -> (1, kt.valueSignature),
-      "global" -> (2, state.vds.globalSignature)
-    )
+    val symTab = Map("k" -> (0, kt.keySignature),
+      "v" -> (1, kt.valueSignature))
 
     val ec = EvalContext(symTab)
 
-    val (header, types, f) = Parser.parseExportArgs(cond, ec)
+    val (header, types, f) = Parser.parseExportArgs("k.*, v.*", ec)
 
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
