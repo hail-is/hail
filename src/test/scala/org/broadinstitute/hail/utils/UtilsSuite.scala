@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.utils
 
+import org.apache.spark.storage.StorageLevel
 import breeze.linalg.{DenseMatrix => BDenseMatrix}
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, SparseMatrix}
@@ -149,6 +150,16 @@ class UtilsSuite extends SparkSuite {
     val partFileNames = rhc.glob("src/test/resources/part-*").sortBy(fs => getPartNumber(fs.getPath.getName)).map(_.getPath.getName)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
+  }
+
+  @Test def storageLevelStringTest() = {
+    val sls = List(
+      "NONE", "DISK_ONLY", "DISK_ONLY_2", "MEMORY_ONLY", "MEMORY_ONLY_2", "MEMORY_ONLY_SER", "MEMORY_ONLY_SER_2",
+      "MEMORY_AND_DISK", "MEMORY_AND_DISK_2", "MEMORY_AND_DISK_SER", "MEMORY_AND_DISK_SER_2", "OFF_HEAP")
+
+    assert(sls.forall(sl => StorageLevel.fromString(sl).toReadableString() == sl))
+
+    assert(StorageLevel(true, false, false, false, 3).toReadableString() == "DISK_ONLY_3")
   }
 
   @Test def toIndexedRowMatrixFromDenseBlockMatrixTest() = {

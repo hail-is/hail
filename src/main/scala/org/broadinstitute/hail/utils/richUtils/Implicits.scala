@@ -6,6 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.utils.{MultiArray2, Truncatable}
 
 import scala.collection.{TraversableOnce, mutable}
@@ -79,6 +80,8 @@ trait Implicits {
   implicit def toRichString(str: String): RichString = new RichString(str)
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder = new RichStringBuilder(sb)
+
+  implicit def toRichStorageLevel(sl: StorageLevel): RichStorageLevel = new RichStorageLevel(sl)
 
   implicit def toTruncatable(s: String): Truncatable = s.truncatable()
 
