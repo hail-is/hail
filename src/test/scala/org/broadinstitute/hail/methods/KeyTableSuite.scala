@@ -10,7 +10,7 @@ import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{Genotype, VSMSubgen, VariantDataset, VariantSampleMatrix}
 import org.testng.annotations.Test
 
-class AddKeyTableSuite extends SparkSuite {
+class KeyTableSuite extends SparkSuite {
 
   def createKey(nItems: Int, nCategories: Int) =
     Gen.buildableOfN[Array, Option[String]](nItems, Gen.option(Gen.oneOfSeq((0 until nCategories).map("group" + _)), 0.95))
@@ -64,10 +64,10 @@ class AddKeyTableSuite extends SparkSuite {
         (comb, gt) => (comb._1 + gt.isHet.toInt.toInt, comb._2 + gt.isCalled.toInt.toInt, comb._3 + 1),
         (comb1, comb2) => (comb1._1 + comb2._1, comb1._2 + comb2._2, comb1._3 + comb2._3)).collectAsMap()
 
-      s = AddKeyTable.run(s, Array("-k", (sampleKeyNames.map(k => k + " = " + "sa.keys." + k) ++ variantKeyNames.map(k => k + " = " + "va.keys." + k)).mkString(","),
+      s = AggregateByKey.run(s, Array("-k", (sampleKeyNames.map(k => k + " = " + "sa.keys." + k) ++ variantKeyNames.map(k => k + " = " + "va.keys." + k)).mkString(","),
         "-a", "nHet = gs.filter(g => g.isHet).count(), nCalled = gs.filter(g => g.isCalled).count(), nTotal = gs.count()", "-n", "foo"))
 
-      s = ExportKeyTable.run(s, Array("-o", outputFile, "-c", "k.*, ka.*", "-n", "foo"))
+      s = ExportKeyTable.run(s, Array("-o", outputFile, "-n", "foo"))
 
       val ktr = hadoopConf.readLines(outputFile)(_.map(_.map { line =>
         line.trim.split("\\s+")
