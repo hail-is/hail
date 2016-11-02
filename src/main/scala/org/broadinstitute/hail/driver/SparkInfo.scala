@@ -14,7 +14,7 @@ object SparkInfo extends Command {
 
   def name = "sparkinfo"
 
-  def description = "Displays the number of partitions and storage level of the current vds"
+  def description = "Displays the number of partitions and persistence level of the current vds"
 
   def run(state: State, options: Options): State = {
     info(s"${state.vds.nPartitions} partitions, ${state.vds.rdd.getStorageLevel.toReadableString()}")
