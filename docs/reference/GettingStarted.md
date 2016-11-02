@@ -54,7 +54,7 @@ $ ./build/install/hail/bin/hail read ~/sample.qc.vds \
     filtervariants expr --keep \
       -c 'v.altAllele.isSNP && va.qc.gqMean >= 20' \
     filtersamples expr --keep \
-      -c 'sa.qc.callRate > 0.97 && sa.qc.dpMean > 15' \
+      -c 'sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15' \
     filtergenotypes --keep \
       -c 'let ab = g.ad[1] / g.ad.sum in
            ((g.isHomRef && ab <= 0.1) || 
