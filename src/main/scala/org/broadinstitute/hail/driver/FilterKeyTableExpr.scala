@@ -13,7 +13,7 @@ object FilterKeyTableExpr extends Command {
       usage = "Name of source key table")
     var name: String = _
 
-    @Args4jOption(required = true, name = "-d", aliases = Array("--dest"),
+    @Args4jOption(required = false, name = "-d", aliases = Array("--dest"),
       usage = "Name of destination key table (can be same as source)")
     var dest: String = _
 
@@ -49,10 +49,8 @@ object FilterKeyTableExpr extends Command {
 
     val cond = options.condition
     val keep = options.keep
-    val dest = options.dest
+    val dest = if (options.dest != null) options.dest else options.name
 
     state.copy(ktEnv = state.ktEnv + ( dest -> kt.filterExpr(cond, keep)))
-
-    state
   }
 }

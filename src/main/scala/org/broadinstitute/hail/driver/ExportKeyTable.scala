@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.driver
 
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.TextExporter
@@ -46,12 +47,11 @@ object ExportKeyTable extends Command with TextExporter {
 
     val output = options.output
 
-    val symTab = Map("k" -> (0, kt.keySignature),
-      "v" -> (1, kt.valueSignature))
+    val symTab = kt.signature.fields.zipWithIndex.map{case (fd, i) => (fd.name, (i, fd.`type`))}.toMap
 
     val ec = EvalContext(symTab)
 
-    val (header, types, f) = Parser.parseExportArgs("k.*, v.*", ec)
+    val (header, types, f) = Parser.parseExportArgs(kt.fieldNames.map(n => n + " = " + n).mkString(","), ec)
 
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
@@ -62,13 +62,18 @@ object ExportKeyTable extends Command with TextExporter {
 
     state.hadoopConf.delete(output, recursive = true)
 
+    val signature = kt.signature
+
     kt.rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
-        it.map { case (k, v) =>
+        it.map { a =>
           sb.clear()
 
-          ec.setAll(k, v)
+          Option(a).map(_.asInstanceOf[Row]) match {
+            case Some(r) => ec.setAll(r.toSeq: _*)
+            case None => ec.setAll(Seq.fill(signature.size)(null))
+          }
 
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
