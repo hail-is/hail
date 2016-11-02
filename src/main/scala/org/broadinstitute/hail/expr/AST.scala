@@ -352,7 +352,7 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
     val types = elements.map(_.`type`)
       .map {
         case t: Type => t
-        case bt => parseError(s"invalid array element found: `$bt'")
+        case bt => parseError(s"invalid struct element found: `$bt'")
       }
     TStruct((names, types, names.indices).zipped.map { case (id, t, i) => Field(id, t, i) })
   }
