@@ -1,8 +1,8 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.rdd.RDD
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.utils.{MultiArray2, _}
 import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant.GenotypeType._
@@ -83,37 +83,38 @@ object TDT {
     // All trios have defined sex, see filter above.
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
-    val trioArray: MultiArray2[GenotypeType] = MultiArray2.fill(nTrio, 3)(NoCall)
-
     val (newVA, inserter) = vds.insertVA(schema, path)
 
-    vds.mapAnnotations { case (v, va, gs) =>
-      val arr = trioArray
-      if (v.isMitochondrial || v.inYNonPar)
-        inserter(va, None)
-      else {
-        gs.iterator.zipWithIndex.foreach { case (g, i) =>
-          sampleTrioRolesBc.value(i).foreach { case (tIdx, rIdx) =>
-            if (v.inXNonPar && rIdx == 1 && g.isHet)
-              arr.update(tIdx, rIdx, GenotypeType.NoCall)
-            else
-              arr.update(tIdx, rIdx, g.gtType)
+    vds.copy(rdd = vds.rdd.mapPartitions({ it =>
+
+      val arr = MultiArray2.fill(nTrio, 3)(NoCall)
+      it.map { case (v, (va, gs)) =>
+        if (v.isMitochondrial || v.inYNonPar)
+          (v, (inserter(va, None), gs))
+        else {
+          gs.iterator.zipWithIndex.foreach { case (g, i) =>
+            sampleTrioRolesBc.value(i).foreach { case (tIdx, rIdx) =>
+              if (v.inXNonPar && rIdx == 1 && g.isHet)
+                arr.update(tIdx, rIdx, GenotypeType.NoCall)
+              else
+                arr.update(tIdx, rIdx, g.gtType)
+            }
           }
-        }
 
-        var nTrans = 0
-        var nUntrans = 0
-        var i = 0
-        while (i < arr.n1) {
-          val (nt, nu) = getTransmission(arr(i, 0), arr(i, 1), arr(i, 2), v.copyState(trioSexBc.value(i)))
-          nTrans += nt
-          nUntrans += nu
-          i += 1
-        }
+          var nTrans = 0
+          var nUntrans = 0
+          var i = 0
+          while (i < arr.n1) {
+            val (nt, nu) = getTransmission(arr(i, 0), arr(i, 1), arr(i, 2), v.copyState(trioSexBc.value(i)))
+            nTrans += nt
+            nUntrans += nu
+            i += 1
+          }
 
-        val tdtAnnotation = Annotation(nTrans, nUntrans, calcTDTstat(nTrans, nUntrans))
-        inserter(va, Some(tdtAnnotation))
+          val tdtAnnotation = Annotation(nTrans, nUntrans, calcTDTstat(nTrans, nUntrans))
+          (v, (inserter(va, Some(tdtAnnotation)), gs))
+        }
       }
-    }.copy(vaSignature = newVA)
+    }, preservesPartitioning = true).asOrderedRDD).copy(vaSignature = newVA)
   }
 }

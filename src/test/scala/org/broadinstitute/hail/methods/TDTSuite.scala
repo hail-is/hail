@@ -13,7 +13,7 @@ class TDTSuite extends SparkSuite {
   @Test def test() {
 
     var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, "src/test/resources/fake_vcf_forTDT_testing.vcf")
+    s = ImportVCF.run(s, "src/test/resources/fake_vcf_forTDT_testing.vcf", "-n", "4")
     s = SplitMulti.run(s)
     s = TDTCommand.run(s, "-r", "va.tdt", "-f", "src/test/resources/tdt_ped_test3_6.fam")
     val out = tmpDir.createLocalTempFile("out", "txt")
