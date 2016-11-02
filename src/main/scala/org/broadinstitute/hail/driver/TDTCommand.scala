@@ -16,9 +16,6 @@ object TDTCommand extends Command {
   def description = "Find transmitted and untransmitted variants; count per variant, nuclear family"
 
   class Options extends BaseOptions {
-    @Args4jOption(required = false, name = "-o", aliases = Array("--output"), usage = "Output root filename")
-    var output: String = _
-
     @Args4jOption(required = true, name = "-f", aliases = Array("--fam"), usage = ".fam file")
     var famFilename: String = _
 
