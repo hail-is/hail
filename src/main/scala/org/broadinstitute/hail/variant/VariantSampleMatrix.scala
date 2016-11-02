@@ -484,7 +484,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       copy(rdd = rdd.filterIntervals(iList))
     else {
       val iListBc = sparkContext.broadcast(iList)
-      filterVariants { (v, va, gs) => iListBc.value.contains(v.locus)
+      filterVariants { (v, va, gs) => !iListBc.value.contains(v.locus)
       }
     }
   }
