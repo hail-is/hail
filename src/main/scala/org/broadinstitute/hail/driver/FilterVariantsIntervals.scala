@@ -37,7 +37,7 @@ object FilterVariantsIntervals extends Command {
 
     val cond = options.input
     val keep = options.keep
-    val ilist = IntervalListAnnotator.read(options.input, state.hadoopConf)
+    val ilist = IntervalListAnnotator.read(options.input, state.hadoopConf, prune = true)
 
     state.copy(vds = vds.filterIntervals(ilist, options.keep))
   }

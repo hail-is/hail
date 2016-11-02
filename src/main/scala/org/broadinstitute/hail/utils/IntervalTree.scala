@@ -54,8 +54,34 @@ case class IntervalTree[T: Ordering](root: Option[IntervalTreeNode[T]]) extends 
 }
 
 object IntervalTree {
-  def apply[T: Ordering](intervals: Array[Interval[T]]): IntervalTree[T] =
-    new IntervalTree[T](fromSorted(intervals.sorted, 0, intervals.length))
+  def apply[T: Ordering](intervals: Array[Interval[T]], prune: Boolean = false): IntervalTree[T] = {
+    val sorted = if (prune && intervals.nonEmpty) {
+      val unpruned = intervals.sorted
+      val ab = mutable.ArrayBuilder.make[Interval[T]]
+      var tmp = unpruned.head
+      var i = 1
+      var pruned = 0
+      while (i < unpruned.length) {
+        val interval = unpruned(i)
+        if (interval.start <= tmp.end) {
+          tmp = Interval(tmp.start, interval.end)
+          pruned += 1
+        } else {
+          ab += tmp
+          tmp = interval
+        }
+
+        i += 1
+      }
+      ab += tmp
+
+      info(s"pruned $pruned redundant intervals")
+
+      ab.result()
+    } else intervals.sorted
+
+    new IntervalTree[T](fromSorted(sorted, 0, sorted.length))
+  }
 
   def fromSorted[T: Ordering](intervals: Array[Interval[T]], start: Int, end: Int): Option[IntervalTreeNode[T]] = {
     if (start >= end)
@@ -73,7 +99,9 @@ object IntervalTree {
   }
 
   def gen[T: Ordering](tgen: Gen[T]): Gen[IntervalTree[T]] = {
-    Gen.buildableOf[Array, Interval[T]](Interval.gen(tgen)) map { IntervalTree(_) }
+    Gen.buildableOf[Array, Interval[T]](Interval.gen(tgen)) map {
+      IntervalTree(_)
+    }
   }
 }
 
