@@ -23,8 +23,8 @@ class AggregateByKeySuite extends SparkSuite {
     val (_, ktSampleQuery) = kt.query("Sample")
     val (_, saHetQuery) = vds.querySA("sa.nHet")
 
-    val ktSampleResults = kt.rdd.map { a =>
-      (ktSampleQuery(a).get.asInstanceOf[String], ktHetQuery(a))
+    val ktSampleResults = kt.rdd.map { case (k, v) =>
+      (ktSampleQuery(k, v).get.asInstanceOf[String], ktHetQuery(k, v))
     }.collectAsMap()
     ktSampleResults.head._2.foreach(x => println(x.getClass.getName))
 
@@ -51,8 +51,8 @@ class AggregateByKeySuite extends SparkSuite {
     val (_, ktVariantQuery) = kt.query("Variant")
     val (_, vaHetQuery) = vds.queryVA("va.nHet")
 
-    val ktVariantResults = kt.rdd.map { a =>
-      (ktVariantQuery(a).get.asInstanceOf[String], ktHetQuery(a))
+    val ktVariantResults = kt.rdd.map { case (k, v) =>
+      (ktVariantQuery(k, v).get.asInstanceOf[String], ktHetQuery(k, v))
     }.collectAsMap()
 
     assert( vds.variantsAndAnnotations.map{ case (v, va) =>
