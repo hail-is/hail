@@ -86,10 +86,8 @@ exports.buildCommand = function (command, pandocOutputDir, $) {
 
         fs.exists(templateFile, function (exists) {
             if (!exists) {
-                console.log("Warning: Did not find the file " + templateFile + "; Adding a generic template.");
-                $("div#" + cmdId).append("<div class=cmdhead></div><div class=description></div><div class=synopsis></div><div class=options></div>");
-                addContent();
-                resolve();
+                console.log("Error: Did not find the file " + templateFile);
+                reject();
             } else {
                 $("div#" + cmdId).load(pandocOutputDir + cmdId + ".html", function (response, status, xhr) {
                     addContent();
