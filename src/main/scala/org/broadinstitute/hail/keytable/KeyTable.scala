@@ -1,30 +1,33 @@
 package org.broadinstitute.hail.keytable
 
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr.{EvalContext, Parser, TBoolean, TStruct}
 import org.broadinstitute.hail.methods.Filter
 
-case class KeyTable (rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, valueSignature: TStruct) {
+case class KeyTable(rdd: RDD[Annotation], signature: TStruct, keyNames: Array[String]) {
 
-  val fieldNames = (keySignature.fields ++ valueSignature.fields).map(_.name)
+  val fieldNames = signature.fields.map(_.name)
 
   require(fieldNames.distinct.length == fieldNames.length)
+  require(keyNames.forall(k => signature.selfField(k).isDefined))
 
-  def length = rdd.count()
+  def nRows = rdd.count()
 
-  def filter(p: (Annotation, Annotation) => Boolean): KeyTable = copy(rdd = rdd.filter{ case (k, v) => p(k, v)})
+  def filter(p: (Annotation) => Boolean): KeyTable = copy(rdd = rdd.filter { a => p(a) })
 
   def filterExpr(cond: String, keep: Boolean): KeyTable = {
-    val symTab = (keySignature.fields ++ valueSignature.fields)
-      .zipWithIndex.map{case (fd, i) => (fd.name, (i, fd.`type`))}.toMap
-
-    val ec = EvalContext(symTab)
+    val ec = EvalContext(signature.fields.map(f => (f.name, f.`type`)): _*)
 
     val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
-    val p = (k: Annotation, v: Annotation) => {
-      ec.setAll(Seq(k, v): _*)
+    val p = (a: Annotation) => {
+      Option(a).map(_.asInstanceOf[Row]) match {
+        case Some(r) => ec.setAll(r.toSeq: _*)
+        case None => ec.setAll(Seq.fill(signature.size)(null))
+      }
+
       Filter.keepThis(f(), keep)
     }
 
