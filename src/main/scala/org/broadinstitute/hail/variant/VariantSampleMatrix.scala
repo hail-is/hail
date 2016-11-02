@@ -480,13 +480,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def filterIntervals(iList: IntervalTree[Locus], keep: Boolean = true): VariantSampleMatrix[T] = {
-    val iListBc = sparkContext.broadcast(iList)
-    filterVariants { (v, va, gs) =>
-      val inInterval = iListBc.value.contains(v.locus)
-      if (keep)
-        inInterval
-      else
-        !inInterval
+    if (keep)
+      copy(rdd = rdd.filterIntervals(iList))
+    else {
+      val iListBc = sparkContext.broadcast(iList)
+      filterVariants { (v, va, gs) => iListBc.value.contains(v.locus)
+      }
     }
   }
 

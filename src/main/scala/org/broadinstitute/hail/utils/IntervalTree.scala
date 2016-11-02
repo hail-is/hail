@@ -16,6 +16,8 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
 
   def contains(position: T): Boolean = position >= start && position < end
 
+  def overlaps(other: Interval[T]): Boolean = this.contains(other.start) || other.contains(this.start)
+
   def isEmpty: Boolean = start == end
 
   def compare(that: Interval[T]): Int = {
@@ -42,6 +44,8 @@ object Interval {
 
 case class IntervalTree[T: Ordering](root: Option[IntervalTreeNode[T]]) extends Traversable[Interval[T]] with Serializable {
   def contains(position: T): Boolean = root.exists(_.contains(position))
+
+  def overlaps(interval: Interval[T]): Boolean = root.exists(_.overlaps(interval))
 
   def query(position: T): Set[Interval[T]] = {
     val b = Set.newBuilder[Interval[T]]
@@ -116,6 +120,11 @@ case class IntervalTreeNode[T: Ordering](i: Interval[T],
         (position >= i.start &&
           (i.contains(position) ||
             right.exists(_.contains(position)))))
+  }
+
+  def overlaps(interval: Interval[T]): Boolean = {
+    interval.start <= maximum && (left.exists(_.overlaps(interval))) ||
+      i.overlaps(interval) || (right.exists(_.overlaps(interval)))
   }
 
   def query(b: mutable.Builder[Interval[T], _], position: T) {

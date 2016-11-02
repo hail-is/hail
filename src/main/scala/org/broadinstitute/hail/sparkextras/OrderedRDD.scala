@@ -422,6 +422,60 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd), partitioner)
     }
   }
+
+  def filterIntervals(intervals: IntervalTree[PK]): OrderedRDD[PK, K, V] = {
+
+    import kOk.pkOrd
+    import kOk._
+    import Ordering.Implicits._
+
+    if (partitions.length <= 1) // FIXME: hacky
+      return this
+
+    if (intervals.isEmpty)
+      return OrderedRDD.empty[PK, K, V](rdd.sparkContext)
+
+
+    val intervalArray = intervals.toArray
+
+    val partitionIndexBuilder = mutable.ArrayBuilder.make[Int]
+
+    val rangeBounds = orderedPartitioner.rangeBounds
+
+    val nPartitions = partitions.length
+    var i = 0
+    while (i < nPartitions) {
+      if (i == 0) {
+        if (intervalArray.exists(_.start <= rangeBounds(0)))
+          partitionIndexBuilder += 0
+      } else if (i == nPartitions - 1) {
+        if (intervalArray.reverse.exists(_.end > rangeBounds.last))
+          partitionIndexBuilder += i
+      } else {
+        val lastMax = rangeBounds(i - 1)
+        val thisMax = rangeBounds(i)
+        if (intervals.overlaps(Interval(lastMax, thisMax)) || intervals.contains(thisMax))
+          partitionIndexBuilder += i
+      }
+
+      i += 1
+    }
+
+    val newPartitionIndices = partitionIndexBuilder.result()
+    assert(newPartitionIndices.nonEmpty)
+    val newRangeBounds = if (newPartitionIndices.last == nPartitions - 1)
+      newPartitionIndices.init.map(rangeBounds)
+    else
+      newPartitionIndices.map(rangeBounds).init
+
+    info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
+
+    val iListBc = rdd.sparkContext.broadcast(intervals)
+    val f: Iterator[(K, V)] => Iterator[(K, V)] = _.filter { case (k, _) => iListBc.value.contains(project(k)) }
+    val newRDD = new AdjustedPartitionsRDD(this, newPartitionIndices.map(i => Array(Adjustment(i, f))))
+    val newPartitioner = OrderedPartitioner(newRangeBounds, newPartitionIndices.length)
+    new OrderedRDD(newRDD, newPartitioner)
+  }
 }
 
 trait OrderedKey[PK, K] extends Serializable {
