@@ -2,23 +2,23 @@
 
 [![Gitter](https://badges.gitter.im/hail-is/hail.svg)](https://gitter.im/hail-is/hail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-[Hail](https://hail.is) is an open-source scalable framework for exploring and analyzing genetic data. Starting from your [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf) or similar format for sequencing or microarray data, Hail can:
+[Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genetic data. Starting from sequencing or microarray data in [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf) and [other formats](https://hail.is/reference.html#Importing), Hail can, for example:
 
- - generate variant quality control metrics like Hardy-Weinberg equilibrium or population-specific allele count
- - generate sample quality control metrics like imputed sex or the insertion/deletion ratio
- - compute principal components for each sample using your data, or project your cohort onto known ancestry coordinates from public datasets
- - import and manipulate variant and sample annotations imported from text tables, JSON, VCF, or locus interval files
- - produce new annotations computed from existing annotations and the genotype data
- - perform linear and logistic regressions to associate loci with phenotypes
- 
-The above examples (just a sample of Hail's flexibility!) are all backed by distributed algorithms that can analyze gigabyte-scale data on a laptop or terabyte-scale data on a large cloud cluster.
+ - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count
+ - generate sample annotations like mean depth, imputed sex, and TiTv ratio
+ - load variant and sample annotations from text tables, JSON, VCF, VEP, and locus interval files
+ - produce new annotations computed from existing annotations and the genotypes, and use these to filter samples, variants, and genotypes
+ - compute sample scores and variant loadings using principal compenent analysis, or project your cohort onto ancestry coordinates of reference datasets
+ - perform association analyses with phenotypes and covariates using linear and logistic regression
 
-The Hail project began in late 2015, but already has been used for [research](http://biorxiv.org/content/early/2016/06/06/050195) and in large-scale genomics efforts including [ExAC v2](http://exac.broadinstitute.org/) and [gnomAD](http://gnomad.broadinstitute.org/). At the same time, Hail is under very active development as we work toward a stable release, so we do not guarantee forward compatibility of formats and interfaces. 
+All this functionality is backed by distributed algorithms built on top of [Apache Spark](http://spark.apache.org/) to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on an on-prem cluster or in the cloud.
+
+Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06/050195) and as the core analysis platform of large-scale genomics efforts including [ExAC v2](http://exac.broadinstitute.org/) and [gnomAD](http://gnomad.broadinstitute.org/). The project began in Fall 2015 and is under very active development as we work toward a stable release, so we do not guarantee forward compatibility of formats and interfaces.
 
 To get started using Hail:
 
 - read the docs ([Getting Started](https://hail.is/getting_started.html), [Overview](https://hail.is/overview.html), [Tutorial](https://hail.is/tutorial.html), [General Reference](https://hail.is/reference.html), [Command Reference](https://hail.is/commands.html), [FAQ](https://hail.is/faq.html))
-- join the [discussion forum](http://discuss.hail.is): we encourage this resource to be used for user/dev support 
+- join the [discussion forum](http://discuss.hail.is) 
 - chat with the Hail team and other users in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 
 We encourage use of the [discussion forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
