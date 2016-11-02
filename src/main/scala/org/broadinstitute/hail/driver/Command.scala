@@ -2,6 +2,7 @@ package org.broadinstitute.hail.driver
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
+import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option => Args4jOption}
@@ -13,7 +14,8 @@ case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
   vds: VariantDataset = null,
-  env: Map[String, VariantDataset] = Map.empty) {
+  env: Map[String, VariantDataset] = Map.empty,
+  ktEnv: Map[String, KeyTable] = Map.empty) {
   def hadoopConf = sc.hadoopConfiguration
 }
 
@@ -45,6 +47,7 @@ object ToplevelCommands {
         + cmd.description))
   }
 
+  register(AddKeyTable)
   register(AggregateIntervals)
   register(AnnotateSamples)
   register(AnnotateVariants)
