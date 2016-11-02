@@ -27,7 +27,7 @@ trait JoinAnnotator {
   }
 
   def buildInserter(code: String, t: Type, ec: EvalContext, expectedHead: String): (Type, Inserter) = {
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(code, ec, expectedHead)
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(code, ec, Option(expectedHead))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val finaltype = parseTypes.foldLeft(t) { case (t, (ids, signature)) =>
