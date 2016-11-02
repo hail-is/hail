@@ -1,9 +1,9 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.sql.Row
-import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.TextExporter
+import org.broadinstitute.hail.keytable.KeyTable
+import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object ExportKeyTable extends Command with TextExporter {
@@ -47,7 +47,7 @@ object ExportKeyTable extends Command with TextExporter {
 
     val output = options.output
 
-    val symTab = kt.signature.fields.zipWithIndex.map{case (fd, i) => (fd.name, (i, fd.`type`))}.toMap
+    val symTab = kt.fields.zipWithIndex.map{case (fd, i) => (fd.name, (i, fd.`type`))}.toMap
 
     val ec = EvalContext(symTab)
 
@@ -62,19 +62,12 @@ object ExportKeyTable extends Command with TextExporter {
 
     state.hadoopConf.delete(output, recursive = true)
 
-    val signature = kt.signature
-
     kt.rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
-        it.map { a =>
+        it.map { case (k, v) =>
           sb.clear()
-
-          Option(a).map(_.asInstanceOf[Row]) match {
-            case Some(r) => ec.setAll(r.toSeq: _*)
-            case None => ec.setAll(Seq.fill(signature.size)(null))
-          }
-
+          KeyTable.setEvalContext(ec, k, v)
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }

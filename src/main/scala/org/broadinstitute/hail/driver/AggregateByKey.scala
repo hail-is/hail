@@ -66,12 +66,8 @@ object AggregateByKey extends Command {
     val (keyNames, keyParseTypes, keyF) = Parser.parseNamedArgs(keyCond, ec)
     val (aggNames, aggParseTypes, aggF) = Parser.parseNamedArgs(aggCond, ec)
 
-    val (testPT, testF) = Parser.parseAnnotationArgs(aggCond, ec)
-
-    println(testPT.mkString("\n"))
-
-
-    val signature = TStruct((keyNames ++ aggNames).zip(keyParseTypes ++ aggParseTypes): _*)
+    val keySignature = TStruct(keyNames.zip(keyParseTypes): _*)
+    val valueSignature = TStruct(aggNames.zip(aggParseTypes): _*)
 
     val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
     val zvf = () => zVals.indices.map(zVals).toArray
@@ -91,14 +87,14 @@ object AggregateByKey extends Command {
     val kt = KeyTable(vds.mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
         ec.setAll(v, va, s, sa, g)
-        val key = keyF(): IndexedSeq[String]
+        val key = Annotation.fromSeq(keyF())
         (key, (v, va, s, sa, g))
       }
     }.aggregateByKey(zvf())(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
-        Annotation.fromSeq(k ++ aggF())
-      }, signature, keyNames)
+        (k, Annotation.fromSeq(aggF()))
+      }, keySignature, valueSignature)
 
     state.copy(ktEnv = state.ktEnv + (options.name -> kt))
   }
