@@ -62,7 +62,7 @@ $ ./build/install/hail/bin/hail read ~/sample.qc.vds \
             (g.isHomVar && ab >= 0.9))' \
     write -o ~/sample.filtered.vds
 ```
-Try running count on the filtered vds to see how the numbers have changed. For further background and examples, continue to the [overview](https://hail.is/overview.html), check out the [general reference](https://hail.is/reference.html) and [command reference](https://hail.is/commands.html), and try the [tutorial](https://hail.is/tutorial.html).
+Try running `count` on `sample.filtered.vds` to see how the numbers have changed. For further background and examples, continue to the [overview](https://hail.is/overview.html), check out the [general reference](https://hail.is/reference.html) and [command reference](https://hail.is/commands.html), and try the [tutorial](https://hail.is/tutorial.html).
 
 Note that during each run Hail writes a `hail.log` file in the current directory; this is useful to developers for debugging.
 
