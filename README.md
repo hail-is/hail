@@ -13,7 +13,7 @@
 
 All this functionality is backed by distributed algorithms built on top of [Apache Spark](http://spark.apache.org/) to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on an on-prem cluster or in the cloud.
 
-Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06/050195) and as the core analysis platform of large-scale genomics efforts including [ExAC v2](http://exac.broadinstitute.org/) and [gnomAD](http://gnomad.broadinstitute.org/). The project began in Fall 2015 and is under very active development as we work toward a stable release, so we do not guarantee forward compatibility of formats and interfaces.
+Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06/050195) and as the core analysis platform of large-scale genomics efforts including [ExAC v2](http://exac.broadinstitute.org/) and [gnomAD](http://gnomad.broadinstitute.org/). The project began in Fall 2015 and is under very active development as we work toward a stable release, so we do not guarantee forward compatibility of formats and interfaces. Want to get involved in development? Check out the [Github repo](https://github.com/hail-is/hail) and chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev).
 
 To get started using Hail:
 
@@ -23,7 +23,7 @@ To get started using Hail:
 
 We encourage use of the [discussion forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
 
-Want to get involved in development? Check out the [Github repo](https://github.com/hail-is/hail) and chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev).
+#### Hail Team
 
 The Hail team is based in the [Neale lab](https://nealelab.squarespace.com/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/scientific-community/science/programs/psychiatric-disease/stanley-center-psychiatric-research/stanle) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
 
