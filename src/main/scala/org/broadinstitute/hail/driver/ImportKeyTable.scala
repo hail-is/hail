@@ -1,6 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import org.broadinstitute.hail.expr.Parser
+import org.broadinstitute.hail.expr.{Parser, TStruct}
 import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Argument, Option => Args4jOption}
@@ -55,7 +55,7 @@ object ImportKeyTable extends Command {
     val keyNamesValid = keyNames.forall{ k =>
       val res = struct.selfField(k).isDefined
       if (!res)
-        println("Key `$k' is not present in input table")
+        println(s"Key `$k' is not present in input table")
       res
     }
     if (!keyNamesValid)
