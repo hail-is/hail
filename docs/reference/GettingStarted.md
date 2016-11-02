@@ -26,32 +26,43 @@ Here are a few simple things to try. To list all commands, run
 ```
 $ ./build/install/hail/bin/hail -h
 ```
-To convert the included `sample.vcf` to Hail's `.vds` format, run
+To [import](https://hail.is/reference.html#Importing) the included `sample.vcf` into Hail's `.vds` format, run
 ```
-$ ./build/install/hail/bin/hail importvcf src/test/resources/sample.vcf write -o ~/sample.vds
+$ ./build/install/hail/bin/hail \
+    importvcf src/test/resources/sample.vcf \
+    write -o ~/sample.vds
 ```
-Then to count the number of samples and variants, run
+To [split](https://hail.is/commands.html#splitmulti) multi-allelic variants, compute a panel of [sample](https://hail.is/commands.html#sampleqc) and [variant](https://hail.is/commands.html#variantqc) quality control statistics, write these statistics to files, and save an annotated version of the vds, run:
 ```
-$ ./build/install/hail/bin/hail read ~/sample.vds count
+$ ./build/install/hail/bin/hail \
+    read ~/sample.vds \
+    splitmulti \
+    sampleqc -o ~/sampleqc.tsv \
+    variantqc \
+    exportvariants -o ~/variantqc.tsv -c 'Variant = v, va.qc.*' \
+    write -o ~/sample.qc.vds
 ```
-To compute sample and variant quality control statistics and write these metrics to files, run:
+To count the number of samples, variants, and genotypes, run:
 ```
-$ ./build/install/hail/bin/hail read ~/sample.vds \
-  splitmulti \
-  sampleqc -o ~/sampleqc.tsv \
-  variantqc \
-  exportvariants -o ~/variantqc.tsv -c 'Variant = v, va.qc.*' \
+$ ./build/install/hail/bin/hail read ~/sample.qc.vds \
+    count --genotypes
 ```
-
-To get a feel for the powerful annotation system inside Hail, you can print the schema produced by these commands:
-
+Now let's get a feel for Hail's powerful [object methods](https://hail.is/reference.html#HailObjectProperties), [annotation system](https://hail.is/reference.html#Annotations), and [expression language](https://hail.is/reference.html#HailExpressionLanguage). To [print](https://hail.is/commands.html#printschema) the current annotation schema and use these annotations to [filter](https://hail.is/reference.html#Filtering) variants, samples, and genotypes, run:
 ```
-$ ./build/install/hail/bin/hail read ~/sample.vds \
-  splitmulti \
-  sampleqc \
-  variantqc \
-  printschema -o schema.txt
+$ ./build/install/hail/bin/hail read ~/sample.qc.vds \
+    printschema -o ~/schema.txt \
+    filtervariants expr --keep \
+      -c 'v.altAllele.isSNP && va.qc.gqMean >= 20' \
+    filtersamples expr --keep \
+      -c 'sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15' \
+    filtergenotypes --keep \
+      -c 'let ab = g.ad[1] / g.ad.sum in
+           ((g.isHomRef && ab <= 0.1) || 
+            (g.isHet && ab >= 0.25 && ab <= 0.75) || 
+            (g.isHomVar && ab >= 0.9))' \
+    write -o ~/sample.filtered.vds
 ```
+Try running `count` on `sample.filtered.vds` to see how the numbers have changed. For further background and examples, continue to the [overview](https://hail.is/overview.html), check out the [general reference](https://hail.is/reference.html) and [command reference](https://hail.is/commands.html), and try the [tutorial](https://hail.is/tutorial.html).
 
 Note that during each run Hail writes a `hail.log` file in the current directory; this is useful to developers for debugging.
 
