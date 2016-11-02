@@ -21,22 +21,22 @@ object TDT {
   def getTransmission(kid: GenotypeType, dad: GenotypeType, mom: GenotypeType, copyState: CopyState): (Int, Int) = {
     (kid, dad, mom, copyState) match {
       // (kid's genotype, dad's genotype, mom's genotype)
-      case (HomRef, Het,    Het,    Auto)  => (0, 2)
-      case (HomRef, HomRef, Het,    Auto)  => (0, 1)
-      case (HomRef, Het,    HomRef, Auto)  => (0, 1)
-      case (Het,    Het,    Het,    Auto)  => (1, 1)
-      case (Het,    HomRef, Het,    Auto)  => (1, 0)
-      case (Het,    Het,    HomRef, Auto)  => (1, 0)
-      case (Het,    HomVar, Het,    Auto)  => (0, 1)
-      case (Het,    Het,    HomVar, Auto)  => (0, 1)
-      case (HomVar, Het,    Het,    Auto)  => (2, 0)
-      case (HomVar, Het,    HomVar, Auto)  => (1, 0)
-      case (HomVar, HomVar, Het,    Auto)  => (1, 0)
-      case (HomRef, HomRef, Het,    HemiX) => (0, 1)
-      case (HomRef, HomVar, Het,    HemiX) => (0, 1)
-      case (HomVar, HomRef, Het,    HemiX) => (1, 0)
-      case (HomVar, HomVar, Het,    HemiX) => (1, 0)
-      case _                               => (0, 0) // No transmission
+      case (HomRef, Het, Het, Auto) => (0, 2)
+      case (HomRef, HomRef, Het, Auto) => (0, 1)
+      case (HomRef, Het, HomRef, Auto) => (0, 1)
+      case (Het, Het, Het, Auto) => (1, 1)
+      case (Het, HomRef, Het, Auto) => (1, 0)
+      case (Het, Het, HomRef, Auto) => (1, 0)
+      case (Het, HomVar, Het, Auto) => (0, 1)
+      case (Het, Het, HomVar, Auto) => (0, 1)
+      case (HomVar, Het, Het, Auto) => (2, 0)
+      case (HomVar, Het, HomVar, Auto) => (1, 0)
+      case (HomVar, HomVar, Het, Auto) => (1, 0)
+      case (HomRef, HomRef, Het, HemiX) => (0, 1)
+      case (HomRef, HomVar, Het, HemiX) => (0, 1)
+      case (HomVar, HomRef, Het, HemiX) => (1, 0)
+      case (HomVar, HomVar, Het, HemiX) => (1, 0)
+      case _ => (0, 0) // No transmission
     }
   }
 
@@ -55,93 +55,65 @@ object TDT {
     chiSquare
   }
 
-  def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio]): RDD[(Variant, TDTResult)] = {
+  def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio], path: List[String]): VariantDataset = {
 
     // Remove trios with an undefined sex.
     val trios = preTrios.filter(_.sex.isDefined)
     val nTrio = trios.length
 
     val nSamplesDiscarded = preTrios.length - nTrio
-    val noCall = Genotype()
 
+    info(s"using $nTrio trios for transmission analysis")
     if (nSamplesDiscarded > 0)
-      warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
+      warn(s"$nSamplesDiscarded ${ plural(nSamplesDiscarded, "sample") } discarded from .fam: missing from variant data set.")
 
-    val sampleTrioRoles = mutable.Map.empty[String, List[(Int, Int)]]
+    val sampleTrioRolesMap = mutable.Map.empty[String, List[(Int, Int)]]
 
-    // Sample trio roles is a hash table with Key = sample ID, value = List[(trio index, value indicating whether the
-    //                                                                       sample is a child, dad, or mom)].
-    // Because a sample can be both a child in one family and a parent in another, the List can contain
-    // multiple sets of (trio index, family identity (i.e., kid, dad, mom)).
     trios.zipWithIndex.foreach { case (t, tidx) =>
-      sampleTrioRoles += (t.kid -> sampleTrioRoles.getOrElse(t.kid, List.empty[(Int, Int)]).::(tidx, 0))
-      sampleTrioRoles += (t.dad -> sampleTrioRoles.getOrElse(t.dad, List.empty[(Int, Int)]).::(tidx, 1))
-      sampleTrioRoles += (t.mom -> sampleTrioRoles.getOrElse(t.mom, List.empty[(Int, Int)]).::(tidx, 2))
+      sampleTrioRolesMap += (t.kid -> ((tidx, 0) :: sampleTrioRolesMap.getOrElse(t.kid, Nil)))
+      sampleTrioRolesMap += (t.dad -> ((tidx, 1) :: sampleTrioRolesMap.getOrElse(t.dad, Nil)))
+      sampleTrioRolesMap += (t.mom -> ((tidx, 2) :: sampleTrioRolesMap.getOrElse(t.mom, Nil)))
     }
 
+    val sampleTrioRolesArray = vds.sampleIds.map(sampleTrioRolesMap.getOrElse(_, Nil))
+
     val sc = vds.sparkContext
-    val sampleTrioRolesBc = sc.broadcast(sampleTrioRoles)
-    val triosBc = sc.broadcast(trios)
+    val sampleTrioRolesBc = vds.sparkContext.broadcast(sampleTrioRolesArray)
 
     // All trios have defined sex, see filter above.
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
-    // zeroVal is a n x 3 array, where n is the number of trios. Each of the three columns corresponds to kid, dad, mom.
-    // This n x 3 array will eventually hold the genotypes of the trios.
-    val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(nTrio, 3)(NoCall)
+    val trioArray: MultiArray2[GenotypeType] = MultiArray2.fill(nTrio, 3)(NoCall)
 
-    def seqOp(a: MultiArray2[GenotypeType], v: Variant, s: String, g: Genotype): MultiArray2[GenotypeType] = {
-      sampleTrioRolesBc.value.get(s).foreach(l => l.foreach { case (tidx, ridx) =>
-        // Ignore Fathers who are heterozygous outside of the pseudoautosomal region of the X chromosome.
-        if (v.contig == "X" && !v.inXPar && ridx == 1 && g.isHet)
-          a.update(tidx, ridx, GenotypeType.NoCall)
-        else
-          a.update(tidx, ridx, g.gtType)
-      })
-      a
-    }
+    val (newVA, inserter) = vds.insertVA(schema, path)
 
-    def mergeOp(a: MultiArray2[GenotypeType], b: MultiArray2[GenotypeType]): MultiArray2[GenotypeType] = {
-      for ((i, j) <- a.indices)
-        if (b(i, j) != NoCall)
-          a(i, j) = b(i, j)
-      a
-    }
-
-    val combOp: (Array[(Int, Int)], Array[(Int, Int)]) => Array[(Int, Int)] = {
-      case (a1, a2) =>
-        a1.zip(a2)
-          .map { case ((t1, u1), (t2, u2)) => (t1 + t2, u1 + u2) }
-    }
-
-    val transmissionMatrix = vds
-      .filterVariants((v, va, gs) => (v.contig != "Y") && (v.contig != "MT"))
-      .aggregateByVariantWithKeys(zeroVal)(
-        (a, v, s, g) => seqOp(a, v, s, g),
-        mergeOp)
-      .map { case (v, ma) =>
-        (v, ma.rowIndices.map { i => getTransmission(ma(i, 0), ma(i, 1), ma(i, 2), v.copyState(trioSexBc.value(i)))}.toArray)
+    vds.mapAnnotations { case (v, va, gs) =>
+      val arr = trioArray
+      if (v.isMitochondrial || v.inYNonPar)
+        inserter(va, None)
+      else {
+        gs.iterator.zipWithIndex.foreach { case (g, i) =>
+          sampleTrioRolesBc.value(i).foreach { case (tIdx, rIdx) =>
+            if (v.inXNonPar && rIdx == 1 && g.isHet)
+              arr.update(tIdx, rIdx, GenotypeType.NoCall)
+            else
+              arr.update(tIdx, rIdx, g.gtType)
+          }
         }
 
-    // per variant:
-    val perVariantRDD = transmissionMatrix.map { case (v, transmissions) =>
-      val (totalTrans, totalUntrans) = transmissions.fold((0, 0)){ case ((t1,u1), (t2,u2)) => (t1 + t2, u1 + u2)}
-      (v, TDTResult(totalTrans, totalUntrans, calcTDTstat(totalTrans, totalUntrans)))
-    }
+        var nTrans = 0
+        var nUntrans = 0
+        var i = 0
+        while (i < arr.n1) {
+          val (nt, nu) = getTransmission(arr(i, 0), arr(i, 1), arr(i, 2), v.copyState(trioSexBc.value(i)))
+          nTrans += nt
+          nUntrans += nu
+          i += 1
+        }
 
-    // per trio:
-//    val perTrio = transmissionMatrix
-//      .map(_._2)
-//     .treeReduce({ case (a1, a2) =>
-//     Array.tabulate[(Int, Int)](nTrio){ i =>
-//        val (t1, u1) = a1(i)
-//        val (t2, u2) = a2(i)
-//       (t1 + t2, u1 + u2)
-//     }})
-//
-//    val sampleMap = trios.zipWithIndex
-//      .map { case (t, i) => (t.kid, }
-
-    perVariantRDD
+        val tdtAnnotation = Annotation(nTrans, nUntrans, calcTDTstat(nTrans, nUntrans))
+        inserter(va, Some(tdtAnnotation))
+      }
+    }.copy(vaSignature = newVA)
   }
 }

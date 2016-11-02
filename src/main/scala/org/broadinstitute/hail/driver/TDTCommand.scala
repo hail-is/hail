@@ -24,7 +24,6 @@ object TDTCommand extends Command {
 
     @Args4jOption(required = true, name = "-r", aliases = Array("--root"), usage = "Annotation root, starting in `va'")
     var root: String = _
-
   }
 
   def newOptions = new Options
@@ -35,22 +34,7 @@ object TDTCommand extends Command {
 
   def run(state: State, options: Options): State = {
     val ped = Pedigree.read(options.famFilename, state.hadoopConf, state.vds.sampleIds)
-    val resultsRDD = TDT(state.vds, ped.completeTrios).persist(StorageLevel.MEMORY_AND_DISK)
-
-    val (finalType, inserter) = state.vds.insertVA(TDT.schema, Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD))
-
-    val newRDD = state.vds.rdd.zipPartitions(resultsRDD, preservesPartitioning = true) { case (it1, it2) =>
-      it1.sortedLeftJoinDistinct(it2).map { case (v, ((va, gs), tdtResult)) => (v, (inserter(va, tdtResult.map(_.toAnnotation)), gs)) }
-    }.toOrderedRDD
-
-    Option(options.output).foreach { filename =>
-      resultsRDD.map { case (v, tdtResult) =>
-        v.contig + "\t" + v.start + "\t" + v.ref + "\t" + v.alt + "\t" + tdtResult.nTransmitted + "\t" + tdtResult.nUntransmitted + "\t" + tdtResult.chiSquare
-      }
-        .writeTable(filename + "VariantRes.tdt.txt",
-          Some("CHROM\tPOSITION\tREF\tALT\tTransmitted\tUntransmitted\tChi-Square"))
-    }
-
-    state.copy(vds = state.vds.copy(rdd = newRDD, vaSignature = finalType))
+    state.copy(vds = TDT(state.vds, ped.completeTrios,
+      Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)))
   }
 }
