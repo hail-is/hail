@@ -454,6 +454,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       } else {
         val lastMax = rangeBounds(i - 1)
         val thisMax = rangeBounds(i)
+        // FIXME: loads a partition if the lastMax == interval.start.  Can therefore load unnecessary partitions
         if (intervals.overlaps(Interval(lastMax, thisMax)) || intervals.contains(thisMax))
           partitionIndexBuilder += i
       }
