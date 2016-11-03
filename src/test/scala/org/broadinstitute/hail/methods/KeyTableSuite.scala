@@ -27,6 +27,41 @@ class KeyTableSuite extends SparkSuite {
     assert(importedData == exportedData)
   }
 
+  @Test def testAnnotate() = {
+    val inputFile = "src/test/resources/sampleAnnotations.tsv"
+    var s = State(sc, sqlContext)
+    s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample", inputFile))
+    s = AnnotateKeyTableExpr.run(s, Array("-n", "kt1", "-d", "kt2", "-c", "RandomBool = pcoin(0.4), RandomQP = rnorm(0, 1), RandomNum = runif(0, 1)"))
+
+    val kt1 = s.ktEnv("kt1")
+    val kt2 = s.ktEnv("kt2")
+
+    val kt1ValueNames = kt1.valueNames.toSet
+    val kt2ValueNames = kt2.valueNames.toSet
+
+    assert(kt1.nKeys == kt2.nKeys &&
+      kt1.nValues == 2 && kt2.nValues == 5 &&
+      kt1.keySignature == kt2.keySignature &&
+      kt1ValueNames ++ Set("RandomBool", "RandomQP", "RandomNum") == kt2ValueNames
+    )
+  }
+
+  @Test def testLeftJoin() = {
+
+  }
+
+  @Test def testRightJoin() = {
+
+  }
+
+  @Test def testInnerJoin() = {
+
+  }
+
+  @Test def testOuterJoin() = {
+
+  }
+
   @Test def testFilter() = {
     val data = Array(Array(5, 9, 0), Array(2, 3, 4), Array(1, 2, 3))
     val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
