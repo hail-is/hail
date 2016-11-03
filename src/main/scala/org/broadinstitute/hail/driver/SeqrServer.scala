@@ -93,9 +93,9 @@ class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, 
     var query = new SolrQuery(q)
 
     if (!solrOnly) {
+      query.addField("dataset_id")
       query.addField("chrom")
       query.addField("start")
-      query.addField("end")
       query.addField("ref")
       query.addField("alt")
     }
@@ -162,17 +162,17 @@ class SeqrService(solrOnly: Boolean, jsonFields: Set[String], solr: SolrClient, 
       }.toArray
     } else {
       val prepared = cassSession.prepare(
-        s"SELECT * FROM ${ cassKeyspace }.${ cassTable } WHERE chrom=? AND start=? AND end=? AND ref=? AND alt=?")
+        s"SELECT * FROM ${ cassKeyspace }.${ cassTable } WHERE dataset_id=? AND chrom=? AND start=? AND ref=? AND alt=?")
 
       val futures = docs.asScala
         .map { doc =>
+          val dataset_id = doc.getFieldValue("dataset_id")
           val chrom = doc.getFieldValue("chrom")
           val start = doc.getFieldValue("start")
-          val end = doc.getFieldValue("end")
           val ref = doc.getFieldValue("ref")
           val alt = doc.getFieldValue("alt")
 
-          cassSession.executeAsync(prepared.bind(chrom, start, end, ref, alt))
+          cassSession.executeAsync(prepared.bind(dataset_id, chrom, start, ref, alt))
         }
 
       futures.map { future =>
