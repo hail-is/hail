@@ -72,7 +72,7 @@ object BaldingNicholsModelCommand extends Command {
         fatal(s"Got ${options.nPops} populations but ${fs.size} ${plural(fs.size, "value")}")
       fs.foreach(f =>
         if (f <= 0d || f >= 1d)
-          fatal(s"Fst values must be strictly between 0.0 and 1.0, got $f"))
+          fatal(s"F_st values must satisty 0.0 < F_st < 1.0, got $f"))
     }
 
     val seed = Option(options.seed).map(_.intValue()).getOrElse(scala.util.Random.nextInt())
