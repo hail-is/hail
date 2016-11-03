@@ -1,4 +1,4 @@
-## <a class="jumptarget" name="annotations"></a> Annotations 
+## <a class="jumptarget" name="annotations"></a> Annotations
 
 #### How can I find the current schema of variant, sample, and global annotations?
 

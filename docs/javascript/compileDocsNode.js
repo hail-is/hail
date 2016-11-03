@@ -142,23 +142,25 @@ function buildFAQ(htmlTemplate, outputFileName) {
 
         const $ = require('jquery')(window);
 
-    var loadFaqPromises =  ["Annotations",
-                            "DataRepresentation",
-                            "DevTools",
-                            "ErrorMessages",
-                            "ExportingData",
-                            "ExpressionLanguage",
-                            "FilteringData",
-                            "General",
-                            "ImportingData",
-                            "Installation",
-                            "Methods",
-                            "OptimizePipeline"]
-                            .map(name => loadReq("#" + name, pandocOutputDir + "faq/" + name + ".html", $));
+    var faqNames = ["Annotations",
+                    "DataRepresentation",
+                    "DevTools",
+                    "ErrorMessages",
+                    "ExportingData",
+                    "ExpressionLanguage",
+                    "FilteringData",
+                    "General",
+                    "ImportingData",
+                    "Installation",
+                    "Methods",
+                    "OptimizePipeline"];
+
+    var loadFaqPromises = faqNames.map(name => loadReq("#" + name, pandocOutputDir + "faq/" + name + ".html", $));
 
         Promise.all(loadFaqPromises)
             .then(function () {
                 buildDocs.buildFaqTOC($);
+                faqNames.map(name => buildDocs.buildFaqHeader(name, $));
             }, error)
             .then(function() {
                  var document = jsdom.jsdom($('html').html());
