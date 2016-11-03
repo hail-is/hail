@@ -58,7 +58,7 @@ object ExportSamples extends Command with TextExporter {
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(5, vds.globalAnnotation)
 
-    val (header, types, f) = Parser.parseExportArgs(cond, ec)
+    val (header, types, f) = Parser.parseNamedArgs(cond, ec)
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
         .getOrElse(types.indices.map(i => s"_$i").toArray)

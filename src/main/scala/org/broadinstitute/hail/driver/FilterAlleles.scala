@@ -72,7 +72,7 @@ object FilterAlleles extends Command {
       "v" -> (0, TVariant),
       "va" -> (1, state.vds.vaSignature),
       "aIndices" -> (2, TArray(TInt))))
-    val (types, generators) = Parser.parseAnnotationArgs(options.annotation, annotationEC, Annotation.VARIANT_HEAD)
+    val (types, generators) = Parser.parseAnnotationArgs(options.annotation, annotationEC, Option(Annotation.VARIANT_HEAD))
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val finalType = types.foldLeft(state.vds.vaSignature) { case (vas, (path, signature)) =>
       val (newVas, i) = vas.insert(signature, path)
@@ -120,7 +120,7 @@ object FilterAlleles extends Command {
 
     def updateAnnotation(v: Variant, va: Annotation, newToOld: IndexedSeq[Int]): Annotation = {
       annotationEC.setAll(v, va, newToOld)
-      generators.zip(inserters).foldLeft(va) { case (va, (fn, inserter)) => inserter(va, fn()) }
+      generators.zip(inserters).foldLeft(va) { case (va, (fn, inserter)) => inserter(va, Option(fn())) }
     }
 
     def updateGenotypes(gs: Iterable[Genotype], oldToNew: Array[Int], newCount: Int): Iterable[Genotype] = {

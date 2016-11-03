@@ -7,10 +7,16 @@ import org.broadinstitute.hail.expr.{BaseType, EvalContext, Parser, TBoolean, TS
 import org.broadinstitute.hail.methods.Filter
 
 object KeyTable extends Serializable {
-  def setEvalContext(ec: EvalContext, k: Annotation, v: Annotation) = {
+  def setEvalContext(ec: EvalContext, k: Annotation, v: Annotation, nKeys: Int) = {
     (Option(k).map(_.asInstanceOf[Row]), Option(v).map(_.asInstanceOf[Row])) match {
       case (Some(kr), Some(vr)) => ec.setAll(kr.toSeq ++ vr.toSeq: _*)
-      case _ => ec.clear()
+      case (Some(kr), None) =>
+        ec.clear()
+        ec.setAll(kr.toSeq: _*)
+      case (None, Some(vr)) =>
+        ec.clear()
+        vr.toSeq.zipWithIndex.foreach{ case (a, i) => ec.set(i + nKeys, a)}
+      case (None, None) => ec.clear()
     }
   }
 
@@ -69,6 +75,8 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def nRows = rdd.count()
   def nFields = fields.length
+  def nKeys = keySignature.size
+  def nValues = valueSignature.size
 
   def leftJoin(other: KeyTable): KeyTable = ???
   def rightJoin(other: KeyTable): KeyTable = ???
@@ -84,7 +92,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val (t, f) = Parser.parse(code, ec)
 
     val f2: (Annotation, Annotation) => Option[Any] = { case (k, v) =>
-      KeyTable.setEvalContext(ec, k, v)
+      KeyTable.setEvalContext(ec, k, v, nKeys)
       f()
     }
 
@@ -112,7 +120,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
     val p = (k: Annotation, v: Annotation) => {
-      KeyTable.setEvalContext(ec, k, v)
+      KeyTable.setEvalContext(ec, k, v, nKeys)
       Filter.keepThis(f(), keep)
     }
 
