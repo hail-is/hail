@@ -87,8 +87,9 @@ class GenotypeSuite extends TestNGSuite {
     testReadWrite(homVar)
 
     assert(Genotype(None, None, None, None).pAB().isEmpty)
-    assert(D_==(Genotype(None, Some(Array(0, 0)), Some(0), None, None).pAB().get, 1.0))
+    assert(Genotype(None, Some(Array(0, 0)), Some(0), None, None).pAB().isEmpty)
     assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(99), Some(Array(100, 0, 100))).pAB().get, 1.0))
+    assert(D_==(Genotype(Some(4), Some(Array(16, 16, 16)), Some(48), None, None).pAB().get, 1.0))
     assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(99), Some(Array(200, 0, 100))).pAB().get, 0.423950))
 
     Spec.check()
