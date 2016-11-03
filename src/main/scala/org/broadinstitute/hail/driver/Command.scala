@@ -49,6 +49,7 @@ object ToplevelCommands {
 
   register(AggregateByKey)
   register(AggregateIntervals)
+  register(AnnotateKeyTable)
   register(AnnotateSamples)
   register(AnnotateVariants)
   register(AnnotateGlobal)

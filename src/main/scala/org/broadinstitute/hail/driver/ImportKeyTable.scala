@@ -52,7 +52,7 @@ object ImportKeyTable extends Command {
       } else
         TextTableReader.read(state.sc)(files, options.config)
 
-    val keyNamesValid = keyNames.forall{ k =>
+    val keyNamesValid = keyNames.forall { k =>
       val res = struct.selfField(k).isDefined
       if (!res)
         println(s"Key `$k' is not present in input table")

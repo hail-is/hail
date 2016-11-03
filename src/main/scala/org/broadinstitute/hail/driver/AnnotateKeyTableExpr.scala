@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.expr.{EvalContext, Parser, TStruct}
+import org.broadinstitute.hail.expr.{EvalContext, Parser, TStruct, Type}
 import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 import org.broadinstitute.hail.keytable.KeyTable
@@ -9,6 +9,7 @@ import org.broadinstitute.hail.keytable.KeyTable
 import scala.collection.mutable
 
 object AnnotateKeyTableExpr extends Command {
+
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-n", aliases = Array("--name"),
       usage = "Name of source key table")
@@ -18,12 +19,12 @@ object AnnotateKeyTableExpr extends Command {
       usage = "Name of destination key table (can be same as source)")
     var dest: String = _
 
-    @Args4jOption(required = true, name = "-c", aliases = Array("--cond"),
-      usage = "Expression for annotating", metaVar = "EXPR")
+    @Args4jOption(required = false, name = "-c", aliases = Array("--cond"),
+      usage = "Named expression for adding fields to the table", metaVar = "EXPR")
     var condition: String = _
 
     @Args4jOption(required = false, name = "-k", aliases = Array("--key-names"),
-      usage = "Names of key in new table", metaVar = "EXPR")
+      usage = "Names of key in new table (default is existing key names)", metaVar = "EXPR")
     var keyNames: String = _
   }
 
@@ -41,40 +42,47 @@ object AnnotateKeyTableExpr extends Command {
 
   def run(state: State, options: Options): State = {
     val cond = options.condition
-    val dest = if (options.dest != null) options.dest else options.name
+    val name = options.name
+    val dest = if (options.dest != null) options.dest else name
 
-    val kt = state.ktEnv.get(options.name) match {
+    val kt = state.ktEnv.get(name) match {
       case Some(newKT) =>
         newKT
       case None =>
         fatal("no such key table $name in environment")
     }
 
-    val symTab = kt.fields.zipWithIndex.map{case (fd, i) => (fd.name, (i, fd.`type`))}.toMap
-    val ec = EvalContext(symTab)
+    val ec = EvalContext(kt.fields.map(fd => (fd.name, fd.`type`)): _*)
 
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, None)
+    val (parseTypes, fns) =
+      if (cond != null)
+        Parser.parseAnnotationArgs(cond, ec, None)
+      else
+        (Array.empty[(List[String], Type)], Array.empty[() => Any])
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
 
-    val finalValueSignature = parseTypes.foldLeft(kt.valueSignature) { case (vs, (ids, signature)) =>
+    val finalSignature = parseTypes.foldLeft(kt.signature) { case (vs, (ids, signature)) =>
       val (s: TStruct, i) = vs.insert(signature, ids)
       inserterBuilder += i
       s
     }
 
     val inserters = inserterBuilder.result()
-    val nKeys = kt.nKeys
 
-    val annotated = kt.mapAnnotations{ case (k, v) =>
-      KeyTable.setEvalContext(ec, k, v, nKeys)
+    val keyNames = if (options.keyNames != null) Parser.parseIdentifierList(options.keyNames) else kt.keyNames.toArray
+
+    val nFields = kt.nFields
+
+    val f: Annotation => Annotation = { a =>
+      KeyTable.setEvalContext(ec, a, nFields)
 
       fns.zip(inserters)
-        .foldLeft(v) { case (va, (fn, inserter)) =>
-          inserter(va, Option(fn()))
+        .foldLeft(a) { case (a1, (fn, inserter)) =>
+          inserter(a1, Option(fn()))
         }
-    }.copy(valueSignature = finalValueSignature)
+    }
 
-    state.copy(ktEnv = state.ktEnv + ( dest -> annotated))
+    state.copy(ktEnv = state.ktEnv + (dest -> kt.mapAnnotations(f, finalSignature, keyNames)))
   }
 }
