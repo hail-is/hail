@@ -204,8 +204,8 @@ object ExportVariantsCass extends Command {
     if (tableMetadata == null) {
       info(s"creating table ${qualifiedTable}")
       try {
-        session.execute(s"CREATE TABLE $qualifiedTable (chrom text, start int, end int, ref text, alt text, " +
-          "PRIMARY KEY ((chrom, start, end), ref, alt))") // WITH COMPACT STORAGE")
+        session.execute(s"CREATE TABLE $qualifiedTable (dataset_id text, chrom text, start int, ref text, alt text, " +
+          "PRIMARY KEY ((dataset_id, chrom, start), ref, alt))") // WITH COMPACT STORAGE")
       } catch {
         case e: Exception => fatal(s"exportvariantscass: unable to create table ${qualifiedTable}: ${e}")
       }
