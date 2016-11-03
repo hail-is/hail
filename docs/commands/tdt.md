@@ -8,35 +8,35 @@
 
 <div class="cmdsubsection">
 
-Hail supports basic family-based association testing for dichotomous traits, through the transmission disequilibrium test (TDT) [Spielman, McGinnis, and Ewens, 1993] (http://www.ncbi.nlm.nih.gov/pubmed/8447318).
+Hail supports family-based association testing for dichotomous traits through the transmission disequilibrium test (TDT) described in [Spielman, McGinnis, and Ewens, 1993](http://www.ncbi.nlm.nih.gov/pubmed/8447318).
 
-The Hail TDT module requires a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam) as input, and produces variant annotations.  The schema produced by this module is below:
-
+The Hail TDT module requires a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam) as input.  The command
 ```
-Struct {
-  nTransmitted: Int,
-  nUntransmitted: Int,
-  chiSquare: Double
-}
+tdt -f pedigree.fam
 ```
+produces four variant annotations:
 
-In the above schema, `nTransmitted` is the total number of transmitted alternate alleles, `nUntransmitted` is the total number of untransmitted alternate alleles`, and `chiSquare` is the statistic derived from the probability of observing the given distribution under the null.  The TDT statistic is calculated simply as:
-
-$(t-u)^2 \over (t+u)$
-
-The Hail command to run a basic TDT analysis for family data:
-```
-tdt -f pedigree.fam --root va.tdt
-```
-
-where `t` and `u` are the number of transmitted and untransmitted alleles as shown in the T and U columns from `tdtres.tdt`; under the null, it is distributed as a 1 degree of freedom chi-squared statistic (see details).
+Annotation | Type | Value
+---|---|---
+`va.tdt.nTransmitted` | Int | number of transmitted alternate alleles
+`va.tdt.nUntransmitted` | Int | number of untransmitted alternate alleles
+`va.tdt.chi2` | Double | TDT statistic
+`va.tdt.pval` | Double | $p$-value
 
 #### Details
-The TDT tracks the number of times the alternate allele is transmitted (t) or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of such transmissions is 0.5.  In cases in which transmission is guaranteed (i.e., the Y chromosome, mitochondria, and paternal chromosome X variants outside of the PAR), the TDT cannot be used as it violates the null hypothesis.
+The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t) or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of such transmissions is $0.5$.  In cases in which transmission is guaranteed (i.e., the Y chromosome, mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
+
+The TDT statistic is given by
+
+$$(t-u)^2 \over (t+u)$$
+
+and follows a 1 d.o.f. chi-squared distribution under the null hypothesis.
+
+
 The number of transmissions and untransmissions for each possible set of genotypes is determined from the table below.  The copy state of a locus with respect to a trio is defined as follows, where PAR is the pseudo-autosomal region (PAR).
 
-- HemiX -- in non-PAR of X, male child
-- Auto -- otherwise (in autosome or PAR, or female child)
+- HemiX -- in non-PAR of X and child is male
+- Auto -- otherwise (in autosome or PAR, or child is female)
 
 Kid | Dad | Mom | Copy state | T | U
 ---|---|---|---|---|---

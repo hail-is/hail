@@ -1,10 +1,8 @@
 package org.broadinstitute.hail.driver
 
-import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods._
-import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.language.postfixOps
@@ -19,8 +17,8 @@ object TDTCommand extends Command {
     @Args4jOption(required = true, name = "-f", aliases = Array("--fam"), usage = ".fam file")
     var famFilename: String = _
 
-    @Args4jOption(required = true, name = "-r", aliases = Array("--root"), usage = "Annotation root, starting in `va'")
-    var root: String = _
+    @Args4jOption(required = false, name = "-r", aliases = Array("--root"), usage = "Annotation root, starting in `va'")
+    var root: String = "va.tdt"
   }
 
   def newOptions = new Options
