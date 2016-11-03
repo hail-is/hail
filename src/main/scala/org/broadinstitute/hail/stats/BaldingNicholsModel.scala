@@ -16,7 +16,7 @@ object BaldingNicholsModel {
   def apply(K: Int, N: Int, M: Int,
     popDistOpt: Option[DenseVector[Double]] = None,
     FstOfPopOpt: Option[DenseVector[Double]] = None,
-    seed: Option[Int] = None): BaldingNicholsModel = {
+    seed: Int): BaldingNicholsModel = {
 
     require(K > 0)
     require(N > 0)
@@ -29,7 +29,7 @@ object BaldingNicholsModel {
     info(s"baldingnichols: generating genotypes for $K populations, $N samples, and $M variants...")
 
     val gen = new JDKRandomGenerator()
-    seed.foreach(gen.setSeed)
+    gen.setSeed(seed)
     implicit val rand: RandBasis = new RandBasis(gen)
 
     val popDist_k = popDistOpt.getOrElse(DenseVector.fill[Double](K)(1d))
@@ -80,7 +80,7 @@ case class BaldingNicholsModel(
   popAF: DenseMatrix[Double],
   popDist: DenseVector[Double],
   FstOfPop: DenseVector[Double],
-  seed: Option[Int]) {
+  seed: Int) {
 
   require(genotypes.rows == nSamples)
   require(genotypes.cols == nVariants)
@@ -104,12 +104,13 @@ case class BaldingNicholsModel(
     val ancestralAFBc = sc.broadcast(ancestralAF)
     val popAFBc = sc.broadcast(popAF)
 
-    seed.map(s => vds.annotateGlobal(s, TInt, s"$globalHead.seed")).getOrElse(vds)
+    vds
       .annotateGlobal(nPops, TInt, s"$globalHead.nPops")
       .annotateGlobal(nSamples, TInt, s"$globalHead.nSamples")
       .annotateGlobal(nVariants, TInt, s"$globalHead.nVariants")
       .annotateGlobal(popDist.toArray: IndexedSeq[Double], TArray(TDouble), s"$globalHead.popDist")
       .annotateGlobal(FstOfPop.toArray: IndexedSeq[Double], TArray(TDouble), s"$globalHead.Fst")
+      .annotateGlobal(seed, TInt, s"$globalHead.seed")
       .annotateSamples(sampleToPop, TInt, s"${Annotation.SAMPLE_HEAD}.$root.pop")
       .mapAnnotations{ case (v, va, gs) =>
         val ancfreq = ancestralAFBc.value(v.start - 1)

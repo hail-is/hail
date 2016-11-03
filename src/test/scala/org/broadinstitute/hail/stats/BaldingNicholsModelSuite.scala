@@ -14,8 +14,8 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val FstOfPop = DenseVector[Double](.1, .2, .3)
     val seed = 0
 
-    val bnm = BaldingNicholsModel(K, N, M, Some(popDist), Some(FstOfPop), Some(seed))
-    val bnm1 = BaldingNicholsModel(K, N, M, Some(popDist), Some(FstOfPop), Some(seed))
+    val bnm = BaldingNicholsModel(K, N, M, Some(popDist), Some(FstOfPop), seed)
+    val bnm1 = BaldingNicholsModel(K, N, M, Some(popDist), Some(FstOfPop), seed)
 
     assert(bnm.genotypes == bnm1.genotypes)
   }

@@ -1,7 +1,8 @@
 package org.broadinstitute.hail.driver
 
 import breeze.linalg.DenseVector
-import org.broadinstitute.hail.utils.{fatal,plural}
+import org.apache.commons.math3.random.JDKRandomGenerator
+import org.broadinstitute.hail.utils.{fatal, plural}
 import org.broadinstitute.hail.expr.Parser
 import org.broadinstitute.hail.stats.BaldingNicholsModel
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -60,21 +61,21 @@ object BaldingNicholsModelCommand extends Command {
     popDist.foreach { probs =>
       if (probs.size != options.nPops)
         fatal(s"Got ${options.nPops} populations but ${probs.size} ${plural(probs.size, "probability", "probabilities")}")
+      probs.foreach(p =>
+        if (p < 0d)
+          fatal(s"Population probabilities must be non-negative, got $p"))
     }
-    popDist.foreach(_.foreach(p =>
-      if (p < 0d)
-        fatal(s"Population probabilities must be non-negative, got $p")))
 
     val FstOfPop = Option(options.FstOfPop).map(Parser.parseCommaDelimitedDoubles)
     FstOfPop.foreach { fs =>
       if (fs.length != options.nPops)
         fatal(s"Got ${options.nPops} populations but ${fs.size} ${plural(fs.size, "value")}")
+      fs.foreach(f =>
+        if (f <= 0d || f >= 1d)
+          fatal(s"Fst values must be strictly between 0.0 and 1.0, got $f"))
     }
-    FstOfPop.foreach(_.foreach(f =>
-      if (f <= 0d || f >= 1d)
-        fatal(s"Fst values must be strictly between 0.0 and 1.0, got $f")))
 
-    val seed = Option(options.seed).map(_.intValue())
+    val seed = Option(options.seed).map(_.intValue()).getOrElse(scala.util.Random.nextInt())
 
     val nPartitions = Option(options.nPartitions).map(_.intValue())
     nPartitions.foreach {n =>
