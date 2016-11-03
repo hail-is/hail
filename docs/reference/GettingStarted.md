@@ -22,7 +22,7 @@ $ ./gradlew installDist
 ```
 installs Hail at `build/install/hail`. The initial build takes time as [Gradle](https://gradle.org/) installs all Hail dependencies. The executable is `build/install/hail/bin/hail` (to run using `hail` add `build/install/hail/bin` to your path).
 
-Here are a few simple things to try. To list all commands, run
+Here are a few simple things to try in order. To list all commands, run
 ```
 $ ./build/install/hail/bin/hail -h
 ```
