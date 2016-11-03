@@ -9,7 +9,6 @@ import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option => 
 import org.broadinstitute.hail.variant.{HardCallSet, VariantDataset}
 
 import scala.collection.JavaConverters._
-import org.broadinstitute.hail.rest.T2DServer
 
 import scala.collection.mutable
 
@@ -116,8 +115,6 @@ object ToplevelCommands {
   register(VEP)
   register(Write)
   register(WriteKudu)
-
-  register(T2DServer)
 
   register(AddHcs)
   register(CacheHcs)

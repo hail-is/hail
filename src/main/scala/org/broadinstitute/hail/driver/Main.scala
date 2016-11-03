@@ -14,8 +14,6 @@ import org.broadinstitute.hail.io.vcf.VCFReport
 import org.broadinstitute.hail.utils.FatalException
 import org.kohsuke.args4j.{CmdLineException, CmdLineParser, Option => Args4jOption}
 
-import org.broadinstitute.hail.rest.T2DServer
-
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
