@@ -8,7 +8,7 @@ import org.apache.hadoop
 import org.apache.hadoop.fs.PathIOException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.utils._
@@ -908,6 +908,22 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
+
+  def variantsDF(sqlContext: SQLContext): DataFrame = {
+    val localVASignature = vaSignature
+
+    val rowRDD = rdd.map { case (v, (va, gs)) =>
+      Row(v.toRow,
+        SparkAnnotationImpex.exportAnnotation(va, localVASignature))
+    }
+
+    val schema = StructType(Array(
+      StructField("variant", Variant.schema, nullable = false),
+      StructField("va", vaSignature.schema, nullable = true)))
+
+    sqlContext.createDataFrame(rowRDD, schema)
+  }
+
 }
 
 // FIXME AnyVal Scala 2.11
@@ -1070,43 +1086,6 @@ class RichVDS(vds: VariantDataset) {
     }.asOrderedRDD)
   }
 
-  def filterVariantsAST(cond: AST, keep: java.lang.Boolean): VariantDataset = {
-    val aggregationEC = EvalContext(Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "s" ->(2, TSample),
-      "sa" ->(3, vds.saSignature),
-      "g" ->(4, TGenotype),
-      "global" ->(5, vds.globalSignature)))
-    val symTab = Map(
-      "v" ->(0, TVariant),
-      "va" ->(1, vds.vaSignature),
-      "global" ->(2, vds.globalSignature),
-      "gs" ->(-1, BaseAggregable(aggregationEC, TGenotype)))
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
-
-    cond.typecheck(ec)
-    val t = cond.`type`
-    if (t != TBoolean)
-      fatal(s"expression has wrong type: expected `Boolean', got $t")
-
-    val condf = cond.eval(ec)
-    val f: () => Option[Boolean] = () => Option(condf()).map(_.asInstanceOf[Boolean])
-
-    val aggregatorOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
-
-    val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
-      ec.setAll(v, va)
-      aggregatorOption.foreach(f => f(v, va, gs))
-      Filter.keepThis(f(), keep)
-    }
-
-    vds.filterVariants(p)
-  }
-
   def filterVariantsExpr(cond: String, keep: Boolean): VariantDataset = {
     val aggregationEC = EvalContext(Map(
       "v" -> (0, TVariant),
@@ -1138,4 +1117,5 @@ class RichVDS(vds: VariantDataset) {
 
     vds.filterVariants(p)
   }
+
 }
