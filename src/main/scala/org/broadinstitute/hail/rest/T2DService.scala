@@ -2,18 +2,17 @@ package org.broadinstitute.hail.rest
 
 import collection.mutable
 import org.apache.spark.sql.DataFrame
-import org.broadinstitute.hail.methods.LinearRegression
+import org.broadinstitute.hail.methods.LinearRegressionHcs
 import org.broadinstitute.hail.variant._
 import org.broadinstitute.hail.utils._
 import breeze.linalg.{DenseMatrix, DenseVector}
-
 import org.http4s.headers.`Content-Type`
 import org.http4s._
 import org.http4s.MediaType._
 import org.http4s.dsl._
 import org.http4s.server._
-import scala.concurrent.ExecutionContext
 
+import scala.concurrent.ExecutionContext
 import org.json4s._
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.{read, write}
@@ -232,7 +231,7 @@ class T2DService(hcs: HardCallSet, covMap: Map[String, IndexedSeq[Option[Double]
     if (useDefaultMinMAC)
       minMAC = defaultMinMAC
 
-    val statsRDD = LinearRegression(hcs.copy(df = df), y, cov, reqSampleFilter, reduceSampleIndex, minMAC, maxMAC)
+    val statsRDD = LinearRegressionHcs(hcs.copy(df = df), y, cov, reqSampleFilter, reduceSampleIndex, minMAC, maxMAC)
       .rdd
       .map { case (v, olrs) => Stat(v.contig, v.start, v.ref, v.alt, olrs.map(_.p)) }
 
