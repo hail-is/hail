@@ -32,7 +32,7 @@ object ShowGlobalAnnotations extends Command {
         pretty(render(vds.globalSignature.toJSON(vds.globalAnnotation)))
 
     options.output match {
-      case null => println(s"Global annotations: `global' = \n$jsonString")
+      case null => info(s"Global annotations: `global' = \n$jsonString")
       case path => state.hadoopConf.writeTextFile(path) { out => out.write(jsonString) }
     }
 
