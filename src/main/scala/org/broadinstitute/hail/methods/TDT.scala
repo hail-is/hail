@@ -2,21 +2,21 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.stats.chiSquaredTail
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.utils.{MultiArray2, _}
 import org.broadinstitute.hail.variant.CopyState._
 import org.broadinstitute.hail.variant.GenotypeType._
 import org.broadinstitute.hail.variant._
 
 import scala.collection.mutable
 
-case class TDTResult(nTransmitted: Int, nUntransmitted: Int, chiSquare: Double) {
-  def toAnnotation: Annotation = Annotation(nTransmitted, nUntransmitted, chiSquare)
+case class TDTResult(nTransmitted: Int, nUntransmitted: Int, chi2: Double, pval: Double) {
+  def toAnnotation: Annotation = Annotation(nTransmitted, nUntransmitted, chi2, pval)
 }
 
 object TDT {
 
-  def schema: TStruct = TStruct("nTransmitted" -> TInt, "nUntransmitted" -> TInt, "chiSquare" -> TDouble)
+  def schema: TStruct = TStruct("nTransmitted" -> TInt, "nUntransmitted" -> TInt, "chi2" -> TDouble, "pval" -> TDouble)
 
   def getTransmission(kid: GenotypeType, dad: GenotypeType, mom: GenotypeType, copyState: CopyState): (Int, Int) = {
     (kid, dad, mom, copyState) match {
@@ -41,18 +41,16 @@ object TDT {
   }
 
 
-  def calcTDTstat(transmitted: Int, untransmitted: Int): Double = {
+  def calcTDTstat(t: Int, u: Int): Double = {
     // The TDT uses a McNemar based statistic (which is a 1 df Chi-Square).
-    //        (T - U)^2
+    //        (t - u)^2
     //      -------------
-    //        (T + U)
+    //        (t + u)
 
-    var chiSquare = 0.0
-
-    if ((transmitted + untransmitted) != 0)
-      chiSquare = scala.math.pow(transmitted - untransmitted, 2.0) / (transmitted + untransmitted)
-
-    chiSquare
+    if ((t + u) != 0)
+      (t - u) * (t - u) / (t + u)
+    else
+     0.0
   }
 
   def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio], path: List[String]): VariantDataset = {
@@ -101,17 +99,19 @@ object TDT {
             }
           }
 
-          var nTrans = 0
-          var nUntrans = 0
+          var t = 0
+          var u = 0
           var i = 0
           while (i < arr.n1) {
             val (nt, nu) = getTransmission(arr(i, 0), arr(i, 1), arr(i, 2), v.copyState(trioSexBc.value(i)))
-            nTrans += nt
-            nUntrans += nu
+            t += nt
+            u += nu
             i += 1
           }
 
-          val tdtAnnotation = Annotation(nTrans, nUntrans, calcTDTstat(nTrans, nUntrans))
+          val chi2 = calcTDTstat(t, u)
+          val pval = chiSquaredTail(1.0, chi2)
+          val tdtAnnotation = Annotation(t, u, chi2, pval)
           (v, (inserter(va, Some(tdtAnnotation)), gs))
         }
       }
