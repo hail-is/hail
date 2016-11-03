@@ -105,13 +105,10 @@ class HardCallSetSuite extends SparkSuite {
 
     assert(hcs.capNVariantsPerBlock(3).df.groupBy("contig", "block").count().first().getLong(2) == 3)
 
-    // hcs.writeNVariantsPerBlock("tmp/nVariantsPerBlock.tsv")
-    // hcs.capNVariantsPerBlock(2).writeNVariantsPerBlock("tmp/nVariantsPerBlock.tsv")
+    val f = tmpDir.createTempFile(extension = ".hcs")
 
-    // FIXME: fails due to "file already exists" error on second run
-    /*
-    hcs.write(sqlContext, "/tmp/hardCallSet.hcs")
-    val hcs2 = HardCallSet.read(sqlContext, "/tmp/hardCallSet.hcs")
+    hcs.write(sqlContext, f)
+    val hcs2 = HardCallSet.read(sqlContext, f)
 
     assert(hcs.sampleIds == hcs2.sampleIds)
     assert(hcs.sparseCutoff == hcs2.sparseCutoff)
@@ -125,8 +122,9 @@ class HardCallSetSuite extends SparkSuite {
       assert(hcsMap(v).nNonRefForAllSamples == hcs2Map(v).nNonRefForAllSamples)
       assert(hcsMap(v).isSparse == hcs2Map(v).isSparse)
     }
-    */
 
+    // hcs.writeNVariantsPerBlock("tmp/nVariantsPerBlock.tsv")
+    // hcs.capNVariantsPerBlock(2).writeNVariantsPerBlock("tmp/nVariantsPerBlock.tsv")
   }
 
 }

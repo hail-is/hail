@@ -11,6 +11,7 @@ object RepartitionHcs extends Command {
   def newOptions = new Options
 
   def name = "repartitionhcs"
+
   def description = "Repartition the current hard call set"
 
   def run(state: State, options: Options): State = {

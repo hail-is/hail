@@ -1,7 +1,5 @@
 package org.broadinstitute.hail.driver
 
-import org.kohsuke.args4j.{Option => Args4jOption}
-
 object SortHcs extends Command {
   class Options extends BaseOptions
 
