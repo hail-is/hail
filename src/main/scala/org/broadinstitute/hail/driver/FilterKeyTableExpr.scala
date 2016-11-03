@@ -4,9 +4,10 @@ import org.broadinstitute.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object FilterKeyTableExpr extends Command {
+
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-c", aliases = Array("--cond"),
-    usage = "Boolean expression for filtering", metaVar = "EXPR")
+      usage = "Boolean expression for filtering", metaVar = "EXPR")
     var condition: String = _
 
     @Args4jOption(required = true, name = "-n", aliases = Array("--name"),
@@ -37,7 +38,12 @@ object FilterKeyTableExpr extends Command {
   override def hidden = true
 
   def run(state: State, options: Options): State = {
-    val kt = state.ktEnv.get(options.name) match {
+    val name = options.name
+    val cond = options.condition
+    val keep = options.keep
+    val dest = if (options.dest != null) options.dest else name
+
+    val kt = state.ktEnv.get(name) match {
       case Some(newKT) =>
         newKT
       case None =>
@@ -47,10 +53,6 @@ object FilterKeyTableExpr extends Command {
     if (!(options.keep ^ options.remove))
       fatal("either `--keep' or `--remove' required, but not both")
 
-    val cond = options.condition
-    val keep = options.keep
-    val dest = if (options.dest != null) options.dest else options.name
-
-    state.copy(ktEnv = state.ktEnv + ( dest -> kt.filterExpr(cond, keep)))
+    state.copy(ktEnv = state.ktEnv + (dest -> kt.filterExpr(cond, keep)))
   }
 }
