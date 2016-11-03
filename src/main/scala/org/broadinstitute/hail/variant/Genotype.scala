@@ -250,12 +250,17 @@ class Genotype(private val _gt: Int,
     b.result()
   }
 
-  def pAB(theta: Double = 0.5): Option[Double] = ad.map { case Array(refDepth, altDepth) =>
-    val d = new BinomialDistribution(refDepth + altDepth, theta)
-    val minDepth = refDepth.min(altDepth)
-    val minp = d.probability(minDepth)
-    val mincp = d.cumulativeProbability(minDepth)
-    (2 * mincp - minp).min(1.0).max(0.0)
+  def pAB(theta: Double = 0.5): Option[Double] = ad.flatMap { arr =>
+    if (isHet) {
+      val gtPair = Genotype.gtPair(_gt)
+      val aDepth = arr(gtPair.j)
+      val bDepth = arr(gtPair.k)
+      val d = new BinomialDistribution(aDepth + bDepth, theta)
+      val minDepth = aDepth.min(bDepth)
+      val minp = d.probability(minDepth)
+      val mincp = d.cumulativeProbability(minDepth)
+      Some((2 * mincp - minp).min(1.0).max(0.0))
+    } else None
   }
 
   def fractionReadsRef(): Option[Double] = ad.flatMap {
