@@ -16,7 +16,7 @@ object ShowGlobalAnnotations extends Command {
 
   def name = "showglobals"
 
-  def description = "Show the signatures for all annotations currently stored in the dataset"
+  def description = "Print or export all global annotations as JSON"
 
   def supportsMultiallelic = true
 
@@ -25,15 +25,15 @@ object ShowGlobalAnnotations extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val json = vds.globalSignature.toJSON(vds.globalAnnotation)
-    val result = if (vds.globalSignature == TStruct.empty)
-      "Global annotations: `global' = Empty"
-    else
-      "Global annotations: `global' = " + pretty(render(json))
+    val jsonString =
+      if (vds.globalSignature == TStruct.empty)
+        "{}"
+      else
+        pretty(render(vds.globalSignature.toJSON(vds.globalAnnotation)))
 
     options.output match {
-      case null => println(result)
-      case path => state.hadoopConf.writeTextFile(path) { out => out.write(result) }
+      case null => info(s"Global annotations: `global' = \n$jsonString")
+      case path => state.hadoopConf.writeTextFile(path) { out => out.write(jsonString) }
     }
 
     state
