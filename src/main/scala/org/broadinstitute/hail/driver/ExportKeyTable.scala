@@ -51,7 +51,7 @@ object ExportKeyTable extends Command with TextExporter {
 
     val ec = EvalContext(symTab)
 
-    val (header, types, f) = Parser.parseExportArgs(kt.fieldNames.map(n => n + " = " + n).mkString(","), ec)
+    val (header, types, f) = Parser.parseNamedArgs(kt.fieldNames.map(n => n + " = " + n).mkString(","), ec)
 
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
@@ -62,12 +62,14 @@ object ExportKeyTable extends Command with TextExporter {
 
     state.hadoopConf.delete(output, recursive = true)
 
+    val nKeys = kt.nKeys
+
     kt.rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
         it.map { case (k, v) =>
           sb.clear()
-          KeyTable.setEvalContext(ec, k, v)
+          KeyTable.setEvalContext(ec, k, v, nKeys)
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }

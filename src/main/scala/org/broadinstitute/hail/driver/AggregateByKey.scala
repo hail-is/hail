@@ -9,11 +9,11 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 object AggregateByKey extends Command {
 
   class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-k", aliases = Array("--key-cond"),
+    @Args4jOption(required = false, name = "-k", aliases = Array("--key-cond"),
       usage = "Named key condition", metaVar = "EXPR")
     var keyCond: String = _
 
-    @Args4jOption(required = true, name = "-a", aliases = Array("--agg-cond"),
+    @Args4jOption(required = false, name = "-a", aliases = Array("--agg-cond"),
       usage = "Named aggregation condition", metaVar = "EXPR")
     var aggCond: String = _
 
@@ -63,11 +63,23 @@ object AggregateByKey extends Command {
     ec.set(4, vds.globalAnnotation)
     aggregationEC.set(4, vds.globalAnnotation)
 
-    val (keyNames, keyParseTypes, keyF) = Parser.parseNamedArgs(keyCond, ec)
-    val (aggNames, aggParseTypes, aggF) = Parser.parseNamedArgs(aggCond, ec)
+    val (keyNameParseTypes, keyF) =
+      if (keyCond != null)
+        Parser.parseAnnotationArgs(keyCond, ec, None)
+      else
+        (Array.empty[(List[String], Type)], Array.empty[() => Any])
 
-    val keySignature = TStruct(keyNames.zip(keyParseTypes): _*)
-    val valueSignature = TStruct(aggNames.zip(aggParseTypes): _*)
+    val (aggNameParseTypes, aggF) =
+      if (aggCond != null)
+        Parser.parseAnnotationArgs(aggCond, ec, None)
+      else
+        (Array.empty[(List[String], Type)], Array.empty[() => Any])
+
+    val keyNames = keyNameParseTypes.map(_._1.head)
+    val aggNames = aggNameParseTypes.map(_._1.head)
+
+    val keySignature = TStruct(keyNameParseTypes.map{ case (n, t) => (n.head, t) }: _*)
+    val valueSignature = TStruct(aggNameParseTypes.map{ case (n, t) => (n.head, t) }: _*)
 
     val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
     val zvf = () => zVals.indices.map(zVals).toArray
@@ -87,13 +99,13 @@ object AggregateByKey extends Command {
     val kt = KeyTable(vds.mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
         ec.setAll(v, va, s, sa, g)
-        val key = Annotation.fromSeq(keyF())
+        val key = Annotation.fromSeq(keyF.map(_ ()))
         (key, (v, va, s, sa, g))
       }
     }.aggregateByKey(zvf())(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
-        (k, Annotation.fromSeq(aggF()))
+        (k, Annotation.fromSeq(aggF.map(_ ())))
       }, keySignature, valueSignature)
 
     state.copy(ktEnv = state.ktEnv + (options.name -> kt))
