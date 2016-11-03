@@ -38,9 +38,9 @@ class MultiArray2[T](val n1: Int,
 
   def indices: Iterable[(Int,Int)] = for (i <- 0 until n1; j <- 0 until n2) yield (i, j)
 
-  def rowIndices: Iterable[Int] = for (i <- 0 until n1) yield i
+  def rowIndices: Iterable[Int] = 0 until n1
 
-  def columnIndices: Iterable[Int] = for (j <- 0 until n2) yield j
+  def columnIndices: Iterable[Int] = 0 until n2
 
   def apply(i: Int, j: Int): T = {
     require(i >= 0 && i < n1 && j >= 0 && j < n2)
