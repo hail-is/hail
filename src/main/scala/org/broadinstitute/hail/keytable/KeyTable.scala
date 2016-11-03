@@ -5,6 +5,7 @@ import org.apache.spark.sql.Row
 import org.broadinstitute.hail.annotations._
 import org.broadinstitute.hail.expr.{BaseType, EvalContext, Parser, TBoolean, TStruct}
 import org.broadinstitute.hail.methods.Filter
+import org.broadinstitute.hail.utils._
 
 object KeyTable extends Serializable {
   def setEvalContext(ec: EvalContext, k: Annotation, v: Annotation, nKeys: Int) = {
@@ -82,9 +83,12 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def rightJoin(other: KeyTable): KeyTable = ???
   def outerJoin(other: KeyTable): KeyTable = ???
   def innerJoin(other: KeyTable): KeyTable = ???
+
 //    require(keyNames.toSet == other.keyNames.toSet)
     // function to make key order the same
 
+  def mapAnnotations(f: (Annotation, Annotation) => Annotation): KeyTable =
+    copy(rdd = rdd.mapValuesWithKey{ case (k, v) => f(k, v) })
 
   def query(code: String): (BaseType, (Annotation, Annotation) => Option[Any]) = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
