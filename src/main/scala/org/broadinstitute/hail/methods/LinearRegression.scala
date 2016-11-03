@@ -143,7 +143,9 @@ object LinearRegression {
       inserter(va, linRegStat)
     }.copy(vaSignature = newVAS)
   }
+}
 
+object LinearRegressionHcs {
   def apply(
     hcs: HardCallSet,
     y: DenseVector[Double],
@@ -151,7 +153,7 @@ object LinearRegression {
     sampleFilter: Array[Boolean],
     reduceSampleIndex: Array[Int],
     minMAC: Int = 0,
-    maxMAC: Int = Int.MaxValue): LinearRegression = {
+    maxMAC: Int = Int.MaxValue): LinearRegressionHcs = {
 
     val n = hcs.nSamples
     val n0 = y.size
@@ -184,7 +186,7 @@ object LinearRegression {
     val sampleFilterBc = sc.broadcast(sampleFilter)
     val reduceSampleIndexBc = sc.broadcast(reduceSampleIndex)
 
-    new LinearRegression(hcs
+    new LinearRegressionHcs(hcs
       .rdd
       .mapValues { cs => // FIXME: only three are necessary
         val GtVectorAndStats(x, nHomRef, nHet, nHomVar, nMissing, meanX) = cs.hardStats(n, n0, sampleFilterBc.value, reduceSampleIndexBc.value)
@@ -215,7 +217,7 @@ object LinearRegression {
               if (p.isNaN)
                 None
               else
-                Some(LinRegStats(b, se, t, p))
+                Some(LinRegStatsHcs(b, se, t, p))
             }
           }
         }
@@ -224,4 +226,16 @@ object LinearRegression {
   }
 }
 
-case class LinearRegression(rdd: RDD[(Variant, Option[LinRegStats])])
+case class LinearRegressionHcs(rdd: RDD[(Variant, Option[LinRegStatsHcs])])
+
+object LinRegStatsHcs {
+  def `type`: Type = TStruct(
+    ("beta", TDouble),
+    ("se", TDouble),
+    ("tstat", TDouble),
+    ("pval", TDouble))
+}
+
+case class LinRegStatsHcs(beta: Double, se: Double, t: Double, p: Double) {
+  def toAnnotation: Annotation = Annotation(beta, se, t, p)
+}

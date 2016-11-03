@@ -17,8 +17,8 @@ case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
   vds: VariantDataset = null,
-  hcs: HardCallSet = null),
-  env: Map[String, VariantDataset] = Map.empty) {
+  env: Map[String, VariantDataset] = Map.empty,
+  hcs: HardCallSet = null) {
   def hadoopConf = sc.hadoopConfiguration
 }
 
