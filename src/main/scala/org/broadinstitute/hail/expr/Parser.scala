@@ -163,7 +163,6 @@ object Parser extends JavaTokenParsers {
         val t = checkType(path, ast.`type`)
         val f = ast.eval(ec)
         val name = if (expectedHead.isDefined) path.tail else path
-//        ((name, t), () => Option(f()))
         ((name, t), () => f())
     }
 

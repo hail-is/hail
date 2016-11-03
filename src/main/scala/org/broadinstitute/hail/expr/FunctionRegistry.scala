@@ -297,14 +297,17 @@ object FunctionRegistry {
   register("exp", { (x: Long) => math.exp(x) })
   register("exp", { (x: Float) => math.exp(x) })
   register("exp", { (x: Double) => math.exp(x) })
+
   register("log10", { (x: Int) => math.log10(x) })
   register("log10", { (x: Long) => math.log10(x) })
   register("log10", { (x: Float) => math.log10(x) })
   register("log10", { (x: Double) => math.log10(x) })
+
   register("sqrt", { (x: Int) => math.sqrt(x) })
   register("sqrt", { (x: Long) => math.sqrt(x) })
   register("sqrt", { (x: Float) => math.sqrt(x) })
   register("sqrt", { (x: Double) => math.sqrt(x) })
+
   register("log", { (x: Int) => math.log(x) })
   register("log", { (x: Long) => math.log(x) })
   register("log", { (x: Float) => math.log(x) })
@@ -312,8 +315,16 @@ object FunctionRegistry {
 
   register("pcoin", { (p: Float) => math.random < p })
   register("pcoin", { (p: Double) => math.random < p })
+  register("pcoin", { (p: Int) => math.random < p })
+  register("pcoin", { (p: Long) => math.random < p })
+
   register("runif", { (min: Float, max: Float) => min + (max - min) * math.random.toFloat })
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
+  register("runif", { (min: Int, max: Int) => min + (max - min) * math.random })
+  register("runif", { (min: Long, max: Long) => min + (max - min) * math.random })
+
   register("rnorm", { (mean: Float, sd: Float) => mean + sd * scala.util.Random.nextGaussian().toFloat })
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() })
+  register("rnorm", { (mean: Int, sd: Int) => mean + sd * scala.util.Random.nextGaussian() })
+  register("rnorm", { (mean: Long, sd: Long) => mean + sd * scala.util.Random.nextGaussian() })
 }
