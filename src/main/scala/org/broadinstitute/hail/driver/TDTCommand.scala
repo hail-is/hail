@@ -11,7 +11,7 @@ object TDTCommand extends Command {
 
   def name = "tdt"
 
-  def description = "Find transmitted and untransmitted variants; count per variant, nuclear family"
+  def description = "Test variants for association using the transmission disequilibrium test"
 
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-f", aliases = Array("--fam"), usage = ".fam file")

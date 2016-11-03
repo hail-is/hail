@@ -8,9 +8,9 @@
 
 <div class="cmdsubsection">
 
-Hail supports family-based association testing for dichotomous traits through the transmission disequilibrium test (TDT) described in [Spielman, McGinnis, and Ewens, 1993](http://www.ncbi.nlm.nih.gov/pubmed/8447318).
+Hail supports family-based association testing for dichotomous traits through the transmission disequilibrium test (TDT) as described on [wikipedia](https://en.wikipedia.org/wiki/Transmission_disequilibrium_test) and in [Spielman, McGinnis, and Ewens (1993)](http://www.ncbi.nlm.nih.gov/pubmed/8447318).
 
-The Hail TDT module requires a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam) as input.  The command
+Given a [Plink .fam file](https://www.cog-genomics.org/plink2/formats#fam) `pedigree.fam` as input, the command
 ```
 tdt -f pedigree.fam
 ```
@@ -24,7 +24,8 @@ Annotation | Type | Value
 `va.tdt.pval` | Double | $p$-value
 
 #### Details
-The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t) or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of such transmissions is $0.5$.  In cases in which transmission is guaranteed (i.e., the Y chromosome, mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
+
+The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t) or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of such transmissions is $0.5$.  For variants where transmission is guaranteed (i.e., the Y chromosome, mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
 
 The TDT statistic is given by
 
