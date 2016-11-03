@@ -1,7 +1,6 @@
 package org.broadinstitute.hail.driver
 
 import breeze.linalg.DenseVector
-import org.apache.commons.math3.random.JDKRandomGenerator
 import org.broadinstitute.hail.utils.{fatal, plural}
 import org.broadinstitute.hail.expr.Parser
 import org.broadinstitute.hail.stats.BaldingNicholsModel
