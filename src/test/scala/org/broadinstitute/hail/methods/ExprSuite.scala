@@ -498,9 +498,12 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("pcoin(2.0)").contains(true))
     assert(eval[Boolean]("pcoin(-1.0)").contains(false))
+    assert(eval[Boolean]("pcoin(2.0.toFloat)").contains(true))
+    assert(eval[Boolean]("pcoin(-1.0.toFloat)").contains(false))
 
     assert(eval[Boolean]("runif(2.0, 3.0) > -1.0").contains(true))
     assert(eval[Boolean]("runif(2.0, 3.0) < 3.0").contains(true))
+    assert(eval[Boolean]("runif(2, 3) < 3.0").contains(true))
 
     assert(eval[Boolean]("rnorm(2.0, 4.0).abs > -1.0").contains(true))
 
