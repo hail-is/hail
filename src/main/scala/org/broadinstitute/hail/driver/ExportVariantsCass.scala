@@ -149,7 +149,7 @@ object ExportVariantsCass extends Command {
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
 
-    val (vHeader, vTypes, vf) = Parser.parseNamedArgs(vCond, vEC)
+    val (vHeader, vTypes, vf) = Parser.parseExportArgs(vCond, vEC)
 
     val gSymTab = Map(
       "v" -> (0, TVariant),
@@ -160,7 +160,7 @@ object ExportVariantsCass extends Command {
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
-    val (gHeader, gTypes, gf) = Parser.parseNamedArgs(gCond, gEC)
+    val (gHeader, gTypes, gf) = Parser.parseExportArgs(gCond, gEC)
 
     val symTab = Map(
       "v" -> (0, TVariant),

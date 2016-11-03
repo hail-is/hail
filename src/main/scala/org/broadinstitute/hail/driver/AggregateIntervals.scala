@@ -58,7 +58,7 @@ object AggregateIntervals extends Command {
     ec.set(1, vds.globalAnnotation)
     aggregationEC.set(1, vds.globalAnnotation)
 
-    val (header, _, f) = Parser.parseNamedArgs(cond, ec)
+    val (header, _, f) = Parser.parseExportArgs(cond, ec)
 
     if (header.isEmpty)
       fatal("this module requires one or more named expr arguments")
