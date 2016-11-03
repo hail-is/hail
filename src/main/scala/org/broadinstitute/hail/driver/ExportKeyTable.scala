@@ -38,18 +38,17 @@ object ExportKeyTable extends Command with TextExporter {
 
   def run(state: State, options: Options): State = {
 
-    val kt = state.ktEnv.get(options.name) match {
+    val name = options.name
+    val output = options.output
+
+    val kt = state.ktEnv.get(name) match {
       case Some(newKT) =>
         newKT
       case None =>
         fatal("no such key table $name in environment")
     }
 
-    val output = options.output
-
-    val symTab = kt.fields.zipWithIndex.map{case (fd, i) => (fd.name, (i, fd.`type`))}.toMap
-
-    val ec = EvalContext(symTab)
+    val ec = EvalContext(kt.fields.map(fd => (fd.name, fd.`type`)): _*)
 
     val (header, types, f) = Parser.parseNamedArgs(kt.fieldNames.map(n => n + " = " + n).mkString(","), ec)
 
@@ -63,13 +62,14 @@ object ExportKeyTable extends Command with TextExporter {
     state.hadoopConf.delete(output, recursive = true)
 
     val nKeys = kt.nKeys
+    val nValues = kt.nValues
 
     kt.rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
         it.map { case (k, v) =>
           sb.clear()
-          KeyTable.setEvalContext(ec, k, v, nKeys)
+          KeyTable.setEvalContext(ec, k, v, nKeys, nValues)
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }

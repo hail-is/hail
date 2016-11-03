@@ -10,6 +10,21 @@ import org.testng.annotations.Test
 
 class KeyTableSuite extends SparkSuite {
 
+  @Test def testSingleToPairRDD() = {
+    val inputFile = "src/test/resources/sampleAnnotations.tsv"
+    var s = State(sc, sqlContext)
+    s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample, Status", inputFile))
+    val kt = s.ktEnv("kt1")
+    val kt2 = KeyTable.toPairRDD(KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames.toArray)
+
+    assert(kt.rdd.fullOuterJoin(kt2).forall { case (k, (v1, v2)) =>
+      val res = v1 == v2
+      if (!res)
+        println(s"k=$k v1=$v1 v2=$v2 res=${ v1 == v2 }")
+      res
+    })
+  }
+
   @Test def testImportExport() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
@@ -30,11 +45,16 @@ class KeyTableSuite extends SparkSuite {
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     var s = State(sc, sqlContext)
-    s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample", inputFile))
-    s = AnnotateKeyTableExpr.run(s, Array("-n", "kt1", "-d", "kt2", "-c", "RandomBool = pcoin(0.4), RandomQP = rnorm(0, 1), RandomNum = runif(0, 1)"))
+
+    s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample", "--impute", inputFile))
+    s = AnnotateKeyTableExpr.run(s, Array("-n", "kt1", "-d", "kt2", "-c", """qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5"""))
+    s = AnnotateKeyTableExpr.run(s, Array("-n", "kt2", "-d", "kt3"))
+    s = AnnotateKeyTableExpr.run(s, Array("-n", "kt3", "-d", "kt4", "-k", "qPhen, NotStatus"))
 
     val kt1 = s.ktEnv("kt1")
     val kt2 = s.ktEnv("kt2")
+    val kt3 = s.ktEnv("kt3")
+    val kt4 = s.ktEnv("kt4")
 
     val kt1ValueNames = kt1.valueNames.toSet
     val kt2ValueNames = kt2.valueNames.toSet
@@ -42,7 +62,24 @@ class KeyTableSuite extends SparkSuite {
     assert(kt1.nKeys == kt2.nKeys &&
       kt1.nValues == 2 && kt2.nValues == 5 &&
       kt1.keySignature == kt2.keySignature &&
-      kt1ValueNames ++ Set("RandomBool", "RandomQP", "RandomNum") == kt2ValueNames
+      kt1ValueNames ++ Set("qPhen2", "NotStatus", "X") == kt2ValueNames
+    )
+
+    assert(kt2 same kt3)
+
+    def getDataAsMap(kt: KeyTable) = {
+      val fieldNames = kt.fieldNames
+      val nFields = kt.nFields
+      KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues)
+        .map { a => fieldNames.zip(KeyTable.annotationToSeq(a, nFields)).toMap }.collect().toSet
+    }
+
+    val kt3data = getDataAsMap(kt3)
+    val kt4data = getDataAsMap(kt4)
+
+    assert(kt4.keyNames.toSet == Set("qPhen", "NotStatus") &&
+      kt4.valueNames.toSet == Set("qPhen2", "X", "Sample", "Status") &&
+      kt3data == kt4data
     )
   }
 
