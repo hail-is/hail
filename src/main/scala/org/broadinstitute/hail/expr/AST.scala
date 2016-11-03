@@ -25,8 +25,6 @@ case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunction
   def set(index: Int, arg: Any) {
     a(index) = arg
   }
-
-  def clear() = a.indices.foreach { i => a(i) = null }
 }
 
 object EvalContext {
