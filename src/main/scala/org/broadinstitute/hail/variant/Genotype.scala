@@ -45,6 +45,11 @@ class GTPair(val p: Int) extends AnyVal {
 
   def nNonRefAlleles: Int =
     (if (j != 0) 1 else 0) + (if (k != 0) 1 else 0)
+
+  def alleleIndices : Array[Int] = {
+    Array(this.j, this.k )
+  }
+
 }
 
 class Genotype(private val _gt: Int,

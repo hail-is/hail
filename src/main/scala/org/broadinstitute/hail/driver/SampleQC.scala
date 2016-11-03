@@ -70,47 +70,45 @@ class SampleQCCombiner extends Serializable {
 
   // FIXME per-genotype
 
-  def merge(v: Variant, vIsSingleton: Boolean, g: Genotype): SampleQCCombiner = {
-    g.gt match {
-      case Some(0) =>
-        nHomRef += 1
-      case Some(1) =>
-        nHet += 1
-        if (v.altAllele.isSNP) {
-          nSNP += 1
-          if (v.altAllele.isTransition)
-            nTi += 1
-          else {
-            assert(v.altAllele.isTransversion)
-            nTv += 1
-          }
-        } else if (v.altAllele.isInsertion)
-          nIns += 1
-        else if (v.altAllele.isDeletion)
-          nDel += 1
-        if (vIsSingleton)
-          nSingleton += 1
-      case Some(2) =>
-        nHomVar += 1
-        if (v.altAllele.isSNP) {
-          nSNP += 1
-          if (v.altAllele.isTransition)
-            nTi += 1
-          else {
-            assert(v.altAllele.isTransversion)
-            nTv += 1
-          }
-        } else if (v.altAllele.isInsertion)
-          nIns += 1
-        else if (v.altAllele.isDeletion)
-          nDel += 1
-        if (vIsSingleton)
-          nSingleton += 1
-      case None =>
-        nNotCalled += 1
-      case _ =>
-        throw new IllegalArgumentException("Genotype value " + g.gt.get + " must be 0, 1, or 2.")
-    }
+  def merge(v: Variant, ACs: Array[Int], g: Genotype): SampleQCCombiner = {
+
+      g.gt match{
+
+        case Some(0) =>
+          nHomRef += 1
+
+        case Some(gt) =>
+          val nonRefAlleleIndices = Genotype.gtPair(gt).alleleIndices.filter(_ > 0)
+
+          nonRefAlleleIndices.foreach({
+            ai =>
+              val altAllele = v.altAlleles(ai - 1)
+              if(altAllele.isSNP){
+                nSNP += 1
+                if(altAllele.isTransition)
+                  nTi += 1
+                else{
+                  assert(altAllele.isTransversion)
+                  nTv += 1
+                }
+              }else if(altAllele.isInsertion)
+                nIns +=1
+              else if(altAllele.isDeletion)
+                nDel += 1
+
+              if (ACs(ai - 1) == 1)
+                nSingleton += 1
+          })
+
+          if(nonRefAlleleIndices.length == 1 || nonRefAlleleIndices(0) != nonRefAlleleIndices(1))
+            nHet +=1
+          else
+            nHomVar += 1
+
+        case None =>
+          nNotCalled += 1
+
+      }
 
     if (g.isCalled) {
       g.dp.foreach { v =>
@@ -247,7 +245,7 @@ object SampleQC extends Command {
 
   def description = "Compute per-sample QC metrics"
 
-  def supportsMultiallelic = false
+  def supportsMultiallelic = true
 
   def requiresVDS = true
 
@@ -258,9 +256,17 @@ object SampleQC extends Command {
         vds
           .rdd
           .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner))({ case (acc, (v, (va, gs))) =>
-            val vIsSingleton = gs.iterator.existsExactly1(_.isCalledNonRef)
+
+            val ACs = gs.foldLeft(Array.fill(v.nAltAlleles)(0))({
+              case (acc, g) =>
+                g.gt
+                    .filter( _ >0)
+                    .foreach( call => Genotype.gtPair(call).alleleIndices.filter(_ > 0).foreach(x => acc(x - 1) += 1)
+                )
+                acc
+            })
             for ((g, i) <- gs.iterator.zipWithIndex)
-              acc(i).merge(v, vIsSingleton, g)
+              acc(i).merge(v, ACs, g)
             acc
           }, { case (comb1, comb2) =>
             for (i <- comb1.indices)
