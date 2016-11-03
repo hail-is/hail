@@ -68,7 +68,11 @@ object IntervalTree {
       while (i < unpruned.length) {
         val interval = unpruned(i)
         if (interval.start <= tmp.end) {
-          tmp = Interval(tmp.start, interval.end)
+          val max = if (interval.end > tmp.end)
+            interval.end
+          else
+            tmp.end
+          tmp = Interval(tmp.start, max)
           pruned += 1
         } else {
           ab += tmp
