@@ -87,6 +87,9 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 //    require(keyNames.toSet == other.keyNames.toSet)
     // function to make key order the same
 
+//  def mapAnnotations(f: (Annotation) => Annotation): KeyTable =
+//    copy(rdd = KeyTable.toSingleRDD(rdd).map{ a => f(a)})
+
   def mapAnnotations(f: (Annotation, Annotation) => Annotation): KeyTable =
     copy(rdd = rdd.mapValuesWithKey{ case (k, v) => f(k, v) })
 

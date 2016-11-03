@@ -46,22 +46,6 @@ class KeyTableSuite extends SparkSuite {
     )
   }
 
-  @Test def testLeftJoin() = {
-
-  }
-
-  @Test def testRightJoin() = {
-
-  }
-
-  @Test def testInnerJoin() = {
-
-  }
-
-  @Test def testOuterJoin() = {
-
-  }
-
   @Test def testFilter() = {
     val data = Array(Array(5, 9, 0), Array(2, 3, 4), Array(1, 2, 3))
     val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
@@ -82,6 +66,21 @@ class KeyTableSuite extends SparkSuite {
 
     s = FilterKeyTableExpr.run(s, Array("-n", "kt1", "-c", "field1 < -5 && field3 == 100", "--keep"))
     assert(s.ktEnv.contains("kt1") && s.ktEnv("kt1").nRows == 0)
+  }
+
+  @Test def testLeftJoin() = {
+
+  }
+
+  @Test def testRightJoin() = {
+
+  }
+
+  @Test def testInnerJoin() = {
+
+  }
+
+  @Test def testOuterJoin() = {
 
   }
 }
