@@ -853,7 +853,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         if (rhs.nonEmpty)
           parseError(s"""method `$method' does not take arguments""")
         `type` = agg.elementType match {
+          case _: TIntegral => TLong
           case _: TNumeric => TDouble
+          case TArray(_: TIntegral) => TArray(TLong)
           case TArray(_: TNumeric) => TArray(TDouble)
           case _ => parseError(
             s"""method `$method' can not operate on `$agg'
@@ -1272,12 +1274,21 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val localPos = posn
       val aggF = agg.f
 
-      (`type`: @unchecked) match {
-        case TDouble => agg.ec.aggregationFunctions += new SumAggregator(aggF, localIdx)
-        case TArray(TDouble) => agg.ec.aggregationFunctions += new SumArrayAggregator(aggF, localIdx, localPos)
+      val localType = `type`
+      (localType: @unchecked) match {
+        case _: TNumeric => agg.ec.aggregationFunctions += new SumAggregator(aggF, localIdx)
+        case TArray(_: TNumeric) => agg.ec.aggregationFunctions += new SumArrayAggregator(aggF, localIdx, localPos)
       }
 
-      () => localA(localIdx)
+      val coerce: Any => Any = localType match {
+        case TLong => Option(_).map(_.asInstanceOf[Double].toLong).orNull
+        case TDouble => identity
+        case TArray(TLong) => Option(_)
+          .map(_.asInstanceOf[IndexedSeq[_]].map(x => if (x == null) x else x.asInstanceOf[Double].toLong)).orNull
+        case _ => identity
+      }
+
+      () => coerce(localA(localIdx))
 
     case (_, "orElse", Array(a)) =>
       val f1 = lhs.eval(ec)
