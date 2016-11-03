@@ -3,7 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.VariantSampleMatrix
+import org.broadinstitute.hail.variant.{VariantDataset, VariantSampleMatrix}
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AnnotateSamplesVDS extends Command with JoinAnnotator {
@@ -32,25 +32,23 @@ object AnnotateSamplesVDS extends Command with JoinAnnotator {
 
   def requiresVDS = true
 
-  def run(state: State, options: Options): State = {
-    val vds = state.vds
+  def annotate(vds: VariantDataset, other: VariantDataset, code: String, root: String): VariantDataset = {
+    if (!((code != null) ^ (root != null)))
+      fatal("either `--code' or `--root' required, but not both")
 
-    val (expr, code) = (Option(options.code), Option(options.root)) match {
-      case (Some(c), None) => (true, c)
-      case (None, Some(r)) => (false, r)
-      case _ => fatal("this module requires one of `--root' or `--code', but not both")
-    }
-
-    val otherVds = state.env.getOrElse(options.name, fatal(s"no VDS found with name `${options.name}'"))
-
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
+    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (code != null) {
       val ec = EvalContext(Map(
         "sa" -> (0, vds.saSignature),
-        "vds" -> (1, otherVds.saSignature)))
+        "vds" -> (1, other.saSignature)))
       buildInserter(code, vds.saSignature, ec, Annotation.SAMPLE_HEAD)
-    } else vds.insertSA(otherVds.vaSignature, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
+    } else vds.insertSA(other.vaSignature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD))
 
-    state.copy(vds = vds
-      .annotateSamples(otherVds.sampleIdsAndAnnotations.toMap.get(_), finalType, inserter))
+    vds
+      .annotateSamples(other.sampleIdsAndAnnotations.toMap.get(_), finalType, inserter)
+  }
+
+  def run(state: State, options: Options): State = {
+    val other = state.env.getOrElse(options.name, fatal(s"no VDS found with name `${options.name}'"))
+    state.copy(vds = annotate(state.vds, other, options.code, options.root))
   }
 }

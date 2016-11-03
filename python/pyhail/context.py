@@ -25,13 +25,6 @@ class HailContext:
         logger.LogManager.getLogger("org"). setLevel(logger.Level.ERROR)
         logger.LogManager.getLogger("akka").setLevel(logger.Level.ERROR)
         
-    def to_jarray(self, jtype, plist):
-        n = len(plist)
-        jarr = self.gateway.new_array(jtype, n)
-        for i, s in enumerate(plist):
-            jarr[i] = s
-        return jarr
-    
     def vds_state(self, vds):
         return VariantDataset(self, self.jvm.org.broadinstitute.hail.driver.State(self.jsc, self.jsqlContext, vds))
     
@@ -242,8 +235,32 @@ class HailContext:
 
         return self._run_command(self.initial_state(), pargs)
 
-    def index_bgen(*args):
+    def index_bgen(self, *args):
         pargs = ["indexbgen"]
         for arg in args:
             pargs.append(arg)
+        return self._run_command(self.initial_state(), pargs)
+
+    def balding_nichols_model(self, populations, samples, variants,
+                              population_dist = None,
+                              fst = None,
+                              root = "bn",
+                              seed = None,
+                              npartitions = None):
+        pargs = ["baldingnichols", "-k", populations, "-n", samples, "-m", variants]
+        if population_dist:
+            pargs.append("-d")
+            pargs.append(population_dist)
+        if fst:
+            pargs.append("--fst")
+            pargs.append(fst)
+        if root:
+            pargs.append("--root")
+            pargs.append(root)
+        if seed:
+            pargs.append("--seed")
+            pargs.append(seed)
+        if npartitions:
+            pargs.append("--npartitions")
+            pargs.append(npartitions)
         return self._run_command(self.initial_state(), pargs)

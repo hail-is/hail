@@ -31,19 +31,21 @@ object Concordance extends Command {
 
   def requiresVDS = true
 
-  def run(state: State, options: Options): State = {
-    val left = state.vds
-    val rightName = options.rightName
-
-    val right = state.env.getOrElse(rightName, fatal(s"no such dataset $name in environment"))
-
+  def calculate(left: VariantDataset, right: VariantDataset): (VariantDataset, VariantDataset) = {
     if (!right.wasSplit) {
       fatal(
-        s"""The right dataset $rightName was not split
+        s"""The right dataset was not split
             |  Run `splitmulti' on this dataset before calculating concordance.""".stripMargin)
     }
 
     val (samples, variants) = CalculateConcordance(left, right)
+
+    (samples, variants)
+  }
+
+  def run(state: State, options: Options): State = {
+    val right = state.env.getOrElse(options.rightName, fatal(s"no such dataset $name in environment"))
+    val (samples, variants) = calculate(state.vds, right)
 
     info(s"Storing sites-only VDS with global and variant concordance annotations in environment as `${ options.variantName }'")
     info(s"Storing samples-only VDS with global and sample concordance annotations in environment as `${ options.sampleName }'")

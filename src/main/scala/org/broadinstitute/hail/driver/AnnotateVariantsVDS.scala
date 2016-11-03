@@ -3,6 +3,7 @@ package org.broadinstitute.hail.driver
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr.{EvalContext, _}
+import org.broadinstitute.hail.variant.VariantDataset
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object AnnotateVariantsVDS extends Command with JoinAnnotator {
@@ -35,19 +36,27 @@ object AnnotateVariantsVDS extends Command with JoinAnnotator {
 
   def requiresVDS = true
 
+  def annotate(vds: VariantDataset, other: VariantDataset, code: String, root: String): VariantDataset = {
+    if (!((code != null) ^ (root != null)))
+      fatal("either `--code' or `--root' required, but not both")
+
+    splitWarning(vds.wasSplit, "VDS", other.wasSplit, "VDS")
+
+    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (code != null) {
+      val ec = EvalContext(Map(
+        "va" -> (0, vds.vaSignature),
+        "vds" -> (1, other.vaSignature)))
+      buildInserter(code, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
+    } else vds.insertVA(other.vaSignature, Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
+
+    vds.annotateVariants(other.variantsAndAnnotations, finalType, inserter)
+  }
+
   def run(state: State, options: Options): State = {
-    val vds = state.vds
-
-    val (expr, code) = (Option(options.code), Option(options.root)) match {
-      case (Some(c), None) => (true, c)
-      case (None, Some(r)) => (false, r)
-      case _ => fatal("this module requires one of `--root' or `--code', but not both")
-    }
-
     if (!((options.input != null) ^ (options.name != null)))
       fatal("either `--input' or `--name' required, but not both")
 
-    var otherVDS =
+    var other =
       if (options.input != null)
         Read.run(state, Array("--skip-genotypes", "-i", options.input)).vds
       else {
@@ -59,16 +68,6 @@ object AnnotateVariantsVDS extends Command with JoinAnnotator {
         }
       }
 
-    splitWarning(vds.wasSplit, "VDS", otherVDS.wasSplit, "VDS")
-
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
-      val ec = EvalContext(Map(
-        "va" -> (0, vds.vaSignature),
-        "vds" -> (1, otherVDS.vaSignature)))
-      buildInserter(code, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
-    } else vds.insertVA(otherVDS.vaSignature, Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD))
-
-    state.copy(vds = vds
-      .annotateVariants(otherVDS.variantsAndAnnotations, finalType, inserter))
+    state.copy(vds = annotate(state.vds, other, options.code, options.root))
   }
 }
