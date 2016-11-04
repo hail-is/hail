@@ -153,10 +153,13 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   }
 
 
-  def leftJoin(other: KeyTable): KeyTable = ???
-  def rightJoin(other: KeyTable): KeyTable = ???
-  def outerJoin(other: KeyTable): KeyTable = ???
-  def innerJoin(other: KeyTable): KeyTable = ???
+  def leftJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
+     keySignature.merge(valueSignature)
+  }
+
+  def rightJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = ???
+  def outerJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = ???
+  def innerJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = ???
 
   //    require(keyNames.toSet == other.keyNames.toSet)
   // function to make key order the same
