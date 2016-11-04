@@ -25,10 +25,6 @@ object JoinKeyTable extends Command {
     @Args4jOption(required = false, name = "-t", aliases = Array("--join-type"),
       usage = "type of join")
     var joinType: String = "left"
-
-    @Args4jOption(required = true, name = "-k", aliases = Array("--join-keys"),
-      usage = "name of columns to join on")
-    var joinKeys: String = _
   }
 
   def newOptions = new Options
@@ -65,21 +61,25 @@ object JoinKeyTable extends Command {
     val ktLeftFieldSet = ktLeft.fieldNames.toSet
     val ktRightFieldSet = ktRight.fieldNames.toSet
 
-    val joinKeys = if (options.joinKeys == null) ktLeft.keyNames.toArray else Parser.parseIdentifierList(options.joinKeys)
-
-    if (!joinKeys.forall(k => ktLeftFieldSet.contains(k)) || !joinKeys.forall(k => ktRightFieldSet.contains(k)))
+    if (ktLeft.keySignature != ktRight.keySignature)
       fatal(
-        s"""Join keys not present in both key-tables.
-            |Keys found: ${ joinKeys.mkString(",") }
-            |Left KeyTable Schema: ${ ktLeft.schema }
-            |Right KeyTable Schema: ${ ktRight.schema }
+        s"""Key schemas are not Identical.
+            |Left KeyTable Schema: ${ ktLeft.keySchema }
+            |Right KeyTable Schema: ${ ktRight.keySchema }
+         """.stripMargin)
+
+    val valueDuplicates = ktLeft.valueNames.intersect(ktRight.valueNames)
+    if (valueDuplicates.nonEmpty)
+      fatal(
+        s"""Invalid join operation: cannot merge key-tables with same-name fields.
+            |Found these fields in both tables: [ ${ valueDuplicates.mkString(", ") } ]
          """.stripMargin)
 
     val joinedKT = options.joinType match {
-      case "left" => ktLeft.leftJoin(ktRight, joinKeys)
-      case "right" => ktLeft.rightJoin(ktRight, joinKeys)
-      case "inner" => ktLeft.innerJoin(ktRight, joinKeys)
-      case "outer" => ktLeft.outerJoin(ktRight, joinKeys)
+      case "left" => ktLeft.leftJoin(ktRight)
+      case "right" => ktLeft.rightJoin(ktRight)
+      case "inner" => ktLeft.innerJoin(ktRight)
+      case "outer" => ktLeft.outerJoin(ktRight)
       case _ => fatal("Did not recognize join type. Pick one of [left, right, inner, outer].")
     }
 
