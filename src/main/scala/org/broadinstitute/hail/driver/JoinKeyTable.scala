@@ -26,7 +26,7 @@ object JoinKeyTable extends Command {
       usage = "type of join")
     var joinType: String = "left"
 
-    @Args4jOption(required = true, name = "-t", aliases = Array("--join-keys"),
+    @Args4jOption(required = true, name = "-k", aliases = Array("--join-keys"),
       usage = "name of columns to join on")
     var joinKeys: String = _
   }
@@ -49,11 +49,6 @@ object JoinKeyTable extends Command {
     val rightName = options.rightName
     val dest = options.destName
 
-    if (options.joinKeys == null)
-      fatal("Must specify at least one join key name (eg: `Phenotype, ...'")
-
-    val joinKeys = Parser.parseIdentifierList(options.joinKeys)
-
     val ktLeft = ktEnv.get(leftName) match {
       case Some(kt) => kt
       case None => fatal("no such key table $leftName in environment")
@@ -69,6 +64,8 @@ object JoinKeyTable extends Command {
 
     val ktLeftFieldSet = ktLeft.fieldNames.toSet
     val ktRightFieldSet = ktRight.fieldNames.toSet
+
+    val joinKeys = if (options.joinKeys == null) ktLeft.keyNames.toArray else Parser.parseIdentifierList(options.joinKeys)
 
     if (!joinKeys.forall(k => ktLeftFieldSet.contains(k)) || !joinKeys.forall(k => ktRightFieldSet.contains(k)))
       fatal(
