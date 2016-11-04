@@ -10,10 +10,10 @@ object ImputeSexPlink {
 
   def schema: Type = TStruct("isFemale" -> TBoolean,
     "Fstat" -> TDouble,
-    "nTotal" -> TInt,
-    "nCalled" -> TInt,
+    "nTotal" -> TLong,
+    "nCalled" -> TLong,
     "expectedHoms" -> TDouble,
-    "observedHoms" -> TInt)
+    "observedHoms" -> TLong)
 
   def determineSex(ibc: InbreedingCombiner, fFemaleThreshold: Double, fMaleThreshold: Double): Option[Boolean] = {
     ibc.Fstat
