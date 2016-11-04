@@ -65,8 +65,7 @@ object FunctionRegistry {
   private def bind(name: String, typ: TypeTag, f: Fun) = {
     lookup(name, typ) match {
       case Right(existingBinding) =>
-        throw new RuntimeException(
-          s"The name, $name, with type, $typ, is already bound as $existingBinding")
+        throw new RuntimeException(s"The name, $name, with type, $typ, is already bound as $existingBinding")
       case _ =>
         registry.updateValue(name, Seq.empty, (typ, f) +: _)
     }
