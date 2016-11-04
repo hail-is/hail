@@ -208,292 +208,109 @@ object FunctionRegistry {
     })
   }
 
-  registerOptionField("gt", {
-    (x: Genotype) => x.gt
-  })
-  registerOptionField("gtj", {
-    (x: Genotype) => x.gt.map(gtx => Genotype.gtPair(gtx).j)
-  })
-  registerOptionField("gtk", {
-    (x: Genotype) => x.gt.map(gtx => Genotype.gtPair(gtx).k)
-  })
-  registerOptionField("ad", {
-    (x: Genotype) => x.ad.map(a => a: IndexedSeq[Int])
-  })
-  registerOptionField("dp", {
-    (x: Genotype) => x.dp
-  })
-  registerOptionField("od", {
-    (x: Genotype) => x.od
-  })
-  registerOptionField("gq", {
-    (x: Genotype) => x.gq
-  })
-  registerOptionField("pl", {
-    (x: Genotype) => x.pl.map(a => a: IndexedSeq[Int])
-  })
-  registerOptionField("dosage", {
-    (x: Genotype) => x.dosage.map(a => a: IndexedSeq[Double])
-  })
-  registerField("isHomRef", {
-    (x: Genotype) => x.isHomRef
-  })
-  registerField("isHet", {
-    (x: Genotype) => x.isHet
-  })
-  registerField("isHomVar", {
-    (x: Genotype) => x.isHomVar
-  })
-  registerField("isCalledNonRef", {
-    (x: Genotype) => x.isCalledNonRef
-  })
-  registerField("isHetNonRef", {
-    (x: Genotype) => x.isHetNonRef
-  })
-  registerField("isHetRef", {
-    (x: Genotype) => x.isHetRef
-  })
-  registerField("isCalled", {
-    (x: Genotype) => x.isCalled
-  })
-  registerField("isNotCalled", {
-    (x: Genotype) => x.isNotCalled
-  })
-  registerOptionField("nNonRefAlleles", {
-    (x: Genotype) => x.nNonRefAlleles
-  })
-  registerOptionField("pAB", {
-    (x: Genotype) => x.pAB()
-  })
-  registerOptionField("fractionReadsRef", {
-    (x: Genotype) => x.fractionReadsRef()
-  })
-  registerField("fakeRef", {
-    (x: Genotype) => x.fakeRef
-  })
-  registerField("isDosage", {
-    (x: Genotype) => x.isDosage
-  })
-  registerField("contig", {
-    (x: Variant) => x.contig
-  })
-  registerField("start", {
-    (x: Variant) => x.start
-  })
-  registerField("ref", {
-    (x: Variant) => x.ref
-  })
-  registerField("altAlleles", {
-    (x: Variant) => x.altAlleles
-  })
-  registerField("nAltAlleles", {
-    (x: Variant) => x.nAltAlleles
-  })
-  registerField("nAlleles", {
-    (x: Variant) => x.nAlleles
-  })
-  registerField("isBiallelic", {
-    (x: Variant) => x.isBiallelic
-  })
-  registerField("nGenotypes", {
-    (x: Variant) => x.nGenotypes
-  })
-  registerField("inXPar", {
-    (x: Variant) => x.inXPar
-  })
-  registerField("inYPar", {
-    (x: Variant) => x.inYPar
-  })
-  registerField("inXNonPar", {
-    (x: Variant) => x.inXNonPar
-  })
-  registerField("inYNonPar", {
-    (x: Variant) => x.inYNonPar
-  })
+  registerOptionField("gt", { (x: Genotype) => x.gt })
+  registerOptionField("gtj", { (x: Genotype) => x.gt.map(gtx => Genotype.gtPair(gtx).j) })
+  registerOptionField("gtk", { (x: Genotype) => x.gt.map(gtx => Genotype.gtPair(gtx).k) })
+  registerOptionField("ad", { (x: Genotype) => x.ad.map(a => a: IndexedSeq[Int]) })
+  registerOptionField("dp", { (x: Genotype) => x.dp })
+  registerOptionField("od", { (x: Genotype) => x.od })
+  registerOptionField("gq", { (x: Genotype) => x.gq })
+  registerOptionField("pl", { (x: Genotype) => x.pl.map(a => a: IndexedSeq[Int]) })
+  registerOptionField("dosage", { (x: Genotype) => x.dosage.map(a => a: IndexedSeq[Double]) })
+  registerField("isHomRef", { (x: Genotype) => x.isHomRef })
+  registerField("isHet", { (x: Genotype) => x.isHet })
+  registerField("isHomVar", { (x: Genotype) => x.isHomVar })
+  registerField("isCalledNonRef", { (x: Genotype) => x.isCalledNonRef })
+  registerField("isHetNonRef", { (x: Genotype) => x.isHetNonRef })
+  registerField("isHetRef", { (x: Genotype) => x.isHetRef })
+  registerField("isCalled", { (x: Genotype) => x.isCalled })
+  registerField("isNotCalled", { (x: Genotype) => x.isNotCalled })
+  registerOptionField("nNonRefAlleles", { (x: Genotype) => x.nNonRefAlleles })
+  registerOptionField("pAB", { (x: Genotype) => x.pAB() })
+  registerOptionField("fractionReadsRef", { (x: Genotype) => x.fractionReadsRef() })
+  registerField("fakeRef", { (x: Genotype) => x.fakeRef })
+  registerField("isDosage", { (x: Genotype) => x.isDosage })
+  registerField("contig", { (x: Variant) => x.contig })
+  registerField("start", { (x: Variant) => x.start })
+  registerField("ref", { (x: Variant) => x.ref })
+  registerField("altAlleles", { (x: Variant) => x.altAlleles })
+  registerField("nAltAlleles", { (x: Variant) => x.nAltAlleles })
+  registerField("nAlleles", { (x: Variant) => x.nAlleles })
+  registerField("isBiallelic", { (x: Variant) => x.isBiallelic })
+  registerField("nGenotypes", { (x: Variant) => x.nGenotypes })
+  registerField("inXPar", { (x: Variant) => x.inXPar })
+  registerField("inYPar", { (x: Variant) => x.inYPar })
+  registerField("inXNonPar", { (x: Variant) => x.inXNonPar })
+  registerField("inYNonPar", { (x: Variant) => x.inYNonPar })
   // assumes biallelic
-  registerField("alt", {
-    (x: Variant) => x.alt
-  })
-  registerField("altAllele", {
-    (x: Variant) => x.altAllele
-  })
-  registerField("locus", {
-    (x: Variant) => x.locus
-  })
-  registerField("contig", {
-    (x: Locus) => x.contig
-  })
-  registerField("position", {
-    (x: Locus) => x.position
-  })
-  registerField("start", {
-    (x: Interval[Locus]) => x.start
-  })
-  registerField("end", {
-    (x: Interval[Locus]) => x.end
-  })
-  registerField("ref", {
-    (x: AltAllele) => x.ref
-  })
-  registerField("alt", {
-    (x: AltAllele) => x.alt
-  })
-  registerField("isSNP", {
-    (x: AltAllele) => x.isSNP
-  })
-  registerField("isMNP", {
-    (x: AltAllele) => x.isMNP
-  })
-  registerField("isIndel", {
-    (x: AltAllele) => x.isIndel
-  })
-  registerField("isInsertion", {
-    (x: AltAllele) => x.isInsertion
-  })
-  registerField("isDeletion", {
-    (x: AltAllele) => x.isDeletion
-  })
-  registerField("isComplex", {
-    (x: AltAllele) => x.isComplex
-  })
-  registerField("isTransition", {
-    (x: AltAllele) => x.isTransition
-  })
-  registerField("isTransversion", {
-    (x: AltAllele) => x.isTransversion
-  })
-  registerField("isAutosomal", {
-    (x: Variant) => x.isAutosomal
-  })
+  registerField("alt", { (x: Variant) => x.alt })
+  registerField("altAllele", { (x: Variant) => x.altAllele })
+  registerField("locus", { (x: Variant) => x.locus })
+  registerField("contig", { (x: Locus) => x.contig })
+  registerField("position", { (x: Locus) => x.position })
+  registerField("start", { (x: Interval[Locus]) => x.start })
+  registerField("end", { (x: Interval[Locus]) => x.end })
+  registerField("ref", { (x: AltAllele) => x.ref })
+  registerField("alt", { (x: AltAllele) => x.alt })
+  registerField("isSNP", { (x: AltAllele) => x.isSNP })
+  registerField("isMNP", { (x: AltAllele) => x.isMNP })
+  registerField("isIndel", { (x: AltAllele) => x.isIndel })
+  registerField("isInsertion", { (x: AltAllele) => x.isInsertion })
+  registerField("isDeletion", { (x: AltAllele) => x.isDeletion })
+  registerField("isComplex", { (x: AltAllele) => x.isComplex })
+  registerField("isTransition", { (x: AltAllele) => x.isTransition })
+  registerField("isTransversion", { (x: AltAllele) => x.isTransversion })
+  registerField("isAutosomal", { (x: Variant) => x.isAutosomal })
 
-  registerField("toInt", {
-    (x: Int) => x
-  })
-  registerField("toLong", {
-    (x: Int) => x.toLong
-  })
-  registerField("toFloat", {
-    (x: Int) => x.toFloat
-  })
-  registerField("toDouble", {
-    (x: Int) => x.toDouble
-  })
+  registerField("toInt", { (x: Int) => x })
+  registerField("toLong", { (x: Int) => x.toLong })
+  registerField("toFloat", { (x: Int) => x.toFloat })
+  registerField("toDouble", { (x: Int) => x.toDouble })
 
-  registerField("toInt", {
-    (x: Long) => x.toInt
-  })
-  registerField("toLong", {
-    (x: Long) => x
-  })
-  registerField("toFloat", {
-    (x: Long) => x.toFloat
-  })
-  registerField("toDouble", {
-    (x: Long) => x.toDouble
-  })
+  registerField("toInt", { (x: Long) => x.toInt })
+  registerField("toLong", { (x: Long) => x })
+  registerField("toFloat", { (x: Long) => x.toFloat })
+  registerField("toDouble", { (x: Long) => x.toDouble })
 
-  registerField("toInt", {
-    (x: Float) => x.toInt
-  })
-  registerField("toLong", {
-    (x: Float) => x.toLong
-  })
-  registerField("toFloat", {
-    (x: Float) => x
-  })
-  registerField("toDouble", {
-    (x: Float) => x.toDouble
-  })
+  registerField("toInt", { (x: Float) => x.toInt })
+  registerField("toLong", { (x: Float) => x.toLong })
+  registerField("toFloat", { (x: Float) => x })
+  registerField("toDouble", { (x: Float) => x.toDouble })
 
-  registerField("toInt", {
-    (x: Boolean) => if (x) 1 else 0
-  })
+  registerField("toInt", { (x: Boolean) => if (x) 1 else 0 })
 
-  registerField("toInt", {
-    (x: Double) => x.toInt
-  })
-  registerField("toLong", {
-    (x: Double) => x.toLong
-  })
-  registerField("toFloat", {
-    (x: Double) => x.toFloat
-  })
-  registerField("toDouble", {
-    (x: Double) => x
-  })
+  registerField("toInt", { (x: Double) => x.toInt })
+  registerField("toLong", { (x: Double) => x.toLong })
+  registerField("toFloat", { (x: Double) => x.toFloat })
+  registerField("toDouble", { (x: Double) => x })
 
-  registerField("toInt", {
-    (x: String) => x.toInt
-  })
-  registerField("toLong", {
-    (x: String) => x.toLong
-  })
-  registerField("toFloat", {
-    (x: String) => x.toFloat
-  })
-  registerField("toDouble", {
-    (x: String) => x.toDouble
-  })
+  registerField("toInt", { (x: String) => x.toInt })
+  registerField("toLong", { (x: String) => x.toLong })
+  registerField("toFloat", { (x: String) => x.toFloat })
+  registerField("toDouble", { (x: String) => x.toDouble })
 
-  registerField("abs", {
-    (x: Int) => x.abs
-  })
-  registerField("abs", {
-    (x: Long) => x.abs
-  })
-  registerField("abs", {
-    (x: Float) => x.abs
-  })
-  registerField("abs", {
-    (x: Double) => x.abs
-  })
+  registerField("abs", { (x: Int) => x.abs })
+  registerField("abs", { (x: Long) => x.abs })
+  registerField("abs", { (x: Float) => x.abs })
+  registerField("abs", { (x: Double) => x.abs })
 
-  registerField("signum", {
-    (x: Double) => x.signum
-  })
+  registerField("signum", { (x: Double) => x.signum })
+  registerField("length", { (x: String) => x.length })
 
-  registerField("length", {
-    (x: String) => x.length
-  })
+  registerUnaryNAFilteredCollectionField("sum", { (x: TraversableOnce[Int]) => x.sum })
+  registerUnaryNAFilteredCollectionField("sum", { (x: TraversableOnce[Long]) => x.sum })
+  registerUnaryNAFilteredCollectionField("sum", { (x: TraversableOnce[Float]) => x.sum })
+  registerUnaryNAFilteredCollectionField("sum", { (x: TraversableOnce[Double]) => x.sum })
 
-  registerUnaryNAFilteredCollectionField("sum", {
-    (x: TraversableOnce[Int]) => x.sum
-  })
-  registerUnaryNAFilteredCollectionField("sum", {
-    (x: TraversableOnce[Long]) => x.sum
-  })
-  registerUnaryNAFilteredCollectionField("sum", {
-    (x: TraversableOnce[Float]) => x.sum
-  })
-  registerUnaryNAFilteredCollectionField("sum", {
-    (x: TraversableOnce[Double]) => x.sum
-  })
+  registerUnaryNAFilteredCollectionField("min", { (x: TraversableOnce[Int]) => x.min })
+  registerUnaryNAFilteredCollectionField("min", { (x: TraversableOnce[Long]) => x.min })
+  registerUnaryNAFilteredCollectionField("min", { (x: TraversableOnce[Float]) => x.min })
+  registerUnaryNAFilteredCollectionField("min", { (x: TraversableOnce[Double]) => x.min })
 
-  registerUnaryNAFilteredCollectionField("min", {
-    (x: TraversableOnce[Int]) => x.min
-  })
-  registerUnaryNAFilteredCollectionField("min", {
-    (x: TraversableOnce[Long]) => x.min
-  })
-  registerUnaryNAFilteredCollectionField("min", {
-    (x: TraversableOnce[Float]) => x.min
-  })
-  registerUnaryNAFilteredCollectionField("min", {
-    (x: TraversableOnce[Double]) => x.min
-  })
-
-  registerUnaryNAFilteredCollectionField("max", {
-    (x: TraversableOnce[Int]) => x.max
-  })
-  registerUnaryNAFilteredCollectionField("max", {
-    (x: TraversableOnce[Long]) => x.max
-  })
-  registerUnaryNAFilteredCollectionField("max", {
-    (x: TraversableOnce[Float]) => x.max
-  })
-  registerUnaryNAFilteredCollectionField("max", {
-    (x: TraversableOnce[Double]) => x.max
-  })
+  registerUnaryNAFilteredCollectionField("max", { (x: TraversableOnce[Int]) => x.max })
+  registerUnaryNAFilteredCollectionField("max", { (x: TraversableOnce[Long]) => x.max })
+  registerUnaryNAFilteredCollectionField("max", { (x: TraversableOnce[Float]) => x.max })
+  registerUnaryNAFilteredCollectionField("max", { (x: TraversableOnce[Double]) => x.max })
 
   register("range", {
     (x: Int) =>
@@ -521,32 +338,22 @@ object FunctionRegistry {
         }
       }
   })
-  register("range", {
-    (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int]
-  })
+  register("range", { (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int] })
   register("Variant", {
     (x: String) =>
       val Array(chr, pos, ref, alts) = x.split(":")
       Variant(chr, pos.toInt, ref, alts.split(","))
   })
-  register("Variant", {
-    (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a)
-  })
-  register("Variant", {
-    (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray)
-  })
+  register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) })
+  register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) })
 
   register("Locus", {
     (x: String) =>
       val Array(chr, pos) = x.split(":")
       Locus(chr, pos.toInt)
   })
-  register("Locus", {
-    (x: String, y: Int) => Locus(x, y)
-  })
-  register("Interval", {
-    (x: Locus, y: Locus) => Interval(x, y)
-  })
+  register("Locus", { (x: String, y: Int) => Locus(x, y) })
+  register("Interval", { (x: Locus, y: Locus) => Interval(x, y) })
   registerAnn("hwe", TStruct(("rExpectedHetFrequency", TDouble), ("pHWE", TDouble)), {
     (nHomRef: Int, nHet: Int, nHomVar: Int) =>
       if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -566,28 +373,14 @@ object FunctionRegistry {
       Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
   })
   // NB: merge takes two structs, how do I deal with structs?
-  register("exp", {
-    (x: Double) => math.exp(x)
-  })
-  register("log10", {
-    (x: Double) => math.log10(x)
-  })
-  register("sqrt", {
-    (x: Double) => math.sqrt(x)
-  })
-  register("log", {
-    (x: Double) => math.log(x)
-  })
+  register("exp", { (x: Double) => math.exp(x) })
+  register("log10", { (x: Double) => math.log10(x) })
+  register("sqrt", { (x: Double) => math.sqrt(x) })
+  register("log", { (x: Double) => math.log(x) })
 
-  register("pcoin", {
-    (p: Double) => math.random < p
-  })
-  register("runif", {
-    (min: Double, max: Double) => min + (max - min) * math.random
-  })
-  register("rnorm", {
-    (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian()
-  })
+  register("pcoin", { (p: Double) => math.random < p })
+  register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
+  register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() })
 
   registerConversion(TInt, TDouble, _.asInstanceOf[Int].toDouble, priority = 2)
   registerConversion(TLong, TDouble, _.asInstanceOf[Long].toDouble)
