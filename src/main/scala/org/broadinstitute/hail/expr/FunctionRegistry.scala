@@ -19,13 +19,15 @@ object FunctionRegistry {
 
   private def lookupConversion(from: BaseType, to: BaseType): Option[(Int, UnaryFun[Any, Any])] = conversions.get(from -> to)
 
-  private def registerConversion(from: Type, to: Type, how: Any => Any, priority: Int = 1) {
+  private def registerConversion[T, U](how: T => U, priority: Int = 1)(implicit hrt: HailRep[T], hru: HailRep[U]) {
+    val from = hrt.typ
+    val to = hru.typ
     require(priority >= 1)
     lookupConversion(from, to) match {
       case Some(_) =>
         throw new RuntimeException(s"The conversion between $from and $to is already bound")
       case None =>
-        conversions.put(from -> to, priority -> UnaryFun(to, how))
+        conversions.put(from -> to, priority -> UnaryFun[Any, Any](to, x => how(x.asInstanceOf[T])))
     }
   }
 
@@ -345,8 +347,8 @@ object FunctionRegistry {
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() })
 
-  registerConversion(TInt, TDouble, _.asInstanceOf[Int].toDouble, priority = 2)
-  registerConversion(TLong, TDouble, _.asInstanceOf[Long].toDouble)
-  registerConversion(TInt, TLong, _.asInstanceOf[Int].toLong)
-  registerConversion(TFloat, TDouble, _.asInstanceOf[Float].toDouble)
+  registerConversion((x: Int) => x.toDouble, priority = 2)
+  registerConversion { (x: Long) => x.toDouble }
+  registerConversion { (x: Int) => x.toLong }
+  registerConversion { (x: Float) => x.toDouble }
 }
