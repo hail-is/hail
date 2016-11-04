@@ -63,6 +63,7 @@ class ImputeSexSuite extends SparkSuite {
 
           s = ImputeSex.run(s, Array("-m", "0.0", "--include-par"))
           s = ExportVCF.run(s, Array("-o", vcfFile))
+          s = Write.run(s, Array("-o", root + ".vds"))
 
           hadoopConf.copy(vcfFile, localVCFFile)
 

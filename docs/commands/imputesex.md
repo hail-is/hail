@@ -32,10 +32,10 @@ Identifier | Type | Description
 --- | :-: | ---
 `isFemale` | `Boolean` | True if the imputed sex is female, false if male, missing if undetermined
 `Fstat` | `Double` | Inbreeding coefficient
-`nTotal` | `Int` | Total number of variants considered
-`nCalled` | `Int` | Number of variants with a genotype call
+`nTotal` | `Long` | Total number of variants considered
+`nCalled` | `Long` | Number of variants with a genotype call
 `expectedHoms` | `Double` | Expected number of homozygotes
-`observedHoms` | `Double` | Observed number of homozygotes
+`observedHoms` | `Long` | Observed number of homozygotes
 
 </div>
 
