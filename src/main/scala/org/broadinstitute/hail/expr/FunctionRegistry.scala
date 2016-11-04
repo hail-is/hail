@@ -13,7 +13,7 @@ object FunctionRegistry {
 
   type Err[T] = Either[String, T]
 
-  private val registry = new mutable.HashMap[String, mutable.HashMap[TypeTag, Fun]]
+  private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun)]]().withDefaultValue(Seq.empty)
 
   private val conversions = new mutable.HashMap[(BaseType, BaseType), (Int, UnaryFun[Any, Any])]
 
@@ -31,7 +31,7 @@ object FunctionRegistry {
 
   private def lookup(name: String, typ: TypeTag): Err[Fun] = {
 
-    val matches = registry.get(name).map(_.toIndexedSeq).getOrElse(IndexedSeq.empty[(TypeTag, Fun)]).flatMap { case (tt, f) =>
+    val matches = registry(name).flatMap { case (tt, f) =>
       if (tt == typ)
         Some(0 -> (tt, f))
       else if (tt.xs.size == typ.xs.size) {
@@ -73,15 +73,7 @@ object FunctionRegistry {
           existingBinding
         }")
       case _ =>
-        registry.updateValue(name, {
-          val m = new mutable.HashMap[TypeTag, Fun]
-          m.put(typ, f)
-          m
-        }, {
-          m =>
-            m.put(typ, f)
-            m
-        })
+        registry.updateValue(name, Seq.empty, (typ, f) +: _)
     }
   }
 
