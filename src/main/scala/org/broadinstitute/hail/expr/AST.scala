@@ -280,7 +280,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t@TArray(elementType), "tail") => t
 
       case (t, name) => FunctionRegistry.lookupFieldType(t, name)
-          .valueOr(parseError)
+        .valueOr(parseError)
 //        .getOrElse(parseError(
 //          s"""`$t' has no field `$rhs'
 //              |  Hint: Don't forget empty-parentheses in a method call, e.g.
@@ -311,7 +311,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
-        .valueOr(fatal)
+      .valueOr(fatal)
 //      .getOrElse(fatal(
 //        s"""`$t' has neither a field nor a method named `$name'
 //            |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
@@ -430,7 +430,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case ("log", Array(a, b)) if a.`type`.isInstanceOf[TNumeric] && b.`type`.isInstanceOf[TNumeric] => TDouble
 
       case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq)
-          .valueOr(parseError)
+        .valueOr(parseError)
     }
   }
 
@@ -581,7 +581,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
 
     case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
-          .valueOr(fatal)
+      .valueOr(fatal)
   }
 }
 
