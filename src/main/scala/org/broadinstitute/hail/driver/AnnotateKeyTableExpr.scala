@@ -83,6 +83,6 @@ object AnnotateKeyTableExpr extends Command {
         }
     }
 
-    state.copy(ktEnv = state.ktEnv + (dest -> kt.mapAnnotations(f, finalSignature, keyNames)))
+    state.copy(ktEnv = state.ktEnv + (dest -> KeyTable(kt.mapAnnotations(f), finalSignature, keyNames)))
   }
 }

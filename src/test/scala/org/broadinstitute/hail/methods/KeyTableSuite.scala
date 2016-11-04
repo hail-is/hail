@@ -130,6 +130,7 @@ class KeyTableSuite extends SparkSuite {
 
     val (_, leftKeyQuery) = ktLeft.query("Sample")
     val (_, rightKeyQuery) = ktRight.query("Sample")
+    val (_, leftJoinKeyQuery) = ktLeftJoin.query("Sample")
 
     val leftKeys = ktLeft.rdd.map { case (k, v) => leftKeyQuery(k, v).map(_.asInstanceOf[String]) }.collect().toSet
     val rightKeys = ktRight.rdd.map { case (k, v) => rightKeyQuery(k, v).map(_.asInstanceOf[String]) }.collect().toSet
@@ -140,7 +141,8 @@ class KeyTableSuite extends SparkSuite {
 
     assert(ktLeftJoin.nRows == ktLeft.nRows &&
       ktLeftJoin.nKeys == nExpectedKeys &&
-      ktLeftJoin.nValues == nExpectedValues)
+      ktLeftJoin.nValues == nExpectedValues
+    )
 
     assert(ktRightJoin.nRows == ktRight.nRows &&
       ktRightJoin.nKeys == nExpectedKeys &&
@@ -154,4 +156,6 @@ class KeyTableSuite extends SparkSuite {
       ktInnerJoin.nKeys == nExpectedKeys &&
       ktInnerJoin.nValues == nExpectedValues)
   }
+
+  @Test def testAggregate() {}
 }
