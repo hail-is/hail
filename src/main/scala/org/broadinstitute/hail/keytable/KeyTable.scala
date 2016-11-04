@@ -9,6 +9,8 @@ import org.broadinstitute.hail.expr.{BaseType, EvalContext, Parser, TBoolean, TS
 import org.broadinstitute.hail.methods.Filter
 import org.broadinstitute.hail.utils._
 
+import scala.reflect.ClassTag
+
 
 object KeyTable extends Serializable {
   def annotationToSeq(a: Annotation, nFields: Int) = Option(a).map(_.asInstanceOf[Row].toSeq).getOrElse(Seq.fill[Any](nFields)(null))
@@ -101,11 +103,11 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     }
   }
 
-  def mapAnnotations(f: (Annotation) => Annotation, newSignature: TStruct, newKeyNames: Array[String]): KeyTable =
-    KeyTable(KeyTable.toSingleRDD(rdd, nKeys, nValues).map(a => f(a)), newSignature, newKeyNames)
+  def mapAnnotations[T](f: (Annotation) => T)(implicit tct: ClassTag[T]): RDD[T] =
+    KeyTable.toSingleRDD(rdd, nKeys, nValues).map(a => f(a))
 
-//  def mapAnnotations(f: (Annotation, Annotation) => Annotation): RDD[(Annotation, Annotation)] =
-//    rdd.mapValuesWithKey{ case (k, v) => f(k, v) }
+  def mapAnnotations[T](f: (Annotation, Annotation) => T)(implicit tct: ClassTag[T]): RDD[T] =
+    rdd.map{ case (k, v) => f(k, v)}
 
   def query(code: String): (BaseType, (Annotation, Annotation) => Option[Any]) = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
