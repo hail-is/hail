@@ -45,28 +45,48 @@ object JoinKeyTable extends Command {
 
   def run(state: State, options: Options): State = {
     val ktEnv = state.ktEnv
+    val leftName = options.leftName
+    val rightName = options.rightName
+    val dest = options.destName
 
-    val ktLeft = ktEnv.get(options.leftName) match {
-      case Some(kt) =>
-        kt
-      case None =>
-        fatal("no such key table $name in environment")
+    if (options.joinKeys == null)
+      fatal("Must specify at least one join key name (eg: `Phenotype, ...'")
+
+    val joinKeys = Parser.parseIdentifierList(options.joinKeys)
+
+    val ktLeft = ktEnv.get(leftName) match {
+      case Some(kt) => kt
+      case None => fatal("no such key table $leftName in environment")
     }
 
-    val ktRight = ktEnv.get(options.rightName) match {
-      case Some(kt) =>
-        kt
-      case None =>
-        fatal("no such key table $name in environment")
+    val ktRight = ktEnv.get(rightName) match {
+      case Some(kt) => kt
+      case None => fatal("no such key table $rightName in environment")
     }
 
-    if (ktEnv.contains(options.destName))
+    if (ktEnv.contains(dest))
       warn("destination name already exists -- overwriting previous key-table")
 
+    val ktLeftFieldSet = ktLeft.fieldNames.toSet
+    val ktRightFieldSet = ktRight.fieldNames.toSet
 
+    if (!joinKeys.forall(k => ktLeftFieldSet.contains(k)) || !joinKeys.forall(k => ktRightFieldSet.contains(k)))
+      fatal(
+        s"""Join keys not present in both key-tables.
+            |Keys found: ${ joinKeys.mkString(",") }
+            |Left KeyTable Schema: ${ ktLeft.schema }
+            |Right KeyTable Schema: ${ ktRight.schema }
+         """.stripMargin)
 
+    val joinedKT = options.joinType match {
+      case "left" => ktLeft.leftJoin(ktRight, joinKeys)
+      case "right" => ktLeft.rightJoin(ktRight, joinKeys)
+      case "inner" => ktLeft.innerJoin(ktRight, joinKeys)
+      case "outer" => ktLeft.outerJoin(ktRight, joinKeys)
+      case _ => fatal("Did not recognize join type. Pick one of [left, right, inner, outer].")
+    }
 
-    state
+    state.copy(ktEnv = state.ktEnv + (dest -> joinedKT))
   }
 }
 
