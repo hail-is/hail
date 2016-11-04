@@ -15,9 +15,9 @@ class KeyTableSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample, Status", inputFile))
     val kt = s.ktEnv("kt1")
-    val kt2 = KeyTable.toPairRDD(KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames.toArray)
+    val kt2 = kt.changeKey(kt.keyNames.toArray)
 
-    assert(kt.rdd.fullOuterJoin(kt2).forall { case (k, (v1, v2)) =>
+    assert(kt.rdd.fullOuterJoin(kt2.rdd).forall { case (k, (v1, v2)) =>
       val res = v1 == v2
       if (!res)
         println(s"k=$k v1=$v1 v2=$v2 res=${ v1 == v2 }")
@@ -105,19 +105,33 @@ class KeyTableSuite extends SparkSuite {
     assert(s.ktEnv.contains("kt1") && s.ktEnv("kt1").nRows == 0)
   }
 
-  @Test def testLeftJoin() = {
+  @Test def testJoin() = {
+    val inputFile = "src/test/resources/sampleAnnotations.tsv"
+    val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
+    var s = State(sc, sqlContext)
+    s = ImportKeyTable.run(s, Array("-n", "ktLeft", "-k", "Sample", "--impute", inputFile))
+    s = FilterKeyTableExpr.run(s, Array("-n", "ktLeft", "-c", """Status == "CASE"""", "--keep"))
+    s = AnnotateKeyTableExpr.run(s, Array("-n", "ktLeft", "-d", "ktRight", "-c", "FakeValue = qPhen * 3, FooVar = qPhen / 5"))
 
-  }
+    s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktLeftJoin", "-t", "left"))
+    s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktRightJoin", "-t", "right"))
+    s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktInnerJoin", "-t", "inner"))
+    s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktOuterJoin", "-t", "outer"))
 
-  @Test def testRightJoin() = {
+    val ktLeft = s.ktEnv("ktLeft")
+    val ktRight = s.ktEnv("ktRight")
 
-  }
+    assert(!(ktLeft same ktRight))
 
-  @Test def testInnerJoin() = {
+    val ktLeftJoin = s.ktEnv("ktLeftJoin")
+    val ktRightJoin = s.ktEnv("ktRightJoin")
+    val ktInnerJoin = s.ktEnv("ktInnerJoin")
+    val ktOuterJoin = s.ktEnv("ktOuterJoin")
 
-  }
+    assert(ktRightJoin same ktRight)
 
-  @Test def testOuterJoin() = {
-
+    assert(ktLeftJoin.nRows == ktLeft.nRows &&
+      ktLeftJoin.nKeys == ktLeft.nKeys &&
+      ktLeftJoin.nFields == ktLeft.nFields)
   }
 }
