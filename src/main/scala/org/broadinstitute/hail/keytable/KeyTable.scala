@@ -9,6 +9,8 @@ import org.broadinstitute.hail.expr.{BaseType, EvalContext, Parser, TBoolean, TS
 import org.broadinstitute.hail.methods.Filter
 import org.broadinstitute.hail.utils._
 
+case class Table(rdd: RDD[Annotation], signature: TStruct)
+
 object KeyTable extends Serializable {
   def annotationToSeq(a: Annotation, nFields: Int) = Option(a).map(_.asInstanceOf[Row].toSeq).getOrElse(Seq.fill[Any](nFields)(null))
 
@@ -18,38 +20,34 @@ object KeyTable extends Serializable {
   def setEvalContext(ec: EvalContext, a: Annotation, nFields: Int) =
     ec.setAll(annotationToSeq(a, nFields): _*)
 
-  def pairSignature(signature: TStruct, keyNames: Array[String]): (TStruct, TStruct) = {
-    val keyNameSet = keyNames.toSet
-    (TStruct(signature.fields.filter(fd => keyNameSet.contains(fd.name))),
-      TStruct(signature.fields.filterNot(fd => keyNameSet.contains(fd.name))))
-  }
-
-  def singleSignature(keySignature: TStruct, valueSignature: TStruct): (TStruct, Array[String]) =
-    (TStruct(keySignature.fields ++ valueSignature.fields), keySignature.fields.map(_.name).toArray)
-
   def toSingleRDD(rdd: RDD[(Annotation, Annotation)], nKeys: Int, nValues: Int): RDD[Annotation] =
     rdd.map{ case (k, v) =>
       val x = Annotation.fromSeq(annotationToSeq(k, nKeys) ++ annotationToSeq(v, nValues))
       x
     }
 
-  def toPairRDD(rdd: RDD[Annotation], signature: TStruct, keyNames: Array[String]): RDD[(Annotation, Annotation)] = {
-    val keyNameSet = keyNames.toSet
-    val keyIndices = signature.fields.filter(fd => keyNames.contains(fd.name)).map(_.index).toSet
-    val valueIndices = signature.fields.filterNot(fd => keyNames.contains(fd.name)).map(_.index).toSet
+  def apply(rdd: RDD[Annotation], signature: TStruct, keyNames: Array[String]): KeyTable = {
+    val keyFields = signature.fields.filter(fd => keyNames.contains(fd.name))
+    val keyIndices = keyFields.map(_.index)
+
+    val valueFields = signature.fields.filterNot(fd => keyNames.contains(fd.name))
+    val valueIndices = valueFields.map(_.index)
+
+    assert(keyIndices.toSet.intersect(valueIndices.toSet).isEmpty)
+
     val nFields = signature.size
 
-    rdd.map { a =>
+    val newKeySignature = TStruct(keyFields.map(fd => (fd.name, fd.`type`)): _*)
+    val newValueSignature = TStruct(valueFields.map(fd => (fd.name, fd.`type`)): _*)
+
+    val newRDD = rdd.map { a =>
       val r = annotationToSeq(a, nFields).zipWithIndex
-      val keyRow = r.filter{ case (ann, i) => keyIndices.contains(i) }.map(_._1)
-      val valueRow = r.filter{ case (ann, i) => valueIndices.contains(i) }.map(_._1)
+      val keyRow = keyIndices.map( i => r(i)._1)
+      val valueRow = valueIndices.map( i => r(i)._1)
       (Annotation.fromSeq(keyRow), Annotation.fromSeq(valueRow))
     }
-  }
 
-  def apply(rdd: RDD[Annotation], signature: TStruct, keyNames: Array[String]): KeyTable = {
-    val (keySignature, valueSignature) = pairSignature(signature, keyNames)
-    KeyTable(toPairRDD(rdd, signature, keyNames), keySignature, valueSignature)
+    KeyTable(newRDD, newKeySignature, newValueSignature)
   }
 }
 
@@ -59,8 +57,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   require(fieldNames.toSet.size == fieldNames.length)
 
-  def signature = KeyTable.singleSignature(keySignature, valueSignature)._1
-
+  def signature = keySignature.merge(valueSignature)._1
   def fields = signature.fields
 
   def keySchema = keySignature.schema
@@ -152,15 +149,54 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     filter(p)
   }
 
+  def changeKey(newKeyNames: Array[String]): KeyTable = KeyTable.apply(KeyTable.toSingleRDD(rdd, nKeys, nValues), signature, newKeyNames)
 
   def leftJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
-     keySignature.merge(valueSignature)
+    val ktL = changeKey(joinKeys)
+    val ktR = other.changeKey(joinKeys)
+
+    require(ktL.keySignature == ktR.keySignature)
+
+    val (newValueSignature, merger) = ktL.valueSignature.merge(ktR.valueSignature)
+    val newRDD = ktL.rdd.leftOuterJoin(ktR.rdd).map{ case (k, (vl, vr)) => (k, merger(vl, vr.orNull)) }
+
+    KeyTable(newRDD, ktL.keySignature, newValueSignature)
   }
 
-  def rightJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = ???
-  def outerJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = ???
-  def innerJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = ???
+  def rightJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
+    val ktL = changeKey(joinKeys)
+    val ktR = other.changeKey(joinKeys)
 
-  //    require(keyNames.toSet == other.keyNames.toSet)
-  // function to make key order the same
+    require(ktL.keySignature == ktR.keySignature)
+
+    val (newValueSignature, merger) = ktL.valueSignature.merge(ktR.valueSignature)
+    val newRDD = ktL.rdd.rightOuterJoin(ktR.rdd).map{ case (k, (vl, vr)) => (k, merger(vl.orNull, vr)) }
+
+    KeyTable(newRDD, ktL.keySignature, newValueSignature)
+  }
+
+  def outerJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
+    val ktL = changeKey(joinKeys)
+    val ktR = other.changeKey(joinKeys)
+
+    require(ktL.keySignature == ktR.keySignature)
+
+    val (newValueSignature, merger) = ktL.valueSignature.merge(ktR.valueSignature)
+    val newRDD = ktL.rdd.fullOuterJoin(ktR.rdd).map{ case (k, (vl, vr)) => (k, merger(vl.orNull, vr.orNull)) }
+
+    KeyTable(newRDD, ktL.keySignature, newValueSignature)
+  }
+
+  def innerJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
+    val ktL = changeKey(joinKeys)
+    val ktR = other.changeKey(joinKeys)
+
+    require(ktL.keySignature == ktR.keySignature)
+
+    val (newValueSignature, merger) = ktL.valueSignature.merge(ktR.valueSignature)
+    val newRDD = ktL.rdd.join(ktR.rdd).map{ case (k, (vl, vr)) => (k, merger(vl, vr)) }
+
+    KeyTable(newRDD, ktL.keySignature, newValueSignature)
+  }
+
 }
