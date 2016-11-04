@@ -15,6 +15,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.{Position, Positional}
 import scala.language.existentials
 import scala.reflect.ClassTag
+import cats.syntax.either._
 
 case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
 
@@ -426,10 +427,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
       case ("log", Array(a, b)) if a.`type`.isInstanceOf[TNumeric] && b.`type`.isInstanceOf[TNumeric] => TDouble
 
-      case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq) match {
-        case Left(t) => t
-        case Right(s) => parseError(s)
-      }
+      case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq)
+          .valueOr(parseError)
     }
   }
 
@@ -578,10 +577,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("log", Array(a, b)) =>
       AST.evalComposeNumeric[Double, Double](ec, a, b)((x, b) => math.log(x) / math.log(b))
 
-    case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args) match {
-      case Left(f) => f
-      case Right(s) => fatal(s)
-    }
+
+    case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
+          .valueOr(fatal)
   }
 }
 

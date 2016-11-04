@@ -7,8 +7,11 @@ import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.broadinstitute.hail.expr.HailRep._
 
 import scala.collection.mutable
+import cats.syntax.either._
 
 object FunctionRegistry {
+
+  type Err[T] = Either[String, T]
 
   private val registry = new mutable.HashMap[String, mutable.HashMap[TypeTag, Fun]]
 
@@ -26,7 +29,7 @@ object FunctionRegistry {
     }
   }
 
-  private def lookup(name: String, typ: TypeTag): Either[Fun, String] = {
+  private def lookup(name: String, typ: TypeTag): Err[Fun] = {
 
     def castToType(bt: BaseType): Option[Type] = bt match {
       case t: Type => Some(t)
@@ -53,19 +56,19 @@ object FunctionRegistry {
     matches.headOption.map { case (priority, it) =>
       assert(it.nonEmpty)
       if (it.size == 1)
-        Left(it.head._2._2)
+        Right(it.head._2._2)
       else {
         assert(priority != 0)
-        Right(
+        Left(
           s"""found ${ it.size } ambiguous matches for $typ:
               |  ${ it.map(_._2._1).mkString("\n  ") }""".stripMargin)
       }
-    }.getOrElse(Right(s"""No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ """))
+    }.getOrElse(Left(s"""No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ """))
   }
 
   private def bind(name: String, typ: TypeTag, f: Fun) = {
     lookup(name, typ) match {
-      case Left(existingBinding) =>
+      case Right(existingBinding) =>
         throw new RuntimeException(s"The name, ${
           name
         }, with type, ${
@@ -88,43 +91,43 @@ object FunctionRegistry {
 
   def lookupField(ec: EvalContext)(typ: BaseType, name: String)(xAst: AST): Option[() => Any] =
     lookup(name, MethodType(typ)) match {
-      case Left(f: UnaryFun[_, _]) => Some(AST.evalCompose(ec, xAst)(f))
-      case Left(f: OptionUnaryFun[_, _]) => Some(AST.evalFlatCompose(ec, xAst)(f))
-      case Left(f) =>
+      case Right(f: UnaryFun[_, _]) => Some(AST.evalCompose(ec, xAst)(f))
+      case Right(f: OptionUnaryFun[_, _]) => Some(AST.evalFlatCompose(ec, xAst)(f))
+      case Right(f) =>
         throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument type $typ: $f")
       case _ => None
     }
 
   def lookupFieldType(typ: BaseType, name: String): Option[Type] =
     lookup(name, MethodType(typ)) match {
-      case Left(f) => Some(f.retType)
+      case Right(f) => Some(f.retType)
       case _ => None
     }
 
-  def lookupFun(ec: EvalContext)(name: String, typs: Seq[BaseType])(args: Seq[AST]): Either[() => Any, String] = {
+  def lookupFun(ec: EvalContext)(name: String, typs: Seq[BaseType])(args: Seq[AST]): Err[() => Any] = {
     require(typs.length == args.length)
 
     lookup(name, FunType(typs: _*)) match {
-      case Left(f: UnaryFun[_, _]) =>
-        Left(AST.evalCompose(ec, args(0))(f))
-      case Left(f: OptionUnaryFun[_, _]) =>
-        Left(AST.evalFlatCompose(ec, args(0))(f))
-      case Left(f: BinaryFun[_, _, _]) =>
-        Left(AST.evalCompose(ec, args(0), args(1))(f))
-      case Left(f: Arity3Fun[_, _, _, _]) =>
-        Left(AST.evalCompose(ec, args(0), args(1), args(2))(f))
-      case Left(f: Arity4Fun[_, _, _, _, _]) =>
-        Left(AST.evalCompose(ec, args(0), args(1), args(2), args(3))(f))
-      case Left(fn) =>
+      case Right(f: UnaryFun[_, _]) =>
+        Right(AST.evalCompose(ec, args(0))(f))
+      case Right(f: OptionUnaryFun[_, _]) =>
+        Right(AST.evalFlatCompose(ec, args(0))(f))
+      case Right(f: BinaryFun[_, _, _]) =>
+        Right(AST.evalCompose(ec, args(0), args(1))(f))
+      case Right(f: Arity3Fun[_, _, _, _]) =>
+        Right(AST.evalCompose(ec, args(0), args(1), args(2))(f))
+      case Right(f: Arity4Fun[_, _, _, _, _]) =>
+        Right(AST.evalCompose(ec, args(0), args(1), args(2), args(3))(f))
+      case Right(fn) =>
         throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typs: $fn")
-      case Right(s) => Right(s)
+      case Left(s) => Left(s)
     }
   }
 
-  def lookupFunReturnType(name: String, typs: Seq[BaseType]): Either[Type, String] =
+  def lookupFunReturnType(name: String, typs: Seq[BaseType]): Err[Type] =
     lookup(name, FunType(typs: _*)) match {
-      case Left(f) => Left(f.retType)
-      case Right(s) => Right(s)
+      case Right(f) => Right(f.retType)
+      case Left(s) => Left(s)
     }
 
   def registerField[T, U](name: String, impl: T => U)
