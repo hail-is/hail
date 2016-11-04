@@ -82,7 +82,6 @@ object AggregateByKey extends Command {
     val valueSignature = TStruct(aggNameParseTypes.map{ case (n, t) => (n.head, t) }: _*)
 
     val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
-    val zvf = () => zVals.indices.map(zVals).toArray
 
     val seqOp = (array: Array[Aggregator], b: (Any, Any, Any, Any, Any)) => {
       val (v, va, s, sa, aggT) = b
@@ -102,7 +101,7 @@ object AggregateByKey extends Command {
         val key = Annotation.fromSeq(keyF.map(_ ()))
         (key, (v, va, s, sa, g))
       }
-    }.aggregateByKey(zvf())(seqOp, combOp)
+    }.aggregateByKey(zVals)(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
         (k, Annotation.fromSeq(aggF.map(_ ())))
