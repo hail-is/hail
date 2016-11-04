@@ -24,7 +24,7 @@ class AggregateByKeySuite extends SparkSuite {
       (ktSampleQuery(k, v).map(_.asInstanceOf[String]), ktHetQuery(k, v).map(_.asInstanceOf[Long]))
     }.collectAsMap()
 
-    assert( vds.sampleIdsAndAnnotations.forall{ case (sid, sa) => saHetQuery(sa) == ktSampleResults(Option(sid))})
+    assert(vds.sampleIdsAndAnnotations.forall { case (sid, sa) => saHetQuery(sa) == ktSampleResults(Option(sid)) })
   }
 
   @Test def replicateVariantAggregation() = {
@@ -45,7 +45,7 @@ class AggregateByKeySuite extends SparkSuite {
       (ktVariantQuery(k, v).map(_.asInstanceOf[Variant]), ktHetQuery(k, v).map(_.asInstanceOf[Long]))
     }.collectAsMap()
 
-    assert( vds.variantsAndAnnotations.forall{ case (v, va) => vaHetQuery(va) == ktVariantResults(Option(v))})
+    assert(vds.variantsAndAnnotations.forall { case (v, va) => vaHetQuery(va) == ktVariantResults(Option(v)) })
   }
 
   @Test def replicateGlobalAggregation() = {
@@ -62,9 +62,9 @@ class AggregateByKeySuite extends SparkSuite {
     val (_, ktHetQuery) = kt.query("nHet")
     val (_, globalHetResult) = vds.queryGlobal("global.nHet")
 
-    val ktGlobalResult = kt.rdd.map{ case (k, v) => ktHetQuery(k, v).map(_.asInstanceOf[Long])}.collect().head
+    val ktGlobalResult = kt.rdd.map { case (k, v) => ktHetQuery(k, v).map(_.asInstanceOf[Long]) }.collect().head
     val vdsGlobalResult = globalHetResult.map(_.asInstanceOf[Long])
 
-    assert( ktGlobalResult == vdsGlobalResult )
+    assert(ktGlobalResult == vdsGlobalResult)
   }
 }

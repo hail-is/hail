@@ -15,7 +15,7 @@ class KeyTableSuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample, Status", inputFile))
     val kt = s.ktEnv("kt1")
-    val kt2 = kt.changeKey(kt.keyNames.toArray)
+    val kt2 = KeyTable(KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames.toArray)
 
     assert(kt.rdd.fullOuterJoin(kt2.rdd).forall { case (k, (v1, v2)) =>
       val res = v1 == v2
@@ -106,12 +106,12 @@ class KeyTableSuite extends SparkSuite {
   }
 
   @Test def testJoin() = {
-    val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
+    val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
+    val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
+
     var s = State(sc, sqlContext)
-    s = ImportKeyTable.run(s, Array("-n", "ktLeft", "-k", "Sample", "--impute", inputFile))
-    s = FilterKeyTableExpr.run(s, Array("-n", "ktLeft", "-c", """Status == "CASE"""", "--keep"))
-    s = AnnotateKeyTableExpr.run(s, Array("-n", "ktLeft", "-d", "ktRight", "-c", "FakeValue = qPhen * 3, FooVar = qPhen / 5"))
+    s = ImportKeyTable.run(s, Array("-n", "ktLeft", "-k", "Sample", "--impute", inputFile1))
+    s = ImportKeyTable.run(s, Array("-n", "ktRight", "-k", "Sample", "--impute", inputFile2))
 
     s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktLeftJoin", "-t", "left"))
     s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktRightJoin", "-t", "right"))
@@ -121,17 +121,37 @@ class KeyTableSuite extends SparkSuite {
     val ktLeft = s.ktEnv("ktLeft")
     val ktRight = s.ktEnv("ktRight")
 
-    assert(!(ktLeft same ktRight))
-
     val ktLeftJoin = s.ktEnv("ktLeftJoin")
     val ktRightJoin = s.ktEnv("ktRightJoin")
     val ktInnerJoin = s.ktEnv("ktInnerJoin")
     val ktOuterJoin = s.ktEnv("ktOuterJoin")
 
-    assert(ktRightJoin same ktRight)
+    val nExpectedValues = ktLeft.nValues + ktRight.nValues
+
+    val (_, leftKeyQuery) = ktLeft.query("Sample")
+    val (_, rightKeyQuery) = ktRight.query("Sample")
+
+    val leftKeys = ktLeft.rdd.map { case (k, v) => leftKeyQuery(k, v).map(_.asInstanceOf[String]) }.collect().toSet
+    val rightKeys = ktRight.rdd.map { case (k, v) => rightKeyQuery(k, v).map(_.asInstanceOf[String]) }.collect().toSet
+
+    val nIntersectRows = leftKeys.intersect(rightKeys).size
+    val nUnionRows = rightKeys.union(leftKeys).size
+    val nExpectedKeys = ktLeft.nKeys
 
     assert(ktLeftJoin.nRows == ktLeft.nRows &&
-      ktLeftJoin.nKeys == ktLeft.nKeys &&
-      ktLeftJoin.nFields == ktLeft.nFields)
+      ktLeftJoin.nKeys == nExpectedKeys &&
+      ktLeftJoin.nValues == nExpectedValues)
+
+    assert(ktRightJoin.nRows == ktRight.nRows &&
+      ktRightJoin.nKeys == nExpectedKeys &&
+      ktRightJoin.nValues == nExpectedValues)
+
+    assert(ktOuterJoin.nRows == nUnionRows &&
+      ktOuterJoin.nKeys == ktLeft.nKeys &&
+      ktOuterJoin.nValues == nExpectedValues)
+
+    assert(ktInnerJoin.nRows == nIntersectRows &&
+      ktInnerJoin.nKeys == nExpectedKeys &&
+      ktInnerJoin.nValues == nExpectedValues)
   }
 }

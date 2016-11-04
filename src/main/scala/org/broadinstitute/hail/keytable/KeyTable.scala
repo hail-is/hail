@@ -9,7 +9,6 @@ import org.broadinstitute.hail.expr.{BaseType, EvalContext, Parser, TBoolean, TS
 import org.broadinstitute.hail.methods.Filter
 import org.broadinstitute.hail.utils._
 
-case class Table(rdd: RDD[Annotation], signature: TStruct)
 
 object KeyTable extends Serializable {
   def annotationToSeq(a: Annotation, nFields: Int) = Option(a).map(_.asInstanceOf[Row].toSeq).getOrElse(Seq.fill[Any](nFields)(null))
@@ -105,8 +104,8 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def mapAnnotations(f: (Annotation) => Annotation, newSignature: TStruct, newKeyNames: Array[String]): KeyTable =
     KeyTable(KeyTable.toSingleRDD(rdd, nKeys, nValues).map(a => f(a)), newSignature, newKeyNames)
 
-  def mapAnnotations(f: (Annotation, Annotation) => Annotation, newValueSignature: TStruct): KeyTable =
-    copy(rdd = rdd.mapValuesWithKey{ case (k, v) => f(k, v) }, valueSignature = newValueSignature)
+//  def mapAnnotations(f: (Annotation, Annotation) => Annotation): RDD[(Annotation, Annotation)] =
+//    rdd.mapValuesWithKey{ case (k, v) => f(k, v) }
 
   def query(code: String): (BaseType, (Annotation, Annotation) => Option[Any]) = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
@@ -149,54 +148,40 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     filter(p)
   }
 
-  def changeKey(newKeyNames: Array[String]): KeyTable = KeyTable.apply(KeyTable.toSingleRDD(rdd, nKeys, nValues), signature, newKeyNames)
+  def leftJoin(other: KeyTable): KeyTable = {
+    require(keySignature == other.keySignature)
 
-  def leftJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
-    val ktL = changeKey(joinKeys)
-    val ktR = other.changeKey(joinKeys)
+    val (newValueSignature, merger) = valueSignature.merge(other.valueSignature)
+    val newRDD = rdd.leftOuterJoin(other.rdd).map{ case (k, (vl, vr)) => (k, merger(vl, vr.orNull)) }
 
-    require(ktL.keySignature == ktR.keySignature)
-
-    val (newValueSignature, merger) = ktL.valueSignature.merge(ktR.valueSignature)
-    val newRDD = ktL.rdd.leftOuterJoin(ktR.rdd).map{ case (k, (vl, vr)) => (k, merger(vl, vr.orNull)) }
-
-    KeyTable(newRDD, ktL.keySignature, newValueSignature)
+    KeyTable(newRDD, keySignature, newValueSignature)
   }
 
-  def rightJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
-    val ktL = changeKey(joinKeys)
-    val ktR = other.changeKey(joinKeys)
+  def rightJoin(other: KeyTable): KeyTable = {
+    require(keySignature == other.keySignature)
 
-    require(ktL.keySignature == ktR.keySignature)
+    val (newValueSignature, merger) = valueSignature.merge(other.valueSignature)
+    val newRDD = rdd.rightOuterJoin(other.rdd).map{ case (k, (vl, vr)) => (k, merger(vl.orNull, vr)) }
 
-    val (newValueSignature, merger) = ktL.valueSignature.merge(ktR.valueSignature)
-    val newRDD = ktL.rdd.rightOuterJoin(ktR.rdd).map{ case (k, (vl, vr)) => (k, merger(vl.orNull, vr)) }
-
-    KeyTable(newRDD, ktL.keySignature, newValueSignature)
+    KeyTable(newRDD, keySignature, newValueSignature)
   }
 
-  def outerJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
-    val ktL = changeKey(joinKeys)
-    val ktR = other.changeKey(joinKeys)
+  def outerJoin(other: KeyTable): KeyTable = {
+    require(keySignature == other.keySignature)
 
-    require(ktL.keySignature == ktR.keySignature)
+    val (newValueSignature, merger) = valueSignature.merge(other.valueSignature)
+    val newRDD = rdd.fullOuterJoin(other.rdd).map{ case (k, (vl, vr)) => (k, merger(vl.orNull, vr.orNull)) }
 
-    val (newValueSignature, merger) = ktL.valueSignature.merge(ktR.valueSignature)
-    val newRDD = ktL.rdd.fullOuterJoin(ktR.rdd).map{ case (k, (vl, vr)) => (k, merger(vl.orNull, vr.orNull)) }
-
-    KeyTable(newRDD, ktL.keySignature, newValueSignature)
+    KeyTable(newRDD, keySignature, newValueSignature)
   }
 
-  def innerJoin(other: KeyTable, joinKeys: Array[String]): KeyTable = {
-    val ktL = changeKey(joinKeys)
-    val ktR = other.changeKey(joinKeys)
+  def innerJoin(other: KeyTable): KeyTable = {
+    require(keySignature == other.keySignature)
 
-    require(ktL.keySignature == ktR.keySignature)
+    val (newValueSignature, merger) = valueSignature.merge(other.valueSignature)
+    val newRDD = rdd.join(other.rdd).map{ case (k, (vl, vr)) => (k, merger(vl, vr)) }
 
-    val (newValueSignature, merger) = ktL.valueSignature.merge(ktR.valueSignature)
-    val newRDD = ktL.rdd.join(ktR.rdd).map{ case (k, (vl, vr)) => (k, merger(vl, vr)) }
-
-    KeyTable(newRDD, ktL.keySignature, newValueSignature)
+    KeyTable(newRDD, keySignature, newValueSignature)
   }
 
 }
