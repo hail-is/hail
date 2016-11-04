@@ -415,6 +415,35 @@ annotatevariants expr -c "va.eur_stats = gs.filter(g => sa.pop == "EUR").callSta
                           va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(v)"
 ```
 
+### <a class="jumptarget" name="aggreg_hwe"></a> HWE
+
+```
+<genotype aggregable>.hwe()
+```
+
+`hwe()` is an aggregator that computes a p-value computed from the [Hardy Weinberg Equilibrium (HWE) null model](LeveneHaldane.tex) on an aggregable of genotypes (gs). 
+
+The result of `hwe()` is a struct:
+
+```
+Struct {
+    rExpectedHetFrequency: Double,
+    pHWE: Double
+}
+```
+
+In the above schema, `rExpectedHetFrequency` is the expected rHeterozygosity based on HWE and `pHWE` is the p-value.
+
+**Examples:**
+
+Add a new variant annotation that calculates HWE p-value by phenotype
+
+```
+annotatevariants expr -c 'va.hweCase = gs.filter(g => sa.pheno == "Case").hwe(),
+                          va.hweControl = gs.filter(g => sa.pheno == "Control").hwe()'
+```
+
+
 ### <a class="jumptarget" name="aggreg_infoscore"></a> InfoScore
 
 ```

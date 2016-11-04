@@ -884,6 +884,18 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
                 |  Found ${ types.length } arguments of types (${ types.mkString(", ") })""".stripMargin)
         }
 
+      case (agg: TAggregable, "hwe", rhs) =>
+        if (rhs.nonEmpty)
+          parseError(s"""method `$method' does not take arguments""")
+        `type` = agg.elementType match {
+          case TGenotype => HWECombiner.signature
+          case _ => parseError(
+            s"""method `$method' can not operate on `$agg'
+                |  Accepted aggregable type: `Aggregable[Genotype]'
+             """.stripMargin
+          )
+        }
+
       case _ =>
         super.typecheck(ec)
     }
@@ -1263,6 +1275,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       agg.ec.aggregationFunctions += new InbreedingAggregator(aggF, localIdx, maf)
       () => localA(localIdx).asInstanceOf[InbreedingCombiner].asAnnotation
+
+    case (agg: TAggregable, "hwe", Array()) =>
+      val localIdx = agg.ec.a.length
+      val localA = agg.ec.a
+      localA += null
+
+      val localPos = posn
+      val aggF = agg.f
+
+      agg.ec.aggregationFunctions += new HWEAggregator(aggF, localIdx)
+      () => localA(localIdx).asInstanceOf[HWECombiner].asAnnotation
 
     case (agg: TAggregable, "sum", Array()) =>
       val localIdx = agg.ec.a.length

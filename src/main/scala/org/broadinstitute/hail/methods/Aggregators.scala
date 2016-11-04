@@ -257,6 +257,25 @@ class InfoScoreAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator
   override def copy() = new InfoScoreAggregator(f, idx)
 }
 
+class HWEAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[HWECombiner] {
+
+  var _state = new HWECombiner()
+
+  override def result = _state
+
+  override def seqOp(x: Any) {
+    val r = f(x)
+    if (r != null)
+      _state.merge(r.asInstanceOf[Genotype])
+  }
+
+  override def combOp(agg2: this.type) {
+    _state.merge(agg2._state)
+  }
+
+  override def copy() = new HWEAggregator(f, idx)
+}
+
 class SumAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Double] {
   var _state = 0d
 
