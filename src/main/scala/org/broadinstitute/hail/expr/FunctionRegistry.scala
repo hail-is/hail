@@ -31,17 +31,11 @@ object FunctionRegistry {
 
   private def lookup(name: String, typ: TypeTag): Err[Fun] = {
 
-    def castToType(bt: BaseType): Option[Type] = bt match {
-      case t: Type => Some(t)
-      case _ => None
-    }
-
     val matches = registry.get(name).map(_.toIndexedSeq).getOrElse(IndexedSeq.empty[(TypeTag, Fun)]).flatMap { case (tt, f) =>
       if (tt == typ)
         Some(0 -> (tt, f))
       else if (tt.xs.size == typ.xs.size) {
         val conversionPriorities: Seq[Option[(Int, UnaryFun[Any, Any])]] = typ.xs.zip(tt.xs)
-          .flatMap { case (l, r) => castToType(l).liftedZip(castToType(r)) }
           .map { case (l, r) =>
             if (l == r)
               Some(0 -> UnaryFun[Any, Any](l, (a: Any) => a))
@@ -100,7 +94,7 @@ object FunctionRegistry {
       case _ => None
     }
 
-  def lookupFieldType(typ: BaseType, name: String): Option[Type] =
+  def lookupFieldType(typ: BaseType, name: String): Option[BaseType] =
     lookup(name, MethodType(typ)) match {
       case Right(f) => Some(f.retType)
       case _ => None
@@ -125,7 +119,7 @@ object FunctionRegistry {
     }
   }
 
-  def lookupFunReturnType(name: String, typs: Seq[BaseType]): Err[Type] =
+  def lookupFunReturnType(name: String, typs: Seq[BaseType]): Err[BaseType] =
     lookup(name, FunType(typs: _*)).map(_.retType)
 
   def registerField[T, U](name: String, impl: T => U)
