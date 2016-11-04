@@ -287,65 +287,59 @@ object FunctionRegistry {
   registerUnaryNAFilteredCollectionField("max", { (x: TraversableOnce[Float]) => x.max })
   registerUnaryNAFilteredCollectionField("max", { (x: TraversableOnce[Double]) => x.max })
 
-  register("range", {
-    (x: Int) =>
-      val l = math.max(x, 0)
-      new IndexedSeq[Int] {
-        def length = l
+  register("range", { (x: Int) =>
+    val l = math.max(x, 0)
+    new IndexedSeq[Int] {
+      def length = l
 
-        def apply(i: Int): Int = {
-          if (i < 0 || i >= l)
-            throw new ArrayIndexOutOfBoundsException(i)
-          i
-        }
+      def apply(i: Int): Int = {
+        if (i < 0 || i >= l)
+          throw new ArrayIndexOutOfBoundsException(i)
+        i
       }
+    }
   })
-  register("range", {
-    (x: Int, y: Int) =>
-      val l = math.max(y - x, 0)
-      new IndexedSeq[Int] {
-        def length = l
+  register("range", { (x: Int, y: Int) =>
+    val l = math.max(y - x, 0)
+    new IndexedSeq[Int] {
+      def length = l
 
-        def apply(i: Int): Int = {
-          if (i < 0 || i >= l)
-            throw new ArrayIndexOutOfBoundsException(i)
-          x + i
-        }
+      def apply(i: Int): Int = {
+        if (i < 0 || i >= l)
+          throw new ArrayIndexOutOfBoundsException(i)
+        x + i
       }
+    }
   })
   register("range", { (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int] })
-  register("Variant", {
-    (x: String) =>
-      val Array(chr, pos, ref, alts) = x.split(":")
-      Variant(chr, pos.toInt, ref, alts.split(","))
+  register("Variant", { (x: String) =>
+    val Array(chr, pos, ref, alts) = x.split(":")
+    Variant(chr, pos.toInt, ref, alts.split(","))
   })
   register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) })
   register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) })
 
-  register("Locus", {
-    (x: String) =>
-      val Array(chr, pos) = x.split(":")
-      Locus(chr, pos.toInt)
+  register("Locus", { (x: String) =>
+    val Array(chr, pos) = x.split(":")
+    Locus(chr, pos.toInt)
   })
   register("Locus", { (x: String, y: Int) => Locus(x, y) })
   register("Interval", { (x: Locus, y: Locus) => Interval(x, y) })
-  registerAnn("hwe", TStruct(("rExpectedHetFrequency", TDouble), ("pHWE", TDouble)), {
-    (nHomRef: Int, nHet: Int, nHomVar: Int) =>
-      if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
-        fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
-      val n = nHomRef + nHet + nHomVar
-      val nAB = nHet
-      val nA = nAB + 2 * nHomRef.min(nHomVar)
+  registerAnn("hwe", TStruct(("rExpectedHetFrequency", TDouble), ("pHWE", TDouble)), { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
+    if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
+      fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
+    val n = nHomRef + nHet + nHomVar
+    val nAB = nHet
+    val nA = nAB + 2 * nHomRef.min(nHomVar)
 
-      val LH = LeveneHaldane(n, nA)
-      Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
+    val LH = LeveneHaldane(n, nA)
+    Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
   })
-  registerAnn("fet", TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble)), {
-    (c1: Int, c2: Int, c3: Int, c4: Int) =>
-      if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
-        fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
-      val fet = FisherExactTest(c1, c2, c3, c4)
-      Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
+  registerAnn("fet", TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble)), { (c1: Int, c2: Int, c3: Int, c4: Int) =>
+    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
+      fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
+    val fet = FisherExactTest(c1, c2, c3, c4)
+    Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
   })
   // NB: merge takes two structs, how do I deal with structs?
   register("exp", { (x: Double) => math.exp(x) })
