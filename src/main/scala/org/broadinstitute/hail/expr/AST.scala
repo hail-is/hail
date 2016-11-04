@@ -280,11 +280,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t@TArray(elementType), "tail") => t
 
       case (t, name) => FunctionRegistry.lookupFieldType(t, name)
-        .valueOr(parseError)
-//        .getOrElse(parseError(
-//          s"""`$t' has no field `$rhs'
-//              |  Hint: Don't forget empty-parentheses in a method call, e.g.
-//              |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin))
+        .valueOr {
+          case FunctionRegistry.NotFound(name, typ) =>
+            parseError(s"""`$t' has no field `$rhs'
+                           |  Hint: Don't forget empty-parentheses in a method call, e.g.
+                           |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
+          case otherwise => parseError(otherwise.message)
+        }
     }
   }
 
@@ -311,11 +313,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
-      .valueOr(fatal)
-//      .getOrElse(fatal(
-//        s"""`$t' has neither a field nor a method named `$name'
-//            |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-//            |    counts.sum""".stripMargin))
+      .valueOr {
+        case FunctionRegistry.NotFound(name, typ) =>
+          fatal(s"""`$t' has neither a field nor a method named `$name
+                    |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+                    |    counts.sum""".stripMargin)
+        case otherwise => fatal(otherwise.message)
+      }
   }
 }
 
@@ -430,7 +434,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case ("log", Array(a, b)) if a.`type`.isInstanceOf[TNumeric] && b.`type`.isInstanceOf[TNumeric] => TDouble
 
       case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq)
-        .valueOr(parseError)
+        .valueOr(x => parseError(x.message))
     }
   }
 
@@ -581,7 +585,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
 
     case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
-      .valueOr(fatal)
+      .valueOr(x => fatal(x.message))
   }
 }
 

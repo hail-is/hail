@@ -11,7 +11,18 @@ import cats.syntax.either._
 
 object FunctionRegistry {
 
-  type Err[T] = Either[String, T]
+  sealed trait LookupError {
+    def message: String
+  }
+  sealed case class NotFound(name: String, typ: TypeTag) extends LookupError {
+    def message = s"No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ"
+  }
+  sealed case class Ambiguous(name: String, typ: TypeTag, alternates: Seq[(Int, (TypeTag, Fun))]) extends LookupError {
+    def message = s"""found ${ alternates.size } ambiguous matches for $typ:
+                      |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
+  }
+
+  type Err[T] = Either[LookupError, T]
 
   private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun)]]().withDefaultValue(Seq.empty)
 
@@ -50,16 +61,14 @@ object FunctionRegistry {
     }.groupBy(_._1).toArray.sortBy(_._1)
 
     matches.headOption
-      .toRight(s"No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ")
+      .toRight[LookupError](NotFound(name, typ))
       .flatMap { case (priority, it) =>
         assert(it.nonEmpty)
         if (it.size == 1)
           Right(it.head._2._2)
         else {
           assert(priority != 0)
-          Left(
-            s"""found ${ it.size } ambiguous matches for $typ:
-                |  ${ it.map(_._2._1).mkString("\n  ") }""".stripMargin)
+          Left(Ambiguous(name, typ, it))
       }
     }
   }
