@@ -1,9 +1,9 @@
 from pyhail.java import scala_package_object
 
 class VariantDataset:
-    def __init__(self, hc, jstate):
+    def __init__(self, hc, jvds):
         self.hc = hc
-        self.jstate = jstate
+        self.jvds = jvds
     
     def aggregate_intervals(self, input, condition, output):
         pargs = ['aggregateintervals', '-i', input,
@@ -59,7 +59,7 @@ class VariantDataset:
     def annotate_samples_vds(self, other, root = None, code = None):
         return self.hc.vds_state(
             self.hc.jvm.org.broadinstitute.hail.driver.AnnotateSamplesVDS.annotate(
-                self.jstate.vds(), right.jstate.vds(), code, root))
+                self.jvds, right.jvds, code, root))
     
     def annotate_variants_bed(self, input, root, all = False):
         pargs = ['annotatevariants', 'bed', '-i', input, '--root', root]
@@ -125,7 +125,7 @@ class VariantDataset:
     def annotate_variants_vds(self, other, code = None, root = None):
         return self.hc.vds_state(
             self.hc.jvm.org.broadinstitute.hail.driver.AnnotateVariantsVDS.annotate(
-                self.jstate.vds(), other.jstate.vds(), code, root))
+                self.jvds, other.jvds, code, root))
     
     def cache(self):
         pargs = ['cache']
@@ -133,13 +133,13 @@ class VariantDataset:
     
     def concordance(self, right):
         result = self.hc.jvm.org.broadinstitute.hail.driver.Concordance.calculate(
-            self.jstate.vds(), right.jstate.vds()))
+            self.jvds, right.jvds)
         return (self.hc.vds_state(result._1),
                 self.hc.vds_state(result._2))
     
     def count(self, genotypes = False):
         return (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
-                .count(self.jstate.vds(), genotypes)
+                .count(self.jvds, genotypes)
                 .toJavaMap())
     
     def deduplicate(self):
@@ -338,8 +338,8 @@ class VariantDataset:
     
     def join(self, right):
         return self.hc.vds_state(
-            self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jstate.vds(),
-                                                                 right.jstate.vds()))
+            self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jvds,
+                                                                 right.jvds))
     
     def linreg(self, y, covariates = None, root = None, mac = None, maf = None):
         pargs = ['linreg', '-y', y]
@@ -417,8 +417,8 @@ class VariantDataset:
         return self.hc._run_command(self, pargs)
 
     def same(self, other):
-        self_vds = self.jstate.vds()
-        other_vds = other.jstate.vds()
+        self_vds = self.jvds
+        other_vds = other.jvds
         return self_vds.same(other_vds)
     
     def sample_qc(self, output = None, branching_factor = None):
@@ -478,6 +478,6 @@ class VariantDataset:
             pargs.append('--csq')
         return self.hc._run_command(self, pargs)
     
-    def variantsToPandas(self):
-        return pyspark.sql.DataFrame(self.jstate.vds().variantsDF(self.hc.jsqlContext),
+    def variants_to_pandas(self):
+        return pyspark.sql.DataFrame(self.jvds.variantsDF(self.hc.jsqlContext),
                                      self.hc.sqlContext).toPandas()

@@ -24,26 +24,19 @@ class HailContext:
         logger = sc._jvm.org.apache.log4j
         logger.LogManager.getLogger("org"). setLevel(logger.Level.ERROR)
         logger.LogManager.getLogger("akka").setLevel(logger.Level.ERROR)
-        
-    def vds_state(self, vds):
-        return VariantDataset(self, self.jvm.org.broadinstitute.hail.driver.State(self.jsc, self.jsqlContext, vds))
     
-    def initial_state(self):
-        return VariantDataset(
-            self,
-            self.jvm.org.broadinstitute.hail.driver.State(self.jsc,
-                                                          self.jsqlContext,
-                                                          None,
-                                                          scala_object(self.jvm.scala.collection.immutable, 'Map').empty()))
+    def _jstate(self, jvds):
+        return self.jvm.org.broadinstitute.hail.driver.State(
+            self.jsc, self.jsqlContext, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
     
-    def _run_command(self, state, args):
-        jargs = jarray(self.gateway, self.jvm.java.lang.String, args)
-        cmdargs = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
-        cmd = cmdargs._1()
-        cargs = cmdargs._2()
-        options = cmd.parseArgs(cargs)
-        result = cmd.run(state.jstate, options)
-        return VariantDataset(self, result)
+    def _run_command(self, vds, pargs):
+        jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
+        t = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
+        cmd = t._1()
+        cmd_args = t._2()
+        result = cmd.run(self._jstate(vds.jvds if vds != None else None),
+                         cmd_args)
+        return VariantDataset(self, result.vds())
     
     def fam_summary(input, output):
         pargs = ["famsummary", "-f", input, "-o", output]
@@ -78,7 +71,7 @@ class HailContext:
         
         for arg in args:
             pargs.append(arg)
-        return self._run_command(self.initial_state(), pargs)
+        return self._run_command(None, pargs)
 
     def import_bgen(self, *args, **kwargs):
         pargs = ["importbgen"]
@@ -102,7 +95,7 @@ class HailContext:
             pargs.append('--tolerance')
             pargs.append(npartition)
             
-        return self._run_command(self.initial_state(), args)
+        return self._run_command(None, args)
 
     def import_gen(self, *args, **kwargs):
         pargs = ["importgen"]
@@ -131,7 +124,7 @@ class HailContext:
             pargs.append('--tolerance')
             pargs.append(npartition)
             
-        return self._run_command(self.initial_state(), pargs)
+        return self._run_command(None, pargs)
 
     def import_plink(self, *args, **kwargs):
         pargs = ["importplink"]
@@ -180,7 +173,7 @@ class HailContext:
             pargs.append('--delimiter')
             pargs.append(delimiter)
         
-        return self._run_command(self.initial_state(), pargs)
+        return self._run_command(None, pargs)
     
     def read(self, vds_path, skip_genotypes = False):
         pargs = ["read"]
@@ -188,7 +181,7 @@ class HailContext:
             pargs.append("--skip-genotypes")
         pargs.append("-i")
         pargs.append(vds_path)
-        return self._run_command(self.initial_state(), pargs)
+        return self._run_command(None, pargs)
 
     def import_vcf(self, *args, **kwargs):
         pargs = ["importvcf"]
@@ -233,13 +226,13 @@ class HailContext:
         for arg in args:
             pargs.append(arg)
 
-        return self._run_command(self.initial_state(), pargs)
+        return self._run_command(None, pargs)
 
     def index_bgen(self, *args):
         pargs = ["indexbgen"]
         for arg in args:
             pargs.append(arg)
-        return self._run_command(self.initial_state(), pargs)
+        return self._run_command(None, pargs)
 
     def balding_nichols_model(self, populations, samples, variants,
                               population_dist = None,
@@ -263,4 +256,4 @@ class HailContext:
         if npartitions:
             pargs.append("--npartitions")
             pargs.append(npartitions)
-        return self._run_command(self.initial_state(), pargs)
+        return self._run_command(None, pargs)
