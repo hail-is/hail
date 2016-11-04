@@ -77,20 +77,16 @@ object FunctionRegistry {
     }
   }
 
-  def lookupField(ec: EvalContext)(typ: BaseType, name: String)(xAst: AST): Option[() => Any] =
-    lookup(name, MethodType(typ)) match {
-      case Right(f: UnaryFun[_, _]) => Some(AST.evalCompose(ec, xAst)(f))
-      case Right(f: OptionUnaryFun[_, _]) => Some(AST.evalFlatCompose(ec, xAst)(f))
-      case Right(f) =>
+  def lookupField(ec: EvalContext)(typ: BaseType, name: String)(xAst: AST): Err[() => Any] =
+    lookup(name, MethodType(typ)).map {
+      case f: UnaryFun[_, _] => AST.evalCompose(ec, xAst)(f)
+      case f: OptionUnaryFun[_, _] => AST.evalFlatCompose(ec, xAst)(f)
+      case f =>
         throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument type $typ: $f")
-      case _ => None
     }
 
-  def lookupFieldType(typ: BaseType, name: String): Option[BaseType] =
-    lookup(name, MethodType(typ)) match {
-      case Right(f) => Some(f.retType)
-      case _ => None
-    }
+  def lookupFieldType(typ: BaseType, name: String): Err[BaseType] =
+    lookup(name, MethodType(typ)).map(_.retType)
 
   def lookupFun(ec: EvalContext)(name: String, typs: Seq[BaseType])(args: Seq[AST]): Err[() => Any] = {
     require(typs.length == args.length)
@@ -136,13 +132,11 @@ object FunctionRegistry {
 
   def registerUnaryNAFilteredCollectionField[T, U](name: String, impl: TraversableOnce[T] => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(TArray(hrt.typ)), UnaryFun[IndexedSeq[_], U](hru.typ, {
-      (ts: IndexedSeq[_]) =>
-        impl(ts.filter(t => t != null).map(_.asInstanceOf[T]))
+    bind(name, MethodType(TArray(hrt.typ)), UnaryFun[IndexedSeq[_], U](hru.typ, { (ts: IndexedSeq[_]) =>
+      impl(ts.filter(t => t != null).map(_.asInstanceOf[T]))
     }))
-    bind(name, MethodType(TSet(hrt.typ)), UnaryFun[Set[_], U](hru.typ, {
-      (ts: Set[_]) =>
-        impl(ts.filter(t => t != null).map(_.asInstanceOf[T]))
+    bind(name, MethodType(TSet(hrt.typ)), UnaryFun[Set[_], U](hru.typ, { (ts: Set[_]) =>
+      impl(ts.filter(t => t != null).map(_.asInstanceOf[T]))
     }))
   }
 

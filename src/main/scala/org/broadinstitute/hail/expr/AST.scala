@@ -280,10 +280,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t@TArray(elementType), "tail") => t
 
       case (t, name) => FunctionRegistry.lookupFieldType(t, name)
-        .getOrElse(parseError(
-          s"""`$t' has no field `$rhs'
-              |  Hint: Don't forget empty-parentheses in a method call, e.g.
-              |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin))
+          .valueOr(parseError)
+//        .getOrElse(parseError(
+//          s"""`$t' has no field `$rhs'
+//              |  Hint: Don't forget empty-parentheses in a method call, e.g.
+//              |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin))
     }
   }
 
@@ -310,10 +311,11 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
-      .getOrElse(fatal(
-        s"""`$t' has neither a field nor a method named `$name'
-            |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-            |    counts.sum""".stripMargin))
+        .valueOr(fatal)
+//      .getOrElse(fatal(
+//        s"""`$t' has neither a field nor a method named `$name'
+//            |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+//            |    counts.sum""".stripMargin))
   }
 }
 
