@@ -64,11 +64,6 @@ object FunctionRegistry {
   }
 
   private def bind(name: String, typ: TypeTag, f: Fun) = {
-    //    if (name == "contig") {
-    //        println(s"entered with name=$name, typ=$typ")
-    //        println(registry.get(name))
-    //
-    //    }
     lookup(name, typ) match {
       case Left(existingBinding) =>
         throw new RuntimeException(s"The name, ${
@@ -88,7 +83,6 @@ object FunctionRegistry {
             m.put(typ, f)
             m
         })
-      //        registry.put((name, typ), f)
     }
   }
 
@@ -386,5 +380,4 @@ object FunctionRegistry {
   registerConversion(TLong, TDouble, _.asInstanceOf[Long].toDouble)
   registerConversion(TInt, TLong, _.asInstanceOf[Int].toLong)
   registerConversion(TFloat, TDouble, _.asInstanceOf[Float].toDouble)
-
 }
