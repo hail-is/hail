@@ -53,17 +53,19 @@ object FunctionRegistry {
       } else None
     }.groupBy(_._1).toArray.sortBy(_._1)
 
-    matches.headOption.map { case (priority, it) =>
-      assert(it.nonEmpty)
-      if (it.size == 1)
-        Right(it.head._2._2)
-      else {
-        assert(priority != 0)
-        Left(
-          s"""found ${ it.size } ambiguous matches for $typ:
-              |  ${ it.map(_._2._1).mkString("\n  ") }""".stripMargin)
+    matches.headOption
+      .toRight(s"No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ")
+      .flatMap { case (priority, it) =>
+        assert(it.nonEmpty)
+        if (it.size == 1)
+          Right(it.head._2._2)
+        else {
+          assert(priority != 0)
+          Left(
+            s"""found ${ it.size } ambiguous matches for $typ:
+                |  ${ it.map(_._2._1).mkString("\n  ") }""".stripMargin)
       }
-    }.getOrElse(Left(s"""No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ """))
+    }
   }
 
   private def bind(name: String, typ: TypeTag, f: Fun) = {
@@ -107,28 +109,24 @@ object FunctionRegistry {
   def lookupFun(ec: EvalContext)(name: String, typs: Seq[BaseType])(args: Seq[AST]): Err[() => Any] = {
     require(typs.length == args.length)
 
-    lookup(name, FunType(typs: _*)) match {
-      case Right(f: UnaryFun[_, _]) =>
-        Right(AST.evalCompose(ec, args(0))(f))
-      case Right(f: OptionUnaryFun[_, _]) =>
-        Right(AST.evalFlatCompose(ec, args(0))(f))
-      case Right(f: BinaryFun[_, _, _]) =>
-        Right(AST.evalCompose(ec, args(0), args(1))(f))
-      case Right(f: Arity3Fun[_, _, _, _]) =>
-        Right(AST.evalCompose(ec, args(0), args(1), args(2))(f))
-      case Right(f: Arity4Fun[_, _, _, _, _]) =>
-        Right(AST.evalCompose(ec, args(0), args(1), args(2), args(3))(f))
-      case Right(fn) =>
+    lookup(name, FunType(typs: _*)).map {
+      case f: UnaryFun[_, _] =>
+        AST.evalCompose(ec, args(0))(f)
+      case f: OptionUnaryFun[_, _] =>
+        AST.evalFlatCompose(ec, args(0))(f)
+      case f: BinaryFun[_, _, _] =>
+        AST.evalCompose(ec, args(0), args(1))(f)
+      case f: Arity3Fun[_, _, _, _] =>
+        AST.evalCompose(ec, args(0), args(1), args(2))(f)
+      case f: Arity4Fun[_, _, _, _, _] =>
+        AST.evalCompose(ec, args(0), args(1), args(2), args(3))(f)
+      case fn =>
         throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typs: $fn")
-      case Left(s) => Left(s)
     }
   }
 
   def lookupFunReturnType(name: String, typs: Seq[BaseType]): Err[Type] =
-    lookup(name, FunType(typs: _*)) match {
-      case Right(f) => Right(f.retType)
-      case Left(s) => Left(s)
-    }
+    lookup(name, FunType(typs: _*)).map(_.retType)
 
   def registerField[T, U](name: String, impl: T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
