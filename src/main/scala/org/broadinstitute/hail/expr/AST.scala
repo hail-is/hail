@@ -847,8 +847,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
             s"""method `hist' expects three numeric arguments (start, end, bins)
                 |  Examples:
                 |    gs.map(g => g.gq).hist(0, 100, 20)
-                |    variants.map(v => va.linreg.beta).hist(.5, 1.5, 100)
-             """.stripMargin)
+                |    variants.map(v => va.linreg.beta).hist(.5, 1.5, 100)""".stripMargin)
         }
 
       case (agg: TAggregable, "collect", rhs) =>
@@ -875,8 +874,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           case TGenotype => InfoScoreCombiner.signature
           case _ => parseError(
             s"""method `$method' can not operate on `$agg'
-                |  Accepted aggregable type: `Aggregable[Genotype]'
-             """.stripMargin
+                |  Accepted aggregable type: `Aggregable[Genotype]'""".stripMargin
           )
         }
 
@@ -889,6 +887,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           case _ => parseError(
             s"""method `$method' expects one argument of type (Double)
                 |  Found ${ types.length } arguments of types (${ types.mkString(", ") })""".stripMargin)
+        }
+
+      case (agg: TAggregable, "hardyWeinberg", rhs) =>
+        if (rhs.nonEmpty)
+          parseError(s"""method `$method' does not take arguments""")
+        `type` = agg.elementType match {
+          case TGenotype => HWECombiner.signature
+          case _ => parseError(
+            s"""method `$method' can not operate on `$agg'
+                |  Accepted aggregable type: `Aggregable[Genotype]'""".stripMargin
+          )
         }
 
       case _ =>
@@ -1270,6 +1279,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       agg.ec.aggregationFunctions += new InbreedingAggregator(aggF, localIdx, maf)
       () => localA(localIdx).asInstanceOf[InbreedingCombiner].asAnnotation
+
+    case (agg: TAggregable, "hardyWeinberg", Array()) =>
+      val localIdx = agg.ec.a.length
+      val localA = agg.ec.a
+      localA += null
+
+      val localPos = posn
+      val aggF = agg.f
+
+      agg.ec.aggregationFunctions += new HWEAggregator(aggF, localIdx)
+      () => localA(localIdx).asInstanceOf[HWECombiner].asAnnotation
 
     case (agg: TAggregable, "sum", Array()) =>
       val localIdx = agg.ec.a.length

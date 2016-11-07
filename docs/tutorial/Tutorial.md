@@ -253,15 +253,15 @@ head test.sampleqc.tsv | cut -f 1,2,3,4,5,6,7,8,9,10
 
 <pre class="tutorial output" style="color: red"> 
 Sample	callRate	nCalled	nNotCalled	nHomRef	nHet	nHomVar	nSNP	nInsertion	nDeletion
-HG02970	9.6931e-01	5433	172	3919	822	692	1514	0	0
-NA19089	9.7895e-01	5487	118	4072	729	686	1415	0	0
-NA18861	9.7342e-01	5456	149	3925	855	676	1531	0	0
-HG02122	9.7502e-01	5465	140	4026	730	709	1439	0	0
-NA20759	9.7110e-01	5443	162	4068	748	627	1375	0	0
-HG00139	9.8537e-01	5523	82	4080	833	610	1443	0	0
-NA12878	9.6735e-01	5422	183	4081	694	647	1341	0	0
-HG02635	9.8234e-01	5506	99	3927	927	652	1579	0	0
-NA19660	9.4505e-01	5297	308	3910	685	702	1387	0	0
+HG02970	9.69313e-01	5433	172	3919	822	692	2206	0	0
+NA19089	9.78947e-01	5487	118	4072	729	686	2101	0	0
+NA18861	9.73417e-01	5456	149	3925	855	676	2207	0	0
+HG02122	9.75022e-01	5465	140	4026	730	709	2148	0	0
+NA20759	9.71097e-01	5443	162	4068	748	627	2002	0	0
+HG00139	9.85370e-01	5523	82	4080	833	610	2053	0	0
+NA12878	9.67351e-01	5422	183	4081	694	647	1988	0	0
+HG02635	9.82337e-01	5506	99	3927	927	652	2231	0	0
+NA19660	9.45049e-01	5297	308	3910	685	702	2089	0	0
 </pre>
 
 We can also analyze the results further using R. 
@@ -323,57 +323,33 @@ We have filtered out 889 samples from the original dataset.
 
 #### Filter Variants
 
-Starting from a VDS where both poor-performing genotypes and samples have been removed (**test.filtersamples.vds**), we can use the [`variantqc`](commands.html#variantqc) command to compute numerous QC summary statistics per variant and output the results to a text file called **test.variantqc.tsv**. 
-The fields in this file are described in the documentation for [`variantqc`](commands.html#variantqc).
+Starting from a VDS where both poor-performing genotypes and samples have been removed (**test.filtersamples.vds**), we can use the [`variantqc`](commands.html#variantqc) command to compute numerous QC summary statistics per variant and output the results to a text file called **test.variantqc.tsv** using [`exportvariants`](commands.html#exportvariants).
+We use the string `va.qc.*` to specify that all variant qc annotations from running [`variantqc`](commands.html#variantqc) should be output to the tsv file.
 
 ```
 hail read -i test.filtersamples.vds \
-    \
     variantqc \
-     exportvariants -o test.variantqc.tsv -c "Variant = v, va.qc.*"
+    exportvariants -o test.variantqc.tsv -c "Chrom = v.contig, Pos = v.start, Ref = v.ref, Alt = v.alt, va.qc.*"
 ```
+
+We could also have written the `-c` option above as `Variant = v, va.qc.*` where the Variant column would have the form of "Chrom:Pos:Ref:Alt".
 
 We've used R to make histograms of 4 summary statistics (call rate, minor allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated includes all populations.
 <img src="test.variantqc.png">
 
-To compute the HWE p-value by population, we use a separate [`annotatevariants expr`](commands.html#annotatevariants_expr) command per population and the `hwe` function in the [Hail Expression Language](reference.html#HailExpressionLanguage) to compute HWE p-values. This function takes 3 integers representing the number of samples for each of the genotype categories (HomRef, Het, HomVar). 
+To compute the HWE p-value by population, we use a separate [`annotatevariants expr`](commands.html#annotatevariants_expr) command per population.
+For each variant, we filter the genotypes to only those genotypes from the population of interest using a filter function on the [genotype aggregable](reference.html#aggregables) and then calculate the Hardy-Weinberg Equilibrium p-value using the [`hardyWeinberg`](reference.html#aggreg_hwe) function on the filtered genotype aggregable. 
 
-To count the number of samples in each genotype category, we use a filter operation on an [aggregable of genotypes](index.html#aggregables). The genotypes are filtered by requiring the sample is from the population of interest and whether they are in the genotype class of interest. 
-For example, to count the number of samples with European ancestry and are homozygotes for the reference allele, we filter genotypes where `sa.pheno.SuperPopulation == "EUR"` and the genotype call is homozygote reference `g.isHomRef`. 
-
-After the filter function, we call the count function [`count()`](reference.html#aggregables) to count how many elements evaluated to True. The `.toInt` function is called to convert the output type of `count()`, which is a Long, to an Int which is required by the `hwe` function.
 The results of [`printschema --va`](commands.html#printschema) shows we have added new fields in the variant annotations for HWE p-values for each population.
 
 ```
 hail read -i test.filtersamples.vds \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweEUR = 
-                                hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar).count().toInt)' \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweSAS = 
-                                hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar).count().toInt)' \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweAMR = 
-                                hwe(gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomRef).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHet).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomVar).count().toInt)' \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweAFR = 
-                                hwe(gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomRef).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHet).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomVar).count().toInt)' \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweEAS = 
-                                hwe(gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomRef).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHet).count().toInt, 
-                                    gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomVar).count().toInt)' \
-    \
+    annotatevariants expr -c 'va.hweByPop.hweEUR = gs.filter(g => sa.pheno.SuperPopulation == "EUR").hardyWeinberg()' \
+    annotatevariants expr -c 'va.hweByPop.hweSAS = gs.filter(g => sa.pheno.SuperPopulation == "SAS").hardyWeinberg()' \
+    annotatevariants expr -c 'va.hweByPop.hweAMR = gs.filter(g => sa.pheno.SuperPopulation == "AMR").hardyWeinberg()' \
+    annotatevariants expr -c 'va.hweByPop.hweAFR = gs.filter(g => sa.pheno.SuperPopulation == "AFR").hardyWeinberg()' \
+    annotatevariants expr -c 'va.hweByPop.hweEAS = gs.filter(g => sa.pheno.SuperPopulation == "EAS").hardyWeinberg()' \
     printschema --va \
-    \
     write -o test.hwebypop.vds    
 ```
 
@@ -501,68 +477,33 @@ hail read -i test.filtersamples.vds \
     \
     annotatevariants expr -c 'va.hweByPop.hweEUR = 
                                 if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar).count().toInt) 
+                                    gs.filter(g => sa.pheno.SuperPopulation == "EUR").hardyWeinberg() 
                                 else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && 
-                                                        g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EUR" && 
-                                                        g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EUR" && 
-                                                        g.isHomVar && sa.pheno.isFemale).count().toInt)' \
+                                    gs.filter(g => sa.pheno.SuperPopulation == "EUR" && sa.pheno.isFemale).hardyWeinberg()' \
     \
     annotatevariants expr -c 'va.hweByPop.hweSAS = 
                                 if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar).count().toInt) 
+                                    gs.filter(g => sa.pheno.SuperPopulation == "SAS").hardyWeinberg() 
                                 else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && 
-                                                        g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "SAS" && 
-                                                        g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "SAS" && 
-                                                        g.isHomVar && sa.pheno.isFemale).count().toInt)' \
+                                    gs.filter(g => sa.pheno.SuperPopulation == "SAS" && sa.pheno.isFemale).hardyWeinberg()' \
     \
     annotatevariants expr -c 'va.hweByPop.hweAMR = 
                                 if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomVar).count().toInt) 
+                                    gs.filter(g => sa.pheno.SuperPopulation == "AMR").hardyWeinberg() 
                                 else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "AMR" && 
-                                                        g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AMR" && 
-                                                        g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AMR" && 
-                                                        g.isHomVar && sa.pheno.isFemale).count().toInt)' \
+                                    gs.filter(g => sa.pheno.SuperPopulation == "AMR" && sa.pheno.isFemale).hardyWeinberg()' \
     \
     annotatevariants expr -c 'va.hweByPop.hweAFR = 
                                 if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomVar).count().toInt) 
+                                    gs.filter(g => sa.pheno.SuperPopulation == "AFR").hardyWeinberg() 
                                 else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "AFR" && 
-                                                        g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AFR" && 
-                                                        g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AFR" && 
-                                                        g.isHomVar && sa.pheno.isFemale).count().toInt)' \
+                                    gs.filter(g => sa.pheno.SuperPopulation == "AFR" && sa.pheno.isFemale).hardyWeinberg()' \
     \
     annotatevariants expr -c 'va.hweByPop.hweEAS = 
                                 if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomVar).count().toInt) 
+                                    gs.filter(g => sa.pheno.SuperPopulation == "EAS").hardyWeinberg() 
                                 else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "EAS" && 
-                                                        g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EAS" && 
-                                                        g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EAS" && 
-                                                        g.isHomVar && sa.pheno.isFemale).count().toInt)' \
+                                    gs.filter(g => sa.pheno.SuperPopulation == "EAS" && sa.pheno.isFemale).hardyWeinberg()' \
     \
     filtervariants expr --keep -c 'va.hweByPop.hweEUR.pHWE > 1e-6 && 
                                    va.hweByPop.hweSAS.pHWE > 1e-6 && 
@@ -681,8 +622,8 @@ hail read -i test.filtervariants2.vds \
 
 To account for population stratification in association testing, we use principal component analysis to compute covariates that are proxies for genetic similarity.
 For PCA to work, we need an independent set of SNPs. The text file **purcell5k.interval_list** contains a list of independent variants.
-To calculate principal components, we first use the [`filtervariants intervals`](commands.html#filtervariants_intervals) command to only keep SNPs from the **purcell5k.interval_list**. Next, we use the [`pca`](commands.html#pca) command to calculate the first 10 principal components and output those to a text file.
-Lastly, we export sample annotations so that we can plot the principal components and color the points by their population group.
+To calculate principal components, we first use the [`filtervariants intervals`](commands.html#filtervariants_intervals) command to only keep SNPs from the **purcell5k.interval_list**. Next, we use the [`pca`](commands.html#pca) command to calculate the first 10 principal components. The results are stored in sample annotations with the flag `--scores` where the argument is the sample annotation path name.
+Lastly, we export the sample annotations to a text file with [`exportsamples`](commands.html#exportsamples) so that we can plot the principal components and color the points by their population group.
 
 ```
 hail read -i test.sexcheck.vds \
@@ -694,23 +635,18 @@ hail read -i test.sexcheck.vds \
     exportsamples -c 'Sample = s, SuperPopulation = sa.pheno.SuperPopulation, 
                       Population = sa.pheno.Population, PC1 = sa.pca.PC1,
                       PC2 = sa.pca.PC2, PC3 = sa.pca.PC3' \
-                  -o test.pcaPlusPop.tsv
+                  -o test.pcaPlusPop.tsv \
+    write -o test.qc.vds
 ```
 
 Here are some examples plotted using R:
 <img src="test.pcaPlot.png">
 
-Lastly, we add the principal components computed above to the QC'd dataset where unreliable genotypes, samples, and variants have been filtered out.
-We have printed out all three schemas (global, sample annotations, variant annotations) so you can see all of the annotations we have added to the dataset. 
+
+We have printed out all three schemas (global, sample annotations, variant annotations) so you can see the structure of all of the annotations we have added to the dataset. 
 
 ```
-hail read -i test.sexcheck.vds \
-    \
-    annotatesamples table -e Sample -r sa.pca -i test.pca.tsv --impute \
-    \
-    write -o test.qc.vds \
-    \
-    printschema
+hail read -i test.qc.vds printschema
 ```
 
 <pre class="tutorial output" style="color: red">
@@ -760,7 +696,6 @@ sa: Struct {
     },
     sexcheck: Boolean,
     pca: Struct {
-        Sample: String,
         PC1: Double,
         PC2: Double,
         PC3: Double,
@@ -939,190 +874,3 @@ hail read -i test.qc.vds \
 ```
 
 <img src="test.fet.qq.png">
-
-### Summary
- 
-Most concise way to write this analysis:
-
-```
-hail importvcf $vcf \
-    \
-    splitmulti \
-    \
-    annotatesamples table --root sa.pheno -e Sample \
-        --types 'Population: String, SuperPopulation: String, isFemale: Boolean, 
-                 PurpleHair: Boolean, CaffeineConsumption: Double' 
-        --input $sampleAnnotations \
-    \
-    filtergenotypes --keep -c 'let ab = g.ad[1] / g.ad.sum 
-                               in ((g.isHomRef && ab <= 0.1) || 
-                                   (g.isHet && ab >= 0.25 && ab <= 0.75) || 
-                                   (g.isHomVar && ab >= 0.9))' \
-    \
-    write -o test.filtergeno.vds    
-
-
-hail read -i test.filtergeno.vds \
-    \
-    filtervariants expr --keep -c 'let callRate = gs.filter(g => g.isCalled).count() / gs.count() 
-                                   in callRate >= 0.95' \
-    \
-    sampleqc -o test.sampleqc.tsv
-
-
-hail read -i test.filtergeno.vds \
-    \
-    annotatesamples table -e Sample -r sa.qc --impute -i test.sampleqc.tsv \
-    \
-    filtersamples expr --keep -c 'sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20' \
-    \
-    write -o test.filtersamples.vds
-
-
-hail read -i test.filtersamples.vds \
-    \
-    variantqc \
-    exportvariants -o test.variantqc.tsv -c "Variant = v, va.qc.*" \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweEUR = 
-                                if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar).count().toInt) 
-                                else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EUR" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweSAS = 
-                                if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar).count().toInt) 
-                                else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "SAS" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweAMR = 
-                                if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomVar).count().toInt) 
-                                else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AMR" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweAFR = 
-                                if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomVar).count().toInt) 
-                                else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "AFR" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
-    \
-    annotatevariants expr -c 'va.hweByPop.hweEAS = 
-                                if (v.contig != "X") 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomRef).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHet).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomVar).count().toInt) 
-                                else 
-                                    hwe(gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomRef && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHet && sa.pheno.isFemale).count().toInt, 
-                                        gs.filter(g => sa.pheno.SuperPopulation == "EAS" && g.isHomVar && sa.pheno.isFemale).count().toInt)' \
-    \
-    filtervariants expr --keep -c 'va.hweByPop.hweEUR.pHWE > 1e-6 && 
-                                   va.hweByPop.hweSAS.pHWE > 1e-6 && 
-                                   va.hweByPop.hweAMR.pHWE > 1e-6 && 
-                                   va.hweByPop.hweAFR.pHWE > 1e-6 && 
-                                   va.hweByPop.hweEAS.pHWE > 1e-6' \
-    \
-    filtervariants expr --keep -c 'va.qc.gqMean >= 20' \
-    \
-    write -o test.filtervariants.vds
-
-
-hail read -i test.filtervariants.vds \
-    \
-    imputesex --maf-threshold 0.05 \
-    \
-    annotatesamples expr -c 'sa.sexcheck = sa.pheno.isFemale == sa.imputesex.isFemale' \
-    \
-    exportsamples -c 'Sample = s, ReportedSex = sa.pheno.isFemale, 
-                      ImputedSex = sa.imputesex.isFemale, SexAgree = sa.sexcheck' \
-                  -o test.sexcheck.tsv \
-    \
-    filtersamples expr --keep -c 'sa.sexcheck || isMissing(sa.sexcheck)' \
-    \
-    write -o test.sexcheck.vds
-
-
-hail read -i test.sexcheck.vds \
-    \
-    filtervariants intervals --keep -i $prunedVariants \
-    \
-    pca --scores sa.pca \
-    \
-    exportsamples -c 'Sample = s, sa.pca.*' \
-                  -o test.pca.tsv
-
-hail read -i test.sexcheck.vds \
-    \
-    annotatesamples table -e Sample -r sa.pca -i test.pca.tsv --impute \
-    \
-    write -o test.qc.vds
-
-
-hail read -i test.qc.vds \
-    \
-    filtervariants expr --keep -c 'va.qc.AF > 0.05' \
-    \
-    linreg -y sa.pheno.CaffeineConsumption -c 'sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale' \
-    \
-    exportvariants -c 'Variant = v, Beta = va.linreg.beta, SE = va.linreg.se, 
-                       T = va.linreg.tstat, PVAL = va.linreg.pval' \
-                   -o test.linreg.tsv
-
-
-hail read -i test.qc.vds \
-    \
-    filtervariants expr --keep -c 'va.qc.AF > 0.05' \
-    \
-    logreg -y 'sa.pheno.PurpleHair' -t wald -c 'sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale' \
-    \
-    exportvariants -c 'Variant = v, PVAL = va.logreg.wald.pval' -o test.logreg.tsv
-
-
-hail read -i test.qc.vds \
-    \
-    filtervariants expr --keep -c 'va.qc.AF <= 0.05' \
-    \
-    annotatevariants expr -c 'va.minorCase = 
-                                gs.filter(g => sa.pheno.PurpleHair && g.isHet).count() +
-                                2 * gs.filter(g => sa.pheno.PurpleHair && g.isHomVar).count()' \
-    \
-    annotatevariants expr -c 'va.minorControl = 
-                                gs.filter(g => !sa.pheno.PurpleHair && g.isHet).count() + 
-                                2 * gs.filter(g => !sa.pheno.PurpleHair && g.isHomVar).count()' \
-    \
-    annotatevariants expr -c 'va.majorCase = 
-                                gs.filter(g => sa.pheno.PurpleHair && g.isHet).count() +
-                                2 * gs.filter(g => sa.pheno.PurpleHair && g.isHomRef).count()' \
-    \
-    annotatevariants expr -c 'va.majorControl = 
-                                gs.filter(g => !sa.pheno.PurpleHair && g.isHet).count() +
-                                2 * gs.filter(g => !sa.pheno.PurpleHair && g.isHomRef).count()' \
-    \
-    annotatevariants expr -c 'va.fet = 
-                                fet(va.minorCase.toInt, va.minorControl.toInt, 
-                                    va.majorCase.toInt, va.majorControl.toInt)' \
-    \
-    exportvariants -c 'Variant = v, MinorCase = va.minorCase, MinorControl = va.minorControl, 
-                       MajorCase = va.majorCase, majorControl = va.majorControl, PVAL = va.fet.pValue, 
-                       OR = va.fet.oddsRatio, ciLower = va.fet.ci95Lower, ciUpper = va.fet.ci95Upper' \
-                   -o test.fet.tsv
-```
-
