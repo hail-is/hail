@@ -82,7 +82,7 @@ class HailContext:
         
         _run_command(self, pargs)
     
-    def import_annotations_table(self, path, variant_expr, code = None, npartition = None,
+    def import_annotations_table(self, path, variant_expr, code = None, npartitions = None,
                                  # text table options
                                  types = None, missing = "NA", delimiter = "\\t", comment = None,
                                  header = True, impute = False):
@@ -98,8 +98,8 @@ class HailContext:
         :param code: Expression to build the variant annotations.
         :type code: str or None
         
-        :param npartition: Number of partitions.
-        :type npartition: int or None
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
         
         :param str types: Type declarations for the fields of the text
             table.
@@ -134,9 +134,9 @@ class HailContext:
             pargs.append('--code')
             pargs.append(code)
 
-        if npartition:
+        if npartitions:
             pargs.append('--npartition')
-            pargs.append(npartition)
+            pargs.append(npartitions)
 
         if types:
             pargs.append('--types')
@@ -159,7 +159,7 @@ class HailContext:
         
         return self._run_command(None, pargs)
 
-    def import_bgen(self, path, tolerance = 0.2, sample_file = None, npartition = None):
+    def import_bgen(self, path, tolerance = 0.2, sample_file = None, npartitions = None):
         """Import .bgen files as VariantDataset
 
         :param path: .bgen files to import.
@@ -172,8 +172,8 @@ class HailContext:
         :param sample_file: The sample file.
         :type sample_file: str or None
 
-        :param npartition: Number of partitions.
-        :type npartition: int or None
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
         
         :rtype: :class:`.VariantDataset`
         """
@@ -190,16 +190,16 @@ class HailContext:
             pargs.append('--samplefile')
             pargs.append(sample_file)
         
-        if npartition:
+        if npartitions:
             pargs.append('--npartition')
-            pargs.append(str(npartition))
+            pargs.append(str(npartitions))
         
         pargs.append('--tolerance')
         pargs.append(str(tolerance))
         
         return self._run_command(None, args)
 
-    def import_gen(self, path, tolerance = 0.2, sample_file = None, npartition = None, chromosome = None):
+    def import_gen(self, path, tolerance = 0.2, sample_file = None, npartitions = None, chromosome = None):
         """Import .bgen files as VariantDataset
 
         :param path: .gen files to import.
@@ -212,8 +212,8 @@ class HailContext:
         :param sample_file: The sample file.
         :type sample_file: str or None
         
-        :param npartition: Number of partitions.
-        :type npartition: int or None
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
 
         :param chromosome: Chromosome if not listed in the .gen file.
         :type chromosome: str or None
@@ -237,9 +237,9 @@ class HailContext:
             pargs.append('--chromosome')
             pargs.append(chrosome)
 
-        if npartition:
+        if npartitions:
             pargs.append('--npartition')
-            pargs.append(str(npartition))
+            pargs.append(str(npartitions))
         
         if tolerance:
             pargs.append('--tolerance')
@@ -247,7 +247,7 @@ class HailContext:
             
         return self._run_command(None, pargs)
 
-    def import_plink(self, bed, bim, fam, npartition = None, delimiter = '\\\\s+', missing = "NA", quantpheno = False):
+    def import_plink(self, bed, bim, fam, npartitions = None, delimiter = '\\\\s+', missing = "NA", quantpheno = False):
         """
         Import PLINK binary file (.bed, .bim, .fam) as VariantDataset
 
@@ -257,8 +257,8 @@ class HailContext:
 
         :param str fam: PLINK .fam file.
 
-        :param npartition: Number of partitions.
-        :type npartition: int or None
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
 
         :param str missing: The string used to denote missing values.
         
@@ -280,9 +280,9 @@ class HailContext:
         pargs.append('--fam')
         pargs.append(fam)
             
-        if npartition:
+        if npartitions:
             pargs.append('--npartition')
-            pargs.append(npartition)
+            pargs.append(npartitions)
         
         pargs.append('--tolerance')
         pargs.append(str(tolerance))
@@ -326,7 +326,7 @@ class HailContext:
             pargs.append("--skip-genotypes")
         return self._run_command(None, pargs)
 
-    def import_vcf(self, path, force = False, force_bgz = False, header_file = None, npartition = None,
+    def import_vcf(self, path, force = False, force_bgz = False, header_file = None, npartitions = None,
                    sites_only = False, store_gq = False, pp_as_pl = False, skip_bad_ad = False):
         """Import .vcf files as VariantDataset
 
@@ -340,8 +340,8 @@ class HailContext:
         :param header_file: File to load VCF header from.  If not specified, the first file in path is used.
         :type header_file: str or None
         
-        :param npartition: Number of partitions.
-        :type npartition: int or None
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
         
         :param bool sites_only: If True, create sites-only
             VariantDataset.  Don't load sample ids, sample annotations
@@ -375,9 +375,9 @@ class HailContext:
             pargs.append('--header-file')
             pargs.append(header_file)
             
-        if npartition:
+        if npartitions:
             pargs.append('--npartition')
-            pargs.append(str(n_partitions))
+            pargs.append(str(npartitions))
             
         if pp_as_pl:
             pargs.append('--pp-as-pl')
