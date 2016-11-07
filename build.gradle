@@ -321,14 +321,12 @@ task makePyHailDocs(type: Exec) {
 
      commandLine 'make', 'html'
 
-     environment PYTHONPATH: '/Users/cseed/hail/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-0.9-src.zip'
+     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-0.9-src.zip'
 }
 
 task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs']) {
     commandLine 'mv', 'python/pyhail/docs/_build/html', 'build/www/pyhail'
 }
-
-println projectDir
 
 task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/faq.html'
