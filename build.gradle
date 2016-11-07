@@ -314,7 +314,21 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJa
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
+task makePyHailDocs(type: Exec) {
+     workingDir 'python/pyhail/docs'
+
+     commandLine 'make', 'html'
+
+     environment PYTHONPATH: '/Users/cseed/hail/python:/apache/spark-1.6.2-bin-hadoop2.6/python:/apache/spark-1.6.2-bin-hadoop2.6/python/lib/py4j-0.9-src.zip'
+}
+
+task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs']) {
+    commandLine 'mv', 'python/pyhail/docs/_build/html', 'build/www/pyhail'
+}
+
+println projectDir
+
+task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs', 'makePyHailDocs']) {
     from 'build/tmp/docs/faq.html'
     from 'build/tmp/docs/commands.html'
     from 'build/tmp/docs/reference.html'
@@ -322,6 +336,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/overview.html'
     from 'build/tmp/docs/getting_started.html'
     from 'build/tmp/docs/index.html'
+    from 'python/pyhail/docs/_build/html'
     into 'build/www'
 }
 
