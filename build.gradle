@@ -330,7 +330,7 @@ task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs']) 
 
 println projectDir
 
-task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs', 'makePyHailDocs']) {
+task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/faq.html'
     from 'build/tmp/docs/commands.html'
     from 'build/tmp/docs/reference.html'
@@ -338,11 +338,10 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs', 'makePyHailDocs']) 
     from 'build/tmp/docs/overview.html'
     from 'build/tmp/docs/getting_started.html'
     from 'build/tmp/docs/index.html'
-    from 'python/pyhail/docs/_build/html'
     into 'build/www'
 }
 
-task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial']) {
+task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial', 'copyPyHailDocs']) {
 }
 
 task createDocs(dependsOn: createWebsite)
