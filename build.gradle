@@ -315,11 +315,13 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJa
 }
 
 task makePyHailDocs(type: Exec) {
+     String sparkHome = System.getProperty("spark.home")
+
      workingDir 'python/pyhail/docs'
 
      commandLine 'make', 'html'
 
-     environment PYTHONPATH: '/Users/cseed/hail/python:/apache/spark-1.6.2-bin-hadoop2.6/python:/apache/spark-1.6.2-bin-hadoop2.6/python/lib/py4j-0.9-src.zip'
+     environment PYTHONPATH: '/Users/cseed/hail/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-0.9-src.zip'
 }
 
 task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs']) {
