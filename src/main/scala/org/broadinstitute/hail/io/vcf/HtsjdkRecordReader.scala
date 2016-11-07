@@ -56,7 +56,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         sig.fields.map { f =>
           val a = vc.getAttribute(f.name)
           try {
-            if (f.`type` == TDouble && a == "nan") Double.NaN else cast(a, f.`type`)
+            cast(a, f.`type`)
           } catch {
             case e: Exception =>
               fatal(
@@ -230,7 +230,7 @@ object HtsjdkRecordReader {
       case (s: String, TString) => s
       case (s: String, TChar) => s
       case (s: String, TInt) => s.toInt
-      case (s: String, TDouble) => s.toDouble
+      case (s: String, TDouble) => if (s == "nan") Double.NaN else s.toDouble
 
       case (a: java.util.ArrayList[_], TArray(TInt)) =>
         a.asScala.iterator.map(_.asInstanceOf[String].toInt).toArray: IndexedSeq[Int]
