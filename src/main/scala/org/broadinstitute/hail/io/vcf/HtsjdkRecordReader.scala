@@ -56,7 +56,7 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         sig.fields.map { f =>
           val a = vc.getAttribute(f.name)
           try {
-            cast(a, f.`type`)
+            if (f.`type` == TDouble && a == "nan") Double.NaN else cast(a, f.`type`)
           } catch {
             case e: Exception =>
               fatal(
