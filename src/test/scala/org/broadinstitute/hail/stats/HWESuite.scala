@@ -28,7 +28,7 @@ class HWESuite extends SparkSuite {
       var s = SplitMulti.run(State(sc, sqlContext, vds))
       s = VariantQC.run(s)
       s = AnnotateVariantsExpr.run(s, Array("-c", "va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)"))
-      s = AnnotateVariantsExpr.run(s, Array("-c", "va.hweAgg = gs.hwe()"))
+      s = AnnotateVariantsExpr.run(s, Array("-c", "va.hweAgg = gs.hardyWeinberg()"))
 
       val vds2 = s.vds
 
