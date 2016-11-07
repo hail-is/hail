@@ -415,7 +415,7 @@ annotatevariants expr -c "va.eur_stats = gs.filter(g => sa.pop == "EUR").callSta
                           va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(v)"
 ```
 
-### <a class="jumptarget" name="aggreg_hwe"></a> HWE
+### <a class="jumptarget" name="aggreg_hwe"></a> HardyWeinberg
 
 ```
 <genotype aggregable>.hardyWeinberg()
