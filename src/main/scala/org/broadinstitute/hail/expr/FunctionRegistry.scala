@@ -7,24 +7,82 @@ import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.broadinstitute.hail.expr.HailRep._
 
 import scala.collection.mutable
+import cats.syntax.either._
 
 object FunctionRegistry {
 
-  private val registry = new mutable.HashMap[(String, TypeTag), Fun]
+  sealed trait LookupError {
+    def message: String
+  }
+  sealed case class NotFound(name: String, typ: TypeTag) extends LookupError {
+    def message = s"No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ"
+  }
+  sealed case class Ambiguous(name: String, typ: TypeTag, alternates: Seq[(Int, (TypeTag, Fun))]) extends LookupError {
+    def message = s"""found ${ alternates.size } ambiguous matches for $typ:
+                      |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
+  }
 
-  private def lookup(name: String, typ: TypeTag): Option[Fun] =
-    registry.get((name, typ))
+  type Err[T] = Either[LookupError, T]
 
-  private def bind(name: String, typ: TypeTag, f: Fun) = {
-    lookup(name, typ) match {
-      case Some(existingBinding) =>
-        throw new RuntimeException(s"The name, ${ name }, with type, ${ typ }, is already bound as ${ existingBinding }")
+  private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun)]]().withDefaultValue(Seq.empty)
+
+  private val conversions = new mutable.HashMap[(BaseType, BaseType), (Int, UnaryFun[Any, Any])]
+
+  private def lookupConversion(from: BaseType, to: BaseType): Option[(Int, UnaryFun[Any, Any])] = conversions.get(from -> to)
+
+  private def registerConversion[T, U](how: T => U, priority: Int = 1)(implicit hrt: HailRep[T], hru: HailRep[U]) {
+    val from = hrt.typ
+    val to = hru.typ
+    require(priority >= 1)
+    lookupConversion(from, to) match {
+      case Some(_) =>
+        throw new RuntimeException(s"The conversion between $from and $to is already bound")
       case None =>
-        registry.put((name, typ), f)
+        conversions.put(from -> to, priority -> UnaryFun[Any, Any](to, x => how(x.asInstanceOf[T])))
     }
   }
 
-  def lookupField(ec: EvalContext)(typ: BaseType, name: String)(xAst: AST): Option[() => Any] =
+  private def lookup(name: String, typ: TypeTag): Err[Fun] = {
+
+    val matches = registry(name).flatMap { case (tt, f) =>
+      if (tt == typ)
+        Some(0 -> (tt, f))
+      else if (tt.xs.size == typ.xs.size) {
+        val conversionPriorities: Seq[Option[(Int, UnaryFun[Any, Any])]] = typ.xs.zip(tt.xs)
+          .map { case (l, r) =>
+            if (l == r)
+              Some(0 -> UnaryFun[Any, Any](l, (a: Any) => a))
+            else lookupConversion(l, r)
+          }
+
+        anyFailAllFail[Array, (Int, UnaryFun[Any, Any])](conversionPriorities).map(arr =>
+          arr.map(_._1).max -> (tt, f.convertArgs(arr.map(_._2))))
+      } else None
+    }.groupBy(_._1).toArray.sortBy(_._1)
+
+    matches.headOption
+      .toRight[LookupError](NotFound(name, typ))
+      .flatMap { case (priority, it) =>
+        assert(it.nonEmpty)
+        if (it.size == 1)
+          Right(it.head._2._2)
+        else {
+          assert(priority != 0)
+          Left(Ambiguous(name, typ, it))
+      }
+    }
+  }
+
+  private def bind(name: String, typ: TypeTag, f: Fun) = {
+    lookup(name, typ) match {
+      case Right(existingBinding) =>
+        throw new RuntimeException(s"The name, $name, with type, $typ, is already bound as $existingBinding")
+      case _ =>
+        registry.updateValue(name, Seq.empty, (typ, f) +: _)
+    }
+  }
+
+  def lookupField(ec: EvalContext)(typ: BaseType, name: String)(xAst: AST): Err[() => Any] =
     lookup(name, MethodType(typ)).map {
       case f: UnaryFun[_, _] => AST.evalCompose(ec, xAst)(f)
       case f: OptionUnaryFun[_, _] => AST.evalFlatCompose(ec, xAst)(f)
@@ -32,30 +90,29 @@ object FunctionRegistry {
         throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument type $typ: $f")
     }
 
-  def lookupFieldType(typ: BaseType, name: String): Option[Type] =
-    lookup(name, MethodType(typ)).map(f => f.retType)
+  def lookupFieldType(typ: BaseType, name: String): Err[BaseType] =
+    lookup(name, MethodType(typ)).map(_.retType)
 
-  def lookupFun(ec: EvalContext)(name: String, typs: Seq[BaseType])(args: Seq[AST]): Option[() => Any] = {
+  def lookupFun(ec: EvalContext)(name: String, typs: Seq[BaseType])(args: Seq[AST]): Err[() => Any] = {
     require(typs.length == args.length)
 
-    lookup(name, FunType(typs: _*)).map { fn => (fn, typs) match {
-      case (f: UnaryFun[_, _], Seq(x)) =>
+    lookup(name, FunType(typs: _*)).map {
+      case f: UnaryFun[_, _] =>
         AST.evalCompose(ec, args(0))(f)
-      case (f: OptionUnaryFun[_, _], Seq(x)) =>
+      case f: OptionUnaryFun[_, _] =>
         AST.evalFlatCompose(ec, args(0))(f)
-      case (f: BinaryFun[_, _, _], Seq(x, y)) =>
+      case f: BinaryFun[_, _, _] =>
         AST.evalCompose(ec, args(0), args(1))(f)
-      case (f: Arity3Fun[_, _, _, _], Seq(x, y, z)) =>
+      case f: Arity3Fun[_, _, _, _] =>
         AST.evalCompose(ec, args(0), args(1), args(2))(f)
-      case (f: Arity4Fun[_, _, _, _, _], Seq(x, y, z, a)) =>
+      case f: Arity4Fun[_, _, _, _, _] =>
         AST.evalCompose(ec, args(0), args(1), args(2), args(3))(f)
-      case _ =>
+      case fn =>
         throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typs: $fn")
-    }
     }
   }
 
-  def lookupFunReturnType(name: String, typs: Seq[BaseType]): Option[Type] =
+  def lookupFunReturnType(name: String, typs: Seq[BaseType]): Err[BaseType] =
     lookup(name, FunType(typs: _*)).map(_.retType)
 
   def registerField[T, U](name: String, impl: T => U)
@@ -217,11 +274,7 @@ object FunctionRegistry {
   registerField("abs", { (x: Float) => x.abs })
   registerField("abs", { (x: Double) => x.abs })
 
-  registerField("signum", { (x: Int) => x.signum })
-  registerField("signum", { (x: Long) => x.signum })
-  registerField("signum", { (x: Float) => x.signum })
   registerField("signum", { (x: Double) => x.signum })
-
   registerField("length", { (x: String) => x.length })
 
   registerUnaryNAFilteredCollectionField("sum", { (x: TraversableOnce[Int]) => x.sum })
@@ -294,27 +347,17 @@ object FunctionRegistry {
     Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
   })
   // NB: merge takes two structs, how do I deal with structs?
-  register("exp", { (x: Int) => math.exp(x) })
-  register("exp", { (x: Long) => math.exp(x) })
-  register("exp", { (x: Float) => math.exp(x) })
   register("exp", { (x: Double) => math.exp(x) })
-  register("log10", { (x: Int) => math.log10(x) })
-  register("log10", { (x: Long) => math.log10(x) })
-  register("log10", { (x: Float) => math.log10(x) })
   register("log10", { (x: Double) => math.log10(x) })
-  register("sqrt", { (x: Int) => math.sqrt(x) })
-  register("sqrt", { (x: Long) => math.sqrt(x) })
-  register("sqrt", { (x: Float) => math.sqrt(x) })
   register("sqrt", { (x: Double) => math.sqrt(x) })
-  register("log", { (x: Int) => math.log(x) })
-  register("log", { (x: Long) => math.log(x) })
-  register("log", { (x: Float) => math.log(x) })
   register("log", { (x: Double) => math.log(x) })
 
-  register("pcoin", { (p: Float) => math.random < p })
   register("pcoin", { (p: Double) => math.random < p })
-  register("runif", { (min: Float, max: Float) => min + (max - min) * math.random.toFloat })
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
-  register("rnorm", { (mean: Float, sd: Float) => mean + sd * scala.util.Random.nextGaussian().toFloat })
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() })
+
+  registerConversion((x: Int) => x.toDouble, priority = 2)
+  registerConversion { (x: Long) => x.toDouble }
+  registerConversion { (x: Int) => x.toLong }
+  registerConversion { (x: Float) => x.toDouble }
 }

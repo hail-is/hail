@@ -15,6 +15,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.{Position, Positional}
 import scala.language.existentials
 import scala.reflect.ClassTag
+import cats.syntax.either._
 
 case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
 
@@ -279,10 +280,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t@TArray(elementType), "tail") => t
 
       case (t, name) => FunctionRegistry.lookupFieldType(t, name)
-        .getOrElse(parseError(
-          s"""`$t' has no field `$rhs'
-              |  Hint: Don't forget empty-parentheses in a method call, e.g.
-              |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin))
+        .valueOr {
+          case FunctionRegistry.NotFound(name, typ) =>
+            parseError(s"""`$t' has no field `$rhs'
+                           |  Hint: Don't forget empty-parentheses in a method call, e.g.
+                           |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
+          case otherwise => parseError(otherwise.message)
+        }
     }
   }
 
@@ -309,10 +313,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       AST.evalCompose[IndexedSeq[_]](ec, lhs)(_.tail)
 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
-      .getOrElse(fatal(
-        s"""`$t' has neither a field nor a method named `$name'
-            |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-            |    counts.sum""".stripMargin))
+      .valueOr {
+        case FunctionRegistry.NotFound(name, typ) =>
+          fatal(s"""`$t' has neither a field nor a method named `$name
+                    |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+                    |    counts.sum""".stripMargin)
+        case otherwise => fatal(otherwise.message)
+      }
   }
 }
 
@@ -427,7 +434,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       case ("log", Array(a, b)) if a.`type`.isInstanceOf[TNumeric] && b.`type`.isInstanceOf[TNumeric] => TDouble
 
       case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq)
-        .getOrElse(parseError(s"No function found with name `$fn' and argument ${ plural(args.size, "type") } `${ args.map(_.`type`).mkString(", ") }'"))
+        .valueOr(x => parseError(x.message))
     }
   }
 
@@ -576,10 +583,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("log", Array(a, b)) =>
       AST.evalComposeNumeric[Double, Double](ec, a, b)((x, b) => math.log(x) / math.log(b))
 
-    case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
-      .getOrElse(fatal(s"No function found with name `$fn' and argument ${ plural(args.size, "type") } `${ args.map(_.`type`).mkString(", ") }'"))
-  }
 
+    case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
+      .valueOr(x => fatal(x.message))
+  }
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
