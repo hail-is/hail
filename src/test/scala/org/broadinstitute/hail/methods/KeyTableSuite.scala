@@ -12,10 +12,8 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testSingleToPairRDD() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    var s = State(sc, sqlContext)
-    s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample, Status", inputFile))
-    val kt = s.ktEnv("kt1")
-    val kt2 = KeyTable(KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames.toArray)
+    val kt = KeyTable.importTextTable(sc, Array(inputFile), "Sample, Status", sc.defaultMinPartitions, TextTableConfiguration())
+    val kt2 = KeyTable(KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames)
 
     assert(kt.rdd.fullOuterJoin(kt2.rdd).forall { case (k, (v1, v2)) =>
       val res = v1 == v2
@@ -28,15 +26,14 @@ class KeyTableSuite extends SparkSuite {
   @Test def testImportExport() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
-    var s = State(sc, sqlContext)
-    s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample, Status", inputFile))
-    s = ExportKeyTable.run(s, Array("-n", "kt1", "-o", outputFile))
+    val kt = KeyTable.importTextTable(sc, Array(inputFile), "Sample, Status", sc.defaultMinPartitions, TextTableConfiguration())
+    kt.export(sc, outputFile, null)
 
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
     intercept[FatalException] {
-      s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample, Status, BadKeyName", inputFile))
+      val kt2 = KeyTable.importTextTable(sc, Array(inputFile), "Sample, Status, BadKeyName", sc.defaultMinPartitions, TextTableConfiguration())
     }
 
     assert(importedData == exportedData)
@@ -44,17 +41,10 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    var s = State(sc, sqlContext)
-
-    s = ImportKeyTable.run(s, Array("-n", "kt1", "-k", "Sample", "--impute", inputFile))
-    s = AnnotateKeyTableExpr.run(s, Array("-n", "kt1", "-d", "kt2", "-c", """qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5"""))
-    s = AnnotateKeyTableExpr.run(s, Array("-n", "kt2", "-d", "kt3"))
-    s = AnnotateKeyTableExpr.run(s, Array("-n", "kt3", "-d", "kt4", "-k", "qPhen, NotStatus"))
-
-    val kt1 = s.ktEnv("kt1")
-    val kt2 = s.ktEnv("kt2")
-    val kt3 = s.ktEnv("kt3")
-    val kt4 = s.ktEnv("kt4")
+    val kt1 = KeyTable.importTextTable(sc, Array(inputFile), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
+    val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""", null)
+    val kt3 = kt2.annotate(null, null)
+    val kt4 = kt3.annotate(null, "qPhen, NotStatus")
 
     val kt1ValueNames = kt1.valueNames.toSet
     val kt2ValueNames = kt2.valueNames.toSet
@@ -88,43 +78,27 @@ class KeyTableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
     val signature = TStruct(("field1", TInt), ("field2", TInt), ("field3", TInt))
     val keyNames = Array("field1")
-    val kt = KeyTable(rdd, signature, keyNames)
 
-    var s = State(sc, sqlContext, ktEnv = Map("kt1" -> kt))
+    val kt1 = KeyTable(rdd, signature, keyNames)
+    val kt2 = kt1.filter("field1 < 3", keep = true)
+    val kt3 = kt1.filter("field1 < 3 && field3 == 4", keep = true)
+    val kt4 = kt1.filter("field1 == 5 && field2 == 9 && field3 == 0", keep = false)
+    val kt5 = kt1.filter("field1 < -5 && field3 == 100", keep = true)
 
-    s = FilterKeyTableExpr.run(s, Array("-n", "kt1", "-c", "field1 < 3", "-d", "kt2", "--keep"))
-    assert(s.ktEnv.contains("kt2") && s.ktEnv("kt2").nRows == 2)
-
-    s = FilterKeyTableExpr.run(s, Array("-n", "kt1", "-c", "field1 < 3 && field3 == 4", "-d", "kt3", "--keep"))
-    assert(s.ktEnv.contains("kt3") && s.ktEnv("kt3").nRows == 1)
-
-    s = FilterKeyTableExpr.run(s, Array("-n", "kt1", "-c", "field1 == 5 && field2 == 9 && field3 == 0", "-d", "kt3", "--remove"))
-    assert(s.ktEnv.contains("kt3") && s.ktEnv("kt3").nRows == 2)
-
-    s = FilterKeyTableExpr.run(s, Array("-n", "kt1", "-c", "field1 < -5 && field3 == 100", "--keep"))
-    assert(s.ktEnv.contains("kt1") && s.ktEnv("kt1").nRows == 0)
+    assert(kt1.nRows == 3 && kt2.nRows == 2 && kt3.nRows == 1 && kt4.nRows == 2 && kt5.nRows == 0)
   }
 
   @Test def testJoin() = {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    var s = State(sc, sqlContext)
-    s = ImportKeyTable.run(s, Array("-n", "ktLeft", "-k", "Sample", "--impute", inputFile1))
-    s = ImportKeyTable.run(s, Array("-n", "ktRight", "-k", "Sample", "--impute", inputFile2))
+    val ktLeft = KeyTable.importTextTable(sc, Array(inputFile1), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
+    val ktRight = KeyTable.importTextTable(sc, Array(inputFile2), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
 
-    s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktLeftJoin", "-t", "left"))
-    s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktRightJoin", "-t", "right"))
-    s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktInnerJoin", "-t", "inner"))
-    s = JoinKeyTable.run(s, Array("-l", "ktLeft", "-r", "ktRight", "-d", "ktOuterJoin", "-t", "outer"))
-
-    val ktLeft = s.ktEnv("ktLeft")
-    val ktRight = s.ktEnv("ktRight")
-
-    val ktLeftJoin = s.ktEnv("ktLeftJoin")
-    val ktRightJoin = s.ktEnv("ktRightJoin")
-    val ktInnerJoin = s.ktEnv("ktInnerJoin")
-    val ktOuterJoin = s.ktEnv("ktOuterJoin")
+    val ktLeftJoin = ktLeft.leftJoin(ktRight)
+    val ktRightJoin = ktLeft.rightJoin(ktRight)
+    val ktInnerJoin = ktLeft.innerJoin(ktRight)
+    val ktOuterJoin = ktLeft.outerJoin(ktRight)
 
     val nExpectedValues = ktLeft.nValues + ktRight.nValues
 
