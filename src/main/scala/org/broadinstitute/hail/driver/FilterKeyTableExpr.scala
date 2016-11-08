@@ -53,6 +53,6 @@ object FilterKeyTableExpr extends Command {
     if (!(options.keep ^ options.remove))
       fatal("either `--keep' or `--remove' required, but not both")
 
-    state.copy(ktEnv = state.ktEnv + (dest -> kt.filterExpr(cond, keep)))
+    state.copy(ktEnv = state.ktEnv + (dest -> kt.filter(cond, keep)))
   }
 }
