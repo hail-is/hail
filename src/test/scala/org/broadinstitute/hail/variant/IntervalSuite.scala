@@ -210,7 +210,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testFilter() {
-    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf", nPartitions = Some(2)).cache()
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf", nPartitions = Some(4)).cache()
     val state = State(sc, sqlContext, vds)
     val iList = tmpDir.createTempFile("input", ".interval_list")
     val tmp1 = tmpDir.createTempFile("output", ".tsv")
@@ -220,7 +220,7 @@ class IntervalSuite extends SparkSuite {
     val intervalGen = for (start <- Gen.choose(startPos, endPos);
       end <- Gen.choose(start, endPos))
       yield Interval(Locus("22", start), Locus("22", end))
-    val intervalsGen = for (nIntervals <- Gen.choose(1, 10);
+    val intervalsGen = for (nIntervals <- Gen.choose(0, 10);
       g <- Gen.buildableOfN[Array, Interval[Locus]](nIntervals, intervalGen)) yield g
 
     Prop.forAll(intervalsGen) { intervals =>
