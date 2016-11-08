@@ -14,8 +14,7 @@ case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
   vds: VariantDataset = null,
-  env: Map[String, VariantDataset] = Map.empty,
-  ktEnv: Map[String, KeyTable] = Map.empty) {
+  env: Map[String, VariantDataset] = Map.empty) {
   def hadoopConf = sc.hadoopConfiguration
 }
 
@@ -47,9 +46,7 @@ object ToplevelCommands {
         + cmd.description))
   }
 
-  register(AggregateByKey)
   register(AggregateIntervals)
-  register(AnnotateKeyTable)
   register(AnnotateSamples)
   register(AnnotateVariants)
   register(AnnotateGlobal)
@@ -64,7 +61,6 @@ object ToplevelCommands {
   register(CountBytes)
   register(Deduplicate)
   register(DownsampleVariants)
-  register(ExportKeyTable)
   register(ExportPlink)
   register(ExportGEN)
   register(ExportGenotypes)
@@ -75,7 +71,6 @@ object ToplevelCommands {
   register(ExportVCF)
   register(FilterAlleles)
   register(FilterGenotypes)
-  register(FilterKeyTable)
   register(Filtermulti)
   register(FilterSamples)
   register(FilterVariants)
@@ -90,7 +85,6 @@ object ToplevelCommands {
   register(ImportAnnotations)
   register(ImportBGEN)
   register(ImportGEN)
-  register(ImportKeyTable)
   register(ImportPlink)
   register(ImportVCF)
   register(ImputeSex)
