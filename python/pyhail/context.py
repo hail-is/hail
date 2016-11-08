@@ -35,8 +35,7 @@ class HailContext(object):
 
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
-            self.jsc, self.jsqlContext, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty(),
-            scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
+            self.jsc, self.jsqlContext, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
     
     def _run_command(self, vds, pargs):
         jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
