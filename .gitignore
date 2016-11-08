@@ -4,3 +4,6 @@ hail.iml
 .gradle/
 build/
 out/
+python/**/*.pyc
+.*.crc
+python/pyhail/docs/_build/*

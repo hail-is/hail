@@ -21,16 +21,7 @@ object Join extends Command {
 
   def requiresVDS = true
 
-  def run(state: State, options: Options): State = {
-    val left = state.vds
-    val rightName = options.rightName
-
-    val right = state.env.get(rightName) match {
-      case Some(r) => r
-      case None =>
-        fatal(s"no such dataset $name in environment")
-    }
-
+  def join(left: VariantDataset, right: VariantDataset): VariantDataset = {
     if (left.wasSplit != right.wasSplit) {
       warn(
         s"""cannot join split and unsplit datasets
@@ -57,10 +48,23 @@ object Join extends Command {
         (lva, lgs ++ rgs)
       }.asOrderedRDD
 
+    left.copy(
+      sampleIds = newSampleIds,
+      sampleAnnotations = left.sampleAnnotations ++ right.sampleAnnotations,
+      rdd = joined)
+  }
+
+  def run(state: State, options: Options): State = {
+    val left = state.vds
+    val rightName = options.rightName
+
+    val right = state.env.get(rightName) match {
+      case Some(r) => r
+      case None =>
+        fatal(s"no such dataset $name in environment")
+    }
+
     state.copy(
-      vds = left.copy(
-        sampleIds = newSampleIds,
-        sampleAnnotations = left.sampleAnnotations ++ right.sampleAnnotations,
-        rdd = joined))
+      vds = join(left, right))
   }
 }

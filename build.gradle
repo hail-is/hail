@@ -254,6 +254,13 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 
+installDist {
+  into('python') {
+    from 'python'
+    include '**/*.py'
+  }
+}
+
 task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
 }
@@ -309,6 +316,20 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJa
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
+task makePyHailDocs(type: Exec) {
+     String sparkHome = System.getProperty("spark.home")
+
+     workingDir 'python/pyhail/docs'
+
+     commandLine 'make', 'html'
+
+     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-0.9-src.zip'
+}
+
+task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs']) {
+    commandLine 'mv', 'python/pyhail/docs/_build/html', 'build/www/pyhail'
+}
+
 task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/faq.html'
     from 'build/tmp/docs/commands.html'
@@ -320,7 +341,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     into 'build/www'
 }
 
-task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial']) {
+task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial', 'copyPyHailDocs']) {
 }
 
 task createDocs(dependsOn: createWebsite)

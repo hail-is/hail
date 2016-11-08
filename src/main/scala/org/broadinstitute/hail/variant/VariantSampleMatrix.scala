@@ -8,7 +8,7 @@ import org.apache.hadoop
 import org.apache.hadoop.fs.PathIOException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.utils._
@@ -908,6 +908,22 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
+
+  def variantsDF(sqlContext: SQLContext): DataFrame = {
+    val localVASignature = vaSignature
+
+    val rowRDD = rdd.map { case (v, (va, gs)) =>
+      Row(v.toRow,
+        SparkAnnotationImpex.exportAnnotation(va, localVASignature))
+    }
+
+    val schema = StructType(Array(
+      StructField("variant", Variant.schema, nullable = false),
+      StructField("va", vaSignature.schema, nullable = true)))
+
+    sqlContext.createDataFrame(rowRDD, schema)
+  }
+
 }
 
 // FIXME AnyVal Scala 2.11
@@ -1101,4 +1117,5 @@ class RichVDS(vds: VariantDataset) {
 
     vds.filterVariants(p)
   }
+
 }
