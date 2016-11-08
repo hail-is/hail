@@ -143,7 +143,8 @@ class VariantDataset(object):
 
         """
 
-        return self.hc.vds_state(
+        return VariantDataset(
+            self.hc,
             self.hc.jvm.org.broadinstitute.hail.driver.AnnotateSamplesVDS.annotate(
                 self.jvds, right.jvds, code, root))
 
@@ -264,7 +265,8 @@ class VariantDataset(object):
 
         """
 
-        return self.hc.vds_state(
+        return VariantDataset(
+            self.hc,
             self.hc.jvm.org.broadinstitute.hail.driver.AnnotateVariantsVDS.annotate(
                 self.jvds, other.jvds, code, root))
 
@@ -287,8 +289,8 @@ class VariantDataset(object):
 
         result = self.hc.jvm.org.broadinstitute.hail.driver.Concordance.calculate(
             self.jvds, right.jvds)
-        return (self.hc.vds_state(result._1),
-                self.hc.vds_state(result._2))
+        return (VariantDataset(self.hc, result._1),
+                VariantDataset(self.hc, result._2))
 
     def count(self, genotypes=False):
         """Return number of samples, varaints and genotypes.
@@ -480,16 +482,12 @@ class VariantDataset(object):
 
         :param bool overwrite: If True, overwrite any existing .vds file.
         
-        :return: Nothing.
-
-        :rtype: None
-        
         """
 
         pargs = ['write', '-o', output]
         if overwrite:
             pargs.append('--overwrite')
-        self.hc.run_command(self, pargs)
+        return self.hc.run_command(self, pargs)
 
     def filter_multi(self):
         """Filter out multi-allelic sites.
