@@ -298,7 +298,7 @@ class HailContext:
         
         return self._run_command(None, pargs)
 
-    def read(self, path, site_only = False):
+    def read(self, path, sites_only = False):
         """Read .vds files as VariantDataset
 
         :param path: .vds files to read.
