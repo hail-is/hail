@@ -46,6 +46,11 @@ trait TextTableOptions {
   )
 }
 
+object TextTableConfiguration {
+  def apply(types: String, commentChar: String, separator: String, missing: String, noHeader: Boolean, impute: Boolean): TextTableConfiguration =
+    TextTableConfiguration(Parser.parseAnnotationTypes(Option(types).getOrElse("")), Option(commentChar), separator, missing, noHeader, impute)
+}
+
 case class TextTableConfiguration(
   types: Map[String, Type] = Map.empty[String, Type],
   commentChar: Option[String] = None,

@@ -2,8 +2,9 @@ import pyspark
 
 from pyhail.dataset import VariantDataset
 from pyhail.java import jarray, scala_object, scala_package_object
+from pyhail.keytable import KeyTable
+from pyhail.TextTableConfig import TextTableConfig
 from py4j.protocol import Py4JJavaError
-
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -15,7 +16,6 @@ class FatalError(Exception):
 
     def __str__(self):
         return self.msg
-
 
 class HailContext(object):
     """:class:`.HailContext` is the main entrypoint for PyHail
@@ -67,6 +67,7 @@ class HailContext(object):
 
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
+<<<<<<< 3ae0e330f4b0548b8d3d298beec8c4975ef2a28f
             self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
 
     def _raise_py4j_exception(self, e):
@@ -74,6 +75,12 @@ class HailContext(object):
         raise FatalError(msg, e.java_exception)
 
     def run_command(self, vds, pargs):
+=======
+            self.jsc, self.jsqlContext, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty(),
+            scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
+    
+    def _run_command(self, vds, pargs):
+>>>>>>> Added most key table operations to pyhail
         jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
         t = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
@@ -187,9 +194,35 @@ class HailContext(object):
         if impute:
             pargs.append('--impute')
 
+<<<<<<< 488ab167ba42a286d23df1a1d6ed47c0be48d831
         return self.run_command(None, pargs)
 
     def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
+=======
+    def import_keytable(self, path, key_names, npartition = None, config = None):
+        pathArgs = []
+        if isinstance(path, str):
+            pathArgs.append(path)
+        else:
+            for p in path:
+                pathArgs.append(p)
+
+        if not isinstance(key_names, str):
+            key_names = ",".join(key_names)
+
+        if not npartition:
+            npartition = 1        
+
+        if not config:
+            config = TextTableConfig().asJavaObject(self)
+        elif isinstance(key_names, TextTableConfig):
+            config = config.asJavaObject(self)
+
+        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs), 
+            key_names, npartition, config))
+
+    def import_bgen(self, path, tolerance = 0.2, sample_file = None, npartition = None):
+>>>>>>> Added most key table operations to pyhail
         """Import .bgen files as VariantDataset
 
         :param path: .bgen files to import.
@@ -226,6 +259,11 @@ class HailContext(object):
 
         pargs.append('--tolerance')
         pargs.append(str(tolerance))
+<<<<<<< 488ab167ba42a286d23df1a1d6ed47c0be48d831
+=======
+        
+        return self._run_command(None, pargs)
+>>>>>>> Added most key table operations to pyhail
 
         return self.run_command(None, pargs)
 
