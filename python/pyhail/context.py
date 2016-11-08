@@ -67,7 +67,6 @@ class HailContext(object):
 
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
-<<<<<<< 3ae0e330f4b0548b8d3d298beec8c4975ef2a28f
             self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
 
     def _raise_py4j_exception(self, e):
@@ -75,12 +74,6 @@ class HailContext(object):
         raise FatalError(msg, e.java_exception)
 
     def run_command(self, vds, pargs):
-=======
-            self.jsc, self.jsqlContext, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty(),
-            scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
-    
-    def _run_command(self, vds, pargs):
->>>>>>> Added most key table operations to pyhail
         jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
         t = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
