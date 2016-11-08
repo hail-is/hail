@@ -190,7 +190,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val inserters = inserterBuilder.result()
 
-    val keyNameArray = if (keyNameString != null) Parser.parseIdentifierList(keyNameString) else keyNames.toArray
+    val keyNameArray = if (keyNameString != null) Parser.parseIdentifierList(keyNameString) else keyNames
 
     //    val nFields = nFields
 
