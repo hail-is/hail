@@ -16,7 +16,7 @@ package object driver {
       nCalled.flatMap(nCalled => divOption[Double](nCalled.toDouble * 100.0, nGenotypes))
 
     def toJavaMap: util.Map[String, Any] = {
-      var m: Map[String, Any] = Map("nSample" -> nSamples,
+      var m: Map[String, Any] = Map("nSamples" -> nSamples,
         "nVariants" -> nVariants,
         "nGenotypes" -> nGenotypes)
       nCalled.foreach { nCalled => m += "nCalled" -> nCalled }

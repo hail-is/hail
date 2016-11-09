@@ -120,7 +120,7 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ["importannotationstable"]
+        pargs = ['importannotations', 'table']
         if isinstance(path, str):
             pargs.append(path)
         else:
@@ -152,8 +152,8 @@ class HailContext(object):
             pargs.append('--comment')
             pargs.append(comment)
 
-        if header:
-            pargs.append('--header')
+        if not header:
+            pargs.append('--no-header')
         if impute:
             pargs.append('--impute')
 
