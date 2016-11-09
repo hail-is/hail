@@ -40,7 +40,7 @@ object IntervalListAnnotator {
     }
   }
 
-  def read(filename: String, hConf: hadoop.conf.Configuration): IntervalTree[Locus] = {
+  def read(filename: String, hConf: hadoop.conf.Configuration, prune: Boolean = false): IntervalTree[Locus] = {
     hConf.readLines(filename) {
       s =>
         val intervals = s
@@ -67,7 +67,7 @@ object IntervalListAnnotator {
           }.value)
           .toArray
 
-        IntervalTree(intervals)
+        IntervalTree(intervals, prune = prune)
     }
   }
 

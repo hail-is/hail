@@ -16,6 +16,8 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
 
   def contains(position: T): Boolean = position >= start && position < end
 
+  def overlaps(other: Interval[T]): Boolean = this.contains(other.start) || other.contains(this.start)
+
   def isEmpty: Boolean = start == end
 
   def compare(that: Interval[T]): Int = {
@@ -43,6 +45,8 @@ object Interval {
 case class IntervalTree[T: Ordering](root: Option[IntervalTreeNode[T]]) extends Traversable[Interval[T]] with Serializable {
   def contains(position: T): Boolean = root.exists(_.contains(position))
 
+  def overlaps(interval: Interval[T]): Boolean = root.exists(_.overlaps(interval))
+
   def query(position: T): Set[Interval[T]] = {
     val b = Set.newBuilder[Interval[T]]
     root.foreach(_.query(b, position))
@@ -54,8 +58,38 @@ case class IntervalTree[T: Ordering](root: Option[IntervalTreeNode[T]]) extends 
 }
 
 object IntervalTree {
-  def apply[T: Ordering](intervals: Array[Interval[T]]): IntervalTree[T] =
-    new IntervalTree[T](fromSorted(intervals.sorted, 0, intervals.length))
+  def apply[T: Ordering](intervals: Array[Interval[T]], prune: Boolean = false): IntervalTree[T] = {
+    val sorted = if (prune && intervals.nonEmpty) {
+      val unpruned = intervals.sorted
+      val ab = mutable.ArrayBuilder.make[Interval[T]]
+      var tmp = unpruned.head
+      var i = 1
+      var pruned = 0
+      while (i < unpruned.length) {
+        val interval = unpruned(i)
+        if (interval.start <= tmp.end) {
+          val max = if (interval.end > tmp.end)
+            interval.end
+          else
+            tmp.end
+          tmp = Interval(tmp.start, max)
+          pruned += 1
+        } else {
+          ab += tmp
+          tmp = interval
+        }
+
+        i += 1
+      }
+      ab += tmp
+
+      info(s"pruned $pruned redundant intervals")
+
+      ab.result()
+    } else intervals.sorted
+
+    new IntervalTree[T](fromSorted(sorted, 0, sorted.length))
+  }
 
   def fromSorted[T: Ordering](intervals: Array[Interval[T]], start: Int, end: Int): Option[IntervalTreeNode[T]] = {
     if (start >= end)
@@ -73,7 +107,9 @@ object IntervalTree {
   }
 
   def gen[T: Ordering](tgen: Gen[T]): Gen[IntervalTree[T]] = {
-    Gen.buildableOf[Array, Interval[T]](Interval.gen(tgen)) map { IntervalTree(_) }
+    Gen.buildableOf[Array, Interval[T]](Interval.gen(tgen)) map {
+      IntervalTree(_)
+    }
   }
 }
 
@@ -88,6 +124,11 @@ case class IntervalTreeNode[T: Ordering](i: Interval[T],
         (position >= i.start &&
           (i.contains(position) ||
             right.exists(_.contains(position)))))
+  }
+
+  def overlaps(interval: Interval[T]): Boolean = {
+    interval.start <= maximum && (left.exists(_.overlaps(interval))) ||
+      i.overlaps(interval) || (right.exists(_.overlaps(interval)))
   }
 
   def query(b: mutable.Builder[Interval[T], _], position: T) {

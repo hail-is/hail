@@ -208,4 +208,38 @@ class IntervalSuite extends SparkSuite {
       p.check()
     }
   }
+
+  @Test def testFilter() {
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf", nPartitions = Some(4)).cache()
+    val state = State(sc, sqlContext, vds)
+    val iList = tmpDir.createTempFile("input", ".interval_list")
+    val tmp1 = tmpDir.createTempFile("output", ".tsv")
+
+    val startPos = 16050036 - 250000
+    val endPos = 17421565 + 250000
+    val intervalGen = for (start <- Gen.choose(startPos, endPos);
+      end <- Gen.choose(start, endPos))
+      yield Interval(Locus("22", start), Locus("22", end))
+    val intervalsGen = for (nIntervals <- Gen.choose(0, 10);
+      g <- Gen.buildableOfN[Array, Interval[Locus]](nIntervals, intervalGen)) yield g
+
+    Prop.forAll(intervalsGen) { intervals =>
+      hadoopConf.writeTextFile(iList) { out =>
+        intervals.foreach { i =>
+          out.write(s"22\t${ i.start.position }\t${ i.end.position }\n")
+        }
+      }
+
+      val sKeep = FilterVariantsIntervals.run(state, "--keep", "-i", iList)
+      val sRemove = FilterVariantsIntervals.run(state, "--remove", "-i", iList)
+
+      val p1 = sKeep.vds.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
+        intervals.exists(_.contains(v.locus))
+      }.asOrderedRDD))
+      val p2 = sRemove.vds.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
+        intervals.forall(!_.contains(v.locus))
+      }.asOrderedRDD))
+      p1 && p1
+    }.check()
+  }
 }
