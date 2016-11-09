@@ -194,7 +194,7 @@ shadowJar {
         include(dependency('org.kududb:kudu-client:.*'))
         include(dependency('org.kududb:kudu-spark_' + scalaMajorVersion + ':.*'))
 	
-	include(dependency('org.typelevel:cats_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.typelevel:cats_' + scalaMajorVersion + ':.*'))
     }
 }
 
