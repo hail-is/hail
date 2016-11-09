@@ -193,6 +193,11 @@ shadowJar {
         include(dependency('com.google.guava:guava:.*'))
         include(dependency('org.kududb:kudu-client:.*'))
         include(dependency('org.kududb:kudu-spark_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.ow2.asm:asm:.*'))
+        include(dependency('org.ow2.asm:asm-util:.*'))
+
+        include(dependency('org.typelevel:cats_' + scalaMajorVersion + ':.*'))
     }
 }
 
@@ -231,6 +236,11 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('com.google.guava:guava:.*'))
         include(dependency('org.kududb:kudu-client:.*'))
         include(dependency('org.kududb:kudu-spark_' + scalaMajorVersion + ':.*'))
+	
+        include(dependency('org.ow2.asm:asm:.*'))
+        include(dependency('org.ow2.asm:asm-util:.*'))
+
+        include(dependency('org.typelevel:cats_' + scalaMajorVersion + ':.*'))
 
         include(dependency('org.testng:testng:.*'))
         include(dependency('com.beust:jcommander:.*'))
