@@ -12,6 +12,8 @@
 // XXX: only call with identifiers
 #define splat256(x) _mm256_extract_epi64((x), 0), _mm256_extract_epi64((x), 1), _mm256_extract_epi64((x), 2), _mm256_extract_epi64((x), 3)
 
+#define echo(x) printf(#x " = %016llx\n", x)
+
 __m256i allones = { 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
 __m256i rightAllele = { 0x5555555555555555, 0x5555555555555555, 0x5555555555555555, 0x5555555555555555 };
 __m256i allNA = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
@@ -57,17 +59,9 @@ void ibs256(uint64_t* result, __m256i x, __m256i y) {
   ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0, 2));
   ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0, 3));
 
-  *(result + 0) += ibs0sum;
-  *(result + 1) += ibs1sum;
-  *(result + 2) += ibs2sum;
-}
-
-uint8_t bytepopcnt(uint8_t x) {
-  uint8_t cnt = 0;
-  for (int i = 0; i < 8; ++i) {
-    cnt += (x >> i) & 0xFF;
-  }
-  return cnt;
+  result[0] += ibs0sum;
+  result[1] += ibs1sum;
+  result[2] += ibs2sum;
 }
 
 void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
@@ -83,16 +77,20 @@ void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
     ibs256(result, x256, y256);
   }
   while (i < length) {
-    uint64_t rightAllele64 = 0xFFFFFFFFFFFFFFFF;
+    uint64_t rightAllele64 = 0x5555555555555555;
+    uint64_t allNA64 = 0xAAAAAAAAAAAAAAAA;
     uint64_t xb = x[i];
     uint64_t yb = y[i];
     uint64_t nxor = ~(xb ^ yb);
-    uint64_t xna = (xb >> 1) & xb;
-    uint64_t yna = (yb >> 1) & yb;
-    uint64_t na = xna | yna;
-    *(result+2) += bytepopcnt(((nxor >> 1) & nxor) & na & rightAllele64);
-    *(result+1) += bytepopcnt(((nxor >> 1) ^ nxor) & na & rightAllele64);
-    *(result+0) += bytepopcnt(~((nxor >> 1) | nxor) & na & rightAllele64);
+    uint64_t xna_tmp = ~(allNA64 ^ xb);
+    uint64_t xna = (xna_tmp >> 1) & xna_tmp;
+    uint64_t yna_tmp = ~(allNA64 ^ yb);
+    uint64_t yna = (yna_tmp >> 1) & yna_tmp;
+    uint64_t na = (xna | yna) & rightAllele64;
+    result[2] += _mm_popcnt_u64(((nxor >> 1) & nxor) & rightAllele64 & ~na);
+    result[1] += _mm_popcnt_u64(((nxor >> 1) ^ nxor) & rightAllele64 & ~na);
+    result[0] += _mm_popcnt_u64(~((nxor >> 1) | nxor) & rightAllele64 & ~na);
+    ++i;
   }
 }
 
@@ -126,6 +124,7 @@ int main(int argc, char** argv) {
   uint64_t failures = 0;
   uint64_t successes = 0;
 
+  // ibs256 tests
   {
     uint64_t result[3] = { 0, 0, 0 };
     __m256i allNA1 = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
@@ -222,9 +221,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 4ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -232,9 +231,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 4ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -242,9 +241,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 4ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -252,9 +251,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA };
     ibs256(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 4ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -262,9 +261,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47 };
     ibs256(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 4ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -272,9 +271,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA };
     ibs256(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 4ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -282,9 +281,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 4ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -292,9 +291,50 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 4ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+  }
+
+  // ibsVec tests
+  {
+    uint64_t result[3] = { 0, 0, 0 };
+    uint64_t ref_het_alt_het[7] =
+      { 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA,
+        0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
+    uint64_t het_ref_het_alt[7] =
+      { 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA,
+        0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
+    ibsVec(result, 7, ref_het_alt_het, het_ref_het_alt);
+
+    expect_equal("ibsVec ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ibsVec ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 8ULL);
+    expect_equal("ibsVec ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+  }
+  {
+    uint64_t result[3] = { 0, 0, 0 };
+    uint64_t ref_het_alt_het[7] =
+      { 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D,
+        0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D };
+    uint64_t het_ref_het_alt[7] =
+      { 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAA47,
+        0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAA47 };
+    ibsVec(result, 7, ref_het_alt_het, het_ref_het_alt);
+
+    expect_equal("ibsVec 7 ref_het_alt_het v 7 het_ref_het_alt", "%llu", result[0], 0ULL);
+    expect_equal("ibsVec 7 ref_het_alt_het v 7 het_ref_het_alt", "%llu", result[1], 7 * 4ULL);
+    expect_equal("ibsVec 7 ref_het_alt_het v 7 het_ref_het_alt", "%llu", result[2], 0ULL);
+  }
+  {
+    uint64_t result[3] = { 0, 0, 0 };
+    uint64_t ref_het_alt_het[7] =
+      { 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D,
+        0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D };
+    ibsVec(result, 7, ref_het_alt_het, ref_het_alt_het);
+
+    expect_equal("ibsVec ref_het_alt_het v self", "%llu", result[0], 0ULL);
+    expect_equal("ibsVec ref_het_alt_het v self", "%llu", result[1], 0ULL);
+    expect_equal("ibsVec ref_het_alt_het v self", "%llu", result[2], 4*7ULL);
   }
 
   if (failures != 0) {

@@ -41,7 +41,7 @@ object IBSFFI {
         var shift = 62
         while (vStragglersi != length*64) {
           val k = si + vStragglersi*nSamples
-          val gt = if (vStragglersi < nGenotypes) gs(k) else 3L
+          val gt = if (vStragglersi < nGenotypes) gs(k) else 2L
           sampleOrientedGenotypes(si * length + packedLength) |= gt << shift
           vStragglersi += 1
           shift -= 2

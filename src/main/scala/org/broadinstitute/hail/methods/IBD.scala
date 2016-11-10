@@ -151,6 +151,9 @@ object IBD {
       0 // 11 11  NA NA
     )
 
+  val gtToCRep = Array[Byte](0, 1, 3)
+  val missingGTCRep : Byte = 2
+
   final val chunkSize = 1024
 
   def computeIBDMatrix(vds: VariantDataset, computeMaf: Option[(Variant, Annotation) => Double], bounded: Boolean): RDD[((Int, Int), ExtendedIBDInfo)] = {
@@ -164,7 +167,7 @@ object IBD {
     val missingGT: Byte = 3.toByte
 
     val chunkedGenotypeMatrix = vds.rdd
-      .map { case (v, (va, gs)) => gs.map(_.gt.map(_.toByte).getOrElse(missingGT)).toArray[Byte] }
+      .map { case (v, (va, gs)) => gs.map(_.gt.map(gtToCRep).getOrElse(missingGTCRep)).toArray[Byte] }
       .zipWithIndex()
       .flatMap { case (gts, variantId) =>
         val vid = (variantId % chunkSize).toInt
