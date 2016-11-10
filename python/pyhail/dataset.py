@@ -107,7 +107,7 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['annotateglobal', 'table', '-i', input, '-r', root]
+        pargs = ['annotatesamples', 'table', '-i', input, '-r', root]
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_table(self, input, sample_expr, root=None, code=None):
@@ -123,7 +123,7 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['annotateglobal', 'table', '-i', input, '--sample-expr', sample_expr]
+        pargs = ['annotatesamples', 'table', '-i', input, '--sample-expr', sample_expr]
         if root:
             pargs.append('--root')
             pargs.append(root)
