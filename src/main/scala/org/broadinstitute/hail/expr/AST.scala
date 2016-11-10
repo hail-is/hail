@@ -15,7 +15,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.{Position, Positional}
 import scala.language.existentials
 import scala.reflect.ClassTag
-import cats.syntax.either._
+import org.broadinstitute.hail.utils.EitherIsAMonad._
 
 case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
 

@@ -108,8 +108,6 @@ dependencies {
     compile group: 'org.ow2.asm', name: 'asm', version: '5.1'
     compile group: 'org.ow2.asm', name: 'asm-util', version: '5.1'
 
-    compile 'org.typelevel:cats_' + scalaMajorVersion + ':0.8.0'
-
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 }
@@ -196,8 +194,6 @@ shadowJar {
 
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
-
-        include(dependency('org.typelevel:cats_' + scalaMajorVersion + ':.*'))
     }
 }
 
@@ -239,8 +235,6 @@ task shadowTestJar(type: ShadowJar) {
 	
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
-
-        include(dependency('org.typelevel:cats_' + scalaMajorVersion + ':.*'))
 
         include(dependency('org.testng:testng:.*'))
         include(dependency('com.beust:jcommander:.*'))

@@ -7,7 +7,7 @@ import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.broadinstitute.hail.expr.HailRep._
 
 import scala.collection.mutable
-import cats.syntax.either._
+import org.broadinstitute.hail.utils.EitherIsAMonad._
 
 object FunctionRegistry {
 
