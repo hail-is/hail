@@ -1,34 +1,44 @@
 from pyhail.java import scala_object
 
 class KeyTable:
-    """:class:`.KeyTable` ... 
+    """:class:`.KeyTable` is Hail's version of a SQL
+    table where fields can be designated as keys. 
     
-    :param SparkContext sc: The pyspark context.
-    :param JavaKeyTable jkt: The java key table object.
+    :param :class:`.HailContext` hc: Hail spark context.
+    :param JavaKeyTable jkt: Java KeyTable object.
     """
 
     def __init__(self, hc, jkt):
         self.hc = hc
         self.jkt = jkt
 
-    # FIXME schema stuff...
-    def nKeys(self):
-        return self.jkt.nKeys()
-
-    def nValues(self):
-        return self.jkt.nValues()
-
     def nFields(self):
+        """Number of fields in the key-table
+
+        :return: int
+        """
         return self.jkt.nFields()
 
     def schema(self):
+        """Key-table schema
+
+        :return: ???
+        """
         return self.jkt.schema()
 
     def keyNames(self):
+        """Field names that are keys
+
+        :return: list[str]
+        """
         return self.jkt.keyNames()
 
-    def valueNames(self):
-        return self.jkt.valueNames()
+    def fieldNames(self):
+        """Field names
+
+        :return: list[str]
+        """
+        return self.jkt.fieldNames()
 
     def nRows(self):
         """Number of rows in the key-table
@@ -38,22 +48,22 @@ class KeyTable:
         return self.jkt.nRows()
 
     def same(self, other):
-        """Compares two key-tables
+        """Test whether two key-tables are identical
 
-        :param KeyTable other: KeyTable to compare to
+        :param :class:`.KeyTable` other: KeyTable to compare to
 
         :return: bool
         """
         return self.jkt.same(other.jkt)
 
     def export(self, output, types_file = None):
-        """Export key-table to a tsv file.
+        """Export key-table to a TSV file.
 
         :param str output: Output file path
 
         :param str types_file: Output path of types file
 
-        :return: Nothing.
+        :rtype: Nothing.
         """
         self.jkt.export(self.hc.jsc, output, types_file)
 
@@ -64,7 +74,7 @@ class KeyTable:
 
         :param bool keep: Keep rows where annotation expression evaluates to True
 
-        :return: KeyTable
+        :return: :class:`.KeyTable`
         """
         return KeyTable(self.hc, self.jkt.filter(code, keep))
 
@@ -73,9 +83,9 @@ class KeyTable:
 
         :param str code: Annotation expression.
 
-        :param bool keep: Keep rows where annotation expression evaluates to True
+        :param str key_names: Comma separated list of field names to be treated as a key
 
-        :return: KeyTable
+        :return: :class:`.KeyTable`
         """
         return KeyTable(self.hc, self.jkt.annotate(code, key_names))
 
@@ -83,43 +93,39 @@ class KeyTable:
         """Join two key-tables together. Both key-tables must have identical key schemas
         and non-overlapping fields in order to be joined.
 
-        :param KeyTable right: key-table to join
+        :param :class:`.KeyTable` right: Key-table to join
 
         :param str how: Method for joining two tables together. One of "inner", "outer", "left", "right".
 
-        :return: KeyTable
+        :return: :class:`.KeyTable`
         """
-        ## Check keys are same
+        return KeyTable(self.hc, self.jkt.join(right.jkt, how))
 
-        ## Check fields do not overlap
+    def aggregate(self, key_cond, agg_cond):
+        """Group by key condition and aggregate results 
 
-        if how == "inner":
-            return KeyTable(self.hc, self.jkt.innerJoin(right.jkt))
-        elif how == "outer":
-            return KeyTable(self.hc, self.jkt.outerJoin(right.jkt))
-        elif how == "left":
-            return KeyTable(self.hc, self.jkt.leftJoin(right.jkt))
-        elif how == "right":
-            return KeyTable(self.hc, self.jkt.rightJoin(right.jkt))
-        else:
-            pass
+        :param str key_cond: Named expression defining keys in the new key-table
 
+        :param str agg_cond: Named expression specifying how new fields are computed
 
+        :return: :class:`.KeyTable`
+        """
+        return KeyTable(self.hc, self.jkt.aggregate(key_cond, agg_cond))
 
-#    def import_fam(hc, path, ...):
-#        pass
+    def forall(self, code):
+        """Tests whether a condition is true for all rows
 
+        :param str code: Boolean expression
 
-    # kt.select(star().except('a'), expr('sum', 'x + b'), expr('a', 'a.b.c = 9'))
-    # kt.select(star().except('a'), {'sum': 'x + b', 'a': 'update(a.b.c, 9)'})
+        :return: bool
+        """
+        return self.jkt.forall(cond)
 
+    def exists(self, code):
+        """Tests whether a condition is true for any row
 
-    # def for_all(self, condition):
-    #     pass
+        :param str code: Boolean expression
 
-    # FIXME returns TypedValue
-    # def aggregate(value expressions...):
-    #     pass
-    #
-    # def aggregate_by_key(self, value expressions...):
-    #     pass
+        :return: bool
+        """
+        return self.jkt.exists(cond)

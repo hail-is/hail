@@ -8,15 +8,14 @@ class VariantDataset(object):
         self.hc = hc
         self.jvds = jvds
 
-    def aggregate_by_key(self, key_condition = None, agg_condition = None):
+    def aggregate_by_key(self, key_code = None, agg_code = None):
         """Aggregate by user-defined key and aggregation expressions
 
-        :param str key_condition: Named expression for how key
+        :param str key_code: Named expression for which fields are keys
 
-        :param str agg_condition: Named aggregation expression.
+        :param str agg_code: Named aggregation expression.
 
-        :return: KeyTable
-
+        :rtype: :class`.KeyTable`
         """
         return KeyTable(self.hc, self.jvds.aggregateByKey(key_cond, agg_condition))
 
