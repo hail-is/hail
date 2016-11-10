@@ -20,7 +20,15 @@ import org.broadinstitute.hail.utils.EitherIsAMonad._
 case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
 
   def setAll(args: Any*) {
-    args.zipWithIndex.foreach { case (arg, i) => a(i) = arg }
+    try {
+      args.zipWithIndex.foreach { case (arg, i) =>
+//        println(s"$arg, $i a=$a")
+        a(i) = arg
+//        println(s"$arg, $i a=$a st=$st")
+      }
+    } catch {
+      case _: IndexOutOfBoundsException => println("error")
+    }
   }
 
   def set(index: Int, arg: Any) {
@@ -659,11 +667,25 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         body.typecheck(agg.ec.copy(st = st))
         `type` = body.`type` match {
           case t: Type =>
+            println(s"maptypecheck bodyType: ${body.getClass}")
+            println(s"maptypecheck param: ${param}")
+            println(s"maptypecheck localIdx: $localIdx")
+            println(s"maptypecheck elementtype: ${agg.elementType}")
+            println(s"maptypecheck localA: ${localA}")
+            println(s"maptypecheck localA identityCode: ${System.identityHashCode(localA)}")
+            println(s"maptypecheck ec: ${agg.ec}")
+            println(s"maptypecheck ec identityCode: ${System.identityHashCode(agg.ec)}")
             val fn = body.eval(agg.ec.copy(st = st))
             val mapF = (a: Any) => {
               localA(localIdx) = a
+              println(s"mapF ec: ${agg.ec}")
+              println(s"mapF LocalA: ${localA}")
+              println(s"mapF ec identity code: ${System.identityHashCode(agg.ec)}")
+              println(s"mapF LocalA identity code: ${System.identityHashCode(localA)}")
+              println(s"mapF result eval fn(): ${fn()}")
               fn()
             }
+
             MappedAggregable(agg, t, mapF)
           case error =>
             parseError(s"method `$method' expects a lambda function (param => Any), got invalid mapping (param => $error)")
@@ -1673,8 +1695,15 @@ case class SliceArray(posn: Position, f: AST, idx1: Option[AST], idx2: Option[AS
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def eval(ec: EvalContext): () => Any = {
+    println(s"symref posn: $posn")
+    println(s"symref symbol: $symbol")
     val localI = ec.st(symbol)._1
     val localA = ec.a
+    println(s"symref ec: ${ec}")
+    println(s"symref localI: ${ec.st(symbol)._1}")
+    println(s"symref localA: ${ec.a}")
+    println(s"symref ec identityhash: ${System.identityHashCode(ec)}")
+    println(s"symref ec.a identityhash: ${System.identityHashCode(ec.a)}")
     if (localI < 0)
       () => 0 // FIXME placeholder
     else

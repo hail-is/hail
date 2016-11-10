@@ -105,6 +105,7 @@ class KeyTableSuite extends SparkSuite {
     val (_, leftKeyQuery) = ktLeft.query("Sample")
     val (_, rightKeyQuery) = ktRight.query("Sample")
     val (_, leftJoinKeyQuery) = ktLeftJoin.query("Sample")
+    val (_, rightJoinKeyQuery) = ktRightJoin.query("Sample")
 
     val leftKeys = ktLeft.rdd.map { case (k, v) => leftKeyQuery(k, v).map(_.asInstanceOf[String]) }.collect().toSet
     val rightKeys = ktRight.rdd.map { case (k, v) => rightKeyQuery(k, v).map(_.asInstanceOf[String]) }.collect().toSet
@@ -115,12 +116,18 @@ class KeyTableSuite extends SparkSuite {
 
     assert(ktLeftJoin.nRows == ktLeft.nRows &&
       ktLeftJoin.nKeys == nExpectedKeys &&
-      ktLeftJoin.nValues == nExpectedValues
+      ktLeftJoin.nValues == nExpectedValues &&
+      ktLeftJoin.filter{ case (k, v) =>
+        !rightKeys.contains(leftJoinKeyQuery(k, v).map(_.asInstanceOf[String]))
+      }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
     )
 
     assert(ktRightJoin.nRows == ktRight.nRows &&
       ktRightJoin.nKeys == nExpectedKeys &&
-      ktRightJoin.nValues == nExpectedValues)
+      ktRightJoin.nValues == nExpectedValues &&
+      ktRightJoin.filter{ case (k, v) =>
+        !leftKeys.contains(rightJoinKeyQuery(k, v).map(_.asInstanceOf[String]))
+      }.forall("isMissing(Status) && isMissing(qPhen)"))
 
     assert(ktOuterJoin.nRows == nUnionRows &&
       ktOuterJoin.nKeys == ktLeft.nKeys &&
@@ -131,5 +138,42 @@ class KeyTableSuite extends SparkSuite {
       ktInnerJoin.nValues == nExpectedValues)
   }
 
-  @Test def testAggregate() {}
+  @Test def testAggregate() {
+    val data = Array(Array("Case", 9, 0), Array("Case", 3, 4), Array("Control", 2, 3), Array("Control", 1, 5))
+    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
+    val signature = TStruct(("field1", TString), ("field2", TInt), ("field3", TInt))
+    val keyNames = Array("field1")
+
+    val kt1 = KeyTable(rdd, signature, keyNames)
+//    val kt2 = kt1.aggregate("Status = field1", "field4 = field2.sum(), field5 = field2.map(f => field2 + field3).sum()")
+    //val kt2 = kt1.aggregate("Status = field1", "field5 = field2.map(f => field2 + field3).sum()")
+//    val kt2 = kt1.aggregate("Status = field1", "X = field2.map(f => field2).sum(), Y = field2.sum(), Z = field2.map(f => f).sum()")
+//    val result = Array(Array("Case", 12.0, 12.0, 12.0), Array("Control", 3.0, 3.0, 3.0))
+//    val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
+//    val resSignature = TStruct(("Status", TString), ("X", TDouble), ("Y", TDouble), ("Z", TDouble))
+//    val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
+
+    val kt2 = kt1.aggregate("Status = field1", "X = field2.map(f => field2).sum()")
+    val result = Array(Array("Case", 12.0), Array("Control", 3.0))
+    val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
+    val resSignature = TStruct(("Status", TString), ("X", TDouble))
+    val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
+
+
+    assert(kt2 same ktResult)
+  }
+
+  @Test def testForallExists() {
+    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
+    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
+    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val keyNames = Array("Sample")
+
+    val kt = KeyTable(rdd, signature, keyNames)
+    assert(kt.forall("field2 == 5 && field1 != 0"))
+    assert(!kt.forall("field2 == 0 && field1 == 5"))
+    assert(kt.exists("""Sample == "Sample1" && field1 == 9 && field2 == 5"""))
+    assert(!kt.exists("""Sample == "Sample1" && field1 == 13 && field2 == 2"""))
+  }
+
 }
