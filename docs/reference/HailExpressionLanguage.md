@@ -283,7 +283,7 @@ Struct {
    stdev: Double,
    min: Double,
    max: Double,
-   nNotMissing: Double,
+   nNotMissing: Long,
    sum: Double
 }
 ```
