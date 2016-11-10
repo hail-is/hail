@@ -97,13 +97,8 @@ void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
 // samples in rows, genotypes in columns
 EXPORT
 void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* genotypes1, uint64_t* genotypes2) {
-  /* printf("genotypes1 0x%" PRIXPTR "\n", (uintptr_t)genotypes1); */
-  /* printf("genotypes2 0x%" PRIXPTR "\n", (uintptr_t)genotypes2); */
-  /* printf("sizeof(uint64_t) %lu\n", sizeof(uint64_t)); */
   for (uint64_t si = 0; si != nSamples; ++si) {
-    /* printf("si %llu\n", si); */
     for (uint64_t sj = 0; sj != nSamples; ++sj) {
-      /* printf("**** si,sj %llu, %llu\n", si, sj); */
       ibsVec(result + si*nSamples*3 + sj*3,
              nGenotypePacks,
              genotypes1 + si*nGenotypePacks,
@@ -114,6 +109,10 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
 
 #define expect(name, x) if (!(x)) { ++failures; printf(name ": expected " #x " to be true, but was false\n\n"); } else { ++successes; }
 #define expect_equal(name, fmt, x, y) if ((x) != (y)) { ++failures; printf(name ": expected " #x " to equal " #y ", but actually got " fmt " and " fmt"\n\n", x, y); } else { ++successes; }
+
+uint64_t resultIndex(uint64_t* result, int nSamples, int si, int sj, int ibs) {
+  return result[si*nSamples*3 + sj*3 + ibs];
+}
 
 int main(int argc, char** argv) {
   if (argc != 1) {
@@ -335,6 +334,43 @@ int main(int argc, char** argv) {
     expect_equal("ibsVec ref_het_alt_het v self", "%llu", result[0], 0ULL);
     expect_equal("ibsVec ref_het_alt_het v self", "%llu", result[1], 0ULL);
     expect_equal("ibsVec ref_het_alt_het v self", "%llu", result[2], 4*7ULL);
+  }
+  // ibsMat
+  {
+    uint64_t result[2*2*3] = { 0, 0, 0,  0, 0, 0,
+                               0, 0, 0,  0, 0, 0 };
+    uint64_t all_ref_het_alt_het[2*7] =
+      { 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D,
+        0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D };
+    ibsMat(result, 2, 7, all_ref_het_alt_het, all_ref_het_alt_het);
+
+    expect_equal("ibsMat identical 0 0, ibs0", "%llu", resultIndex(result, 2, 0, 0, 0), 0ULL);
+    expect_equal("ibsMat identical 0 0, ibs1", "%llu", resultIndex(result, 2, 0, 0, 1), 0ULL);
+    expect_equal("ibsMat identical 0 0, ibs2", "%llu", resultIndex(result, 2, 0, 0, 2), 4*7ULL);
+    expect_equal("ibsMat identical 0 1, ibs0", "%llu", resultIndex(result, 2, 0, 1, 0), 0ULL);
+    expect_equal("ibsMat identical 0 1, ibs1", "%llu", resultIndex(result, 2, 0, 1, 1), 0ULL);
+    expect_equal("ibsMat identical 0 1, ibs2", "%llu", resultIndex(result, 2, 0, 1, 2), 4*7ULL);
+    expect_equal("ibsMat identical 1 1, ibs0", "%llu", resultIndex(result, 2, 1, 1, 0), 0ULL);
+    expect_equal("ibsMat identical 1 1, ibs1", "%llu", resultIndex(result, 2, 1, 1, 1), 0ULL);
+    expect_equal("ibsMat identical 1 1, ibs2", "%llu", resultIndex(result, 2, 1, 1, 2), 4*7ULL);
+  }
+  {
+    uint64_t result[2*2*3] = { 0, 0, 0,  0, 0, 0,
+                               0, 0, 0,  0, 0, 0 };
+    uint64_t one_ibs1_rest_ibs2[2*7] =
+      { 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D,
+        0xAAAAAAAAAAAAAA1F, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D };
+    ibsMat(result, 2, 7, one_ibs1_rest_ibs2, one_ibs1_rest_ibs2);
+
+    expect_equal("ibsMat one-ibs1 0 0, ibs0", "%llu", resultIndex(result, 2, 0, 0, 0), 0ULL);
+    expect_equal("ibsMat one-ibs1 0 0, ibs1", "%llu", resultIndex(result, 2, 0, 0, 1), 0ULL);
+    expect_equal("ibsMat one-ibs1 0 0, ibs2", "%llu", resultIndex(result, 2, 0, 0, 2), 4*7ULL);
+    expect_equal("ibsMat one-ibs1 0 1, ibs0", "%llu", resultIndex(result, 2, 0, 1, 0), 0ULL);
+    expect_equal("ibsMat one-ibs1 0 1, ibs1", "%llu", resultIndex(result, 2, 0, 1, 1), 1ULL);
+    expect_equal("ibsMat one-ibs1 0 1, ibs2", "%llu", resultIndex(result, 2, 0, 1, 2), 3+4*6ULL);
+    expect_equal("ibsMat one-ibs1 1 1, ibs0", "%llu", resultIndex(result, 2, 1, 1, 0), 0ULL);
+    expect_equal("ibsMat one-ibs1 1 1, ibs1", "%llu", resultIndex(result, 2, 1, 1, 1), 0ULL);
+    expect_equal("ibsMat one-ibs1 1 1, ibs2", "%llu", resultIndex(result, 2, 1, 1, 2), 4*7ULL);
   }
 
   if (failures != 0) {
