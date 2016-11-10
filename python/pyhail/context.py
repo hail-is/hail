@@ -193,6 +193,21 @@ class HailContext(object):
     def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
 =======
     def import_keytable(self, path, key_names, npartition = None, config = None):
+        """Import tabular file as KeyTable
+
+        :param path: .tsv files to import.
+        :type path: str or list of str
+
+        :param key_names: The name(s) of fields to be considered keys
+        :type key_names: str or list[str]
+
+        :param npartition: Number of partitions.
+        :type npartition: int or None
+
+        :param :class:`.TextTableConfig` config: Configuration options for importing text files
+        
+        :rtype: :class:`.KeyTable`
+        """
         pathArgs = []
         if isinstance(path, str):
             pathArgs.append(path)
@@ -204,12 +219,12 @@ class HailContext(object):
             key_names = ",".join(key_names)
 
         if not npartition:
-            npartition = 1        
+            npartition = self.sc.defaultMinPartitions
 
         if not config:
-            config = TextTableConfig().asJavaObject(self)
+            config = TextTableConfig().toJavaObject(self)
         elif isinstance(key_names, TextTableConfig):
-            config = config.asJavaObject(self)
+            config = config.toJavaObject(self)
 
         return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs), 
             key_names, npartition, config))

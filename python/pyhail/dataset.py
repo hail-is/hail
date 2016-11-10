@@ -9,21 +9,19 @@ class VariantDataset(object):
         self.hc = hc
         self.jvds = jvds
 
-
     def _raise_py4j_exception(self, e):
         self.hc._raise_py4j_exception(e)
 
-    def aggregate_by_key(self, key_condition = None, agg_condition = None):
+    def aggregate_by_key(self, key_condition=None, agg_condition=None):
         """Aggregate by user-defined key and aggregation expressions
 
-        :param str key_condition: Named expression for how key
+        :param str key_condition: Named expression for which fields are keys
 
         :param str agg_condition: Named aggregation expression.
 
-        :return: KeyTable
-
+        :rtype: :class`.KeyTable`
         """
-        return KeyTable(self.hc, self.jvds.aggregateByKey(key_cond, agg_condition))
+        return KeyTable(self.hc, self.jvds.aggregateByKey(key_condition, agg_condition))
 
     def aggregate_intervals(self, input, condition, output):
         """Aggregate over intervals and export.
