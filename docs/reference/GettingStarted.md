@@ -68,7 +68,7 @@ Note that during each run Hail writes a `hail.log` file in the current directory
 
 ### Running on a Spark cluster and in the cloud
 
-In order to run Hail on a Spark cluster, we must first create a Hail JAR. A Hail JAR is specialized to a version of Spark. The Hail Team builds against and supports Spark versions `1.5` and `1.6`. The following command builds a Hail JAR for use on a cluster with Spark version `1.6.2`:
+In order to run Hail on a Spark cluster, we must first create a Hail JAR. A Hail JAR is specialized to a version of Spark. The Hail Team currently builds against and supports Spark versions `1.5` and `1.6`. The following command builds a Hail JAR for use on a cluster with Spark version `1.6.2`:
 
 ```
 $ ./gradlew -Dspark.version=1.6.2 shadowJar
