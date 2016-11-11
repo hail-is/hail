@@ -15,7 +15,7 @@ You can also download the source code directly from [here](https://github.com/br
 
 Hail may be built to run locally or on a Spark cluster. Running locally is useful for getting started, analyzing or experimenting with small datasets, and Hail development.
 
-### Locally
+### Running locally
 The single command
 ```
 $ ./gradlew installDist
@@ -66,13 +66,16 @@ Try running `count` on `sample.filtered.vds` to see how the numbers have changed
 
 Note that during each run Hail writes a `hail.log` file in the current directory; this is useful to developers for debugging.
 
-### Spark cluster
+### Running on a Spark cluster
 
 Hail is compatible with Spark versions 1.5 and 1.6, and uses 1.6.2 by default. Run
 ```
 $ ./gradlew -Dspark.version=VERSION shadowJar
 ```
 using the version of Spark on your cluster. The resulting JAR `build/libs/hail-all-spark.jar` can be submitted using `spark-submit`. See [Spark documentation](http://spark.apache.org/docs/1.6.2/cluster-overview.html) for details.
+
+[Google](https://cloud.google.com/dataproc/) and [Amazon](https://aws.amazon.com/emr/details/spark/) offer optimized Spark performance and exceptional scalability to tens of thousands of cores without the overhead of installing and managing an on-prem cluster.
+To get started running Hail on the Google Cloud Platform, see this [forum post](http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80).
 
 ### BLAS and LAPACK
 
