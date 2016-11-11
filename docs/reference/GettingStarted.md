@@ -68,11 +68,13 @@ Note that during each run Hail writes a `hail.log` file in the current directory
 
 ### Running on a Spark cluster and in the cloud
 
-Hail is compatible with Spark versions 1.5 and 1.6, and uses 1.6.2 by default. Run
+In order to run Hail on a Spark cluster, we must first create a Hail JAR. A Hail JAR is specialized to a version of Spark. The Hail Team currently builds against and supports Spark versions `1.5` and `1.6`. The following command builds a Hail JAR for use on a cluster with Spark version `1.6.2`:
+
 ```
-$ ./gradlew -Dspark.version=VERSION shadowJar
+$ ./gradlew -Dspark.version=1.6.2 shadowJar
 ```
-using the version of Spark on your cluster. The resulting JAR `build/libs/hail-all-spark.jar` can be submitted using `spark-submit`. See [Spark documentation](http://spark.apache.org/docs/1.6.2/cluster-overview.html) for details.
+
+The resulting JAR `build/libs/hail-all-spark.jar` can be submitted using `spark-submit`. See the [Spark documentation](http://spark.apache.org/docs/1.6.2/cluster-overview.html) for details.
 
 [Google](https://cloud.google.com/dataproc/) and [Amazon](https://aws.amazon.com/emr/details/spark/) offer optimized Spark performance and exceptional scalability to tens of thousands of cores without the overhead of installing and managing an on-prem cluster.
 To get started running Hail on the Google Cloud Platform, see this [forum post](http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80).
