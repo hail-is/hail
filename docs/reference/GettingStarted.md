@@ -66,7 +66,7 @@ Try running `count` on `sample.filtered.vds` to see how the numbers have changed
 
 Note that during each run Hail writes a `hail.log` file in the current directory; this is useful to developers for debugging.
 
-### Running on a Spark cluster
+### Running on a Spark cluster and in the cloud
 
 Hail is compatible with Spark versions 1.5 and 1.6, and uses 1.6.2 by default. Run
 ```
