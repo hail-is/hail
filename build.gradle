@@ -107,6 +107,7 @@ dependencies {
 
     compile group: 'org.ow2.asm', name: 'asm', version: '5.1'
     compile group: 'org.ow2.asm', name: 'asm-util', version: '5.1'
+    compile group: 'org.ow2.asm', name: 'asm-analysis', version: '5.1'
 
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
@@ -157,6 +158,7 @@ tasks.withType(ShadowJar) {
     relocate 'org.apache.commons.math3', 'org.broadinstitute.hail.relocated.org.apache.commons.math3'
     relocate 'org.apache.http', 'org.broadinstitute.hail.relocated.org.apache.http'
     relocate 'com.google.common', 'org.broadinstitute.hail.relocated.com.google.common'
+    relocate 'org.objectweb', 'org.broadinstitute.hail.relocated.org.objectweb'
 }
 
 shadowJar {
@@ -194,6 +196,8 @@ shadowJar {
 
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
+        include(dependency('org.ow2.asm:asm-tree:.*'))
+        include(dependency('org.ow2.asm:asm-analysis:.*'))
     }
 }
 
@@ -235,6 +239,8 @@ task shadowTestJar(type: ShadowJar) {
 	
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
+        include(dependency('org.ow2.asm:asm-tree:.*'))
+        include(dependency('org.ow2.asm:asm-analysis:.*'))
 
         include(dependency('org.testng:testng:.*'))
         include(dependency('com.beust:jcommander:.*'))
