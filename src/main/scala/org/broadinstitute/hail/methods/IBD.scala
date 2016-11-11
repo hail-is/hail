@@ -164,7 +164,7 @@ object IBD {
 
     val nSamples = vds.nSamples
 
-    val missingGT: Byte = 3.toByte
+    // val missingGT: Byte = 3.toByte
 
     val chunkedGenotypeMatrix = vds.rdd
       .map { case (v, (va, gs)) => gs.map(_.gt.map(gtToCRep).getOrElse(missingGTCRep)).toArray[Byte] }
@@ -175,12 +175,12 @@ object IBD {
           .zipWithIndex
           .map { case (gtGroup, i) => ((i, variantId / chunkSize), (vid, gtGroup)) }
       }
-      .aggregateByKey(Array.tabulate(chunkSize * chunkSize)((i) => missingGT))({ case (x, (vid, gs)) =>
+      .aggregateByKey(Array.tabulate(chunkSize * chunkSize)((i) => missingGTCRep))({ case (x, (vid, gs)) =>
         for (i <- gs.indices) x(vid * chunkSize + i) = gs(i)
         x
       }, { case (x, y) =>
         for (i <- y.indices)
-          if (x(i) == missingGT)
+          if (x(i) == missingGTCRep)
             x(i) = y(i)
         x
       })
