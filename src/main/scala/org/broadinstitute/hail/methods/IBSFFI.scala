@@ -15,8 +15,8 @@ object IBSFFI {
   val lib = Native.loadLibrary("ibs", classOf[IBSFFI]).asInstanceOf[IBSFFI]
 
   def ibs(nSamples: Int, nGenotypes: Int, gs1: Array[Byte], gs2: Array[Byte]): Array[Long] = {
-    val packedLength = nGenotypes / 64
-    val length = packedLength + (if (nGenotypes % 64 != 0) 1 else 0)
+    val packedLength = nGenotypes / 32
+    val length = packedLength + (if (nGenotypes % 32 != 0) 1 else 0)
 
     def pack(gs: Array[Byte]): Array[Long] = {
       val sampleOrientedGenotypes = new Array[Long](nSamples * length)
@@ -24,7 +24,7 @@ object IBSFFI {
       while (si != nSamples) {
         var vBlocki = 0
         while (vBlocki != packedLength) {
-          val k = si + vBlocki*64*nSamples
+          val k = si + vBlocki*32*nSamples
           sampleOrientedGenotypes(si * length + vBlocki) =
               gs(k).toLong                 << 62 | gs(k + 1 * nSamples).toLong  << 60 | gs(k + 2 * nSamples).toLong  << 58 | gs(k + 3 * nSamples).toLong  << 56 |
               gs(k + 4 * nSamples).toLong  << 54 | gs(k + 5 * nSamples).toLong  << 52 | gs(k + 6 * nSamples).toLong  << 50 | gs(k + 7 * nSamples).toLong  << 48 |
@@ -37,22 +37,19 @@ object IBSFFI {
 
           vBlocki += 1
         }
-        var vStragglersi = vBlocki*64
+        var vStragglersi = vBlocki*32
         var shift = 62
-        while (vStragglersi != length*64) {
+        while (vStragglersi != length*32) {
           val k = si + vStragglersi*nSamples
-          val gt = if (vStragglersi < nGenotypes) gs(k) else 2L
+          val gt = if (vStragglersi < nGenotypes) gs(k).toLong else 2L
           sampleOrientedGenotypes(si * length + packedLength) |= gt << shift
           vStragglersi += 1
           shift -= 2
         }
         si += 1
       }
-//      println(s"packing ${gs.map(" %04X " format _).mkString}\n\n %%% to\n\n${sampleOrientedGenotypes.map(" %04X " format _).mkString}")
       sampleOrientedGenotypes
     }
-
-    println(s"nSamples $nSamples, length $length,")
 
     val ibs = new Array[Long](nSamples * nGenotypes * 3)
     lib.ibsMat(ibs, nSamples, length, pack(gs1), pack(gs2))

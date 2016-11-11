@@ -164,8 +164,6 @@ object IBD {
 
     val nSamples = vds.nSamples
 
-    // val missingGT: Byte = 3.toByte
-
     val chunkedGenotypeMatrix = vds.rdd
       .map { case (v, (va, gs)) => gs.map(_.gt.map(gtToCRep).getOrElse(missingGTCRep)).toArray[Byte] }
       .zipWithIndex()
