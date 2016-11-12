@@ -72,8 +72,8 @@ void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
     /* printf("i %llu\n", i); */
     /* printf("x %llx  %llx  %llx  %llx\n", x[i], x[i+1], x[i+2], x[i+3]); */
     /* printf("y %llx  %llx  %llx  %llx\n", y[i], y[i+1], y[i+2], y[i+3]); */
-    __m256i x256 = _mm256_set_epi64x(x[i], x[i+1], x[i+2], x[i+3]);
-    __m256i y256 = _mm256_set_epi64x(y[i], y[i+1], y[i+2], y[i+3]);
+    __m256i x256 = _mm256_load_si256((__m256i*)x);
+    __m256i y256 = _mm256_load_si256((__m256i*)x);
     ibs256(result, x256, y256);
   }
   while (i < length) {
