@@ -17,9 +17,11 @@
 __m256i allones = { 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
 __m256i rightAllele = { 0x5555555555555555, 0x5555555555555555, 0x5555555555555555, 0x5555555555555555 };
 __m256i allNA = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
+__m256i leftAllele = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
 
 void ibs256(uint64_t* result, __m256i x, __m256i y) {
   __m256i nxor = _mm256_xor_si256(_mm256_xor_si256(x, y), allones);
+  __m256i nxorSR1 = _mm256_srli_epi64(nxor, 1);
 
   // if both bits are one, then the genotype is missing
   __m256i xna_tmp = _mm256_xor_si256(allNA, x);
@@ -27,11 +29,12 @@ void ibs256(uint64_t* result, __m256i x, __m256i y) {
   __m256i yna_tmp = _mm256_xor_si256(allNA, y);
   __m256i yna = _mm256_or_si256(_mm256_srli_epi64(yna_tmp, 1), yna_tmp);
   // if either sample is missing a genotype, we ignore that genotype pair
-  __m256i na = _mm256_and_si256(_mm256_xor_si256(_mm256_and_si256(xna, yna), allones), rightAllele);
+  // also set all the left alleles to 1
+  __m256i na = _mm256_or_si256(_mm256_xor_si256(_mm256_and_si256(xna, yna), allones), leftAllele);
   // 1. shift the left alleles over the right ones
   // 2. and the alleles
   // 3. mask to the right ones
-  __m256i ibs2 = _mm256_andnot_si256(na, _mm256_and_si256(_mm256_and_si256(_mm256_srli_epi64(nxor, 1), nxor), rightAllele));
+  __m256i ibs2 = _mm256_andnot_si256(na, _mm256_and_si256(nxorSR1, nxor));
   // 4. popcnt
   uint64_t ibs2sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs2, 0));
   ibs2sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs2, 1));
@@ -41,7 +44,7 @@ void ibs256(uint64_t* result, __m256i x, __m256i y) {
   // 1. shift the left alleles over the right ones
   // 2. or the alleles
   // 3. mask to the right ones
-  __m256i ibs1 = _mm256_andnot_si256(na, _mm256_and_si256(_mm256_xor_si256(_mm256_srli_epi64(nxor, 1), nxor), rightAllele));
+  __m256i ibs1 = _mm256_andnot_si256(na, _mm256_xor_si256(nxorSR1, nxor));
   // 4. popcnt
   uint64_t ibs1sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs1, 0));
   ibs1sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs1, 1));
@@ -52,7 +55,7 @@ void ibs256(uint64_t* result, __m256i x, __m256i y) {
   // 2. or the alleles
   // 3. negate the alleles
   // 4. mask to the right ones
-  __m256i ibs0 = _mm256_andnot_si256(na, _mm256_andnot_si256(_mm256_or_si256(_mm256_srli_epi64(nxor, 1), nxor), rightAllele));
+  __m256i ibs0 = _mm256_andnot_si256(na, _mm256_xor_si256(_mm256_or_si256(nxorSR1, nxor), allones));
   // 5. popcnt
   uint64_t ibs0sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs0, 0));
   ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0, 1));
