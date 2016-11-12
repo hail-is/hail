@@ -22,12 +22,12 @@ void ibs256(uint64_t* result, __m256i x, __m256i y) {
   __m256i nxor = _mm256_xor_si256(_mm256_xor_si256(x, y), allones);
 
   // if both bits are one, then the genotype is missing
-  __m256i xna_tmp = _mm256_xor_si256(_mm256_xor_si256(allNA, x), allones);
-  __m256i xna = _mm256_and_si256(_mm256_srli_epi64(xna_tmp, 1), xna_tmp);
-  __m256i yna_tmp = _mm256_xor_si256(_mm256_xor_si256(allNA, y), allones);
-  __m256i yna = _mm256_and_si256(_mm256_srli_epi64(yna_tmp, 1), yna_tmp);
+  __m256i xna_tmp = _mm256_xor_si256(allNA, x);
+  __m256i xna = _mm256_or_si256(_mm256_srli_epi64(xna_tmp, 1), xna_tmp);
+  __m256i yna_tmp = _mm256_xor_si256(allNA, y);
+  __m256i yna = _mm256_or_si256(_mm256_srli_epi64(yna_tmp, 1), yna_tmp);
   // if either sample is missing a genotype, we ignore that genotype pair
-  __m256i na = _mm256_and_si256(_mm256_or_si256(xna, yna), rightAllele);
+  __m256i na = _mm256_and_si256(_mm256_xor_si256(_mm256_and_si256(xna, yna), allones), rightAllele);
   // 1. shift the left alleles over the right ones
   // 2. and the alleles
   // 3. mask to the right ones
