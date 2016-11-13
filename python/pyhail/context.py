@@ -147,50 +147,9 @@ class HailContext(object):
         if impute:
             pargs.append('--impute')
 
-<<<<<<< 488ab167ba42a286d23df1a1d6ed47c0be48d831
         return self.run_command(None, pargs)
 
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
-=======
-    def import_keytable(self, path, key_names, npartition = None, config = None):
-        """Import tabular file as KeyTable
-
-        :param path: .tsv files to import.
-        :type path: str or list of str
-
-        :param key_names: The name(s) of fields to be considered keys
-        :type key_names: str or list[str]
-
-        :param npartition: Number of partitions.
-        :type npartition: int or None
-
-        :param :class:`.TextTableConfig` config: Configuration options for importing text files
-        
-        :rtype: :class:`.KeyTable`
-        """
-        pathArgs = []
-        if isinstance(path, str):
-            pathArgs.append(path)
-        else:
-            for p in path:
-                pathArgs.append(p)
-
-        if not isinstance(key_names, str):
-            key_names = ",".join(key_names)
-
-        if not npartition:
-            npartition = self.sc.defaultMinPartitions
-
-        if not config:
-            config = TextTableConfig().toJavaObject(self)
-        elif isinstance(key_names, TextTableConfig):
-            config = config.toJavaObject(self)
-
-        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs), 
-            key_names, npartition, config))
-
     def import_bgen(self, path, tolerance = 0.2, sample_file = None, npartition = None):
->>>>>>> Added most key table operations to pyhail
         """Import .bgen files as VariantDataset
 
         :param path: .bgen files to import.
@@ -227,13 +186,8 @@ class HailContext(object):
 
         pargs.append('--tolerance')
         pargs.append(str(tolerance))
-<<<<<<< 488ab167ba42a286d23df1a1d6ed47c0be48d831
-=======
-        
-        return self._run_command(None, pargs)
->>>>>>> Added most key table operations to pyhail
 
-        return self.run_command(None, pargs)
+        return self._run_command(None, pargs)
 
     def import_gen(self, path, tolerance=0.2, sample_file=None, npartitions=None, chromosome=None):
         """Import .bgen files as VariantDataset
@@ -282,6 +236,43 @@ class HailContext(object):
             pargs.append(str(tolerance))
 
         return self.run_command(None, pargs)
+
+    def import_keytable(self, path, key_names, npartition = None, config = None):
+        """Import tabular file as KeyTable
+
+        :param path: .tsv files to import.
+        :type path: str or list of str
+
+        :param key_names: The name(s) of fields to be considered keys
+        :type key_names: str or list[str]
+
+        :param npartition: Number of partitions.
+        :type npartition: int or None
+
+        :param :class:`.TextTableConfig` config: Configuration options for importing text files
+
+        :rtype: :class:`.KeyTable`
+        """
+        pathArgs = []
+        if isinstance(path, str):
+            pathArgs.append(path)
+        else:
+            for p in path:
+                pathArgs.append(p)
+
+        if not isinstance(key_names, str):
+            key_names = ",".join(key_names)
+
+        if not npartition:
+            npartition = self.sc.defaultMinPartitions
+
+        if not config:
+            config = TextTableConfig()._toJavaObject(self)
+        elif isinstance(key_names, TextTableConfig):
+            config = config._toJavaObject(self)
+
+        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs),
+                                                                                                 key_names, npartition, config))
 
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing="NA", quantpheno=False):
         """
