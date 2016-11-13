@@ -17,7 +17,7 @@ class VariantDataset(object):
 
         :rtype: :class`.KeyTable`
         """
-        return KeyTable(self.hc, self.jvds.aggregateByKey(key_cond, agg_condition))
+        return KeyTable(self.hc, self.jvds.aggregateByKey(key_code, agg_code))
 
     def aggregate_intervals(self, input, condition, output):
         """Aggregate over intervals and export.
