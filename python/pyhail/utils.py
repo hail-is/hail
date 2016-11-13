@@ -16,7 +16,7 @@ class TextTableConfig:
     :param str types: Define types of fields in annotations files   
     """
     def __init__(self, noheader = False, impute = False,
-                 comment = None, delimiter = "\t", missing = "NA", types = None):
+                 comment = None, delimiter = "\\\\t", missing = "NA", types = None):
         self.noheader = noheader
         self.impute = impute
         self.comment = comment
@@ -36,7 +36,7 @@ class TextTableConfig:
 
         return " ".join(res)
 
-    def toJavaObject(self, hc):
+    def _toJavaObject(self, hc):
         """Convert to java TextTableConfiguration object
 
         :param :class:`.HailContext` hc: Hail spark context.
