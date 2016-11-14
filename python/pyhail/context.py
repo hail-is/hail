@@ -1,7 +1,7 @@
 import pyspark
 
 from pyhail.dataset import VariantDataset
-from pyhail.java import jarray, scala_object
+from pyhail.java import jarray, scala_object, scala_package_object
 
 
 class HailContext(object):
@@ -11,7 +11,7 @@ class HailContext(object):
     :param SparkContext sc: The pyspark context.
     """
 
-    def __init__(self, sc):
+    def __init__(self, sc, log=None, quiet=False, append=False):
         self.sc = sc
 
         self.gateway = sc._gateway
@@ -29,6 +29,12 @@ class HailContext(object):
             'org.apache.hadoop.io.compress.DefaultCodec,'
             'org.broadinstitute.hail.io.compress.BGzipCodec,'
             'org.apache.hadoop.io.compress.GzipCodec')
+
+        if log is None and not quiet:
+            import os
+            log = os.getcwd() + '/hail.log'
+
+        scala_package_object(self.jvm.org.broadinstitute.hail.driver).configureLog(log, quiet, append)
 
         logger = sc._jvm.org.apache.log4j
         logger.LogManager.getLogger("org").setLevel(logger.Level.ERROR)
