@@ -12,15 +12,26 @@ class VariantDataset(object):
     def _raise_py4j_exception(self, e):
         self.hc._raise_py4j_exception(e)
 
-    def aggregate_by_key(self, key_condition=None, agg_condition=None):
-        """Aggregate by user-defined key and aggregation expressions
+    def aggregate_by_key(self, key_code=None, agg_code=None):
+        """Aggregate by user-defined key and aggregation expressions.
+        Equivalent of a group-by operation in SQL.
 
-        :param str key_condition: Named expression for which fields are keys
+        Example:
+        >>> hc = HailContext(sc)
+        >>> vds = hc.import_vcf("/path/to/file.vcf")
+        >>> vds.aggregate_by_key("pheno = sa.pheno, gene = va.gene", "nHet = gs.filter(g => g.isHet).count(), nAlleles = gs.filter(g => g.isCalled).count() * 2")
 
-        :param str agg_condition: Named aggregation expression.
+        The resulting key-table will have four fields [pheno, gene, nHet, nAlleles] where pheno and gene are the keys.
 
-        :rtype: :class`.KeyTable`
+        :param key_code: Named expression(s) for which fields are keys.
+        :type key_code: str or list of str
+
+        :param agg_code: Named aggregation expression(s).
+        :type agg_code: str or list of str
+
+        :rtype: :class:`.KeyTable`
         """
+
         return KeyTable(self.hc, self.jvds.aggregateByKey(key_condition, agg_condition))
 
     def aggregate_intervals(self, input, condition, output):
@@ -57,7 +68,6 @@ class VariantDataset(object):
 
         :param bool as_set: If True, load text file as Set[String],
             otherwise, load as Array[String].
-
         """
 
         pargs = ['annotateglobal', 'list', '-i', input, '-r', root]

@@ -280,16 +280,17 @@ class HailContext(object):
     def import_keytable(self, path, key_names, npartition = None, config = None):
         """Import tabular file as KeyTable
 
-        :param path: .tsv files to import.
+        :param path: files to import.
         :type path: str or list of str
 
         :param key_names: The name(s) of fields to be considered keys
-        :type key_names: str or list[str]
+        :type key_names: str or list of str
 
         :param npartition: Number of partitions.
         :type npartition: int or None
 
-        :param :class:`.TextTableConfig` config: Configuration options for importing text files
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig`
 
         :rtype: :class:`.KeyTable`
         """
