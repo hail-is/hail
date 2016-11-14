@@ -111,8 +111,18 @@ dependencies {
 
     compile 'net.java.dev.jna:jna:4.2.2'
 
+    compile files('src/main/c/lib/') {
+        builtBy 'nativeLib'
+    }
+
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
+}
+
+task nativeLib(type: Exec) {
+    workingDir 'src/main/c'
+    executable 'make'
+    outputs.files('src/main/c/lib')
 }
 
 task(checkSettings) << {
