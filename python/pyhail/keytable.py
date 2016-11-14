@@ -1,5 +1,6 @@
+from pyhail.utils import Type
 
-class KeyTable:
+class KeyTable(object):
     """:class:`.KeyTable` is Hail's version of a SQL
     table where fields can be designated as keys.
     """
@@ -14,6 +15,9 @@ class KeyTable:
         self.hc = hc
         self.jkt = jkt
 
+    def __repr__(self):
+        return self.jkt.toString()
+
     def nFields(self):
         """Number of fields in the key-table
 
@@ -24,21 +28,21 @@ class KeyTable:
     def schema(self):
         """Key-table schema
 
-        :rtype: ???
+        :rtype: :class:`.Type`
         """
-        return self.jkt.schema()
+        return Type(self.jkt.signature())
 
     def keyNames(self):
         """Field names that are keys
 
-        :rtype: list[str]
+        :rtype: list of str
         """
         return self.jkt.keyNames()
 
     def fieldNames(self):
         """Names of all fields in the key-table
 
-        :rtype: list[str]
+        :rtype: list of str
         """
         return self.jkt.fieldNames()
 
@@ -105,15 +109,23 @@ class KeyTable:
         """
         return KeyTable(self.hc, self.jkt.join(right.jkt, how))
 
-    def aggregate(self, key_cond, agg_cond):
+    def _aggregate(self, key_code, agg_code):
         """Group by key condition and aggregate results 
 
-        :param str key_cond: Named expression defining keys in the new key-table
+        :param key_code: Named expression(s) for which fields are keys.
+        :type key_code: str or list of str
 
-        :param str agg_cond: Named expression specifying how new fields are computed
+        :param agg_code: Named aggregation expression(s).
+        :type agg_code: str or list of str
 
         :rtype: :class:`.KeyTable`
         """
+        if isinstance(key_code, list):
+            key_code = ", ".join([str(l) for l in list])
+
+        if isinstance(agg_code, list):
+            agg_code = ", ".join([str(l) for l in list])
+
         return KeyTable(self.hc, self.jkt.aggregate(key_cond, agg_cond))
 
     def forall(self, code):
@@ -123,7 +135,7 @@ class KeyTable:
 
         :rtype: bool
         """
-        return self.jkt.forall(cond)
+        return self.jkt.forall(code)
 
     def exists(self, code):
         """Tests whether a condition is true for any row
@@ -132,4 +144,4 @@ class KeyTable:
 
         :rtype: bool
         """
-        return self.jkt.exists(cond)
+        return self.jkt.exists(code)

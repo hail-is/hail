@@ -1,6 +1,15 @@
 
+class Type(object):
+    def __init__(self, jtype):
+        self.jtype = jtype
 
-class TextTableConfig:
+    def __repr__(self):
+        return self.jtype.toString()
+
+    def __str__(self):
+        return self.jtype.toPrettyString(False, False)
+
+class TextTableConfig(object):
     """:class:`.TextTableConfig` specifies additional options for importing TSV files.
 
     :param bool noheader: File has no header and columns should be indicated by `_1, _2, ... _N' (0-indexed)
@@ -16,7 +25,7 @@ class TextTableConfig:
     :param str types: Define types of fields in annotations files   
     """
     def __init__(self, noheader = False, impute = False,
-                 comment = None, delimiter = "\\\\t", missing = "NA", types = None):
+                 comment = None, delimiter = "\t", missing = "NA", types = None):
         self.noheader = noheader
         self.impute = impute
         self.comment = comment
