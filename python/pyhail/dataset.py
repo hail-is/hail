@@ -2,6 +2,7 @@ from pyhail.java import scala_package_object
 
 import pyspark
 
+
 class VariantDataset(object):
     def __init__(self, hc, jvds):
         self.hc = hc
@@ -976,4 +977,9 @@ class VariantDataset(object):
         """Convert variants and variant annotations to Pandas dataframe."""
 
         return pyspark.sql.DataFrame(self.jvds.variantsDF(self.hc.jsql_context),
+                                     self.hc.sql_context).toPandas()
+
+    def samples_to_pandas(self):
+        """Convert samples and sample annotations to Pandas dataframe."""
+        return pyspark.sql.DataFrame(self.jvds.samplesDF(self.hc.jsql_context),
                                      self.hc.sql_context).toPandas()

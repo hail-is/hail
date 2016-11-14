@@ -3,6 +3,7 @@ import pyspark
 from pyhail.dataset import VariantDataset
 from pyhail.java import jarray, scala_object
 
+
 class HailContext(object):
     """:class:`.HailContext` is the main entrypoint for PyHail
     functionality.
@@ -25,10 +26,12 @@ class HailContext(object):
 
         self.jsc.hadoopConfiguration().set(
             'io.compression.codecs',
-            'org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec')
+            'org.apache.hadoop.io.compress.DefaultCodec,'
+            'org.broadinstitute.hail.io.compress.BGzipCodec,'
+            'org.apache.hadoop.io.compress.GzipCodec')
 
         logger = sc._jvm.org.apache.log4j
-        logger.LogManager.getLogger("org"). setLevel(logger.Level.ERROR)
+        logger.LogManager.getLogger("org").setLevel(logger.Level.ERROR)
         logger.LogManager.getLogger("akka").setLevel(logger.Level.ERROR)
 
     def _jstate(self, jvds):
