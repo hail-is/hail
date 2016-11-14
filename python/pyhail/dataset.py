@@ -846,7 +846,7 @@ class VariantDataset(object):
 
         """
 
-        return self.jvds.same(other.jvds)
+        return self.jvds.same(other.jvds, 1e-6)
 
     def sample_qc(self, branching_factor=None):
         """Compute per-sample QC metrics.

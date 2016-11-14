@@ -40,22 +40,10 @@ class HailContext(object):
         t = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
         cmd_args = t._2()
-        result = cmd.run(self._jstate(vds.jvds if vds != None else None),
+        jstate = self._jstate(vds.jvds if vds != None else None)
+        result = cmd.run(jstate,
                          cmd_args)
         return VariantDataset(self, result.vds())
-
-    def fam_summary(self, input, output):
-        """Outputs summary of a .fam file.
-
-        :param str input: Input .fam file.
-
-        :param str output: Output summary file.
-
-        :return: Nothing.
-
-        """
-        pargs = ["famsummary", "-f", input, "-o", output]
-        self.run_command(self, pargs)
 
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.
@@ -80,7 +68,7 @@ class HailContext(object):
         pargs.append('--max-count')
         pargs.append(str(max_count))
 
-        self.run_command(self, pargs)
+        self.run_command(None, pargs)
 
     def import_annotations_table(self, path, variant_expr, code=None, npartitions=None,
                                  # text table options
@@ -439,7 +427,7 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ['baldingnichols', '-k', populations, '-n', samples, '-m', variants, '--npartitions', npartitions,
+        pargs = ['baldingnichols', '-k', str(populations), '-n', str(samples), '-m', str(variants), '--npartitions', str(npartitions),
                  '--root', root]
         if population_dist:
             pargs.append('-d')
