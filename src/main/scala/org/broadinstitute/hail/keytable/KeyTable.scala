@@ -227,7 +227,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def join(other: KeyTable, joinType: String): KeyTable = {
     if (keySignature != other.keySignature)
       fatal(s"""Key signatures must be identical.
-                |Left signature: ${keySignature}
+                |Left signature: $keySignature
                 |Right signature: ${other.keySignature}""".stripMargin)
 
     val overlappingFields = valueNames.toSet.intersect(other.valueNames.toSet)
@@ -385,6 +385,62 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
       it.map { a =>
         KeyTable.setEvalContext(aggregationEC, a, nFields)
         val key = Annotation.fromSeq(keyF.map(_ ()))
+        (key, a)
+      }
+    }.aggregateByKey(zVals)(seqOp, combOp)
+      .map { case (k, agg) =>
+        resultOp(agg)
+        (k, Annotation.fromSeq(aggF.map(_ ())))
+      }
+
+    KeyTable(newRDD, keySignature, valueSignature)
+  }
+
+  def aggregateRows(keyCond: String, aggCond: String): KeyTable = {
+
+    val aggregationEC = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
+    val st = fields.zipWithIndex.map{ case (fd, i) => (fd.name, (i, fd.`type`)) }.toMap ++ Map("rows" -> (-1, BaseAggregable(aggregationEC, TStruct(fields.map(fd => (fd.name, fd.`type`)): _*))))
+    val ec = EvalContext(st)
+
+    val (keyNameParseTypes, keyF) =
+      if (keyCond != null)
+        Parser.parseAnnotationArgs(keyCond, ec, None)
+      else
+        (Array.empty[(List[String], Type)], Array.empty[() => Any])
+
+    val (aggNameParseTypes, aggF) =
+      if (aggCond != null)
+        Parser.parseAnnotationArgs(aggCond, ec, None)
+      else
+        (Array.empty[(List[String], Type)], Array.empty[() => Any])
+
+    val keyNames = keyNameParseTypes.map(_._1.head)
+    val aggNames = aggNameParseTypes.map(_._1.head)
+
+    val keySignature = TStruct(keyNameParseTypes.map{ case (n, t) => (n.head, t) }: _*)
+    val valueSignature = TStruct(aggNameParseTypes.map{ case (n, t) => (n.head, t) }: _*)
+
+    val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
+
+    val seqOp = (array: Array[Aggregator], b: Any) => {
+      KeyTable.setEvalContext(ec, b, nFields)
+      val row = Option(b).map(_.asInstanceOf[Row]).orNull
+
+      println(s"keytable aggregateRow seqop ec: $ec")
+      println(s"keytable aggregateRow seqop ec identity: ${System.identityHashCode(ec)}")
+      println(s"keytable aggregateRow seqop row: $row")
+
+      for (i <- array.indices) {
+        array(i).seqOp(row)
+      }
+      array
+    }
+
+    val newRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).mapPartitions{ it =>
+      it.map { a =>
+        KeyTable.setEvalContext(ec, a, nFields)
+        val key = Annotation.fromSeq(keyF.map(_ ()))
+        println(s"keytable aggregateRow keymap key: $key")
         (key, a)
       }
     }.aggregateByKey(zVals)(seqOp, combOp)
