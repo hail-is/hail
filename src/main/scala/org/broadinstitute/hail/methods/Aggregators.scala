@@ -282,7 +282,9 @@ class SumAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Doubl
   override def result = _state
 
   override def seqOp(x: Any) {
+    println(s"sumagg seqop input: $x")
     val r = f(x)
+    println(s"sumagg seqop result: $r")
     if (r != null)
       _state += DoubleNumericConversion.to(r)
   }

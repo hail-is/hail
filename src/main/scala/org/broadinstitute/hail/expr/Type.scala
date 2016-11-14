@@ -6,6 +6,7 @@ import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.{Annotation, AnnotationPathException, _}
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, _}
+import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils
 import org.broadinstitute.hail.utils.{Interval, StringEscapeUtils}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
@@ -247,6 +248,14 @@ abstract class TAggregable extends BaseType {
   def f: (Any) => Any
 }
 
+case class KeyTableAggregable(ec: EvalContext, elementType: Type, idx: Int) extends TAggregable {
+  def f: (Any) => Any = {
+    (a: Any) => {
+      KeyTable.annotationToSeq(a, ec.st.size)(idx)
+    }
+  }
+}
+
 case class BaseAggregable(ec: EvalContext, elementType: Type) extends TAggregable {
   def f: (Any) => Any = identity
 }
@@ -272,9 +281,13 @@ case class MappedAggregable(parent: TAggregable, elementType: Type, mapF: (Any) 
   def f: (Any) => Any = {
     val parentF = parent.f
     (a: Any) => {
+      println(s"mapagg a: $a")
       val prev = parentF(a)
-      if (prev != null)
+      println(s"mapagg prev: $prev")
+      if (prev != null) {
+        println(s"mapagg result: ${mapF(prev)}")
         mapF(prev)
+      }
       else
         null
     }
@@ -308,7 +321,7 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq, Annotation](elementType.genValue)
+  override def genValue: Gen[Annotation] = Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 }
 
 case class TSet(elementType: Type) extends TIterable {
