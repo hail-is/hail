@@ -53,7 +53,7 @@ object BaldingNicholsModel {
       (0 until M).foreach { m =>
         val p = popAF_km(popOfSample_n(n), m)
         val pSq = p * p
-        val x = random.nextFloat()
+        val x = random.nextDouble()
         genotype_nm(n, m) =
           if (x < pSq)
             0
