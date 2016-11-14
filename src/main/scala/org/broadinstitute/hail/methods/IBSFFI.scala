@@ -3,17 +3,14 @@ package org.broadinstitute.hail.methods
 import com.sun.jna._
 import com.sun.jna.ptr._
 
-trait IBSFFI extends Library {
-  def ibsMat(result: Array[Long], nSamples: Long, nGenotypePacks: Long, genotypes1: Array[Long], genotypes2: Array[Long])
-}
-
 case class IBS (N0: Long, N1: Long, N2: Long) { }
 
 object IBSFFI {
 
-  System.setProperty("jna.library.path", "/Users/dking/projects/hail/src/main/c")
-  val lib = Native.loadLibrary("ibs", classOf[IBSFFI]).asInstanceOf[IBSFFI]
+  @native
+  def ibsMat(result: Array[Long], nSamples: Long, nGenotypePacks: Long, genotypes1: Array[Long], genotypes2: Array[Long])
 
+  Native.register("ibs");
 
   def pack(nSamples: Int, nGenotypes: Int, gs: Array[Byte]): Array[Long] = {
     val packedLength = nGenotypes / 32
@@ -55,7 +52,7 @@ object IBSFFI {
     val packedLength = nGenotypes / 32
     val length = packedLength + (if (nGenotypes % 32 != 0) 1 else 0)
     val ibs = new Array[Long](nSamples * nGenotypes * 3)
-    lib.ibsMat(ibs, nSamples, length, gs1, gs2)
+    ibsMat(ibs, nSamples, length, gs1, gs2)
     ibs
   }
 
