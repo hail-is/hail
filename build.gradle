@@ -122,6 +122,7 @@ dependencies {
 task nativeLib(type: Exec) {
     workingDir 'src/main/c'
     executable 'make'
+    inputs.files('src/main/c/ibs.c')
     outputs.files('src/main/c/lib')
 }
 
