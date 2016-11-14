@@ -321,7 +321,12 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
     classpath sourceSets.main.runtimeClasspath
 }
 
-task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
+task nodeDependencies(type: Exec) {
+    workingDir 'docs/javascript'
+    commandLine 'npm', 'install'
+}
+
+task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml', 'nodeDependencies']) {
     args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'template.html', './commandOptions.json', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
