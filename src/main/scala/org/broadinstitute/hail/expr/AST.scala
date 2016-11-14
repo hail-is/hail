@@ -20,15 +20,7 @@ import org.broadinstitute.hail.utils.EitherIsAMonad._
 case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
 
   def setAll(args: Any*) {
-    try {
-      args.zipWithIndex.foreach { case (arg, i) =>
-//        println(s"$arg, $i a=$a")
-        a(i) = arg
-//        println(s"$arg, $i a=$a st=$st")
-      }
-    } catch {
-      case _: IndexOutOfBoundsException => println("error")
-    }
+    args.zipWithIndex.foreach { case (arg, i) => a(i) = arg }
   }
 
   def set(index: Int, arg: Any) {
@@ -290,9 +282,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t, name) => FunctionRegistry.lookupFieldType(t, name)
         .valueOr {
           case FunctionRegistry.NotFound(name, typ) =>
-            parseError(s"""`$t' has no field `$rhs'
-                           |  Hint: Don't forget empty-parentheses in a method call, e.g.
-                           |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
+            parseError(
+              s"""`$t' has no field `$rhs'
+                  |  Hint: Don't forget empty-parentheses in a method call, e.g.
+                  |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
           case otherwise => parseError(otherwise.message)
         }
     }
@@ -323,9 +316,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
       .valueOr {
         case FunctionRegistry.NotFound(name, typ) =>
-          fatal(s"""`$t' has neither a field nor a method named `$name
-                    |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-                    |    counts.sum""".stripMargin)
+          fatal(
+            s"""`$t' has neither a field nor a method named `$name
+                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+                |    counts.sum""".stripMargin)
         case otherwise => fatal(otherwise.message)
       }
   }
@@ -667,22 +661,22 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         body.typecheck(agg.ec.copy(st = st))
         `type` = body.`type` match {
           case t: Type =>
-            println(s"maptypecheck bodyType: ${body.getClass}")
-            println(s"maptypecheck param: ${param}")
+            println(s"maptypecheck bodyType: ${ body.getClass }")
+            println(s"maptypecheck param: ${ param }")
             println(s"maptypecheck localIdx: $localIdx")
-            println(s"maptypecheck elementtype: ${agg.elementType}")
-            println(s"maptypecheck localA: ${localA}")
-            println(s"maptypecheck localA identityCode: ${System.identityHashCode(localA)}")
-            println(s"maptypecheck ec: ${agg.ec}")
-            println(s"maptypecheck ec identityCode: ${System.identityHashCode(agg.ec)}")
+            println(s"maptypecheck elementtype: ${ agg.elementType }")
+            println(s"maptypecheck localA: ${ localA }")
+            println(s"maptypecheck localA identityCode: ${ System.identityHashCode(localA) }")
+            println(s"maptypecheck ec: ${ agg.ec }")
+            println(s"maptypecheck ec identityCode: ${ System.identityHashCode(agg.ec) }")
             val fn = body.eval(agg.ec.copy(st = st))
             val mapF = (a: Any) => {
               localA(localIdx) = a
-              println(s"mapF ec: ${agg.ec}")
-              println(s"mapF LocalA: ${localA}")
-              println(s"mapF ec identity code: ${System.identityHashCode(agg.ec)}")
-              println(s"mapF LocalA identity code: ${System.identityHashCode(localA)}")
-              println(s"mapF result eval fn(): ${fn()}")
+              println(s"mapF ec: ${ agg.ec }")
+              println(s"mapF LocalA: ${ localA }")
+              println(s"mapF ec identity code: ${ System.identityHashCode(agg.ec) }")
+              println(s"mapF LocalA identity code: ${ System.identityHashCode(localA) }")
+              println(s"mapF result eval fn(): ${ fn() }")
               fn()
             }
 
@@ -1699,11 +1693,11 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
     println(s"symref symbol: $symbol")
     val localI = ec.st(symbol)._1
     val localA = ec.a
-    println(s"symref ec: ${ec}")
-    println(s"symref localI: ${ec.st(symbol)._1}")
-    println(s"symref localA: ${ec.a}")
-    println(s"symref ec identityhash: ${System.identityHashCode(ec)}")
-    println(s"symref ec.a identityhash: ${System.identityHashCode(ec.a)}")
+    println(s"symref ec: ${ ec }")
+    println(s"symref localI: ${ ec.st(symbol)._1 }")
+    println(s"symref localA: ${ ec.a }")
+    println(s"symref ec identityhash: ${ System.identityHashCode(ec) }")
+    println(s"symref ec.a identityhash: ${ System.identityHashCode(ec.a) }")
     if (localI < 0)
       () => 0 // FIXME placeholder
     else
