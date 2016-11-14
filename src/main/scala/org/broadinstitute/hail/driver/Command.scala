@@ -104,6 +104,7 @@ object ToplevelCommands {
   register(SampleQC)
   register(SeqrServerCommand)
   register(TDTCommand)
+  register(Typecheck)
   register(PrintSchema)
   register(ShowGlobalAnnotations)
   register(VariantQC)
