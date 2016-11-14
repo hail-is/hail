@@ -30,7 +30,7 @@ object BaldingNicholsModel {
 
     info(s"baldingnichols: generating genotypes for $K populations, $N samples, and $M variants...")
 
-    val random = new Random(seed)
+    Rand.generator.setSeed(seed)
 
     val popDist_k = popDistOpt.getOrElse(DenseVector.fill[Double](K)(1d))
     popDist_k :/= sum(popDist_k)
@@ -48,12 +48,14 @@ object BaldingNicholsModel {
       (0 until M).foreach(m =>
         popAF_km(k,m) = new Beta((1 - ancestralAF_m(m)) * Fst1_k(k), ancestralAF_m(m) * Fst1_k(k)).draw()))
 
+    val unif = Rand.uniform
+
     val genotype_nm = DenseMatrix.zeros[Int](N,M)
     (0 until N).foreach(n =>
       (0 until M).foreach { m =>
         val p = popAF_km(popOfSample_n(n), m)
         val pSq = p * p
-        val x = random.nextDouble()
+        val x = unif.draw()
         genotype_nm(n, m) =
           if (x < pSq)
             0
