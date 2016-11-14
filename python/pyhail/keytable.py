@@ -63,7 +63,7 @@ class KeyTable(object):
         """
         return self.jkt.same(other.jkt)
 
-    def export(self, output, types_file = None):
+    def export(self, output, types_file=None):
         """Export key-table to a TSV file.
 
         :param str output: Output file path
@@ -74,7 +74,7 @@ class KeyTable(object):
         """
         self.jkt.export(self.hc.jsc, output, types_file)
 
-    def filter(self, code, keep = True):
+    def filter(self, code, keep=True):
         """Filter rows from key-table.
 
         :param str code: Annotation expression.
@@ -85,7 +85,7 @@ class KeyTable(object):
         """
         return KeyTable(self.hc, self.jkt.filter(code, keep))
 
-    def annotate(self, code, key_names = None):
+    def annotate(self, code, key_names=None):
         """Add fields to key-table.
 
         :param str code: Annotation expression.
@@ -96,7 +96,7 @@ class KeyTable(object):
         """
         return KeyTable(self.hc, self.jkt.annotate(code, key_names))
 
-    def join(self, right, how = 'inner'):
+    def join(self, right, how='inner'):
         """Join two key-tables together. Both key-tables must have identical key schemas
         and non-overlapping field names.
 
@@ -126,7 +126,7 @@ class KeyTable(object):
         if isinstance(agg_code, list):
             agg_code = ", ".join([str(l) for l in list])
 
-        return KeyTable(self.hc, self.jkt.aggregate(key_cond, agg_cond))
+        return KeyTable(self.hc, self.jkt.aggregate(key_code, agg_code))
 
     def forall(self, code):
         """Tests whether a condition is true for all rows

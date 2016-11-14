@@ -35,9 +35,9 @@ class HailContext(object):
 
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
-            self.jsc, self.jsqlContext, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
+            self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
     
-    def _run_command(self, vds, pargs):
+    def run_command(self, vds, pargs):
         jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
         t = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
@@ -161,7 +161,7 @@ class HailContext(object):
 
         return self.run_command(None, pargs)
 
-    def import_bgen(self, path, tolerance = 0.2, sample_file = None, npartition = None):
+    def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
         """Import .bgen files as VariantDataset
 
         :param path: .bgen files to import.
@@ -199,7 +199,7 @@ class HailContext(object):
         pargs.append('--tolerance')
         pargs.append(str(tolerance))
 
-        return self._run_command(None, pargs)
+        return self.run_command(None, pargs)
 
     def import_gen(self, path, tolerance=0.2, sample_file=None, npartitions=None, chromosome=None):
         """Import .bgen files as VariantDataset
@@ -249,7 +249,7 @@ class HailContext(object):
 
         return self.run_command(None, pargs)
 
-    def import_keytable(self, path, key_names, npartition = None, config = None):
+    def import_keytable(self, path, key_names, npartitions=None, config=None):
         """Import tabular file as KeyTable
 
         :param path: files to import.
@@ -258,8 +258,8 @@ class HailContext(object):
         :param key_names: The name(s) of fields to be considered keys
         :type key_names: str or list of str
 
-        :param npartition: Number of partitions.
-        :type npartition: int or None
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
 
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig`
@@ -276,8 +276,8 @@ class HailContext(object):
         if not isinstance(key_names, str):
             key_names = ",".join(key_names)
 
-        if not npartition:
-            npartition = self.sc.defaultMinPartitions
+        if not npartitions:
+            npartitions = self.sc.defaultMinPartitions
 
         if not config:
             config = TextTableConfig()._toJavaObject(self)
@@ -285,7 +285,7 @@ class HailContext(object):
             config = config._toJavaObject(self)
 
         return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs),
-                                                                                                 key_names, npartition, config))
+                                                                                                 key_names, npartitions, config))
 
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing="NA", quantpheno=False):
         """
