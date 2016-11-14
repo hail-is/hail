@@ -122,7 +122,7 @@ function buildCommands(htmlTemplate, outputFileName) {
             .map(command => buildDocs.buildCommand(command, pandocOutputDir + "commands/", $));
 
         Promise.all(buildCommandPromises.concat([loadReq("#GlobalOptions", pandocOutputDir + "commands/" + "GlobalOptions.html", $)]))
-            .then(function() {$("div#GlobalOptions div.options").append(buildDocs.buildGlobalOptions(jsonData.global.options, $))}, error)
+            .then(function() {$("div#GlobalOptions div.options").append(buildDocs.buildGlobalOptions(jsonData.global.options))}, error)
             .then(function() {
                  var document = jsdom.jsdom($('html').html());
                  runMathJax(document, function(html) {
