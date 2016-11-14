@@ -8,14 +8,9 @@ class VariantDataset(object):
         self.hc = hc
         self.jvds = jvds
 
-    def aggregate_by_key(self, key_code = None, agg_code = None):
+    def aggregate_by_key(self, key_code=None, agg_code=None):
         """Aggregate by user-defined key and aggregation expressions.
         Equivalent of a group-by operation in SQL.
-
-        Example:
-        >>> hc = HailContext(sc)
-        >>> vds = hc.import_vcf("/path/to/file.vcf")
-        >>> vds.aggregate_by_key("pheno = sa.pheno, gene = va.gene", "nHet = gs.filter(g => g.isHet).count(), nAlleles = gs.filter(g => g.isCalled).count() * 2")
 
         The resulting key-table will have four fields [pheno, gene, nHet, nAlleles] where pheno and gene are the keys.
 
