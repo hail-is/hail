@@ -49,7 +49,7 @@ class VariantDataset(object):
             pargs.append('--as-set')
         return self.hc.run_command(self, pargs)
 
-    def annotate_global_table(self, input, root):
+    def annotate_global_table(self, input, root, impute=False):
         """Load delimited text file (text table) into global annotations as
         Array[Struct].
 
@@ -57,9 +57,13 @@ class VariantDataset(object):
 
         :param str root: Global annotation path to store text table.
 
+        :param str impute: Impute column types from the file.
+
         """
 
         pargs = ['annotateglobal', 'table', '-i', input, '-r', root]
+        if impute:
+            pargs.append('--impute')
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_expr(self, condition):
@@ -107,10 +111,10 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['annotateglobal', 'table', '-i', input, '-r', root]
+        pargs = ['annotatesamples', 'table', '-i', input, '-r', root]
         return self.hc.run_command(self, pargs)
 
-    def annotate_samples_table(self, input, sample_expr, root=None, code=None):
+    def annotate_samples_table(self, input, sample_expr, root=None, code=None, impute=False):
         """Annotate samples with delimited text file (text table).
 
         :param str input: Path to delimited text file.
@@ -121,15 +125,19 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
+        :param str impute: Impute column types from the file.
+
         """
 
-        pargs = ['annotateglobal', 'table', '-i', input, '--sample-expr', sample_expr]
+        pargs = ['annotatesamples', 'table', '-i', input, '--sample-expr', sample_expr]
         if root:
             pargs.append('--root')
             pargs.append(root)
         if code:
             pargs.append('--code')
             pargs.append(code)
+        if impute:
+            pargs.append('--impute')
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_vds(self, right, root=None, code=None):
@@ -190,7 +198,7 @@ class VariantDataset(object):
             pargs.append('--all')
         return self.hc.run_command(self, pargs)
 
-    def annotate_variants_loci(self, path, locus_expr, root=None, code=None):
+    def annotate_variants_loci(self, path, locus_expr, root=None, code=None, impute=False):
         """Annotate variants from an delimited text file (text table) indexed
         by loci.
 
@@ -201,6 +209,8 @@ class VariantDataset(object):
         :param str root: Variant annotation path to store annotation.
 
         :param str code: Annotation expression.
+
+        :param str impute: Impute column types from the file.
 
         """
 
@@ -214,6 +224,9 @@ class VariantDataset(object):
             pargs.append('--code')
             pargs.append(code)
 
+        if impute:
+            pargs.append('--impute')
+
         if isinstance(path, str):
             pargs.append(path)
         else:
@@ -222,7 +235,7 @@ class VariantDataset(object):
 
         return self.hc.run_command(self, pargs)
 
-    def annotate_variants_table(self, path, variant_expr, root=None, code=None):
+    def annotate_variants_table(self, path, variant_expr, root=None, code=None, impute=False):
         """Annotate variant with delimited text file (text table).
 
         :param path: Path to delimited text files.
@@ -233,6 +246,8 @@ class VariantDataset(object):
         :param str root: Variant annotation path to store text table.
 
         :param str code: Annotation expression.
+
+        :param str impute: Impute column types from the file.
 
         """
 
@@ -245,6 +260,9 @@ class VariantDataset(object):
         if code:
             pargs.append('--code')
             pargs.append(code)
+
+        if impute:
+            pargs.append('--impute')
 
         if isinstance(path, str):
             pargs.append(path)
