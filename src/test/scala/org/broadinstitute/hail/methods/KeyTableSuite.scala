@@ -145,20 +145,30 @@ class KeyTableSuite extends SparkSuite {
     val keyNames = Array("field1")
 
     val kt1 = KeyTable(rdd, signature, keyNames)
-//    val kt2 = kt1.aggregate("Status = field1", "field4 = field2.sum(), field5 = field2.map(f => field2 + field3).sum()")
-    //val kt2 = kt1.aggregate("Status = field1", "field5 = field2.map(f => field2 + field3).sum()")
-//    val kt2 = kt1.aggregate("Status = field1", "X = field2.map(f => field2).sum(), Y = field2.sum(), Z = field2.map(f => f).sum()")
-//    val result = Array(Array("Case", 12.0, 12.0, 12.0), Array("Control", 3.0, 3.0, 3.0))
-//    val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
-//    val resSignature = TStruct(("Status", TString), ("X", TDouble), ("Y", TDouble), ("Z", TDouble))
-//    val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
-
     val kt2 = kt1.aggregate("Status = field1", "X = field2.map(f => field2).sum()")
+
     val result = Array(Array("Case", 12.0), Array("Control", 3.0))
     val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
     val resSignature = TStruct(("Status", TString), ("X", TDouble))
     val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
 
+
+    assert(kt2 same ktResult)
+  }
+
+  @Test def testAggregateRows() {
+    val data = Array(Array("Case", 9, 0), Array("Case", 3, 4), Array("Control", 2, 3), Array("Control", 1, 5))
+    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
+    val signature = TStruct(("field1", TString), ("field2", TInt), ("field3", TInt))
+    val keyNames = Array("field1")
+
+    val kt1 = KeyTable(rdd, signature, keyNames)
+    val kt2 = kt1.aggregateRows("Status = field1", "X = rows.map(r => field2).sum()")
+
+    val result = Array(Array("Case", 12.0), Array("Control", 3.0))
+    val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
+    val resSignature = TStruct(("Status", TString), ("X", TDouble))
+    val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
 
     assert(kt2 same ktResult)
   }
