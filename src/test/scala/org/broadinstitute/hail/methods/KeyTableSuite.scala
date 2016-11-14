@@ -117,7 +117,7 @@ class KeyTableSuite extends SparkSuite {
     assert(ktLeftJoin.nRows == ktLeft.nRows &&
       ktLeftJoin.nKeys == nExpectedKeys &&
       ktLeftJoin.nValues == nExpectedValues &&
-      ktLeftJoin.filter{ case (k, v) =>
+      ktLeftJoin.filter { case (k, v) =>
         !rightKeys.contains(leftJoinKeyQuery(k, v).map(_.asInstanceOf[String]))
       }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
     )
@@ -125,7 +125,7 @@ class KeyTableSuite extends SparkSuite {
     assert(ktRightJoin.nRows == ktRight.nRows &&
       ktRightJoin.nKeys == nExpectedKeys &&
       ktRightJoin.nValues == nExpectedValues &&
-      ktRightJoin.filter{ case (k, v) =>
+      ktRightJoin.filter { case (k, v) =>
         !leftKeys.contains(rightJoinKeyQuery(k, v).map(_.asInstanceOf[String]))
       }.forall("isMissing(Status) && isMissing(qPhen)"))
 
