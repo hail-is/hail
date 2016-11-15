@@ -41,7 +41,24 @@ String sparkVersion = System.getProperty("spark.version","1.6.2")
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
-sourceSets.test.runtimeClasspath += files("src/main/c/lib/lib")
+sourceSets.test.runtimeClasspath += files("src/main/c/lib")
+
+task nativeLib(type: Exec) {
+    workingDir 'src/main/c'
+    executable 'make'
+    inputs.files('src/main/c/ibs.c')
+    outputs.files('src/main/c/lib')
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDirs "src/main/c/lib"
+        }
+    }
+}
+test.dependsOn(nativeLib)
+jar.dependsOn(nativeLib)
 
 compileJava {
     options.compilerArgs << "-Xlint:all" << "-Werror"
@@ -112,20 +129,8 @@ dependencies {
 
     compile 'net.java.dev.jna:jna:4.2.2'
 
-    compile files('src/main/c/lib/') {
-        builtBy 'nativeLib'
-    }
-    // compile fileTree(dir: 'src/main/c/lib/', include: '**/*', builtBy: ['nativeLib'])
-
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
-}
-
-task nativeLib(type: Exec) {
-    workingDir 'src/main/c'
-    executable 'make'
-    inputs.files('src/main/c/ibs.c')
-    outputs.files('src/main/c/lib')
 }
 
 task(checkSettings) << {
