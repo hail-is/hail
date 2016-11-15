@@ -16,9 +16,11 @@ endif
 default: $(shared_library)
 
 lib/lib/darwin/lib%.dylib: %.c
+	mkdir -p lib/lib/darwin
 	${CC} ${CCFLAGS} $? -o $@
 
 lib/lib/lib%.so: %.c
+	mkdir -p lib/lib/
 	${CC} ${CCFLAGS} $? -o $@
 
 clean:
