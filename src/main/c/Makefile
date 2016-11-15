@@ -4,20 +4,17 @@ CC=cc
 CCFLAGS=-O3 -march=native -g -std=gnu99 -fvisibility=hidden
 
 UNAME_S := $(shell uname -s)
+UNAME_P := $(shell uname -p)
 ifeq ($(UNAME_S),Linux)
-	echo "uname -s is " $(UNAME_S)
 	CCFLAGS += -rdynamic -shared -fPIC -ggdb
 	ifeq ($(UNAME_P),x86_64)
-		echo "building for linux-x86_64"
 		shared_library = lib/lib/linux-x86-64/libibs.so
 	endif
 	ifneq ($(filter %86,$(UNAME_P)),)
-		echo "building for linux-x86"
 		shared_library = lib/lib/linux-x86/libibs.so
 	endif
 endif
 ifeq ($(UNAME_S),Darwin)
-	echo "building for darwin"
 	CCFLAGS += -dynamiclib
 	shared_library = lib/lib/darwin/libibs.dylib
 endif

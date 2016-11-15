@@ -4,6 +4,7 @@
 #include <popcntintrin.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <inttypes.h>
 
 #define EXPORT __attribute__((visibility("default")))
@@ -84,10 +85,12 @@ void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y
 
 void ibsVec2(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
   #ifdef __AVX__
-  __m256i * naMasks1 = malloc((length/4)*sizeof(__m256i));
-  __m256i * naMasks2 = malloc((length/4)*sizeof(__m256i));
-  if (!(naMasks1 && naMasks2)) {
-    printf("Not enough memory to allocate space for the naMasks\n");
+  __m256i * naMasks1 = 0;
+  int err1 = posix_memalign((void **)&naMasks1, 32, (length/4)*sizeof(__m256i));
+  __m256i * naMasks2 = 0;
+  int err2 = posix_memalign((void **)&naMasks2, 32, (length/4)*sizeof(__m256i));
+  if (err1 || err2) {
+    printf("Not enough memory to allocate space for the naMasks: %d %d\n", err1, err2);
     exit(-1);
   }
 
@@ -106,10 +109,13 @@ void ibsVec2(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
 // samples in rows, genotypes in columns
 EXPORT
 void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* genotypes1, uint64_t* genotypes2) {
-  __m256i * naMasks1 = malloc(nSamples*(nGenotypePacks/4)*sizeof(__m256i));
-  __m256i * naMasks2 = malloc(nSamples*(nGenotypePacks/4)*sizeof(__m256i));
-  if (!(naMasks1 && naMasks2)) {
-    printf("Not enough memory to allocate space for the naMasks\n");
+  #ifdef __AVX__
+  __m256i * naMasks1 = 0;
+  int err1 = posix_memalign((void **)&naMasks1, 32, nSamples*(nGenotypePacks/4)*sizeof(__m256i));
+  __m256i * naMasks2 = 0;
+  int err2 = posix_memalign((void **)&naMasks2, 32, nSamples*(nGenotypePacks/4)*sizeof(__m256i));
+  if (err1 || err2) {
+    printf("Not enough memory to allocate space for the naMasks: %d %d\n", err1, err2);
     exit(-1);
   }
 
@@ -122,6 +128,7 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
     }
     // NA mask for trailing genotype blocks will be calculated in the loop
   }
+  #endif // __AVX__
 
   for (uint64_t si = 0; si != nSamples; ++si) {
     for (uint64_t sj = 0; sj != nSamples; ++sj) {
