@@ -142,6 +142,18 @@ test {
 
 test.dependsOn(checkSettings)
 
+task testPyHail(type: Exec, dependsOn: shadowJar) {
+     String sparkHome = System.getProperty("spark.home")
+
+     commandLine 'python', '-m', 'unittest', 'pyhail.tests'
+
+     environment SPARK_HOME: sparkHome
+     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-0.9-src.zip'
+     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+}
+
+test.dependsOn(testPyHail)
+
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',

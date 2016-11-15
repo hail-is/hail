@@ -5,7 +5,6 @@ import org.broadinstitute.hail.utils._
 
 object Typecheck extends Command {
 
-
   class Options extends BaseOptions
 
   def newOptions = new Options

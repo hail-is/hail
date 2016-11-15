@@ -111,10 +111,11 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['annotatesamples', 'table', '-i', input, '-r', root]
+        pargs = ['annotatesamples', 'list', '-i', input, '-r', root]
         return self.hc.run_command(self, pargs)
 
-    def annotate_samples_table(self, input, sample_expr, root=None, code=None, impute=False):
+    def annotate_samples_table(self, input, sample_expr, root=None, code=None,
+                               types=None, missing='NA', impute=False):
         """Annotate samples with delimited text file (text table).
 
         :param str input: Path to delimited text file.
@@ -136,6 +137,11 @@ class VariantDataset(object):
         if code:
             pargs.append('--code')
             pargs.append(code)
+        if types:
+            pargs.append('--types')
+            pargs.append(types)
+        pargs.append('--missing')
+        pargs.append(missing)
         if impute:
             pargs.append('--impute')
         return self.hc.run_command(self, pargs)
@@ -507,6 +513,16 @@ class VariantDataset(object):
             pargs.append('--overwrite')
         return self.hc.run_command(self, pargs)
 
+    def filter_genotypes(self, condition):
+        """Filter variants based on expression.
+
+        :param str condition: Expression for filter condition.
+
+        """
+
+        pargs = ['filtergenotypes', '--keep', '-c', condition]
+        return self.hc.run_command(self, pargs)
+
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
@@ -550,7 +566,7 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def filter_variants_expr(self, condition):
-        """Filter samples based on expression.
+        """Filter variants based on expression.
 
         :param str condition: Expression for filter condition.
 
@@ -576,7 +592,7 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['filtervariants', 'list', '-i', input]
+        pargs = ['filtervariants', 'list', '--keep', '-i', input]
         return self.hc.run_command(self, pargs)
 
     def grm(self, format, output, id_file=None, n_file=None):
@@ -643,7 +659,7 @@ class VariantDataset(object):
             pargs.append(max)
         return self.hc.run_command(self, pargs)
 
-    def imputesex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
+    def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
@@ -655,23 +671,23 @@ class VariantDataset(object):
 
         :param float male_threshold: Samples are called males if F > maleThreshold
 
-        :param Variant annotation for estimate of MAF.  If None, MAF
-            will be computed.
+        :param str pop_freq: Variant annotation for estimate of MAF.
+            If None, MAF will be computed.
 
         """
 
         pargs = ['imputesex']
         if maf_threshold:
             pargs.append('--maf-threshold')
-            pargs.append(maf_threshold)
+            pargs.append(str(maf_threshold))
         if include_par:
             pargs.append('--include_par')
         if female_threshold:
             pargs.append('--female-threshold')
-            pargs.append(female_threshold)
+            pargs.append(str(female_threshold))
         if male_threshold:
             pargs.append('--male-threshold')
-            pargs.append(male_threshold)
+            pargs.append(str(male_threshold))
         if pop_freq:
             pargs.append('--pop-freq')
             pargs.append(pop_freq)
@@ -688,7 +704,7 @@ class VariantDataset(object):
             self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jvds,
                                                                  right.jvds))
 
-    def linreg(self, y, covariates="", root="va.linreg", minac=1, minaf=0.0):
+    def linreg(self, y, covariates='', root='va.linreg', minac=1, minaf=None):
         """Test each variant for association using the linear regression
         model.
 
@@ -700,11 +716,15 @@ class VariantDataset(object):
 
         :param float minac: Minimum alternate allele count.
 
-        :param float minaf: Minimum alternate allele frequency.
+        :param minaf: Minimum alternate allele frequency.
+        :type minaf: float or None
 
         """
 
-        pargs = ['linreg', '-y', y, '-c', covariates, '-r', root, '--mac', str(minac), '--maf', str(minaf)]
+        pargs = ['linreg', '-y', y, '-c', covariates, '-r', root, '--mac', str(minac)]
+        if minaf:
+            pargs.append('--maf')
+            pargs.append(str(minaf))
         return self.hc.run_command(self, pargs)
 
     def logreg(self, test, y, covariates=None, root=None):
@@ -744,7 +764,7 @@ class VariantDataset(object):
         pargs = ['mendelerrors', '-o', output, '-f', fam]
         return self.hc.run_command(self, pargs)
 
-    def pca(self, output, scores, loadings=None, eigenvalues=None, k=10, arrays=False):
+    def pca(self, scores, loadings=None, eigenvalues=None, k=10, arrays=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
         :param str scores: Sample annotation path to store scores.
@@ -757,7 +777,7 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['pca', '-o', output, '--scores', scores, '-k', k]
+        pargs = ['pca', '--scores', scores, '-k', str(k)]
         if loadings:
             pargs.append('--loadings')
             pargs.append(loadings)
@@ -784,7 +804,7 @@ class VariantDataset(object):
             pargs.append(storage_level)
         return self.hc.run_command(self, pargs)
 
-    def printschema(self, output=None, attributes=False, va=False, sa=False, print_global=False):
+    def print_schema(self, output=None, attributes=False, va=False, sa=False, print_global=False):
         """Shows the schema for global, sample and variant annotations.
 
         :param output: Output file.
@@ -814,7 +834,7 @@ class VariantDataset(object):
             pargs.append('--global')
         return self.hc.run_command(self, pargs)
 
-    def renamesamples(self, input):
+    def rename_samples(self, input):
         """Rename samples.
 
         :param str input: Input file.
@@ -846,7 +866,7 @@ class VariantDataset(object):
 
         """
 
-        return self.jvds.same(other.jvds)
+        return self.jvds.same(other.jvds, 1e-6)
 
     def sample_qc(self, branching_factor=None):
         """Compute per-sample QC metrics.
@@ -894,7 +914,7 @@ class VariantDataset(object):
             pargs.append('--propagate-gq')
         return self.hc.run_command(self, pargs)
 
-    def tdt(self, fam, root):
+    def tdt(self, fam, root = 'va.tdt'):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
