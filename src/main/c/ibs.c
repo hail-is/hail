@@ -164,9 +164,9 @@ int main(int argc, char** argv) {
     __m256i allNA2 = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256_with_na(result, allNA1, allNA2);
 
-    expect_equal("allNA", "%llu", result[0], 0ULL);
-    expect_equal("allNA", "%llu", result[1], 0ULL);
-    expect_equal("allNA", "%llu", result[2], 0ULL);
+    expect_equal("allNA", "%" PRIu64, result[0], 0ULL);
+    expect_equal("allNA", "%" PRIu64, result[1], 0ULL);
+    expect_equal("allNA", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -174,9 +174,9 @@ int main(int argc, char** argv) {
     __m256i allHomRef2 = { 0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 };
     ibs256_with_na(result, allHomRef1, allHomRef2);
 
-    expect_equal("allHomRef", "%llu", result[0], 0ULL);
-    expect_equal("allHomRef", "%llu", result[1], 0ULL);
-    expect_equal("allHomRef", "%llu", result[2], 128ULL);
+    expect_equal("allHomRef", "%" PRIu64, result[0], 0ULL);
+    expect_equal("allHomRef", "%" PRIu64, result[1], 0ULL);
+    expect_equal("allHomRef", "%" PRIu64, result[2], 128ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -184,9 +184,9 @@ int main(int argc, char** argv) {
     __m256i allHet2 = { 0x5555555555555555, 0x5555555555555555, 0x5555555555555555, 0x5555555555555555 };
     ibs256_with_na(result, allHet1, allHet2);
 
-    expect_equal("allHet", "%llu", result[0], 0ULL);
-    expect_equal("allHet", "%llu", result[1], 0ULL);
-    expect_equal("allHet", "%llu", result[2], 128ULL);
+    expect_equal("allHet", "%" PRIu64, result[0], 0ULL);
+    expect_equal("allHet", "%" PRIu64, result[1], 0ULL);
+    expect_equal("allHet", "%" PRIu64, result[2], 128ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -194,9 +194,9 @@ int main(int argc, char** argv) {
     __m256i allHomAlt2 = { 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
     ibs256_with_na(result, allHomAlt1, allHomAlt2);
 
-    expect_equal("allHomAlt", "%llu", result[0], 0ULL);
-    expect_equal("allHomAlt", "%llu", result[1], 0ULL);
-    expect_equal("allHomAlt", "%llu", result[2], 128ULL);
+    expect_equal("allHomAlt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("allHomAlt", "%" PRIu64, result[1], 0ULL);
+    expect_equal("allHomAlt", "%" PRIu64, result[2], 128ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -204,9 +204,9 @@ int main(int argc, char** argv) {
     __m256i allHomRef = { 0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 };
     ibs256_with_na(result, allHomAlt, allHomRef);
 
-    expect_equal("homAlt v homRef", "%llu", result[0], 128ULL);
-    expect_equal("homAlt v homRef", "%llu", result[1], 0ULL);
-    expect_equal("homAlt v homRef", "%llu", result[2], 0ULL);
+    expect_equal("homAlt v homRef", "%" PRIu64, result[0], 128ULL);
+    expect_equal("homAlt v homRef", "%" PRIu64, result[1], 0ULL);
+    expect_equal("homAlt v homRef", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -214,9 +214,9 @@ int main(int argc, char** argv) {
     __m256i allHomRef = { 0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 };
     ibs256_with_na(result, allHet, allHomRef);
 
-    expect_equal("het v homRef", "%llu", result[0], 0ULL);
-    expect_equal("het v homRef", "%llu", result[1], 128ULL);
-    expect_equal("het v homRef", "%llu", result[2], 0ULL);
+    expect_equal("het v homRef", "%" PRIu64, result[0], 0ULL);
+    expect_equal("het v homRef", "%" PRIu64, result[1], 128ULL);
+    expect_equal("het v homRef", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -224,9 +224,9 @@ int main(int argc, char** argv) {
     __m256i allHomAlt = { 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
     ibs256_with_na(result, allHet, allHomAlt);
 
-    expect_equal("het v homAlt", "%llu", result[0], 0ULL);
-    expect_equal("het v homAlt", "%llu", result[1], 128ULL);
-    expect_equal("het v homAlt", "%llu", result[2], 0ULL);
+    expect_equal("het v homAlt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("het v homAlt", "%" PRIu64, result[1], 128ULL);
+    expect_equal("het v homAlt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -234,9 +234,9 @@ int main(int argc, char** argv) {
     __m256i allHomAltOneNA = { 0xBFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
     ibs256_with_na(result, allHet, allHomAltOneNA);
 
-    expect_equal("het v homAltOneNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltOneNA", "%llu", result[1], 127ULL);
-    expect_equal("het v homAltOneNA", "%llu", result[2], 0ULL);
+    expect_equal("het v homAltOneNA", "%" PRIu64, result[0], 0ULL);
+    expect_equal("het v homAltOneNA", "%" PRIu64, result[1], 127ULL);
+    expect_equal("het v homAltOneNA", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -244,9 +244,9 @@ int main(int argc, char** argv) {
     __m256i allHomAltTwoNA = { 0xAFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
     ibs256_with_na(result, allHet, allHomAltTwoNA);
 
-    expect_equal("het v homAltTwoNA", "%llu", result[0], 0ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[1], 126ULL);
-    expect_equal("het v homAltTwoNA", "%llu", result[2], 0ULL);
+    expect_equal("het v homAltTwoNA", "%" PRIu64, result[0], 0ULL);
+    expect_equal("het v homAltTwoNA", "%" PRIu64, result[1], 126ULL);
+    expect_equal("het v homAltTwoNA", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -254,9 +254,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -264,9 +264,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -274,9 +274,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -284,9 +284,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA };
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -294,9 +294,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47 };
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -304,9 +304,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA };
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -314,9 +314,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -324,9 +324,9 @@ int main(int argc, char** argv) {
     __m256i het_ref_het_alt = { 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 4ULL);
-    expect_equal("ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 4ULL);
+    expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
 
   // ibsVec tests
@@ -340,9 +340,9 @@ int main(int argc, char** argv) {
         0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
     ibsVec2(result, 7, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ibsVec2 ref_het_alt_het v het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ibsVec2 ref_het_alt_het v het_ref_het_alt", "%llu", result[1], 8ULL);
-    expect_equal("ibsVec2 ref_het_alt_het v het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ibsVec2 ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ibsVec2 ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[1], 8ULL);
+    expect_equal("ibsVec2 ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -354,9 +354,9 @@ int main(int argc, char** argv) {
         0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAA47 };
     ibsVec2(result, 7, ref_het_alt_het, het_ref_het_alt);
 
-    expect_equal("ibsVec2 7 ref_het_alt_het v 7 het_ref_het_alt", "%llu", result[0], 0ULL);
-    expect_equal("ibsVec2 7 ref_het_alt_het v 7 het_ref_het_alt", "%llu", result[1], 7 * 4ULL);
-    expect_equal("ibsVec2 7 ref_het_alt_het v 7 het_ref_het_alt", "%llu", result[2], 0ULL);
+    expect_equal("ibsVec2 7 ref_het_alt_het v 7 het_ref_het_alt", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ibsVec2 7 ref_het_alt_het v 7 het_ref_het_alt", "%" PRIu64, result[1], 7 * 4ULL);
+    expect_equal("ibsVec2 7 ref_het_alt_het v 7 het_ref_het_alt", "%" PRIu64, result[2], 0ULL);
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
@@ -365,9 +365,9 @@ int main(int argc, char** argv) {
         0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D };
     ibsVec2(result, 7, ref_het_alt_het, ref_het_alt_het);
 
-    expect_equal("ibsVec2 ref_het_alt_het v self", "%llu", result[0], 0ULL);
-    expect_equal("ibsVec2 ref_het_alt_het v self", "%llu", result[1], 0ULL);
-    expect_equal("ibsVec2 ref_het_alt_het v self", "%llu", result[2], 4*7ULL);
+    expect_equal("ibsVec2 ref_het_alt_het v self", "%" PRIu64, result[0], 0ULL);
+    expect_equal("ibsVec2 ref_het_alt_het v self", "%" PRIu64, result[1], 0ULL);
+    expect_equal("ibsVec2 ref_het_alt_het v self", "%" PRIu64, result[2], 4*7ULL);
   }
   // ibsMat
   {
@@ -378,15 +378,15 @@ int main(int argc, char** argv) {
         0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D };
     ibsMat(result, 2, 7, all_ref_het_alt_het, all_ref_het_alt_het);
 
-    expect_equal("ibsMat identical 0 0, ibs0", "%llu", resultIndex(result, 2, 0, 0, 0), 0ULL);
-    expect_equal("ibsMat identical 0 0, ibs1", "%llu", resultIndex(result, 2, 0, 0, 1), 0ULL);
-    expect_equal("ibsMat identical 0 0, ibs2", "%llu", resultIndex(result, 2, 0, 0, 2), 4*7ULL);
-    expect_equal("ibsMat identical 0 1, ibs0", "%llu", resultIndex(result, 2, 0, 1, 0), 0ULL);
-    expect_equal("ibsMat identical 0 1, ibs1", "%llu", resultIndex(result, 2, 0, 1, 1), 0ULL);
-    expect_equal("ibsMat identical 0 1, ibs2", "%llu", resultIndex(result, 2, 0, 1, 2), 4*7ULL);
-    expect_equal("ibsMat identical 1 1, ibs0", "%llu", resultIndex(result, 2, 1, 1, 0), 0ULL);
-    expect_equal("ibsMat identical 1 1, ibs1", "%llu", resultIndex(result, 2, 1, 1, 1), 0ULL);
-    expect_equal("ibsMat identical 1 1, ibs2", "%llu", resultIndex(result, 2, 1, 1, 2), 4*7ULL);
+    expect_equal("ibsMat identical 0 0, ibs0", "%" PRIu64, resultIndex(result, 2, 0, 0, 0), 0ULL);
+    expect_equal("ibsMat identical 0 0, ibs1", "%" PRIu64, resultIndex(result, 2, 0, 0, 1), 0ULL);
+    expect_equal("ibsMat identical 0 0, ibs2", "%" PRIu64, resultIndex(result, 2, 0, 0, 2), 4*7ULL);
+    expect_equal("ibsMat identical 0 1, ibs0", "%" PRIu64, resultIndex(result, 2, 0, 1, 0), 0ULL);
+    expect_equal("ibsMat identical 0 1, ibs1", "%" PRIu64, resultIndex(result, 2, 0, 1, 1), 0ULL);
+    expect_equal("ibsMat identical 0 1, ibs2", "%" PRIu64, resultIndex(result, 2, 0, 1, 2), 4*7ULL);
+    expect_equal("ibsMat identical 1 1, ibs0", "%" PRIu64, resultIndex(result, 2, 1, 1, 0), 0ULL);
+    expect_equal("ibsMat identical 1 1, ibs1", "%" PRIu64, resultIndex(result, 2, 1, 1, 1), 0ULL);
+    expect_equal("ibsMat identical 1 1, ibs2", "%" PRIu64, resultIndex(result, 2, 1, 1, 2), 4*7ULL);
   }
   {
     uint64_t result[2*2*3] = { 0, 0, 0,  0, 0, 0,
@@ -396,15 +396,15 @@ int main(int argc, char** argv) {
         0xAAAAAAAAAAAAAA1F, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAA1D };
     ibsMat(result, 2, 7, one_ibs1_rest_ibs2, one_ibs1_rest_ibs2);
 
-    expect_equal("ibsMat one-ibs1 0 0, ibs0", "%llu", resultIndex(result, 2, 0, 0, 0), 0ULL);
-    expect_equal("ibsMat one-ibs1 0 0, ibs1", "%llu", resultIndex(result, 2, 0, 0, 1), 0ULL);
-    expect_equal("ibsMat one-ibs1 0 0, ibs2", "%llu", resultIndex(result, 2, 0, 0, 2), 4*7ULL);
-    expect_equal("ibsMat one-ibs1 0 1, ibs0", "%llu", resultIndex(result, 2, 0, 1, 0), 0ULL);
-    expect_equal("ibsMat one-ibs1 0 1, ibs1", "%llu", resultIndex(result, 2, 0, 1, 1), 1ULL);
-    expect_equal("ibsMat one-ibs1 0 1, ibs2", "%llu", resultIndex(result, 2, 0, 1, 2), 3+4*6ULL);
-    expect_equal("ibsMat one-ibs1 1 1, ibs0", "%llu", resultIndex(result, 2, 1, 1, 0), 0ULL);
-    expect_equal("ibsMat one-ibs1 1 1, ibs1", "%llu", resultIndex(result, 2, 1, 1, 1), 0ULL);
-    expect_equal("ibsMat one-ibs1 1 1, ibs2", "%llu", resultIndex(result, 2, 1, 1, 2), 4*7ULL);
+    expect_equal("ibsMat one-ibs1 0 0, ibs0", "%" PRIu64, resultIndex(result, 2, 0, 0, 0), 0ULL);
+    expect_equal("ibsMat one-ibs1 0 0, ibs1", "%" PRIu64, resultIndex(result, 2, 0, 0, 1), 0ULL);
+    expect_equal("ibsMat one-ibs1 0 0, ibs2", "%" PRIu64, resultIndex(result, 2, 0, 0, 2), 4*7ULL);
+    expect_equal("ibsMat one-ibs1 0 1, ibs0", "%" PRIu64, resultIndex(result, 2, 0, 1, 0), 0ULL);
+    expect_equal("ibsMat one-ibs1 0 1, ibs1", "%" PRIu64, resultIndex(result, 2, 0, 1, 1), 1ULL);
+    expect_equal("ibsMat one-ibs1 0 1, ibs2", "%" PRIu64, resultIndex(result, 2, 0, 1, 2), 3+4*6ULL);
+    expect_equal("ibsMat one-ibs1 1 1, ibs0", "%" PRIu64, resultIndex(result, 2, 1, 1, 0), 0ULL);
+    expect_equal("ibsMat one-ibs1 1 1, ibs1", "%" PRIu64, resultIndex(result, 2, 1, 1, 1), 0ULL);
+    expect_equal("ibsMat one-ibs1 1 1, ibs2", "%" PRIu64, resultIndex(result, 2, 1, 1, 2), 4*7ULL);
   }
 
   if (failures != 0) {
