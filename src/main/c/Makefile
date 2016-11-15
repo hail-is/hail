@@ -1,13 +1,25 @@
 .PHONY: default
 
 CC=cc
-CLANG_OPTS=-O3 -march=native -g -dynamiclib -std=gnu99 ibs.c -current_version 1.0.1 -compatibility_version 1.0.1 -fvisibility=hidden
+CCFLAGS=-O3 -march=native -g -dynamiclib -std=gnu99 -fvisibility=hidden
 
-default: lib/lib/darwin/libibs.dylib
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+	CCFLAGS += -D LINUX
+	shared_library = lib/lib/libibs.so
+endif
+ifeq ($(UNAME_S),Darwin)
+	CCFLAGS += -D OSX
+	shared_library = lib/lib/darwin/libibs.dylib
+endif
 
-lib/lib/darwin/libibs.dylib: ibs.c
-	mkdir -p lib/lib/darwin
-	${CC} ${CLANG_OPTS} -o lib/lib/darwin/libibs.dylib
+default: $(shared_library)
+
+lib/lib/darwin/lib%.dylib: %.c
+	${CC} ${CCFLAGS} $? -o $@
+
+lib/lib/lib%.so: %.c
+	${CC} ${CCFLAGS} $? -o $@
 
 clean:
 	rm -r lib
