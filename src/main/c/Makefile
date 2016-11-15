@@ -12,6 +12,7 @@ ifeq ($(UNAME_S),Linux)
 	ifneq ($(filter %86,$(UNAME_P)),)
 		shared_library = lib/lib/linux-x86/libibs.so
 	endif
+endif
 ifeq ($(UNAME_S),Darwin)
 	CCFLAGS += -dynamiclib
 	shared_library = lib/lib/darwin/libibs.dylib
