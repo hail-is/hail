@@ -224,4 +224,16 @@ class AggregatorSuite extends SparkSuite {
         assert(csGC(va) == gc(va), s"GC was different")
       }
   }
+
+  @Test def testCounter() {
+    Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExpr.run(s, "-c", "global = variants.map(v => v.contig).counter()")
+      val counterMap = s.vds.globalAnnotation.asInstanceOf[IndexedSeq[Row]]
+        .map { r => (r.getAs[String](0), r.getAs[Long](1)) }
+        .toMap
+      val aggMap = vds.variants.map(_.contig).countByValue()
+      aggMap == counterMap
+    }.check()
+  }
 }

@@ -320,13 +320,42 @@ Compute statistics on number of singletons stratified by case/control:
      global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()'
 ```
 
+### Counter
+
+```
+<aggregable>.counter()
+```
+
+This aggregator counts the number of occurrences of each element of an aggregable.  It produces an array of structs with the following schema:
+
+```
+Array [ 
+  Struct {
+    key: T, // element type of aggregator
+    count: Long
+  }
+]
+```
+
+The resulting array is sorted by count in descending order (the most common element is first).
+
+**Example:** compute the number of indels in each chromosome:
+
+```
+    annotateglobal expr -c 
+      'global.chr_indels = variants
+        .filter(v => v.altAllele.isIndel)
+        .map(v => v.contig)
+        .counter()'
+```
+
 ### Hist
 
 ```
 <numeric aggregable>.hist( start, end, bins )
 ```
 
-This aggregable is used to compute density distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
+This aggregator is used to compute density distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
 
 The result of a `hist` invocation is a struct:
 
