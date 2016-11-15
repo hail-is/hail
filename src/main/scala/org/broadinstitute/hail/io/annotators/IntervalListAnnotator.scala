@@ -32,7 +32,7 @@ object IntervalListAnnotator {
                 """.
                   stripMargin)
             }
-            m.updateValue(k, List(v), prev => v :: prev)
+            m.updateValue(k, Nil, prev => v :: prev)
           }
         }
 

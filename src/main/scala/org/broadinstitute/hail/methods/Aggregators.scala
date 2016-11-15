@@ -211,17 +211,16 @@ class CounterAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[m
   def seqOp(x: Any) {
     val r = f(x)
     if (r != null)
-      m.updateValue(r, 1L, _ + 1)
+      m.updateValue(r, 0L, _ + 1)
   }
 
   def combOp(agg2: this.type) {
     agg2.m.foreach { case (k, v) =>
-      m.updateValue(k, v, _ + v)
+      m.updateValue(k, 0L, _ + v)
     }
   }
 
   def copy() = new CounterAggregator(f, idx)
-
 }
 
 class HistAggregator(f: (Any) => Any, val idx: Int, indices: Array[Double])
