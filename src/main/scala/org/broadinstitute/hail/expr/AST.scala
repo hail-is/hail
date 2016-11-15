@@ -282,9 +282,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t, name) => FunctionRegistry.lookupFieldType(t, name)
         .valueOr {
           case FunctionRegistry.NotFound(name, typ) =>
-            parseError(s"""`$t' has no field `$rhs'
-                           |  Hint: Don't forget empty-parentheses in a method call, e.g.
-                           |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
+            parseError(
+              s"""`$t' has no field `$rhs'
+                  |  Hint: Don't forget empty-parentheses in a method call, e.g.
+                  |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
           case otherwise => parseError(otherwise.message)
         }
     }
@@ -315,9 +316,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
       .valueOr {
         case FunctionRegistry.NotFound(name, typ) =>
-          fatal(s"""`$t' has neither a field nor a method named `$name
-                    |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-                    |    counts.sum""".stripMargin)
+          fatal(
+            s"""`$t' has neither a field nor a method named `$name
+                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+                |    counts.sum""".stripMargin)
         case otherwise => fatal(otherwise.message)
       }
   }
@@ -826,6 +828,11 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
                 |  Found $method(${ other.mkString(", ") })""".stripMargin)
         }
 
+      case (agg: TAggregable, "counter", rhs) =>
+        if (rhs.nonEmpty)
+          parseError(s"""method `$method' does not take arguments""")
+        `type` = TArray(TStruct("key" -> agg.elementType, "count" -> TLong))
+
       case (agg: TAggregable, "hist", rhs) =>
         rhs match {
           case Array(startAST, endAST, binsAST) =>
@@ -1178,6 +1185,21 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         else
           Annotation(sc.mean, sc.stdev, sc.min, sc.max, sc.count, sc.sum)
       }
+
+    case (agg: TAggregable, "counter", Array()) =>
+      val localA = agg.ec.a
+      val localIdx = localA.length
+      localA += null
+
+      val aggF = agg.f
+
+      agg.ec.aggregationFunctions += new CounterAggregator(aggF, localIdx)
+
+      () => {
+        val m = localA(localIdx).asInstanceOf[mutable.HashMap[Any, Long]]
+        m.toArray.sortBy(-_._2).map { case (k, v) => Annotation(k, v) }: IndexedSeq[_]
+      }
+
 
     case (agg: TAggregable, "callStats", Array(vAST)) =>
       val localA = agg.ec.a
