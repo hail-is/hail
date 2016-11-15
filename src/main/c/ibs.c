@@ -8,13 +8,11 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-__m256i allones = { 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF };
-__m256i allNA = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
-__m256i leftAllele = { 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA };
-
-
 #ifdef __AVX__
 void ibs256(uint64_t* result, __m256i x, __m256i y, __m256i xna, __m256i yna) {
+  __m256i allones = _mm256_set1_epi8(0xFF);
+  __m256i leftAllele = _mm256_set1_epi8(0xAA);
+
   __m256i nxor = _mm256_xor_si256(_mm256_xor_si256(x, y), allones);
   __m256i nxorSR1 = _mm256_srli_epi64(nxor, 1);
 
@@ -44,6 +42,7 @@ void ibs256(uint64_t* result, __m256i x, __m256i y, __m256i xna, __m256i yna) {
 }
 
 __m256i naMaskForGenotypePack(__m256i block) {
+  __m256i allNA = _mm256_set1_epi8(0xAA);
   __m256i isna = _mm256_xor_si256(allNA, block);
   return _mm256_or_si256(_mm256_srli_epi64(isna, 1), isna);
 }
