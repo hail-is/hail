@@ -11,7 +11,7 @@ from pyhail import HailContext
 class ContextTests(unittest.TestCase):
 
     def setUp(self):
-        self.sc = SparkContext()
+        self.sc = SparkContext(master = 'local[2]')
         self.hc = HailContext(self.sc)
         
         self.test_resources = 'src/test/resources'
