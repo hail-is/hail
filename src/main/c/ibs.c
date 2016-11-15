@@ -61,8 +61,8 @@ void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y
   uint64_t i = 0;
   #ifdef __AVX__
   for (; i < (length - 3); i += 4) {
-    __m256i x256 = _mm256_load_si256((__m256i*)(x+i));
-    __m256i y256 = _mm256_load_si256((__m256i*)(y+i));
+    __m256i x256 = _mm256_lddqu_si256((__m256i*)(x+i));
+    __m256i y256 = _mm256_lddqu_si256((__m256i*)(y+i));
     ibs256(result, x256, y256, x_na_masks[i/4], y_na_masks[i/4]);
   }
   #endif // __AVX__
@@ -96,9 +96,9 @@ void ibsVec2(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
 
   for (uint64_t i = 0; i < (length - 3); i += 4) {
     naMasks1[i/4] =
-      naMaskForGenotypePack(_mm256_load_si256((__m256i*)(x+i)));
+      naMaskForGenotypePack(_mm256_lddqu_si256((__m256i*)(x+i)));
     naMasks2[i/4] =
-      naMaskForGenotypePack(_mm256_load_si256((__m256i*)(y+i)));
+      naMaskForGenotypePack(_mm256_lddqu_si256((__m256i*)(y+i)));
   }
   ibsVec(result, length, x, y, naMasks1, naMasks2);
   #else
@@ -122,9 +122,9 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
   for (uint64_t i = 0; i != nSamples; ++i) {
     for (uint64_t j = 0; j < (nGenotypePacks - 3); j += 4) {
       naMasks1[i*(nGenotypePacks/4)+(j/4)] =
-        naMaskForGenotypePack(_mm256_load_si256((__m256i*)(genotypes1+i*nGenotypePacks+j)));
+        naMaskForGenotypePack(_mm256_lddqu_si256((__m256i*)(genotypes1+i*nGenotypePacks+j)));
       naMasks2[i*(nGenotypePacks/4)+(j/4)] =
-        naMaskForGenotypePack(_mm256_load_si256((__m256i*)(genotypes2+i*nGenotypePacks+j)));
+        naMaskForGenotypePack(_mm256_lddqu_si256((__m256i*)(genotypes2+i*nGenotypePacks+j)));
     }
     // NA mask for trailing genotype blocks will be calculated in the loop
   }
