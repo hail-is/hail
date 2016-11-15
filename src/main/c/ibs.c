@@ -49,7 +49,7 @@ __m256i naMaskForGenotypePack(__m256i block) {
 }
 
 void ibs256_with_na(uint64_t* result, __m256i x, __m256i y) {
-  ibs256(result, x, y, naMaskForGenotypePack(x), naMaskForGenotypePack(y))
+  ibs256(result, x, y, naMaskForGenotypePack(x), naMaskForGenotypePack(y));
 }
 #endif // __AVX__
 
@@ -61,8 +61,8 @@ void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y
   uint64_t i = 0;
   #ifdef __AVX__
   for (; i < (length - 3); i += 4) {
-    __m256i x256 = _mm256_load_si256((__m256i*)x);
-    __m256i y256 = _mm256_load_si256((__m256i*)x);
+    __m256i x256 = _mm256_load_si256((__m256i*)(x+i));
+    __m256i y256 = _mm256_load_si256((__m256i*)(y+i));
     ibs256(result, x256, y256, x_na_masks[i/4], y_na_masks[i/4]);
   }
   #endif // __AVX__
@@ -93,21 +93,22 @@ void ibsVec2(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
   }
 
   for (uint64_t i = 0; i < (length - 3); i += 4) {
-    naMasks1[i] =
+    naMasks1[i/4] =
       naMaskForGenotypePack(_mm256_load_si256((__m256i*)(x+i)));
-    naMasks2[i] =
+    naMasks2[i/4] =
       naMaskForGenotypePack(_mm256_load_si256((__m256i*)(y+i)));
   }
+  ibsVec(result, length, x, y, naMasks1, naMasks2);
   #else
   ibsVec(result, length, x, y);
-  #endif
+  #endif // __AVX__
 }
 
 // samples in rows, genotypes in columns
 EXPORT
 void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* genotypes1, uint64_t* genotypes2) {
-  __m256i * naMasks1 = malloc(nSamples*nGenotypePacks*sizeof(__m256i));
-  __m256i * naMasks2 = malloc(nSamples*nGenotypePacks*sizeof(__m256i));
+  __m256i * naMasks1 = malloc(nSamples*(nGenotypePacks/4)*sizeof(__m256i));
+  __m256i * naMasks2 = malloc(nSamples*(nGenotypePacks/4)*sizeof(__m256i));
   if (!(naMasks1 && naMasks2)) {
     printf("Not enough memory to allocate space for the naMasks\n");
     exit(-1);
@@ -115,9 +116,9 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
 
   for (uint64_t i = 0; i != nSamples; ++i) {
     for (uint64_t j = 0; j < (nGenotypePacks - 3); j += 4) {
-      naMasks1[i*nGenotypePacks+j] =
+      naMasks1[i*(nGenotypePacks/4)+(j/4)] =
         naMaskForGenotypePack(_mm256_load_si256((__m256i*)(genotypes1+i*nGenotypePacks+j)));
-      naMasks2[i*nGenotypePacks+j] =
+      naMasks2[i*(nGenotypePacks/4)+(j/4)] =
         naMaskForGenotypePack(_mm256_load_si256((__m256i*)(genotypes2+i*nGenotypePacks+j)));
     }
     // NA mask for trailing genotype blocks will be calculated in the loop
@@ -130,12 +131,15 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
              genotypes1 + si*nGenotypePacks,
              genotypes2 + sj*nGenotypePacks
              #ifdef __AVX__
-             , naMasks1 + si*nGenotypePacks
-             , naMasks2 + sj*nGenotypePacks
+             , naMasks1 + si*(nGenotypePacks/4)
+             , naMasks2 + sj*(nGenotypePacks/4)
              #endif // __AVX__
              );
     }
   }
+
+  free(naMasks1);
+  free(naMasks2);
 }
 
 #define expect(name, x) if (!(x)) { ++failures; printf(name ": expected " #x " to be true, but was false\n\n"); } else { ++successes; }
