@@ -213,6 +213,8 @@ shadowJar {
         include(dependency('org.ow2.asm:asm-util:.*'))
         include(dependency('org.ow2.asm:asm-tree:.*'))
         include(dependency('org.ow2.asm:asm-analysis:.*'))
+
+        include(dependency('net.java.dev.jna:jna:.*'))
     }
 }
 
@@ -260,6 +262,8 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.testng:testng:.*'))
         include(dependency('com.beust:jcommander:.*'))
         include(dependency('org.scalatest:scalatest_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('net.java.dev.jna:jna:.*'))
     }
 }
 
