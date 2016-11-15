@@ -408,9 +408,9 @@ int main(int argc, char** argv) {
   }
 
   if (failures != 0) {
-    printf("%llu test(s) failed.\n", failures);
+    printf("%" PRIu64 " test(s) failed.\n", failures);
   } else {
-    printf("%llu test(s) succeeded.\n", successes);
+    printf("%" PRIu64 " test(s) succeeded.\n", successes);
   }
 
   return 0;
