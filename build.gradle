@@ -57,8 +57,7 @@ sourceSets {
         }
     }
 }
-test.dependsOn(nativeLib)
-jar.dependsOn(nativeLib)
+compileScala.dependsOn(nativeLib)
 
 compileJava {
     options.compilerArgs << "-Xlint:all" << "-Werror"
