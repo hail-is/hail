@@ -1,15 +1,15 @@
 .PHONY: default
 
 CC=cc
-CCFLAGS=-O3 -march=native -g -dynamiclib -std=gnu99 -fvisibility=hidden
+CCFLAGS=-O3 -march=native -g -std=gnu99 -fvisibility=hidden
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
-	CCFLAGS += -D LINUX
+	CCFLAGS += -rdynamic -shared -fPIC -ggdb
 	shared_library = lib/lib/libibs.so
 endif
 ifeq ($(UNAME_S),Darwin)
-	CCFLAGS += -D OSX
+	CCFLAGS += -dynamiclib
 	shared_library = lib/lib/darwin/libibs.dylib
 endif
 
