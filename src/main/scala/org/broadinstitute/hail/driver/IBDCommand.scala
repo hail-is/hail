@@ -82,7 +82,7 @@ object IBDCommand extends Command {
       .map { case ((i, j), ibd) =>
         s"$i\t$j\t${ ibd.ibd.Z0 }\t${ ibd.ibd.Z1 }\t${ ibd.ibd.Z2 }\t${ ibd.ibd.PI_HAT }"
       }
-      .writeTable(options.outputFile, Some("SAMPLE_ID_1\tSAMPLE_ID_2\tZ0\tZ1\tZ2\tPI_HAT"), parallelWrite)
+      .writeTable(options.outputFile, Some("SAMPLE_ID_1\tSAMPLE_ID_2\tZ0\tZ1\tZ2\tPI_HAT"), options.parallelWrite)
 
     state
   }
