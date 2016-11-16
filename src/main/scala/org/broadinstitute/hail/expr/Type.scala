@@ -121,6 +121,8 @@ abstract class Type extends BaseType {
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
 
+  def strVCF(a: Annotation): String = if (a == null) "." else a.toString
+
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
   def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
