@@ -154,7 +154,7 @@ object IBD {
   val gtToCRep = Array[Byte](0, 1, 3)
   val missingGTCRep : Byte = 2
 
-  final val chunkSize = 1024/4
+  final val chunkSize = 1024
 
   def computeIBDMatrix(vds: VariantDataset, computeMaf: Option[(Variant, Annotation) => Double], bounded: Boolean): RDD[((Int, Int), ExtendedIBDInfo)] = {
     val unnormalizedIbse = vds.rdd.map { case (v, (va, gs)) => ibsForGenotypes(gs, computeMaf.map(f => f(v, va))) }

@@ -118,6 +118,9 @@ void ibsVec2(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
   ibsVec(result, length, x, y, naMasks1, naMasks2);
 }
 
+#define CACHE_SIZE_PER_MATRIX_IN_KB 8
+#define CACHE_SIZE_IN_MATRIX_ROWS 4 * CACHE_SIZE_PER_MATRIX_IN_KB
+
 // samples in rows, genotypes in columns
 extern "C"
 EXPORT
@@ -141,15 +144,19 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
     // NA mask for trailing genotype blocks will be calculated in the loop
   }
 
-  for (uint64_t si = 0; si != nSamples; ++si) {
-    for (uint64_t sj = 0; sj != nSamples; ++sj) {
-      ibsVec(result + si*nSamples*3 + sj*3,
-             nGenotypePacks,
-             genotypes1 + si*nGenotypePacks,
-             genotypes2 + sj*nGenotypePacks,
-             naMasks1 + si*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE),
-             naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
-             );
+  for (uint64_t i_block_end = CACHE_SIZE_IN_MATRIX_ROWS; i_block_end != nSamples; i_block_end += CACHE_SIZE_IN_MATRIX_ROWS) {
+    for (uint64_t j_block_end = CACHE_SIZE_IN_MATRIX_ROWS; j_block_end != nSamples; j_block_end += CACHE_SIZE_IN_MATRIX_ROWS) {
+      for (uint64_t si = 0; si != i_block_end; ++si) {
+        for (uint64_t sj = 0; sj != j_block_end; ++sj) {
+          ibsVec(result + si*nSamples*3 + sj*3,
+                 nGenotypePacks,
+                 genotypes1 + si*nGenotypePacks,
+                 genotypes2 + sj*nGenotypePacks,
+                 naMasks1 + si*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE),
+                 naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
+                 );
+        }
+      }
     }
   }
 
