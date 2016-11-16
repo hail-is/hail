@@ -53,7 +53,7 @@ object ExportVCF extends Command {
           } else {
             sb.append(f.name)
             sb += '='
-            arr.foreachBetween(a => sb.append(it.elementType.str(a)))(sb += ',')
+            arr.foreachBetween(a => sb.append(it.elementType.strVCF(a)))(sb += ',')
             true
           }
         case TBoolean => value match {
