@@ -1,35 +1,35 @@
-.PHONY: default
+.PHONY: default libsimdpp
 
-CC=cc
-CCFLAGS=-O3 -mavx2 -g -std=gnu99 -fvisibility=hidden
+CXX=c++
+CXXFLAGS=-O3 -march=native -g -std=c++11 -fvisibility=hidden -Ilibsimdpp-2.0-rc2
 
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 ifeq ($(UNAME_S),Linux)
-	CCFLAGS += -rdynamic -shared -fPIC -ggdb
-	shared_library = lib/linux-x86-64/libibs.so
-	ifneq ($(filter %86,$(UNAME_P)),)
-		shared_library = lib/linux-x86/libibs.so
-	endif
+       CXXFLAGS += -rdynamic -shared -fPIC -ggdb
+       shared_library = lib/linux-x86-64/libibs.so
+       ifneq ($(filter %86,$(UNAME_P)),)
+               shared_library = lib/linux-x86/libibs.so
+       endif
 endif
 ifeq ($(UNAME_S),Darwin)
-	CCFLAGS += -dynamiclib
-	shared_library = lib/darwin/libibs.dylib
+       CXXFLAGS += -dynamiclib
+       shared_library = lib/darwin/libibs.dylib
 endif
 
-default: $(shared_library)
+default: libsimdpp $(shared_library)
 
-lib/darwin/lib%.dylib: %.c
+libsimdpp:
+	(cd libsimdpp-2.0-rc2 && cmake .)
+
+lib/darwin/lib%.dylib: %.cpp
 	mkdir -p lib/darwin
-	${CC} ${CCFLAGS} $? -o $@
+	${CXX} ${CXXFLAGS} $? -o $@
 
-lib/linux-x86-64/lib%.so: %.c
+lib/linux-x86-64/lib%.so: %.cpp
 	mkdir -p lib/linux-x86-64
-	${CC} ${CCFLAGS} $? -o $@
+	${CXX} ${CXXFLAGS} $? -o $@
 
-lib/linux-x86/lib%.so: %.c
+lib/linux-x86/lib%.so: %.cpp
 	mkdir -p lib/linux-x86
-	${CC} ${CCFLAGS} $? -o $@
-
-clean:
-	rm -r lib
+	${CXX} ${CXXFLAGS} $? -o $@

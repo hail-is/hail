@@ -46,7 +46,7 @@ sourceSets.test.runtimeClasspath += files("src/main/c/lib")
 task nativeLib(type: Exec) {
     workingDir 'src/main/c'
     executable 'make'
-    inputs.files('src/main/c/ibs.c')
+    inputs.files('src/main/c/ibs.cpp')
     outputs.files('src/main/c/lib')
 }
 
