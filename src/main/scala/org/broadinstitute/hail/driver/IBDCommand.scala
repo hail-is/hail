@@ -22,6 +22,10 @@ object IBDCommand extends Command {
       usage = "Output TSV file for the IBD matrix")
     var outputFile: String = _
 
+    @Args4jOption(required = false, name = "--parallel-write", aliases = Array("-p"),
+      usage = "This option writes the IBD table as a directory of sharded files. Without this option, the output is coalesced to a single file.")
+    var parallelWrite: Boolean = false
+
     @Args4jOption(required = false, name = "--min",
       usage = "Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]")
     var min: java.lang.Double = _
@@ -78,7 +82,7 @@ object IBDCommand extends Command {
       .map { case ((i, j), ibd) =>
         s"$i\t$j\t${ ibd.ibd.Z0 }\t${ ibd.ibd.Z1 }\t${ ibd.ibd.Z2 }\t${ ibd.ibd.PI_HAT }"
       }
-      .writeTable(options.outputFile, Some("SAMPLE_ID_1\tSAMPLE_ID_2\tZ0\tZ1\tZ2\tPI_HAT"))
+      .writeTable(options.outputFile, Some("SAMPLE_ID_1\tSAMPLE_ID_2\tZ0\tZ1\tZ2\tPI_HAT"), parallelWrite)
 
     state
   }
