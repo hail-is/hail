@@ -17,7 +17,9 @@ import scala.language.existentials
 import scala.reflect.ClassTag
 import org.broadinstitute.hail.utils.EitherIsAMonad._
 
-case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunctions: ArrayBuffer[Aggregator]) {
+case class EvalContext(st: SymbolTable,
+  a: ArrayBuffer[Any],
+  aggregationFunctions: ArrayBuffer[((Any) => Any, Aggregator)]) {
 
   def setAll(args: Any*) {
     args.zipWithIndex.foreach { case (arg, i) => a(i) = arg }
@@ -31,7 +33,7 @@ case class EvalContext(st: SymbolTable, a: ArrayBuffer[Any], aggregationFunction
 object EvalContext {
   def apply(symTab: SymbolTable): EvalContext = {
     val a = new ArrayBuffer[Any]()
-    val af = new ArrayBuffer[Aggregator]()
+    val af = new ArrayBuffer[((Any) => Any, Aggregator)]()
     for ((i, t) <- symTab.values) {
       if (i >= 0)
         a += null
@@ -1157,7 +1159,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new CountAggregator(aggF, localIdx)
+      agg.ec.aggregationFunctions += ((aggF, new CountAggregator(localIdx)))
       () => localA(localIdx)
 
     case (agg: TAggregable, "fraction", Array(Lambda(_, param, body))) =>
@@ -1171,7 +1173,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new FractionAggregator(aggF, localIdx, localA, bodyFn, lambdaIdx)
+      agg.ec.aggregationFunctions += ((aggF, new FractionAggregator(localIdx, localA, bodyFn, lambdaIdx)))
       () => localA(localIdx)
 
     case (agg: TAggregable, "stats", Array()) =>
@@ -1182,7 +1184,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val t = agg.elementType
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new StatAggregator(aggF, localIdx)
+      agg.ec.aggregationFunctions += ((aggF, new StatAggregator(localIdx)))
 
       val getOp = (a: Any) => {
         val sc = a.asInstanceOf[StatCounter]
@@ -1225,7 +1227,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val vf = vAST.eval(ec)
 
-      agg.ec.aggregationFunctions += new CallStatsAggregator(aggF, localIdx, vf)
+      agg.ec.aggregationFunctions += ((aggF, new CallStatsAggregator(localIdx, vf)))
 
       () => {
         val cs = localA(localIdx).asInstanceOf[CallStats]
@@ -1279,7 +1281,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new HistAggregator(aggF, localIdx, indices)
+      agg.ec.aggregationFunctions += ((aggF, new HistAggregator(localIdx, indices)))
       () => localA(localIdx).asInstanceOf[HistogramCombiner].toAnnotation
 
 
@@ -1290,7 +1292,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new CollectAggregator(aggF, localIdx)
+      agg.ec.aggregationFunctions += ((aggF, new CollectAggregator(localIdx)))
       () => localA(localIdx).asInstanceOf[ArrayBuffer[Any]].toIndexedSeq
 
     case (agg: TAggregable, "infoScore", Array()) =>
@@ -1301,7 +1303,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val localPos = posn
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new InfoScoreAggregator(aggF, localIdx)
+      agg.ec.aggregationFunctions += ((aggF, new InfoScoreAggregator(localIdx)))
       () => localA(localIdx).asInstanceOf[InfoScoreCombiner].asAnnotation
 
     case (agg: TAggregable, "inbreeding", Array(mafAST)) =>
@@ -1313,7 +1315,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val aggF = agg.f
       val maf = mafAST.eval(agg.ec)
 
-      agg.ec.aggregationFunctions += new InbreedingAggregator(aggF, localIdx, maf)
+      agg.ec.aggregationFunctions += ((aggF, new InbreedingAggregator(localIdx, maf)))
       () => localA(localIdx).asInstanceOf[InbreedingCombiner].asAnnotation
 
     case (agg: TAggregable, "hardyWeinberg", Array()) =>
@@ -1324,7 +1326,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val localPos = posn
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new HWEAggregator(aggF, localIdx)
+      agg.ec.aggregationFunctions += ((aggF, new HWEAggregator(localIdx)))
       () => localA(localIdx).asInstanceOf[HWECombiner].asAnnotation
 
     case (agg: TAggregable, "sum", Array()) =>
@@ -1336,8 +1338,8 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val aggF = agg.f
 
       (`type`: @unchecked) match {
-        case TDouble => agg.ec.aggregationFunctions += new SumAggregator(aggF, localIdx)
-        case TArray(TDouble) => agg.ec.aggregationFunctions += new SumArrayAggregator(aggF, localIdx, localPos)
+        case TDouble => agg.ec.aggregationFunctions += ((aggF, new SumAggregator(localIdx)))
+        case TArray(TDouble) => agg.ec.aggregationFunctions += ((aggF, new SumArrayAggregator(localIdx, localPos)))
       }
 
       () => localA(localIdx)

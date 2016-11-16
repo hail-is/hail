@@ -15,7 +15,10 @@ import scala.util.parsing.input.Position
 object Aggregators {
 
   def buildVariantAggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
-    val aggregators = ec.aggregationFunctions.toArray
+
+    val aggFunctions = ec.aggregationFunctions.map(_._1)
+    val aggregators = ec.aggregationFunctions.map(_._2)
+
     val aggregatorA = ec.a
 
     if (aggregators.nonEmpty) {
@@ -28,29 +31,29 @@ object Aggregators {
         aggregatorA(0) = v
         aggregatorA(1) = va
         (gs, localSamplesBc.value, localAnnotationsBc.value).zipped
-          .foreach {
-            case (g, s, sa) =>
-              aggregatorA(2) = s
-              aggregatorA(3) = sa
-              baseArray.foreach {
-                _.seqOp(g)
-              }
+          .foreach { case (g, s, sa) =>
+            aggregatorA(2) = s
+            aggregatorA(3) = sa
+            (baseArray, aggFunctions).zipped.foreach { case (agg, aggF) =>
+              agg.seqOp(aggF(g))
+            }
           }
 
         baseArray.foreach { agg => aggregatorA(agg.idx) = agg.result }
       }
       Some(f)
-    } else None
+    } else
+      None
   }
 
   def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(String) => Unit] = {
-    val aggregators = ec.aggregationFunctions.toArray
+    val aggFunctions = ec.aggregationFunctions.map(_._1)
+    val aggregators = ec.aggregationFunctions.map(_._2)
     val aggregatorA = ec.a
 
     if (aggregators.isEmpty)
       None
     else {
-
       val localSamplesBc = vds.sampleIdsBc
       val localAnnotationsBc = vds.sampleAnnotationsBc
 
@@ -73,7 +76,7 @@ object Aggregators {
 
           var j = 0
           while (j < nAggregations) {
-            arr(i, j).seqOp(g)
+            arr(i, j).seqOp(aggFunctions(j)(g))
             j += 1
           }
           i += 1
@@ -100,7 +103,8 @@ object Aggregators {
   def makeFunctions(ec: EvalContext): (Array[Aggregator], (Array[Aggregator], (Any, Any)) => Array[Aggregator],
     (Array[Aggregator], Array[Aggregator]) => Array[Aggregator], (Array[Aggregator]) => Unit) = {
 
-    val aggregators = ec.aggregationFunctions.toArray
+    val aggFunctions = ec.aggregationFunctions.map(_._1)
+    val aggregators = ec.aggregationFunctions.map(_._2)
 
     val arr = ec.a
 
@@ -116,7 +120,7 @@ object Aggregators {
       val (aggT, annotation) = b
       ec.set(0, annotation)
       for (i <- array.indices) {
-        array(i).seqOp(aggT)
+        array(i).seqOp(aggFunctions(i)(aggT))
       }
       array
     }
@@ -135,15 +139,14 @@ object Aggregators {
   }
 }
 
-class CountAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Long] {
+class CountAggregator(val idx: Int) extends TypedAggregator[Long] {
 
   var _state = 0L
 
   def result = _state
 
-  def seqOp(x: Any) {
-    val v = f(x)
-    if (f(x) != null)
+  override def seqOp(x: Any) {
+    if (x != null)
       _state += 1
   }
 
@@ -151,10 +154,10 @@ class CountAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Lon
     _state += agg2._state
   }
 
-  def copy() = new CountAggregator(f, idx)
+  override def copy() = new CountAggregator(idx)
 }
 
-class FractionAggregator(f: (Any) => Any, val idx: Int, localA: ArrayBuffer[Any], bodyFn: () => Any, lambdaIdx: Int)
+class FractionAggregator(val idx: Int, localA: ArrayBuffer[Any], bodyFn: () => Any, lambdaIdx: Int)
   extends TypedAggregator[java.lang.Double] {
 
   var _num = 0L
@@ -166,11 +169,10 @@ class FractionAggregator(f: (Any) => Any, val idx: Int, localA: ArrayBuffer[Any]
     else
       _num.toDouble / _denom
 
-  def seqOp(x: Any) {
-    val r = f(x)
-    if (r != null) {
+  override def seqOp(x: Any) {
+    if (x != null) {
       _denom += 1
-      localA(lambdaIdx) = r
+      localA(lambdaIdx) = x
       if (bodyFn().asInstanceOf[Boolean])
         _num += 1
     }
@@ -181,29 +183,28 @@ class FractionAggregator(f: (Any) => Any, val idx: Int, localA: ArrayBuffer[Any]
     _denom += agg2._denom
   }
 
-  def copy() = new FractionAggregator(f, idx, localA, bodyFn, lambdaIdx)
+  override def copy() = new FractionAggregator(idx, localA, bodyFn, lambdaIdx)
 }
 
-class StatAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[StatCounter] {
+class StatAggregator(val idx: Int) extends TypedAggregator[StatCounter] {
 
   var _state = new StatCounter()
 
   def result = _state
 
-  def seqOp(x: Any) {
-    val r = f(x)
-    if (r != null)
-      _state.merge(DoubleNumericConversion.to(r))
+  override def seqOp(x: Any) {
+    if (x != null)
+      _state.merge(DoubleNumericConversion.to(x))
   }
 
   def combOp(agg2: this.type) {
     _state.merge(agg2._state)
   }
 
-  def copy() = new StatAggregator(f, idx)
+  override def copy() = new StatAggregator(idx)
 }
 
-class CounterAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[mutable.HashMap[Any, Long]] {
+class CounterAggregator(val idx: Int) extends TypedAggregator[mutable.HashMap[Any, Long]] {
   var m = new mutable.HashMap[Any, Long]
 
   def result = m
@@ -220,111 +221,104 @@ class CounterAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[m
     }
   }
 
-  def copy() = new CounterAggregator(f, idx)
+  override def copy() = new StatAggregator(idx)
 }
 
-class HistAggregator(f: (Any) => Any, val idx: Int, indices: Array[Double])
+class HistAggregator(val idx: Int, indices: Array[Double])
   extends TypedAggregator[HistogramCombiner] {
 
   var _state = new HistogramCombiner(indices)
 
   def result = _state
 
-  def seqOp(x: Any) {
-    val r = f(x)
-    if (r != null)
-      _state.merge(DoubleNumericConversion.to(r))
+  override def seqOp(x: Any) {
+    if (x != null)
+      _state.merge(DoubleNumericConversion.to(x))
   }
 
   def combOp(agg2: this.type) {
     _state.merge(agg2._state)
   }
 
-  def copy() = new HistAggregator(f, idx, indices)
+  override def copy() = new HistAggregator(idx, indices)
 }
 
-class CollectAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[ArrayBuffer[Any]] {
+class CollectAggregator(val idx: Int) extends TypedAggregator[ArrayBuffer[Any]] {
 
   var _state = new ArrayBuffer[Any]
 
   def result = _state
 
-  def seqOp(x: Any) {
-    val r = f(x)
-    if (r != null)
-      _state += f(x)
+  override def seqOp(x: Any) {
+    if (x != null)
+      _state += x
   }
 
   def combOp(agg2: this.type) = _state ++= agg2._state
 
-  def copy() = new CollectAggregator(f, idx)
+  override def copy() = new CollectAggregator(idx)
 }
 
-class InfoScoreAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[InfoScoreCombiner] {
+class InfoScoreAggregator(val idx: Int) extends TypedAggregator[InfoScoreCombiner] {
 
   var _state = new InfoScoreCombiner()
 
   def result = _state
 
-  def seqOp(x: Any) {
-    val r = f(x)
-    if (r != null)
-      _state.merge(r.asInstanceOf[Genotype])
+  override def seqOp(x: Any) {
+    if (x != null)
+      _state.merge(x.asInstanceOf[Genotype])
   }
 
   def combOp(agg2: this.type) {
     _state.merge(agg2._state)
   }
 
-  def copy() = new InfoScoreAggregator(f, idx)
+  override def copy() = new InfoScoreAggregator(idx)
 }
 
-class HWEAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[HWECombiner] {
+class HWEAggregator(val idx: Int) extends TypedAggregator[HWECombiner] {
 
   var _state = new HWECombiner()
 
   def result = _state
 
-  def seqOp(x: Any) {
-    val r = f(x)
-    if (r != null)
-      _state.merge(r.asInstanceOf[Genotype])
+  override def seqOp(x: Any) {
+    if (x != null)
+      _state.merge(x.asInstanceOf[Genotype])
   }
 
   def combOp(agg2: this.type) {
     _state.merge(agg2._state)
   }
 
-  def copy() = new HWEAggregator(f, idx)
+  override def copy() = new HWEAggregator(idx)
 }
 
-class SumAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Double] {
+class SumAggregator(val idx: Int) extends TypedAggregator[Double] {
   var _state = 0d
 
   def result = _state
 
   override def seqOp(x: Any) {
-    println(s"sumagg seqop input: $x")
-    val r = f(x)
-    println(s"sumagg seqop result: $r")
-    if (r != null)
-      _state += DoubleNumericConversion.to(r)
+    if (x != null)
+      _state += DoubleNumericConversion.to(x)
   }
 
   def combOp(agg2: this.type) = _state += agg2._state
 
-  def copy() = new SumAggregator(f, idx)
+  override def copy() = new SumAggregator(idx)
 }
 
-class SumArrayAggregator(f: (Any) => Any, val idx: Int, localPos: Position)
+class SumArrayAggregator(val idx: Int, localPos: Position)
   extends TypedAggregator[IndexedSeq[Double]] {
 
   var _state: Array[Double] = _
 
   def result = _state
 
-  def seqOp(x: Any) {
-    val r = f(x).asInstanceOf[IndexedSeq[Any]]
+  override def seqOp(x: Any) {
+    val r = x.asInstanceOf[IndexedSeq[Any]]
     if (r != null) {
       if (_state == null)
         _state = r.map(x => if (x == null) 0d else DoubleNumericConversion.to(x)).toArray
@@ -355,10 +349,10 @@ class SumArrayAggregator(f: (Any) => Any, val idx: Int, localPos: Position)
       _state(i) += agg2state(i)
   }
 
-  def copy() = new SumArrayAggregator(f, idx, localPos)
+  override def copy() = new SumArrayAggregator(idx, localPos)
 }
 
-class CallStatsAggregator(f: (Any) => Any, val idx: Int, variantF: () => Any)
+class CallStatsAggregator(val idx: Int, variantF: () => Any)
   extends TypedAggregator[CallStats] {
 
   var first = true
@@ -380,9 +374,8 @@ class CallStatsAggregator(f: (Any) => Any, val idx: Int, variantF: () => Any)
     }
 
     if (combiner != null) {
-      val r = f(x)
-      if (r != null)
-        combiner.merge(r.asInstanceOf[Genotype])
+      if (x != null)
+        combiner.merge(x.asInstanceOf[Genotype])
     }
   }
 
@@ -394,26 +387,25 @@ class CallStatsAggregator(f: (Any) => Any, val idx: Int, variantF: () => Any)
     combiner.merge(agg2.combiner)
   }
 
-  def copy(): TypedAggregator[CallStats] = new CallStatsAggregator(f, idx, variantF)
+  def copy(): TypedAggregator[CallStats] = new CallStatsAggregator(idx, variantF)
 }
 
-class InbreedingAggregator(f: (Any) => Any, localIdx: Int, getAF: () => Any) extends TypedAggregator[InbreedingCombiner] {
+class InbreedingAggregator(localIdx: Int, getAF: () => Any) extends TypedAggregator[InbreedingCombiner] {
 
   var _state = new InbreedingCombiner()
 
   def result = _state
 
-  def seqOp(x: Any) = {
-    val r = f(x)
+  override def seqOp(x: Any) = {
     val af = getAF()
 
-    if (r != null && af != null)
-      _state.merge(r.asInstanceOf[Genotype], DoubleNumericConversion.to(af))
+    if (x != null && af != null)
+      _state.merge(x.asInstanceOf[Genotype], DoubleNumericConversion.to(af))
   }
 
   def combOp(agg2: this.type) = _state.merge(agg2.asInstanceOf[InbreedingAggregator]._state)
 
-  def copy() = new InbreedingAggregator(f, localIdx, getAF)
+  override def copy() = new InbreedingAggregator(localIdx, getAF)
 
   def idx = localIdx
 }
