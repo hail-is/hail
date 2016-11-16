@@ -119,8 +119,8 @@ void ibsVec2(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
 }
 
 // samples in rows, genotypes in columns
-EXPORT
 extern "C"
+EXPORT
 void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* genotypes1, uint64_t* genotypes2) {
   uint64v * naMasks1 = 0;
   int err1 = posix_memalign((void **)&naMasks1, 32, nSamples*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)*sizeof(uint64v));
