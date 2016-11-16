@@ -144,8 +144,10 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
     }
   }
 
+  #ifdef __AVX__
   free(naMasks1);
   free(naMasks2);
+  #endif // __AVX__
 }
 
 #define expect(name, x) if (!(x)) { ++failures; printf(name ": expected " #x " to be true, but was false\n\n"); } else { ++successes; }
