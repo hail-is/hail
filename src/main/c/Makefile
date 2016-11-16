@@ -1,15 +1,13 @@
 .PHONY: default
 
 CC=cc
-CCFLAGS=-O3 -march=native -g -std=gnu99 -fvisibility=hidden
+CCFLAGS=-O3 -march=avx2 -g -std=gnu99 -fvisibility=hidden
 
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 ifeq ($(UNAME_S),Linux)
 	CCFLAGS += -rdynamic -shared -fPIC -ggdb
-	ifeq ($(UNAME_P),x86_64)
-		shared_library = lib/linux-x86-64/libibs.so
-	endif
+	shared_library = lib/linux-x86-64/libibs.so
 	ifneq ($(filter %86,$(UNAME_P)),)
 		shared_library = lib/linux-x86/libibs.so
 	endif
