@@ -364,21 +364,14 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val valueSignature = TStruct(aggNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
 
     val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
+    val aggFunctions = aggregationEC.aggregationFunctions.map(_._1)
+
+    assert(zVals.length == aggFunctions.length)
 
     val seqOp = (array: Array[Aggregator], b: Any) => {
-      println(s"values inside b = " + KeyTable.annotationToSeq(b, nFields))
-      println(s"keytable seqop pre-setec ec.a: ${ aggregationEC.a }")
-      println(s"keytable seqop pre-setec ec: ${ aggregationEC }")
-      println(s"keytable seqop pre-setec ec.a pointer: ${ System.identityHashCode(aggregationEC.a) }")
-      println(s"keytable seqop pre-setec ec pointer: ${ System.identityHashCode(aggregationEC) }")
       KeyTable.setEvalContext(aggregationEC, b, nFields)
-      println(s"keytable seqop post-setec ec.a: ${ aggregationEC.a }")
-      println(s"keytable seqop post-setec ec: ${ aggregationEC }")
-      println(s"keytable seqop post-setec ec.a pointer: ${ System.identityHashCode(aggregationEC.a) }")
-      println(s"keytable seqop post-setec ec pointer: ${ System.identityHashCode(aggregationEC) }")
       for (i <- array.indices) {
-        println(s"keytable seqop array($i): ${ array(i) }")
-        array(i).seqOp(b)
+        array(i).seqOp(aggFunctions(i)(b))
       }
       array
     }
@@ -423,17 +416,12 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val valueSignature = TStruct(aggNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
 
     val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
+    val aggFunctions = aggregationEC.aggregationFunctions.map(_._1)
 
     val seqOp = (array: Array[Aggregator], b: Any) => {
-      KeyTable.setEvalContext(ec, b, nFields)
-      val row = Option(b).map(_.asInstanceOf[Row]).orNull
-
-      println(s"keytable aggregateRow seqop ec: $ec")
-      println(s"keytable aggregateRow seqop ec identity: ${ System.identityHashCode(ec) }")
-      println(s"keytable aggregateRow seqop row: $row")
-
+      KeyTable.setEvalContext(aggregationEC, b, nFields)
       for (i <- array.indices) {
-        array(i).seqOp(row)
+        array(i).seqOp(aggFunctions(i)(b))
       }
       array
     }
