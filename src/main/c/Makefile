@@ -1,7 +1,7 @@
 .PHONY: default
 
 CC=cc
-CCFLAGS=-O3 -march=avx2 -g -std=gnu99 -fvisibility=hidden
+CCFLAGS=-O3 -mavx2 -g -std=gnu99 -fvisibility=hidden
 
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
