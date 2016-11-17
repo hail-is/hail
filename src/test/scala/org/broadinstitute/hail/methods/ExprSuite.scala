@@ -508,6 +508,10 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("rnorm(2.0, 4.0).abs > -1.0").contains(true))
 
     assert(eval[Any]("if (true) NA: Double else 0.0").isEmpty)
+
+    assert(eval[Int]("gtIndex(3, 5)").contains(18))
+    assert(eval[Int]("gtj(18)").contains(3))
+    assert(eval[Int]("gtk(18)").contains(5))
   }
 
   @Test def testParseTypes() {
