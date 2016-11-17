@@ -283,11 +283,8 @@ case class MappedAggregable(parent: TAggregable, elementType: Type, mapF: (Any) 
   def f: (Any) => Any = {
     val parentF = parent.f
     (a: Any) => {
-      println(s"mapagg a: $a")
       val prev = parentF(a)
-      println(s"mapagg prev: $prev")
       if (prev != null) {
-        println(s"mapagg result: ${mapF(prev)}")
         mapF(prev)
       }
       else

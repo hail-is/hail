@@ -148,12 +148,14 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def query(code: String): (BaseType, (Annotation, Annotation) => Option[Any]) = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val nKeysLocal = nKeys
+    val nValuesLocal = nValues
 
     val (t, f) = Parser.parse(code, ec)
 
     val f2: (Annotation, Annotation) => Option[Any] = {
       case (k, v) =>
-        KeyTable.setEvalContext(ec, k, v, nKeys, nValues)
+        KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
         f()
     }
 
@@ -162,11 +164,12 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def querySingle(code: String): (BaseType, Querier) = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val nFieldsLocal = nFields
 
     val (t, f) = Parser.parse(code, ec)
 
     val f2: (Annotation) => Option[Any] = { a =>
-      KeyTable.setEvalContext(ec, a, nFields)
+      KeyTable.setEvalContext(ec, a, nFieldsLocal)
       f()
     }
 
@@ -194,10 +197,10 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val keyNameArray = if (keyNameString != null) Parser.parseIdentifierList(keyNameString) else keyNames
 
-    //    val nFields = nFields
+    val nFieldsLocal = nFields
 
     val f: Annotation => Annotation = { a =>
-      KeyTable.setEvalContext(ec, a, nFields)
+      KeyTable.setEvalContext(ec, a, nFieldsLocal)
 
       fns.zip(inserters)
         .foldLeft(a) { case (a1, (fn, inserter)) =>
@@ -213,11 +216,13 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def filter(cond: String, keep: Boolean): KeyTable = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val nKeysLocal = nKeys
+    val nValuesLocal = nValues
 
     val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
     val p = (k: Annotation, v: Annotation) => {
-      KeyTable.setEvalContext(ec, k, v, nKeys, nValues)
+      KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
       Filter.keepThis(f(), keep)
     }
 
@@ -284,11 +289,13 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def forall(code: String): Boolean = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val nKeysLocal = nKeys
+    val nValuesLocal = nValues
 
     val f: () => Option[Boolean] = Parser.parse[Boolean](code, ec, TBoolean)
 
     val p = (k: Annotation, v: Annotation) => {
-      KeyTable.setEvalContext(ec, k, v, nKeys, nValues)
+      KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
       f().getOrElse(false)
     }
 
@@ -297,11 +304,13 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def exists(code: String): Boolean = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val nKeysLocal = nKeys
+    val nValuesLocal = nValues
 
     val f: () => Option[Boolean] = Parser.parse[Boolean](code, ec, TBoolean)
 
     val p = (k: Annotation, v: Annotation) => {
-      KeyTable.setEvalContext(ec, k, v, nKeys, nValues)
+      KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
       f().getOrElse(false)
     }
 
@@ -324,16 +333,16 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     }
 
     hConf.delete(output, recursive = true)
-    //
-    //    val nKeys = nKeys
-    //    val nValues = nValues
+
+    val nKeysLocal = nKeys
+    val nValuesLocal = nValues
 
     rdd
       .mapPartitions { it =>
         val sb = new StringBuilder()
         it.map { case (k, v) =>
           sb.clear()
-          KeyTable.setEvalContext(ec, k, v, nKeys, nValues)
+          KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }
@@ -376,61 +385,12 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
       array
     }
 
-    val newRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).mapPartitions { it =>
-      it.map { a =>
-        KeyTable.setEvalContext(aggregationEC, a, nFields)
-        val key = Annotation.fromSeq(keyF.map(_ ()))
-        (key, a)
-      }
-    }.aggregateByKey(zVals)(seqOp, combOp)
-      .map { case (k, agg) =>
-        resultOp(agg)
-        (k, Annotation.fromSeq(aggF.map(_ ())))
-      }
-
-    KeyTable(newRDD, keySignature, valueSignature)
-  }
-
-  def aggregateRows(keyCond: String, aggCond: String): KeyTable = {
-
-    val aggregationEC = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
-    val st = fields.zipWithIndex.map { case (fd, i) => (fd.name, (i, fd.`type`)) }.toMap ++ Map("rows" -> (-1, BaseAggregable(aggregationEC, TStruct(fields.map(fd => (fd.name, fd.`type`)): _*))))
-    val ec = EvalContext(st)
-
-    val (keyNameParseTypes, keyF) =
-      if (keyCond != null)
-        Parser.parseAnnotationArgs(keyCond, ec, None)
-      else
-        (Array.empty[(List[String], Type)], Array.empty[() => Any])
-
-    val (aggNameParseTypes, aggF) =
-      if (aggCond != null)
-        Parser.parseAnnotationArgs(aggCond, ec, None)
-      else
-        (Array.empty[(List[String], Type)], Array.empty[() => Any])
-
-    val keyNames = keyNameParseTypes.map(_._1.head)
-    val aggNames = aggNameParseTypes.map(_._1.head)
-
-    val keySignature = TStruct(keyNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
-    val valueSignature = TStruct(aggNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
-
-    val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
-    val aggFunctions = aggregationEC.aggregationFunctions.map(_._1)
-
-    val seqOp = (array: Array[Aggregator], b: Any) => {
-      KeyTable.setEvalContext(aggregationEC, b, nFields)
-      for (i <- array.indices) {
-        array(i).seqOp(aggFunctions(i)(b))
-      }
-      array
-    }
+    val nFieldsLocal = nFields
 
     val newRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).mapPartitions { it =>
       it.map { a =>
-        KeyTable.setEvalContext(ec, a, nFields)
+        KeyTable.setEvalContext(aggregationEC, a, nFieldsLocal)
         val key = Annotation.fromSeq(keyF.map(_ ()))
-        println(s"keytable aggregateRow keymap key: $key")
         (key, a)
       }
     }.aggregateByKey(zVals)(seqOp, combOp)

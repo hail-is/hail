@@ -24,7 +24,7 @@ class SparkSuite extends TestNGSuite {
   @BeforeClass
   def startSpark() {
     val master = System.getProperty("hail.master")
-    sc = SparkManager.createSparkContext("Hail.TestNG", Option(master), "local[1]")
+    sc = SparkManager.createSparkContext("Hail.TestNG", Option(master), "local[2]")
 
     sqlContext = SparkManager.createSQLContext()
 
