@@ -145,29 +145,17 @@ class KeyTableSuite extends SparkSuite {
     val keyNames = Array("field1")
 
     val kt1 = KeyTable(rdd, signature, keyNames)
-    val kt2 = kt1.aggregate("Status = field1", "X = field2.map(f => field2).sum()")
+    val kt2 = kt1.aggregate("Status = field1",
+      "A = field2.sum(), " +
+      "B = field2.map(f => field2).sum(), " +
+      "C = field2.map(f => field2 + field3).sum(), " +
+      "D = field2.count(), " +
+      "E = field2.filter(f => field2 == 3).count()"
+    )
 
-    val result = Array(Array("Case", 12.0), Array("Control", 3.0))
+    val result = Array(Array("Case", 12.0, 12.0, 16.0, 2L, 1L), Array("Control", 3.0, 3.0, 11.0, 2L, 0L))
     val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
-    val resSignature = TStruct(("Status", TString), ("X", TDouble))
-    val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
-
-
-    assert(kt2 same ktResult)
-  }
-
-  @Test def testAggregateRows() {
-    val data = Array(Array("Case", 9, 0), Array("Case", 3, 4), Array("Control", 2, 3), Array("Control", 1, 5))
-    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
-    val signature = TStruct(("field1", TString), ("field2", TInt), ("field3", TInt))
-    val keyNames = Array("field1")
-
-    val kt1 = KeyTable(rdd, signature, keyNames)
-    val kt2 = kt1.aggregateRows("Status = field1", "X = rows.map(r => field2).sum()")
-
-    val result = Array(Array("Case", 12.0), Array("Control", 3.0))
-    val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
-    val resSignature = TStruct(("Status", TString), ("X", TDouble))
+    val resSignature = TStruct(("Status", TString), ("A", TDouble), ("B", TDouble), ("C", TDouble), ("D", TLong), ("E", TLong))
     val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
 
     assert(kt2 same ktResult)
