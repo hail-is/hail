@@ -21,6 +21,7 @@ endif
 default: libsimdpp $(shared_library)
 
 test:
+	mkdir -p build
 	${CXX} ${_CXXFLAGS} ibs.cpp test.cpp -o build/functional-tests
 	./build/functional-tests
 
