@@ -6,7 +6,7 @@ Unit tests for PyHail.
 import unittest
 
 from pyspark import SparkContext
-from pyhail import HailContext
+from pyhail import HailContext, TextTableConfig
 
 class ContextTests(unittest.TestCase):
 
@@ -208,6 +208,50 @@ class ContextTests(unittest.TestCase):
         sample2_split.variant_qc().print_schema()
         
         sample2.variants_to_pandas()
+
+        sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet).count()")
+        kt = sample_split.aggregate_by_key("Variant = v", "nHet = gs.filter(g => g.isHet).count()")
+
+    def test_keytable(self):
+        # Import
+        kt = self.hc.import_keytable(self.test_resources + '/sampleAnnotations.tsv', 'Sample', config = TextTableConfig(impute = True))
+        kt2 = self.hc.import_keytable(self.test_resources + '/sampleAnnotations2.tsv', 'Sample', config = TextTableConfig(impute = True))
+
+        # Variables
+        self.assertEqual(kt.nfields(), 3)
+        self.assertEqual(kt.key_names()[0], "Sample")
+        self.assertEqual(kt.field_names()[2], "qPhen")
+        self.assertEqual(kt.nrows(), 100)
+        kt.schema()
+
+        # Export
+        kt.export('/tmp/testExportKT.tsv')
+
+        # Filter, Same
+        ktcase = kt.filter('Status == "CASE"', True)
+        ktcase2 = kt.filter('Status == "CTRL"', False)
+        self.assertTrue(ktcase.same(ktcase2))
+
+        # Annotate
+        kt4 = kt.annotate('X = Status', 'Sample, Status')
+
+        # Join
+        kt5 = kt.join(kt2, 'left')
+
+        # AggregateByKey
+        kt6 = kt.aggregate_by_key("Status = Status", "Sum = qPhen.sum()")
+
+        # Forall, Exists
+        self.assertFalse(kt.forall('Status == "CASE"'))
+        self.assertTrue(kt.exists('Status == "CASE"'))
+
+
+
+
+
+
+
+
         
     def tearDown(self):
         self.sc.stop()

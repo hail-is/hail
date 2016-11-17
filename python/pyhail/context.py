@@ -268,9 +268,9 @@ class HailContext(object):
             npartitions = self.sc.defaultMinPartitions
 
         if not config:
-            config = TextTableConfig()._toJavaObject(self)
-        elif isinstance(key_names, TextTableConfig):
-            config = config._toJavaObject(self)
+            config = TextTableConfig()._jobj(self)
+        elif isinstance(config, TextTableConfig):
+            config = config._jobj(self)
 
         return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs),
                                                                                                  key_names, npartitions, config))

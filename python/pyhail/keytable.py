@@ -18,7 +18,7 @@ class KeyTable(object):
     def __repr__(self):
         return self.jkt.toString()
 
-    def nFields(self):
+    def nfields(self):
         """Number of fields in the key-table
 
         :rtype: int
@@ -32,21 +32,21 @@ class KeyTable(object):
         """
         return Type(self.jkt.signature())
 
-    def keyNames(self):
+    def key_names(self):
         """Field names that are keys
 
         :rtype: list of str
         """
         return self.jkt.keyNames()
 
-    def fieldNames(self):
+    def field_names(self):
         """Names of all fields in the key-table
 
         :rtype: list of str
         """
         return self.jkt.fieldNames()
 
-    def nRows(self):
+    def nrows(self):
         """Number of rows in the key-table
 
         :rtype: long
@@ -109,7 +109,7 @@ class KeyTable(object):
         """
         return KeyTable(self.hc, self.jkt.join(right.jkt, how))
 
-    def _aggregate(self, key_code, agg_code):
+    def aggregate_by_key(self, key_code, agg_code):
         """Group by key condition and aggregate results 
 
         :param key_code: Named expression(s) for which fields are keys.
