@@ -132,7 +132,6 @@ html_theme = 'alabaster'
 # documentation.
 #
 html_theme_options = {
-    "font_family": "Georgia, Palatino, 'Palatino Linotype', Times, 'Times New Roman', serif",
     "fixed_sidebar": "true"
 }
 
