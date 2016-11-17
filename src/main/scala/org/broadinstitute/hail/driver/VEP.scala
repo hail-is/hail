@@ -211,7 +211,7 @@ object VEP extends Command {
     val rootType =
       vds.vaSignature.getOption(root)
         .filter { t =>
-          val r = t == vepSignature
+          val r = t == (if(csq) TString else vepSignature)
           if (!r) {
             if (options.force)
               warn(s"type for ${ options.root } does not match vep signature, overwriting.")
