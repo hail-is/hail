@@ -1,0 +1,31 @@
+{% extends "!layout.html" %}
+
+{% block extrahead %}
+<link rel='shortcut icon' href='hail_logo_sq.png' type='image/x-icon'>
+<link rel="stylesheet" href="/navbar.css">
+<script src="/navbar.min.js"></script>
+
+<script>
+    $(document).ready(function () {
+
+      $(".document dt").each(function () {
+        var element = $(this);
+        var id = element.attr("id");
+        function anchor(id) { return "<a class=jumptarget name=" + id + "></a>"; }
+        $(this).prepend(anchor(id));
+      });
+
+      $("#hail-navbar").load("/navbar.html", function () {
+        $(".nav li").removeClass("active");
+        $('#docs').addClass('active');
+        $('#pyhail').addClass('active');
+      });
+    });
+ </script>
+{{ super() }}
+{% endblock %}
+
+{% block relbar1 %}
+<nav class="navbar navbar-default navbar-fixed-top" id="hail-navbar"></nav>
+{{ super() }}
+{% endblock %}
