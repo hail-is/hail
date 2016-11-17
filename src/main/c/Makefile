@@ -1,8 +1,8 @@
 .PHONY: default libsimdpp
 
 CXX=c++
-CXXFLAGS=-march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -DSIMDPP_ARCH_X86_AVX2
-LIBFLAGS=-O3 -fvisibility=hidden
+CXXFLAGS=-O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -DSIMDPP_ARCH_X86_AVX2
+LIBFLAGS=-fvisibility=hidden
 
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
@@ -19,6 +19,13 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 default: libsimdpp $(shared_library)
+
+test:
+	${CXX} ${CXXFLAGS} ibs.cpp test.cpp -o functional-tests
+	./functional-tests
+
+clean:
+	rm -r lib
 
 libsimdpp:
 	(cd libsimdpp-2.0-rc2 && cmake .)

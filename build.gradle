@@ -46,8 +46,21 @@ sourceSets.test.runtimeClasspath += files("src/main/c/lib")
 task nativeLib(type: Exec) {
     workingDir 'src/main/c'
     executable 'make'
-    inputs.files('src/main/c/ibs.cpp')
+    inputs.files('src/main/c/*.cpp', 'src/main/c/*.h')
     outputs.files('src/main/c/lib')
+}
+
+task nativeLibTest(type: Exec) {
+    workingDir 'src/main/c'
+    args('test')
+    executable 'make'
+    inputs.files('src/main/c/*.cpp', 'src/main/c/*.h')
+}
+
+task nativeLibClean(type: Exec) {
+    workingDir 'src/main/c'
+    args('clean')
+    executable 'make'
 }
 
 sourceSets {
@@ -58,6 +71,8 @@ sourceSets {
     }
 }
 compileScala.dependsOn(nativeLib)
+test.dependsOn(nativeLibTest)
+clean.dependsOn(nativeLibClean)
 
 compileJava {
     options.compilerArgs << "-Xlint:all" << "-Werror"
