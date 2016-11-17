@@ -21,11 +21,12 @@ endif
 default: libsimdpp $(shared_library)
 
 test:
-	${CXX} ${_CXXFLAGS} ibs.cpp test.cpp -o functional-tests
-	./functional-tests
+	${CXX} ${_CXXFLAGS} ibs.cpp test.cpp -o build/functional-tests
+	./build/functional-tests
 
 clean:
 	rm -rf lib
+	rm -rf build
 
 libsimdpp:
 	(cd libsimdpp-2.0-rc2 && cmake .)
@@ -43,65 +44,69 @@ lib/linux-x86/lib%.so: %.cpp
 	${CXX} ${LIBFLAGS} ${_CXXFLAGS} $? -o $@
 
 fullperftest:
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=1 -o test1
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=2 -o test2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=3 -o test3
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=4 -o test4
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=5 -o test5
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=6 -o test6
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=7 -o test7
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=8 -o test8
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=12 -o test12
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=16 -o test16
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=32 -o test32
-	./test1
-	./test2
-	./test3
-	./test4
-	./test5
-	./test6
-	./test7
-	./test8
-	./test12
-	./test16
-	./test32
+	mkdir -p build
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=1 -o build/test1
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=2 -o build/test2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=3 -o build/test3
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=4 -o build/test4
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=5 -o build/test5
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=6 -o build/test6
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=7 -o build/test7
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=8 -o build/test8
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=12 -o build/test12
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=16 -o build/test16
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=32 -o build/test32
+	./build/test1
+	./build/test2
+	./build/test3
+	./build/test4
+	./build/test5
+	./build/test6
+	./build/test7
+	./build/test8
+	./build/test12
+	./build/test16
+	./build/test32
 
 test256:
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=256 -o test256
-	./test256
+	mkdir -p build
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=256 -o build/test256
+	./build/test256
 
 testSub1kB:
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_IN_MATRIX_ROWS=1 -o test1row
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_IN_MATRIX_ROWS=2 -o test2row
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_IN_MATRIX_ROWS=3 -o test3row
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_IN_MATRIX_ROWS=4 -o test4row
-	./test1row
-	./test2row
-	./test3row
-	./test4row
+	mkdir -p build
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_IN_MATRIX_ROWS=1 -o build/test1row
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_IN_MATRIX_ROWS=2 -o build/test2row
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_IN_MATRIX_ROWS=3 -o build/test3row
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_IN_MATRIX_ROWS=4 -o build/test4row
+	./build/test1row
+	./build/test2row
+	./build/test3row
+	./build/test4row
 
 cachegrind:
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=1 -o test1 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=2 -o test2 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=3 -o test3 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=4 -o test4 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=5 -o test5 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=6 -o test6 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=7 -o test7 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=8 -o test8 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=12 -o test12 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=16 -o test16 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=32 -o test32 -DITERATIONS=2
-	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=256 -o test256 -DITERATIONS=2
-	valgrind --tool=cachegrind ./test1
-	valgrind --tool=cachegrind ./test2
-	valgrind --tool=cachegrind ./test3
-	valgrind --tool=cachegrind ./test4
-	valgrind --tool=cachegrind ./test5
-	valgrind --tool=cachegrind ./test6
-	valgrind --tool=cachegrind ./test7
-	valgrind --tool=cachegrind ./test8
-	valgrind --tool=cachegrind ./test12
-	valgrind --tool=cachegrind ./test16
-	valgrind --tool=cachegrind ./test32
-	valgrind --tool=cachegrind ./test256
+	mkdir -p build
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=1 -o build/test1 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=2 -o build/test2 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=3 -o build/test3 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=4 -o build/test4 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=5 -o build/test5 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=6 -o build/test6 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=7 -o build/test7 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=8 -o build/test8 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=12 -o build/test12 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=16 -o build/test16 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=32 -o build/test32 -DITERATIONS=2
+	${CXX} ${_CXXFLAGS} ibs.cpp cache-tests.cpp -DCACHE_SIZE_PER_MATRIX_IN_KB=256 -o build/test256 -DITERATIONS=2
+	valgrind --tool=cachegrind ./build/test1
+	valgrind --tool=cachegrind ./build/test2
+	valgrind --tool=cachegrind ./build/test3
+	valgrind --tool=cachegrind ./build/test4
+	valgrind --tool=cachegrind ./build/test5
+	valgrind --tool=cachegrind ./build/test6
+	valgrind --tool=cachegrind ./build/test7
+	valgrind --tool=cachegrind ./build/test8
+	valgrind --tool=cachegrind ./build/test12
+	valgrind --tool=cachegrind ./build/test16
+	valgrind --tool=cachegrind ./build/test32
+	valgrind --tool=cachegrind ./build/test256
