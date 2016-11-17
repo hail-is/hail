@@ -139,6 +139,10 @@ Several Hail commands provide the ability to perform a broad array of computatio
     
     - range: `range(end)` or `range(start, end)`.  This function will produce an `Array[Int]`.  `range(3)` produces `[0, 1, 2]`.  `range(-2, 2)` produces `[-2, -1, 0, 1]`.
 
+    - `gtj(i)` and `gtk(i)`.  Convert from genotype index (triangular numbers) to `j/k` pairs.
+
+    - `gtIndex(j, k)`.  Convert from `j/k` pair to genotype index (triangular numbers).
+
 **Note:**
 
  - All variables and values are case sensitive

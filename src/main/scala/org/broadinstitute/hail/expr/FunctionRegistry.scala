@@ -360,4 +360,8 @@ object FunctionRegistry {
   registerConversion { (x: Long) => x.toDouble }
   registerConversion { (x: Int) => x.toLong }
   registerConversion { (x: Float) => x.toDouble }
+
+  register("gtj", (i: Int) => Genotype.gtPair(i).j)
+  register("gtk", (i: Int) => Genotype.gtPair(i).k)
+  register("gtIndex", (j: Int, k: Int) => Genotype.gtIndex(j, k))
 }
