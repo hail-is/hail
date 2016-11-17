@@ -8,7 +8,7 @@
 
 using namespace simdpp;
 
-void ibs256(__restrict__ uint64_t* result, uint64v x, uint64v y, uint64v xna, uint64v yna) {
+void ibs256(uint64_t* __restrict__ result, uint64v x, uint64v y, uint64v xna, uint64v yna) {
   uint64v allones = make_ones();
   uint64v leftAllele = make_uint(0xAAAAAAAAAAAAAAAA);
 
@@ -70,16 +70,16 @@ uint64v naMaskForGenotypePack(uint64v block) {
   return (shift_r(isna, 1)) | isna;
 }
 
-void ibs256_with_na(__restrict__ uint64_t* result, uint64v x, uint64v y) {
+void ibs256_with_na(uint64_t* __restrict__ result, uint64v x, uint64v y) {
   ibs256(result, x, y, naMaskForGenotypePack(x), naMaskForGenotypePack(y));
 }
 
-void ibsVec(__restrict__ uint64_t* result,
+void ibsVec(uint64_t* __restrict__ result,
             uint64_t length,
-            __restrict__ uint64_t* x,
-            __restrict__ uint64_t* y,
-            __restrict__ uint64v * x_na_masks,
-            __restrict__ uint64v * y_na_masks) {
+            uint64_t* __restrict__ x,
+            uint64_t* __restrict__ y,
+            uint64v * __restrict__ x_na_masks,
+            uint64v * __restrict__ y_na_masks) {
   uint64_t i = 0;
   for (; i <= (length - SIMDPP_FAST_INT64_SIZE); i += SIMDPP_FAST_INT64_SIZE) {
     uint64v x256 = load_u(x+i);
@@ -103,12 +103,12 @@ void ibsVec(__restrict__ uint64_t* result,
   }
 }
 
-void allocateNaMasks(uint64v ** mask1,
-                     uint64v ** mask2,
-                     uint64_t nSamples,
-                     uint64_t nGenotypePacks,
-                     __restrict__ uint64_t* x,
-                     __restrict__ uint64_t* y) {
+void createNaMasks(uint64v ** mask1,
+                   uint64v ** mask2,
+                   uint64_t nSamples,
+                   uint64_t nGenotypePacks,
+                   uint64_t* __restrict__ x,
+                   uint64_t* __restrict__ y) {
   int err1 = posix_memalign((void **)mask1, 32, nSamples*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)*sizeof(uint64v));
   int err2 = posix_memalign((void **)mask2, 32, nSamples*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)*sizeof(uint64v));
   if (err1 || err2) {
@@ -116,23 +116,25 @@ void allocateNaMasks(uint64v ** mask1,
     exit(-1);
   }
 
-  for (uint64_t i = 0; i <= (length - SIMDPP_FAST_INT64_SIZE); i += SIMDPP_FAST_INT64_SIZE) {
-    naMasks1[i/SIMDPP_FAST_INT64_SIZE] =
-      naMaskForGenotypePack(load_u(x+i));
-    naMasks2[i/SIMDPP_FAST_INT64_SIZE] =
-      naMaskForGenotypePack(load_u(y+i));
+  for (uint64_t i = 0; i != nSamples; ++i) {
+    for (uint64_t j = 0; j <= (nGenotypePacks - SIMDPP_FAST_INT64_SIZE); j += SIMDPP_FAST_INT64_SIZE) {
+      (*mask1)[i*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)+(j/SIMDPP_FAST_INT64_SIZE)] =
+        naMaskForGenotypePack(load_u(x+i*nGenotypePacks+j));
+      (*mask2)[i*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)+(j/SIMDPP_FAST_INT64_SIZE)] =
+        naMaskForGenotypePack(load_u(y+i*nGenotypePacks+j));
+    }
   }
 }
 
 // used to test ibsVec: allocates naMasks locally rather than accepting it as an argument; only for one pair of samples
-void ibsVec2(__restrict__ uint64_t* result,
+void ibsVec2(uint64_t* __restrict__ result,
              uint64_t nGenotypePacks,
-             __restrict__ uint64_t* x,
-             __restrict__ uint64_t* y) {
+             uint64_t* __restrict__ x,
+             uint64_t* __restrict__ y) {
   uint64v * naMasks1 = 0;
   uint64v * naMasks2 = 0;
-  allocateNaMasks(&naMasks1, &naMasks2, 2, nGenotypePacks, x, y);
-  ibsVec(result, length, x, y, naMasks1, naMasks2);
+  createNaMasks(&naMasks1, &naMasks2, 1, nGenotypePacks, x, y);
+  ibsVec(result, nGenotypePacks, x, y, naMasks1, naMasks2);
 }
 
 #ifndef CACHE_SIZE_PER_MATRIX_IN_KB
@@ -146,10 +148,10 @@ void ibsVec2(__restrict__ uint64_t* result,
 // samples in rows, genotypes in columns
 extern "C"
 EXPORT
-void ibsMat(__restrict__ uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, __restrict__ uint64_t* genotypes1, __restrict__ uint64_t* genotypes2) {
+void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* __restrict__ genotypes1, uint64_t* __restrict__ genotypes2) {
   uint64v * naMasks1 = 0;
   uint64v * naMasks2 = 0;
-  allocateNaMasks(&naMasks1, &naMasks2, nSamples, nGenotypePacks, x, y);
+  createNaMasks(&naMasks1, &naMasks2, nSamples, nGenotypePacks, genotypes1, genotypes2);
 
   uint64_t i_block_end;
   for (i_block_end = CACHE_SIZE_IN_MATRIX_ROWS;
