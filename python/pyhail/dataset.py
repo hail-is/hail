@@ -513,14 +513,16 @@ class VariantDataset(object):
             pargs.append('--overwrite')
         return self.hc.run_command(self, pargs)
 
-    def filter_genotypes(self, condition):
+    def filter_genotypes(self, condition, keep=True):
         """Filter variants based on expression.
 
         :param str condition: Expression for filter condition.
 
         """
 
-        pargs = ['filtergenotypes', '--keep', '-c', condition]
+        pargs = ['filtergenotypes',
+                 '--keep' if keep else '--remove',
+                 '-c', condition]
         return self.hc.run_command(self, pargs)
 
     def filter_multi(self):
@@ -539,24 +541,28 @@ class VariantDataset(object):
         pargs = ['filtersamples', 'all']
         return self.hc.run_command(self, pargs)
 
-    def filter_samples_expr(self, condition):
+    def filter_samples_expr(self, condition, keep=True):
         """Filter samples based on expression.
 
         :param str condition: Expression for filter condition.
 
         """
 
-        pargs = ['filtersamples', 'expr', '--keep', '-c', condition]
+        pargs = ['filtersamples', 'expr',
+                 '--keep' if keep else '--remove',
+                 '-c', condition]
         return self.hc.run_command(self, pargs)
 
-    def filter_samples_list(self, input):
+    def filter_samples_list(self, input, keep=True):
         """Filter samples with a sample list file.
 
         :param str input: Path to sample list file.
 
         """
 
-        pargs = ['filtersamples', 'list', '--keep', '-i', input]
+        pargs = ['filtersamples', 'list',
+                 '--keep' if keep else '--remove',
+                 '-i', input]
         return self.hc.run_command(self, pargs)
 
     def filter_variants_all(self):
@@ -565,34 +571,40 @@ class VariantDataset(object):
         pargs = ['filtervariants', 'all']
         return self.hc.run_command(self, pargs)
 
-    def filter_variants_expr(self, condition):
+    def filter_variants_expr(self, condition, keep=True):
         """Filter variants based on expression.
 
         :param str condition: Expression for filter condition.
 
         """
 
-        pargs = ['filtervariants', 'expr', '--keep', '-c', condition]
+        pargs = ['filtervariants', 'expr',
+                 '--keep' if keep else '--remove',
+                 '-c', condition]
         return self.hc.run_command(self, pargs)
 
-    def filter_variants_intervals(self, input):
+    def filter_variants_intervals(self, input, keep=True):
         """Filter variants with an .interval_list file.
 
         :param str input: Path to .interval_list file.
 
         """
 
-        pargs = ['filtervariants', 'intervals', '--keep', '-i', input]
+        pargs = ['filtervariants', 'intervals',
+                 '--keep' if keep else '--remove',
+                 '-i', input]
         return self.hc.run_command(self, pargs)
 
-    def filter_variants_list(self, input):
+    def filter_variants_list(self, input, keep=True):
         """Filter variants with a list of variants.
 
         :param str input: Path to variant list file.
 
         """
 
-        pargs = ['filtervariants', 'list', '--keep', '-i', input]
+        pargs = ['filtervariants', 'list',
+                 '--keep' if keep else '--remove',
+                 '-i', input]
         return self.hc.run_command(self, pargs)
 
     def grm(self, format, output, id_file=None, n_file=None):
