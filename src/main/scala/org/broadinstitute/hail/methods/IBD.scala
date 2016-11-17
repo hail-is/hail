@@ -131,29 +131,6 @@ object IBD {
     ExtendedIBDInfo(ibd, N0, N1, N2)
   }
 
-  val ibsLookupTable =
-    Array[Byte](
-      2, // 00 00  0  0
-      1, // 00 01  0  1
-      0, // 00 10  0  2
-      0, // 00 11  0  NA
-      1, // 01 00  1  0
-      2, // 01 01  1  1
-      1, // 01 10  1  2
-      0, // 01 11  1  NA
-      0, // 10 00  2  0
-      1, // 10 01  2  1
-      2, // 10 10  2  2
-      0, // 10 11  2  NA
-      0, // 11 00  NA 0
-      0, // 11 01  NA 1
-      0, // 11 10  NA 2
-      0 // 11 11  NA NA
-    )
-
-  val gtToCRep = Array[Byte](0, 1, 3)
-  val missingGTCRep : Byte = 2
-
   final val chunkSize = 1024
 
   def computeIBDMatrix(vds: VariantDataset, computeMaf: Option[(Variant, Annotation) => Double], bounded: Boolean): RDD[((Int, Int), ExtendedIBDInfo)] = {
@@ -165,7 +142,7 @@ object IBD {
     val nSamples = vds.nSamples
 
     val chunkedGenotypeMatrix = vds.rdd
-      .map { case (v, (va, gs)) => gs.map(_.gt.map(gtToCRep).getOrElse(missingGTCRep)).toArray[Byte] }
+      .map { case (v, (va, gs)) => gs.map(_.gt.map(IBSFFI.gtToCRep).getOrElse(IBSFFI.missingGTCRep)).toArray[Byte] }
       .zipWithIndex()
       .flatMap { case (gts, variantId) =>
         val vid = (variantId % chunkSize).toInt
@@ -173,12 +150,12 @@ object IBD {
           .zipWithIndex
           .map { case (gtGroup, i) => ((i, variantId / chunkSize), (vid, gtGroup)) }
       }
-      .aggregateByKey(Array.tabulate(chunkSize * chunkSize)((i) => missingGTCRep))({ case (x, (vid, gs)) =>
+      .aggregateByKey(Array.tabulate(chunkSize * chunkSize)((i) => IBSFFI.missingGTCRep))({ case (x, (vid, gs)) =>
         for (i <- gs.indices) x(vid * chunkSize + i) = gs(i)
         x
       }, { case (x, y) =>
         for (i <- y.indices)
-          if (x(i) == missingGTCRep)
+          if (x(i) == IBSFFI.missingGTCRep)
             x(i) = y(i)
         x
       })

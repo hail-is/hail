@@ -7,6 +7,9 @@ case class IBS (N0: Long, N1: Long, N2: Long) { }
 
 object IBSFFI {
 
+  val gtToCRep = Array[Byte](0, 1, 3)
+  val missingGTCRep : Byte = 2
+
   @native
   def ibsMat(result: Array[Long], nSamples: Long, nPacks: Long, genotypes1: Array[Long], genotypes2: Array[Long])
 
