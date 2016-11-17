@@ -25,7 +25,7 @@ test:
 	./functional-tests
 
 clean:
-	rm -r lib
+	rm -rf lib
 
 libsimdpp:
 	(cd libsimdpp-2.0-rc2 && cmake .)
