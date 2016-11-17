@@ -51,7 +51,7 @@ object IBSFFI {
   def ibs(nSamples: Int, nGenotypes: Int, gs1: Array[Long], gs2: Array[Long]): Array[Long] = {
     val packedLength = nGenotypes / 32
     val length = packedLength + (if (nGenotypes % 32 != 0) 1 else 0)
-    val ibs = new Array[Long](nSamples * nGenotypes * 3)
+    val ibs = new Array[Long](nSamples * nSamples * 3)
     ibsMat(ibs, nSamples, length, gs1, gs2)
     ibs
   }
