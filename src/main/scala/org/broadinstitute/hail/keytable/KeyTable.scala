@@ -20,9 +20,7 @@ object KeyTable extends Serializable with TextExporter {
     val files = sc.hadoopConfiguration.globAll(path)
     if (files.isEmpty)
       fatal("Arguments referred to no files")
-
-    sc.defaultMinPartitions
-
+    
     val keyNameArray = Parser.parseIdentifierList(keyNames)
 
     val (struct, rdd) =

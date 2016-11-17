@@ -1196,7 +1196,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val aggF = agg.f
 
-      agg.ec.aggregationFunctions += new CounterAggregator(aggF, localIdx)
+      agg.ec.aggregationFunctions += ((aggF, new CounterAggregator(localIdx)))
 
       () => {
         val m = localA(localIdx).asInstanceOf[mutable.HashMap[Any, Long]]
