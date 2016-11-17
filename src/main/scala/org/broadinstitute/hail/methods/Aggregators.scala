@@ -145,7 +145,7 @@ class CountAggregator(val idx: Int) extends TypedAggregator[Long] {
 
   def result = _state
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     if (x != null)
       _state += 1
   }
@@ -154,7 +154,7 @@ class CountAggregator(val idx: Int) extends TypedAggregator[Long] {
     _state += agg2._state
   }
 
-  override def copy() = new CountAggregator(idx)
+  def copy() = new CountAggregator(idx)
 }
 
 class FractionAggregator(val idx: Int, localA: ArrayBuffer[Any], bodyFn: () => Any, lambdaIdx: Int)
@@ -169,7 +169,7 @@ class FractionAggregator(val idx: Int, localA: ArrayBuffer[Any], bodyFn: () => A
     else
       _num.toDouble / _denom
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     if (x != null) {
       _denom += 1
       localA(lambdaIdx) = x
@@ -183,7 +183,7 @@ class FractionAggregator(val idx: Int, localA: ArrayBuffer[Any], bodyFn: () => A
     _denom += agg2._denom
   }
 
-  override def copy() = new FractionAggregator(idx, localA, bodyFn, lambdaIdx)
+  def copy() = new FractionAggregator(idx, localA, bodyFn, lambdaIdx)
 }
 
 class StatAggregator(val idx: Int) extends TypedAggregator[StatCounter] {
@@ -192,7 +192,7 @@ class StatAggregator(val idx: Int) extends TypedAggregator[StatCounter] {
 
   def result = _state
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     if (x != null)
       _state.merge(DoubleNumericConversion.to(x))
   }
@@ -201,7 +201,7 @@ class StatAggregator(val idx: Int) extends TypedAggregator[StatCounter] {
     _state.merge(agg2._state)
   }
 
-  override def copy() = new StatAggregator(idx)
+  def copy() = new StatAggregator(idx)
 }
 
 class CounterAggregator(val idx: Int) extends TypedAggregator[mutable.HashMap[Any, Long]] {
@@ -210,9 +210,8 @@ class CounterAggregator(val idx: Int) extends TypedAggregator[mutable.HashMap[An
   def result = m
 
   def seqOp(x: Any) {
-    val r = f(x)
-    if (r != null)
-      m.updateValue(r, 0L, _ + 1)
+    if (x != null)
+      m.updateValue(x, 0L, _ + 1)
   }
 
   def combOp(agg2: this.type) {
@@ -221,7 +220,7 @@ class CounterAggregator(val idx: Int) extends TypedAggregator[mutable.HashMap[An
     }
   }
 
-  override def copy() = new StatAggregator(idx)
+  def copy() = new CounterAggregator(idx)
 }
 
 class HistAggregator(val idx: Int, indices: Array[Double])
@@ -231,7 +230,7 @@ class HistAggregator(val idx: Int, indices: Array[Double])
 
   def result = _state
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     if (x != null)
       _state.merge(DoubleNumericConversion.to(x))
   }
@@ -240,7 +239,7 @@ class HistAggregator(val idx: Int, indices: Array[Double])
     _state.merge(agg2._state)
   }
 
-  override def copy() = new HistAggregator(idx, indices)
+  def copy() = new HistAggregator(idx, indices)
 }
 
 class CollectAggregator(val idx: Int) extends TypedAggregator[ArrayBuffer[Any]] {
@@ -249,14 +248,14 @@ class CollectAggregator(val idx: Int) extends TypedAggregator[ArrayBuffer[Any]] 
 
   def result = _state
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     if (x != null)
       _state += x
   }
 
   def combOp(agg2: this.type) = _state ++= agg2._state
 
-  override def copy() = new CollectAggregator(idx)
+  def copy() = new CollectAggregator(idx)
 }
 
 class InfoScoreAggregator(val idx: Int) extends TypedAggregator[InfoScoreCombiner] {
@@ -265,7 +264,7 @@ class InfoScoreAggregator(val idx: Int) extends TypedAggregator[InfoScoreCombine
 
   def result = _state
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     if (x != null)
       _state.merge(x.asInstanceOf[Genotype])
   }
@@ -274,7 +273,7 @@ class InfoScoreAggregator(val idx: Int) extends TypedAggregator[InfoScoreCombine
     _state.merge(agg2._state)
   }
 
-  override def copy() = new InfoScoreAggregator(idx)
+  def copy() = new InfoScoreAggregator(idx)
 }
 
 class HWEAggregator(val idx: Int) extends TypedAggregator[HWECombiner] {
@@ -283,7 +282,7 @@ class HWEAggregator(val idx: Int) extends TypedAggregator[HWECombiner] {
 
   def result = _state
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     if (x != null)
       _state.merge(x.asInstanceOf[Genotype])
   }
@@ -292,7 +291,7 @@ class HWEAggregator(val idx: Int) extends TypedAggregator[HWECombiner] {
     _state.merge(agg2._state)
   }
 
-  override def copy() = new HWEAggregator(idx)
+  def copy() = new HWEAggregator(idx)
 }
 
 class SumAggregator(val idx: Int) extends TypedAggregator[Double] {
@@ -300,14 +299,14 @@ class SumAggregator(val idx: Int) extends TypedAggregator[Double] {
 
   def result = _state
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     if (x != null)
       _state += DoubleNumericConversion.to(x)
   }
 
   def combOp(agg2: this.type) = _state += agg2._state
 
-  override def copy() = new SumAggregator(idx)
+  def copy() = new SumAggregator(idx)
 }
 
 class SumArrayAggregator(val idx: Int, localPos: Position)
@@ -317,7 +316,7 @@ class SumArrayAggregator(val idx: Int, localPos: Position)
 
   def result = _state
 
-  override def seqOp(x: Any) {
+  def seqOp(x: Any) {
     val r = x.asInstanceOf[IndexedSeq[Any]]
     if (r != null) {
       if (_state == null)
@@ -349,7 +348,7 @@ class SumArrayAggregator(val idx: Int, localPos: Position)
       _state(i) += agg2state(i)
   }
 
-  override def copy() = new SumArrayAggregator(idx, localPos)
+  def copy() = new SumArrayAggregator(idx, localPos)
 }
 
 class CallStatsAggregator(val idx: Int, variantF: () => Any)
@@ -396,7 +395,7 @@ class InbreedingAggregator(localIdx: Int, getAF: () => Any) extends TypedAggrega
 
   def result = _state
 
-  override def seqOp(x: Any) = {
+  def seqOp(x: Any) = {
     val af = getAF()
 
     if (x != null && af != null)
@@ -405,7 +404,7 @@ class InbreedingAggregator(localIdx: Int, getAF: () => Any) extends TypedAggrega
 
   def combOp(agg2: this.type) = _state.merge(agg2.asInstanceOf[InbreedingAggregator]._state)
 
-  override def copy() = new InbreedingAggregator(localIdx, getAF)
+  def copy() = new InbreedingAggregator(localIdx, getAF)
 
   def idx = localIdx
 }
