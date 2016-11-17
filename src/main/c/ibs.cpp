@@ -9,7 +9,7 @@
 
 using namespace simdpp;
 
-void ibs256(uint64_t* result, uint64v x, uint64v y, uint64v xna, uint64v yna) {
+void ibs256(__restrict__ uint64_t* result, uint64v x, uint64v y, uint64v xna, uint64v yna) {
   uint64v allones = make_ones();
   uint64v leftAllele = make_uint(0xAAAAAAAAAAAAAAAA);
 
@@ -71,11 +71,16 @@ uint64v naMaskForGenotypePack(uint64v block) {
   return (shift_r(isna, 1)) | isna;
 }
 
-void ibs256_with_na(uint64_t* result, uint64v x, uint64v y) {
+void ibs256_with_na(__restrict__ uint64_t* result, uint64v x, uint64v y) {
   ibs256(result, x, y, naMaskForGenotypePack(x), naMaskForGenotypePack(y));
 }
 
-void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y, uint64v * x_na_masks, uint64v * y_na_masks) {
+void ibsVec(__restrict__ uint64_t* result,
+            uint64_t length,
+            __restrict__ uint64_t* x,
+            __restrict__ uint64_t* y,
+            __restrict__ uint64v * x_na_masks,
+            __restrict__ uint64v * y_na_masks) {
   uint64_t i = 0;
   for (; i <= (length - SIMDPP_FAST_INT64_SIZE); i += SIMDPP_FAST_INT64_SIZE) {
     uint64v x256 = load_u(x+i);
@@ -99,7 +104,7 @@ void ibsVec(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y, uint64v
   }
 }
 
-void ibsVec2(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
+void ibsVec2(__restrict__ uint64_t* result, uint64_t length, __restrict__ uint64_t* x, __restrict__ uint64_t* y) {
   uint64v * naMasks1 = 0;
   int err1 = posix_memalign((void **)&naMasks1, 32, (length/SIMDPP_FAST_INT64_SIZE)*sizeof(uint64v));
   uint64v * naMasks2 = 0;
@@ -118,13 +123,18 @@ void ibsVec2(uint64_t* result, uint64_t length, uint64_t* x, uint64_t* y) {
   ibsVec(result, length, x, y, naMasks1, naMasks2);
 }
 
+#ifndef CACHE_SIZE_PER_MATRIX_IN_KB
 #define CACHE_SIZE_PER_MATRIX_IN_KB 4
+#endif
+
+#ifndef CACHE_SIZE_IN_MATRIX_ROWS
 #define CACHE_SIZE_IN_MATRIX_ROWS 4 * CACHE_SIZE_PER_MATRIX_IN_KB
+#endif
 
 // samples in rows, genotypes in columns
 extern "C"
 EXPORT
-void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* genotypes1, uint64_t* genotypes2) {
+void ibsMat(__restrict__ uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, __restrict__ uint64_t* genotypes1, __restrict__ uint64_t* genotypes2) {
   uint64v * naMasks1 = 0;
   int err1 = posix_memalign((void **)&naMasks1, 32, nSamples*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)*sizeof(uint64v));
   uint64v * naMasks2 = 0;
@@ -146,11 +156,11 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
 
   uint64_t i_block_end;
   for (i_block_end = CACHE_SIZE_IN_MATRIX_ROWS;
-       i_block_end <= (nSamples - CACHE_SIZE_IN_MATRIX_ROWS);
+       i_block_end <= nSamples;
        i_block_end += CACHE_SIZE_IN_MATRIX_ROWS) {
     uint64_t j_block_end;
     for (j_block_end = CACHE_SIZE_IN_MATRIX_ROWS;
-         j_block_end <= (nSamples - CACHE_SIZE_IN_MATRIX_ROWS);
+         j_block_end <= nSamples;
          j_block_end += CACHE_SIZE_IN_MATRIX_ROWS) {
       for (uint64_t si = i_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
            si != i_block_end;
@@ -189,29 +199,10 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
        ++si) {
     uint64_t j_block_end;
     for (j_block_end = CACHE_SIZE_IN_MATRIX_ROWS;
-         j_block_end <= (nSamples - CACHE_SIZE_IN_MATRIX_ROWS);
+         j_block_end <= nSamples;
          j_block_end += CACHE_SIZE_IN_MATRIX_ROWS) {
-      for (uint64_t si = i_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-           si != i_block_end;
-           ++si) {
-        for (uint64_t sj = j_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-             sj != j_block_end;
-             ++sj) {
-          ibsVec(result + si*nSamples*3 + sj*3,
-                 nGenotypePacks,
-                 genotypes1 + si*nGenotypePacks,
-                 genotypes2 + sj*nGenotypePacks,
-                 naMasks1 + si*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE),
-                 naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
-                 );
-        }
-      }
-    }
-    for (uint64_t si = i_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-         si != i_block_end;
-         ++si) {
       for (uint64_t sj = j_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-           sj < nSamples;
+           sj != j_block_end;
            ++sj) {
         ibsVec(result + si*nSamples*3 + sj*3,
                nGenotypePacks,
@@ -221,6 +212,17 @@ void ibsMat(uint64_t* result, uint64_t nSamples, uint64_t nGenotypePacks, uint64
                naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
                );
       }
+    }
+    for (uint64_t sj = j_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
+         sj < nSamples;
+         ++sj) {
+      ibsVec(result + si*nSamples*3 + sj*3,
+             nGenotypePacks,
+             genotypes1 + si*nGenotypePacks,
+             genotypes2 + sj*nGenotypePacks,
+             naMasks1 + si*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE),
+             naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
+             );
     }
   }
 
