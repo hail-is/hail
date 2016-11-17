@@ -45,7 +45,7 @@ class TextTableConfig(object):
 
         return " ".join(res)
 
-    def _toJavaObject(self, hc):
+    def _jobj(self, hc):
         """Convert to java TextTableConfiguration object
 
         :param :class:`.HailContext` hc: Hail spark context.
