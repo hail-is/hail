@@ -24,8 +24,8 @@ int main(int argc, char** argv) {
   // ibs256 tests
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allNA1 = make_uint(0xAAAAAAAAAAAAAAAA);
-    uint64v allNA2 = make_uint(0xAAAAAAAAAAAAAAAA);
+    hailvec allNA1 = make_uint(0xAAAAAAAAAAAAAAAA);
+    hailvec allNA2 = make_uint(0xAAAAAAAAAAAAAAAA);
     ibs256_with_na(result, allNA1, allNA2);
 
     expect_equal("allNA", "%" PRIu64, result[0], ((uint64_t)0));
@@ -34,8 +34,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allHomRef1 = make_uint(0x0000000000000000);
-    uint64v allHomRef2 = make_uint(0x0000000000000000);
+    hailvec allHomRef1 = make_uint(0x0000000000000000);
+    hailvec allHomRef2 = make_uint(0x0000000000000000);
     ibs256_with_na(result, allHomRef1, allHomRef2);
 
     expect_equal("allHomRef", "%" PRIu64, result[0], ((uint64_t)0));
@@ -44,8 +44,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allHet1 = make_uint(0x5555555555555555);
-    uint64v allHet2 = make_uint(0x5555555555555555);
+    hailvec allHet1 = make_uint(0x5555555555555555);
+    hailvec allHet2 = make_uint(0x5555555555555555);
     ibs256_with_na(result, allHet1, allHet2);
 
     expect_equal("allHet", "%" PRIu64, result[0], ((uint64_t)0));
@@ -54,8 +54,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allHomAlt1 = make_uint(0xFFFFFFFFFFFFFFFF);
-    uint64v allHomAlt2 = make_uint(0xFFFFFFFFFFFFFFFF);
+    hailvec allHomAlt1 = make_uint(0xFFFFFFFFFFFFFFFF);
+    hailvec allHomAlt2 = make_uint(0xFFFFFFFFFFFFFFFF);
     ibs256_with_na(result, allHomAlt1, allHomAlt2);
 
     expect_equal("allHomAlt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -64,8 +64,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allHomAlt = make_uint(0xFFFFFFFFFFFFFFFF);
-    uint64v allHomRef = make_uint(0x0000000000000000);
+    hailvec allHomAlt = make_uint(0xFFFFFFFFFFFFFFFF);
+    hailvec allHomRef = make_uint(0x0000000000000000);
     ibs256_with_na(result, allHomAlt, allHomRef);
 
     expect_equal("homAlt v homRef", "%" PRIu64, result[0], ((uint64_t)128));
@@ -74,8 +74,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allHet = make_uint(0x5555555555555555);
-    uint64v allHomRef = make_uint(0x0000000000000000);
+    hailvec allHet = make_uint(0x5555555555555555);
+    hailvec allHomRef = make_uint(0x0000000000000000);
     ibs256_with_na(result, allHet, allHomRef);
 
     expect_equal("het v homRef", "%" PRIu64, result[0], ((uint64_t)0));
@@ -84,8 +84,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allHet = make_uint(0x5555555555555555);
-    uint64v allHomAlt = make_uint(0xFFFFFFFFFFFFFFFF);
+    hailvec allHet = make_uint(0x5555555555555555);
+    hailvec allHomAlt = make_uint(0xFFFFFFFFFFFFFFFF);
     ibs256_with_na(result, allHet, allHomAlt);
 
     expect_equal("het v homAlt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -94,8 +94,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allHet = make_uint(0x5555555555555555);
-    uint64v allHomAltOneNA = make_uint(0xBFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
+    hailvec allHet = make_uint(0x5555555555555555);
+    hailvec allHomAltOneNA = make_uint(0xBFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
     ibs256_with_na(result, allHet, allHomAltOneNA);
 
     expect_equal("het v homAltOneNA", "%" PRIu64, result[0], ((uint64_t)0));
@@ -104,8 +104,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v allHet = make_uint(0x5555555555555555);
-    uint64v allHomAltTwoNA = make_uint(0xAFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
+    hailvec allHet = make_uint(0x5555555555555555);
+    hailvec allHomAltTwoNA = make_uint(0xAFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
     ibs256_with_na(result, allHet, allHomAltTwoNA);
 
     expect_equal("het v homAltTwoNA", "%" PRIu64, result[0], ((uint64_t)0));
@@ -114,8 +114,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v ref_het_alt_het = make_uint(0x1DAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
-    uint64v het_ref_het_alt = make_uint(0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec ref_het_alt_het = make_uint(0x1DAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec het_ref_het_alt = make_uint(0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
     expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -124,8 +124,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0x1DAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
-    uint64v het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0x1DAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
     expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -134,8 +134,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x1DAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
-    uint64v het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x1DAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
     expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -144,8 +144,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x1DAAAAAAAAAAAAAA);
-    uint64v het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA);
+    hailvec ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x1DAAAAAAAAAAAAAA);
+    hailvec het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0x47AAAAAAAAAAAAAA);
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
     expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -154,8 +154,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA1D);
-    uint64v het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47);
+    hailvec ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA1D);
+    hailvec het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47);
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
     expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -164,8 +164,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAAAA);
-    uint64v het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA);
+    hailvec ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAAAA);
+    hailvec het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA);
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
     expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -174,8 +174,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
-    uint64v het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
     expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], ((uint64_t)0));
@@ -184,8 +184,8 @@ int main(int argc, char** argv) {
   }
   {
     uint64_t result[3] = { 0, 0, 0 };
-    uint64v ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
-    uint64v het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec ref_het_alt_het = make_uint(0xAAAAAAAAAAAAAA1D, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
+    hailvec het_ref_het_alt = make_uint(0xAAAAAAAAAAAAAA47, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA);
     ibs256_with_na(result, ref_het_alt_het, het_ref_het_alt);
 
     expect_equal("ref_het_alt_het v het_ref_het_alt", "%" PRIu64, result[0], ((uint64_t)0));

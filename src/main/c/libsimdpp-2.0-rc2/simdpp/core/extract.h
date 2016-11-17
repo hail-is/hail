@@ -143,6 +143,7 @@ int32_t extract(const int32x4& a)
     return extract<id>(uint32x4(a));
 }
 
+#if SIMDPP_USE_AVX2
 /// @{
 /** Extracts the @a id-th element from int32x8 vector
 
@@ -159,30 +160,7 @@ template<unsigned id> SIMDPP_INL
 uint32_t extract(const uint32x8& a)
 {
     static_assert(id < 4, "index out of bounds");
-#if SIMDPP_USE_NULL
-    return a.el(id);
-#elif SIMDPP_USE_AVX
     return _mm256_extract_epi32(a.operator __m256i(), id);
-#elif SIMDPP_USE_SSE4_1
-    if (id < 4) {
-      return _mm_extract_epi32(a.vec(0).operator __m128i(), id);
-    } else {
-      return _mm_extract_epi32(a.vec(1).operator __m128i(), id-4);
-    }
-#elif SIMDPP_USE_SSE2
-    // when id==0, move_l is template-specialized and does nothing
-    if (id < 4) {
-      return _mm_cvtsi128_si32(move4_l<id>(a.vec(0)).eval());
-    } else {
-      return _mm_cvtsi128_si32(move4_l<id-4>(a.vec(1)).eval());
-    }
-#elif SIMDPP_USE_NEON
-    return vgetq_lane_u32(a, id);
-#elif SIMDPP_USE_ALTIVEC
-    detail::mem_block<uint32x8> ax(a);
-    vec_ste((__vector uint32_t)a, 0, &ax[id]);
-    return ax[id];
-#endif
 }
 
 template<unsigned id> SIMDPP_INL
@@ -191,6 +169,7 @@ int32_t extract(const int32x8& a)
     return extract<id>(uint32x8(a));
 }
 /// @}
+#endif
 
 /// @{
 /** Extracts an element from int64x2 vector
@@ -251,6 +230,8 @@ int64_t extract(const int64x2& a)
 {
     return extract<id>(uint64x2(a));
 }
+
+#if SIMDPP_USE_AVX2
 /// @{
 /** Extracts an element from int64x4 vector
 
@@ -271,56 +252,14 @@ template<unsigned id> SIMDPP_INL
 uint64_t extract(const uint64x4& a)
 {
     static_assert(id < 4, "index out of bounds");
-#if SIMDPP_USE_NULL
-    return a.el(id);
-#elif SIMDPP_USE_AVX2
     return _mm256_extract_epi64(a.operator __m256i(), id);
-#elif SIMDPP_USE_SSE4_1
-#if SIMDPP_32_BITS
-    uint32x8 t = uint32x8(a);
-    uint64_t r = extract<id*2>(t);
-    r |= uint64_t(extract<id*2+1>(t)) << 32;
-    return r;
-#else
-    if (id < 2) {
-      return _mm_extract_epi64(a.vec(0).operator __m128i(), id);
-    } else {
-      return _mm_extract_epi64(a.vec(1).operator __m128i(), id-2);
-    }
-#endif
-#elif SIMDPP_USE_SSE2
-#if SIMDPP_32_BITS
-    uint32x8 t = uint32x8(a);
-    uint64_t r = 0;
-    t = move4_l<id*2>(t); // when id==0, move_l is template-specialized and does nothing
-    r = extract<0>(t);
-    t = move4_l<1>(t);
-    r |= uint64_t(extract<0>(t)) << 32;
-    return r;
-#else
-    uint64x2 t;
-    if (id < 2) {
-      t = a.vec(0);
-    } else {
-      t = a.vec(1);
-    }
-    if (id != 0) {
-        t = move2_l<id>(t);
-    }
-    return _mm_cvtsi128_si64(t);
-#endif
-#elif SIMDPP_USE_NEON
-    return vgetq_lane_u64(a, id);
-#elif SIMDPP_USE_ALTIVEC
-    detail::mem_block<uint64x4> ax(a);
-    return ax[id];
-#endif
 }
 template<unsigned id> SIMDPP_INL
 int64_t extract(const int64x4& a)
 {
     return extract<id>(uint64x4(a));
 }
+#endif
 /// @}
 
 /** Extracts an element from float32x4 vector

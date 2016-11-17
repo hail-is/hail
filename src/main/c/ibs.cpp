@@ -8,51 +8,57 @@
 
 using namespace simdpp;
 
-void ibs256(uint64_t* __restrict__ result, uint64v x, uint64v y, uint64v xna, uint64v yna) {
-  uint64v allones = make_ones();
-  uint64v leftAllele = make_uint(0xAAAAAAAAAAAAAAAA);
+void ibs256(uint64_t* __restrict__ result, hailvec x, hailvec y, hailvec xna, hailvec yna) {
+  hailvec allones = make_ones();
+  hailvec leftAllele = make_uint(0xAAAAAAAAAAAAAAAA);
 
-  uint64v nxor = ~(x ^ y);
-  uint64v nxorSR1 = shift_r(nxor, 1);
+  hailvec nxor = ~(x ^ y);
+  hailvec nxorSR1 = shift_r(nxor, 1);
 
-  uint64v na = ~(xna & yna) | leftAllele;
+  hailvec na = ~(xna & yna) | leftAllele;
 
-  uint64v ibs2 = bit_andnot(nxorSR1 & nxor, na);
+  hailvec ibs2 = bit_andnot(nxorSR1 & nxor, na);
   uint64_t ibs2sum = _mm_popcnt_u64(extract<0>(ibs2));
+  #if HAIL_VECTOR_WIDTH >= 2
   ibs2sum += _mm_popcnt_u64(extract<1>(ibs2));
-  #if SIMDPP_FAST_INT64_SIZE >= 4
+  #endif
+  #if HAIL_VECTOR_WIDTH >= 4
   ibs2sum += _mm_popcnt_u64(extract<2>(ibs2));
   ibs2sum += _mm_popcnt_u64(extract<3>(ibs2));
   #endif
-  #if SIMDPP_FAST_INT64_SIZE >= 8
+  #if HAIL_VECTOR_WIDTH >= 8
   ibs2sum += _mm_popcnt_u64(extract<4>(ibs2));
   ibs2sum += _mm_popcnt_u64(extract<5>(ibs2));
   ibs2sum += _mm_popcnt_u64(extract<6>(ibs2));
   ibs2sum += _mm_popcnt_u64(extract<7>(ibs2));
   #endif
 
-  uint64v ibs1 = bit_andnot(nxorSR1 ^ nxor, na);
+  hailvec ibs1 = bit_andnot(nxorSR1 ^ nxor, na);
   uint64_t ibs1sum = _mm_popcnt_u64(extract<0>(ibs1));
+  #if HAIL_VECTOR_WIDTH >= 2
   ibs1sum += _mm_popcnt_u64(extract<1>(ibs1));
-  #if SIMDPP_FAST_INT64_SIZE >= 4
+  #endif
+  #if HAIL_VECTOR_WIDTH >= 4
   ibs1sum += _mm_popcnt_u64(extract<2>(ibs1));
   ibs1sum += _mm_popcnt_u64(extract<3>(ibs1));
   #endif
-  #if SIMDPP_FAST_INT64_SIZE >= 8
+  #if HAIL_VECTOR_WIDTH >= 8
   ibs1sum += _mm_popcnt_u64(extract<4>(ibs1));
   ibs1sum += _mm_popcnt_u64(extract<5>(ibs1));
   ibs1sum += _mm_popcnt_u64(extract<6>(ibs1));
   ibs1sum += _mm_popcnt_u64(extract<7>(ibs1));
   #endif
 
-  uint64v ibs0 = bit_andnot(~(nxorSR1 | nxor), na);
+  hailvec ibs0 = bit_andnot(~(nxorSR1 | nxor), na);
   uint64_t ibs0sum = _mm_popcnt_u64(extract<0>(ibs0));
+  #if HAIL_VECTOR_WIDTH >= 2
   ibs0sum += _mm_popcnt_u64(extract<1>(ibs0));
-  #if SIMDPP_FAST_INT64_SIZE >= 4
+  #endif
+  #if HAIL_VECTOR_WIDTH >= 4
   ibs0sum += _mm_popcnt_u64(extract<2>(ibs0));
   ibs0sum += _mm_popcnt_u64(extract<3>(ibs0));
   #endif
-  #if SIMDPP_FAST_INT64_SIZE >= 8
+  #if HAIL_VECTOR_WIDTH >= 8
   ibs0sum += _mm_popcnt_u64(extract<4>(ibs0));
   ibs0sum += _mm_popcnt_u64(extract<5>(ibs0));
   ibs0sum += _mm_popcnt_u64(extract<6>(ibs0));
@@ -64,13 +70,13 @@ void ibs256(uint64_t* __restrict__ result, uint64v x, uint64v y, uint64v xna, ui
   result[2] += ibs2sum;
 }
 
-uint64v naMaskForGenotypePack(uint64v block) {
-  uint64v allNA = make_uint(0xAAAAAAAAAAAAAAAA);
-  uint64v isna = allNA ^ block;
+hailvec naMaskForGenotypePack(hailvec block) {
+  hailvec allNA = make_uint(0xAAAAAAAAAAAAAAAA);
+  hailvec isna = allNA ^ block;
   return (shift_r(isna, 1)) | isna;
 }
 
-void ibs256_with_na(uint64_t* __restrict__ result, uint64v x, uint64v y) {
+void ibs256_with_na(uint64_t* __restrict__ result, hailvec x, hailvec y) {
   ibs256(result, x, y, naMaskForGenotypePack(x), naMaskForGenotypePack(y));
 }
 
@@ -78,13 +84,13 @@ void ibsVec(uint64_t* __restrict__ result,
             uint64_t length,
             uint64_t* __restrict__ x,
             uint64_t* __restrict__ y,
-            uint64v * __restrict__ x_na_masks,
-            uint64v * __restrict__ y_na_masks) {
+            hailvec * __restrict__ x_na_masks,
+            hailvec * __restrict__ y_na_masks) {
   uint64_t i = 0;
-  for (; i <= (length - SIMDPP_FAST_INT64_SIZE); i += SIMDPP_FAST_INT64_SIZE) {
-    uint64v x256 = load_u(x+i);
-    uint64v y256 = load_u(y+i);
-    ibs256(result, x256, y256, x_na_masks[i/SIMDPP_FAST_INT64_SIZE], y_na_masks[i/SIMDPP_FAST_INT64_SIZE]);
+  for (; i <= (length - HAIL_VECTOR_WIDTH); i += HAIL_VECTOR_WIDTH) {
+    hailvec x256 = load_u(x+i);
+    hailvec y256 = load_u(y+i);
+    ibs256(result, x256, y256, x_na_masks[i/HAIL_VECTOR_WIDTH], y_na_masks[i/HAIL_VECTOR_WIDTH]);
   }
   for (; i < length; ++i) {
     uint64_t rightAllele64 = 0x5555555555555555;
@@ -103,24 +109,24 @@ void ibsVec(uint64_t* __restrict__ result,
   }
 }
 
-void createNaMasks(uint64v ** mask1,
-                   uint64v ** mask2,
+void createNaMasks(hailvec ** mask1,
+                   hailvec ** mask2,
                    uint64_t nSamples,
                    uint64_t nGenotypePacks,
                    uint64_t* __restrict__ x,
                    uint64_t* __restrict__ y) {
-  int err1 = posix_memalign((void **)mask1, 32, nSamples*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)*sizeof(uint64v));
-  int err2 = posix_memalign((void **)mask2, 32, nSamples*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)*sizeof(uint64v));
+  int err1 = posix_memalign((void **)mask1, 32, nSamples*(nGenotypePacks/HAIL_VECTOR_WIDTH)*sizeof(hailvec));
+  int err2 = posix_memalign((void **)mask2, 32, nSamples*(nGenotypePacks/HAIL_VECTOR_WIDTH)*sizeof(hailvec));
   if (err1 || err2) {
     printf("Not enough memory to allocate space for the naMasks: %d %d\n", err1, err2);
     exit(-1);
   }
 
   for (uint64_t i = 0; i != nSamples; ++i) {
-    for (uint64_t j = 0; j <= (nGenotypePacks - SIMDPP_FAST_INT64_SIZE); j += SIMDPP_FAST_INT64_SIZE) {
-      (*mask1)[i*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)+(j/SIMDPP_FAST_INT64_SIZE)] =
+    for (uint64_t j = 0; j <= (nGenotypePacks - HAIL_VECTOR_WIDTH); j += HAIL_VECTOR_WIDTH) {
+      (*mask1)[i*(nGenotypePacks/HAIL_VECTOR_WIDTH)+(j/HAIL_VECTOR_WIDTH)] =
         naMaskForGenotypePack(load_u(x+i*nGenotypePacks+j));
-      (*mask2)[i*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)+(j/SIMDPP_FAST_INT64_SIZE)] =
+      (*mask2)[i*(nGenotypePacks/HAIL_VECTOR_WIDTH)+(j/HAIL_VECTOR_WIDTH)] =
         naMaskForGenotypePack(load_u(y+i*nGenotypePacks+j));
     }
   }
@@ -131,8 +137,8 @@ void ibsVec2(uint64_t* __restrict__ result,
              uint64_t nGenotypePacks,
              uint64_t* __restrict__ x,
              uint64_t* __restrict__ y) {
-  uint64v * naMasks1 = 0;
-  uint64v * naMasks2 = 0;
+  hailvec * naMasks1 = 0;
+  hailvec * naMasks2 = 0;
   createNaMasks(&naMasks1, &naMasks2, 1, nGenotypePacks, x, y);
   ibsVec(result, nGenotypePacks, x, y, naMasks1, naMasks2);
 }
@@ -149,8 +155,8 @@ void ibsVec2(uint64_t* __restrict__ result,
 extern "C"
 EXPORT
 void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* __restrict__ genotypes1, uint64_t* __restrict__ genotypes2) {
-  uint64v * naMasks1 = 0;
-  uint64v * naMasks2 = 0;
+  hailvec * naMasks1 = 0;
+  hailvec * naMasks2 = 0;
   createNaMasks(&naMasks1, &naMasks2, nSamples, nGenotypePacks, genotypes1, genotypes2);
 
   uint64_t i_block_end;
@@ -171,8 +177,8 @@ void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotype
                  nGenotypePacks,
                  genotypes1 + si*nGenotypePacks,
                  genotypes2 + sj*nGenotypePacks,
-                 naMasks1 + si*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE),
-                 naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
+                 naMasks1 + si*(nGenotypePacks/HAIL_VECTOR_WIDTH),
+                 naMasks2 + sj*(nGenotypePacks/HAIL_VECTOR_WIDTH)
                  );
         }
       }
@@ -187,8 +193,8 @@ void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotype
                nGenotypePacks,
                genotypes1 + si*nGenotypePacks,
                genotypes2 + sj*nGenotypePacks,
-               naMasks1 + si*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE),
-               naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
+               naMasks1 + si*(nGenotypePacks/HAIL_VECTOR_WIDTH),
+               naMasks2 + sj*(nGenotypePacks/HAIL_VECTOR_WIDTH)
                );
       }
     }
@@ -207,8 +213,8 @@ void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotype
                nGenotypePacks,
                genotypes1 + si*nGenotypePacks,
                genotypes2 + sj*nGenotypePacks,
-               naMasks1 + si*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE),
-               naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
+               naMasks1 + si*(nGenotypePacks/HAIL_VECTOR_WIDTH),
+               naMasks2 + sj*(nGenotypePacks/HAIL_VECTOR_WIDTH)
                );
       }
     }
@@ -219,8 +225,8 @@ void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotype
              nGenotypePacks,
              genotypes1 + si*nGenotypePacks,
              genotypes2 + sj*nGenotypePacks,
-             naMasks1 + si*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE),
-             naMasks2 + sj*(nGenotypePacks/SIMDPP_FAST_INT64_SIZE)
+             naMasks1 + si*(nGenotypePacks/HAIL_VECTOR_WIDTH),
+             naMasks2 + sj*(nGenotypePacks/HAIL_VECTOR_WIDTH)
              );
     }
   }
