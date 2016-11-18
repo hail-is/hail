@@ -27,6 +27,14 @@ using namespace simdpp;
 
 using hailvec = uint64<HAIL_VECTOR_WIDTH>;
 
+#ifndef CACHE_SIZE_PER_MATRIX_IN_KB
+#define CACHE_SIZE_PER_MATRIX_IN_KB 4
+#endif
+
+#ifndef CACHE_SIZE_IN_MATRIX_ROWS
+#define CACHE_SIZE_IN_MATRIX_ROWS 4 * CACHE_SIZE_PER_MATRIX_IN_KB
+#endif
+
 void ibs256(uint64_t* __restrict__ result, hailvec x, hailvec y, hailvec xna, hailvec yna);
 hailvec naMaskForGenotypePack(hailvec block);
 void ibs256_with_na(uint64_t* __restrict__ result, hailvec x, hailvec y);

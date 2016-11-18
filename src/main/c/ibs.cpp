@@ -143,14 +143,6 @@ void ibsVec2(uint64_t* __restrict__ result,
   ibsVec(result, nGenotypePacks, x, y, naMasks1, naMasks2);
 }
 
-#ifndef CACHE_SIZE_PER_MATRIX_IN_KB
-#define CACHE_SIZE_PER_MATRIX_IN_KB 4
-#endif
-
-#ifndef CACHE_SIZE_IN_MATRIX_ROWS
-#define CACHE_SIZE_IN_MATRIX_ROWS 4 * CACHE_SIZE_PER_MATRIX_IN_KB
-#endif
-
 // samples in rows, genotypes in columns
 extern "C"
 EXPORT
@@ -183,54 +175,7 @@ void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotype
         }
       }
     }
-    for (uint64_t si = i_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-         si != i_block_end;
-         ++si) {
-      for (uint64_t sj = j_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-           sj < nSamples;
-           ++sj) {
-        ibsVec(result + si*nSamples*3 + sj*3,
-               nGenotypePacks,
-               genotypes1 + si*nGenotypePacks,
-               genotypes2 + sj*nGenotypePacks,
-               naMasks1 + si*(nGenotypePacks/HAIL_VECTOR_WIDTH),
-               naMasks2 + sj*(nGenotypePacks/HAIL_VECTOR_WIDTH)
-               );
-      }
-    }
   }
-  for (uint64_t si = i_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-       si < nSamples;
-       ++si) {
-    uint64_t j_block_end;
-    for (j_block_end = CACHE_SIZE_IN_MATRIX_ROWS;
-         j_block_end <= nSamples;
-         j_block_end += CACHE_SIZE_IN_MATRIX_ROWS) {
-      for (uint64_t sj = j_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-           sj != j_block_end;
-           ++sj) {
-        ibsVec(result + si*nSamples*3 + sj*3,
-               nGenotypePacks,
-               genotypes1 + si*nGenotypePacks,
-               genotypes2 + sj*nGenotypePacks,
-               naMasks1 + si*(nGenotypePacks/HAIL_VECTOR_WIDTH),
-               naMasks2 + sj*(nGenotypePacks/HAIL_VECTOR_WIDTH)
-               );
-      }
-    }
-    for (uint64_t sj = j_block_end - CACHE_SIZE_IN_MATRIX_ROWS;
-         sj < nSamples;
-         ++sj) {
-      ibsVec(result + si*nSamples*3 + sj*3,
-             nGenotypePacks,
-             genotypes1 + si*nGenotypePacks,
-             genotypes2 + sj*nGenotypePacks,
-             naMasks1 + si*(nGenotypePacks/HAIL_VECTOR_WIDTH),
-             naMasks2 + sj*(nGenotypePacks/HAIL_VECTOR_WIDTH)
-             );
-    }
-  }
-
 
   free(naMasks1);
   free(naMasks2);
