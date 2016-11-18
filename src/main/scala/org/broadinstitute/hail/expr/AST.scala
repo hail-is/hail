@@ -282,9 +282,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       case (t, name) => FunctionRegistry.lookupFieldType(t, name)
         .valueOr {
           case FunctionRegistry.NotFound(name, typ) =>
-            parseError(s"""`$t' has no field `$rhs'
-                           |  Hint: Don't forget empty-parentheses in a method call, e.g.
-                           |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
+            parseError(
+              s"""`$t' has no field `$rhs'
+                  |  Hint: Don't forget empty-parentheses in a method call, e.g.
+                  |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
           case otherwise => parseError(otherwise.message)
         }
     }
@@ -315,9 +316,10 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case (t, name) => FunctionRegistry.lookupField(ec)(t, name)(lhs)
       .valueOr {
         case FunctionRegistry.NotFound(name, typ) =>
-          fatal(s"""`$t' has neither a field nor a method named `$name
-                    |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-                    |    counts.sum""".stripMargin)
+          fatal(
+            s"""`$t' has neither a field nor a method named `$name
+                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+                |    counts.sum""".stripMargin)
         case otherwise => fatal(otherwise.message)
       }
   }
@@ -1627,9 +1629,10 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             ParserUtils.error(localPos,
-              s"""Tried to access index [$i] on array ${ JsonMethods.compact(localT.toJSON(a)) } of length ${ a.length }
+              s"""Invalid array index: tried to access index [$i] on array `@1' of length ${ a.length }
                   |  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)
-                  |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex - 1]' is correct""".stripMargin)
+                  |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex - 1]' is correct""".stripMargin,
+              JsonMethods.compact(localT.toJSON(a)))
           case e: Throwable => throw e
         })
 

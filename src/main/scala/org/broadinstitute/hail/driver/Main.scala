@@ -62,6 +62,7 @@ object HailConfiguration {
   var branchingFactor: Int = _
 
   def treeAggDepth(nPartitions: Int): Int = {
+    assert(branchingFactor > 0)
     (math.log(nPartitions) / math.log(branchingFactor) + 0.5).toInt.max(1)
   }
 }

@@ -1,9 +1,12 @@
 package org.broadinstitute.hail
 
+import java.io.File
 import java.util
 import java.util.Properties
 
 import org.apache.log4j.{LogManager, PropertyConfigurator}
+import org.apache.spark.deploy.SparkHadoopUtil
+import org.apache.spark.{ProgressBarBuilder, SparkContext}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.VariantDataset
 
@@ -44,11 +47,14 @@ package object driver {
     CountResult(vds.nSamples, nVariants, nCalled)
   }
 
-  def configureLog(logFile: String, quiet: Boolean, append: Boolean) {
+  def configure(sc: SparkContext, logFile: String, quiet: Boolean, append: Boolean,
+    parquetCompression: String, blockSize: Int, branchingFactor: Int, tmpDir: String) {
+    require(blockSize > 0)
+    require(branchingFactor > 0)
+
     val logProps = new Properties()
     if (quiet) {
       logProps.put("log4j.rootLogger", "OFF, stderr")
-
       logProps.put("log4j.appender.stderr", "org.apache.log4j.ConsoleAppender")
       logProps.put("log4j.appender.stderr.Target", "System.err")
       logProps.put("log4j.appender.stderr.threshold", "OFF")
@@ -66,5 +72,24 @@ package object driver {
 
     LogManager.resetConfiguration()
     PropertyConfigurator.configure(logProps)
+
+    val conf = sc.getConf
+
+    conf.set("spark.ui.showConsoleProgress", "false")
+    val progressBar = ProgressBarBuilder.build(sc)
+
+    conf.set("spark.sql.parquet.compression.codec", parquetCompression)
+
+    sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", blockSize * 1024L * 1024L)
+    SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1099511627776L)
+    sc.hadoopConfiguration.setLong("parquet.block.size", 1099511627776L)
+
+
+    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
+    sc.addJar(jar)
+
+    HailConfiguration.installDir = new File(jar).getParent + "/.."
+    HailConfiguration.tmpDir = tmpDir
+    HailConfiguration.branchingFactor = branchingFactor
   }
 }

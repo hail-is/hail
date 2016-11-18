@@ -254,7 +254,7 @@ abstract class Command {
       fatal("this module does not support multiallelic variants.\n  Please run `splitmulti' first.")
     else {
       if (requiresVDS)
-        log.info(s"sparkinfo: $name, ${state.vds.nPartitions} partitions, ${state.vds.rdd.getStorageLevel.toReadableString()}")
+        log.info(s"sparkinfo: $name, ${ state.vds.nPartitions } partitions, ${ state.vds.rdd.getStorageLevel.toReadableString() }")
       run(state, options)
     }
   }
