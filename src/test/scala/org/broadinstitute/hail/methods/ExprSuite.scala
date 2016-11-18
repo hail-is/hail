@@ -299,7 +299,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Double]("""a.map(x => pow(100.0, x)).sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).map(x => math.pow(100.0, x)).sum))
     assert(eval[Double]("""[1000000000.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0].map(x => x * 1.0).sum""").contains(IndexedSeq(1000000000.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0).sum))
     assert(eval[Double]("""[1000000000000000000.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0].map(x => x * 1.0).sum""").contains(1000000000000000000.0))
-    assert(eval[Long]("""[1000000000L * 1000000000L,10,10,10,10,10,10,10,10,10,10].map(x => x).sum""").contains(IndexedSeq(1000000000000000000L,10,10,10,10,10,10,10,10,10,10).sum))
+    assert(eval[Long]("""[1000000000L * 1000000000L,10,10,10,10,10,10,10,10,10,10].map(x => x).sum""").contains(1000000000000000100L))
     assert(eval[String]("""str(i)""").contains("5"))
     assert(eval[String](""" 5 + "5" """) == eval[String](""" "5" + 5 """))
     assert(eval[Int]("""iset.min""").contains(0))
