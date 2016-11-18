@@ -1276,8 +1276,14 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
 
       val localType = `type`
       (localType: @unchecked) match {
-        case _: TNumeric => agg.ec.aggregationFunctions += new SumAggregator(aggF, localIdx)
-        case TArray(_: TNumeric) => agg.ec.aggregationFunctions += new SumArrayAggregator(aggF, localIdx, localPos)
+        case TInt => agg.ec.aggregationFunctions += new SumAggregator[Int](aggF, localIdx)
+        case TLong => agg.ec.aggregationFunctions += new SumAggregator[Long](aggF, localIdx)
+        case TFloat => agg.ec.aggregationFunctions += new SumAggregator[Float](aggF, localIdx)
+        case TDouble => agg.ec.aggregationFunctions += new SumAggregator[Double](aggF, localIdx)
+        case TArray(TInt) => agg.ec.aggregationFunctions += new SumArrayAggregator[Int](aggF, localIdx, localPos)
+        case TArray(TLong) => agg.ec.aggregationFunctions += new SumArrayAggregator[Long](aggF, localIdx, localPos)
+        case TArray(TFloat) => agg.ec.aggregationFunctions += new SumArrayAggregator[Float](aggF, localIdx, localPos)
+        case TArray(TDouble) => agg.ec.aggregationFunctions += new SumArrayAggregator[Double](aggF, localIdx, localPos)
       }
 
       val coerce: Any => Any = localType match {
