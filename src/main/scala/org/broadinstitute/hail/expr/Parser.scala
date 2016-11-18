@@ -186,6 +186,19 @@ object Parser extends JavaTokenParsers {
       path.tail
   }
 
+  def parseNamedExprs(code: String, ec: EvalContext): Array[(String, BaseType, () => Option[Any])] = {
+    val parsed = parseAll(named_args, code) match {
+      case Success(result, _) => result.asInstanceOf[Array[(String, AST)]]
+      case NoSuccess(msg, _) => fatal(msg)
+    }
+
+    parsed.map { case (name, ast) =>
+      ast.typecheck(ec)
+      val f = ast.eval(ec)
+      (name, ast.`type`, () => Option(f()))
+    }
+  }
+
   def parseExprs(code: String, ec: EvalContext): (Array[(BaseType, () => Option[Any])]) = {
 
     if (code.matches("""\s*"""))

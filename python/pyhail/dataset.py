@@ -381,14 +381,14 @@ class VariantDataset(object):
             pargs.append('--print-missing')
         return self.hc.run_command(self, pargs)
 
-    def export_plink(self, output):
+    def export_plink(self, output, fam_expr = 'id = s.id'):
         """Export as PLINK .bed/.bim/.fam
 
         :param str output: Output file base.  Will write .bed, .bim and .fam files.
 
         """
 
-        pargs = ['exportplink', '--output', output]
+        pargs = ['exportplink', '--output', output, '--fam-expr', fam_expr]
         return self.hc.run_command(self, pargs)
 
     def export_samples(self, output, condition, types=None):

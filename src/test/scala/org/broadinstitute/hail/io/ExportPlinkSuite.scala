@@ -66,4 +66,24 @@ class ExportPlinkSuite extends SparkSuite {
       }
     )
   }
+
+  @Test def testFamExport() {
+    val plink = tmpDir.createTempFile("mendel")
+
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/mendel.vcf"))
+    s = SplitMulti.run(s)
+    s = HardCalls.run(s)
+    s = AnnotateSamplesFam.run(s, Array("-i", "src/test/resources/mendel.fam", "-d", "\\\\s+"))
+    s = AnnotateSamplesExpr.run(s, Array("-c", "sa = sa.fam"))
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va.rsid = str(v)"))
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va = select(va, rsid)"))
+
+    s = ExportPlink.run(s, Array("-o", plink, "-f",
+      "famID = sa.famID, id = s.id, matID = sa.matID, patID = sa.patID, isFemale = sa.isFemale, isCase = sa.isCase"))
+
+    var s2 = ImportPlink.run(s, Array("--bfile", plink))
+
+    assert(s.vds.same(s2.vds))
+  }
 }
