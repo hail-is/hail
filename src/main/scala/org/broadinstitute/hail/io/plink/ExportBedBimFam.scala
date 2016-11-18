@@ -35,8 +35,4 @@ object ExportBedBimFam {
     val id = s"${v.contig}:${v.start}:${v.ref}:${v.alt}"
     s"""${v.contig}\t$id\t0\t${v.start}\t${v.alt}\t${v.ref}"""
   }
-
-  def makeFamRow(s: String): String = {
-    s"0\t$s\t0\t0\t0\t-9"
-  }
 }
