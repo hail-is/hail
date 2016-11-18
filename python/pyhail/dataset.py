@@ -9,6 +9,9 @@ class VariantDataset(object):
         self.hc = hc
         self.jvds = jvds
 
+    def _raise_py4j_exception(self, e):
+        self.hc._raise_py4j_exception(e)
+
     def aggregate_intervals(self, input, condition, output):
         """Aggregate over intervals and export.
 
@@ -331,7 +334,7 @@ class VariantDataset(object):
                     .count(self.jvds, genotypes)
                     .toJavaMap())
         except Py4JJavaError as e:
-            self.hc.raise_py4j_exception(e)
+            self._raise_py4j_exception(e)
 
     def deduplicate(self):
         """Remove duplicate variants."""
@@ -510,7 +513,7 @@ class VariantDataset(object):
         :param str output: Path of .vds file to write.
 
         :param bool overwrite: If True, overwrite any existing .vds file.
-        
+
         """
 
         pargs = ['write', '-o', output]
@@ -706,7 +709,7 @@ class VariantDataset(object):
         try:
             return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jvds, right.jvds))
         except Py4JJavaError as e:
-            self.hc.raise_py4j_exception(e)
+            self._raise_py4j_exception(e)
 
     def linreg(self, y, covariates='', root='va.linreg', minac=1, minaf=None):
         """Test each variant for association using the linear regression
@@ -872,7 +875,7 @@ class VariantDataset(object):
         try:
             return self.jvds.same(other.jvds, 1e-6)
         except Py4JJavaError as e:
-            self.hc.raise_py4j_exception(e)
+            self._raise_py4j_exception(e)
 
     def sample_qc(self, branching_factor=None):
         """Compute per-sample QC metrics.
@@ -985,7 +988,7 @@ class VariantDataset(object):
             return pyspark.sql.DataFrame(self.jvds.variantsDF(self.hc.jsql_context),
                                          self.hc.sql_context).toPandas()
         except Py4JJavaError as e:
-            self.hc.raise_py4j_exception(e)
+            self._raise_py4j_exception(e)
 
     def samples_to_pandas(self):
         """Convert samples and sample annotations to Pandas dataframe."""
@@ -993,4 +996,4 @@ class VariantDataset(object):
             return pyspark.sql.DataFrame(self.jvds.samplesDF(self.hc.jsql_context),
                                          self.hc.sql_context).toPandas()
         except Py4JJavaError as e:
-            self.hc.raise_py4j_exception(e)
+            self._raise_py4j_exception(e)

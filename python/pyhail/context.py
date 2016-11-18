@@ -6,6 +6,9 @@ from py4j.protocol import Py4JJavaError
 
 
 class FatalError(Exception):
+    """:class:`.FatalError`
+    """
+
     def __init__(self, message, java_exception):
         self.msg = message
         self.java_exception = java_exception
@@ -66,7 +69,7 @@ class HailContext(object):
         return self.jvm.org.broadinstitute.hail.driver.State(
             self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
 
-    def raise_py4j_exception(self, e):
+    def _raise_py4j_exception(self, e):
         msg = scala_package_object(self.jvm.org.broadinstitute.hail.utils).getMinimalMessage(e.java_exception)
         raise FatalError(msg, e.java_exception)
 
@@ -80,7 +83,7 @@ class HailContext(object):
         try:
             result = cmd.run(jstate, cmd_args)
         except Py4JJavaError as e:
-            self.raise_py4j_exception(e)
+            self._raise_py4j_exception(e)
 
         return VariantDataset(self, result.vds())
 
