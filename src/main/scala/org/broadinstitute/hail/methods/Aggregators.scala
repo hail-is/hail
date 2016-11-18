@@ -7,8 +7,10 @@ import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant._
+import org.broadinstitute.hail.expr.{IntNumericConversion, LongNumericConversion, FloatNumericConversion, DoubleNumericConversion}
 import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.input.Position
+import scala.reflect.ClassTag
 
 object Aggregators {
 
@@ -257,15 +259,17 @@ class InfoScoreAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator
   override def copy() = new InfoScoreAggregator(f, idx)
 }
 
-class SumAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Double] {
-  var _state = 0d
+class SumAggregator[T](f: (Any) => Any, val idx: Int)(implicit conv: NumericConversion[T], num: Numeric[T]) extends TypedAggregator[T] {
+  import num._
+
+  var _state: T = num.zero
 
   override def result = _state
 
   override def seqOp(x: Any) {
     val r = f(x)
     if (r != null)
-      _state += DoubleNumericConversion.to(r)
+      _state += conv.to(r)
   }
 
   override def combOp(agg2: this.type) = _state += agg2._state
@@ -273,10 +277,11 @@ class SumAggregator(f: (Any) => Any, val idx: Int) extends TypedAggregator[Doubl
   override def copy() = new SumAggregator(f, idx)
 }
 
-class SumArrayAggregator(f: (Any) => Any, val idx: Int, localPos: Position)
-  extends TypedAggregator[IndexedSeq[Double]] {
+class SumArrayAggregator[T](f: (Any) => Any, val idx: Int, localPos: Position)(implicit conv: NumericConversion[T], num: Numeric[T], tct: ClassTag[T])
+    extends TypedAggregator[IndexedSeq[T]] {
+  import num._
 
-  var _state: Array[Double] = _
+  var _state: Array[T] = _
 
   override def result = _state
 
@@ -284,7 +289,7 @@ class SumArrayAggregator(f: (Any) => Any, val idx: Int, localPos: Position)
     val r = f(x).asInstanceOf[IndexedSeq[Any]]
     if (r != null) {
       if (_state == null)
-        _state = r.map(x => if (x == null) 0d else DoubleNumericConversion.to(x)).toArray
+        _state = r.map(x => if (x == null) num.zero else conv.to(x)).toArray
       else {
         if (r.length != _state.length)
           ParserUtils.error(localPos,
@@ -294,7 +299,7 @@ class SumArrayAggregator(f: (Any) => Any, val idx: Int, localPos: Position)
           var i = 0
           while (i < _state.length) {
             if (r(i) != null)
-              _state(i) += DoubleNumericConversion.to(r(i))
+              _state(i) += conv.to(r(i))
             i += 1
           }
         }
