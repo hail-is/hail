@@ -87,7 +87,6 @@ package object driver {
     conf.set("spark.sql.parquet.compression.codec", parquetCompression)
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", blockSize * 1024L * 1024L)
 
     /* `DataFrame.write` writes one file per partition.  Without this, read will split files larger than the default
