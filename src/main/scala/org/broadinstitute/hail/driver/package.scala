@@ -52,11 +52,6 @@ package object driver {
     require(blockSize > 0)
     require(branchingFactor > 0)
 
-
-
-    LogManager.getLogger("org").setLevel(Level.ERROR)
-    LogManager.getLogger("akka").setLevel(Level.ERROR)
-
     val logProps = new Properties()
     if (quiet) {
       logProps.put("log4j.rootLogger", "OFF, stderr")

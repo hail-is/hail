@@ -6,8 +6,7 @@ from py4j.protocol import Py4JJavaError
 
 
 class FatalError(Exception):
-    """:class:`.FatalError`
-    """
+    """:class:`.FatalError` is an error thrown by Hail method failures"""
 
     def __init__(self, message, java_exception):
         self.msg = message
@@ -23,6 +22,20 @@ class HailContext(object):
     functionality.
 
     :param SparkContext sc: The pyspark context.
+
+    :param str log: Log file.
+
+    :param bool quiet: Don't write log file.
+
+    :param bool append: Append to existing log file.
+
+    :param long block_size: Minimum size of file splits in MB.
+
+    :param str parquet_compression: Parquet compression codec.
+
+    :param int branching_factor: Branching factor to use in tree aggregate.
+
+    :param str tmp_dir: Temporary directory for file merging.
     """
 
     def __init__(self, sc=None, log='hail.log', quiet=False, append=False,
