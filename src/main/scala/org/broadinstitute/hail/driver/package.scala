@@ -4,7 +4,7 @@ import java.io.File
 import java.util
 import java.util.Properties
 
-import org.apache.log4j.{LogManager, PropertyConfigurator}
+import org.apache.log4j.{Level, LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.{ProgressBarBuilder, SparkContext}
 import org.broadinstitute.hail.utils._
@@ -48,9 +48,14 @@ package object driver {
   }
 
   def configure(sc: SparkContext, logFile: String, quiet: Boolean, append: Boolean,
-    parquetCompression: String, blockSize: Int, branchingFactor: Int, tmpDir: String) {
+    parquetCompression: String, blockSize: Long, branchingFactor: Int, tmpDir: String) {
     require(blockSize > 0)
     require(branchingFactor > 0)
+
+
+
+    LogManager.getLogger("org").setLevel(Level.ERROR)
+    LogManager.getLogger("akka").setLevel(Level.ERROR)
 
     val logProps = new Properties()
     if (quiet) {
@@ -78,9 +83,25 @@ package object driver {
     conf.set("spark.ui.showConsoleProgress", "false")
     val progressBar = ProgressBarBuilder.build(sc)
 
+    sc.hadoopConfiguration.set(
+      "io.compression.codecs",
+      "org.apache.hadoop.io.compress.DefaultCodec," +
+        "org.broadinstitute.hail.io.compress.BGzipCodec," +
+        "org.apache.hadoop.io.compress.GzipCodec")
+
     conf.set("spark.sql.parquet.compression.codec", parquetCompression)
+    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+
 
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", blockSize * 1024L * 1024L)
+
+    /* `DataFrame.write` writes one file per partition.  Without this, read will split files larger than the default
+     * parquet block size into multiple partitions.  This causes `OrderedRDD` to fail since the per-partition range
+     * no longer line up with the RDD partitions.
+     *
+     * For reasons we don't understand, the DataFrame code uses `SparkHadoopUtil.get.conf` instead of the Hadoop
+     * configuration in the SparkContext.  Set both for consistency.
+     */
     SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1099511627776L)
     sc.hadoopConfiguration.setLong("parquet.block.size", 1099511627776L)
 

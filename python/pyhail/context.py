@@ -25,7 +25,7 @@ class HailContext(object):
     :param SparkContext sc: The pyspark context.
     """
 
-    def __init__(self, sc=None, log=None, quiet=False, append=False,
+    def __init__(self, sc=None, log='hail.log', quiet=False, append=False,
                  block_size=1, parquet_compression='uncompressed',
                  branching_factor=50, tmp_dir='/tmp'):
 
@@ -41,16 +41,6 @@ class HailContext(object):
 
         self.sql_context = pyspark.sql.SQLContext(sc, self.jsql_context)
 
-        self.jsc.hadoopConfiguration().set(
-            'io.compression.codecs',
-            'org.apache.hadoop.io.compress.DefaultCodec,'
-            'org.broadinstitute.hail.io.compress.BGzipCodec,'
-            'org.apache.hadoop.io.compress.GzipCodec')
-
-        if log is None and not quiet:
-            import os
-            log = os.getcwd() + '/hail.log'
-
         scala_package_object(self.jvm.org.broadinstitute.hail.driver).configure(
             self.jsc,
             log,
@@ -61,9 +51,6 @@ class HailContext(object):
             branching_factor,
             tmp_dir)
 
-        logger = sc._jvm.org.apache.log4j
-        logger.LogManager.getLogger("org").setLevel(logger.Level.ERROR)
-        logger.LogManager.getLogger("akka").setLevel(logger.Level.ERROR)
 
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
