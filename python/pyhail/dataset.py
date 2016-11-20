@@ -8,7 +8,7 @@ class VariantDataset(object):
         self.hc = hc
         self.jvds = jvds
 
-    def aggregate_by_key(self, key_code=None, agg_code=None):
+    def aggregate_by_key(self, key_code, agg_code):
         """Aggregate by user-defined key and aggregation expressions.
         Equivalent of a group-by operation in SQL.
 

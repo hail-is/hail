@@ -1,28 +1,20 @@
 
-class Type(object):
-    def __init__(self, jtype):
-        self.jtype = jtype
-
-    def __repr__(self):
-        return self.jtype.toString()
-
-    def __str__(self):
-        return self.jtype.toPrettyString(False, False)
-
 class TextTableConfig(object):
-    """:class:`.TextTableConfig` specifies additional options for importing TSV files.
+    """Configuration for delimited (text table) files.
 
     :param bool noheader: File has no header and columns should be indicated by `_1, _2, ... _N' (0-indexed)
 
     :param bool impute: Impute column types from the file
 
-    :param str comment: Skip lines beginning with the given pattern
+    :param comment: Skip lines beginning with the given pattern
+    :type comment: str or None
 
     :param str delimiter: Field delimiter regex
 
     :param str missing: Specify identifier to be treated as missing
 
-    :param str types: Define types of fields in annotations files   
+    :param types: Define types of fields in annotations files   
+    :type types: str or None
     """
     def __init__(self, noheader = False, impute = False,
                  comment = None, delimiter = "\t", missing = "NA", types = None):
@@ -45,12 +37,11 @@ class TextTableConfig(object):
 
         return " ".join(res)
 
-    def _jobj(self, hc):
-        """Convert to java TextTableConfiguration object
+    def to_java(self, hc):
+        """Convert to Java TextTableConfiguration object.
 
-        :param :class:`.HailContext` hc: Hail spark context.
+        :param :class:`.HailContext` The Hail context.
         """
         return hc.jvm.org.broadinstitute.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
                                                              self.delimiter, self.missing,
                                                              self.noheader, self.impute)
-

@@ -284,9 +284,8 @@ case class MappedAggregable(parent: TAggregable, elementType: Type, mapF: (Any) 
     val parentF = parent.f
     (a: Any) => {
       val prev = parentF(a)
-      if (prev != null) {
+      if (prev != null)
         mapF(prev)
-      }
       else
         null
     }
@@ -320,7 +319,7 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
+  override def genValue: Gen[Annotation] = Gen.buildableOf[IndexedSeq, Annotation](elementType.genValue)
 }
 
 case class TSet(elementType: Type) extends TIterable {
