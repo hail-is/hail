@@ -44,7 +44,7 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
 
 class BGzipCodecSuite extends SparkSuite {
   @Test def test() {
-    sc.hadoopConfiguration.set("io.compression.codecs", "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
+    sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
 
     val uncompPath = "src/test/resources/sample.vcf"
 
