@@ -29,7 +29,6 @@ object KeyTable extends Serializable with TextExporter {
       else
         TextTableReader.read(sc)(files, config, nPartitions)
 
-
     val keyNamesValid = keyNameArray.forall { k =>
       val res = struct.selfField(k).isDefined
       if (!res)
@@ -83,7 +82,7 @@ object KeyTable extends Serializable with TextExporter {
 
 case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, valueSignature: TStruct) {
 
-  require(fieldNames.toSet.size == fieldNames.length)
+  require(fieldNames.areDistinct())
 
   def signature = keySignature.merge(valueSignature)._1
 
@@ -292,12 +291,10 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val f: () => Option[Boolean] = Parser.parse[Boolean](code, ec, TBoolean)
 
-    val p = (k: Annotation, v: Annotation) => {
+    rdd.forall { case (k, v) =>
       KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
       f().getOrElse(false)
     }
-
-    rdd.forall { case (k, v) => p(k, v) }
   }
 
   def exists(code: String): Boolean = {
@@ -307,12 +304,10 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val f: () => Option[Boolean] = Parser.parse[Boolean](code, ec, TBoolean)
 
-    val p = (k: Annotation, v: Annotation) => {
+    rdd.exists { case (k, v) =>
       KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
       f().getOrElse(false)
     }
-
-    rdd.exists { case (k, v) => p(k, v) }
   }
 
   def export(sc: SparkContext, output: String, typesFile: String) = {

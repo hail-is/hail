@@ -12,7 +12,7 @@ class VariantDataset(object):
     def _raise_py4j_exception(self, e):
         self.hc._raise_py4j_exception(e)
 
-    def aggregate_by_key(self, key_code=None, agg_code=None):
+    def aggregate_by_key(self, key_code, agg_code):
         """Aggregate by user-defined key and aggregation expressions.
         Equivalent of a group-by operation in SQL.
 

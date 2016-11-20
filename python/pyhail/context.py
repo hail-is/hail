@@ -278,7 +278,7 @@ class HailContext(object):
         return self.run_command(None, pargs)
 
     def import_keytable(self, path, key_names, npartitions=None, config=None):
-        """Import tabular file as KeyTable
+        """Import delimited text file (text table) as KeyTable.
 
         :param path: files to import.
         :type path: str or list of str
@@ -290,7 +290,7 @@ class HailContext(object):
         :type npartitions: int or None
 
         :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
+        :type config: :class:`.TextTableConfig` or None
 
         :rtype: :class:`.KeyTable`
         """
@@ -302,20 +302,18 @@ class HailContext(object):
                 pathArgs.append(p)
 
         if not isinstance(key_names, str):
-            key_names = ",".join(key_names)
+            key_names = ','.join(key_names)
 
         if not npartitions:
             npartitions = self.sc.defaultMinPartitions
 
         if not config:
-            config = TextTableConfig()._jobj(self)
-        elif isinstance(config, TextTableConfig):
-            config = config._jobj(self)
+            config = TextTableConfig()
 
-        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs),
-                                                                                                 key_names, npartitions, config))
+        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(
+            self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs), key_names, npartitions, config.to_java(self)))
 
-    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing="NA", quantpheno=False):
+    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """
         Import PLINK binary file (.bed, .bim, .fam) as VariantDataset
 
