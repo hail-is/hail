@@ -11,7 +11,7 @@ class AggregateByKeySuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array(inputVCF))
     s = AnnotateSamplesExpr.run(s, Array("-c", "sa.nHet = gs.filter(g => g.isHet).count()"))
-    val kt = s.vds.aggregateByKey("Sample = s", "nHet = gs.filter(g => g.isHet).count()")
+    val kt = s.vds.aggregateByKey("Sample = s", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
 
     val (_, ktHetQuery) = kt.query("nHet")
     val (_, ktSampleQuery) = kt.query("Sample")
@@ -29,7 +29,7 @@ class AggregateByKeySuite extends SparkSuite {
     var s = State(sc, sqlContext)
     s = ImportVCF.run(s, Array(inputVCF))
     s = AnnotateVariantsExpr.run(s, Array("-c", "va.nHet = gs.filter(g => g.isHet).count()"))
-    val kt = s.vds.aggregateByKey("Variant = v", "nHet = gs.filter(g => g.isHet).count()")
+    val kt = s.vds.aggregateByKey("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
 
     val (_, ktHetQuery) = kt.query("nHet")
     val (_, ktVariantQuery) = kt.query("Variant")
@@ -48,7 +48,7 @@ class AggregateByKeySuite extends SparkSuite {
     s = ImportVCF.run(s, Array(inputVCF))
     s = AnnotateVariantsExpr.run(s, Array("-c", "va.nHet = gs.filter(g => g.isHet).count()"))
     s = AnnotateGlobalExpr.run(s, Array("-c", "global.nHet = variants.map(v => va.nHet).sum().toLong"))
-    val kt = s.vds.aggregateByKey(null, "nHet = gs.filter(g => g.isHet).count()")
+    val kt = s.vds.aggregateByKey(null, "nHet = g.map(g => g.isHet.toInt).sum().toLong")
 
     val (_, ktHetQuery) = kt.query("nHet")
     val (_, globalHetResult) = s.vds.queryGlobal("global.nHet")

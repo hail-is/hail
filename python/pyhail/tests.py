@@ -210,7 +210,8 @@ class ContextTests(unittest.TestCase):
         sample2.variants_to_pandas()
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet).count()")
-        kt = sample_split.aggregate_by_key("Variant = v", "nHet = gs.filter(g => g.isHet).count()")
+
+        kt = sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
 
     def test_keytable(self):
         # Import
@@ -245,13 +246,5 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(kt.forall('Status == "CASE"'))
         self.assertTrue(kt.exists('Status == "CASE"'))
 
-
-
-
-
-
-
-
-        
     def tearDown(self):
         self.sc.stop()

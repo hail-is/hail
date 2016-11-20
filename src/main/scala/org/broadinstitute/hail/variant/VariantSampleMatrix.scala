@@ -605,17 +605,20 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       "va" -> (1, vaSignature),
       "s" -> (2, TSample),
       "sa" -> (3, saSignature),
-      "global" -> (4, globalSignature)))
+      "global" -> (4, globalSignature),
+      "g" -> (5, TGenotype)))
 
-    val symTab = Map(
+    val ec = EvalContext(Map(
       "v" -> (0, TVariant),
       "va" -> (1, vaSignature),
       "s" -> (2, TSample),
       "sa" -> (3, saSignature),
       "global" -> (4, globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
+      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype))))
 
-    val ec = EvalContext(symTab)
+    val ktEC = EvalContext(
+      aggregationEC.st.map { case (name, (i, t)) => name -> (-1, KeyTableAggregable(aggregationEC, t.asInstanceOf[Type], i)) }
+    )
 
     ec.set(4, globalAnnotation)
     aggregationEC.set(4, globalAnnotation)
@@ -628,26 +631,25 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
     val (aggNameParseTypes, aggF) =
       if (aggCond != null)
-        Parser.parseAnnotationArgs(aggCond, ec, None)
+        Parser.parseAnnotationArgs(aggCond, ktEC, None)
       else
         (Array.empty[(List[String], Type)], Array.empty[() => Any])
 
     val keyNames = keyNameParseTypes.map(_._1.head)
     val aggNames = aggNameParseTypes.map(_._1.head)
 
-    val keySignature = TStruct(keyNameParseTypes.map{ case (n, t) => (n.head, t) }: _*)
-    val valueSignature = TStruct(aggNameParseTypes.map{ case (n, t) => (n.head, t) }: _*)
+    val keySignature = TStruct(keyNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
+    val valueSignature = TStruct(aggNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
 
     val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
+    val aggFunctions = aggregationEC.aggregationFunctions.map(_._1)
 
-    val seqOp = (array: Array[Aggregator], b: (Any, Any, Any, Any, Any)) => {
-      val (v, va, s, sa, aggT) = b
-      ec.set(0, v)
-      ec.set(1, va)
-      ec.set(2, s)
-      ec.set(3, sa)
+    val localGlobalAnnotation = globalAnnotation
+
+    val seqOp = (array: Array[Aggregator], r: Annotation) => {
+      KeyTable.setEvalContext(aggregationEC, r, 6)
       for (i <- array.indices) {
-        array(i).seqOp(aggT)
+        array(i).seqOp(aggFunctions(i)(r))
       }
       array
     }
@@ -656,7 +658,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       it.map { case (v, va, s, sa, g) =>
         ec.setAll(v, va, s, sa, g)
         val key = Annotation.fromSeq(keyF.map(_ ()))
-        (key, (v, va, s, sa, g))
+        (key, Annotation(v, va, s, sa, localGlobalAnnotation, g))
       }
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map { case (k, agg) =>
