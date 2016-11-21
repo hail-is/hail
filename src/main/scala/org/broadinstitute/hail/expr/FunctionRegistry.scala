@@ -356,6 +356,12 @@ object FunctionRegistry {
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() })
 
+  register("pnorm", { (x: Double) => pnorm(x) })
+  register("qnorm", { (p: Double) => qnorm(p) })
+
+  register("pchisq1tail", { (x: Double) => chiSquaredTail(1.0, x) })
+  register("qchisq1tail", { (p: Double) => inverseChiSquaredTailOneDF(p) })
+
   registerConversion((x: Int) => x.toDouble, priority = 2)
   registerConversion { (x: Long) => x.toDouble }
   registerConversion { (x: Int) => x.toLong }

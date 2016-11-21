@@ -2,10 +2,9 @@ package org.broadinstitute.hail
 
 import breeze.linalg.Matrix
 import org.apache.commons.math3.distribution.HypergeometricDistribution
-import org.apache.commons.math3.special.Gamma
+import org.apache.commons.math3.special.{Erf, Gamma}
 import org.apache.spark.SparkContext
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr.{TDouble, TInt, TStruct}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
 
@@ -271,10 +270,25 @@ package object stats {
     Array(Option(pvalue), oddsRatioEstimate, confInterval._1, confInterval._2)
   }
 
+  val sqrt2 = math.sqrt(2)
+
+  // Returns the p for which p = Prob(Z < x) with Z a standard normal RV
+  def pnorm(x: Double) = 0.5 * (1 + Erf.erf(x / sqrt2))
+
+  // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
+  def qnorm(p: Double) = sqrt2 * Erf.erfInv(2 * p - 1)
+
+  // Returns the p for which p = Prob(C > x) with C a chi-squared RV with one degree of freedom
   // This implementation avoids the round-off error truncation issue in
   // org.apache.commons.math3.distribution.ChiSquaredDistribution,
   // which computes the CDF with regularizedGammaP and p = 1 - CDF.
   def chiSquaredTail(df: Double, x: Double) = Gamma.regularizedGammaQ(df / 2, x / 2)
+
+  // Returns the x for which p = Prob(C > x) with C a chi-squared RV with one degree of freedom
+  def inverseChiSquaredTailOneDF(p: Double) = {
+    val q = qnorm(0.5 * p)
+    q * q
+  }
 
   def uninitialized[T]: T = {
     class A {

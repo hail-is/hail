@@ -507,6 +507,12 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("rnorm(2.0, 4.0).abs > -1.0").contains(true))
 
+    assert(D_==(eval[Double]("pnorm(qnorm(0.5))").get, 0.5))
+    assert(D_==(eval[Double]("qnorm(pnorm(0.5))").get, 0.5))
+
+    assert(D_==(eval[Double]("qchisq1tail(pchisq1tail(0.5))").get, 0.5))
+    assert(D_==(eval[Double]("pchisq1tail(qchisq1tail(0.5))").get, 0.5))
+
     assert(eval[Any]("if (true) NA: Double else 0.0").isEmpty)
   }
 
