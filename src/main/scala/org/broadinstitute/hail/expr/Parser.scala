@@ -356,7 +356,7 @@ object Parser extends JavaTokenParsers {
   def primary_expr: Parser[AST] =
     withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
       withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
-      withPos(wholeNumber <~ "[Ll]") ^^ (r => Const(r.pos, r.x.toLong, TLong)) |
+      withPos(wholeNumber <~ "[Ll]".r) ^^ (r => Const(r.pos, r.x.toLong, TLong)) |
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
       withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString) } |
       withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
