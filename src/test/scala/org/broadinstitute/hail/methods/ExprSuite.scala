@@ -518,6 +518,15 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("gtIndex(3, 5)").contains(18))
     assert(eval[Int]("gtj(18)").contains(3))
     assert(eval[Int]("gtk(18)").contains(5))
+
+    assert(eval[Long]("0L").contains(0L))
+    assert(eval[Long]("-1L").contains(-1L))
+    assert(eval[Long]("1L").contains(1L))
+    assert(eval[Long]("10000000000L").contains(10000000000L))
+    assert(eval[Long]("100000L * 100000L").contains(100000L * 100000L))
+    assert(eval[Long]("-10000000000L").contains(-10000000000L))
+    assert(eval[Long](Long.MaxValue.toString+"L").contains(Long.MaxValue))
+    assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
   }
 
   @Test def testParseTypes() {
