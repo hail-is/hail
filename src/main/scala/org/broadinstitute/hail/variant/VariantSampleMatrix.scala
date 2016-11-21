@@ -23,6 +23,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.kududb.spark.kudu.{KuduContext, _}
 import Variant.orderedKey
+import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.methods.{Aggregators, Filter}
 import org.broadinstitute.hail.utils
 
@@ -596,6 +597,76 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
             })
           }
     */
+  }
+
+  def aggregateByKey(keyCond: String, aggCond: String): KeyTable = {
+    val aggregationEC = EvalContext(Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, saSignature),
+      "global" -> (4, globalSignature),
+      "g" -> (5, TGenotype)))
+
+    val ec = EvalContext(Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, saSignature),
+      "global" -> (4, globalSignature),
+      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype))))
+
+    val ktEC = EvalContext(
+      aggregationEC.st.map { case (name, (i, t)) => name -> (-1, KeyTableAggregable(aggregationEC, t.asInstanceOf[Type], i)) }
+    )
+
+    ec.set(4, globalAnnotation)
+    aggregationEC.set(4, globalAnnotation)
+
+    val (keyNameParseTypes, keyF) =
+      if (keyCond != null)
+        Parser.parseAnnotationArgs(keyCond, ec, None)
+      else
+        (Array.empty[(List[String], Type)], Array.empty[() => Any])
+
+    val (aggNameParseTypes, aggF) =
+      if (aggCond != null)
+        Parser.parseAnnotationArgs(aggCond, ktEC, None)
+      else
+        (Array.empty[(List[String], Type)], Array.empty[() => Any])
+
+    val keyNames = keyNameParseTypes.map(_._1.head)
+    val aggNames = aggNameParseTypes.map(_._1.head)
+
+    val keySignature = TStruct(keyNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
+    val valueSignature = TStruct(aggNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
+
+    val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
+    val aggFunctions = aggregationEC.aggregationFunctions.map(_._1)
+
+    val localGlobalAnnotation = globalAnnotation
+
+    val seqOp = (array: Array[Aggregator], r: Annotation) => {
+      KeyTable.setEvalContext(aggregationEC, r, 6)
+      for (i <- array.indices) {
+        array(i).seqOp(aggFunctions(i)(r))
+      }
+      array
+    }
+
+    val ktRDD = mapPartitionsWithAll { it =>
+      it.map { case (v, va, s, sa, g) =>
+        ec.setAll(v, va, s, sa, g)
+        val key = Annotation.fromSeq(keyF.map(_ ()))
+        (key, Annotation(v, va, s, sa, localGlobalAnnotation, g))
+      }
+    }.aggregateByKey(zVals)(seqOp, combOp)
+      .map { case (k, agg) =>
+        resultOp(agg)
+        (k, Annotation.fromSeq(aggF.map(_ ())))
+      }
+
+    KeyTable(ktRDD, keySignature, valueSignature)
   }
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {

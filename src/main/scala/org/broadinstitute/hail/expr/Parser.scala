@@ -82,8 +82,8 @@ object Parser extends JavaTokenParsers {
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
   }
-
-  def parseExportArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
+  
+  def parseNamedArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
     val result = parseAll(export_args, code) match {
       case Success(r, _) => r
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
@@ -133,8 +133,8 @@ object Parser extends JavaTokenParsers {
     (someIf(names.nonEmpty, names), tb.result(), () => computations.flatMap(_ ()))
   }
 
-  def parseNamedArgs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[String]) = {
-    val (headerOption, ts, f) = parseExportArgs(code, ec)
+  def parseExportArgs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[String]) = {
+    val (headerOption, ts, f) = parseNamedArgs(code, ec)
     val header = headerOption match {
       case Some(h) => h
       case None => fatal(
@@ -144,22 +144,24 @@ object Parser extends JavaTokenParsers {
     (header, ts, f)
   }
 
-  def parseAnnotationArgs(code: String, ec: EvalContext, expectedHead: String): (Array[(List[String], Type)], Array[() => Option[Any]]) = {
+  def parseAnnotationArgs(code: String, ec: EvalContext, expectedHead: Option[String]): (Array[(List[String], Type)], Array[() => Any]) = {
     val arr = parseAll(annotationExpressions, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(List[String], AST)]]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
     def checkType(l: List[String], t: BaseType): Type = {
-      if (l.head == expectedHead)
-        t match {
-          case t: Type => t
-          case bt => fatal(
-            s"""Got invalid type `$t' from the result of `${ l.mkString(".") }'""".stripMargin)
-        } else fatal(
-        s"""invalid annotation path `${ l.map(prettyIdentifier).mkString(".") }'
-            |  Path should begin with `$expectedHead'
+      if (expectedHead.isDefined && l.head != expectedHead.get)
+        fatal(
+          s"""invalid annotation path `${ l.map(prettyIdentifier).mkString(".") }'
+              |  Path should begin with `$expectedHead'
            """.stripMargin)
+
+      t match {
+        case t: Type => t
+        case bt => fatal(
+          s"""Got invalid type `$t' from the result of `${ l.mkString(".") }'""".stripMargin)
+      }
     }
 
     val all = arr.map {
@@ -167,8 +169,10 @@ object Parser extends JavaTokenParsers {
         ast.typecheck(ec)
         val t = checkType(path, ast.`type`)
         val f = ast.eval(ec)
-        ((path.tail, t), () => Option(f()))
+        val name = if (expectedHead.isDefined) path.tail else path
+        ((name, t), () => f())
     }
+
     (all.map(_._1), all.map(_._2))
   }
 

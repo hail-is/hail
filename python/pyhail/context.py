@@ -1,7 +1,9 @@
 import pyspark
 
 from pyhail.dataset import VariantDataset
+from pyhail.keytable import KeyTable
 from pyhail.java import jarray, scala_object
+from pyhail.utils import TextTableConfig
 
 class HailContext(object):
     """:class:`.HailContext` is the main entrypoint for PyHail
@@ -34,7 +36,7 @@ class HailContext(object):
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
             self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
-
+    
     def run_command(self, vds, pargs):
         jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
         t = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
@@ -235,7 +237,43 @@ class HailContext(object):
 
         return self.run_command(None, pargs)
 
-    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing="NA", quantpheno=False):
+    def import_keytable(self, path, key_names, npartitions=None, config=None):
+        """Import delimited text file (text table) as KeyTable.
+
+        :param path: files to import.
+        :type path: str or list of str
+
+        :param key_names: The name(s) of fields to be considered keys
+        :type key_names: str or list of str
+
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
+
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
+
+        :rtype: :class:`.KeyTable`
+        """
+        pathArgs = []
+        if isinstance(path, str):
+            pathArgs.append(path)
+        else:
+            for p in path:
+                pathArgs.append(p)
+
+        if not isinstance(key_names, str):
+            key_names = ','.join(key_names)
+
+        if not npartitions:
+            npartitions = self.sc.defaultMinPartitions
+
+        if not config:
+            config = TextTableConfig()
+
+        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(
+            self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs), key_names, npartitions, config.to_java(self)))
+
+    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """
         Import PLINK binary file (.bed, .bim, .fam) as VariantDataset
 

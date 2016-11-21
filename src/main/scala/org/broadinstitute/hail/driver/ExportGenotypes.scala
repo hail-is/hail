@@ -59,7 +59,7 @@ object ExportGenotypes extends Command with TextExporter {
 
     val ec = EvalContext(symTab)
     ec.set(5, vds.globalAnnotation)
-    val (header, ts, f) = Parser.parseExportArgs(cond, ec)
+    val (header, ts, f) = Parser.parseNamedArgs(cond, ec)
 
     Option(options.typesFile).foreach { file =>
       val typeInfo = header
