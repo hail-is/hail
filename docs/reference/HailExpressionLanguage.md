@@ -388,7 +388,7 @@ Or, extend the above to compute a global gq histogram:
 
 ```
 annotatevariants expr -c 'va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)'
-annotateglobal expr -c 'global.gqDensity = variants.map(v => va.gqHist.binFrequencies).sum()'
+annotateglobal expr -c 'global.gqHist = variants.map(v => va.gqHist.binFrequencies).sum()'
 ```
 
 ### Collect
