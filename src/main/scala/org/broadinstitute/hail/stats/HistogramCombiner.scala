@@ -33,10 +33,11 @@ class HistogramCombiner(indices: Array[Double]) extends Serializable {
         -bs - 2
       else
         math.min(bs, frequency.length - 1)
-      assert(ind < frequency.length && ind >= 0, s"""found out of bounds index $ind
-                                                     |  Resulted from trying to merge $d
-                                                     |  Indices are [${indices.mkString(", ")}]
-                                                     |  Binary search index was $bs""".stripMargin)
+      assert(ind < frequency.length && ind >= 0,
+        s"""found out of bounds index $ind
+            |  Resulted from trying to merge $d
+            |  Indices are [${ indices.mkString(", ") }]
+            |  Binary search index was $bs""".stripMargin)
       frequency(ind) += 1
     }
 
