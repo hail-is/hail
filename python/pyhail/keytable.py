@@ -1,8 +1,9 @@
 from pyhail.utils import Type
 
 class KeyTable(object):
-    """:class:`.KeyTable` is Hail's version of a SQL
-    table where fields can be designated as keys.
+    """:class:`.KeyTable` is Hail's version of a SQL table where fields
+    can be designated as keys.
+
     """
 
     def __init__(self, hc, jkt):
@@ -85,7 +86,7 @@ class KeyTable(object):
         """
         return KeyTable(self.hc, self.jkt.filter(code, keep))
 
-    def annotate(self, code, key_names=None):
+    def annotate(self, code, key_names=''):
         """Add fields to key-table.
 
         :param str code: Annotation expression.
