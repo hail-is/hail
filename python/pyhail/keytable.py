@@ -8,51 +8,72 @@ class KeyTable(object):
 
     def __init__(self, hc, jkt):
         """
-        :param hc: Hail spark context.
-        :type hc: :class:`.HailContext`
+        :param HailContext hc: Hail spark context.
 
         :param JavaKeyTable jkt: Java KeyTable object.
         """
         self.hc = hc
         self.jkt = jkt
 
+    def _raise_py4j_exception(self, e):
+        self.hc._raise_py4j_exception(e)
+
     def __repr__(self):
-        return self.jkt.toString()
+        try:
+            return self.jkt.toString()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def nfields(self):
         """Number of fields in the key-table
 
         :rtype: int
         """
-        return self.jkt.nFields()
+        try:
+            return self.jkt.nFields()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def schema(self):
         """Key-table schema
 
         :rtype: :class:`.Type`
         """
-        return Type(self.jkt.signature())
+        try:
+            return Type(self.jkt.signature())
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def key_names(self):
         """Field names that are keys
 
         :rtype: list of str
         """
-        return self.jkt.keyNames()
+        try:
+            return self.jkt.keyNames()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def field_names(self):
         """Names of all fields in the key-table
 
         :rtype: list of str
         """
-        return self.jkt.fieldNames()
+        try:
+            return self.jkt.fieldNames()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def nrows(self):
         """Number of rows in the key-table
 
         :rtype: long
         """
-        return self.jkt.nRows()
+        try:
+            return self.jkt.nRows()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+        
 
     def same(self, other):
         """Test whether two key-tables are identical
@@ -62,7 +83,10 @@ class KeyTable(object):
 
         :rtype: bool
         """
-        return self.jkt.same(other.jkt)
+        try:
+            return self.jkt.same(other.jkt)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def export(self, output, types_file=None):
         """Export key-table to a TSV file.
@@ -73,7 +97,10 @@ class KeyTable(object):
 
         :rtype: Nothing.
         """
-        self.jkt.export(self.hc.jsc, output, types_file)
+        try:
+            self.jkt.export(self.hc.jsc, output, types_file)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def filter(self, code, keep=True):
         """Filter rows from key-table.
@@ -84,7 +111,10 @@ class KeyTable(object):
 
         :rtype: :class:`.KeyTable`
         """
-        return KeyTable(self.hc, self.jkt.filter(code, keep))
+        try:
+            return KeyTable(self.hc, self.jkt.filter(code, keep))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def annotate(self, code, key_names=''):
         """Add fields to key-table.
@@ -95,7 +125,10 @@ class KeyTable(object):
 
         :rtype: :class:`.KeyTable`
         """
-        return KeyTable(self.hc, self.jkt.annotate(code, key_names))
+        try:
+            return KeyTable(self.hc, self.jkt.annotate(code, key_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def join(self, right, how='inner'):
         """Join two key-tables together. Both key-tables must have identical key schemas
@@ -108,7 +141,10 @@ class KeyTable(object):
 
         :rtype: :class:`.KeyTable`
         """
-        return KeyTable(self.hc, self.jkt.join(right.jkt, how))
+        try:
+            return KeyTable(self.hc, self.jkt.join(right.jkt, how))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def aggregate_by_key(self, key_code, agg_code):
         """Group by key condition and aggregate results 
@@ -127,7 +163,10 @@ class KeyTable(object):
         if isinstance(agg_code, list):
             agg_code = ", ".join([str(l) for l in list])
 
-        return KeyTable(self.hc, self.jkt.aggregate(key_code, agg_code))
+        try:
+            return KeyTable(self.hc, self.jkt.aggregate(key_code, agg_code))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def forall(self, code):
         """Tests whether a condition is true for all rows
@@ -136,7 +175,10 @@ class KeyTable(object):
 
         :rtype: bool
         """
-        return self.jkt.forall(code)
+        try:
+            return self.jkt.forall(code)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def exists(self, code):
         """Tests whether a condition is true for any row
@@ -145,4 +187,7 @@ class KeyTable(object):
 
         :rtype: bool
         """
-        return self.jkt.exists(code)
+        try:
+            return self.jkt.exists(code)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)

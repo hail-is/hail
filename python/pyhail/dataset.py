@@ -16,8 +16,6 @@ class VariantDataset(object):
         """Aggregate by user-defined key and aggregation expressions.
         Equivalent of a group-by operation in SQL.
 
-        The resulting key-table will have four fields [pheno, gene, nHet, nAlleles] where pheno and gene are the keys.
-
         :param key_code: Named expression(s) for which fields are keys.
         :type key_code: str or list of str
 
@@ -25,6 +23,7 @@ class VariantDataset(object):
         :type agg_code: str or list of str
 
         :rtype: :class:`.KeyTable`
+
         """
 
         return KeyTable(self.hc, self.jvds.aggregateByKey(key_code, agg_code))
