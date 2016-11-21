@@ -152,12 +152,12 @@ class AggregatorSuite extends SparkSuite {
     val s3 = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(22, 80, 5)"))
     s3.vds.rdd.collect.foreach { case (v, (va, gs)) =>
       val r = va.asInstanceOf[Row]
-      val nSmaller = r.getAs[Long](2)
+      val nLess = r.getAs[Long](2)
       val nGreater = r.getAs[Long](3)
 
       val definedGq = gs.flatMap(_.gq)
 
-      assert(nSmaller == definedGq.count(_ < 22))
+      assert(nLess == definedGq.count(_ < 22))
       assert(nGreater == definedGq.count(_ > 80))
     }
 
