@@ -365,7 +365,7 @@ The resulting array is sorted by count in descending order (the most common elem
 <numeric aggregable>.hist( start, end, bins )
 ```
 
-This aggregator is used to compute density distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
+This aggregator is used to compute frequency distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
 
 The result of a `hist` invocation is a struct:
 
@@ -373,7 +373,7 @@ The result of a `hist` invocation is a struct:
 Struct {
     binEdges: Array[Double],
     binFrequencies: Array[Long],
-    nSmaller: Long,
+    nLess: Long,
     nGreater: Long
 }
 ```
@@ -384,7 +384,7 @@ Important properties:
  - (bins + 1) breakpoints are generated from the range `(start to end by binsize)`
  - `binEdges` stores an array of bin cutoffs.  Each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value.  This means that if there are N total bins, there will be N + 1 elements in binEdges.  For the invocation `hist(0, 3, 3)`, `binEdges` would be `[0, 1, 2, 3]` where the bins are `[0, 1)`, `[1, 2)`, `[2, 3]`.
  - `binFrequencies` stores the number of elements in the aggregable that fall in each bin.  It contains one element for each bin.
- - Elements greater than the max bin or smaller than the min bin will be tracked separately by `nSmaller` and `nGreater`
+ - Elements greater than the max bin or less than the min bin will be tracked separately by `nLess` and `nGreater`
 
 **Examples:**
 
@@ -398,7 +398,7 @@ Or, extend the above to compute a global gq histogram:
 
 ```
 annotatevariants expr -c 'va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)'
-annotateglobal expr -c 'global.gqDensity = variants.map(v => va.gqHist.densities).sum()'
+annotateglobal expr -c 'global.gqHist = variants.map(v => va.gqHist.binFrequencies).sum()'
 ```
 
 ### Collect

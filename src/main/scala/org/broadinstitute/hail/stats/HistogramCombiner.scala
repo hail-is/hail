@@ -9,7 +9,7 @@ object HistogramCombiner {
   def schema: Type = TStruct(
     "binEdges" -> TArray(TDouble),
     "binFrequencies" -> TArray(TLong),
-    "nSmaller" -> TLong,
+    "nLess" -> TLong,
     "nGreater" -> TLong)
 }
 
@@ -18,13 +18,13 @@ class HistogramCombiner(indices: Array[Double]) extends Serializable {
   val min = indices.head
   val max = indices(indices.length - 1)
 
-  var nSmaller = 0L
+  var nLess = 0L
   var nGreater = 0L
-  val density = Array.fill(indices.length - 1)(0L)
+  val frequency = Array.fill(indices.length - 1)(0L)
 
   def merge(d: Double): HistogramCombiner = {
     if (d < min)
-      nSmaller += 1
+      nLess += 1
     else if (d > max)
       nGreater += 1
     else if (!d.isNaN) {
@@ -32,27 +32,28 @@ class HistogramCombiner(indices: Array[Double]) extends Serializable {
       val ind = if (bs < 0)
         -bs - 2
       else
-        math.min(bs, density.length - 1)
-      assert(ind < density.length && ind >= 0, s"""found out of bounds index $ind
-        |  Resulted from trying to merge $d
-        |  Indices are [${indices.mkString(", ")}]
-        |  Binary search index was $bs""".stripMargin)
-      density(ind) += 1
+        math.min(bs, frequency.length - 1)
+      assert(ind < frequency.length && ind >= 0,
+        s"""found out of bounds index $ind
+            |  Resulted from trying to merge $d
+            |  Indices are [${ indices.mkString(", ") }]
+            |  Binary search index was $bs""".stripMargin)
+      frequency(ind) += 1
     }
 
     this
   }
 
   def merge(that: HistogramCombiner): HistogramCombiner = {
-    require(density.length == that.density.length)
+    require(frequency.length == that.frequency.length)
 
-    nSmaller += that.nSmaller
+    nLess += that.nLess
     nGreater += that.nGreater
-    for (i <- density.indices)
-      density(i) += that.density(i)
+    for (i <- frequency.indices)
+      frequency(i) += that.frequency(i)
 
     this
   }
 
-  def toAnnotation: Annotation = Annotation(indices: IndexedSeq[Double], density: IndexedSeq[Long], nSmaller, nGreater)
+  def toAnnotation: Annotation = Annotation(indices: IndexedSeq[Double], frequency: IndexedSeq[Long], nLess, nGreater)
 }
