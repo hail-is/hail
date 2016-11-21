@@ -46,21 +46,21 @@ sourceSets.test.runtimeClasspath += files("src/main/c/lib")
 task nativeLib(type: Exec) {
     workingDir 'src/main/c'
     executable 'make'
-    inputs.files('src/main/c/*.cpp', 'src/main/c/*.h')
-    outputs.files('src/main/c/lib')
+    outputs.upToDateWhen { false }
 }
 
 task nativeLibTest(type: Exec) {
     workingDir 'src/main/c'
     args('test')
     executable 'make'
-    inputs.files('src/main/c/*.cpp', 'src/main/c/*.h')
+    outputs.upToDateWhen { false }
 }
 
 task nativeLibClean(type: Exec) {
     workingDir 'src/main/c'
     args('clean')
     executable 'make'
+    outputs.upToDateWhen { false }
 }
 
 sourceSets {
