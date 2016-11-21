@@ -29,7 +29,19 @@ clean:
 	rm -rf lib
 	rm -rf build
 
-libsimdpp:
+# if your build machine cannot access this URL, download this tar.gz and place
+# it in the same directory as this Makefile. If you do so, the build will
+# succeed without attempting to access the Internet.
+WGET ?= wget
+# WGET ?= curl -L -O
+libsimdpp-2.0-rc2.tar.gz:
+	${WGET} https://github.com/p12tic/libsimdpp/archive/v2.0-rc2.tar.gz
+	mv v2.0-rc2.tar.gz libsimdpp-2.0-rc2.tar.gz
+
+libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
+	tar -xzf libsimdpp-2.0-rc2.tar.gz
+
+libsimdpp: libsimdpp-2.0-rc2
 	(cd libsimdpp-2.0-rc2 && cmake .)
 
 lib/darwin/lib%.dylib: %.cpp

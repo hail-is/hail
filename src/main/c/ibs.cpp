@@ -18,51 +18,48 @@ void ibs256(uint64_t* __restrict__ result, hailvec x, hailvec y, hailvec xna, ha
   hailvec na = ~(xna & yna) | leftAllele;
 
   hailvec ibs2 = bit_andnot(nxorSR1 & nxor, na);
+  #if HAIL_VECTOR_WIDTH < 4
   uint64_t ibs2sum = _mm_popcnt_u64(extract<0>(ibs2));
   #if HAIL_VECTOR_WIDTH >= 2
   ibs2sum += _mm_popcnt_u64(extract<1>(ibs2));
   #endif
-  #if HAIL_VECTOR_WIDTH >= 4
-  ibs2sum += _mm_popcnt_u64(extract<2>(ibs2));
-  ibs2sum += _mm_popcnt_u64(extract<3>(ibs2));
-  #endif
-  #if HAIL_VECTOR_WIDTH >= 8
-  ibs2sum += _mm_popcnt_u64(extract<4>(ibs2));
-  ibs2sum += _mm_popcnt_u64(extract<5>(ibs2));
-  ibs2sum += _mm_popcnt_u64(extract<6>(ibs2));
-  ibs2sum += _mm_popcnt_u64(extract<7>(ibs2));
+  #elif HAIL_VECTOR_WIDTH == 4
+  uint64_t ibs2sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs2.operator __m256i(), 0));
+  ibs2sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs2.operator __m256i(), 1));
+  ibs2sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs2.operator __m256i(), 2));
+  ibs2sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs2.operator __m256i(), 3));
+  #else
+  #error "we do not support vectors longer than 4, please file an issue"
   #endif
 
   hailvec ibs1 = bit_andnot(nxorSR1 ^ nxor, na);
+  #if HAIL_VECTOR_WIDTH < 4
   uint64_t ibs1sum = _mm_popcnt_u64(extract<0>(ibs1));
   #if HAIL_VECTOR_WIDTH >= 2
   ibs1sum += _mm_popcnt_u64(extract<1>(ibs1));
   #endif
-  #if HAIL_VECTOR_WIDTH >= 4
-  ibs1sum += _mm_popcnt_u64(extract<2>(ibs1));
-  ibs1sum += _mm_popcnt_u64(extract<3>(ibs1));
-  #endif
-  #if HAIL_VECTOR_WIDTH >= 8
-  ibs1sum += _mm_popcnt_u64(extract<4>(ibs1));
-  ibs1sum += _mm_popcnt_u64(extract<5>(ibs1));
-  ibs1sum += _mm_popcnt_u64(extract<6>(ibs1));
-  ibs1sum += _mm_popcnt_u64(extract<7>(ibs1));
+  #elif HAIL_VECTOR_WIDTH == 4
+  uint64_t ibs1sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs1.operator __m256i(), 0));
+  ibs1sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs1.operator __m256i(), 1));
+  ibs1sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs1.operator __m256i(), 2));
+  ibs1sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs1.operator __m256i(), 3));
+  #else
+  #error "we do not support vectors longer than 4, please file an issue"
   #endif
 
   hailvec ibs0 = bit_andnot(~(nxorSR1 | nxor), na);
+  #if HAIL_VECTOR_WIDTH < 4
   uint64_t ibs0sum = _mm_popcnt_u64(extract<0>(ibs0));
   #if HAIL_VECTOR_WIDTH >= 2
   ibs0sum += _mm_popcnt_u64(extract<1>(ibs0));
   #endif
-  #if HAIL_VECTOR_WIDTH >= 4
-  ibs0sum += _mm_popcnt_u64(extract<2>(ibs0));
-  ibs0sum += _mm_popcnt_u64(extract<3>(ibs0));
-  #endif
-  #if HAIL_VECTOR_WIDTH >= 8
-  ibs0sum += _mm_popcnt_u64(extract<4>(ibs0));
-  ibs0sum += _mm_popcnt_u64(extract<5>(ibs0));
-  ibs0sum += _mm_popcnt_u64(extract<6>(ibs0));
-  ibs0sum += _mm_popcnt_u64(extract<7>(ibs0));
+  #elif HAIL_VECTOR_WIDTH == 4
+  uint64_t ibs0sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs0.operator __m256i(), 0));
+  ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0.operator __m256i(), 1));
+  ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0.operator __m256i(), 2));
+  ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0.operator __m256i(), 3));
+  #else
+  #error "we do not support vectors longer than 4, please file an issue"
   #endif
 
   result[0] += ibs0sum;
