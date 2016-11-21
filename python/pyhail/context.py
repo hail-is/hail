@@ -1,16 +1,47 @@
 import pyspark
 
 from pyhail.dataset import VariantDataset
-from pyhail.java import jarray, scala_object
+from pyhail.java import jarray, scala_object, scala_package_object
+from py4j.protocol import Py4JJavaError
+
+
+class FatalError(Exception):
+    """:class:`.FatalError` is an error thrown by Hail method failures"""
+
+    def __init__(self, message, java_exception):
+        self.msg = message
+        self.java_exception = java_exception
+        super(FatalError)
+
+    def __str__(self):
+        return self.msg
+
 
 class HailContext(object):
     """:class:`.HailContext` is the main entrypoint for PyHail
     functionality.
 
     :param SparkContext sc: The pyspark context.
+
+    :param str log: Log file.
+
+    :param bool quiet: Don't write log file.
+
+    :param bool append: Append to existing log file.
+
+    :param long block_size: Minimum size of file splits in MB.
+
+    :param str parquet_compression: Parquet compression codec.
+
+    :param int branching_factor: Branching factor to use in tree aggregate.
+
+    :param str tmp_dir: Temporary directory for file merging.
     """
 
-    def __init__(self, sc):
+    def __init__(self, sc=None, log='hail.log', quiet=False, append=False,
+                 block_size=1, parquet_compression='uncompressed',
+                 branching_factor=50, tmp_dir='/tmp'):
+
         self.sc = sc
 
         self.gateway = sc._gateway
@@ -23,17 +54,24 @@ class HailContext(object):
 
         self.sql_context = pyspark.sql.SQLContext(sc, self.jsql_context)
 
-        self.jsc.hadoopConfiguration().set(
-            'io.compression.codecs',
-            'org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec')
+        scala_package_object(self.jvm.org.broadinstitute.hail.driver).configure(
+            self.jsc,
+            log,
+            quiet,
+            append,
+            parquet_compression,
+            block_size,
+            branching_factor,
+            tmp_dir)
 
-        logger = sc._jvm.org.apache.log4j
-        logger.LogManager.getLogger("org"). setLevel(logger.Level.ERROR)
-        logger.LogManager.getLogger("akka").setLevel(logger.Level.ERROR)
 
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
             self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
+
+    def _raise_py4j_exception(self, e):
+        msg = scala_package_object(self.jvm.org.broadinstitute.hail.utils).getMinimalMessage(e.java_exception)
+        raise FatalError(msg, e.java_exception)
 
     def run_command(self, vds, pargs):
         jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
@@ -41,8 +79,12 @@ class HailContext(object):
         cmd = t._1()
         cmd_args = t._2()
         jstate = self._jstate(vds.jvds if vds != None else None)
-        result = cmd.run(jstate,
-                         cmd_args)
+
+        try:
+            result = cmd.run(jstate, cmd_args)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
         return VariantDataset(self, result.vds())
 
     def grep(self, regex, path, max_count=100):
@@ -74,7 +116,7 @@ class HailContext(object):
                                  # text table options
                                  types=None, missing="NA", delimiter="\\t", comment=None,
                                  header=True, impute=False):
-        """Import variants and variant annotaitons from a delimited text file
+        """Import variants and variant annotations from a delimited text file
         (text table) as a sites-only VariantDataset.
 
         :param path: The files to import.
@@ -427,7 +469,8 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ['baldingnichols', '-k', str(populations), '-n', str(samples), '-m', str(variants), '--npartitions', str(npartitions),
+        pargs = ['baldingnichols', '-k', str(populations), '-n', str(samples), '-m', str(variants), '--npartitions',
+                 str(npartitions),
                  '--root', root]
         if population_dist:
             pargs.append('-d')

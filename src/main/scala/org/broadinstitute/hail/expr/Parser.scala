@@ -20,6 +20,17 @@ object ParserUtils {
         lineContents.take(pos.column - 1).map { c => if (c == '\t') c else ' ' }
       }^""".stripMargin)
   }
+
+  def error(pos: Position, msg: String, tr: Truncatable): Nothing = {
+    val lineContents = pos.longString.split("\n").head
+    val prefix = s"<input>:${ pos.line }:"
+    fatal(
+      s"""$msg
+         |$prefix$lineContents
+         |${ " " * prefix.length }${
+        lineContents.take(pos.column - 1).map { c => if (c == '\t') c else ' ' }
+      }^""".stripMargin, tr)
+  }
 }
 
 object Parser extends JavaTokenParsers {

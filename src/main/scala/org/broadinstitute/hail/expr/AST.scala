@@ -1649,9 +1649,10 @@ case class IndexOp(posn: Position, f: AST, idx: AST) extends AST(posn, Array(f, 
         } catch {
           case e: java.lang.IndexOutOfBoundsException =>
             ParserUtils.error(localPos,
-              s"""Tried to access index [$i] on array ${ JsonMethods.compact(localT.toJSON(a)) } of length ${ a.length }
+              s"""Invalid array index: tried to access index [$i] on array `@1' of length ${ a.length }
                   |  Hint: All arrays in Hail are zero-indexed (`array[0]' is the first element)
-                  |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex - 1]' is correct""".stripMargin)
+                  |  Hint: For accessing `A'-numbered info fields in split variants, `va.info.field[va.aIndex - 1]' is correct""".stripMargin,
+              JsonMethods.compact(localT.toJSON(a)))
           case e: Throwable => throw e
         })
 

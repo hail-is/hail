@@ -923,6 +923,18 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     sqlContext.createDataFrame(rowRDD, schema)
   }
 
+  def samplesDF(sqlContext: SQLContext): DataFrame = {
+    val rowRDD = sparkContext.parallelize(
+      sampleIdsAndAnnotations.map { case (s, sa) =>
+        Row(s, SparkAnnotationImpex.exportAnnotation(sa, saSignature))
+      })
+    val schema = StructType(Array(
+      StructField("sample", StringType, nullable = false),
+      StructField("sa", saSignature.schema, nullable = true)
+    ))
+
+    sqlContext.createDataFrame(rowRDD, schema)
+  }
 }
 
 // FIXME AnyVal Scala 2.11

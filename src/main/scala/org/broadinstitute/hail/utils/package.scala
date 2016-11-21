@@ -15,7 +15,44 @@ package object utils extends Logging
   with richUtils.Implicits
   with utils.NumericImplicits {
 
-  class FatalException(msg: String, logMsg: Option[String] = None) extends RuntimeException(msg)
+  class FatalException(val msg: String, val logMsg: Option[String] = None) extends RuntimeException(msg)
+
+  def digForFatal(e: Throwable): Option[String] = {
+    val r = e match {
+      case f: FatalException =>
+        println(s"found fatal $f")
+        Some(s"${ e.getMessage }")
+      case _ =>
+        Option(e.getCause).flatMap(c => digForFatal(c))
+    }
+    r
+  }
+
+  def deepestMessage(e: Throwable): String = {
+    var iterE = e
+    while (iterE.getCause != null)
+      iterE = iterE.getCause
+
+    s"${ e.getClass.getSimpleName }: ${ e.getLocalizedMessage }"
+  }
+
+  def expandException(e: Throwable): String = {
+    val msg = e match {
+      case f: FatalException => f.logMsg.getOrElse(f.msg)
+      case _ => e.getLocalizedMessage
+    }
+    s"${ e.getClass.getName }: $msg\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
+      Option(e.getCause).map(exception => expandException(exception)).getOrElse("")
+    }"
+  }
+
+  def getMinimalMessage(e: Exception): String = {
+    val fatalOption = digForFatal(e)
+    val prefix = if (fatalOption.isDefined) "fatal" else "caught exception"
+    val msg = fatalOption.getOrElse(deepestMessage(e))
+    log.error(s"hail: $prefix: $msg\nFrom ${ expandException(e) }")
+    msg
+  }
 
   trait Truncatable {
     def truncate: String

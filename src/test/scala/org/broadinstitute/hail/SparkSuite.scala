@@ -34,6 +34,9 @@ class SparkSuite extends TestNGSuite {
     val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
     HailConfiguration.installDir = new File(jar).getParent + "/.."
     HailConfiguration.tmpDir = "/tmp"
+
+    driver.configure(sc, logFile = "hail.log", quiet = true, append = false,
+      parquetCompression = "uncompressed", blockSize = 1L, branchingFactor = 50, tmpDir = "/tmp")
   }
 
   @AfterClass(alwaysRun = true)

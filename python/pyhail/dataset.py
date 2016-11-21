@@ -1,11 +1,16 @@
 from pyhail.java import scala_package_object
 
 import pyspark
+from py4j.protocol import Py4JJavaError
+
 
 class VariantDataset(object):
     def __init__(self, hc, jvds):
         self.hc = hc
         self.jvds = jvds
+
+    def _raise_py4j_exception(self, e):
+        self.hc._raise_py4j_exception(e)
 
     def aggregate_intervals(self, input, condition, output):
         """Aggregate over intervals and export.
@@ -324,9 +329,12 @@ class VariantDataset(object):
 
         """
 
-        return (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
-                .count(self.jvds, genotypes)
-                .toJavaMap())
+        try:
+            return (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+                    .count(self.jvds, genotypes)
+                    .toJavaMap())
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def deduplicate(self):
         """Remove duplicate variants."""
@@ -505,7 +513,7 @@ class VariantDataset(object):
         :param str output: Path of .vds file to write.
 
         :param bool overwrite: If True, overwrite any existing .vds file.
-        
+
         """
 
         pargs = ['write', '-o', output]
@@ -710,11 +718,10 @@ class VariantDataset(object):
         and global annotations from self.
 
         """
-
-        return VariantDataset(
-            self.hc,
-            self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jvds,
-                                                                 right.jvds))
+        try:
+            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jvds, right.jvds))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def linreg(self, y, covariates='', root='va.linreg', minac=1, minaf=None):
         """Test each variant for association using the linear regression
@@ -877,8 +884,10 @@ class VariantDataset(object):
         :rtype: bool
 
         """
-
-        return self.jvds.same(other.jvds, 1e-6)
+        try:
+            return self.jvds.same(other.jvds, 1e-6)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def sample_qc(self, branching_factor=None):
         """Compute per-sample QC metrics.
@@ -926,7 +935,7 @@ class VariantDataset(object):
             pargs.append('--propagate-gq')
         return self.hc.run_command(self, pargs)
 
-    def tdt(self, fam, root = 'va.tdt'):
+    def tdt(self, fam, root='va.tdt'):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
@@ -987,5 +996,16 @@ class VariantDataset(object):
     def variants_to_pandas(self):
         """Convert variants and variant annotations to Pandas dataframe."""
 
-        return pyspark.sql.DataFrame(self.jvds.variantsDF(self.hc.jsql_context),
-                                     self.hc.sql_context).toPandas()
+        try:
+            return pyspark.sql.DataFrame(self.jvds.variantsDF(self.hc.jsql_context),
+                                         self.hc.sql_context).toPandas()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def samples_to_pandas(self):
+        """Convert samples and sample annotations to Pandas dataframe."""
+        try:
+            return pyspark.sql.DataFrame(self.jvds.samplesDF(self.hc.jsql_context),
+                                         self.hc.sql_context).toPandas()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
