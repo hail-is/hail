@@ -1,4 +1,4 @@
-from pyhail.utils import Type
+from pyhail.type import Type
 
 class KeyTable(object):
     """:class:`.KeyTable` is Hail's version of a SQL table where fields
