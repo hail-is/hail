@@ -278,13 +278,13 @@ package object stats {
   // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
   def qnorm(p: Double) = sqrt2 * Erf.erfInv(2 * p - 1)
 
-  // Returns the p for which p = Prob(C > x) with C a chi-squared RV with one degree of freedom
+  // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with one degree of freedom
   // This implementation avoids the round-off error truncation issue in
   // org.apache.commons.math3.distribution.ChiSquaredDistribution,
   // which computes the CDF with regularizedGammaP and p = 1 - CDF.
   def chiSquaredTail(df: Double, x: Double) = Gamma.regularizedGammaQ(df / 2, x / 2)
 
-  // Returns the x for which p = Prob(C > x) with C a chi-squared RV with one degree of freedom
+  // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with one degree of freedom
   def inverseChiSquaredTailOneDF(p: Double) = {
     val q = qnorm(0.5 * p)
     q * q

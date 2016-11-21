@@ -60,10 +60,10 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - rnorm(mean, sd) -- returns a random draw from a normal distribution with mean `mean` and standard deviation `sd`. `sd` should be non-negative
      
  - Statistics
-    - pnorm(x) -- Returns left-tail probability p for which p = Prob(Z < x) with Z a standard normal random variable
-    - qnorm(p) -- Returns left-quantile x for which p = Prob(Z < x) with Z a standard normal random variable. `p` must satisfy `0 < p < 1`. Inverse of `pnorm`
-    - pchisq1tail(x) -- Returns right-tail probability p for which p = Prob(C > x) with C a chi-squared random variable with one degree of freedom. `x` must be positive
-    - qchisq1tail(p) -- Returns right-quantile x for which p = Prob(C > x) with C a chi-squared RV with one degree of freedom. `p` must satisfy `0 < p <= 1`. Inverse of `pchisq1tail`
+    - pnorm(x) -- Returns left-tail probability p for which p = Prob($Z$ < x) with $Z$ a standard normal random variable
+    - qnorm(p) -- Returns left-quantile x for which p = Prob($Z$ < x) with $Z$ a standard normal random variable. `p` must satisfy `0 < p < 1`. Inverse of `pnorm`
+    - pchisq1tail(x) -- Returns right-tail probability p for which p = Prob($Z^2$ > x) with $Z^2$ a chi-squared random variable with one degree of freedom. `x` must be positive
+    - qchisq1tail(p) -- Returns right-quantile x for which p = Prob($Z^2$ > x) with $Z^2$ a chi-squared RV with one degree of freedom. `p` must satisfy `0 < p <= 1`. Inverse of `pchisq1tail`
 
  - Array Operations:
      - constructor: `[element1, element2, ...]` -- Create a new array from elements of the same type.
