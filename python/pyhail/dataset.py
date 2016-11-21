@@ -184,6 +184,50 @@ class VariantDataset(object):
 
         :param str condition: Annotation expression.
 
+        :rtype: :class:`.VariantDataset`
+
+        To add new variant annotations to the :class:`.VariantDataset`
+        computed from existing annotations, use a named annotation
+        expression where the left hand side specifies the location
+        where the new variant annotation should be stored and the
+        right hand side specifies how to compute the new annotation
+        based on existing annotations.
+
+        For example, the annotation
+        expression ``va.isSingleton = va.info.AC == 1`` specifies that a
+        new annotation will be inserted into the path ``va.isSingleton``
+        that is computed by testing whether the AC is equal to 1 from the
+        INFO field (``va.info``). The resulting annotation at ``va.isSingleton``
+        will be of Boolean type.
+
+        The variables available on the right hand side when writing expressions are ``v`` (`Variant <../reference.html#variant>`_),
+        ``va`` (Variant Annotations), ``global`` (Global Annotations), and ``gs`` (genotype row).
+        The genotype row is an `aggregable of genotypes <../reference.html#aggregables>`_ with a local scope of ``g`` (Genotype),
+        ``v`` (Variant), ``s`` (Sample), ``va`` (Variant Annotations), ``sa`` (Sample Annotations), and
+        ``global`` (Global Annotations). More documentation is available on writing `expressions <../overview.html#expressions>`_
+        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
+
+        Multiple variant annotations can be inserted simultaneously by separating
+        each annotation expression with a comma such as
+        ``va.counts.nHet = gs.map(g => g.isHet).count(), va.counts.nHomRef = gs.map(g => g.isHomRef).count()``
+
+        If an annotation path contains special characters (like whitespace, ``:``, ``-``, etc...),
+        access it by escaping an identifier with backticks: ``va.`layer one`.`layer two`.`layer three```
+
+        **Examples**::
+
+            from pyhail import *
+            hc = HailContext(sc) # create Hail context
+
+            # Import VCF file
+            vds = hc.import_vcf('src/test/resources/sample.vcf')
+
+            # Compute GQ statistics about heterozygotes, per variant
+            vds = vds.annotate_variants_expr("va.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()")
+
+            # Collect a list of sample IDs with non-ref calls in LOF variants
+            vds = vds.annotate_variants_expr("va.nonRefSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()")
+
         """
         pargs = ['annotatevariants', 'expr', '-c', condition]
         return self.hc.run_command(self, pargs)
