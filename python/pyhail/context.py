@@ -3,7 +3,7 @@ import pyspark
 from pyhail.dataset import VariantDataset
 from pyhail.java import jarray, scala_object, scala_package_object
 from pyhail.keytable import KeyTable
-from pyhail.TextTableConfig import TextTableConfig
+from pyhail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
 
 class FatalError(Exception):
