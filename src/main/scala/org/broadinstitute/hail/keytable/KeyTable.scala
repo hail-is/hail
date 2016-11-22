@@ -166,7 +166,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     (t, f2)
   }
 
-  def annotate(cond: String, keyNameString: String): KeyTable = {
+  def annotate(cond: String, keysStr: String): KeyTable = {
     val ec = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
 
     val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, None)
@@ -181,7 +181,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val inserters = inserterBuilder.result()
 
-    val keyNameArray = if (keyNameString != null) Parser.parseIdentifierList(keyNameString) else keyNames
+    val keys = Parser.parseIdentifierList(keysStr)
 
     val nFieldsLocal = nFields
 
@@ -194,7 +194,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
         }
     }
 
-    KeyTable(mapAnnotations(f), finalSignature, keyNameArray)
+    KeyTable(mapAnnotations(f), finalSignature, keys)
   }
 
   def filter(p: (Annotation, Annotation) => Boolean): KeyTable =

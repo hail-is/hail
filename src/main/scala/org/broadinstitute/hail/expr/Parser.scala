@@ -75,13 +75,10 @@ object Parser extends JavaTokenParsers {
   }
 
   def parseIdentifierList(code: String): Array[String] = {
-    if (code.matches("""\s*"""))
-      Array.empty[String]
-    else
-      parseAll(identifierList, code) match {
-        case Success(result, _) => result
-        case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-      }
+    parseAll(identifierList, code) match {
+      case Success(result, _) => result
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
   }
 
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
@@ -93,7 +90,7 @@ object Parser extends JavaTokenParsers {
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
   }
-  
+
   def parseNamedArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
     val result = parseAll(export_args, code) match {
       case Success(r, _) => r
@@ -301,7 +298,7 @@ object Parser extends JavaTokenParsers {
     tsvIdentifier ~ "=" ~ expr ^^ { case id ~ _ ~ expr => (id, expr) }
 
   def annotationExpressions: Parser[Array[(List[String], AST)]] =
-    rep1sep(annotationExpression, ",") ^^ {
+    repsep(annotationExpression, ",") ^^ {
       _.toArray
     }
 
@@ -323,7 +320,7 @@ object Parser extends JavaTokenParsers {
 
   def identifier = backtickLiteral | ident
 
-  def identifierList: Parser[Array[String]] = rep1sep(identifier, ",") ^^ {
+  def identifierList: Parser[Array[String]] = repsep(identifier, ",") ^^ {
     _.toArray
   }
 

@@ -42,19 +42,18 @@ class KeyTableSuite extends SparkSuite {
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val kt1 = KeyTable.importTextTable(sc, Array(inputFile), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
-    val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""", null)
-    val kt3 = kt2.annotate(null, null)
-    val kt4 = kt3.annotate(null, "qPhen, NotStatus")
+    val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""", kt1.keyNames.mkString(","))
+    val kt3 = kt2.annotate("", kt2.keyNames.mkString(","))
+    val kt4 = kt3.annotate("", "qPhen, NotStatus")
 
     val kt1ValueNames = kt1.valueNames.toSet
     val kt2ValueNames = kt2.valueNames.toSet
 
-    assert(kt1.nKeys == kt2.nKeys &&
-      kt1.nValues == 2 && kt2.nValues == 5 &&
-      kt1.keySignature == kt2.keySignature &&
-      kt1ValueNames ++ Set("qPhen2", "NotStatus", "X") == kt2ValueNames
-    )
-
+    assert(kt1.nKeys == 1)
+    assert(kt2.nKeys == 1)
+    assert(kt1.nValues == 2 && kt2.nValues == 5)
+    assert(kt1.keySignature == kt2.keySignature)
+    assert(kt1ValueNames ++ Set("qPhen2", "NotStatus", "X") == kt2ValueNames)
     assert(kt2 same kt3)
 
     def getDataAsMap(kt: KeyTable) = {
