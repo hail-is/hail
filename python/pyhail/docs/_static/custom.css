@@ -5,14 +5,6 @@ body {
   background: #fefefe;
 }
 
-
-.jumptarget::before {
-    content: "";
-    display: block;
-    height: 60px;
-    margin: -60px 0 0;
-}
-
 .document dt {
     margin-top: 35px;
 }

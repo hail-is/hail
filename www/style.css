@@ -7,7 +7,7 @@ html {
   -ms-text-size-adjust: 100%;
 }
 
-body {
+#body {
   color: #444;
   font-family: Georgia, Palatino, 'Palatino Linotype', Times, 'Times New Roman', serif;
   font-size: 12px;
@@ -239,12 +239,12 @@ table td {
 }
 
 @media only screen and (min-width: 480px) {
-  body {
+  #body {
     font-size: 14px;
   }
 }
 @media only screen and (min-width: 768px) {
-  body {
+  #body {
     font-size: 16px;
   }
 }
@@ -256,7 +256,7 @@ table td {
     -ms-filter: none !important;
   }
 
-  body {
+  #body {
     font-size: 12pt;
     max-width: 100%;
   }
@@ -340,7 +340,7 @@ h4.required, h4.optional {
     margin-top: 0em;
 }
 
-body > div:not(.command) > *:not(h1):not(h2) {
+#body > div:not(.command) > *:not(h1):not(h2) {
     position: relative;
     margin-left: 50px;
 }
@@ -381,13 +381,6 @@ pre:not(.synopsis) > code  {
 
 #HailExpressionLanguage li {
     margin-bottom: 10px;
-}
-
-.jumptarget::before {
-    content: "";
-    display: block;
-    height: 50px;
-    margin: -50px 0 0;
 }
 
 h4.faq {
