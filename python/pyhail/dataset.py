@@ -1,8 +1,8 @@
 from pyhail.java import scala_package_object
+from pyhail.keytable import KeyTable
 
 import pyspark
 from py4j.protocol import Py4JJavaError
-
 
 class VariantDataset(object):
     def __init__(self, hc, jvds):
@@ -11,6 +11,22 @@ class VariantDataset(object):
 
     def _raise_py4j_exception(self, e):
         self.hc._raise_py4j_exception(e)
+
+    def aggregate_by_key(self, key_code, agg_code):
+        """Aggregate by user-defined key and aggregation expressions.
+        Equivalent of a group-by operation in SQL.
+
+        :param key_code: Named expression(s) for which fields are keys.
+        :type key_code: str or list of str
+
+        :param agg_code: Named aggregation expression(s).
+        :type agg_code: str or list of str
+
+        :rtype: :class:`.KeyTable`
+
+        """
+
+        return KeyTable(self.hc, self.jvds.aggregateByKey(key_code, agg_code))
 
     def aggregate_intervals(self, input, condition, output):
         """Aggregate over intervals and export.
@@ -46,7 +62,6 @@ class VariantDataset(object):
 
         :param bool as_set: If True, load text file as Set[String],
             otherwise, load as Array[String].
-
         """
 
         pargs = ['annotateglobal', 'list', '-i', input, '-r', root]

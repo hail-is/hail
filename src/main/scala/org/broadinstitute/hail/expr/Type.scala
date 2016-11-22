@@ -6,6 +6,7 @@ import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.{Annotation, AnnotationPathException, _}
 import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, _}
+import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils
 import org.broadinstitute.hail.utils.{Interval, StringEscapeUtils}
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
@@ -249,6 +250,14 @@ abstract class TAggregable extends BaseType {
   def f: (Any) => Any
 }
 
+case class KeyTableAggregable(ec: EvalContext, elementType: Type, idx: Int) extends TAggregable {
+  def f: (Any) => Any = {
+    (a: Any) => {
+      KeyTable.annotationToSeq(a, ec.st.size)(idx)
+    }
+  }
+}
+
 case class BaseAggregable(ec: EvalContext, elementType: Type) extends TAggregable {
   def f: (Any) => Any = identity
 }
@@ -454,6 +463,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     fields.map(f => (f.name, f.index)).toMap
 
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
+
+  def hasField(name: String): Boolean = fieldIdx.contains(name)
 
   def size: Int = fields.length
 

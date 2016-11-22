@@ -58,7 +58,7 @@ object AggregateIntervals extends Command {
     ec.set(1, vds.globalAnnotation)
     aggregationEC.set(1, vds.globalAnnotation)
 
-    val (header, _, f) = Parser.parseNamedArgs(cond, ec)
+    val (header, _, f) = Parser.parseExportArgs(cond, ec)
 
     if (header.isEmpty)
       fatal("this module requires one or more named expr arguments")
@@ -66,8 +66,6 @@ object AggregateIntervals extends Command {
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
 
     val zvf = () => zVals.indices.map(zVals).toArray
-
-    val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
 
     val iList = IntervalListAnnotator.read(options.input, sc.hadoopConfiguration)
     val iListBc = sc.broadcast(iList)

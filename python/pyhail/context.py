@@ -2,8 +2,9 @@ import pyspark
 
 from pyhail.dataset import VariantDataset
 from pyhail.java import jarray, scala_object, scala_package_object
+from pyhail.keytable import KeyTable
+from pyhail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
-
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -15,7 +16,6 @@ class FatalError(Exception):
 
     def __str__(self):
         return self.msg
-
 
 class HailContext(object):
     """:class:`.HailContext` is the main entrypoint for PyHail
@@ -277,7 +277,43 @@ class HailContext(object):
 
         return self.run_command(None, pargs)
 
-    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing="NA", quantpheno=False):
+    def import_keytable(self, path, key_names, npartitions=None, config=None):
+        """Import delimited text file (text table) as KeyTable.
+
+        :param path: files to import.
+        :type path: str or list of str
+
+        :param key_names: The name(s) of fields to be considered keys
+        :type key_names: str or list of str
+
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
+
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
+
+        :rtype: :class:`.KeyTable`
+        """
+        path_args = []
+        if isinstance(path, str):
+            path_args.append(path)
+        else:
+            for p in path:
+                path_args.append(p)
+
+        if not isinstance(key_names, str):
+            key_names = ','.join(key_names)
+
+        if not npartitions:
+            npartitions = self.sc.defaultMinPartitions
+
+        if not config:
+            config = TextTableConfig()
+
+        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(
+            self.jsc, jarray(self.gateway, self.jvm.java.lang.String, path_args), key_names, npartitions, config.to_java(self)))
+
+    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """
         Import PLINK binary file (.bed, .bim, .fam) as VariantDataset
 

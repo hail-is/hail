@@ -48,7 +48,7 @@ object AnnotateGlobalExpr extends Command {
     aggECS.set(1, vds.globalAnnotation)
     aggECV.set(1, vds.globalAnnotation)
 
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Annotation.GLOBAL_HEAD)
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Some(Annotation.GLOBAL_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
 
@@ -82,7 +82,7 @@ object AnnotateGlobalExpr extends Command {
     val ga = inserters
       .zip(fns.map(_ ()))
       .foldLeft(vds.globalAnnotation) { case (a, (ins, res)) =>
-        ins(a, res)
+        ins(a, Option(res))
       }
 
     state.copy(vds = vds.copy(

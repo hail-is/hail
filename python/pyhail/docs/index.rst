@@ -17,6 +17,12 @@ Contents:
 .. autoclass:: pyhail.VariantDataset
    :members:
 
+.. autoclass:: pyhail.KeyTable
+   :members:
+
+.. autoclass:: pyhail.TextTableConfig
+   :members:
+
 Indices and tables
 ==================
 
