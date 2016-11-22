@@ -13,10 +13,10 @@ body {
   font-size: 12px;
   line-height: 1.7;
   padding: 1em;
+  padding-top: 0px;
   margin: auto;
   max-width: 42em;
   background: #fefefe;
-  padding-top: 70px;
 }
 
 a, a code {
