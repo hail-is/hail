@@ -9,14 +9,7 @@
 <script>
     $(document).ready(function () {
 
-      $(".document dt").each(function () {
-        var element = $(this);
-        var id = element.attr("id");
-        function anchor(id) { return "<a class=jumptarget name=" + id + "></a>"; }
-        $(this).prepend(anchor(id));
-      });
-
-      $("#hail-navbar").load("/navbar.html", function () {
+      $("#hail-navbar").load("_static/navbar_pyhail.html", function () {
         $(".nav li").removeClass("active");
         $('#docs').addClass('active');
         $('#pyhail').addClass('active');
@@ -27,6 +20,6 @@
 {% endblock %}
 
 {% block relbar1 %}
-<nav class="navbar navbar-default navbar-fixed-top" id="hail-navbar"></nav>
+<nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
 {{ super() }}
 {% endblock %}

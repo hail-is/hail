@@ -132,7 +132,6 @@ html_theme = 'alabaster'
 # documentation.
 #
 html_theme_options = {
-    "fixed_sidebar": "true"
 }
 
 # Add any paths that contain custom themes here, relative to this directory.

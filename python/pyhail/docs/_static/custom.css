@@ -3,7 +3,6 @@ body {
   font-family: Georgia, Palatino, 'Palatino Linotype', Times, 'Times New Roman', serif;
   font-size: 14px;
   background: #fefefe;
-  padding-top: 70px;
 }
 
 
@@ -12,10 +11,6 @@ body {
     display: block;
     height: 60px;
     margin: -60px 0 0;
-}
-
-.document dt:target {
-    background: none;
 }
 
 .document dt {
