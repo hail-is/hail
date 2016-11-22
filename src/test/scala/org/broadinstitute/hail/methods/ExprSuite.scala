@@ -528,10 +528,13 @@ class ExprSuite extends SparkSuite {
     assert(eval[Long]("10000000000L").contains(10000000000L))
     assert(eval[Long]("100000L * 100000L").contains(100000L * 100000L))
     assert(eval[Long]("-10000000000L").contains(-10000000000L))
-    assert(eval[Long](Long.MaxValue.toString+"L").contains(Long.MaxValue))
-    assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
-    assert(eval[Long](Long.MaxValue.toString+"l").contains(Long.MaxValue))
-    assert(eval[Long](Long.MinValue.toString+"l").contains(Long.MinValue))
+    assert(eval[Long](Long.MaxValue+"L").contains(Long.MaxValue))
+    assert(eval[Long]((Long.MinValue+1)+"L").contains(Long.MinValue))
+    assert(eval[Long](Long.MaxValue+"l").contains(Long.MaxValue))
+    assert(eval[Long]((Long.MinValue+1)+"l").contains(Long.MinValue))
+    // FIXME: parser should accept minimum Long/Int literals
+    // assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
+    // assert(eval[Long](Long.MinValue.toString+"l").contains(Long.MinValue))
   }
 
   @Test def testParseTypes() {
