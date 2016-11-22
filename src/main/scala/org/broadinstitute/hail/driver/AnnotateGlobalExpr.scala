@@ -48,7 +48,7 @@ object AnnotateGlobalExpr extends Command {
     aggECS.set(1, vds.globalAnnotation)
     aggECV.set(1, vds.globalAnnotation)
 
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Option(Annotation.GLOBAL_HEAD))
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Some(Annotation.GLOBAL_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
 

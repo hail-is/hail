@@ -47,7 +47,7 @@ object AnnotateSamplesExpr extends Command {
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(4, vds.globalAnnotation)
 
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Option(Annotation.SAMPLE_HEAD))
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Some(Annotation.SAMPLE_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val finalType = parseTypes.foldLeft(vds.saSignature) { case (sas, (ids, signature)) =>

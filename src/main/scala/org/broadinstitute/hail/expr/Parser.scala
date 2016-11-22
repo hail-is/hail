@@ -162,7 +162,7 @@ object Parser extends JavaTokenParsers {
     }
 
     def checkType(l: List[String], t: BaseType): Type = {
-      if (expectedHead.isDefined && l.head != expectedHead.get)
+      if (expectedHead.exists(l.head != _))
         fatal(
           s"""invalid annotation path `${ l.map(prettyIdentifier).mkString(".") }'
               |  Path should begin with `$expectedHead'

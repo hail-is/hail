@@ -49,7 +49,7 @@ object AnnotateVariantsExpr extends Command {
     ec.set(2, vds.globalAnnotation)
     aggregationEC.set(4, vds.globalAnnotation)
 
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Option(Annotation.VARIANT_HEAD))
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Some(Annotation.VARIANT_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val finalType = parseTypes.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>

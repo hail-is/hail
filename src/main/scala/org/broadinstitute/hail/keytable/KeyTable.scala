@@ -16,29 +16,23 @@ import scala.reflect.ClassTag
 
 object KeyTable extends Serializable with TextExporter {
 
-  def importTextTable(sc: SparkContext, path: Array[String], keyNames: String, nPartitions: Int, config: TextTableConfiguration) = {
+  def importTextTable(sc: SparkContext, path: Array[String], keysStr: String, nPartitions: Int, config: TextTableConfiguration) = {
+    require(nPartitions > 1)
+
     val files = sc.hadoopConfiguration.globAll(path)
     if (files.isEmpty)
       fatal("Arguments referred to no files")
-    
-    val keyNameArray = Parser.parseIdentifierList(keyNames)
+
+    val keys = Parser.parseIdentifierList(keysStr)
 
     val (struct, rdd) =
-      if (nPartitions < 1)
-        fatal("requested number of partitions in -n/--npartitions must be positive")
-      else
-        TextTableReader.read(sc)(files, config, nPartitions)
+      TextTableReader.read(sc)(files, config, nPartitions)
 
-    val keyNamesValid = keyNameArray.forall { k =>
-      val res = struct.selfField(k).isDefined
-      if (!res)
-        println(s"Key `$k' is not present in input table")
-      res
-    }
-    if (!keyNamesValid)
-      fatal("Invalid key names given")
+    val invalidKeys = keys.filter(!struct.hasField(_))
+    if (invalidKeys.nonEmpty)
+      fatal(s"invalid keys: ${ invalidKeys.mkString(", ") }")
 
-    KeyTable(rdd.map(_.value), struct, keyNameArray)
+    KeyTable(rdd.map(_.value), struct, keys)
   }
 
   def annotationToSeq(a: Annotation, nFields: Int) = Option(a).map(_.asInstanceOf[Row].toSeq).getOrElse(Seq.fill[Any](nFields)(null))
@@ -81,7 +75,6 @@ object KeyTable extends Serializable with TextExporter {
 }
 
 case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, valueSignature: TStruct) {
-
   require(fieldNames.areDistinct())
 
   def signature = keySignature.merge(valueSignature)._1
@@ -176,11 +169,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def annotate(cond: String, keyNameString: String): KeyTable = {
     val ec = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
 
-    val (parseTypes, fns) =
-      if (cond != null)
-        Parser.parseAnnotationArgs(cond, ec, None)
-      else
-        (Array.empty[(List[String], Type)], Array.empty[() => Any])
+    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, None)
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
 
@@ -230,8 +219,8 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     if (keySignature != other.keySignature)
       fatal(
         s"""Key signatures must be identical.
-            |Left signature: $keySignature
-            |Right signature: ${ other.keySignature }""".stripMargin)
+            |Left signature: ${ keySignature.toPrettyString(compact = true) }
+            |Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
 
     val overlappingFields = valueNames.toSet.intersect(other.valueNames.toSet)
     if (overlappingFields.nonEmpty)
@@ -353,11 +342,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
       else
         (Array.empty[(List[String], Type)], Array.empty[() => Any])
 
-    val (aggNameParseTypes, aggF) =
-      if (aggCond != null)
-        Parser.parseAnnotationArgs(aggCond, ec, None)
-      else
-        (Array.empty[(List[String], Type)], Array.empty[() => Any])
+    val (aggNameParseTypes, aggF) = Parser.parseAnnotationArgs(aggCond, ec, None)
 
     val keyNames = keyNameParseTypes.map(_._1.head)
     val aggNames = aggNameParseTypes.map(_._1.head)

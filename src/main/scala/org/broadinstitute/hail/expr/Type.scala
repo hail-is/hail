@@ -464,6 +464,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
 
+  def hasField(name: String): Boolean = fieldIdx.contains(name)
+
   def size: Int = fields.length
 
   override def getOption(path: List[String]): Option[Type] =

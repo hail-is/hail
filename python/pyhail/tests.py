@@ -234,13 +234,15 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(ktcase.same(ktcase2))
 
         # Annotate
-        kt4 = kt.annotate('X = Status', 'Sample, Status')
+        (kt.annotate('X = Status', 'Sample, Status')
+         .nrows())
 
         # Join
-        kt5 = kt.join(kt2, 'left')
+        kt.join(kt2, 'left').nrows()
 
         # AggregateByKey
-        kt6 = kt.aggregate_by_key("Status = Status", "Sum = qPhen.sum()")
+        (kt.aggregate_by_key("Status = Status", "Sum = qPhen.sum()")
+         .nrows())
 
         # Forall, Exists
         self.assertFalse(kt.forall('Status == "CASE"'))

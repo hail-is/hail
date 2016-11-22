@@ -1,5 +1,7 @@
 
 class Type(object):
+    """Type of values."""
+    
     def __init__(self, jtype):
         self.jtype = jtype
 

@@ -16,8 +16,8 @@ class TextTableConfig(object):
     :param types: Define types of fields in annotations files   
     :type types: str or None
     """
-    def __init__(self, noheader = False, impute = False,
-                 comment = None, delimiter = "\t", missing = "NA", types = None):
+    def __init__(self, noheader=False, impute=False,
+                 comment=None, delimiter="\t", missing="NA", types=None):
         self.noheader = noheader
         self.impute = impute
         self.comment = comment

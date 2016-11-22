@@ -294,12 +294,12 @@ class HailContext(object):
 
         :rtype: :class:`.KeyTable`
         """
-        pathArgs = []
+        path_args = []
         if isinstance(path, str):
-            pathArgs.append(path)
+            path_args.append(path)
         else:
             for p in path:
-                pathArgs.append(p)
+                path_args.append(p)
 
         if not isinstance(key_names, str):
             key_names = ','.join(key_names)
@@ -311,7 +311,7 @@ class HailContext(object):
             config = TextTableConfig()
 
         return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(
-            self.jsc, jarray(self.gateway, self.jvm.java.lang.String, pathArgs), key_names, npartitions, config.to_java(self)))
+            self.jsc, jarray(self.gateway, self.jvm.java.lang.String, path_args), key_names, npartitions, config.to_java(self)))
 
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """
