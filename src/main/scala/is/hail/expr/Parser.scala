@@ -4,6 +4,7 @@ import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
+import scala.collection.mutable
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -41,14 +42,32 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
+  private def evalNoTypeCheck(t: AST, ec: EvalContext): () => Any = {
+    val names = ec.st.toSeq
+      .sortBy { case (nanme, (i, _)) => i }
+      .map { case (name, _) => name }
+    val f = t.compile().runWithDelayedValues(names.toSeq, ec)
+
+    // FIXME: ec.a is actually mutable.ArrayBuffer[AnyRef] because Annotation is
+    // actually AnyRef, but there's a lot to change
+    () => f(ec.a.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
+  }
+
   private def eval(t: AST, ec: EvalContext): (Type, () => Any) = {
     t.typecheck(ec)
-    (t.`type`, t.eval(ec))
+
+    val thunk = evalNoTypeCheck(t, ec)
+    (t.`type`, thunk)
   }
 
   def parseExpr(code: String, ec: EvalContext): (Type, () => Any) = {
-    val (t, f) = eval(expr.parse(code), ec)
-    (t, f)
+    eval(expr.parse(code), ec)
+  }
+
+  def parseToAST(code: String, ec: EvalContext): AST = {
+    val t = expr.parse(code)
+    t.typecheck(ec)
+    t
   }
 
   def parseTypedExpr[T](code: String, ec: EvalContext)(implicit hr: HailRep[T]): () => T = {
@@ -160,7 +179,7 @@ object Parser extends JavaTokenParsers {
       if (!t.isRealizable)
         fatal(s"unrealizable type in export expression: $t")
 
-      val f = ast.eval(ec)
+      val f = evalNoTypeCheck(ast, ec)
       if (splat) {
         val j0 = j
         val s = t.asInstanceOf[TStruct] // checked above
@@ -548,7 +567,7 @@ object Parser extends JavaTokenParsers {
       val t = ast.`type`
       if (!t.isRealizable)
         fatal(s"unrealizable type in Solr export expression: $t")
-      val f = ast.eval(ec)
+      val f = evalNoTypeCheck(ast, ec)
       (id, spec, t, f)
     }
   }

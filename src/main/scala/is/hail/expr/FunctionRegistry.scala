@@ -3,13 +3,26 @@ package is.hail.expr
 import breeze.linalg.DenseVector
 import is.hail.annotations.Annotation
 import is.hail.methods._
+import is.hail.asm4s._
+import is.hail.asm4s.Code
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
 
 import scala.collection.mutable
+import is.hail.variant.{AltAllele, GTPair, Genotype, Locus, Variant}
+import is.hail.methods._
+import org.objectweb.asm.tree._
+import org.objectweb.asm.Opcodes._
+
+import scala.collection.mutable
+import is.hail.utils.EitherIsAMonad._
+import org.json4s.jackson.JsonMethods
+
+import scala.collection.generic.Growable
 import scala.language.higherKinds
+import scala.reflect.ClassTag
 
 case class MetaData(docstring: Option[String], args: Seq[(String, String)] = Seq.empty[(String, String)])
 
@@ -34,11 +47,11 @@ object FunctionRegistry {
 
   private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun, MetaData)]]().withDefaultValue(Seq.empty)
 
-  private val conversions = new mutable.HashMap[(Type, Type), (Int, UnaryFun[Any, Any])]
+  private val conversions = new mutable.HashMap[(Type, Type), (Int, Transformation[Any, Any])]
 
-  private def lookupConversion(from: Type, to: Type): Option[(Int, UnaryFun[Any, Any])] = conversions.get(from -> to)
+  private def lookupConversion(from: Type, to: Type): Option[(Int, Transformation[Any, Any])] = conversions.get(from -> to)
 
-  private def registerConversion[T, U](how: T => U, priority: Int = 1)(implicit hrt: HailRep[T], hru: HailRep[U]) {
+  private def registerConversion[T, U](how: T => U, codeHow: Code[T] => CM[Code[U]], priority: Int = 1)(implicit hrt: HailRep[T], hru: HailRep[U]) {
     val from = hrt.typ
     val to = hru.typ
     require(priority >= 1)
@@ -46,7 +59,7 @@ object FunctionRegistry {
       case Some(_) =>
         throw new RuntimeException(s"The conversion between $from and $to is already bound")
       case None =>
-        conversions.put(from -> to, priority -> UnaryFun[Any, Any](to, x => how(x.asInstanceOf[T])))
+        conversions.put(from -> to, priority -> Transformation[Any, Any](x => how(x.asInstanceOf[T]), x => codeHow(x.asInstanceOf[Code[T]])))
     }
   }
 
@@ -69,12 +82,12 @@ object FunctionRegistry {
             None
         }
 
-        anyFailAllFail[Array, Option[(Int, UnaryFun[Any, Any])]](conversions)
+        anyFailAllFail[Array, Option[(Int, Transformation[Any, Any])]](conversions)
           .map { arr =>
             if (arr.forall(_.isEmpty))
               0 -> (tt.subst(), f.subst())
             else {
-              val arr2 = arr.map(_.getOrElse(0 -> UnaryFun[Any, Any](null, (a: Any) => a)))
+              val arr2 = arr.map(_.getOrElse(0 -> Transformation[Any, Any]((a: Any) => a, (a: Code[Any]) => CM.ret(a))))
               arr2.map(_._1).max -> (tt.subst(), f.subst().convertArgs(arr2.map(_._2)))
             }
           }
@@ -89,7 +102,7 @@ object FunctionRegistry {
         if (it.size == 1)
           Right(it.head._2._2)
         else {
-          assert(priority != 0)
+          assert(priority != 0, s"when it is non-singular, I expect non-zero priority, but priority was $priority and it was $it. name was $name, typ was $typ")
           Left(Ambiguous(name, typ, it))
         }
       }
@@ -104,232 +117,246 @@ object FunctionRegistry {
   def lookupFieldReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
     lookup(name, FieldType(typ +: typs: _*)).map(_.retType)
 
-  def lookupField(ec: EvalContext)(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[() => Any] = {
+  def lookupField(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[CM[Code[AnyRef]]] = {
     require(args.isEmpty)
 
     val m = lookup(name, FieldType(typ +: typs: _*))
     m.map {
       case f: UnaryFun[_, _] =>
-        AST.evalCompose(ec, lhs)(f)
+        AST.evalComposeCodeM(lhs)(CM.invokePrimitive1(f.asInstanceOf[AnyRef => AnyRef]))
+      case f: UnaryFunCode[t, u] =>
+        AST.evalComposeCodeM[t](lhs)(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
       case fn =>
         throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
     }
   }
 
-  def lookupMethodReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
-    lookup(name, MethodType(typ +: typs: _*)).map(_.retType)
+  def call(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[Code[AnyRef]] = {
+    import is.hail.expr.CM._
 
-  def lookupMethod(ec: EvalContext)(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[() => Any] = {
-    require(typs.length == args.length)
+    val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
+      .valueOr(x => fatal(x.message))
 
-    val m = lookup(name, MethodType(typ +: typs: _*))
-    m.map {
+    m match {
       case aggregator: Arity0Aggregator[_, _] =>
-        val localA = ec.a
-        val idx = localA.length
-        localA += null
-        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor()))
-        () => localA(idx)
+        for (
+          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor());
+          res <- invokePrimitive0(aggregationResultThunk)
+        ) yield res.asInstanceOf[Code[AnyRef]]
 
       case aggregator: Arity1Aggregator[_, u, _] =>
-        val localA = ec.a
-        val idx = localA.length
-        localA += null
+        for (
+          ec <- ec();
+          u = args(1).run(ec)();
 
-        val u = args(0).eval(EvalContext())()
+          _ = (if (u == null)
+            fatal(s"Argument evaluated to missing in call to aggregator $name"));
 
-        if (u == null)
-          fatal(s"Argument evaluated to missing in call to aggregator $name")
-
-        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
-          u.asInstanceOf[u])))
-        () => localA(idx)
+          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(u.asInstanceOf[u]));
+          res <- invokePrimitive0(aggregationResultThunk)
+        ) yield res.asInstanceOf[Code[AnyRef]]
 
       case aggregator: Arity3Aggregator[_, u, v, w, _] =>
-        val localA = ec.a
-        val idx = localA.length
-        localA += null
+        for (
+          ec <- ec();
+          u = args(1).run(ec)();
+          v = args(2).run(ec)();
+          w = args(3).run(ec)();
 
-        val u = args(0).eval(EvalContext())()
-        val v = args(1).eval(EvalContext())()
-        val w = args(2).eval(EvalContext())()
+          _ = (if (u == null)
+            fatal(s"Argument 1 evaluated to missing in call to aggregator $name"));
+          _ = (if (v == null)
+            fatal(s"Argument 2 evaluated to missing in call to aggregator $name"));
+          _ = (if (w == null)
+            fatal(s"Argument 3 evaluated to missing in call to aggregator $name"));
 
-        if (u == null)
-          fatal(s"Argument 1 evaluated to missing in call to aggregator $name")
-        if (v == null)
-          fatal(s"Argument 2 evaluated to missing in call to aggregator $name")
-        if (w == null)
-          fatal(s"Argument 3 evaluated to missing in call to aggregator $name")
 
-        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
-          u.asInstanceOf[u],
-          v.asInstanceOf[v],
-          w.asInstanceOf[w])))
-        () => localA(idx)
+          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(
+            u.asInstanceOf[u],
+            v.asInstanceOf[v],
+            w.asInstanceOf[w]));
+          res <- invokePrimitive0(aggregationResultThunk)
+        ) yield res.asInstanceOf[Code[AnyRef]]
 
       case aggregator: UnaryLambdaAggregator[t, u, v] =>
-        val Lambda(_, param, body) = args(0)
+        val Lambda(_, param, body) = args(1)
 
-        val idx = ec.a.length
-        val localA = ec.a
-        localA += null
+        for (
+          ec <- ec();
+          st <- currentSymbolTable();
+          (idx, localA) <- ecNewPosition();
 
-        val bodyST =
-          lhs.`type` match {
+          bodyST = args(0).`type` match {
             case tagg: TAggregable => tagg.symTab
-            case _ => ec.st
-          }
+            case _ => st
+          };
 
-        val bodyFn = body.eval(ec.copy(st = bodyST + (param -> (idx, lhs.`type`.asInstanceOf[TContainer].elementType))))
-        val g = (x: Any) => {
-          localA(idx) = x
-          bodyFn()
-        }
+          namesAndIndices = bodyST.toSeq.map { case (name, (i, _)) => (name, i) };
+          bodyFn = (for (
+            fb <- fb();
+            bindings = (namesAndIndices.map { case (name, i) =>
+              (name, ret(fb.arg2.invoke[Int, AnyRef]("apply", i)))
+            } :+ ((param, ret(fb.arg2.invoke[Int, AnyRef]("apply", idx)))));
+            res <- bindRepInRaw(bindings)(body.compile())
+          ) yield res).runWithDelayedValues(namesAndIndices.map(_._1), ec);
 
-        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(g)))
-        () => localA(idx)
+          g = (x: Any) => {
+            localA(idx) = x
+            bodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
+          };
+
+          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(g));
+
+          res <- invokePrimitive0(aggregationResultThunk)
+        ) yield res.asInstanceOf[Code[AnyRef]]
 
       case aggregator: BinaryLambdaAggregator[t, u, v, w] =>
-        val Lambda(_, param, body) = args(0)
+        val Lambda(_, param, body) = args(1)
 
-        val idx = ec.a.length
-        val localA = ec.a
-        localA += null
+        for (
+          ec <- ec();
+          st <- currentSymbolTable();
+          (idx, localA) <- ecNewPosition();
 
-        val bodyST =
-          lhs.`type` match {
+          bodyST = args(0).`type` match {
             case tagg: TAggregable => tagg.symTab
-            case _ => ec.st
-          }
+            case _ => st
+          };
 
-        val bodyFn = body.eval(ec.copy(st = bodyST + (param -> (idx, lhs.`type`.asInstanceOf[TContainer].elementType))))
-        val g = (x: Any) => {
-          localA(idx) = x
-          bodyFn()
-        }
+          namesAndIndices = bodyST.toSeq.map { case (name, (i, _)) => (name, i) };
+          bodyFn = (for (
+            fb <- fb();
+            bindings = (namesAndIndices.map { case (name, i) =>
+              (name, ret(fb.arg2.invoke[Int, AnyRef]("apply", i)))
+            } :+ ((param, ret(fb.arg2.invoke[Int, AnyRef]("apply", idx)))));
+            res <- bindRepInRaw(bindings)(body.compile())
+          ) yield res).runWithDelayedValues(namesAndIndices.map(_._1), ec);
 
-        val v = args(1).eval(EvalContext())()
-        if (v == null)
-          fatal(s"Argument evaluated to missing in call to aggregator $name")
+          g = (x: Any) => {
+            localA(idx) = x
+            bodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
+          };
 
-        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(g, v.asInstanceOf[v])))
-        () => localA(idx)
+          v = args(2).run(ec)();
+
+          _ = (if (v == null)
+            fatal(s"Argument evaluated to missing in call to aggregator $name"));
+
+          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(g, v.asInstanceOf[v]));
+
+          res <- invokePrimitive0(aggregationResultThunk)
+        ) yield res.asInstanceOf[Code[AnyRef]]
 
       case f: UnaryFun[_, _] =>
-        AST.evalCompose(ec, lhs)(f)
+        AST.evalComposeCodeM(args(0))(invokePrimitive1(f.asInstanceOf[AnyRef => AnyRef]))
       case f: UnarySpecial[_, _] =>
-        val t = lhs.eval(ec)
-        () => f(t)
+        // FIXME: don't thunk the argument
+        args(0).compile().flatMap(invokePrimitive1(x => f.asInstanceOf[(() => AnyRef) => AnyRef](() => x)))
       case f: BinaryFun[_, _, _] =>
-        AST.evalCompose(ec, lhs, args(0))(f)
-      case f: BinarySpecial[_, _, _] =>
-        val t = lhs.eval(ec)
-        val u = args(0).eval(ec)
-        () => f(t, u)
+        AST.evalComposeCodeM(args(0), args(1))(invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
+      case f: BinarySpecial[_, _, _] => {
+        val foo = ((x: AnyRef, y: AnyRef) => f.asInstanceOf[(() => AnyRef, () => AnyRef) => AnyRef](() => x, () => y))
+        for (
+          t <- args(0).compile();
+          u <- args(1).compile();
+          result <- invokePrimitive2(foo)(t, u))
+          yield result
+      }
       case f: BinaryLambdaFun[t, _, _] =>
-        val Lambda(_, param, body) = args(0)
-
-        val localIdx = ec.a.length
-        val localA = ec.a
-        localA += null
-
-        val bodyST =
-          lhs.`type` match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => ec.st
-          }
-
-        val bodyFn = body.eval(ec.copy(st = bodyST + (param -> (localIdx, lhs.`type`.asInstanceOf[TContainer].elementType))))
-        val g = (x: Any) => {
-          localA(localIdx) = x
-          bodyFn()
+        val Lambda(_, param, body) = args(1)
+        args(0).`type` match {
+          case tagg: TAggregable =>
+            if (!tagg.symTab.isEmpty)
+              throw new RuntimeException(s"found a non-empty symbol table in a taggregable: $tagg, $tagg.symTab, $name, $args, $argTypes")
+          case _ =>
         }
 
-        AST.evalCompose[t](ec, lhs) { x1 => f(x1, g) }
+        for (
+          lamc <- createLambda(param, body.compile());
+          res <- AST.evalComposeCodeM(args(0)) { xs =>
+            invokePrimitive2[AnyRef, AnyRef, AnyRef]((xs: AnyRef, lam: AnyRef) => f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any]).asInstanceOf[AnyRef])(xs, lamc)
+          }
+        ) yield res
       case f: Arity3LambdaFun[t, _, v, _] =>
-        val Lambda(_, param, body) = args(0)
-
-        val localIdx = ec.a.length
-        val localA = ec.a
-        localA += null
-
-        val bodyST =
-          lhs.`type` match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => ec.st
-          }
-
-        val bodyFn = body.eval(ec.copy(st = bodyST + (param -> (localIdx, lhs.`type`.asInstanceOf[TContainer].elementType))))
-        val g = (x: Any) => {
-          localA(localIdx) = x
-          bodyFn()
+        val Lambda(_, param, body) = args(1)
+        args(0).`type` match {
+          case tagg: TAggregable =>
+            if (!tagg.symTab.isEmpty)
+              throw new RuntimeException(s"found a non-empty symbol table in a taggregable: $tagg, $tagg.symTab, $name, $args, $argTypes")
+          case _ =>
         }
 
-        AST.evalCompose[t, v](ec, lhs, args(1)) { (x1, x2) => f(x1, g, x2) }
-      case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
-        throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : $typ, $typs) in non-aggregator position")
+        for (
+          lamc <- createLambda(param, body.compile());
+          res <- AST.evalComposeCodeM(args(0), args(2)) { (xs, y) =>
+            invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef]((xs: AnyRef, lam: AnyRef, y: AnyRef) =>
+              f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any], y.asInstanceOf[v]).asInstanceOf[AnyRef])(xs, lamc, y)
+          }
+        ) yield res
       case f: Arity3Fun[_, _, _, _] =>
-        AST.evalCompose(ec, lhs, args(0), args(1))(f)
+        AST.evalComposeCodeM(args(0), args(1), args(2))(invokePrimitive3(f.asInstanceOf[(AnyRef, AnyRef, AnyRef) => AnyRef]))
       case f: Arity4Fun[_, _, _, _, _] =>
-        AST.evalCompose(ec, lhs, args(0), args(1), args(2))(f)
-      case fn =>
-        throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
+        AST.evalComposeCodeM(args(0), args(1), args(2), args(3))(invokePrimitive4(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
+      case f: UnaryFunCode[t, u] =>
+        AST.evalComposeCodeM[t](args(0))(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
+      case f: BinaryFunCode[t, u, v] =>
+        AST.evalComposeCodeM[t,u](args(0), args(1))(f.asInstanceOf[(Code[t], Code[u]) => CM[Code[AnyRef]]])
+      case f: BinarySpecialCode[t, u, v] => for(
+        a0 <- args(0).compile();
+        a1 <- args(1).compile();
+        result <- f(a0.asInstanceOf[Code[t]], a1.asInstanceOf[Code[u]]))
+        yield result.asInstanceOf[Code[AnyRef]]
+      case x =>
+        throw new RuntimeException(s"whoops, forgot to implement funreg for ${x.getClass} $x")
     }
   }
 
-  def lookupAggregatorTransformation(ec: EvalContext)(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[CPS[Any]] = {
+  def callAggregatorTransformation(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): CMCodeCPS[AnyRef] = {
+    import is.hail.expr.CM._
+
     require(typs.length == args.length)
 
-    lookup(name, MethodType(typ +: typs: _*)).map {
+    val m = FunctionRegistry.lookup(name, MethodType(typ +: typs: _*))
+      .valueOr(x => fatal(x.message))
+
+    m match {
       case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
         val Lambda(_, param, body) = args(0)
 
-        val idx = ec.a.length
-        val localA = ec.a
-        localA += null
+        { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
+          st <- currentSymbolTable();
 
-        val bodyST =
-          lhs.`type` match {
+          bodyST = lhs.`type` match {
             case tagg: TAggregable => tagg.symTab
-            case _ => ec.st
+            case _ => st
+          };
+
+          fb <- fb();
+
+          externalNamesAndIndices = bodyST.toSeq.map { case (name, (i, _)) => (name, i) };
+          externalBindings = externalNamesAndIndices.map { case (name, i) =>
+            (name, ret(fb.arg2.invoke[Int, AnyRef]("apply", i)))
+          };
+
+          g = { (_x: Code[AnyRef]) =>
+            for (
+              (stx, x) <- memoize(_x);
+              bindings = externalBindings :+ ((param, ret(x)));
+              cbody <- bindRepInRaw(bindings)(body.compile())
+            ) yield Code(stx, cbody)
+          } : (Code[AnyRef] => CM[Code[AnyRef]]);
+
+          res <- lhs.compileAggregator() { (t: Code[AnyRef]) =>
+            f.fcode(t, g)(k)
           }
-
-        val bodyFn = body.eval(ec.copy(st = bodyST + (param -> (idx, lhs.`type`.asInstanceOf[TContainer].elementType))))
-        val g = (x: Any) => {
-          localA(idx) = x
-          bodyFn()
-        }
-
-        val t = lhs.evalAggregator(ec)
-        f(t, g)
+        ) yield res }
       case _ =>
         throw new RuntimeException(s"Internal hail error, non-aggregator transformation, `$name' with argument types $typ, $typs, found in aggregator position")
     }
   }
 
-  def lookupFun(ec: EvalContext)(name: String, typs: Seq[Type])(args: Seq[AST]): Err[() => Any] = {
-    require(typs.length == args.length)
-
-    lookup(name, FunType(typs: _*)).map {
-      case f: UnaryFun[_, _] =>
-        AST.evalCompose(ec, args(0))(f)
-      case f: UnarySpecial[_, _] =>
-        val t = args(0).eval(ec)
-        () => f(t)
-      case f: BinaryFun[_, _, _] =>
-        AST.evalCompose(ec, args(0), args(1))(f)
-      case f: BinarySpecial[_, _, _] =>
-        val t = args(0).eval(ec)
-        val u = args(1).eval(ec)
-        () => f(t, u)
-      case f: Arity3Fun[_, _, _, _] =>
-        AST.evalCompose(ec, args(0), args(1), args(2))(f)
-      case f: Arity4Fun[_, _, _, _, _] =>
-        AST.evalCompose(ec, args(0), args(1), args(2), args(3))(f)
-      case fn =>
-        throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typs: $fn")
-    }
-  }
+  def lookupMethodReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
+    lookup(name, MethodType(typ +: typs: _*)).map(_.retType)
 
   def lookupFunReturnType(name: String, typs: Seq[Type]): Err[Type] =
     lookup(name, FunType(typs: _*)).map(_.retType)
@@ -344,9 +371,19 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ), UnaryFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  def registerMethodCode[T, U](name: String, impl: (Code[T]) => CM[Code[U]], docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, MethodType(hrt.typ), UnaryFunCode[T, U](hru.typ, (ct) => impl(ct)), MetaData(Option(docstring), argNames))
+  }
+
   def registerMethod[T, U, V](name: String, impl: (T, U) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerMethodCode[T, U, V](name: String, impl: (Code[T], Code[U]) => CM[Code[V]], docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
+    bind(name, MethodType(hrt.typ, hru.typ), BinaryFunCode[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerMethodSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V, docstring: String, argNames: (String, String)*)
@@ -366,9 +403,11 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m, MetaData(Option(docstring), argNames))
   }
 
-  def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V], docstring: String, argNames: (String, String)*)
+  def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V],
+    codeImpl: (Code[AnyRef], Code[AnyRef] => CM[Code[AnyRef]]) => CMCodeCPS[AnyRef],
+    docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    val m = BinaryLambdaAggregatorTransformer[T, U, V](hrv.typ, impl)
+    val m = BinaryLambdaAggregatorTransformer[T, U, V](hrv.typ, impl, codeImpl)
     bind(name, MethodType(hrt.typ, hru.typ), m, MetaData(Option(docstring), argNames))
   }
 
@@ -380,6 +419,11 @@ object FunctionRegistry {
   def register[T, U](name: String, impl: T => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FunType(hrt.typ), UnaryFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerCode[T, U](name: String, impl: Code[T] => CM[Code[U]], docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, FunType(hrt.typ), UnaryFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
@@ -402,9 +446,19 @@ object FunctionRegistry {
     bind(name, FunType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  def registerCode[T, U, V](name: String, impl: (Code[T], Code[U]) => CM[Code[V]], docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
+    bind(name, FunType(hrt.typ, hru.typ), BinaryFunCode[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def registerSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     bind(name, FunType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerSpecialCode[T, U, V](name: String, impl: (Code[T], Code[U]) => CM[Code[V]], docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
+    bind(name, FunType(hrt.typ, hru.typ), BinarySpecialCode[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def register[T, U, V, W](name: String, impl: (T, U, V) => W, docstring: String, argNames: (String, String)*)
@@ -474,6 +528,8 @@ object FunctionRegistry {
   val TU = TVariable("U")
   val TV = TVariable("V")
 
+  val TTBoxed = TVariable("TBoxed")
+
   val TTHr = new HailRep[Any] {
     def typ = TT
   }
@@ -482,6 +538,9 @@ object FunctionRegistry {
   }
   val TVHr = new HailRep[Any] {
     def typ = TV
+  }
+  val BoxedTTHr = new HailRep[AnyRef] {
+    def typ = TTBoxed
   }
 
   registerField("gt", { (x: Genotype) =>
@@ -878,16 +937,27 @@ object FunctionRegistry {
 
   register("!", (a: Boolean) => !a, "Negates a boolean variable.")
 
-  registerConversion((x: Int) => x.toDouble, priority = 2)
-  registerConversion { (x: Long) => x.toDouble }
-  registerConversion { (x: Int) => x.toLong }
-  registerConversion { (x: Float) => x.toDouble }
+  def iToD(x: Code[java.lang.Integer]): Code[java.lang.Double] =
+    Code.boxDouble(Code.intValue(x).toD)
+  def lToD(x: Code[java.lang.Long]): Code[java.lang.Double] =
+    Code.boxDouble(Code.longValue(x).toD)
+  def iToL(x: Code[java.lang.Integer]): Code[java.lang.Long] =
+    Code.boxLong(Code.intValue(x).toL)
+  def fToD(x: Code[java.lang.Float]): Code[java.lang.Double] =
+    Code.boxDouble(Code.floatValue(x).toD)
+
+  registerConversion((x: java.lang.Integer) => x.toDouble : java.lang.Double, (iToD _).andThen(CM.ret _), priority = 2)
+  registerConversion((x: java.lang.Long) => x.toDouble : java.lang.Double, (lToD _).andThen(CM.ret _))
+  registerConversion((x: java.lang.Integer) => x.toLong : java.lang.Long, (iToL _).andThen(CM.ret _))
+  registerConversion((x: java.lang.Float) => x.toDouble : java.lang.Double, (fToD _).andThen(CM.ret _))
 
   registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
     if (xi == null)
       null
     else
       box(xi.toDouble)
+  }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
+    CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToD _))
   }, priority = 2)(arrayHr(boxedintHr), arrayHr(boxeddoubleHr))
 
   registerConversion((x: IndexedSeq[java.lang.Long]) => x.map { xi =>
@@ -895,6 +965,8 @@ object FunctionRegistry {
       null
     else
       box(xi.toDouble)
+  }, { (x: Code[IndexedSeq[java.lang.Long]]) =>
+    CM.mapIS(x, (xi: Code[java.lang.Long]) => xi.mapNull(lToD _))
   })(arrayHr(boxedlongHr), arrayHr(boxeddoubleHr))
 
   registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
@@ -902,6 +974,8 @@ object FunctionRegistry {
       null
     else
       box(xi.asInstanceOf[Int].toLong)
+  }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
+    CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToL _))
   })(arrayHr(boxedintHr), arrayHr(boxedlongHr))
 
   registerConversion((x: IndexedSeq[java.lang.Float]) => x.map { xi =>
@@ -909,6 +983,8 @@ object FunctionRegistry {
       null
     else
       box(xi.toDouble)
+  }, { (x: Code[IndexedSeq[java.lang.Float]]) =>
+    CM.mapIS(x, (xi: Code[java.lang.Float]) => xi.mapNull(fToD _))
   })(arrayHr(boxedfloatHr), arrayHr(boxeddoubleHr))
 
   register("gtj", (i: Int) => Genotype.gtPair(i).j,
@@ -928,31 +1004,37 @@ object FunctionRegistry {
     "j" -> "j in ``j/k`` pairs.",
     "k" -> "k in ``j/k`` pairs.")
 
-  registerConversion((x: java.lang.Integer) =>
-    if (x != null)
-      box(x.toDouble)
-    else
-      null, priority = 2)(aggregableHr(boxedintHr), aggregableHr(boxeddoubleHr))
-  registerConversion { (x: java.lang.Long) =>
+  registerConversion({ (x: java.lang.Integer) =>
     if (x != null)
       box(x.toDouble)
     else
       null
-  }(aggregableHr(boxedlongHr), aggregableHr(boxeddoubleHr))
+  }, { (x: Code[java.lang.Integer]) => x.mapNull(iToD _)
+  }, priority = 2)(aggregableHr(boxedintHr), aggregableHr(boxeddoubleHr))
 
-  registerConversion { (x: java.lang.Integer) =>
+  registerConversion({ (x: java.lang.Long) =>
+    if (x != null)
+      box(x.toDouble)
+    else
+      null
+  }, { (x: Code[java.lang.Long]) => x.mapNull(lToD _)
+  })(aggregableHr(boxedlongHr), aggregableHr(boxeddoubleHr))
+
+  registerConversion({ (x: java.lang.Integer) =>
     if (x != null)
       box(x.toLong)
     else
       null
-  }(aggregableHr(boxedintHr), aggregableHr(boxedlongHr))
+  }, { (x: Code[java.lang.Integer]) => x.mapNull(iToL _)
+  })(aggregableHr(boxedintHr), aggregableHr(boxedlongHr))
 
-  registerConversion { (x: java.lang.Float) =>
+  registerConversion( { (x: java.lang.Float) =>
     if (x != null)
       box(x.toDouble)
     else
       null
-  }(aggregableHr(boxedfloatHr), aggregableHr(boxeddoubleHr))
+  }, { (x: Code[java.lang.Float]) => x.mapNull(fToD _)
+  })(aggregableHr(boxedfloatHr), aggregableHr(boxeddoubleHr))
 
   registerMethod("split", (s: String, p: String) => s.split(p): IndexedSeq[String],
     """
@@ -1701,16 +1783,34 @@ object FunctionRegistry {
 
   val aggST = Box[SymbolTable]()
 
-  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) =>
-    a { x =>
+  // FIXME: I suspect I need to pop after the calls to k because it really ought
+  // to be a void method
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
+    { (k: Any => Unit) => a { x =>
       val r = f(x).asInstanceOf[IndexedSeq[Any]]
       var i = 0
       while (i < r.size) {
         k(r(i))
         i += 1
       }
-    }
-  }
+    } }
+  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
+    { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
+      is <- f(x);
+      (str, _r) <- CM.memoize(is);
+      r = Code.checkcast[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]]](_r);
+      (stn, n) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]], Int]("size", Array()).invoke(r, Array()));
+      i <- CM.newLocal[Int];
+      ri = Invokeable.lookupMethod[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]], AnyRef]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke(r, Array(i));
+      invokek <- k(ri)
+    ) yield Code(
+      str,
+      stn,
+      i.store(0),
+      Code.whileLoop(i < n,
+        Code(invokek, i.store(i + 1))
+      )
+    ) }
   },
     """
     Returns a new aggregable by applying a function ``f`` to each element and concatenating the resulting arrays.
@@ -1723,7 +1823,21 @@ object FunctionRegistry {
     """
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
 
-  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
+  // FIXME: needs to beimplemented in terms of iterators. this method lives on
+  // scala/collection/GenSetLike so we'll need to do the same bullshit with
+  // them, the code below definitely won't work because Set isn't SeqLike
+
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
+    { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
+  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
+    { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
+      _fx <- f(x);
+      fx = Code.checkcast[scala.collection.IterableLike[AnyRef, Set[AnyRef]]](_fx);
+      (stit, it) <- CM.memoize(Invokeable.lookupMethod[scala.collection.IterableLike[AnyRef, Set[AnyRef]], Iterator[AnyRef]]("iterator", Array()).invoke(fx, Array()));
+      hasNext = it.invoke[Boolean]("hasNext");
+      next = it.invoke[AnyRef]("next");
+      invokek <- k(next)
+    ) yield Code(stit, Code.whileLoop(hasNext, invokek)) }
   },
     """
     Returns a new aggregable by applying a function ``f`` to each element and concatenating the resulting sets.
@@ -1739,8 +1853,19 @@ object FunctionRegistry {
       val r = f(x)
       if (r != null && r.asInstanceOf[Boolean])
         k(x)
-    }
-  }
+    } }
+  }, { (_x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
+    { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
+      (stx, x) <- CM.memoize(_x);
+      (str, r) <- CM.memoize(f(x));
+      invokek <- k(x)
+    ) yield Code(stx, str,
+      // NB: the invocation of `k` doesn't modify the stack.
+      r.ifNull(Code._empty[Unit],
+        Code.booleanValue(Code.checkcast[java.lang.Boolean](r)).mux(
+          invokek,
+          Code._empty[Unit]))
+    ) }
   },
     """
     Subsets an aggregable by evaluating ``f`` for each element and keeping those elements that evaluate to true.
@@ -1753,7 +1878,10 @@ object FunctionRegistry {
     """, "f" -> "Boolean lambda expression."
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 
-  registerLambdaAggregatorTransformer("map", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => k(f(x)) } }
+  registerLambdaAggregatorTransformer("map", { (a: CPS[Any], f: (Any) => Any) =>
+    { (k: Any => Any) => a { x => k(f(x)) } }
+  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
+    { (k: Code[AnyRef] => CM[Code[Unit]]) => f(x).flatMap(k) }
   },
     """
     Change the type of an aggregable by evaluating ``f`` for each element.
@@ -1767,6 +1895,62 @@ object FunctionRegistry {
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
 
   type Id[T] = T
+
+  def registerNumericCode[T >: Null, S >: Null](name: String, f: (Code[T], Code[T]) => Code[S])(implicit hrt: HailRep[T], hrs: HailRep[S], tti: TypeInfo[T], sti: TypeInfo[S], tct: ClassTag[T], sct: ClassTag[S]) {
+    val hrboxedt = new HailRep[T] {
+      def typ: Type = hrt.typ
+    }
+    val hrboxeds = new HailRep[S] {
+      def typ: Type = hrs.typ
+    }
+
+    registerCode(name, (x: Code[T], y: Code[T]) => CM.ret(f(x, y)), null)
+
+    registerCode(name, (xs: Code[IndexedSeq[T]], y: Code[T]) => for (
+      (storey, refy) <- CM.memoize(y);
+      liftedF <- CM.mapIS(xs, (xOpt: Code[T]) =>
+        xOpt.mapNull((x: Code[T]) => f(Code.checkcast[T](x.asInstanceOf[Code[AnyRef]]), refy)))
+    ) yield Code(storey, liftedF), null
+    )(arrayHr(hrboxedt), hrt, arrayHr(hrboxeds))
+
+    registerCode(name, (x: Code[T], ys: Code[IndexedSeq[T]]) => for (
+      (storex, refx) <- CM.memoize(x);
+      liftedF <- CM.mapIS(ys, (yOpt: Code[T]) =>
+          yOpt.mapNull((y: Code[T]) => f(refx, Code.checkcast[T](y.asInstanceOf[Code[AnyRef]]))))
+    ) yield Code(storex, liftedF), null
+    )(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
+
+    registerCode(name, (xs: Code[IndexedSeq[T]], ys: Code[IndexedSeq[T]]) => for (
+      (stxs, _xs) <- CM.memoize(xs);
+      xs = Code.checkcast[scala.collection.SeqLike[T, IndexedSeq[T]]](_xs);
+
+      (stys, _ys) <- CM.memoize(ys);
+      ys = Code.checkcast[scala.collection.SeqLike[T, IndexedSeq[T]]](_ys);
+
+      (stn, n) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], Int]("size", Array()).invoke(xs, Array()));
+      n2 = Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], Int]("size", Array()).invoke(ys, Array());
+
+      (stb, b) <- CM.memoize(Code.newArray[S](n));
+
+      i <- CM.newLocal[Int];
+
+      (stx, x) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], T]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke(xs, Array(i)));
+      (sty, y) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], T]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke(ys, Array(i)));
+
+      z = x.mapNull(y.mapNull(f(x, y)))
+    ) yield Code(stxs, stys, stn,
+      (n.ceq(n2)).mux(
+        Code(
+          i.store(0),
+          stb,
+          Code.whileLoop(i < n,
+            Code(stx, sty, b.update(i, z), i.store(i + 1))
+          ),
+          CompilationHelp.arrayToWrappedArray(b)).asInstanceOf[Code[IndexedSeq[S]]],
+        Code._throw(Code.newInstance[is.hail.utils.FatalException, String, Option[String]](
+          s"""Cannot apply operation $name to arrays of unequal length.""".stripMargin, Code.invokeStatic[scala.Option[String],scala.Option[String]]("empty"))))),
+      null)
+  }
 
   def registerNumeric[T, S](name: String, f: (T, T) => S)(implicit hrt: HailRep[T], hrs: HailRep[S]) {
     val hrboxedt = new HailRep[Any] {
@@ -1818,10 +2002,10 @@ object FunctionRegistry {
   registerMethod("toDouble", (b: Boolean) => b.toDouble, "Convert value to a Double. Returns 1.0 if true, else 0.0.")
 
   def registerNumericType[T]()(implicit ev: Numeric[T], hrt: HailRep[T]) {
-    registerNumeric("+", ev.plus)
+    // registerNumeric("+", ev.plus)
     registerNumeric("-", ev.minus)
     registerNumeric("*", ev.times)
-    registerNumeric("/", (x: T, y: T) => ev.toDouble(x) / ev.toDouble(y))
+    // registerNumeric("/", (x: T, y: T) => ev.toDouble(x) / ev.toDouble(y))
 
     registerMethod("abs", ev.abs _, "Return the absolute value of a number.")
     registerMethod("signum", ev.signum _, "Return the sign of a number (1, 0, or -1).")
@@ -1834,6 +2018,16 @@ object FunctionRegistry {
     registerMethod("toFloat", ev.toFloat _, "Convert value to a Float.")
     registerMethod("toDouble", ev.toDouble _, "Convert value to a Double.")
   }
+
+  registerNumericCode("/", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => Code.boxDouble(Code.intValue(x).toD / Code.intValue(y).toD))
+  registerNumericCode("/", (x: Code[java.lang.Long], y: Code[java.lang.Long]) => Code.boxDouble(Code.longValue(x).toD / Code.longValue(y).toD))
+  registerNumericCode("/", (x: Code[java.lang.Float], y: Code[java.lang.Float]) => Code.boxDouble(Code.floatValue(x).toD / Code.floatValue(y).toD))
+  registerNumericCode("/", (x: Code[java.lang.Double], y: Code[java.lang.Double]) => Code.boxDouble(Code.doubleValue(x).toD / Code.doubleValue(y).toD))
+
+  registerNumericCode("+", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => Code.boxInt(Code.intValue(x) + Code.intValue(y)))
+  registerNumericCode("+", (x: Code[java.lang.Long], y: Code[java.lang.Long]) => Code.boxLong(Code.longValue(x) + Code.longValue(y)))
+  registerNumericCode("+", (x: Code[java.lang.Float], y: Code[java.lang.Float]) => Code.boxFloat(Code.floatValue(x) + Code.floatValue(y)))
+  registerNumericCode("+", (x: Code[java.lang.Double], y: Code[java.lang.Double]) => Code.boxDouble(Code.doubleValue(x) + Code.doubleValue(y)))
 
   registerNumericType[Int]()
   registerNumericType[Long]()
@@ -1848,9 +2042,9 @@ object FunctionRegistry {
       def typ: Type = hrt.typ
     }
 
-    register("<", ord.lt _, null)
+    // register("<", ord.lt _, null)
     register("<=", ord.lteq _, null)
-    register(">", ord.gt _, null)
+    // register(">", ord.gt _, null)
     register(">=", ord.gteq _, null)
 
     registerMethod("min", ord.min _, "Return the minimum value.")
@@ -1878,6 +2072,21 @@ object FunctionRegistry {
       "f" -> "Lambda expression.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), boolHr, arrayHr(TTHr))
   }
+
+
+  register("<", implicitly[Ordering[Boolean]].lt _, null)
+  registerCode("<", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => CM.ret(Code.boxBoolean(Code.intValue(x) < Code.intValue(y))), null)
+  registerCode("<", (x: Code[java.lang.Long], y: Code[java.lang.Long]) => CM.ret(Code.boxBoolean(Code.longValue(x) < Code.longValue(y))), null)
+  registerCode("<", (x: Code[java.lang.Float], y: Code[java.lang.Float]) => CM.ret(Code.boxBoolean(Code.floatValue(x) < Code.floatValue(y))), null)
+  registerCode("<", (x: Code[java.lang.Double], y: Code[java.lang.Double]) => CM.ret(Code.boxBoolean(Code.doubleValue(x) < Code.doubleValue(y))), null)
+  register("<", implicitly[Ordering[String]].lt _, null)
+
+  register(">", implicitly[Ordering[Boolean]].lt _, null)
+  registerCode(">", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => CM.ret(Code.boxBoolean(Code.intValue(x) > Code.intValue(y))), null)
+  registerCode(">", (x: Code[java.lang.Long], y: Code[java.lang.Long]) => CM.ret(Code.boxBoolean(Code.longValue(x) > Code.longValue(y))), null)
+  registerCode(">", (x: Code[java.lang.Float], y: Code[java.lang.Float]) => CM.ret(Code.boxBoolean(Code.floatValue(x) > Code.floatValue(y))), null)
+  registerCode(">", (x: Code[java.lang.Double], y: Code[java.lang.Double]) => CM.ret(Code.boxBoolean(Code.doubleValue(x) > Code.doubleValue(y))), null)
+  register(">", implicitly[Ordering[String]].lt _, null)
 
   registerOrderedType[Boolean]()
   registerOrderedType[Int]()
@@ -1909,39 +2118,80 @@ object FunctionRegistry {
   registerSpecial("isMissing", (g: () => Any) => g() == null, "Returns true if item is missing. Otherwise, false.")(TTHr, boolHr)
   registerSpecial("isDefined", (g: () => Any) => g() != null, "Returns true if item is non-missing. Otherwise, false.")(TTHr, boolHr)
 
-  registerSpecial("||", { (f1: () => Any, f2: () => Any) =>
-    val x1 = f1()
-    if (x1 != null) {
-      if (x1.asInstanceOf[Boolean])
-        box(true)
+  private def nullableBooleanCode(isOr: Boolean)
+    (left: Code[java.lang.Boolean], right: Code[java.lang.Boolean]): Code[java.lang.Boolean] = {
+    val (isZero, isNotZero) =
+      if (isOr)
+        (IFNE, IFEQ)
       else
-        f2().asInstanceOf[java.lang.Boolean]
-    } else {
-      val x2 = f2()
-      if (x2 != null
-        && x2.asInstanceOf[Boolean])
-        box(true)
-      else
-        null
-    }
-  }, null)(boolHr, boolHr, boxedboolHr)
+        (IFEQ, IFNE)
 
-  registerSpecial("&&", { (f1: () => Any, f2: () => Any) =>
-    val x = f1()
-    if (x != null) {
-      if (x.asInstanceOf[Boolean])
-        f2().asInstanceOf[java.lang.Boolean]
-      else
-        box(false)
-    } else {
-      val x2 = f2()
-      if (x2 != null
-        && !x2.asInstanceOf[Boolean])
-        box(false)
-      else
-        null
+    new Code[java.lang.Boolean] {
+      // AND:
+      // true true => true
+      // true false => false
+      // true null => null
+
+      // null true => null
+      // null false => false
+      // null null => null
+
+      // false true => false
+      // false false => false
+      // false null => false
+
+      // OR:
+      // true true => true
+      // true false => true
+      // true null => true
+
+      // null true => true
+      // null false => null
+      // null null => null
+
+      // false true => true
+      // false false => false
+      // false null => null
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        val lnullorfalse = new LabelNode
+        val ldone = new LabelNode
+        val lfirst = new LabelNode
+        val lsecond = new LabelNode
+
+        left.emit(il) // L
+        il += (new InsnNode(DUP)) // L L
+        il += (new JumpInsnNode(IFNULL, lnullorfalse)) // L
+        il += (new InsnNode(DUP)) // L L
+        (Code.checkcast[java.lang.Boolean](Code._empty[java.lang.Boolean]).invoke[Boolean]("booleanValue")).emit(il) // L Z
+        il += (new JumpInsnNode(isZero, ldone)) // L
+
+        // left = null or false
+        il += (lnullorfalse) // L
+        il += (new InsnNode(DUP)) // L L
+        right.emit(il) // L L R
+        il += (new InsnNode(SWAP)) // L R L
+        il += (new JumpInsnNode(IFNONNULL, lfirst)) // L R; stack indexing is from right to left
+
+        // left = null
+        il += (new InsnNode(DUP)) // L R R
+        il += (new JumpInsnNode(IFNULL, lsecond)) // L R; both are null so either one works
+        il += (new InsnNode(DUP)) // L R R
+        (Code.checkcast[java.lang.Boolean](Code._empty[java.lang.Boolean]).invoke[Boolean]("booleanValue")).emit(il) // L R Z
+        il += (new JumpInsnNode(isNotZero, lsecond)) // L R; stack indexing is from right to left
+
+        il += (lfirst) // B A
+        il += (new InsnNode(SWAP)) // A B
+        il += (lsecond) // A B
+        il += (new InsnNode(POP)) // A
+        il += (ldone) // A
+      }
     }
-  }, null)(boolHr, boolHr, boxedboolHr)
+  }
+
+  registerSpecialCode("||", (a: Code[java.lang.Boolean], b: Code[java.lang.Boolean]) =>
+    CM.ret(nullableBooleanCode(true)(a,b)), null)
+  registerSpecialCode("&&", (a: Code[java.lang.Boolean], b: Code[java.lang.Boolean]) =>
+    CM.ret(nullableBooleanCode(false)(a,b)), null)
 
   registerSpecial("orElse", { (f1: () => Any, f2: () => Any) =>
     val v = f1()
@@ -1964,7 +2214,16 @@ object FunctionRegistry {
     """
   )(TTHr, TTHr, TTHr)
 
-  registerMethod("[]", (a: IndexedSeq[Any], i: Int) => if (i >= 0) a(i) else a(a.length + i),
+  registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
+    (storei, refi) <- CM.memoize(Code.intValue(i));
+    (storea, _refa) <- CM.memoize(a);
+    refa = Code.checkcast[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]]](_refa);
+    size = Invokeable.lookupMethod[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]], Int]("size", Array()).invoke(refa, Array());
+    arrayRef = (i: Code[Int]) =>
+      Invokeable.lookupMethod[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]], AnyRef]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke((a), Array(i))
+  ) yield {
+    Code(storei, storea, arrayRef((refi >= 0).mux(refi, refi + size)))
+  },
     """
     Return the i*th*-indexed element of the Array or NA if array or index is missing. Arrays are 0-indexed.
 
@@ -1974,7 +2233,7 @@ object FunctionRegistry {
         let a = [0, 2, 4, 6, 8, 10] in a[2]
         result: 4
     """, "i" -> "Index of the element to return."
-  )(arrayHr(TTHr), intHr, TTHr)
+  )(arrayHr(BoxedTTHr), boxedintHr, BoxedTTHr)
   registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i),
     """
     Return the value for ``k`` or NA if the map or key is missing.

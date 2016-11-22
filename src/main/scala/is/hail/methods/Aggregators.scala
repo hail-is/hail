@@ -66,7 +66,7 @@ object Aggregators {
 
       i = 0
       while (i < aggs.size) {
-        localA(aggregations(i)._1) = aggs(i).result
+        aggregations(i)._1.v = aggs(i).result
         i += 1
       }
     })
@@ -141,7 +141,7 @@ object Aggregators {
     Some((s: String) => {
       val i = sampleIndex(s)
       for (j <- 0 until nAggregations) {
-        localA(aggregations(j)._1) = result(i, j).result
+        aggregations(j)._1.v = result(i, j).result
       }
     })
   }
@@ -174,7 +174,7 @@ object Aggregators {
     }
 
     val resultOp = (aggs: Array[Aggregator]) =>
-      (aggs, aggregations).zipped.foreach { case (agg, (idx, _, _)) => localA(idx) = agg.result }
+      (aggs, aggregations).zipped.foreach { case (agg, (b, _, _)) => b.v = agg.result }
 
     (zVal, seqOp, combOp, resultOp)
   }

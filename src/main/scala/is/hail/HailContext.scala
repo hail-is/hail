@@ -245,7 +245,7 @@ class HailContext private(val sc: SparkContext,
 
     val keyedRDD = rdd.map {
       _.map { a =>
-        ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+        ec.setAllFromRow(a.asInstanceOf[Row])
         (variantFn(), (fn(null, a), Iterable.empty[Genotype]))
       }.value
     }

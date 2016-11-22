@@ -12,6 +12,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 object Type {
@@ -193,7 +194,7 @@ object TNumeric {
 }
 
 abstract class TNumeric extends Type {
-  def conv: NumericConversion[_]
+  def conv: NumericConversion[_,_]
 }
 
 abstract class TIntegral extends TNumeric
@@ -889,7 +890,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       if (a == null)
         null
       else {
-        ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+        ec.setAllFromRow(a.asInstanceOf[Row])
         f()
       }
     }
