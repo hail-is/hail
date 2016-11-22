@@ -327,7 +327,23 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
     classpath sourceSets.main.runtimeClasspath
 }
 
-task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
+task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
+    workingDir 'build/tmp/docs'
+    commandLine 'npm', 'install'
+
+
+    standardOutput = new ByteArrayOutputStream()
+    errorOutput = standardOutput
+    ignoreExitValue = true
+    doLast {
+        if (execResult.exitValue != 0) {
+            println(standardOutput.toString())
+            throw new GradleException("exec failed; see output above")
+        }
+    }
+}
+
+task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepareJavascript', 'copyHtml']) {
     args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'template.html', './commandOptions.json', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
