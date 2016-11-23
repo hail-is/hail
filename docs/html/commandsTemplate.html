@@ -10,6 +10,7 @@
   <script src="bootstrap.min.js"></script>
   <link rel="stylesheet" href="bootstrap.min.css" type="text/css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="navbar.css">
   <script>
     $(document).ready(function () {
       $("#hail-navbar").load("navbar.html", function () {
@@ -22,8 +23,9 @@
 </head>
 
 <body>
-  <nav class="navbar navbar-default navbar-fixed-top" id="hail-navbar"></nav>
-  <div class="jumptarget" id="TOC">
+  <nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
+  <div id="body">
+  <div id="TOC">
     <h1>Command Reference</h1>
     <h2>Table of Contents</h2>
     <ul id="toc-commands">
@@ -31,6 +33,7 @@
     </ul>
   </div>
 
-<div class="jumptarget" id="GlobalOptions"></div>
+    <div id="GlobalOptions"></div>
+  </div>
 </body>
 </html>

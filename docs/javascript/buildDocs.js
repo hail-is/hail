@@ -20,7 +20,7 @@ function definitionListOption(attr, key) {
 }
 
 function buildHeader(commandName, cmdId) {
-	return "<a class=jumptarget name=" + cmdId + "></a><h1 class=cmdhead>" + commandName + " <span style=\"font-size: 50%; vertical-align: middle; color: #555\">[ <a href=\"https://github.com/hail-is/hail/edit/master/docs/commands/"+cmdId+".md\" target=\"_blank\">edit</a> ]</span></h1>";
+	return "<a name=" + cmdId + "></a><h1 class=cmdhead>" + commandName + " <span style=\"font-size: 50%; vertical-align: middle; color: #555\">[ <a href=\"https://github.com/hail-is/hail/edit/master/docs/commands/"+cmdId+".md\" target=\"_blank\">edit</a> ]</span></h1>";
 }
 
 function buildDescription(cmdId, data) {
@@ -89,7 +89,7 @@ exports.buildCommand = function (command, pandocOutputDir, $) {
             });
         }
 
-        $("body").append("<div class=command id=" + cmdId + "></div>");
+        $("#body").append("<div class=command id=" + cmdId + "></div>");
         $("#toc-commands").append("<li><a href=#" + cmdId + ">" + command.name + "</a></li>");
 
         fs.exists(templateFile, function (exists) {
@@ -116,7 +116,7 @@ exports.buildFaqHeader = function (name, $) {
 exports.buildFaqTOC = function ($) {
   return new Promise(function (resolve, reject) {
       function listItem(id, text) { return "<li><a href=#" + id + ">" + text + "</a></li>"; }
-      function anchor(id) { return "<a class=jumptarget name=" + id + "></a>"; }
+      function anchor(id) { return "<a name=" + id + "></a>"; }
 
       $("h4").each(function () {
           var element = $(this);
