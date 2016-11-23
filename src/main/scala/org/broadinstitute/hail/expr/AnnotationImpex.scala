@@ -104,7 +104,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       }
   }
 
-  def exportType(t: Type): DataType = t match {
+  def exportType(t: Type): DataType = (t: @unchecked) match {
     case TBoolean => BooleanType
     case TInt => IntegerType
     case TLong => LongType
@@ -204,7 +204,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     val ec = EvalContext(Map(
       "root" -> (0, t)))
 
-    val fs: Array[(BaseType, () => Option[Any])] = Parser.parseExprs(variantFields, ec)
+    val fs: Array[(Type, () => Option[Any])] = Parser.parseExprs(variantFields, ec)
 
     if (fs.length != 4)
       fatal(s"wrong number of variant field expressions: expected 4, got ${ fs.length }")
@@ -256,7 +256,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     if (a == null)
       JNull
     else {
-      t match {
+      (t: @unchecked) match {
         case TBoolean => JBool(a.asInstanceOf[Boolean])
         case TChar => JString(a.asInstanceOf[String])
         case TInt => JInt(a.asInstanceOf[Int])

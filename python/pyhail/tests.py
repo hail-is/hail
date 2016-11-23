@@ -76,7 +76,10 @@ class ContextTests(unittest.TestCase):
                                     'N = variants.count()',
                                     '/tmp/annotinter.tsv')
         
-        (sample2.annotate_global_expr('global.nVariants = variants.count()')
+        (sample2.annotate_global_expr_by_variant('global.nVariants = variants.count()')
+         .show_globals())
+        
+        (sample2.annotate_global_expr_by_sample('global.nSamples = samples.count()')
          .show_globals())
         
         (sample2.annotate_global_list(test_resources + '/global_list.txt', 'global.genes',

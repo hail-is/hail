@@ -16,8 +16,6 @@ import org.json4s.jackson.JsonMethods
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-sealed abstract class BaseType extends Serializable
-
 object Type {
   val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
     TVariant, TAltAllele, TGenotype, TLocus, TInterval)
@@ -53,9 +51,19 @@ object Type {
   implicit def arbType = Arbitrary(genArb)
 }
 
-abstract class Type extends BaseType {
+sealed abstract class Type {
 
-  def typeCheck(a: Any): Boolean
+  def children: Seq[Type] = Seq()
+
+  def clear(): Unit = children.foreach(_.clear())
+
+  def unify(concrete: Type): Boolean = {
+    this == concrete
+  }
+
+  def isBound: Boolean = children.forall(_.isBound)
+
+  def subst(): Type = this
 
   def getAsOption[T](fields: String*)(implicit ct: ClassTag[T]): Option[T] = {
     getOption(fields: _*)
@@ -127,6 +135,10 @@ abstract class Type extends BaseType {
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
   def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
+
+  def isRealizable: Boolean = children.forall(_.isRealizable)
+
+  def typeCheck(a: Any): Boolean
 
   /* compare values for equality, but compare Float and Double values using D_== */
   def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
@@ -240,64 +252,137 @@ case object TString extends Type {
   override def genValue: Gen[Annotation] = arbitrary[String]
 }
 
-abstract class TAggregable extends BaseType {
+case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
+  override def toString = s"(${ paramTypes.mkString(",") }) => $returnType"
+
+  override def isRealizable = false
+
+  override def unify(concrete: Type) = {
+    concrete match {
+      case TFunction(cparamTypes, creturnType) =>
+        paramTypes.length == cparamTypes.length &&
+          (paramTypes, cparamTypes).zipped.forall { case (pt, cpt) =>
+            pt.unify(cpt)
+          } &&
+          returnType.unify(creturnType)
+
+      case _ => false
+    }
+  }
+
+  override def subst() = TFunction(paramTypes.map(_.subst()), returnType.subst())
+
+  def typeCheck(a: Any) = ???
+
+  override def children = paramTypes :+ returnType
+}
+
+case class Box[T](var b: Option[T] = None) {
+  def unify(t: T): Boolean = b match {
+    case Some(bt) => t == bt
+    case None =>
+      b = Some(t)
+      true
+  }
+
+  def clear() {
+    b = None
+  }
+
+  def get: T = b.get
+}
+
+case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends Type {
+  override def toString = s"?Aggregable[$elementType]"
+
+  override def isRealizable = false
+
+  override def children = Seq(elementType)
+
+  def typeCheck(a: Any) = ???
+
+  override def unify(concrete: Type) = concrete match {
+    case cagg: TAggregable =>
+      elementType.unify(cagg.elementType) && st.unify(cagg.symTab)
+    case _ => false
+  }
+
+  override def isBound: Boolean = elementType.isBound & st.b.nonEmpty
+
+  override def clear() {
+    st.clear()
+  }
+
+  override def subst() = {
+    assert(st != null)
+    TAggregable(elementType.subst(), st.get)
+  }
+}
+
+case class TVariable(name: String, var t: Type = null) extends Type {
+  override def toString: String = s"?$name"
+
+  override def isRealizable = false
+
+  def typeCheck(a: Any) = ???
+
+  override def unify(concrete: Type) = {
+    if (t == null) {
+      t = concrete
+      true
+    } else
+      t == concrete
+  }
+
+  override def isBound: Boolean = t != null
+
+  override def clear() {
+    t = null
+  }
+
+  override def subst() = {
+    assert(t != null)
+    t
+  }
+}
+
+object TAggregable {
+  def apply(elementType: Type, symTab: SymbolTable): TAggregable = {
+    val agg = TAggregable(elementType)
+    agg.symTab = symTab
+    agg
+  }
+}
+
+case class TAggregable(elementType: Type) extends TContainer {
+  // FIXME does symTab belong here?
+  // not used for equality
+  var symTab: SymbolTable = _
+
+  override def unify(concrete: Type) = {
+    concrete match {
+      case TAggregable(celementType) => elementType.unify(celementType)
+      case _ => false
+    }
+  }
+
+  // FIXME symTab == null
+  override def subst() = TAggregable(elementType.subst())
+
+  override def isRealizable = false
+
+  def typeCheck(a: Any) = ???
+
   override def toString: String = s"Aggregable[${ elementType.toString }]"
+}
 
-  def ec: EvalContext
-
+abstract class TContainer extends Type {
   def elementType: Type
 
-  def f: (Any) => Any
+  override def children = Seq(elementType)
 }
 
-case class KeyTableAggregable(ec: EvalContext, elementType: Type, idx: Int) extends TAggregable {
-  def f: (Any) => Any = {
-    (a: Any) => {
-      KeyTable.annotationToSeq(a, ec.st.size)(idx)
-    }
-  }
-}
-
-case class BaseAggregable(ec: EvalContext, elementType: Type) extends TAggregable {
-  def f: (Any) => Any = identity
-}
-
-case class FilteredAggregable(parent: TAggregable, filterF: (Any) => Boolean) extends TAggregable {
-  def f: (Any) => Any = {
-    val parentF = parent.f
-    (a: Any) => {
-      val prev = parentF(a)
-      if (prev != null && filterF(prev))
-        prev
-      else
-        null
-    }
-  }
-
-  override def elementType: Type = parent.elementType
-
-  override def ec: EvalContext = parent.ec
-}
-
-case class MappedAggregable(parent: TAggregable, elementType: Type, mapF: (Any) => Any) extends TAggregable {
-  def f: (Any) => Any = {
-    val parentF = parent.f
-    (a: Any) => {
-      val prev = parentF(a)
-      if (prev != null)
-        mapF(prev)
-      else
-        null
-    }
-  }
-
-  override def ec: EvalContext = parent.ec
-}
-
-
-abstract class TIterable extends Type {
-  def elementType: Type
-
+abstract class TIterable extends TContainer {
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null
       && (a1.asInstanceOf[Iterable[_]].size == a2.asInstanceOf[Iterable[_]].size)
@@ -307,6 +392,15 @@ abstract class TIterable extends Type {
 
 case class TArray(elementType: Type) extends TIterable {
   override def toString = s"Array[$elementType]"
+
+  override def unify(concrete: Type) = {
+    concrete match {
+      case TArray(celementType) => elementType.unify(celementType)
+      case _ => false
+    }
+  }
+
+  override def subst() = TArray(elementType.subst())
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Array[")
@@ -325,6 +419,13 @@ case class TArray(elementType: Type) extends TIterable {
 case class TSet(elementType: Type) extends TIterable {
   override def toString = s"Set[$elementType]"
 
+  override def unify(concrete: Type) = concrete match {
+    case TSet(celementType) => elementType.unify(celementType)
+    case _ => false
+  }
+
+  override def subst() = TSet(elementType.subst())
+
   def typeCheck(a: Any): Boolean =
     a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck))
 
@@ -339,7 +440,18 @@ case class TSet(elementType: Type) extends TIterable {
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
 }
 
-case class TDict(elementType: Type) extends Type {
+case class TDict(elementType: Type) extends TContainer {
+  override def children = Seq(elementType)
+
+  override def unify(concrete: Type) = {
+    concrete match {
+      case TDict(celementType) => elementType.unify(celementType)
+      case _ => false
+    }
+  }
+
+  override def subst() = TDict(elementType.subst())
+
   override def toString = s"Dict[$elementType]"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
@@ -417,6 +529,12 @@ case class Field(name: String, `type`: Type,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 
+  def unify(cf: Field): Boolean =
+    name == cf.name &&
+      `type`.unify(cf.`type`) &&
+      index == cf.index &&
+      attrs == cf.attrs
+
   def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
     if (compact) {
       sb.append(prettyIdentifier(name))
@@ -443,7 +561,13 @@ case class Field(name: String, `type`: Type,
   }
 }
 
-case class TSplat(struct: TStruct) extends BaseType {
+case class TSplat(struct: TStruct) extends Type {
+  override def isRealizable = false
+
+  def typeCheck(a: Any) = ???
+
+  override def children = struct.children
+
   override def toString: String = "Splat"
 }
 
@@ -459,6 +583,19 @@ object TStruct {
 }
 
 case class TStruct(fields: IndexedSeq[Field]) extends Type {
+  override def children = fields.map(_.`type`)
+
+  override def unify(concrete: Type) = concrete match {
+    case TStruct(cfields) =>
+      fields.length == cfields.length &&
+        (fields, cfields).zipped.forall { case (f, cf) =>
+          f.unify(cf)
+        }
+    case _ => false
+  }
+
+  override def subst() = TStruct(fields.map(f => f.copy(`type` = f.`type`.subst().asInstanceOf[Type])))
+
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 

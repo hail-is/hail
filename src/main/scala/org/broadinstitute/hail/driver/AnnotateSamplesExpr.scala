@@ -28,24 +28,11 @@ object AnnotateSamplesExpr extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+    val localGlobalAnnotations = vds.globalAnnotation
 
     val cond = options.condition
-    val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "global" -> (4, vds.globalSignature)))
 
-    val symTab = Map(
-      "s" -> (0, TSample),
-      "sa" -> (1, vds.saSignature),
-      "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(4, vds.globalAnnotation)
+    val ec = Aggregators.sampleEC(vds)
 
     val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Some(Annotation.SAMPLE_HEAD))
 
@@ -58,21 +45,17 @@ object AnnotateSamplesExpr extends Command {
     }
     val inserters = inserterBuilder.result()
 
-    val aggregatorA = aggregationEC.a
-
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, ec)
 
     val newAnnotations = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-
-      ec.setAll(s, sa)
-
       sampleAggregationOption.foreach(f => f.apply(s))
-
+      ec.setAll(localGlobalAnnotations, s, sa)
       fns.zip(inserters)
         .foldLeft(sa) { case (sa, (fn, inserter)) =>
           inserter(sa, Option(fn()))
         }
     }
+
     state.copy(vds = vds.copy(
       sampleAnnotations = newAnnotations,
       saSignature = finalType

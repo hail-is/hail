@@ -68,7 +68,7 @@ object ImportAnnotationsTable extends Command with JoinAnnotator {
       buildInserter(code, TStruct.empty, ec, Annotation.VARIANT_HEAD)
     }.getOrElse((struct, (_: Annotation, anno: Option[Annotation]) => anno.orNull))
 
-    val ec = EvalContext(struct.fields.map(f => (f.name, f.`type`)): _*)
+    val ec = EvalContext( struct.fields.map(f => (f.name, f.`type`)): _*)
     val variantFn = Parser.parse[Variant](options.vExpr, ec, TVariant)
 
     val keyedRDD = rdd.flatMap {

@@ -52,7 +52,7 @@ object LogisticRegressionCommand extends Command {
 
     val a = ec.a
 
-    def toDouble(t: BaseType, code: String): Any => Double = t match {
+    def toDouble(t: Type, code: String): Any => Double = t match {
       case TInt => _.asInstanceOf[Int].toDouble
       case TLong => _.asInstanceOf[Long].toDouble
       case TFloat => _.asInstanceOf[Float].toDouble

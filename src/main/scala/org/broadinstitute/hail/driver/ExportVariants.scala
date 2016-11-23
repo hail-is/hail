@@ -36,29 +36,14 @@ object ExportVariants extends Command with TextExporter {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+
     val vas = vds.vaSignature
     val hConf = vds.sparkContext.hadoopConfiguration
     val cond = options.condition
     val output = options.output
 
-    val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature)))
-
-    val symTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
-
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
+    val localGlobalAnnotations = vds.globalAnnotation
+    val ec = Aggregators.variantEC(vds)
 
     val (header, types, f) = Parser.parseNamedArgs(cond, ec)
 
@@ -69,7 +54,7 @@ object ExportVariants extends Command with TextExporter {
       exportTypes(file, state.hadoopConf, typeInfo)
     }
 
-    val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
+    val variantAggregations = Aggregators.buildVariantAggregations(vds, ec)
 
     state.hadoopConf.delete(output, recursive = true)
 
@@ -77,12 +62,9 @@ object ExportVariants extends Command with TextExporter {
       .mapPartitions { it =>
         val sb = new StringBuilder()
         it.map { case (v, (va, gs)) =>
-
           variantAggregations.foreach { f => f(v, va, gs) }
+          ec.setAll(localGlobalAnnotations, v, va)
           sb.clear()
-
-          ec.setAll(v, va)
-
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }

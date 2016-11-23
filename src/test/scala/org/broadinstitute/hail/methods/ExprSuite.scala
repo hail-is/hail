@@ -88,7 +88,7 @@ class ExprSuite extends SparkSuite {
       f().map(_.asInstanceOf[T])
     }
 
-    def evalWithType[T](s: String): (BaseType, Option[T]) = {
+    def evalWithType[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parse(s, ec)
       (t, f().map(_.asInstanceOf[T]))
     }
@@ -193,16 +193,16 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Set[_]]("""[[0].toSet, [1].toSet, nullset].filter(s => isDefined(s)).toSet.flatMap(x => x)""").contains(Set(0, 1)))
 
-    TestUtils.interceptFatal("""expects a lambda function""")(
+    TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(0)"""))
 
-    TestUtils.interceptFatal("""expects lambda body to have type Array\[T\] or Set\[T\], got Int""")(
+    TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(x => x)"""))
 
-    TestUtils.interceptFatal("""match, got Set\[Int\] and Array\[Int\]""")(
+    TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(x => [x])"""))
 
-    TestUtils.interceptFatal("""match, got Array\[Int\] and Set\[Int\]""")(
+    TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[IndexedSeq[_]]("""a.flatMap(x => [x].toSet)"""))
 
     assert(eval[IndexedSeq[_]](""" [[1], [2, 3], [4, 5, 6]].flatten() """).contains(IndexedSeq(1, 2, 3, 4, 5, 6)))
@@ -222,16 +222,16 @@ class ExprSuite extends SparkSuite {
     assert(eval[Set[_]](""" [[0].toSet, nullset].toSet.flatten() """).isEmpty)
     assert(eval[Set[_]](""" [nullset, [1].toSet].toSet.flatten() """).isEmpty)
 
-    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Array\[Set\[Int\]\]""")(
+    TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [iset, [2, 3, 4].toSet].flatten() """))
 
-    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Set\[Array\[Int\]\]""")(
+    TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [[1], [2, 3, 4]].toSet.flatten() """))
 
-    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Array\[Int\]""")(
+    TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [0].flatten() """))
 
-    TestUtils.interceptFatal("""does not take parameters, use flatten()""")(
+    TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [[0]].flatten(0) """))
 
 
@@ -355,7 +355,6 @@ class ExprSuite extends SparkSuite {
         "C" -> Annotation(10, 10))
     ))
     assert(dictType == TDict(TStruct(("f1", TInt), ("f3", TInt))))
-
 
     assert(eval[Int](""" index(structArray, f2)["B"].f3 """).contains(6))
     assert(eval[Map[_, _]](""" index(structArray, f2).mapValues(x => x.f1) """).contains(Map(
@@ -543,7 +542,7 @@ class ExprSuite extends SparkSuite {
     val s3 = "SIFT_Score: Double, Age: Int, SIFT2: BadType"
 
     assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
-    assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, BaseType])
+    assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
     intercept[FatalException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
   }
 
@@ -612,7 +611,7 @@ class ExprSuite extends SparkSuite {
         JSONAnnotationImpex.importAnnotation(parse(string), t) == a
       }
 
-      property("table") = forAll(g.filter { case (t, a) => t != TDouble && a != null }) { case (t, a) =>
+      property("table") = forAll(g.filter { case (t, a) => t != TDouble && a != null }.resize(10)) { case (t, a) =>
         TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
       }
 
@@ -626,7 +625,7 @@ class ExprSuite extends SparkSuite {
 
   @Test def testIfNumericPromotion() {
     val ec = EvalContext(Map("c" -> (0, TBoolean), "l" -> (1, TLong), "f" -> (2, TFloat)))
-    def eval[T](s: String): (BaseType, Option[T]) = {
+    def eval[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parse(s, ec)
       (t, f().map(_.asInstanceOf[T]))
     }

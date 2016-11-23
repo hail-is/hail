@@ -39,24 +39,9 @@ object ExportSamples extends Command with TextExporter {
     val sas = vds.saSignature
     val cond = options.condition
     val output = options.output
+    val localGlobalAnnotation = vds.globalAnnotation
 
-    val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature)))
-
-    val symTab = Map(
-      "s" -> (0, TSample),
-      "sa" -> (1, vds.saSignature),
-      "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
+    val ec = Aggregators.sampleEC(vds)
 
     val (header, types, f) = Parser.parseNamedArgs(cond, ec)
     Option(options.typesFile).foreach { file =>
@@ -66,19 +51,15 @@ object ExportSamples extends Command with TextExporter {
       exportTypes(file, state.hadoopConf, typeInfo)
     }
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, aggregationEC)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, ec)
 
     hConf.delete(output, recursive = true)
 
     val sb = new StringBuilder()
     val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
-      sb.clear()
-
-      ec.setAll(s, sa)
-
       sampleAggregationOption.foreach(f => f.apply(s))
-
-      var first = true
+      sb.clear()
+      ec.setAll(localGlobalAnnotation, s, sa)
       f().foreachBetween(x => sb.append(x))(sb += '\t')
       sb.result()
     }

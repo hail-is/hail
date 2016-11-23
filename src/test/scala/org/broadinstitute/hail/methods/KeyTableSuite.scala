@@ -152,9 +152,9 @@ class KeyTableSuite extends SparkSuite {
       "E = field2.filter(f => field2 == 3).count()"
     )
 
-    val result = Array(Array("Case", 12.0, 12.0, 16.0, 2L, 1L), Array("Control", 3.0, 3.0, 11.0, 2L, 0L))
+    val result = Array(Array("Case", 12, 12, 16, 2L, 1L), Array("Control", 3, 3, 11, 2L, 0L))
     val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
-    val resSignature = TStruct(("Status", TString), ("A", TDouble), ("B", TDouble), ("C", TDouble), ("D", TLong), ("E", TLong))
+    val resSignature = TStruct(("Status", TString), ("A", TInt), ("B", TInt), ("C", TInt), ("D", TLong), ("E", TLong))
     val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
 
     assert(kt2 same ktResult)

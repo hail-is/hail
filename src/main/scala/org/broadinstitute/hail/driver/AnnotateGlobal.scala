@@ -10,7 +10,8 @@ object AnnotateGlobal extends SuperCommand {
     c.run(state, newArgs)
   }
 
-  register(AnnotateGlobalExpr)
+  register(AnnotateGlobalExprByVariant)
+  register(AnnotateGlobalExprBySample)
   register(AnnotateGlobalList)
   register(AnnotateGlobalTable)
 }

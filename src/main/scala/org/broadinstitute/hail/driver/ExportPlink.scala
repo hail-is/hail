@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.driver
 
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.expr.{BaseAggregable, EvalContext, Parser, TBoolean, TDouble, TGenotype, TSample, TString, Type}
+import org.broadinstitute.hail.expr.{EvalContext, Parser, TBoolean, TDouble, TGenotype, TSample, TString, Type}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.io.plink.ExportBedBimFam
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -31,12 +31,11 @@ object ExportPlink extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    val symTab = Map(
+    val ec = EvalContext(Map(
       "s" -> (0, TSample),
       "sa" -> (1, vds.saSignature),
-      "global" -> (2, vds.globalSignature))
+      "global" -> (2, vds.globalSignature)))
 
-    val ec = EvalContext(symTab)
     ec.set(2, vds.globalAnnotation)
 
     type Formatter = (() => Option[Any]) => () => String
