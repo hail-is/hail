@@ -536,6 +536,33 @@ class VariantDataset(object):
             pargs.append('--overwrite')
         return self.hc.run_command(self, pargs)
 
+    def filter_alleles(self, condition, annotation=None, subset=True, keep=True, filter_altered_genotypes=False):
+        """
+        Filter a user-defined set of alternate alleles for each variant.
+        If all of a variant's alternate alleles are filtered, the variant itself is filtered.
+        The condition expression is evaluated for each alternate allele.
+
+        :param condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+        :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
+            and aIndices (maps from new to old indices) (default: "va = va")
+        :param bool subset: If true, subsets the PL and AD, otherwise downcodes the PL and AD.
+            Genotype and GQ are set based on the resulting PLs.
+        :param bool keep: Keep variants matching condition
+        :param bool filter_altered_genotypes: If set, any genotype call that would change due to filtering an allele
+            would be set to missing instead.
+
+        """
+
+        pargs = ['filteralleles',
+                 '--keep' if keep else '--remove',
+                 '--subset' if subset else '--downcode',
+                 '-c', condition]
+        if annotation:
+            pargs.extend(['-a', annotation])
+        if filter_altered_genotypes:
+            pargs.append('--filterAlteredGenotypes')
+        return self.hc.run_command(self, pargs)
+
     def filter_genotypes(self, condition, keep=True):
         """Filter variants based on expression.
 
