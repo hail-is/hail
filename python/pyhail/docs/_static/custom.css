@@ -1,46 +1,40 @@
 body {
   color: #444;
   font-family: Georgia, Palatino, 'Palatino Linotype', Times, 'Times New Roman', serif;
-  font-size: 14px;
+  font-size: 12px;
   background: #fefefe;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
+
+table.field-list td {
+   padding: 10px;
+}
+
+table.field-list th {
+    padding: 10px;
+    width: 100px;
+}
+
+.class .descclassname {
+    padding-right: 0px
+}
+
+.class .descname {
+    padding-left: 0px
 }
 
 .document dt {
     margin-top: 35px;
-}
-
-h1, h2, h3, h4, h5, h6 {
-  color: #111;
-  line-height: 125%;
-  font-weight: normal;
-}
-
-h4, h5, h6 {
-  font-weight: bold;
-}
-
-h1 {
-  font-size: 2.5em;
-}
-
-h2 {
-  font-size: 2em;
-}
-
-h3 {
-  font-size: 1.5em;
-}
-
-h4 {
-  font-size: 1.2em;
-}
-
-h5 {
-  font-size: 1em;
-}
-
-h6 {
-  font-size: 0.9em;
 }
 
 @media only screen and (min-width: 480px) {
