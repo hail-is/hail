@@ -8,8 +8,8 @@ import org.apache.spark.sql.types._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr
 import org.broadinstitute.hail.expr.{AnnotationImpex, SparkAnnotationImpex}
-import org.kududb.client.{CreateTableOptions, KuduClient}
-import org.kududb.{ColumnSchema, Schema, Type}
+import org.apache.kudu.client.{CreateTableOptions, KuduClient}
+import org.apache.kudu.{ColumnSchema, Schema, Type}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -119,7 +119,6 @@ object KuduUtils {
     case DataTypes.BinaryType => Type.BINARY
     case DataTypes.BooleanType => Type.BOOL
     case DataTypes.StringType => Type.STRING
-    case DataTypes.TimestampType => Type.TIMESTAMP
     case DataTypes.ByteType => Type.INT8
     case DataTypes.ShortType => Type.INT16
     case DataTypes.IntegerType => Type.INT32

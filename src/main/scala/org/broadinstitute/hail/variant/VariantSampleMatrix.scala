@@ -21,7 +21,7 @@ import org.broadinstitute.hail.sparkextras._
 import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
-import org.kududb.spark.kudu.{KuduContext, _}
+import org.apache.kudu.spark.kudu.{KuduContext, _}
 import Variant.orderedKey
 import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.methods.{Aggregators, Filter}
@@ -225,7 +225,7 @@ object VariantSampleMatrix {
       df.schema.fieldIndex(field.name)
     }
 
-    val rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))] = df.map { row =>
+    val rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))] = df.rdd.map { row =>
       val importedRow = KuduAnnotationImpex.importAnnotation(
         KuduAnnotationImpex.reorder(row, indices), rowType).asInstanceOf[Row]
       val v = importedRow.getVariant(0)
@@ -1142,7 +1142,9 @@ class RichVDS(vds: VariantDataset) {
     }
     df.write
       .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
-      .mode("append").kudu
+      .mode("append")
+      // FIXME inlined since .kudu wouldn't work for some reason
+      .format("org.apache.kudu.spark.kudu").save
 
     println("Written to Kudu")
   }

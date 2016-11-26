@@ -26,10 +26,10 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
     rdd.mapPartitions(p => new SpanningIterator(p))
 
   def leftOuterJoinDistinct[W](other: RDD[(K, W)])
-    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(rdd, other))
+    (implicit kt: ClassTag[K], vt: ClassTag[V]): RDD[(K, (V, Option[W]))] = leftOuterJoinDistinct(other, defaultPartitioner(rdd, other))
 
   def leftOuterJoinDistinct[W](other: RDD[(K, W)], partitioner: Partitioner)
-    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K] = null) = {
+    (implicit kt: ClassTag[K], vt: ClassTag[V]) = {
     rdd.cogroup(other, partitioner).flatMapValues { pair =>
       val w = pair._2.headOption
       pair._1.map((_, w))

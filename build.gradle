@@ -21,9 +21,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 repositories {
     mavenCentral()
     jcenter()
-    maven {
-        url "https://repository.cloudera.com/artifactory/cloudera-repos/" // kudu
-    }
 }
 
 buildScan {
@@ -33,11 +30,24 @@ buildScan {
 
 mainClassName = "org.broadinstitute.hail.driver.Main"
 
-String scalaVersion = '2.10.4'
-String scalaMajorVersion = '2.10'
 String sparkVersion = System.getProperty("spark.version","1.6.2")
-// String scalaVersion = '2.11.7'
-// String scalaMajorVersion = '2.11'
+
+String kuduSpark
+String scalaVersion
+String scalaMajorVersion
+String py4jVersion
+
+if (sparkVersion ==~ /^2.*/) {
+    kuduSpark = 'spark2'
+    scalaVersion = '2.11.8'
+    scalaMajorVersion = '2.11'
+    py4jVersion = '0.10.3'
+} else {
+    scalaVersion = '2.10.4'
+    scalaMajorVersion = '2.10'
+    kuduSpark = 'spark'
+    py4jVersion = '0.9'
+}
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
@@ -56,6 +66,7 @@ configurations.all {
     resolutionStrategy {
         // override new version pulled in by solrj
         // http://stackoverflow.com/questions/31039367/spark-parallelize-could-not-find-creator-property-with-name-id
+
         force 'com.fasterxml.jackson.core:jackson-databind:2.4.4'
     }
 }
@@ -76,8 +87,8 @@ dependencies {
     compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':0.11.2'
     compile 'args4j:args4j:2.32'
     compile 'com.github.samtools:htsjdk:2.5.0'
-    compile 'org.kududb:kudu-client:0.9.0'
-    compile 'org.kududb:kudu-spark_' + scalaMajorVersion + ':0.9.0'
+    compile 'org.apache.kudu:kudu-client:1.1.0'
+    compile 'org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':1.1.0'
 
     compile 'org.http4s:http4s-core_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-server_' + scalaMajorVersion + ':0.12.3'
@@ -148,7 +159,7 @@ task testPyHail(type: Exec, dependsOn: shadowJar) {
      commandLine 'python', '-m', 'unittest', 'pyhail.tests'
 
      environment SPARK_HOME: sparkHome
-     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-0.9-src.zip'
+     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
@@ -198,8 +209,8 @@ shadowJar {
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('com.google.guava:guava:.*'))
-        include(dependency('org.kududb:kudu-client:.*'))
-        include(dependency('org.kududb:kudu-spark_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.apache.spark:kudu-client:.*'))
+        include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
 
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
@@ -240,8 +251,8 @@ task shadowTestJar(type: ShadowJar) {
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('com.google.guava:guava:.*'))
-        include(dependency('org.kududb:kudu-client:.*'))
-        include(dependency('org.kududb:kudu-spark_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.apache.spark:kudu-client:.*'))
+        include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
 	
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))

@@ -2,7 +2,7 @@ package org.broadinstitute.hail.sparkextras
 
 import java.util
 
-import org.apache.spark.rdd.{PartitionPruningRDD, RDD, ShuffledRDD}
+import org.apache.spark.rdd.{PartitionCoalescer, PartitionPruningRDD, RDD, ShuffledRDD}
 import org.apache.spark.storage.StorageLevel
 import org.broadinstitute.hail.utils._
 import org.apache.spark.{SparkContext, _}
