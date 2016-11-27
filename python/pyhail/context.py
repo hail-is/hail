@@ -41,22 +41,19 @@ class HailContext(object):
     def __init__(self, appName="PyHail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
                  block_size=1, branching_factor=50, tmp_dir='/tmp'):
-
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
 
         self.gateway = SparkContext._gateway
         self.jvm = SparkContext._jvm
 
-        jconf = scala_package_object(self.jvm.org.broadinstitute.hail.driver).configure(
+        self.jsc = scala_package_object(self.jvm.org.broadinstitute.hail.driver).configureAndCreateSparkContext(
             appName, joption(self.jvm, master), local,
             log, quiet, append, parquet_compression,
             block_size, branching_factor, tmp_dir)
-
-        self.jsc = self.jvm.org.broadinstitute.hail.driver.SparkManager.createSparkContext(jconf)
         self.sc = SparkContext(gateway=self.gateway, jsc=self.jvm.JavaSparkContext(self.jsc))
 
-        self.jsql_context = self.jvm.org.broadinstitute.hail.driver.SparkManager.createSQLContext()
+        self.jsql_context = scala_package_object(self.jvm.org.broadinstitute.hail.driver).createSQLContext(self.jsc)
         self.sql_context = SQLContext(self.sc, self.jsql_context)
 
     def _jstate(self, jvds):

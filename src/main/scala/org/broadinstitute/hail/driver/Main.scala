@@ -13,35 +13,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-object SparkManager {
-  var _sc: SparkContext = _
-  var _sqlContext: SQLContext = _
-
-  def createSparkContext(conf: SparkConf): SparkContext = {
-    if (_sc == null) {
-      _sc = new SparkContext(conf)
-      ProgressBarBuilder.build(_sc)
-    }
-    _sc
-  }
-
-  def createSQLContext(): SQLContext = {
-    assert(_sc != null)
-    if (_sqlContext == null)
-      _sqlContext = new org.apache.spark.sql.SQLContext(_sc)
-
-    _sc.getConf.getAll.foreach { case (k, v) =>
-      if (k.startsWith("spark.sql."))
-        _sqlContext.setConf(k, v)
-    }
-
-    _sqlContext
-  }
-}
-
 object HailConfiguration {
-  var stacktrace: Boolean = _
-
   var tmpDir: String = "/tmp"
 
   var branchingFactor: Int = _
@@ -248,14 +220,12 @@ object Main {
           }
       }
 
-    val conf = configure("Hail", Option(options.master), "local[*]",
+    val sc = configureAndCreateSparkContext("Hail", Option(options.master), local = "local[*]",
       logFile = options.logFile, quiet = options.logQuiet, append = options.logAppend,
       parquetCompression = options.parquetCompression, blockSize = options.blockSize,
       branchingFactor = options.branchingFactor, tmpDir = options.tmpDir)
 
-    val sc = SparkManager.createSparkContext(conf)
-
-    val sqlContext = SparkManager.createSQLContext()
+    val sqlContext = createSQLContext(sc)
 
     runCommands(sc, sqlContext, invocations)
 

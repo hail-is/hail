@@ -5,7 +5,8 @@ import java.util.Properties
 
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.{SparkConf}
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.VariantDataset
 
@@ -46,17 +47,21 @@ package object driver {
     CountResult(vds.nSamples, nVariants, nCalled)
   }
 
-  def configure(appName: String, master: Option[String], local: String, logFile: String, quiet: Boolean, append: Boolean,
-    parquetCompression: String, blockSize: Long, branchingFactor: Int, tmpDir: String): SparkConf = {
+  def configureAndCreateSparkContext(appName: String, master: Option[String], local: String = "local[*]",
+    logFile: String = "hail.log", quiet: Boolean = false, append: Boolean = false, parquetCompression: String = "uncompressed",
+    blockSize: Long = 1L, branchingFactor: Int = 50, tmpDir: String = "/tmp"): SparkContext = {
     require(blockSize > 0)
     require(branchingFactor > 0)
+
+    HailConfiguration.tmpDir = tmpDir
+    HailConfiguration.branchingFactor = branchingFactor
 
     val conf = new SparkConf().setAppName(appName)
 
     master match {
       case Some(m) =>
         conf.setMaster(m)
-        // FIXME
+      // FIXME
       case None =>
         if (!conf.contains("spark.master"))
           conf.setMaster(local)
@@ -110,9 +115,17 @@ package object driver {
     SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
     conf.set("spark.hadoop.parquet.block.size", tera.toString)
 
-    HailConfiguration.tmpDir = tmpDir
-    HailConfiguration.branchingFactor = branchingFactor
+    val sc = new SparkContext(conf)
+    ProgressBarBuilder.build(sc)
+    sc
+  }
 
-    conf
+  def createSQLContext(sc: SparkContext): SQLContext = {
+    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+    sc.getConf.getAll.foreach { case (k, v) =>
+      if (k.startsWith("spark.sql."))
+        sqlContext.setConf(k, v)
+    }
+    sqlContext
   }
 }
