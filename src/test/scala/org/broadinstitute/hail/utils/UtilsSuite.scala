@@ -157,9 +157,7 @@ class UtilsSuite extends SparkSuite {
       "NONE", "DISK_ONLY", "DISK_ONLY_2", "MEMORY_ONLY", "MEMORY_ONLY_2", "MEMORY_ONLY_SER", "MEMORY_ONLY_SER_2",
       "MEMORY_AND_DISK", "MEMORY_AND_DISK_2", "MEMORY_AND_DISK_SER", "MEMORY_AND_DISK_SER_2", "OFF_HEAP")
 
-    assert(sls.forall(sl => StorageLevel.fromString(sl).toReadableString() == sl))
-
-    assert(StorageLevel(true, false, false, false, 3).toReadableString() == "DISK_ONLY_3")
+    sls.foreach { sl => StorageLevel.fromString(sl) }
   }
 
   @Test def toIndexedRowMatrixFromDenseBlockMatrixTest() = {

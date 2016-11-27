@@ -1,9 +1,7 @@
 package org.broadinstitute.hail.utils.richUtils
 
-import org.apache.hadoop.mapred.FileSplit
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkExport
 import org.broadinstitute.hail.utils._
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
@@ -16,10 +14,7 @@ class RichSparkContext(val sc: SparkContext) extends AnyVal {
      * since it asks for nPartitions per file instead of nPartitions over all.
      */
     val rdd = sc.textFile(files.mkString(","), nPartitions)
-    val partitionFile = rdd.partitions
-      .map { p =>
-        SparkExport.hadoopPartitionSplit(p).asInstanceOf[FileSplit].getPath.toString
-      }
+    val partitionFile = rdd.partitions.map(partitionPath)
 
     rdd
       .mapPartitionsWithIndex { case (i, it) =>

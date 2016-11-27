@@ -1,9 +1,12 @@
 package org.broadinstitute.hail
 
+import java.lang.reflect.Method
 import java.net.URI
 
 import org.apache.hadoop.fs.PathIOException
-import org.apache.spark.AccumulableParam
+import org.apache.hadoop.mapred.FileSplit
+import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
+import org.apache.spark.{AccumulableParam, Partition}
 import org.broadinstitute.hail.check.Gen
 
 import scala.collection.generic.CanBuildFrom
@@ -388,5 +391,38 @@ package object utils extends Logging
       iterator.next()
     }
     count
+  }
+
+  def lookupMethod(c: Class[_], method: String): Method = {
+    try {
+      c.getDeclaredMethod(method)
+    } catch {
+      case _: Exception =>
+        assert(c != classOf[java.lang.Object])
+        lookupMethod(c.getSuperclass, method)
+    }
+  }
+
+  def invokeMethod(obj: AnyRef, method: String, args: AnyRef*): AnyRef = {
+    val m = lookupMethod(obj.getClass, method)
+    m.invoke(obj, args: _*)
+  }
+
+  def partitionPath(p: Partition): String = {
+    p.getClass.getCanonicalName match {
+      case "org.apache.spark.rdd.SqlNewHadoopPartition" =>
+        val split = invokeMethod(invokeMethod(p, "serializableHadoopSplit"), "value").asInstanceOf[NewFileSplit]
+        split.getPath.getName
+
+      case "org.apache.spark.sql.execution.datasources.FilePartition" =>
+        val files = invokeMethod(p, "files").asInstanceOf[Seq[_ <: AnyRef]]
+        println(files)
+        assert(files.length == 1)
+        invokeMethod(files(0), "filePath").asInstanceOf[String]
+
+      case "org.apache.spark.rdd.HadoopPartition" =>
+        val split = invokeMethod(invokeMethod(p, "inputSplit"), "value").asInstanceOf[FileSplit]
+        split.getPath.getName
+    }
   }
 }

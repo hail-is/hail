@@ -7,7 +7,7 @@ import scala.reflect.ClassTag
 
 case class ReorderedPartitionsRDDPartition(index: Int, oldPartition: Partition) extends Partition
 
-class ReorderedPartitionsRDD[T](@transient var prev: RDD[T], @transient oldIndices: Array[Int])(implicit tct: ClassTag[T])
+class ReorderedPartitionsRDD[T](@transient var prev: RDD[T], @transient val oldIndices: Array[Int])(implicit tct: ClassTag[T])
   extends RDD[T](prev.sparkContext, Nil) {
 
   override def getPartitions: Array[Partition] = {

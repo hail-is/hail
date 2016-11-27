@@ -32,12 +32,14 @@ mainClassName = "org.broadinstitute.hail.driver.Main"
 
 String sparkVersion = System.getProperty("spark.version","1.6.2")
 
+Boolean spark2 = sparkVersion ==~ /^2.*/
+
 String kuduSpark
 String scalaVersion
 String scalaMajorVersion
 String py4jVersion
 
-if (sparkVersion ==~ /^2.*/) {
+if (spark2) {
     kuduSpark = 'spark2'
     scalaVersion = '2.11.8'
     scalaMajorVersion = '2.11'

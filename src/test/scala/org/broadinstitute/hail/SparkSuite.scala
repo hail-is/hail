@@ -24,19 +24,13 @@ class SparkSuite extends TestNGSuite {
   @BeforeClass
   def startSpark() {
     val master = System.getProperty("hail.master")
-    sc = SparkManager.createSparkContext("Hail.TestNG", Option(master), "local[2]")
 
-    sqlContext = SparkManager.createSQLContext()
-
-    Logger.getLogger("org").setLevel(Level.OFF)
-    Logger.getLogger("akka").setLevel(Level.OFF)
-
-    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
-    HailConfiguration.installDir = new File(jar).getParent + "/.."
-    HailConfiguration.tmpDir = "/tmp"
-
-    driver.configure(sc, logFile = "hail.log", quiet = true, append = false,
+    val conf = driver.configure("Hail.TestNG", Option(master), "local[2]",
+      logFile = "hail.log", quiet = true, append = false,
       parquetCompression = "uncompressed", blockSize = 1L, branchingFactor = 50, tmpDir = "/tmp")
+
+    sc = SparkManager.createSparkContext(conf)
+    sqlContext = SparkManager.createSQLContext()
   }
 
   @AfterClass(alwaysRun = true)

@@ -195,6 +195,11 @@ object Variant {
             fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
         }.value
       }
+
+  implicit def variantOrder: Ordering[Variant] = new Ordering[Variant] {
+    def compare(x: Variant, y: Variant): Int = x.compare(y)
+  }
+
 }
 
 object VariantSubgen {
@@ -235,7 +240,7 @@ case class VariantSubgen(
 case class Variant(contig: String,
   start: Int,
   ref: String,
-  altAlleles: IndexedSeq[AltAllele]) extends Ordered[Variant] {
+  altAlleles: IndexedSeq[AltAllele]) {
 
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */

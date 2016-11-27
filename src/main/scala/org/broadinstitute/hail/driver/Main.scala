@@ -1,11 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import java.io.File
-import java.util.Properties
-
-import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
-import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.driver.Deduplicate.DuplicateReport
 import org.broadinstitute.hail.utils._
@@ -22,21 +17,11 @@ object SparkManager {
   var _sc: SparkContext = _
   var _sqlContext: SQLContext = _
 
-  def createSparkContext(appName: String, master: Option[String], local: String): SparkContext = {
+  def createSparkContext(conf: SparkConf): SparkContext = {
     if (_sc == null) {
-      val conf = new SparkConf().setAppName(appName)
-
-      master match {
-        case Some(m) =>
-          conf.setMaster(m)
-        case None =>
-          if (!conf.contains("spark.master"))
-            conf.setMaster(local)
-      }
-
       _sc = new SparkContext(conf)
+      ProgressBarBuilder.build(_sc)
     }
-
     _sc
   }
 
@@ -45,14 +30,17 @@ object SparkManager {
     if (_sqlContext == null)
       _sqlContext = new org.apache.spark.sql.SQLContext(_sc)
 
+    _sc.getConf.getAll.foreach { case (k, v) =>
+      if (k.startsWith("spark.sql."))
+        _sqlContext.setConf(k, v)
+    }
+
     _sqlContext
   }
 }
 
 object HailConfiguration {
   var stacktrace: Boolean = _
-
-  var installDir: String = _
 
   var tmpDir: String = "/tmp"
 
@@ -260,19 +248,14 @@ object Main {
           }
       }
 
-    val sc = SparkManager.createSparkContext("Hail", Option(options.master), "local[*]")
-
-    configure(sc, logFile = options.logFile, quiet = options.logQuiet, append = options.logAppend,
+    val conf = configure("Hail", Option(options.master), "local[*]",
+      logFile = options.logFile, quiet = options.logQuiet, append = options.logAppend,
       parquetCompression = options.parquetCompression, blockSize = options.blockSize,
       branchingFactor = options.branchingFactor, tmpDir = options.tmpDir)
 
+    val sc = SparkManager.createSparkContext(conf)
+
     val sqlContext = SparkManager.createSQLContext()
-
-    // FIXME separate entrypoints
-    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
-    sc.addJar(jar)
-
-    HailConfiguration.installDir = new File(jar).getParent + "/.."
 
     runCommands(sc, sqlContext, invocations)
 
