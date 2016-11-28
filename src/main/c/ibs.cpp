@@ -2,11 +2,29 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <cassert>
 #include "ibs.h"
 
 #define EXPORT __attribute__((visibility("default")))
 
 using namespace simdpp;
+
+uint64_t vector_popcnt(hailvec x) {
+  #if HAIL_VECTOR_WIDTH < 4
+  uint64_t count = _mm_popcnt_u64(extract<0>(x));
+  #if HAIL_VECTOR_WIDTH >= 2
+  count += _mm_popcnt_u64(extract<1>(x));
+  #endif
+  #elif HAIL_VECTOR_WIDTH == 4
+  uint64_t count = _mm_popcnt_u64(_mm256_extract_epi64(x.operator __m256i(), 0));
+  count += _mm_popcnt_u64(_mm256_extract_epi64(x.operator __m256i(), 1));
+  count += _mm_popcnt_u64(_mm256_extract_epi64(x.operator __m256i(), 2));
+  count += _mm_popcnt_u64(_mm256_extract_epi64(x.operator __m256i(), 3));
+  #else
+  #error "we do not support vectors longer than 4, please file an issue"
+  #endif
+  return count;
+}
 
 void ibs256(uint64_t* __restrict__ result, hailvec x, hailvec y, hailvec xna, hailvec yna) {
   hailvec allones = make_ones();
@@ -18,53 +36,14 @@ void ibs256(uint64_t* __restrict__ result, hailvec x, hailvec y, hailvec xna, ha
   hailvec na = ~(xna & yna) | leftAllele;
 
   hailvec ibs2 = bit_andnot(nxorSR1 & nxor, na);
-  #if HAIL_VECTOR_WIDTH < 4
-  uint64_t ibs2sum = _mm_popcnt_u64(extract<0>(ibs2));
-  #if HAIL_VECTOR_WIDTH >= 2
-  ibs2sum += _mm_popcnt_u64(extract<1>(ibs2));
-  #endif
-  #elif HAIL_VECTOR_WIDTH == 4
-  uint64_t ibs2sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs2.operator __m256i(), 0));
-  ibs2sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs2.operator __m256i(), 1));
-  ibs2sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs2.operator __m256i(), 2));
-  ibs2sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs2.operator __m256i(), 3));
-  #else
-  #error "we do not support vectors longer than 4, please file an issue"
-  #endif
 
   hailvec ibs1 = bit_andnot(nxorSR1 ^ nxor, na);
-  #if HAIL_VECTOR_WIDTH < 4
-  uint64_t ibs1sum = _mm_popcnt_u64(extract<0>(ibs1));
-  #if HAIL_VECTOR_WIDTH >= 2
-  ibs1sum += _mm_popcnt_u64(extract<1>(ibs1));
-  #endif
-  #elif HAIL_VECTOR_WIDTH == 4
-  uint64_t ibs1sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs1.operator __m256i(), 0));
-  ibs1sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs1.operator __m256i(), 1));
-  ibs1sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs1.operator __m256i(), 2));
-  ibs1sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs1.operator __m256i(), 3));
-  #else
-  #error "we do not support vectors longer than 4, please file an issue"
-  #endif
 
   hailvec ibs0 = bit_andnot(~(nxorSR1 | nxor), na);
-  #if HAIL_VECTOR_WIDTH < 4
-  uint64_t ibs0sum = _mm_popcnt_u64(extract<0>(ibs0));
-  #if HAIL_VECTOR_WIDTH >= 2
-  ibs0sum += _mm_popcnt_u64(extract<1>(ibs0));
-  #endif
-  #elif HAIL_VECTOR_WIDTH == 4
-  uint64_t ibs0sum = _mm_popcnt_u64(_mm256_extract_epi64(ibs0.operator __m256i(), 0));
-  ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0.operator __m256i(), 1));
-  ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0.operator __m256i(), 2));
-  ibs0sum += _mm_popcnt_u64(_mm256_extract_epi64(ibs0.operator __m256i(), 3));
-  #else
-  #error "we do not support vectors longer than 4, please file an issue"
-  #endif
 
-  result[0] += ibs0sum;
-  result[1] += ibs1sum;
-  result[2] += ibs2sum;
+  result[2] += vector_popcnt(ibs2);
+  result[1] += vector_popcnt(ibs1);
+  result[0] += vector_popcnt(ibs0);
 }
 
 hailvec naMaskForGenotypePack(hailvec block) {
@@ -83,26 +62,10 @@ void ibsVec(uint64_t* __restrict__ result,
             uint64_t* __restrict__ y,
             hailvec * __restrict__ x_na_masks,
             hailvec * __restrict__ y_na_masks) {
-  uint64_t i = 0;
-  for (; i <= (length - HAIL_VECTOR_WIDTH); i += HAIL_VECTOR_WIDTH) {
+  for (uint64_t i = 0; i <= (length - HAIL_VECTOR_WIDTH); i += HAIL_VECTOR_WIDTH) {
     hailvec x256 = load_u(x+i);
     hailvec y256 = load_u(y+i);
     ibs256(result, x256, y256, x_na_masks[i/HAIL_VECTOR_WIDTH], y_na_masks[i/HAIL_VECTOR_WIDTH]);
-  }
-  for (; i < length; ++i) {
-    uint64_t rightAllele64 = 0x5555555555555555;
-    uint64_t allNA64 = 0xAAAAAAAAAAAAAAAA;
-    uint64_t xb = x[i];
-    uint64_t yb = y[i];
-    uint64_t nxor = ~(xb ^ yb);
-    uint64_t xna_tmp = ~(allNA64 ^ xb);
-    uint64_t xna = (xna_tmp >> 1) & xna_tmp;
-    uint64_t yna_tmp = ~(allNA64 ^ yb);
-    uint64_t yna = (yna_tmp >> 1) & yna_tmp;
-    uint64_t na = (xna | yna) & rightAllele64;
-    result[2] += _mm_popcnt_u64(((nxor >> 1) & nxor) & rightAllele64 & ~na);
-    result[1] += _mm_popcnt_u64(((nxor >> 1) ^ nxor) & rightAllele64 & ~na);
-    result[0] += _mm_popcnt_u64(~((nxor >> 1) | nxor) & rightAllele64 & ~na);
   }
 }
 
@@ -146,6 +109,11 @@ EXPORT
 void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* __restrict__ genotypes1, uint64_t* __restrict__ genotypes2) {
   hailvec * naMasks1 = 0;
   hailvec * naMasks2 = 0;
+
+  assert(CACHE_SIZE_IN_MATRIX_ROWS > 0);
+  assert(nSamples % CACHE_SIZE_IN_MATRIX_ROWS == 0);
+  assert(nGenotypePacks == NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW);
+
   createNaMasks(&naMasks1, &naMasks2, nSamples, nGenotypePacks, genotypes1, genotypes2);
 
   uint64_t i_block_end;

@@ -27,12 +27,22 @@ using namespace simdpp;
 
 using hailvec = uint64<HAIL_VECTOR_WIDTH>;
 
+// should be equal to chunkSize from IBD.scala
+#ifndef NUMBER_OF_GENOTYPES_PER_ROW
+#define NUMBER_OF_GENOTYPES_PER_ROW 1024
+#endif
+#define NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW (NUMBER_OF_GENOTYPES_PER_ROW / 32)
+
+#if (NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW % HAIL_VECTOR_WIDTH) != 0
+#error "genotype packs per row, NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW, must be multuple of vector width, HAIL_VECTOR_WIDTH."
+#endif
+
 #ifndef CACHE_SIZE_PER_MATRIX_IN_KB
 #define CACHE_SIZE_PER_MATRIX_IN_KB 4
 #endif
 
 #ifndef CACHE_SIZE_IN_MATRIX_ROWS
-#define CACHE_SIZE_IN_MATRIX_ROWS 4 * CACHE_SIZE_PER_MATRIX_IN_KB
+#define CACHE_SIZE_IN_MATRIX_ROWS (((CACHE_SIZE_PER_MATRIX_IN_KB * 1024) / 64) / NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW)
 #endif
 
 void ibs256(uint64_t* __restrict__ result, hailvec x, hailvec y, hailvec xna, hailvec yna);

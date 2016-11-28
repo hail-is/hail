@@ -18,14 +18,15 @@ object IBSFFI {
   val genotypesPerPack = 32
 
   def pack(nSamples: Int, nGenotypes: Int, gs: Array[Byte]): Array[Long] = {
-    val nFullPacks = nGenotypes / genotypesPerPack
-    val nPacks = nFullPacks + (if (nGenotypes % genotypesPerPack != 0) 1 else 0)
+    require(nGenotypes % 32 == 0);
+
+    val nPacks = nGenotypes / genotypesPerPack
 
     val sampleOrientedGenotypes = new Array[Long](nSamples * nPacks)
     var si = 0
     while (si != nSamples) {
       var pack = 0
-      while (pack != nFullPacks) {
+      while (pack != nPacks) {
         val k = si + pack*genotypesPerPack*nSamples
         sampleOrientedGenotypes(si * nPacks + pack) =
             gs(k).toLong                 << 62 | gs(k + 1 * nSamples).toLong  << 60 | gs(k + 2 * nSamples).toLong  << 58 | gs(k + 3 * nSamples).toLong  << 56 |
@@ -39,23 +40,15 @@ object IBSFFI {
 
         pack += 1
       }
-      var genotypeStraggler = pack*genotypesPerPack
-      var shift = 62
-      while (genotypeStraggler != nPacks*genotypesPerPack) {
-        val k = si + genotypeStraggler*nSamples
-        val gt = if (genotypeStraggler < nGenotypes) gs(k).toLong else 2L
-        sampleOrientedGenotypes(si * nPacks + nFullPacks) |= gt << shift
-        genotypeStraggler += 1
-        shift -= 2
-      }
       si += 1
     }
     sampleOrientedGenotypes
   }
 
   def ibs(nSamples: Int, nGenotypes: Int, gs1: Array[Long], gs2: Array[Long]): Array[Long] = {
-    val nFullPacks = nGenotypes / genotypesPerPack
-    val nPacks = nFullPacks + (if (nGenotypes % genotypesPerPack != 0) 1 else 0)
+    require(nGenotypes % 32 == 0);
+
+    val nPacks = nGenotypes / genotypesPerPack
     val ibs = new Array[Long](nSamples * nSamples * 3)
     ibsMat(ibs, nSamples, nPacks, gs1, gs2)
     ibs

@@ -5,7 +5,6 @@
 #include "ibs.h"
 
 #define N_SAMPLES 1024
-#define N_GENOTYPES_PACKS 256
 #ifndef ITERATIONS
 #define ITERATIONS 100
 #endif
@@ -18,9 +17,9 @@ int main(int argc, char** argv) {
   }
 
   uint64_t * genotypes1 = 0;
-  int err1 = posix_memalign((void **)&genotypes1, 32, ITERATIONS*N_SAMPLES*N_GENOTYPES_PACKS*sizeof(uint64_t));
+  int err1 = posix_memalign((void **)&genotypes1, 32, ITERATIONS*N_SAMPLES*NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW*sizeof(uint64_t));
   uint64_t * genotypes2 = 0;
-  int err2 = posix_memalign((void **)&genotypes2, 32, ITERATIONS*N_SAMPLES*N_GENOTYPES_PACKS*sizeof(uint64_t));
+  int err2 = posix_memalign((void **)&genotypes2, 32, ITERATIONS*N_SAMPLES*NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW*sizeof(uint64_t));
   if (err1 || err2) {
     printf("Not enough memory to allocate space for the genotypes: %d %d\n", err1, err2);
     exit(-1);
@@ -33,9 +32,9 @@ int main(int argc, char** argv) {
   for (int i = 0; i < ITERATIONS; ++i) {
     ibsMat(result,
            N_SAMPLES,
-           N_GENOTYPES_PACKS,
-           genotypes1+i*N_SAMPLES*N_GENOTYPES_PACKS,
-           genotypes2+i*N_SAMPLES*N_GENOTYPES_PACKS);
+           NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW,
+           genotypes1+i*N_SAMPLES*NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW,
+           genotypes2+i*N_SAMPLES*NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW);
   }
   t2 = clock();
 
