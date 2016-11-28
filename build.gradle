@@ -203,6 +203,9 @@ shadowJar {
 
         include(dependency('org.http4s:http4s-core_' + scalaMajorVersion + ':.*'))
 
+        include(dependency('org.apache.kudu:kudu-client:.*'))
+        include(dependency('org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':.*'))
+
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
         include(dependency('org.apache.httpcomponents:httpclient:.*'))
@@ -244,6 +247,9 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.scalaz:scalaz-core_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-concurrent_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-stream_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.apache.kudu:kudu-client:.*'))
+        include(dependency('org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':.*'))
 
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
