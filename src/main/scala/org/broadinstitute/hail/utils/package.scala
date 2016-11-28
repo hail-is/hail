@@ -421,7 +421,6 @@ package object utils extends Logging
 
       case "org.apache.spark.sql.execution.datasources.FilePartition" =>
         val files = invokeMethod(p, "files").asInstanceOf[Seq[_ <: AnyRef]]
-        println(files)
         assert(files.length == 1)
         invokeMethod(files(0), "filePath").asInstanceOf[String]
 
