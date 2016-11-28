@@ -61,7 +61,6 @@ package object driver {
     master match {
       case Some(m) =>
         conf.setMaster(m)
-      // FIXME
       case None =>
         if (!conf.contains("spark.master"))
           conf.setMaster(local)

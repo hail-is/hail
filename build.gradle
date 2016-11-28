@@ -30,7 +30,7 @@ buildScan {
 
 mainClassName = "org.broadinstitute.hail.driver.Main"
 
-String sparkVersion = System.getProperty("spark.version","1.6.2")
+String sparkVersion = System.getProperty("spark.version","2.0.2")
 
 Boolean spark2 = sparkVersion ==~ /^2.*/
 
@@ -38,6 +38,7 @@ String kuduSpark
 String scalaVersion
 String scalaMajorVersion
 String py4jVersion
+String breezeVersion = '0.11.2'
 
 if (spark2) {
     kuduSpark = 'spark2'
@@ -59,17 +60,21 @@ compileJava {
 }
 
 compileScala {
-    // scalaCompileOptions.compilerArgs << "-Xfatal-warnings"
-    scalaCompileOptions.additionalParameters = ["-feature", "-Xfatal-warnings"]
-    // scalaCompileOptions.forkOptions.jvmArgs = ['-XX:MaxPermSize=512m']
+    if (spark2)
+        // until we drop Spark 1 support, we need to rely on deprecated features
+        scalaCompileOptions.additionalParameters = ["-feature"]
+    else
+        scalaCompileOptions.additionalParameters = ["-feature", "-Xfatal-warnings"]
 }
 
-configurations.all {
-    resolutionStrategy {
-        // override new version pulled in by solrj
-        // http://stackoverflow.com/questions/31039367/spark-parallelize-could-not-find-creator-property-with-name-id
+if (!spark2) {
+    configurations.all {
+        resolutionStrategy {
+            // override new version pulled in by solrj
+            // http://stackoverflow.com/questions/31039367/spark-parallelize-could-not-find-creator-property-with-name-id
 
-        force 'com.fasterxml.jackson.core:jackson-databind:2.4.4'
+            force 'com.fasterxml.jackson.core:jackson-databind:2.4.4'
+        }
     }
 }
 
@@ -85,8 +90,7 @@ dependencies {
     compile 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     compile 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
     compile 'net.jpountz.lz4:lz4:1.3.0'
-    compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
-    compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':0.11.2'
+    compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
     compile 'args4j:args4j:2.32'
     compile 'com.github.samtools:htsjdk:2.5.0'
     compile 'org.apache.kudu:kudu-client:1.1.0'
@@ -240,7 +244,7 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.scalaz:scalaz-core_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-concurrent_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-stream_' + scalaMajorVersion + ':.*'))
-	
+
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
         include(dependency('org.apache.httpcomponents:httpclient:.*'))
@@ -255,7 +259,7 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('com.google.guava:guava:.*'))
         include(dependency('org.apache.spark:kudu-client:.*'))
         include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
-	
+
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
         include(dependency('org.ow2.asm:asm-tree:.*'))

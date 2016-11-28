@@ -36,10 +36,10 @@ object OrderedRDD {
       OrderedRDD.empty[PK, K, V](rdd.sparkContext)
     else
       rdd match {
-        case ordered: OrderedRDD[PK, K, V] => ordered
+        case ordered: OrderedRDD[_, _, _] => ordered.asInstanceOf[OrderedRDD[PK, K, V]]
         case _ =>
           (rdd.partitioner: @unchecked) match {
-            case Some(p: OrderedPartitioner[PK, K]) => OrderedRDD(rdd, p)
+            case Some(p: OrderedPartitioner[_, _]) => OrderedRDD(rdd, p.asInstanceOf[OrderedPartitioner[PK, K]])
           }
       }
   }
@@ -60,12 +60,14 @@ object OrderedRDD {
       return (ORDERED_PARTITIONER, empty(rdd.sparkContext))
 
     rdd match {
-      case ordd: OrderedRDD[PK, K, V] => return (ORDERED_PARTITIONER, ordd)
+      case ordd: OrderedRDD[_, _, _] =>
+        return (ORDERED_PARTITIONER, ordd.asInstanceOf[OrderedRDD[PK, K, V]])
       case _ =>
     }
 
     rdd.partitioner match {
-      case Some(op: OrderedPartitioner[PK, K]) => return (ORDERED_PARTITIONER, new OrderedRDD[PK, K, V](rdd, op))
+      case Some(op: OrderedPartitioner[_, _]) =>
+        return (ORDERED_PARTITIONER, new OrderedRDD[PK, K, V](rdd, op.asInstanceOf[OrderedPartitioner[PK, K]]))
       case _ =>
     }
 
@@ -371,7 +373,8 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner.mapMonotonic)
   }
 
-  override def coalesce(maxPartitions: Int, shuffle: Boolean = false)
+  import org.apache.spark.rdd.PartitionCoalescer
+  override def coalesce(maxPartitions: Int, shuffle: Boolean = false, partitionCoalescer: Option[PartitionCoalescer] = Option.empty)
     (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
     val n = rdd.partitions.length
