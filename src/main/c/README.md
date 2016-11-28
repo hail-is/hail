@@ -21,9 +21,9 @@ define `extract<0>` for size-one vectors.
 To specify an architecture, set one of the variables listed in the
 [libsimdpp documentation](http://p12tic.github.io/libsimdpp/v2.0%7Erc2/libsimdpp/arch/selection.html).
 
-## `hailvec`
+## `uint64vector`
 
-In `ibs.h`, we define `hailvec` in terms of `libsimdpp` 64-bit vectors. By
+In `ibs.h`, we define `uint64vector` in terms of `libsimdpp` 64-bit vectors. By
 default, we set the length of the vector to `SIMDPP_FAST_INT64_SIZE`, which is
 set to the length (in 64-bit units) of the longest register available on this
 machine.

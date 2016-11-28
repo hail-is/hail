@@ -20,12 +20,12 @@
 using namespace simdpp;
 
 #ifndef HAIL_OVERRIDE_WIDTH
-#define HAIL_VECTOR_WIDTH SIMDPP_FAST_INT64_SIZE
+#define UINT64_VECTOR_SIZE SIMDPP_FAST_INT64_SIZE
 #else
-#define HAIL_VECTOR_WIDTH HAIL_OVERRIDE_WIDTH
+#define UINT64_VECTOR_SIZE HAIL_OVERRIDE_WIDTH
 #endif // HAIL_OVERRIDE_WIDTH
 
-using hailvec = uint64<HAIL_VECTOR_WIDTH>;
+using uint64vector = uint64<UINT64_VECTOR_SIZE>;
 
 // should be equal to chunkSize from IBD.scala
 #ifndef NUMBER_OF_GENOTYPES_PER_ROW
@@ -33,8 +33,8 @@ using hailvec = uint64<HAIL_VECTOR_WIDTH>;
 #endif
 #define NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW (NUMBER_OF_GENOTYPES_PER_ROW / 32)
 
-#if (NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW % HAIL_VECTOR_WIDTH) != 0
-#error "genotype packs per row, NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW, must be multuple of vector width, HAIL_VECTOR_WIDTH."
+#if (NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW % UINT64_VECTOR_SIZE) != 0
+#error "genotype packs per row, NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW, must be multuple of vector width, UINT64_VECTOR_SIZE."
 #endif
 
 #ifndef CACHE_SIZE_PER_MATRIX_IN_KB
@@ -45,17 +45,17 @@ using hailvec = uint64<HAIL_VECTOR_WIDTH>;
 #define CACHE_SIZE_IN_MATRIX_ROWS (((CACHE_SIZE_PER_MATRIX_IN_KB * 1024) / 64) / NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW)
 #endif
 
-void ibs256(uint64_t* __restrict__ result, hailvec x, hailvec y, hailvec xna, hailvec yna);
-hailvec naMaskForGenotypePack(hailvec block);
-void ibs256_with_na(uint64_t* __restrict__ result, hailvec x, hailvec y);
+void ibs256(uint64_t* __restrict__ result, uint64vector x, uint64vector y, uint64vector xna, uint64vector yna);
+uint64vector naMaskForGenotypePack(uint64vector block);
+void ibs256_with_na(uint64_t* __restrict__ result, uint64vector x, uint64vector y);
 void ibsVec(uint64_t* __restrict__ result,
             uint64_t length,
             uint64_t* __restrict__ x,
             uint64_t* __restrict__ y,
-            hailvec* __restrict__ x_na_masks,
-            hailvec* __restrict__ y_na_masks);
-void allocateNaMasks(hailvec ** __restrict__ mask1,
-                     hailvec ** __restrict__ mask2,
+            uint64vector* __restrict__ x_na_masks,
+            uint64vector* __restrict__ y_na_masks);
+void allocateNaMasks(uint64vector ** __restrict__ mask1,
+                     uint64vector ** __restrict__ mask2,
                      uint64_t nSamples,
                      uint64_t nGenotypePacks,
                      uint64_t* __restrict__ x,
