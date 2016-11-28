@@ -1,5 +1,5 @@
---- src/main/scala/org/broadinstitute/hail/sparkextras/OrderedRDD.scala
-+++ src/main/scala/org/broadinstitute/hail/sparkextras/OrderedRDD.scala
+--- src/main/scala/org/broadinstitute/hail/sparkextras/OrderedRDD.scala	2016-11-28 14:46:24.000000000 -0500
++++ src/main/scala/org/broadinstitute/hail/sparkextras/OrderedRDD.scala	2016-11-28 14:46:03.000000000 -0500
 @@ -373,8 +373,7 @@
      new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner.mapMonotonic)
    }
