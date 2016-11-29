@@ -1,12 +1,20 @@
---- src/main/scala/org/broadinstitute/hail/sparkextras/OrderedRDD.scala	2016-11-28 14:46:24.000000000 -0500
-+++ src/main/scala/org/broadinstitute/hail/sparkextras/OrderedRDD.scala	2016-11-28 14:46:03.000000000 -0500
-@@ -373,8 +373,7 @@
+--- src/main/scala/org/broadinstitute/hail/sparkextras/OrderedRDD.scala	2016-11-29 02:19:28.000000000 -0500
++++ src/main/scala/org/broadinstitute/hail/sparkextras/OrderedRDD.scala	2016-11-29 02:19:50.000000000 -0500
+@@ -373,9 +373,7 @@
      new OrderedRDD[PK, K2, V2](rdd.mapPartitions(_.flatMap(f.tupled)), orderedPartitioner.mapMonotonic)
    }
  
 -  import org.apache.spark.rdd.PartitionCoalescer
+-
 -  override def coalesce(maxPartitions: Int, shuffle: Boolean = false, partitionCoalescer: Option[PartitionCoalescer] = Option.empty)
 +  override def coalesce(maxPartitions: Int, shuffle: Boolean = false)
      (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
      require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
      val n = rdd.partitions.length
+@@ -535,4 +533,4 @@
+       def partitionF(pk1: PK1) = partitionG(pk1)
+     }
+   }
+-}
+\ No newline at end of file
++}
