@@ -46,12 +46,14 @@ class ImportAnnotationsSuite extends SparkSuite {
     val q1 = anno1.vds.querySA("sa.`my phenotype`.Status")._2
     val q2 = anno1.vds.querySA("sa.`my phenotype`.qPhen")._2
 
-    anno1.vds.metadata.sampleIds.zip(anno1.vds.metadata.sampleAnnotations)
+    assert(anno1.vds.sampleIdsAndAnnotations
       .forall {
         case (id, sa) =>
-          !fileMap.contains(id) ||
-            (q1(sa).contains(fileMap(id)._1) && q2(sa).contains(fileMap(id)._2))
-      }
+          fileMap.get(id).forall { case (status, qphen) =>
+            status.liftedZip(q1(sa)).exists { case (v1, v2) => v1 == v2 } &&
+              (qphen.isEmpty && q2(sa).isEmpty || qphen.liftedZip(q2(sa)).exists { case (v1, v2) => v1 == v2 })
+          }
+      })
   }
 
   @Test def testSampleFamAnnotator() {
