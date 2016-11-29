@@ -26,6 +26,9 @@ repositories {
     }
     mavenCentral()
     jcenter()
+    maven {
+        url "https://repository.cloudera.com/artifactory/cloudera-repos/" // kudu
+    }
 }
 
 buildScan {
