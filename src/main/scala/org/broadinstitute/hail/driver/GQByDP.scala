@@ -14,9 +14,6 @@ object GQByDP extends Command {
   class Options extends BaseOptions {
     @Args4jOption(required = true, name = "-o", aliases = Array("--output"), usage = "Output file")
     var output: String = _
-
-    @Args4jOption(name = "--plot", usage = "Plot output")
-    var plot: Boolean = false
   }
   def newOptions = new Options
 
@@ -49,10 +46,6 @@ object GQByDP extends Command {
         }
         s.write("\n")
       }
-    }
-
-    if (options.plot) {
-      "Rscript " + HailConfiguration.installDir + "/scripts/Plot_gq20bydp.R " + options.output !
     }
 
     state

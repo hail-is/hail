@@ -3,7 +3,6 @@ package org.broadinstitute.hail.io.vcf
 import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
 import org.apache.hadoop.mapred.FileSplit
-import org.apache.spark.sql.SparkExport
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Accumulable, SparkContext}
 import org.broadinstitute.hail.utils._
@@ -240,10 +239,7 @@ object LoadVCF {
       files
 
     val lines = sc.textFilesLines(files2, nPartitions.getOrElse(sc.defaultMinPartitions))
-    val partitionFile = lines.partitions
-      .map { p =>
-        SparkExport.hadoopPartitionSplit(p).asInstanceOf[FileSplit].getPath.toString
-      }
+    val partitionFile = lines.partitions.map(partitionPath)
 
     val justVariants = lines
       .filter(_.map { line => !line.isEmpty &&

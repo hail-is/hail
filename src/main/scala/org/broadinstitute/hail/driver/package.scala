@@ -1,12 +1,12 @@
 package org.broadinstitute.hail
 
-import java.io.File
 import java.util
 import java.util.Properties
 
-import org.apache.log4j.{Level, LogManager, PropertyConfigurator}
+import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.{ProgressBarBuilder, SparkContext}
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.VariantDataset
 
@@ -47,10 +47,24 @@ package object driver {
     CountResult(vds.nSamples, nVariants, nCalled)
   }
 
-  def configure(sc: SparkContext, logFile: String, quiet: Boolean, append: Boolean,
-    parquetCompression: String, blockSize: Long, branchingFactor: Int, tmpDir: String) {
+  def configureAndCreateSparkContext(appName: String, master: Option[String], local: String = "local[*]",
+    logFile: String = "hail.log", quiet: Boolean = false, append: Boolean = false, parquetCompression: String = "uncompressed",
+    blockSize: Long = 1L, branchingFactor: Int = 50, tmpDir: String = "/tmp"): SparkContext = {
     require(blockSize > 0)
     require(branchingFactor > 0)
+
+    HailConfiguration.tmpDir = tmpDir
+    HailConfiguration.branchingFactor = branchingFactor
+
+    val conf = new SparkConf().setAppName(appName)
+
+    master match {
+      case Some(m) =>
+        conf.setMaster(m)
+      case None =>
+        if (!conf.contains("spark.master"))
+          conf.setMaster(local)
+    }
 
     val logProps = new Properties()
     if (quiet) {
@@ -73,21 +87,22 @@ package object driver {
     LogManager.resetConfiguration()
     PropertyConfigurator.configure(logProps)
 
-    val conf = sc.getConf
-
     conf.set("spark.ui.showConsoleProgress", "false")
-    val progressBar = ProgressBarBuilder.build(sc)
 
-    sc.hadoopConfiguration.set(
-      "io.compression.codecs",
+    conf.set(
+      "spark.hadoop.io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec," +
         "org.broadinstitute.hail.io.compress.BGzipCodec," +
         "org.apache.hadoop.io.compress.GzipCodec")
 
-    conf.set("spark.sql.parquet.compression.codec", parquetCompression)
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", blockSize * 1024L * 1024L)
+    val tera = 1024L * 1024L * 1024L * 1024L
+
+    conf.set("spark.sql.parquet.compression.codec", parquetCompression)
+    conf.set("spark.sql.files.openCostInBytes", tera.toString)
+
+    conf.set("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", (blockSize * 1024L * 1024L).toString)
 
     /* `DataFrame.write` writes one file per partition.  Without this, read will split files larger than the default
      * parquet block size into multiple partitions.  This causes `OrderedRDD` to fail since the per-partition range
@@ -96,15 +111,20 @@ package object driver {
      * For reasons we don't understand, the DataFrame code uses `SparkHadoopUtil.get.conf` instead of the Hadoop
      * configuration in the SparkContext.  Set both for consistency.
      */
-    SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1099511627776L)
-    sc.hadoopConfiguration.setLong("parquet.block.size", 1099511627776L)
+    SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
+    conf.set("spark.hadoop.parquet.block.size", tera.toString)
 
+    val sc = new SparkContext(conf)
+    ProgressBarBuilder.build(sc)
+    sc
+  }
 
-    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
-    sc.addJar(jar)
-
-    HailConfiguration.installDir = new File(jar).getParent + "/.."
-    HailConfiguration.tmpDir = tmpDir
-    HailConfiguration.branchingFactor = branchingFactor
+  def createSQLContext(sc: SparkContext): SQLContext = {
+    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+    sc.getConf.getAll.foreach { case (k, v) =>
+      if (k.startsWith("spark.sql."))
+        sqlContext.setConf(k, v)
+    }
+    sqlContext
   }
 }

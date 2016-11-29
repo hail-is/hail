@@ -11,6 +11,8 @@ import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, _}
 import org.broadinstitute.hail.variant._
 import org.testng.annotations.Test
 
+import scala.math.Ordering.Implicits._
+
 case class PartitionSummary(partitionIndex: Int,
   sorted: Boolean,
   correctPartitioning: Boolean,

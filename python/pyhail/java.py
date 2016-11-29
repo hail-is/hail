@@ -10,3 +10,12 @@ def scala_object(jpackage, name):
 
 def scala_package_object(jpackage):
     return scala_object(jpackage, 'package')
+
+def jnone(jvm):
+    return scala_object(jvm.scala, 'None')
+
+def jsome(jvm, x):
+    return jvm.scala.Some(x)
+
+def joption(jvm, x):
+    return jsome(jvm, x) if x else jnone(jvm)

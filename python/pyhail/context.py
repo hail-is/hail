@@ -1,7 +1,9 @@
-import pyspark
+from pyspark.java_gateway import launch_gateway
+from pyspark import SparkConf, SparkContext
+from pyspark.sql import SQLContext
 
 from pyhail.dataset import VariantDataset
-from pyhail.java import jarray, scala_object, scala_package_object
+from pyhail.java import jarray, scala_object, scala_package_object, joption
 from pyhail.keytable import KeyTable
 from pyhail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
@@ -21,8 +23,6 @@ class HailContext(object):
     """:class:`.HailContext` is the main entrypoint for PyHail
     functionality.
 
-    :param SparkContext sc: The pyspark context.
-
     :param str log: Log file.
 
     :param bool quiet: Don't write log file.
@@ -38,32 +38,23 @@ class HailContext(object):
     :param str tmp_dir: Temporary directory for file merging.
     """
 
-    def __init__(self, sc=None, log='hail.log', quiet=False, append=False,
-                 block_size=1, parquet_compression='uncompressed',
-                 branching_factor=50, tmp_dir='/tmp'):
+    def __init__(self, appName="PyHail", master=None, local='local[*]',
+                 log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
+                 block_size=1, branching_factor=50, tmp_dir='/tmp'):
+        from pyspark import SparkContext
+        SparkContext._ensure_initialized()
 
-        self.sc = sc
+        self.gateway = SparkContext._gateway
+        self.jvm = SparkContext._jvm
 
-        self.gateway = sc._gateway
-        self.jvm = sc._jvm
+        self.jsc = scala_package_object(self.jvm.org.broadinstitute.hail.driver).configureAndCreateSparkContext(
+            appName, joption(self.jvm, master), local,
+            log, quiet, append, parquet_compression,
+            block_size, branching_factor, tmp_dir)
+        self.sc = SparkContext(gateway=self.gateway, jsc=self.jvm.JavaSparkContext(self.jsc))
 
-        # sc._jsc is JavaObject JavaSparkContext
-        self.jsc = sc._jsc.sc()
-
-        self.jsql_context = sc._jvm.SQLContext(self.jsc)
-
-        self.sql_context = pyspark.sql.SQLContext(sc, self.jsql_context)
-
-        scala_package_object(self.jvm.org.broadinstitute.hail.driver).configure(
-            self.jsc,
-            log,
-            quiet,
-            append,
-            parquet_compression,
-            block_size,
-            branching_factor,
-            tmp_dir)
-
+        self.jsql_context = scala_package_object(self.jvm.org.broadinstitute.hail.driver).createSQLContext(self.jsc)
+        self.sql_context = SQLContext(self.sc, self.jsql_context)
 
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
@@ -519,3 +510,7 @@ class HailContext(object):
             pargs.append(seed)
 
         return self.run_command(None, pargs)
+
+    def stop(self):
+        self.sc.stop()
+        self.sc = None
