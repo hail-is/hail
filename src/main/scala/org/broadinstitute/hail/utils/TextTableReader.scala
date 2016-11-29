@@ -214,6 +214,7 @@ object TextTableReader {
       .map {
         _.map { line =>
           val a = new Array[Annotation](nField)
+
           val split = line.split(separator, -1)
           if (split.length != nField)
             fatal(s"expected $nField fields, but found ${ split.length } fields")
