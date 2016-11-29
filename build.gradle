@@ -54,8 +54,14 @@ if (spark2) {
     scalaVersion = '2.10.4'
     scalaMajorVersion = '2.10'
     kuduSpark = 'spark'
-    py4jVersion = '0.9'
+    if (sparkVersion ==~ /^1\.5.*/) {
+        py4jVersion = '0.8.2.1'
+    } else {
+        py4jVersion = '0.9' // 1.6.3
+    }
 }
+
+println(py4jVersion)
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
