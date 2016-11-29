@@ -59,6 +59,7 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
 
     val sampleQuery = struct.parseInStructScope[String](options.sampleExpr, TString)
 
+    rdd.take(10).foreach {x => info(x.value.toString)}
     val map = rdd
       .flatMap {
         _.map { a =>
@@ -67,7 +68,7 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
       }
       .collect()
       .toMap
-    map.foreach { case (s, a) => info(s"""$s: $a""") }
+    map.take(10).foreach { case (s, a) => info(s"""$s: $a""") }
 
     state.copy(vds = vds.annotateSamples(map.get _, finalType, inserter))
   }
