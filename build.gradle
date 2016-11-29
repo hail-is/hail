@@ -57,7 +57,7 @@ if (spark2) {
     if (sparkVersion ==~ /^1\.5.*/) {
         py4jVersion = '0.8.2.1'
     } else {
-        py4jVersion = '0.9' // 1.6.3
+        py4jVersion = '0.9' // 1.6
     }
 }
 
