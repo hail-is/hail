@@ -64,8 +64,6 @@ if (spark2) {
     }
 }
 
-println(py4jVersion)
-
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
 
