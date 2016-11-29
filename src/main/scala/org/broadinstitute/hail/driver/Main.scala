@@ -50,7 +50,7 @@ object Main {
     @Args4jOption(required = false, name = "-q", aliases = Array("--quiet"), usage = "Don't write log file")
     var logQuiet: Boolean = false
 
-    @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "[")
+    @Args4jOption(required = false, name = "-t", aliases = Array("--tmpdir"), usage = "Temporary directory")
     var tmpDir: String = "/tmp"
   }
 

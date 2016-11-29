@@ -67,7 +67,6 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
       }
       .collect()
       .toMap
-    map.take(10).foreach { case (s, a) => info(s"""$s: $a""") }
 
     state.copy(vds = vds.annotateSamples(map.get _, finalType, inserter))
   }
