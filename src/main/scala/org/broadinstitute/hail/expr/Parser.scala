@@ -114,8 +114,9 @@ object Parser extends JavaTokenParsers {
             tb += f.`type`
           }
           val types = s.struct.fields.map(_.`type`)
-          () => eval().asInstanceOf[IndexedSeq[Any]].iterator
-            .zip(types.iterator).map { case (value, t) => t.str(value) }
+          () =>
+            eval().asInstanceOf[IndexedSeq[Any]].iterator
+              .zip(types.iterator).map { case (value, t) => t.str(value) }
 
         case t =>
           if (!t.isRealizable)
@@ -170,7 +171,7 @@ object Parser extends JavaTokenParsers {
             if (path.head != h)
               fatal(
                 s"""invalid annotation path `${ path.map(prettyIdentifier).mkString(".") }'
-                    |  Path should begin with `$h'
+                   |  Path should begin with `$h'
             """.stripMargin)
           case None =>
         }
@@ -250,12 +251,12 @@ object Parser extends JavaTokenParsers {
 
   def or_expr: Parser[AST] =
     and_expr ~ rep(withPos("||" | "|") ~ and_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def and_expr: Parser[AST] =
     lt_expr ~ rep(withPos("&&" | "&") ~ lt_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def lt_expr: Parser[AST] =
@@ -265,22 +266,22 @@ object Parser extends JavaTokenParsers {
 
   def eq_expr: Parser[AST] =
     add_expr ~ rep(withPos("==" | "!=") ~ add_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Comparison(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def add_expr: Parser[AST] =
     mul_expr ~ rep(withPos("+" | "-") ~ mul_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def mul_expr: Parser[AST] =
     tilde_expr ~ rep(withPos("*" | "/" | "%") ~ tilde_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def tilde_expr: Parser[AST] =
     unary_expr ~ rep(withPos("~") ~ unary_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def export_args: Parser[Array[(Option[String], AST)]] =
@@ -344,15 +345,22 @@ object Parser extends JavaTokenParsers {
       | (withPos(".") ~ "*")
       | withPos("[") ~ expr ~ "]"
       | withPos("[") ~ opt(expr) ~ ":" ~ opt(expr) ~ "]") ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
-        case (dot: Positioned[_]) ~ "*" => Splat(dot.pos, acc)
-        case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
-        case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
-          ApplyMethod(dot.pos, acc, sym, args)
-        case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexOp(lbracket.pos, acc, idx)
-        case (lbracket: Positioned[_]) ~ (idx1: Option[_]) ~ ":" ~ (idx2: Option[_]) ~ "]" =>
-          SliceArray(lbracket.pos, acc, idx1.map(_.asInstanceOf[AST]), idx2.map(_.asInstanceOf[AST]))
-      }
+      lst.foldLeft(lhs) { (acc, t) =>
+        (t: @unchecked) match {
+          case (dot: Positioned[_]) ~ "*" => Splat(dot.pos, acc)
+          case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
+          case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
+            ApplyMethod(dot.pos, acc, sym, args)
+          case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => ApplyMethod(lbracket.pos, acc, "[]", Array(idx))
+          case (lbracket: Positioned[_]) ~ None ~ ":" ~ None ~ "]" =>
+            ApplyMethod(lbracket.pos, acc, "[:]", Array())
+          case (lbracket: Positioned[_]) ~ Some(idx1: AST) ~ ":" ~ None ~ "]" =>
+            ApplyMethod(lbracket.pos, acc, "[*:]", Array(idx1))
+          case (lbracket: Positioned[_]) ~ None ~ ":" ~ Some(idx2: AST) ~ "]" =>
+            ApplyMethod(lbracket.pos, acc, "[:*]", Array(idx2))
+          case (lbracket: Positioned[_]) ~ Some(idx1: AST) ~ ":" ~ Some(idx2: AST) ~ "]" =>
+            ApplyMethod(lbracket.pos, acc, "[*:*]", Array(idx1, idx2))
+        }
       }
     }
 

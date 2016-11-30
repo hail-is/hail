@@ -84,6 +84,14 @@ case class UnaryFun[T, U](retType: Type, f: (T) => U) extends Fun with Serializa
   }
 }
 
+case class UnarySpecial[T, U](retType: Type, f: (() => Any) => U) extends Fun with Serializable with ((() => Any) => U) {
+  def apply(t: () => Any): U = f(t)
+
+  def subst() = UnarySpecial(retType.subst(), f)
+
+  def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = ???
+}
+
 case class OptionUnaryFun[T, U](retType: Type, f: (T) => Option[U]) extends Fun with Serializable with ((T) => Option[U]) {
   def apply(t: T): Option[U] = f(t)
 
@@ -109,11 +117,30 @@ case class BinaryFun[T, U, V](retType: Type, f: (T, U) => V) extends Fun with Se
   }
 }
 
+case class BinarySpecial[T, U, V](retType: Type, f: (() => Any, () => Any) => V)
+  extends Fun with Serializable with ((() => Any, () => Any) => V) {
+  def apply(t: () => Any, u: () => Any): V = f(t, u)
+
+  def subst() = BinarySpecial(retType.subst(), f)
+
+  def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = ???
+}
+
 case class BinaryLambdaFun[T, U, V](retType: Type, f: (T, (Any) => Any) => V)
   extends Fun with Serializable with ((T, (Any) => Any) => V) {
   def apply(t: T, u: (Any) => Any): V = f(t, u)
 
   def subst() = BinaryLambdaFun(retType.subst(), f)
+
+  // conversion can't apply to function type
+  def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = ???
+}
+
+case class Arity3LambdaFun[T, U, V, W](retType: Type, f: (T, (Any) => Any, V) => W)
+  extends Fun with Serializable with ((T, (Any) => Any, V) => W) {
+  def apply(t: T, u: (Any) => Any, v: V): W = f(t, u, v)
+
+  def subst() = Arity3LambdaFun(retType.subst(), f)
 
   // conversion can't apply to function type
   def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = ???
@@ -128,7 +155,6 @@ case class BinaryLambdaSpecial[T, U, V](retType: Type, f: (() => Any, (Any) => A
   // conversion can't apply to function type
   def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = ???
 }
-
 
 case class Arity3Fun[T, U, V, W](retType: Type, f: (T, U, V) => W) extends Fun with Serializable with ((T, U, V) => W) {
   def apply(t: T, u: U, v: V): W = f(t, u, v)

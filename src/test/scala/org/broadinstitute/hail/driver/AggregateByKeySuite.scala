@@ -18,7 +18,6 @@ class AggregateByKeySuite extends SparkSuite {
     val (_, saHetQuery) = s.vds.querySA("sa.nHet")
 
     val ktSampleResults = kt.rdd.map { case (k, v) =>
-      println("kv", k, v)
       (ktSampleQuery(k, v).map(_.asInstanceOf[String]), ktHetQuery(k, v).map(_.asInstanceOf[Int]))
     }.collectAsMap()
 

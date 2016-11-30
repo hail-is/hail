@@ -151,8 +151,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("a[2]").isEmpty)
 
     assert(eval[Boolean]("1 == 1.0").contains(true))
-    val equalsError = intercept[FatalException](eval[Boolean](""" s == 2 """))
-    assert(equalsError.getMessage.contains("can only compare objects of similar type"))
 
     assert(eval[Int]("as.length").contains(2))
     assert(eval[Int]("as[0].a").contains(23))
@@ -243,18 +241,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""a2.sort(true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sort(false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
 
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort(0)"""))
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort("asdasd")"""))
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort(true, true)"""))
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort(null)"""))
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort(asdasd)"""))
-
-
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""").contains(IndexedSeq(1, 2, -1, 3, 3, 6, 8, null)))
@@ -265,21 +251,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
-
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(0)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(0, true)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, 0)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, "asdasd")"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, true, true)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, null)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, asdasd)"""))
 
     assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
       .contains("HELLO=-7, asdasd9"))
@@ -297,7 +268,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""a.max""").contains(8))
     assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
-    assert(eval[String](""" 5 + "5" """) == eval[String](""" "5" + 5 """))
+    assert(eval[String](""" "" + 5 + "5" """) == eval[String](""" "5" + 5 """))
     assert(eval[Int]("""iset.min""").contains(0))
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
@@ -474,7 +445,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] / 2.0""").contains(IndexedSeq(1.0, null, 2.0)))
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] / [2,NA: Int,4]""").contains(IndexedSeq(1.0, null, 1.0)))
 
-    TestUtils.interceptFatal("""cannot apply operation `\+' to arrays of unequal length""") {
+    TestUtils.interceptFatal("""Cannot apply operation \+ to arrays of unequal length""") {
       eval[IndexedSeq[Int]]("""[1] + [2,3,4] """)
     }
 

@@ -9,6 +9,9 @@ import org.broadinstitute.hail.methods._
 
 import scala.collection.mutable
 import org.broadinstitute.hail.utils.EitherIsAMonad._
+import org.json4s.jackson.JsonMethods
+
+import scala.language.higherKinds
 
 object FunctionRegistry {
 
@@ -23,7 +26,7 @@ object FunctionRegistry {
   sealed case class Ambiguous(name: String, typ: TypeTag, alternates: Seq[(Int, (TypeTag, Fun))]) extends LookupError {
     def message =
       s"""found ${ alternates.size } ambiguous matches for $typ:
-          |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
+         |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
   }
 
   type Err[T] = Either[LookupError, T]
@@ -191,10 +194,17 @@ object FunctionRegistry {
 
       case f: UnaryFun[_, _] =>
         AST.evalCompose(ec, lhs)(f)
+      case f: UnarySpecial[_, _] =>
+        val t = lhs.eval(ec)
+        () => f(t)
       case f: OptionUnaryFun[_, _] =>
         AST.evalFlatCompose(ec, lhs)(f)
       case f: BinaryFun[_, _, _] =>
         AST.evalCompose(ec, lhs, args(0))(f)
+      case f: BinarySpecial[_, _, _] =>
+        val t = lhs.eval(ec)
+        val u = args(0).eval(ec)
+        () => f(t, u)
       case f: BinaryLambdaFun[t, _, _] =>
         val Lambda(_, param, body) = args(0)
 
@@ -215,6 +225,26 @@ object FunctionRegistry {
         }
 
         AST.evalCompose[t](ec, lhs) { x1 => f(x1, g) }
+      case f: Arity3LambdaFun[t, _, v, _] =>
+        val Lambda(_, param, body) = args(0)
+
+        val localIdx = ec.a.length
+        val localA = ec.a
+        localA += null
+
+        val bodyST =
+          lhs.`type` match {
+            case tagg: TAggregable => tagg.symTab
+            case _ => ec.st
+          }
+
+        val bodyFn = body.eval(ec.copy(st = bodyST + (param -> (localIdx, lhs.`type`.asInstanceOf[TContainer].elementType))))
+        val g = (x: Any) => {
+          localA(localIdx) = x
+          bodyFn()
+        }
+
+        AST.evalCompose[t, v](ec, lhs, args(1)) { (x1, x2) => f(x1, g, x2) }
       case f: BinaryLambdaSpecial[t, _, _] =>
         val Lambda(_, param, body) = args(0)
 
@@ -251,10 +281,17 @@ object FunctionRegistry {
     lookup(name, FunType(typs: _*)).map {
       case f: UnaryFun[_, _] =>
         AST.evalCompose(ec, args(0))(f)
+      case f: UnarySpecial[_, _] =>
+        val t = args(0).eval(ec)
+        () => f(t)
       case f: OptionUnaryFun[_, _] =>
         AST.evalFlatCompose(ec, args(0))(f)
       case f: BinaryFun[_, _, _] =>
         AST.evalCompose(ec, args(0), args(1))(f)
+      case f: BinarySpecial[_, _, _] =>
+        val t = args(0).eval(ec)
+        val u = args(1).eval(ec)
+        () => f(t, u)
       case f: Arity3Fun[_, _, _, _] =>
         AST.evalCompose(ec, args(0), args(1), args(2))(f)
       case f: Arity4Fun[_, _, _, _, _] =>
@@ -277,10 +314,21 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl))
   }
 
+  def registerMethodSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
+    bind(name, MethodType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl))
+  }
+
   def registerLambdaMethod[T, U, V](name: String, impl: (T, (Any) => Any) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     val m = BinaryLambdaFun[T, U, V](hrv.typ, impl)
     bind(name, MethodType(hrt.typ, hru.typ), m)
+  }
+
+  def registerLambdaMethod[T, U, V, W](name: String, impl: (T, (Any) => Any, V) => W)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
+    val m = Arity3LambdaFun[T, U, V, W](hrw.typ, impl)
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m)
   }
 
   def registerLambdaSpecial[T, U, V](name: String, impl: (() => Any, (Any) => Any) => V)
@@ -297,6 +345,11 @@ object FunctionRegistry {
   def register[T, U](name: String, impl: T => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FunType(hrt.typ), UnaryFun[T, U](hru.typ, impl))
+  }
+
+  def registerSpecial[T, U](name: String, impl: (() => Any) => U)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, FunType(hrt.typ), UnarySpecial[T, U](hru.typ, impl))
   }
 
   def registerOptionMethod[T, U](name: String, impl: T => Option[U])
@@ -322,6 +375,11 @@ object FunctionRegistry {
   def register[T, U, V](name: String, impl: (T, U) => V)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     bind(name, FunType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl))
+  }
+
+  def registerSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
+    bind(name, FunType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl))
   }
 
   def register[T, U, V, W](name: String, impl: (T, U, V) => W)
@@ -455,39 +513,6 @@ object FunctionRegistry {
   registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion })
   registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal })
 
-  registerMethod("toInt", { (x: Int) => x })
-  registerMethod("toLong", { (x: Int) => x.toLong })
-  registerMethod("toFloat", { (x: Int) => x.toFloat })
-  registerMethod("toDouble", { (x: Int) => x.toDouble })
-
-  registerMethod("toInt", { (x: Long) => x.toInt })
-  registerMethod("toLong", { (x: Long) => x })
-  registerMethod("toFloat", { (x: Long) => x.toFloat })
-  registerMethod("toDouble", { (x: Long) => x.toDouble })
-
-  registerMethod("toInt", { (x: Float) => x.toInt })
-  registerMethod("toLong", { (x: Float) => x.toLong })
-  registerMethod("toFloat", { (x: Float) => x })
-  registerMethod("toDouble", { (x: Float) => x.toDouble })
-
-  registerMethod("toInt", { (x: Boolean) => if (x) 1 else 0 })
-
-  registerMethod("toInt", { (x: Double) => x.toInt })
-  registerMethod("toLong", { (x: Double) => x.toLong })
-  registerMethod("toFloat", { (x: Double) => x.toFloat })
-  registerMethod("toDouble", { (x: Double) => x })
-
-  registerMethod("toInt", { (x: String) => x.toInt })
-  registerMethod("toLong", { (x: String) => x.toLong })
-  registerMethod("toFloat", { (x: String) => x.toFloat })
-  registerMethod("toDouble", { (x: String) => x.toDouble })
-
-  registerMethod("abs", { (x: Int) => x.abs })
-  registerMethod("abs", { (x: Long) => x.abs })
-  registerMethod("abs", { (x: Float) => x.abs })
-  registerMethod("abs", { (x: Double) => x.abs })
-
-  registerMethod("signum", { (x: Double) => x.signum })
   registerMethod("length", { (x: String) => x.length })
 
   registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Int]) => x.sum })
@@ -580,37 +605,40 @@ object FunctionRegistry {
   // register("==", (a: Any, b: Any) => a == b)(TTHr, TTHr, boolHr)
   // register("!=", (a: Any, b: Any) => a != b)(TTHr, TTHr, boolHr)
 
-  register("<", (a: Int, b: Int) => a < b)
-  register("<", (a: Long, b: Long) => a < b)
-  register("<", (a: Float, b: Float) => a < b)
-  register("<", (a: Double, b: Double) => a < b)
-
-  register("<=", (a: Int, b: Int) => a <= b)
-  register("<=", (a: Long, b: Long) => a <= b)
-  register("<=", (a: Float, b: Float) => a <= b)
-  register("<=", (a: Double, b: Double) => a <= b)
-
-  register(">", (a: Int, b: Int) => a > b)
-  register(">", (a: Long, b: Long) => a > b)
-  register(">", (a: Float, b: Float) => a > b)
-  register(">", (a: Double, b: Double) => a > b)
-
-  register(">=", (a: Int, b: Int) => a >= b)
-  register(">=", (a: Long, b: Long) => a >= b)
-  register(">=", (a: Float, b: Float) => a >= b)
-  register(">=", (a: Double, b: Double) => a >= b)
-
-  register("-", (a: Int) => -a)
-  register("-", (a: Long) => -a)
-  register("-", (a: Float) => -a)
-  register("-", (a: Double) => -a)
-
   register("!", (a: Boolean) => !a)
 
   registerConversion((x: Int) => x.toDouble, priority = 2)
   registerConversion { (x: Long) => x.toDouble }
   registerConversion { (x: Int) => x.toLong }
   registerConversion { (x: Float) => x.toDouble }
+
+  registerConversion((x: IndexedSeq[Any]) => x.map { xi =>
+    if (xi == null)
+      null
+    else
+      xi.asInstanceOf[Int].toDouble
+  }, priority = 2)(arrayHr(boxedintHr), arrayHr(boxeddoubleHr))
+
+  registerConversion((x: IndexedSeq[Any]) => x.map { xi =>
+    if (xi == null)
+      null
+    else
+      xi.asInstanceOf[Long].toDouble
+  })(arrayHr(boxedlongHr), arrayHr(boxeddoubleHr))
+
+  registerConversion((x: IndexedSeq[Any]) => x.map { xi =>
+    if (xi == null)
+      null
+    else
+      xi.asInstanceOf[Int].toLong
+  })(arrayHr(boxedintHr), arrayHr(boxedlongHr))
+
+  registerConversion((x: IndexedSeq[Any]) => x.map { xi =>
+    if (xi == null)
+      null
+    else
+      xi.asInstanceOf[Float].toDouble
+  })(arrayHr(boxedfloatHr), arrayHr(boxeddoubleHr))
 
   register("gtj", (i: Int) => Genotype.gtPair(i).j)
   register("gtk", (i: Int) => Genotype.gtPair(i).k)
@@ -627,12 +655,14 @@ object FunctionRegistry {
     else
       null
   }(aggregableHr(boxedlongHr), aggregableHr(boxeddoubleHr))
+
   registerConversion { (x: Any) =>
     if (x != null)
       x.asInstanceOf[Int].toLong
     else
       null
   }(aggregableHr(boxedintHr), aggregableHr(boxedlongHr))
+
   registerConversion { (x: Any) =>
     if (x != null)
       x.asInstanceOf[Float].toDouble
@@ -650,16 +680,6 @@ object FunctionRegistry {
     str.replaceAll(pattern1, pattern2))
 
   registerMethod("contains", (interval: Interval[Locus], locus: Locus) => interval.contains(locus))
-
-  registerMethod("min", (a: Int, b: Int) => a.min(b))
-  registerMethod("min", (a: Long, b: Long) => a.min(b))
-  registerMethod("min", (a: Float, b: Float) => a.min(b))
-  registerMethod("min", (a: Double, b: Double) => a.min(b))
-
-  registerMethod("max", (a: Int, b: Int) => a.max(b))
-  registerMethod("max", (a: Long, b: Long) => a.max(b))
-  registerMethod("max", (a: Float, b: Float) => a.max(b))
-  registerMethod("max", (a: Double, b: Double) => a.max(b))
 
   registerMethod("length", (a: IndexedSeq[Any]) => a.length)(arrayHr(TTHr), intHr)
   registerMethod("size", (a: IndexedSeq[Any]) => a.size)(arrayHr(TTHr), intHr)
@@ -821,7 +841,7 @@ object FunctionRegistry {
     if (binSize <= 0)
       fatal(
         s"""invalid bin size from given arguments (start = $start, end = $end, bins = $bins)
-            |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
+           |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
                   """.stripMargin)
 
     val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
@@ -872,4 +892,191 @@ object FunctionRegistry {
   registerLambdaSpecial("map", { (a: () => Any, f: (Any) => Any) =>
     f(a())
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
+
+  type Id[T] = T
+
+  abstract class NumericMethod[M[_], R[_]](val name: String)(
+    implicit val intev: M[Int], val longev: M[Long], val floatev: M[Float], val doubleev: M[Double],
+    val hrrint: HailRep[R[Int]], val hrrlong: HailRep[R[Long]], val hrrfloat: HailRep[R[Float]], val hrrdouble: HailRep[R[Double]]) {
+    def f[T](implicit ev: M[T]): (T, T) => R[T]
+  }
+
+  def registerNumeric[T, S](name: String, f: (T, T) => S)(implicit hrt: HailRep[T], hrs: HailRep[S]) {
+    val hrboxedt = new HailRep[Any] {
+      def typ: Type = hrt.typ
+    }
+    val hrboxeds = new HailRep[Any] {
+      def typ: Type = hrt.typ
+    }
+
+    register(name, f)
+
+    register(name, (x: IndexedSeq[Any], y: T) =>
+      x.map { xi =>
+        if (xi == null)
+          null
+        else
+          f(xi.asInstanceOf[T], y)
+      })(arrayHr(hrboxedt), hrt, arrayHr(hrboxeds))
+
+    register(name, (x: T, y: IndexedSeq[Any]) => y.map { yi =>
+      if (yi == null)
+        null
+      else
+        f(x, yi.asInstanceOf[T])
+    })(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
+
+    register(name, { (x: IndexedSeq[Any], y: IndexedSeq[Any]) =>
+      if (x.length != y.length) fatal(
+        s"""Cannot apply operation $name to arrays of unequal length:
+           |  Left: ${ x.length } elements
+           |  Right: ${ y.length } elements""".stripMargin)
+      (x, y).zipped.map { case (xi, yi) =>
+        if (xi == null || yi == null)
+          null
+        else
+          f(xi.asInstanceOf[T], yi.asInstanceOf[T])
+      }
+    })(arrayHr(hrboxedt), arrayHr(hrboxedt), arrayHr(hrboxeds))
+  }
+
+  registerMethod("toInt", (s: String) => s.toInt)
+  registerMethod("toLong", (s: String) => s.toLong)
+  registerMethod("toFloat", (s: String) => s.toFloat)
+  registerMethod("toDouble", (s: String) => s.toDouble)
+
+  registerMethod("toInt", (b: Boolean) => b.toInt)
+  registerMethod("toLong", (b: Boolean) => b.toLong)
+  registerMethod("toFloat", (b: Boolean) => b.toFloat)
+  registerMethod("toDouble", (b: Boolean) => b.toDouble)
+
+  def registerNumericType[T]()(implicit ev: Numeric[T], hrt: HailRep[T]) {
+    registerNumeric("+", ev.plus)
+    registerNumeric("-", ev.minus)
+    registerNumeric("*", ev.times)
+    registerNumeric("/", (x: T, y: T) => ev.toDouble(x) / ev.toDouble(y))
+
+    registerMethod("abs", ev.abs _)
+    registerMethod("signum", ev.signum _)
+
+    register("-", ev.negate _)
+    register("fromInt", ev.fromInt _)
+
+    registerMethod("toInt", ev.toInt _)
+    registerMethod("toLong", ev.toLong _)
+    registerMethod("toFloat", ev.toFloat _)
+    registerMethod("toDouble", ev.toDouble _)
+  }
+
+  registerNumericType[Int]()
+  registerNumericType[Long]()
+  registerNumericType[Float]()
+  registerNumericType[Double]()
+
+  register("==", (a: Any, b: Any) => a == b)(TTHr, TUHr, boolHr)
+  register("!=", (a: Any, b: Any) => a != b)(TTHr, TUHr, boolHr)
+
+  def registerOrderedType[T]()(implicit ord: Ordering[T], hrt: HailRep[T]) {
+    val hrboxedt = new HailRep[Any] {
+      def typ: Type = hrt.typ
+    }
+
+    register("<", ord.lt _)
+    register("<=", ord.lteq _)
+    register(">", ord.gt _)
+    register(">=", ord.gteq _)
+
+    registerMethod("min", ord.min _)
+    registerMethod("max", ord.max _)
+
+    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extendOrderingToNull(ord)))(arrayHr(hrboxedt), arrayHr(hrboxedt))
+    registerMethod("sort", (a: IndexedSeq[Any], ascending: Boolean) =>
+      a.sorted(extendOrderingToNull(
+        if (ascending)
+          ord
+        else
+          ord.reverse))
+    )(arrayHr(hrboxedt), boolHr, arrayHr(hrboxedt))
+
+    registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any) =>
+      a.sortBy(f)(extendOrderingToNull(ord))
+    )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), arrayHr(TTHr))
+
+    registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any, ascending: Boolean) =>
+      a.sortBy(f)(extendOrderingToNull(
+        if (ascending)
+          ord
+        else
+          ord.reverse))
+    )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), boolHr, arrayHr(TTHr))
+  }
+
+  registerOrderedType[Int]()
+  registerOrderedType[Long]()
+  registerOrderedType[Float]()
+  registerOrderedType[Double]()
+  registerOrderedType[String]()
+
+  register("%", (x: Int, y: Int) => x % y)
+  register("%", (x: Long, y: Long) => x % y)
+  register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
+
+  register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined)
+
+  registerSpecial("isMissing", (g: () => Any) => g() == null)(TTHr, boolHr)
+  registerSpecial("isDefined", (g: () => Any) => g() != null)(TTHr, boolHr)
+
+  registerSpecial("json", (f: () => Any) => JsonMethods.compact(TT.t.toJSON(f())))(TTHr, stringHr)
+  registerSpecial("str", (f: () => Any) => TT.t.str(f()))(TTHr, stringHr)
+
+  registerSpecial("||", { (f1: () => Any, f2: () => Any) =>
+    val x1 = f1()
+    if (x1 != null) {
+      if (x1.asInstanceOf[Boolean])
+        true
+      else
+        f2()
+    } else {
+      val x2 = f2()
+      if (x2 != null
+        && x2.asInstanceOf[Boolean])
+        true
+      else
+        null
+    }
+  })(boolHr, boolHr, boxedboolHr)
+
+  registerSpecial("&&", { (f1: () => Any, f2: () => Any) =>
+    val x = f1()
+    if (x != null) {
+      if (x.asInstanceOf[Boolean])
+        f2()
+      else
+        false
+    } else {
+      val x2 = f2()
+      if (x2 != null
+        && !x2.asInstanceOf[Boolean])
+        false
+      else
+        null
+    }
+  })(boolHr, boolHr, boxedboolHr)
+
+  registerMethodSpecial("orElse", { (f1: () => Any, f2: () => Any) =>
+    val v = f1()
+    if (v == null)
+      f2()
+    else
+      v
+  })(TTHr, TTHr, TTHr)
+
+  registerMethod("[]", (a: IndexedSeq[Any], i: Int) => a(i))(arrayHr(TTHr), intHr, TTHr)
+  registerMethod("[]", (a: Map[String, Any], i: String) => a(i))(dictHr(TTHr), stringHr, TTHr)
+  registerMethod("[]", (a: String, i: Int) => a(i).toString)(stringHr, intHr, stringHr)
+
+  registerMethod("[:]", (a: IndexedSeq[Any]) => a)(arrayHr(TTHr), arrayHr(TTHr))
+  registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(i, a.length))(arrayHr(TTHr), intHr, arrayHr(TTHr))
+  registerMethod("[:*]", (a: IndexedSeq[Any], i: Int) => a.slice(0, i))(arrayHr(TTHr), intHr, arrayHr(TTHr))
+  registerMethod("[*:*]", (a: IndexedSeq[Any], i: Int, j: Int) => a.slice(i, j))(arrayHr(TTHr), intHr, intHr, arrayHr(TTHr))
 }

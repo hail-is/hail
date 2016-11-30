@@ -13,9 +13,4 @@ package object expr {
 
     def copy(): TypedAggregator[S]
   }
-
-  implicit val toInt = IntNumericConversion
-  implicit val toLong = LongNumericConversion
-  implicit val toFloat = FloatNumericConversion
-  implicit val toDouble = DoubleNumericConversion
 }

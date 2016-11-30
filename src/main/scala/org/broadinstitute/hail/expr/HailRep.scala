@@ -1,11 +1,9 @@
 package org.broadinstitute.hail.expr
 
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
-import spire.std.OptionEq
 
-trait HailRep[T] {
+trait HailRep[T] { self =>
   def typ: Type
 }
 
