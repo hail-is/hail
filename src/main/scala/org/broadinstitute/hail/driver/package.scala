@@ -114,6 +114,25 @@ package object driver {
     SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
     conf.set("spark.hadoop.parquet.block.size", tera.toString)
 
+    // load additional Spark properties from HAIL_SPARK_PROPERTIES
+    System.getenv("HAIL_SPARK_PROPERTIES")
+      .split(",")
+      .foreach { p =>
+        p.split("=") match {
+          case Array(k, v) =>
+            log.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
+            conf.set(k, v)
+          case _ =>
+            warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
+        }
+      }
+
+    log.info(s"Spark properties: ${
+      conf.getAll.map { case (k, v) =>
+        s"$k=$v"
+      }.mkString(", ")
+    }")
+
     val sc = new SparkContext(conf)
     ProgressBarBuilder.build(sc)
     sc
