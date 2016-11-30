@@ -115,17 +115,20 @@ package object driver {
     conf.set("spark.hadoop.parquet.block.size", tera.toString)
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
-    System.getenv("HAIL_SPARK_PROPERTIES")
-      .split(",")
-      .foreach { p =>
-        p.split("=") match {
-          case Array(k, v) =>
-            log.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
-            conf.set(k, v)
-          case _ =>
-            warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
+    val hailSparkProperties = System.getenv("HAIL_SPARK_PROPERTIES")
+    if (hailSparkProperties != null) {
+      hailSparkProperties
+        .split(",")
+        .foreach { p =>
+          p.split("=") match {
+            case Array(k, v) =>
+              log.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
+              conf.set(k, v)
+            case _ =>
+              warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
+          }
         }
-      }
+    }
 
     log.info(s"Spark properties: ${
       conf.getAll.map { case (k, v) =>
