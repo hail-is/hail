@@ -60,14 +60,17 @@ object Main {
     sys.exit(1)
   }
 
-  def handleFatal(e: Exception): Nothing = {
-    val msg = s"hail: fatal: ${ e.getMessage }"
-    fail(msg)
+  def handleFatal(e: FatalException): Nothing = {
+    log.error(s"hail: fatal: ${ e.logMsg }")
+    System.err.println(s"hail: fatal: ${ e.msg }")
+    sys.exit(1)
   }
 
-  def handleFatal(cmd: Command, e: Exception): Nothing = {
-    val msg = s"hail: fatal: ${ cmd.name }: ${ e.getMessage }"
-    fail(msg)
+  def handleFatal(cmd: Command, e: FatalException): Nothing = {
+    log.error(s"hail: fatal: ${ cmd.name }: ${ e.logMsg }")
+    System.err.println(s"hail: fatal: ${ cmd.name }: ${ e.msg }")
+
+    sys.exit(1)
   }
 
   def expandException(e: Throwable): String = {
