@@ -56,7 +56,7 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
         buildInserter(code, vds.saSignature, ec, Annotation.SAMPLE_HEAD)
       } else
         vds.insertSA(struct, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
-    
+
     val sampleQuery = struct.parseInStructScope[String](options.sampleExpr, TString)
 
     val map = rdd
