@@ -64,10 +64,14 @@ if (spark2) {
     }
 }
 
-String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
+// don't use this directly as it does not check for missingness
+String __sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
-if (sparkHome.length() == 0) {
-    throw new RuntimeException("Please set the environment variable SPARK_HOME or the JVM system property 'spark.home'")
+getSparkHome = { =>
+    if (__sparkHome.length() == 0) {
+        throw new RuntimeException("Please set the environment variable SPARK_HOME or the JVM system property 'spark.home'")
+    }
+    __sparkHome
 }
 
 sourceSets.main.scala.srcDir "src/main/java"
@@ -182,8 +186,8 @@ test.dependsOn(checkSettings)
 task testPyHail(type: Exec, dependsOn: shadowJar) {
      commandLine 'python', '-m', 'unittest', 'pyhail.tests'
 
-     environment SPARK_HOME: sparkHome
-     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+     environment SPARK_HOME: getSparkHome()
+     environment PYTHONPATH: '' + projectDir + '/python:' + getSparkHome() + '/python:' + getSparkHome() + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
@@ -398,7 +402,7 @@ task makePyHailDocs(type: Exec) {
 
      commandLine 'make', 'html'
 
-     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+     environment PYTHONPATH: '' + projectDir + '/python:' + getSparkHome() + '/python:' + getSparkHome() + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
 task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs']) {
