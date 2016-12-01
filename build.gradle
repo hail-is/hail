@@ -67,7 +67,7 @@ if (spark2) {
 // don't use this directly as it does not check for missingness
 String __sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
-getSparkHome = { =>
+getSparkHome = { ->
     if (__sparkHome.length() == 0) {
         throw new RuntimeException("Please set the environment variable SPARK_HOME or the JVM system property 'spark.home'")
     }
