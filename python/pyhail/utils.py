@@ -1,3 +1,4 @@
+from py4j.protocol import Py4JJavaError
 
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
@@ -42,6 +43,9 @@ class TextTableConfig(object):
 
         :param :class:`.HailContext` The Hail context.
         """
-        return hc.jvm.org.broadinstitute.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
+        try:
+            return hc.jvm.org.broadinstitute.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
                                                              self.delimiter, self.missing,
                                                              self.noheader, self.impute)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)

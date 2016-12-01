@@ -1,4 +1,5 @@
 from pyhail.type import Type
+from py4j.protocol import Py4JJavaError
 
 class KeyTable(object):
     """:class:`.KeyTable` is Hail's version of a SQL table where fields
@@ -50,7 +51,7 @@ class KeyTable(object):
         :rtype: list of str
         """
         try:
-            return self.jkt.keyNames()
+            return list(self.jkt.keyNames())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -60,7 +61,7 @@ class KeyTable(object):
         :rtype: list of str
         """
         try:
-            return self.jkt.fieldNames()
+            return list(self.jkt.fieldNames())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -121,12 +122,17 @@ class KeyTable(object):
 
         :param str code: Annotation expression.
 
-        :param str key_names: Comma separated list of field names to be treated as a key
+        :param key_names: field names to be treated as a key
+        :type key_names: str or list of str
 
         :rtype: :class:`.KeyTable`
         """
         try:
+            if isinstance(key_names, list):
+                key_names = ", ".join([str(l) for l in key_names])
+
             return KeyTable(self.hc, self.jkt.annotate(code, key_names))
+
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -158,10 +164,10 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
         if isinstance(key_code, list):
-            key_code = ", ".join([str(l) for l in list])
+            key_code = ", ".join([str(l) for l in key_code])
 
         if isinstance(agg_code, list):
-            agg_code = ", ".join([str(l) for l in list])
+            agg_code = ", ".join([str(l) for l in agg_code])
 
         try:
             return KeyTable(self.hc, self.jkt.aggregate(key_code, agg_code))
