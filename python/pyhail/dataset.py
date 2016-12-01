@@ -49,6 +49,8 @@ class VariantDataset(object):
 
         """
 
+        if isinstance(condition, list):
+            condition = ','.join(condition)
         pargs = ['annotateglobal', 'expr', '-c', condition]
         return self.hc.run_command(self, pargs)
 
@@ -93,6 +95,8 @@ class VariantDataset(object):
 
         """
 
+        if isinstance(condition, list):
+            condition = ','.join(condition)
         pargs = ['annotatesamples', 'expr', '-c', condition]
         return self.hc.run_command(self, pargs)
 
@@ -205,6 +209,8 @@ class VariantDataset(object):
         :param str condition: Annotation expression.
 
         """
+        if isinstance(condition, list):
+            condition = ','.join(condition)
         pargs = ['annotatevariants', 'expr', '-c', condition]
         return self.hc.run_command(self, pargs)
 
@@ -598,6 +604,8 @@ class VariantDataset(object):
 
         """
 
+        if isinstance(condition, list):
+            condition = ','.join(condition)
         pargs = ['filtersamples', 'expr',
                  '--keep' if keep else '--remove',
                  '-c', condition]
@@ -628,6 +636,8 @@ class VariantDataset(object):
 
         """
 
+        if isinstance(condition, list):
+            condition = ','.join(condition)
         pargs = ['filtervariants', 'expr',
                  '--keep' if keep else '--remove',
                  '-c', condition]
