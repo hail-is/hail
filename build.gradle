@@ -64,6 +64,8 @@ if (spark2) {
     }
 }
 
+String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
+
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
 
@@ -174,8 +176,6 @@ test {
 test.dependsOn(checkSettings)
 
 task testPyHail(type: Exec, dependsOn: shadowJar) {
-     String sparkHome = System.getProperty("spark.home")
-
      commandLine 'python', '-m', 'unittest', 'pyhail.tests'
 
      environment SPARK_HOME: sparkHome
@@ -390,8 +390,6 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepar
 }
 
 task makePyHailDocs(type: Exec) {
-     String sparkHome = System.getProperty("spark.home")
-
      workingDir 'python/pyhail/docs'
 
      commandLine 'make', 'html'
