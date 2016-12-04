@@ -168,7 +168,7 @@ object Variant {
         .map(s => AltAllele.fromRow(s))
         .toArray)
 
-  implicit def orderedKey: OrderedKey[Locus, Variant] =
+  implicit val orderedKey: OrderedKey[Locus, Variant] =
     new OrderedKey[Locus, Variant] {
       def project(key: Variant): Locus = key.locus
 

@@ -12,7 +12,7 @@ import scala.reflect.ClassTag
 
 object LocusImplicits {
   /* We cannot add this to the Locus companion object because it breaks serialization. */
-  implicit def orderedKey = new OrderedKey[Locus, Locus] {
+  implicit val orderedKey = new OrderedKey[Locus, Locus] {
     def project(key: Locus): Locus = key
 
     def kOrd: Ordering[Locus] = implicitly[Ordering[Locus]]

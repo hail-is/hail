@@ -433,9 +433,6 @@ package object utils extends Logging
     }
   }
 
-  implicit def toRichJSONWritable[T](x: T)(implicit jw: JSONWriter[T]): RichJSONWritable[T] = new RichJSONWritable(x, jw)
-  implicit def toRichJValue(jv: JValue): RichJValue = new RichJValue(jv)
-
   implicit val jsonFormatsNoTypeHints: Formats = Serialization.formats(NoTypeHints)
 
   def caseClassJSONReaderWriter[T](implicit mf: scala.reflect.Manifest[T]): JSONReaderWriter[T] = new JSONReaderWriter[T] {

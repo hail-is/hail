@@ -60,16 +60,19 @@ case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int)
   }
 
   override def equals(other: Any): Boolean = other match {
-    case r: OrderedPartitioner[_, _] => r.rangeBounds.sameElements(rangeBounds) && r.numPartitions == numPartitions
+    case r: OrderedPartitioner[_, _] =>
+      r.rangeBounds.sameElements(rangeBounds) &&
+        r.numPartitions == numPartitions &&
+        r.kOk == kOk
     case _ => false
   }
 
-  override def hashCode: Int = {
-    val b = new HashCodeBuilder(43, 19)
-    rangeBounds.foreach(b.append(_))
-    b.append(numPartitions)
+  override def hashCode: Int =
+    new HashCodeBuilder(43, 19)
+      .append(rangeBounds)
+      .append(numPartitions)
+      .append(kOk)
       .toHashCode
-  }
 
   def mapMonotonic[K2](implicit k2Ok: OrderedKey[PK, K2]): OrderedPartitioner[PK, K2] = {
     new OrderedPartitioner(rangeBounds, numPartitions)
