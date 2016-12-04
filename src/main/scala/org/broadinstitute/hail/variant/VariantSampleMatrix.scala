@@ -2,14 +2,11 @@ package org.broadinstitute.hail.variant
 
 import java.io.{FileNotFoundException, InvalidClassException}
 import java.nio.ByteBuffer
-import java.util
 
 import org.apache.hadoop
-import org.apache.hadoop.fs.PathIOException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.driver.Main
@@ -18,7 +15,6 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.vcf.BufferedLineIterator
 import org.broadinstitute.hail.sparkextras._
-import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.apache.kudu.spark.kudu.{KuduContext, _}
@@ -173,14 +169,26 @@ object VariantSampleMatrix {
                 row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
           }
 
-      val p = try {
-        Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
-          OrderedPartitioner.read[Locus, Variant](in, rdd.partitions.length)
-        })
+      var p: Option[OrderedPartitioner[Locus, Variant]] = None
+
+      try {
+        val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
+        p = Some(jv.fromJSON[OrderedPartitioner[Locus, Variant]])
       } catch {
-        case _: InvalidClassException => None
         case _: FileNotFoundException => None
       }
+
+      if (p.isEmpty) {
+        try {
+          p = Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
+            OrderedPartitioner.read[Locus, Variant](in, rdd.partitions.length)
+          })
+        } catch {
+          case _: InvalidClassException => None
+          case _: FileNotFoundException => None
+        }
+      }
+
       p match {
         case Some(partitioner) =>
           OrderedRDD(rdd, partitioner)
@@ -1078,8 +1086,8 @@ class RichVDS(vds: VariantDataset) {
 
     val ordered = vds.rdd.asOrderedRDD
 
-    sqlContext.sparkContext.hadoopConfiguration.writeObjectFile(dirname + "/partitioner") { out =>
-      ordered.orderedPartitioner.write(out)
+    sqlContext.sparkContext.hadoopConfiguration.writeTextFile(dirname + "/partitioner.json.gz") { out =>
+      out.write(JsonMethods.compact(ordered.orderedPartitioner.toJSON))
     }
 
     val isDosage = vds.isDosage

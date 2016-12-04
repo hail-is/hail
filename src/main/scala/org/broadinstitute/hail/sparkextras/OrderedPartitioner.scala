@@ -1,19 +1,22 @@
 package org.broadinstitute.hail.sparkextras
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
+import java.io.ObjectInputStream
 import java.nio.ByteBuffer
 import java.util
 import java.util.{Random => JavaRandom}
 
+import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.spark.Partitioner
 import org.apache.spark.rdd.RDD
+import org.broadinstitute.hail.utils._
+import org.json4s._
 
 import scala.collection.mutable
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 import scala.util.hashing.{MurmurHash3, byteswap32}
 
-case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int, ascending: Boolean = true)
+case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int)
   (implicit val kOk: OrderedKey[PK, K])
   extends Partitioner {
 
@@ -22,13 +25,8 @@ case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int,
   import Ordering.Implicits._
 
   require(numPartitions == 0 && rangeBounds.isEmpty || numPartitions == rangeBounds.length + 1,
-    s"nPartitions = $numPartitions, ranges = ${rangeBounds.length}")
+    s"nPartitions = $numPartitions, ranges = ${ rangeBounds.length }")
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left, right) => left < right })
-
-  def write(out: ObjectOutputStream) {
-    out.writeBoolean(ascending)
-    out.writeObject(rangeBounds)
-  }
 
   var binarySearch: (Array[PK], PK) => Int = OrderedPartitioner.makeBinarySearch[PK]
 
@@ -58,32 +56,23 @@ case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int,
         partition = rangeBounds.length
       }
     }
-    if (ascending) {
-      partition
-    } else {
-      rangeBounds.length - partition
-    }
+    partition
   }
 
   override def equals(other: Any): Boolean = other match {
-    case r: OrderedPartitioner[_, _] => r.rangeBounds.sameElements(rangeBounds) && r.ascending == ascending
+    case r: OrderedPartitioner[_, _] => r.rangeBounds.sameElements(rangeBounds) && r.numPartitions == numPartitions
     case _ => false
   }
 
-  override def hashCode(): Int = {
-    val prime = 31
-    var result = 1
-    var i = 0
-    while (i < rangeBounds.length) {
-      result = prime * result + rangeBounds(i).hashCode
-      i += 1
-    }
-    result = prime * result + ascending.hashCode
-    result
+  override def hashCode: Int = {
+    val b = new HashCodeBuilder(43, 19)
+    rangeBounds.foreach(b.append(_))
+    b.append(numPartitions)
+      .toHashCode
   }
 
   def mapMonotonic[K2](implicit k2Ok: OrderedKey[PK, K2]): OrderedPartitioner[PK, K2] = {
-    new OrderedPartitioner(rangeBounds, numPartitions, ascending)
+    new OrderedPartitioner(rangeBounds, numPartitions)
   }
 }
 
@@ -91,10 +80,31 @@ object OrderedPartitioner {
   def empty[PK, K](implicit kOk: OrderedKey[PK, K]): OrderedPartitioner[PK, K] =
     new OrderedPartitioner[PK, K](Array.empty(kOk.pkct), 0)
 
+  implicit def orderedPartitionerJSONWriter[PK, K](implicit pkjw: JSONWriter[PK]) = new JSONWriter[OrderedPartitioner[PK, K]] {
+    def toJSON(part: OrderedPartitioner[PK, K]): JValue = JObject(List(
+      "rangeBounds" -> JArray(
+        part.rangeBounds.map(pkjw.toJSON).toList),
+      "numPartitions" -> JInt(part.numPartitions)))
+  }
+
+  case class Extract(rangeBounds: Array[JValue], numPartitions: Int)
+
+  implicit def orderedPartitionerJSONReader[PK, K](implicit pkjr: JSONReader[PK], kOk: OrderedKey[PK, K]) = {
+    import kOk._
+
+    new JSONReader[OrderedPartitioner[PK, K]] {
+      def fromJSON(jv: JValue): OrderedPartitioner[PK, K] = {
+        val extpart = jv.extract[Extract]
+        OrderedPartitioner[PK, K](extpart.rangeBounds.map(pkjr.fromJSON).toArray[PK],
+          extpart.numPartitions)
+      }
+    }
+  }
+
   def read[PK, K](in: ObjectInputStream, partitions: Int)(implicit kOk: OrderedKey[PK, K]): OrderedPartitioner[PK, K] = {
     val ascending = in.readBoolean()
     val rangeBounds = in.readObject().asInstanceOf[Array[PK]]
-    OrderedPartitioner(rangeBounds, partitions, ascending)
+    OrderedPartitioner(rangeBounds, partitions)
   }
 
   /**

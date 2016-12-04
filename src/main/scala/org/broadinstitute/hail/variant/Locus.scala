@@ -3,7 +3,10 @@ package org.broadinstitute.hail.variant
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.sparkextras.OrderedKey
+import org.broadinstitute.hail.utils._
 import org.json4s._
+import org.json4s.Extraction.decompose
+import org.json4s.jackson.Serialization
 
 import scala.reflect.ClassTag
 
@@ -35,6 +38,8 @@ object Locus {
       .map { case (contig, pos) => Locus(contig, pos) }
 
   def gen: Gen[Locus] = gen(simpleContigs)
+
+  implicit val locusJSONRWer: JSONReaderWriter[Locus] = caseClassJSONReaderWriter[Locus]
 }
 
 case class Locus(contig: String, position: Int) extends Ordered[Locus] {
