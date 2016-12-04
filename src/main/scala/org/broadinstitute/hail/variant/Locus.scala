@@ -37,6 +37,7 @@ object Locus {
   def gen: Gen[Locus] = gen(simpleContigs)
 }
 
+@SerialVersionUID(9197069433877243281L)
 case class Locus(contig: String, position: Int) extends Ordered[Locus] {
   def compare(that: Locus): Int = {
     var c = Contig.compare(contig, that.contig)
