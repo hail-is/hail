@@ -45,7 +45,8 @@ class VariantDataset(object):
     def annotate_global_expr(self, condition):
         """Update the global annotations with expression.
 
-        :param str condition: Annotation expression.
+        :param condition: Annotation expression.
+        :type condition: str or list of str
 
         """
 
@@ -91,7 +92,8 @@ class VariantDataset(object):
     def annotate_samples_expr(self, condition):
         """Annotate samples with expression.
 
-        :param str condition: Annotation expression.
+        :param condition: Annotation expression.
+        :type condition: str or list of str
 
         """
 
@@ -600,7 +602,8 @@ class VariantDataset(object):
     def filter_samples_expr(self, condition, keep=True):
         """Filter samples based on expression.
 
-        :param str condition: Expression for filter condition.
+        :param condition: Expression for filter condition.
+        :type condition: str or list of str
 
         """
 
@@ -632,7 +635,8 @@ class VariantDataset(object):
     def filter_variants_expr(self, condition, keep=True):
         """Filter variants based on expression.
 
-        :param str condition: Expression for filter condition.
+        :param condition: Expression for filter condition.
+        :type condition: str or list of str
 
         """
 
