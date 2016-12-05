@@ -138,7 +138,6 @@ package object driver {
     }")
 
     val sc = new SparkContext(conf)
-    sc.uiWebUrl.foreach { s => info(s"SparkUI started at $s") }
     ProgressBarBuilder.build(sc)
     sc
   }

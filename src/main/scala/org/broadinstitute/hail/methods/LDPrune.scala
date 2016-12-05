@@ -89,7 +89,7 @@ object LDPrune {
 
     val fractionPruned = 1.0 - fractionRemaining
 
-    val numPartitions = math.max(1, (prevResult.rdd.getNumPartitions * fractionRemaining + 0.5).toInt)
+    val numPartitions = math.max(1, math.ceil(prevResult.rdd.partitions.length * fractionRemaining).toInt)
 
     val newRDD =
       if (coalesce && fractionPruned > localPruneThreshold)
@@ -107,7 +107,7 @@ object LDPrune {
     val rangePartitioner = rdd.orderedPartitioner
     val rangeBounds = rangePartitioner.rangeBounds
     val partitionIndices = rdd.getPartitions.map(_.index)
-    val nPartitions = rdd.getNumPartitions
+    val nPartitions = rdd.partitions.length
 
     def computeDependencies(partitionId: Int): Array[Int] = {
       if (partitionId == partitionIndices(0))
@@ -244,7 +244,7 @@ object LDPrune {
     }.asOrderedRDD
 
     val numVariantsOrig = standardizedRDD.count()
-    val numPartitionsOrig = standardizedRDD.getNumPartitions
+    val numPartitionsOrig = standardizedRDD.partitions.length
     val (maxQueueSize, numPartitionsRequired) = estimateMemoryRequirements(numVariantsOrig, nSamplesLocal, memoryPerCore)
 
     var oldResult = LocalPruneResult(standardizedRDD, 0.0, 0, numVariantsOrig)
