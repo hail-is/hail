@@ -8,6 +8,9 @@ import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.spark.{AccumulableParam, Partition}
 import org.broadinstitute.hail.check.Gen
+import org.json4s.{Formats, JValue, NoTypeHints}
+import org.json4s.Extraction.decompose
+import org.json4s.jackson.Serialization
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
@@ -428,5 +431,12 @@ package object utils extends Logging
         val split = invokeMethod(invokeMethod(p, "inputSplit"), "value").asInstanceOf[FileSplit]
         split.getPath.getName
     }
+  }
+
+  implicit val jsonFormatsNoTypeHints: Formats = Serialization.formats(NoTypeHints)
+
+  def caseClassJSONReaderWriter[T](implicit mf: scala.reflect.Manifest[T]): JSONReaderWriter[T] = new JSONReaderWriter[T] {
+    def toJSON(x: T): JValue = decompose(x)
+    def fromJSON(jv: JValue): T = jv.extract[T]
   }
 }

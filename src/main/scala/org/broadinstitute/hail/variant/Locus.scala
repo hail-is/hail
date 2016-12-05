@@ -3,13 +3,16 @@ package org.broadinstitute.hail.variant
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.sparkextras.OrderedKey
+import org.broadinstitute.hail.utils._
 import org.json4s._
+import org.json4s.Extraction.decompose
+import org.json4s.jackson.Serialization
 
 import scala.reflect.ClassTag
 
 object LocusImplicits {
   /* We cannot add this to the Locus companion object because it breaks serialization. */
-  implicit def orderedKey = new OrderedKey[Locus, Locus] {
+  implicit val orderedKey = new OrderedKey[Locus, Locus] {
     def project(key: Locus): Locus = key
 
     def kOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
@@ -35,6 +38,8 @@ object Locus {
       .map { case (contig, pos) => Locus(contig, pos) }
 
   def gen: Gen[Locus] = gen(simpleContigs)
+
+  implicit val locusJSONRWer: JSONReaderWriter[Locus] = caseClassJSONReaderWriter[Locus]
 }
 
 @SerialVersionUID(9197069433877243281L)
