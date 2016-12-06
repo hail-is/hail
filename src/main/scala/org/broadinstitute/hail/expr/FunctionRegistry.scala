@@ -41,7 +41,12 @@ object FunctionRegistry {
     val from = hrt.typ
     val to = hru.typ
     require(priority >= 1)
-    conversions.put(from -> to, priority -> UnaryFun[Any, Any](to, x => how(x.asInstanceOf[T])))
+    lookupConversion(from, to) match {
+      case Some(_) =>
+        throw new RuntimeException(s"The conversion between $from and $to is already bound")
+      case None =>
+        conversions.put(from -> to, priority -> UnaryFun[Any, Any](to, x => how(x.asInstanceOf[T])))
+    }
   }
 
   private def lookup(name: String, typ: TypeTag): Err[Fun] = {
@@ -602,9 +607,6 @@ object FunctionRegistry {
   register("pchisq1tail", { (x: Double) => chiSquaredTail(1.0, x) })
   register("qchisq1tail", { (p: Double) => inverseChiSquaredTailOneDF(p) })
 
-  // register("==", (a: Any, b: Any) => a == b)(TTHr, TTHr, boolHr)
-  // register("!=", (a: Any, b: Any) => a != b)(TTHr, TTHr, boolHr)
-
   register("!", (a: Boolean) => !a)
 
   registerConversion((x: Int) => x.toDouble, priority = 2)
@@ -693,10 +695,15 @@ object FunctionRegistry {
   registerMethod("isEmpty", (d: Map[String, Any]) => d.isEmpty)(dictHr(TTHr), boolHr)
 
   registerMethod("toSet", (a: IndexedSeq[Any]) => a.toSet)(arrayHr(TTHr), setHr(TTHr))
+  registerMethod("toSet", (a: Set[Any]) => a)(setHr(TTHr), setHr(TTHr))
   registerMethod("toArray", (a: Set[Any]) => a.toArray[Any]: IndexedSeq[Any])(setHr(TTHr), arrayHr(TTHr))
+  registerMethod("toArray", (a: IndexedSeq[Any]) => a)(arrayHr(TTHr), arrayHr(TTHr))
 
   registerMethod("head", (a: IndexedSeq[Any]) => a.head)(arrayHr(TTHr), TTHr)
   registerMethod("tail", (a: IndexedSeq[Any]) => a.tail)(arrayHr(TTHr), arrayHr(TTHr))
+
+  registerMethod("head", (a: Set[Any]) => a.head)(setHr(TTHr), TTHr)
+  registerMethod("tail", (a: Set[Any]) => a.tail)(setHr(TTHr), setHr(TTHr))
 
   registerMethod("flatten", (a: IndexedSeq[IndexedSeq[Any]]) =>
     flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any], a)
@@ -895,12 +902,6 @@ object FunctionRegistry {
 
   type Id[T] = T
 
-  abstract class NumericMethod[M[_], R[_]](val name: String)(
-    implicit val intev: M[Int], val longev: M[Long], val floatev: M[Float], val doubleev: M[Double],
-    val hrrint: HailRep[R[Int]], val hrrlong: HailRep[R[Long]], val hrrfloat: HailRep[R[Float]], val hrrdouble: HailRep[R[Double]]) {
-    def f[T](implicit ev: M[T]): (T, T) => R[T]
-  }
-
   def registerNumeric[T, S](name: String, f: (T, T) => S)(implicit hrt: HailRep[T], hrs: HailRep[S]) {
     val hrboxedt = new HailRep[Any] {
       def typ: Type = hrt.typ
@@ -1011,6 +1012,7 @@ object FunctionRegistry {
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), boolHr, arrayHr(TTHr))
   }
 
+  registerOrderedType[Boolean]()
   registerOrderedType[Int]()
   registerOrderedType[Long]()
   registerOrderedType[Float]()
@@ -1019,6 +1021,8 @@ object FunctionRegistry {
 
   register("%", (x: Int, y: Int) => x % y)
   register("%", (x: Long, y: Long) => x % y)
+  register("%", (x: Float, y: Float) => x % y)
+  register("%", (x: Double, y: Double) => x % y)
   register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
 
   register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined)
@@ -1073,7 +1077,7 @@ object FunctionRegistry {
 
   registerMethod("[]", (a: IndexedSeq[Any], i: Int) => a(i))(arrayHr(TTHr), intHr, TTHr)
   registerMethod("[]", (a: Map[String, Any], i: String) => a(i))(dictHr(TTHr), stringHr, TTHr)
-  registerMethod("[]", (a: String, i: Int) => a(i).toString)(stringHr, intHr, stringHr)
+  registerMethod("[]", (a: String, i: Int) => a(i).toString)(stringHr, intHr, charHr)
 
   registerMethod("[:]", (a: IndexedSeq[Any]) => a)(arrayHr(TTHr), arrayHr(TTHr))
   registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(i, a.length))(arrayHr(TTHr), intHr, arrayHr(TTHr))

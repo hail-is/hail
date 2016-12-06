@@ -13,6 +13,10 @@ object HailRep {
     def typ = TBoolean
   }
 
+  object charHr extends HailRep[String] {
+    def typ = TChar
+  }
+
   implicit object intHr extends HailRep[Int] {
     def typ = TInt
   }

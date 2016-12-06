@@ -2,6 +2,8 @@ package org.broadinstitute.hail
 
 package object expr {
   type SymbolTable = Map[String, (Int, Type)]
+  def emptySymTab = Map.empty[String, (Int, Type)]
+
   type Aggregator = TypedAggregator[Any]
 
   abstract class TypedAggregator[+S] extends Serializable {

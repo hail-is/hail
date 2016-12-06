@@ -20,7 +20,7 @@ object AnnotateGlobalExprByVariant extends Command {
 
   def name = "annotateglobal exprbyvariant"
 
-  def description = "Use the Hail Expression Language to compute new annotations from existing global annotations, as well as perform sample and variant aggregations."
+  def description = "Use the Hail Expression Language to compute new annotations from existing global annotations, as well as perform variant aggregations."
 
   def supportsMultiallelic = true
 
@@ -86,7 +86,7 @@ object AnnotateGlobalExprBySample extends Command {
 
   def name = "annotateglobal exprbysample"
 
-  def description = "Use the Hail Expression Language to compute new annotations from existing global annotations, as well as perform sample and variant aggregations."
+  def description = "Use the Hail Expression Language to compute new annotations from existing global annotations, as well as perform sample aggregations."
 
   def supportsMultiallelic = true
 

@@ -450,8 +450,6 @@ class InbreedingAggregator(getAF: (Genotype) => Any) extends TypedAggregator[Ann
 }
 
 class TakeAggregator(n: Int) extends TypedAggregator[IndexedSeq[Any]] {
-  // FIXME test
-
   var _state = new ArrayBuffer[Any]()
 
   def result = _state.toArray[Any]: IndexedSeq[Any]

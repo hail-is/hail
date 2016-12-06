@@ -495,25 +495,25 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     lhs.typecheck(ec)
     (lhs.`type`, method, args) match {
 
-        // FIXME rest should be evaluated in empty scope if TAggregable
-      case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
-        rest.foreach(_.typecheck(ec))
-
-        val bodyST =
-          it match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => ec.st
-          }
-
-        body.typecheck(ec.copy(st = bodyST + ((param, (-1, it.elementType)))))
+      case (it: TAggregable, _, Array(Lambda(_, param, body), rest@_*)) =>
+        rest.foreach(_.typecheck(ec.copy(st = emptySymTab)))
+        body.typecheck(ec.copy(st = it.symTab + ((param, (-1, it.elementType)))))
         val funType = TFunction(Array(it.elementType), body.`type`)
         `type` = FunctionRegistry.lookupMethodReturnType(it, funType +: rest.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
-        // hack
-      case (t: TAggregable, "hist", _) =>
-        args.foreach(_.typecheck(EvalContext()))
-        `type` = FunctionRegistry.lookupMethodReturnType(t, args.map(_.`type`).toSeq, method)
+        // no lambda
+      case (it: TAggregable, _, _) =>
+        args.foreach(_.typecheck(ec.copy(st = emptySymTab)))
+        `type` = FunctionRegistry.lookupMethodReturnType(it, args.map(_.`type`), method)
+          .valueOr(x => parseError(x.message))
+
+        // not aggregable: TIterable or TDict
+      case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
+        rest.foreach(_.typecheck(ec))
+        body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))
+        val funType = TFunction(Array(it.elementType), body.`type`)
+        `type` = FunctionRegistry.lookupMethodReturnType(it, funType +: rest.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
       case _ =>
@@ -587,8 +587,6 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def eval(ec: EvalContext): () => Any = {
     val localI = ec.st(symbol)._1
     val localA = ec.a
-
-    val localSymbol = symbol
 
     if (localI < 0)
       () => 0 // FIXME placeholder
