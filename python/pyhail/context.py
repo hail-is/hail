@@ -397,18 +397,39 @@ class HailContext(object):
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
-        :param bool sites_only: If True, create sites-only
-            VariantDataset.  Don't load sample ids, sample annotations
-            or gneotypes.
+        :param bool sites_only: If True, create sites-only VariantDataset.
+            Don't load sample ids, sample annotations or genotypes.
 
         :param bool store_gq: If True, store GQ FORMAT field instead of computing from PL.
 
         :param bool pp_as_pl: If True, store PP FORMAT field as PL.  EXPERIMENTAL.
 
-        :param bool skip_bad_ad: If True, set AD FORMAT field with
-            wrong number of elements to missing, rather than setting
-            the entire genotype to missing.
+        :param bool skip_bad_ad: If True, set AD FORMAT field with wrong number
+            of elements to missing, rather than setting the entire genotype to missing.
 
+        Hail is designed to be maximally compatible with files in the `VCF v4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
+
+        The ``path`` argument specifies the list of files to load.  All files must have the same header and the same set of samples in the same order (e.g., a dataset split by chromosome).  Files can be specified as `Hadoop glob patterns <https://www.hail.is/reference.html#hadoopglob>`_.
+
+        Ensure that the VCF file is correctly prepared for import.  VCFs should be either uncompressed (".vcf") or block-compressed (".vcf.bgz").  If you have a large compressed VCF that ends in ".vcf.gz", it is likely that the file is actually block-compressed, and you should rename the file to ".vcf.bgz" accordingly.  If you actually have a standard gzipped file, it is possible to import it to hail using the ```force`` option.  However, this is not recommended: all parsing will have to take place on one core, because gzip decompression is not parallelizable.  In this case, import will take significantly longer.
+
+        Note that VCF is an inefficient format, and it is much faster to read a VDS than a VCF.  If you are performing several analyses on a VCF, it is advised that you write the VCF to VDS form and operate on that.
+
+        Hail makes certain assumptions about the genotype fields, see `Representation <https://www.hail.is/reference.html#Representation>`_.  On import, Hail filters (sets to no-call) any genotype that violates these assumptions.  Hail interpets the format fields: GT, AD, OD, DP, GQ, PL; all others are silently dropped.
+
+        This function does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all these records will be imported and will not be collapsed into a single variant.
+
+        A dataset imported from VDS contains variant annotations read from the VCF:
+
+        ===================   ===============  ==============
+        Annotation name       Type             Description
+        ===================   ===============  ==============
+        ``va.pass``           ``Boolean``      true if the variant contains `PASS` in the filter field (false if ``.`` or other)
+        ``va.filters``        ``Set[String]``  set containing the list of filters applied to a variant.  Accessible using ``va.filters.contains("VQSRTranche99.5...")``, for example
+        ``va.rsid``           ``String``       rsid of the variant, if it has one ("." otherwise)
+        ``va.qual``           ``Double``       the number in the qual field
+        ``va.info.<field>``   ``T``            matches (with proper capitalization) any defined info field.  Data types match the type specified in the vcf header, and if the ``Number`` is "A", "R", or "G", the result will be stored in an array (accessed with ``array\[index\]``).
+        ===================   ===============  ==============
         """
 
         pargs = ["importvcf"]
