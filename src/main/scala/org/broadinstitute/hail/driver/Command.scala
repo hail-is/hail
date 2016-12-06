@@ -46,6 +46,7 @@ object ToplevelCommands {
   }
 
   register(AggregateIntervals)
+  register(AnnotateAlleles)
   register(AnnotateSamples)
   register(AnnotateVariants)
   register(AnnotateGlobal)
