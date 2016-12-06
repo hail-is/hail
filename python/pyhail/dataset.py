@@ -765,7 +765,7 @@ class VariantDataset(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def ld_prune(self, root='va.ldprune', r2=0.2, window=1000000, local_prune_threshold=0.1, memory_per_core=512.0):
+    def ld_prune(self, root='va.ldprune', r2=0.2, window=1000000, local_prune_threshold=0.1, memory_per_core=512):
         """Prune variants in dataset
 
         Variants are pruned in each contig from smallest start position to largest.
