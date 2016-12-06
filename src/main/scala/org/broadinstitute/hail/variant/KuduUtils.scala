@@ -74,7 +74,7 @@ object KuduAnnotationImpex extends AnnotationImpex[DataType, Any] {
     })
   }
 
-  def unflatten(a: Annotation, t: expr.Type): Any = t match {
+  def unflatten(a: Annotation, t: expr.Type): Any = (t: @unchecked) match {
     case st: expr.TStruct =>
       val row = a.asInstanceOf[Row]
       val it = row.toSeq.iterator

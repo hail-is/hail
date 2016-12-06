@@ -173,7 +173,7 @@ class AggregatorSuite extends SparkSuite {
       AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(10, 0, 5)"))
     }
 
-    TestUtils.interceptFatal("""method `hist' cannot contain variable references""") {
+    TestUtils.interceptFatal("""symbol.*va.*not found""") {
       AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(10, 0, va.info.AC[0])"))
     }
   }
@@ -183,17 +183,17 @@ class AggregatorSuite extends SparkSuite {
     val s = State(sc, sqlContext, vds)
 
     val dummy = tmpDir.createTempFile("out")
-    TestUtils.interceptFatal("""tried to export invalid type `Aggregable\[Genotype\]'""")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
       ExportVariants.run(s, Array("-o", dummy, "-c", "gs")))
-    TestUtils.interceptFatal("""tried to export invalid type `Aggregable\[Int\]'""")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int\\]")(
       ExportVariants.run(s, Array("-o", dummy, "-c", "gs.map(g => 5)")))
-    TestUtils.interceptFatal("""tried to export invalid type `Aggregable\[Genotype\]'""")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
       ExportVariants.run(s, Array("-o", dummy, "-c", "gs")))
-    TestUtils.interceptFatal("""Got invalid type `Aggregable\[Genotype\]'""")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
       AnnotateVariants.run(s, Array("expr", "-c", "va = gs")))
-    TestUtils.interceptFatal("""Got invalid type `Aggregable\[Int\]'""")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int\\]")(
       AnnotateVariants.run(s, Array("expr", "-c", "va = gs.map(G => 5)")))
-    TestUtils.interceptFatal("""Got invalid type `Aggregable\[Genotype\]'""")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
       AnnotateVariants.run(s, Array("expr", "-c", "va = gs.filter(g => true)")))
   }
 
@@ -201,9 +201,9 @@ class AggregatorSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
     var s = State(sc, sqlContext, vds)
     s = AnnotateVariantsExpr.run(s, Array("-c",
-      """va.callStats = gs.callStats(v),
-        |va.AC = gs.map(g => g.oneHotAlleles(v)).sum().map(x => x.toInt),
-        |va.GC = gs.map(g => g.oneHotGenotype(v)).sum().map(x => x.toInt),
+      """va.callStats = gs.callStats(g => v),
+        |va.AC = gs.map(g => g.oneHotAlleles(v)).sum(),
+        |va.GC = gs.map(g => g.oneHotGenotype(v)).sum(),
         |va.AN = gs.filter(g => g.isCalled).count() * 2""".stripMargin))
     s = AnnotateVariantsExpr.run(s, Array("-c", "va.AF = va.AC / va.AN"))
     val (_, csAC) = s.vds.queryVA("va.callStats.AC")
@@ -228,12 +228,29 @@ class AggregatorSuite extends SparkSuite {
   @Test def testCounter() {
     Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)) { vds =>
       var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExpr.run(s, "-c", "global = variants.map(v => v.contig).counter()")
+      s = AnnotateGlobalExprByVariant.run(s, "-c", "global = variants.map(v => v.contig).counter()")
       val counterMap = s.vds.globalAnnotation.asInstanceOf[IndexedSeq[Row]]
         .map { r => (r.getAs[String](0), r.getAs[Long](1)) }
         .toMap
       val aggMap = vds.variants.map(_.contig).countByValue()
       aggMap == counterMap
     }.check()
+  }
+
+  @Test def testTake() {
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/aggTake.vcf"))
+
+    ExportVCF.run(s, Array("-o", "/tmp/foo.vcf"))
+
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va.take = gs.map(g => g.dp).take(3)"))
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va.takeBy = gs.map(g => g.dp).takeBy(dp => g.gq, 3)"))
+
+    val (_, qTake) = s.vds.queryVA("va.take")
+    val (_, qTakeBy) = s.vds.queryVA("va.takeBy")
+
+    val va = s.vds.variantsAndAnnotations.map(_._2).collect().head
+    assert(qTake(va).contains(IndexedSeq[Any](11, null, 20)))
+    assert(qTakeBy(va).contains(IndexedSeq[Any](55, null, 11)))
   }
 }

@@ -56,7 +56,7 @@ object LinearRegressionCommand extends Command {
 
     val ec = EvalContext(symTab)
 
-    def toDouble(t: BaseType, code: String): Any => Double = t match {
+    def toDouble(t: Type, code: String): Any => Double = t match {
       case TInt => _.asInstanceOf[Int].toDouble
       case TLong => _.asInstanceOf[Long].toDouble
       case TFloat => _.asInstanceOf[Float].toDouble

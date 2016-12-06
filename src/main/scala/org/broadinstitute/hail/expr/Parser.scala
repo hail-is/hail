@@ -34,7 +34,7 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse(code: String, ec: EvalContext): (BaseType, () => Option[Any]) = {
+  def parse(code: String, ec: EvalContext): (Type, () => Option[Any]) = {
     // println(s"code = $code")
     val t: AST = parseAll(expr, code) match {
       case Success(result, _) => result
@@ -114,9 +114,14 @@ object Parser extends JavaTokenParsers {
             tb += f.`type`
           }
           val types = s.struct.fields.map(_.`type`)
-          () => eval().asInstanceOf[IndexedSeq[Any]].iterator
-            .zip(types.iterator).map { case (value, t) => t.str(value) }
-        case t: Type =>
+          () =>
+            eval().asInstanceOf[IndexedSeq[Any]].iterator
+              .zip(types.iterator).map { case (value, t) => t.str(value) }
+
+        case t =>
+          if (!t.isRealizable)
+            fatal(s"unrealizable type in export expression: $t")
+
           name match {
             case Some(n) =>
               noneNamed = false
@@ -127,7 +132,6 @@ object Parser extends JavaTokenParsers {
           tb += t
           val f = ast.eval(ec)
           () => Iterator(t.str(f()))
-        case bt => fatal(s"tried to export invalid type `$bt'")
       }
     }
 
@@ -158,24 +162,24 @@ object Parser extends JavaTokenParsers {
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
 
-    def checkType(l: List[String], t: BaseType): Type = {
-      if (expectedHead.exists(l.head != _))
-        fatal(
-          s"""invalid annotation path `${ l.map(prettyIdentifier).mkString(".") }'
-              |  Path should begin with `$expectedHead'
-           """.stripMargin)
-
-      t match {
-        case t: Type => t
-        case bt => fatal(
-          s"""Got invalid type `$t' from the result of `${ l.mkString(".") }'""".stripMargin)
-      }
-    }
-
     val all = arr.map {
       case (path, ast) =>
         ast.typecheck(ec)
-        val t = checkType(path, ast.`type`)
+
+        expectedHead match {
+          case Some(h) =>
+            if (path.head != h)
+              fatal(
+                s"""invalid annotation path `${ path.map(prettyIdentifier).mkString(".") }'
+                   |  Path should begin with `$h'
+            """.stripMargin)
+          case None =>
+        }
+
+        val t = ast.`type`
+        if (!t.isRealizable)
+          fatal(s"unrealizable type in annotation expression: $t")
+
         val f = ast.eval(ec)
         val name = if (expectedHead.isDefined) path.tail else path
         ((name, t), () => f())
@@ -198,7 +202,7 @@ object Parser extends JavaTokenParsers {
       path.tail
   }
 
-  def parseNamedExprs(code: String, ec: EvalContext): Array[(String, BaseType, () => Option[Any])] = {
+  def parseNamedExprs(code: String, ec: EvalContext): Array[(String, Type, () => Option[Any])] = {
     val parsed = parseAll(named_args, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(String, AST)]]
       case NoSuccess(msg, _) => fatal(msg)
@@ -211,10 +215,9 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseExprs(code: String, ec: EvalContext): (Array[(BaseType, () => Option[Any])]) = {
-
+  def parseExprs(code: String, ec: EvalContext): (Array[(Type, () => Option[Any])]) = {
     if (code.matches("""\s*"""))
-      Array.empty[(BaseType, () => Option[Any])]
+      Array.empty[(Type, () => Option[Any])]
     else {
       val asts = parseAll(args, code) match {
         case Success(result, _) => result.asInstanceOf[Array[AST]]
@@ -248,37 +251,37 @@ object Parser extends JavaTokenParsers {
 
   def or_expr: Parser[AST] =
     and_expr ~ rep(withPos("||" | "|") ~ and_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def and_expr: Parser[AST] =
     lt_expr ~ rep(withPos("&&" | "&") ~ lt_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def lt_expr: Parser[AST] =
     eq_expr ~ rep(withPos("<=" | ">=" | "<" | ">") ~ eq_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Comparison(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def eq_expr: Parser[AST] =
     add_expr ~ rep(withPos("==" | "!=") ~ add_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Comparison(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def add_expr: Parser[AST] =
     mul_expr ~ rep(withPos("+" | "-") ~ mul_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def mul_expr: Parser[AST] =
     tilde_expr ~ rep(withPos("*" | "/" | "%") ~ tilde_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def tilde_expr: Parser[AST] =
     unary_expr ~ rep(withPos("~") ~ unary_expr) ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { case (acc, op ~ rhs) => BinaryOp(op.pos, acc, op.x, rhs) }
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def export_args: Parser[Array[(Option[String], AST)]] =
@@ -332,7 +335,7 @@ object Parser extends JavaTokenParsers {
   def unary_expr: Parser[AST] =
     rep(withPos("-" | "!")) ~ dot_expr ^^ { case lst ~ rhs =>
       lst.foldRight(rhs) { case (op, acc) =>
-        UnaryOp(op.pos, op.x, acc)
+        Apply(op.pos, op.x, Array(acc))
       }
     }
 
@@ -342,15 +345,22 @@ object Parser extends JavaTokenParsers {
       | (withPos(".") ~ "*")
       | withPos("[") ~ expr ~ "]"
       | withPos("[") ~ opt(expr) ~ ":" ~ opt(expr) ~ "]") ^^ { case lhs ~ lst =>
-      lst.foldLeft(lhs) { (acc, t) => (t: @unchecked) match {
-        case (dot: Positioned[_]) ~ "*" => Splat(dot.pos, acc)
-        case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
-        case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
-          ApplyMethod(dot.pos, acc, sym, args)
-        case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => IndexOp(lbracket.pos, acc, idx)
-        case (lbracket: Positioned[_]) ~ (idx1: Option[_]) ~ ":" ~ (idx2: Option[_]) ~ "]" =>
-          SliceArray(lbracket.pos, acc, idx1.map(_.asInstanceOf[AST]), idx2.map(_.asInstanceOf[AST]))
-      }
+      lst.foldLeft(lhs) { (acc, t) =>
+        (t: @unchecked) match {
+          case (dot: Positioned[_]) ~ "*" => Splat(dot.pos, acc)
+          case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
+          case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
+            ApplyMethod(dot.pos, acc, sym, args)
+          case (lbracket: Positioned[_]) ~ (idx: AST) ~ "]" => ApplyMethod(lbracket.pos, acc, "[]", Array(idx))
+          case (lbracket: Positioned[_]) ~ None ~ ":" ~ None ~ "]" =>
+            ApplyMethod(lbracket.pos, acc, "[:]", Array())
+          case (lbracket: Positioned[_]) ~ Some(idx1: AST) ~ ":" ~ None ~ "]" =>
+            ApplyMethod(lbracket.pos, acc, "[*:]", Array(idx1))
+          case (lbracket: Positioned[_]) ~ None ~ ":" ~ Some(idx2: AST) ~ "]" =>
+            ApplyMethod(lbracket.pos, acc, "[:*]", Array(idx2))
+          case (lbracket: Positioned[_]) ~ Some(idx1: AST) ~ ":" ~ Some(idx2: AST) ~ "]" =>
+            ApplyMethod(lbracket.pos, acc, "[*:*]", Array(idx1, idx2))
+        }
       }
     }
 
@@ -480,11 +490,9 @@ object Parser extends JavaTokenParsers {
     }
     args.map { case (id, spec, ast) =>
       ast.typecheck(ec)
-      val t = ast.`type` match {
-        case t: Type => t
-        case _ => fatal(
-          s"""invalid export expression resulting in unprintable type `${ ast.`type` }'""".stripMargin)
-      }
+      val t = ast.`type`
+      if (!t.isRealizable)
+        fatal(s"unrealizable type in Solr export expression: $t")
       val f = ast.eval(ec)
       (id, spec, t, () => Option(f()))
     }

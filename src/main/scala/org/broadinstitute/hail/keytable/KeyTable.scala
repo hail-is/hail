@@ -136,7 +136,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def mapAnnotations[T](f: (Annotation, Annotation) => T)(implicit tct: ClassTag[T]): RDD[T] =
     rdd.map { case (k, v) => f(k, v) }
 
-  def query(code: String): (BaseType, (Annotation, Annotation) => Option[Any]) = {
+  def query(code: String): (Type, (Annotation, Annotation) => Option[Any]) = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
@@ -152,7 +152,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     (t, f2)
   }
 
-  def querySingle(code: String): (BaseType, Querier) = {
+  def querySingle(code: String): (Type, Querier) = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
     val nFieldsLocal = nFields
 
@@ -333,12 +333,14 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def aggregate(keyCond: String, aggCond: String): KeyTable = {
 
-    val aggregationEC = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
-    val ec = EvalContext(fields.zipWithIndex.map { case (fd, i) => (fd.name, (-1, KeyTableAggregable(aggregationEC, fd.`type`, i))) }.toMap)
+    val aggregationST = fields.zipWithIndex.map { case (fd, i) => (fd.name, (i, fd.`type`)) }.toMap
+
+    val keyEC = EvalContext(aggregationST)
+    val ec = EvalContext(fields.zipWithIndex.map { case (fd, i) => (fd.name, (i, TAggregable(fd.`type`, aggregationST))) }.toMap)
 
     val (keyNameParseTypes, keyF) =
       if (keyCond != null)
-        Parser.parseAnnotationArgs(keyCond, aggregationEC, None)
+        Parser.parseAnnotationArgs(keyCond, keyEC, None)
       else
         (Array.empty[(List[String], Type)], Array.empty[() => Any])
 
@@ -350,24 +352,15 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val keySignature = TStruct(keyNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
     val valueSignature = TStruct(aggNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
 
-    val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
-    val aggFunctions = aggregationEC.aggregationFunctions.map(_._1)
+    val localNFields = nFields
 
-    assert(zVals.length == aggFunctions.length)
-
-    val seqOp = (array: Array[Aggregator], b: Any) => {
-      KeyTable.setEvalContext(aggregationEC, b, nFields)
-      for (i <- array.indices) {
-        array(i).seqOp(aggFunctions(i)(b))
-      }
-      array
-    }
-
-    val nFieldsLocal = nFields
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case  (ec, a) =>
+        KeyTable.setEvalContext(ec, a, localNFields)
+    })
 
     val newRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).mapPartitions { it =>
       it.map { a =>
-        KeyTable.setEvalContext(aggregationEC, a, nFieldsLocal)
+        KeyTable.setEvalContext(keyEC, a, localNFields)
         val key = Annotation.fromSeq(keyF.map(_ ()))
         (key, a)
       }

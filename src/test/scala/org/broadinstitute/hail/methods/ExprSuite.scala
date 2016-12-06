@@ -88,7 +88,7 @@ class ExprSuite extends SparkSuite {
       f().map(_.asInstanceOf[T])
     }
 
-    def evalWithType[T](s: String): (BaseType, Option[T]) = {
+    def evalWithType[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parse(s, ec)
       (t, f().map(_.asInstanceOf[T]))
     }
@@ -151,8 +151,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("a[2]").isEmpty)
 
     assert(eval[Boolean]("1 == 1.0").contains(true))
-    val equalsError = intercept[FatalException](eval[Boolean](""" s == 2 """))
-    assert(equalsError.getMessage.contains("can only compare objects of similar type"))
 
     assert(eval[Int]("as.length").contains(2))
     assert(eval[Int]("as[0].a").contains(23))
@@ -193,16 +191,16 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Set[_]]("""[[0].toSet, [1].toSet, nullset].filter(s => isDefined(s)).toSet.flatMap(x => x)""").contains(Set(0, 1)))
 
-    TestUtils.interceptFatal("""expects a lambda function""")(
+    TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(0)"""))
 
-    TestUtils.interceptFatal("""expects lambda body to have type Array\[T\] or Set\[T\], got Int""")(
+    TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(x => x)"""))
 
-    TestUtils.interceptFatal("""match, got Set\[Int\] and Array\[Int\]""")(
+    TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(x => [x])"""))
 
-    TestUtils.interceptFatal("""match, got Array\[Int\] and Set\[Int\]""")(
+    TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[IndexedSeq[_]]("""a.flatMap(x => [x].toSet)"""))
 
     assert(eval[IndexedSeq[_]](""" [[1], [2, 3], [4, 5, 6]].flatten() """).contains(IndexedSeq(1, 2, 3, 4, 5, 6)))
@@ -222,16 +220,16 @@ class ExprSuite extends SparkSuite {
     assert(eval[Set[_]](""" [[0].toSet, nullset].toSet.flatten() """).isEmpty)
     assert(eval[Set[_]](""" [nullset, [1].toSet].toSet.flatten() """).isEmpty)
 
-    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Array\[Set\[Int\]\]""")(
+    TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [iset, [2, 3, 4].toSet].flatten() """))
 
-    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Set\[Array\[Int\]\]""")(
+    TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [[1], [2, 3, 4]].toSet.flatten() """))
 
-    TestUtils.interceptFatal("""expects type Array\[Array\[T\]\] or Set\[Set\[T\]\], got Array\[Int\]""")(
+    TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [0].flatten() """))
 
-    TestUtils.interceptFatal("""does not take parameters, use flatten()""")(
+    TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [[0]].flatten(0) """))
 
 
@@ -243,18 +241,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""a2.sort(true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sort(false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
 
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort(0)"""))
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort("asdasd")"""))
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort(true, true)"""))
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort(null)"""))
-    TestUtils.interceptFatal("""expects at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sort(asdasd)"""))
-
-
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""").contains(IndexedSeq(1, 2, -1, 3, 3, 6, 8, null)))
@@ -265,21 +251,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, true)""").contains(IndexedSeq("a", "c", "c", "d", "d", "e", null, null)))
     assert(eval[IndexedSeq[_]]("""a2.sortBy(x => x, false)""").contains(IndexedSeq("e", "d", "d", "c", "c", "a", null, null)))
-
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(0)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(0, true)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, 0)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, "asdasd")"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, true, true)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, null)"""))
-    TestUtils.interceptFatal("""lambda function \(param => T\) and at most one Boolean parameter""")(
-      eval[IndexedSeq[_]]("""a.sortBy(x => x, asdasd)"""))
 
     assert(eval[String](""" "HELLO=" + j + ", asdasd" + 9""")
       .contains("HELLO=-7, asdasd9"))
@@ -297,7 +268,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""a.max""").contains(8))
     assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
-    assert(eval[String](""" 5 + "5" """) == eval[String](""" "5" + 5 """))
+    assert(eval[String](""" "" + 5 + "5" """) == eval[String](""" "5" + 5 """))
     assert(eval[Int]("""iset.min""").contains(0))
     assert(eval[Int]("""iset.max""").contains(2))
     assert(eval[Int]("""iset.sum""").contains(3))
@@ -355,7 +326,6 @@ class ExprSuite extends SparkSuite {
         "C" -> Annotation(10, 10))
     ))
     assert(dictType == TDict(TStruct(("f1", TInt), ("f3", TInt))))
-
 
     assert(eval[Int](""" index(structArray, f2)["B"].f3 """).contains(6))
     assert(eval[Map[_, _]](""" index(structArray, f2).mapValues(x => x.f1) """).contains(Map(
@@ -475,7 +445,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] / 2.0""").contains(IndexedSeq(1.0, null, 2.0)))
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] / [2,NA: Int,4]""").contains(IndexedSeq(1.0, null, 1.0)))
 
-    TestUtils.interceptFatal("""cannot apply operation `\+' to arrays of unequal length""") {
+    TestUtils.interceptFatal("""Cannot apply operation \+ to arrays of unequal length""") {
       eval[IndexedSeq[Int]]("""[1] + [2,3,4] """)
     }
 
@@ -543,7 +513,7 @@ class ExprSuite extends SparkSuite {
     val s3 = "SIFT_Score: Double, Age: Int, SIFT2: BadType"
 
     assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
-    assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, BaseType])
+    assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
     intercept[FatalException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
   }
 
@@ -612,7 +582,7 @@ class ExprSuite extends SparkSuite {
         JSONAnnotationImpex.importAnnotation(parse(string), t) == a
       }
 
-      property("table") = forAll(g.filter { case (t, a) => t != TDouble && a != null }) { case (t, a) =>
+      property("table") = forAll(g.filter { case (t, a) => t != TDouble && a != null }.resize(10)) { case (t, a) =>
         TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
       }
 
@@ -626,7 +596,7 @@ class ExprSuite extends SparkSuite {
 
   @Test def testIfNumericPromotion() {
     val ec = EvalContext(Map("c" -> (0, TBoolean), "l" -> (1, TLong), "f" -> (2, TFloat)))
-    def eval[T](s: String): (BaseType, Option[T]) = {
+    def eval[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parse(s, ec)
       (t, f().map(_.asInstanceOf[T]))
     }

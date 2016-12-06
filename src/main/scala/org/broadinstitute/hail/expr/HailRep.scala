@@ -1,10 +1,9 @@
 package org.broadinstitute.hail.expr
 
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
 
-trait HailRep[T] {
+trait HailRep[T] { self =>
   def typ: Type
 }
 
@@ -12,6 +11,10 @@ object HailRep {
 
   implicit object boolHr extends HailRep[Boolean] {
     def typ = TBoolean
+  }
+
+  object charHr extends HailRep[String] {
+    def typ = TChar
   }
 
   implicit object intHr extends HailRep[Int] {
@@ -30,8 +33,33 @@ object HailRep {
     def typ = TDouble
   }
 
+  object boxedboolHr extends HailRep[Any] {
+    def typ = TBoolean
+  }
+
+  object boxedintHr extends HailRep[Any] {
+    def typ = TInt
+  }
+
+  object boxedlongHr extends HailRep[Any] {
+    def typ = TLong
+  }
+
+  object boxedfloatHr extends HailRep[Any] {
+    def typ = TFloat
+  }
+
+  object boxeddoubleHr extends HailRep[Any] {
+    def typ = TDouble
+  }
+
   implicit object stringHr extends HailRep[String] {
     def typ = TString
+  }
+
+  // not implicit to make stringHr the default
+  object sampleHr extends HailRep[String] {
+    def typ = TSample
   }
 
   implicit object genotypeHr extends HailRep[Genotype] {
@@ -62,4 +90,19 @@ object HailRep {
     def typ = TSet(hrt.typ)
   }
 
+  implicit def dictHr[T](implicit hrt: HailRep[T]) = new HailRep[Map[String, T]] {
+    def typ = TDict(hrt.typ)
+  }
+
+  implicit def unaryHr[T, U](implicit hrt: HailRep[T], hru: HailRep[U]) = new HailRep[(Any) => Any] {
+    def typ = TFunction(Seq(hrt.typ), hru.typ)
+  }
+
+  def aggregableHr[T](implicit hrt: HailRep[T]) = new HailRep[T] {
+    def typ = TAggregable(hrt.typ)
+  }
+
+  def aggregableHr[T](hrt: HailRep[T], b: Box[SymbolTable]) = new HailRep[T] {
+    def typ = TAggregableVariable(hrt.typ, b)
+  }
 }

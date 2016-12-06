@@ -608,38 +608,33 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def aggregateByKey(keyCond: String, aggCond: String): KeyTable = {
-    val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, saSignature),
-      "global" -> (4, globalSignature),
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature),
+      "s" -> (3, TSample),
+      "sa" -> (4, saSignature),
+      "g" -> (5, TGenotype))
+
+    val ec = EvalContext(aggregationST.map { case (name, (i, t)) => name -> (i, TAggregable(t, aggregationST)) })
+
+    val keyEC = EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature),
+      "s" -> (3, TSample),
+      "sa" -> (4, saSignature),
       "g" -> (5, TGenotype)))
-
-    val ec = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, saSignature),
-      "global" -> (4, globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype))))
-
-    val ktEC = EvalContext(
-      aggregationEC.st.map { case (name, (i, t)) => name -> (-1, KeyTableAggregable(aggregationEC, t.asInstanceOf[Type], i)) }
-    )
-
-    ec.set(4, globalAnnotation)
-    aggregationEC.set(4, globalAnnotation)
 
     val (keyNameParseTypes, keyF) =
       if (keyCond != null)
-        Parser.parseAnnotationArgs(keyCond, ec, None)
+        Parser.parseAnnotationArgs(keyCond, keyEC, None)
       else
         (Array.empty[(List[String], Type)], Array.empty[() => Any])
 
     val (aggNameParseTypes, aggF) =
       if (aggCond != null)
-        Parser.parseAnnotationArgs(aggCond, ktEC, None)
+        Parser.parseAnnotationArgs(aggCond, ec, None)
       else
         (Array.empty[(List[String], Type)], Array.empty[() => Any])
 
@@ -649,24 +644,17 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val keySignature = TStruct(keyNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
     val valueSignature = TStruct(aggNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
 
-    val (zVals, _, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
-    val aggFunctions = aggregationEC.aggregationFunctions.map(_._1)
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
+      KeyTable.setEvalContext(ec, a, 6)
+    })
 
     val localGlobalAnnotation = globalAnnotation
 
-    val seqOp = (array: Array[Aggregator], r: Annotation) => {
-      KeyTable.setEvalContext(aggregationEC, r, 6)
-      for (i <- array.indices) {
-        array(i).seqOp(aggFunctions(i)(r))
-      }
-      array
-    }
-
     val ktRDD = mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
-        ec.setAll(v, va, s, sa, g)
+        keyEC.setAll(localGlobalAnnotation, v, va, s, sa, g)
         val key = Annotation.fromSeq(keyF.map(_ ()))
-        (key, Annotation(v, va, s, sa, localGlobalAnnotation, g))
+        (key, Annotation(localGlobalAnnotation, v, va, s, sa, g))
       }
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map { case (k, agg) =>
@@ -910,7 +898,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(globalSignature = newT, globalAnnotation = i(globalAnnotation, Option(a)))
   }
 
-  def queryVA(code: String): (BaseType, Querier) = {
+  def queryVA(code: String): (Type, Querier) = {
 
     val st = Map(Annotation.VARIANT_HEAD -> (0, vaSignature))
     val ec = EvalContext(st)
@@ -926,7 +914,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (t, f2)
   }
 
-  def querySA(code: String): (BaseType, Querier) = {
+  def querySA(code: String): (Type, Querier) = {
 
     val st = Map(Annotation.SAMPLE_HEAD -> (0, saSignature))
     val ec = EvalContext(st)
@@ -942,7 +930,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (t, f2)
   }
 
-  def queryGlobal(path: String): (BaseType, Option[Annotation]) = {
+  def queryGlobal(path: String): (Type, Option[Annotation]) = {
     val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
     val ec = EvalContext(st)
     val a = ec.a
@@ -1179,31 +1167,17 @@ class RichVDS(vds: VariantDataset) {
   }
 
   def filterVariantsExpr(cond: String, keep: Boolean): VariantDataset = {
-    val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature)))
-    val symTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
-
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
+    val localGlobalAnnotation = vds.globalAnnotation
+    val ec = Aggregators.variantEC(vds)
 
     val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
 
-    val aggregatorOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
+    val aggregatorOption = Aggregators.buildVariantAggregations(vds, ec)
 
     val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
-      ec.setAll(v, va)
       aggregatorOption.foreach(f => f(v, va, gs))
+
+      ec.setAll(localGlobalAnnotation, v, va)
       Filter.keepThis(f(), keep)
     }
 

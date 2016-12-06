@@ -35,7 +35,7 @@ object ExportVCF extends Command {
 
   def requiresVDS = true
 
-  def infoNumber(t: BaseType): String = t match {
+  def infoNumber(t: Type): String = t match {
     case TBoolean => "0"
     case TArray(elementType) => "."
     case _ => "1"
@@ -71,7 +71,7 @@ object ExportVCF extends Command {
       }
   }
 
-  def infoType(t: BaseType): String = t match {
+  def infoType(t: Type): String = t match {
     case TArray(elementType) => infoType(elementType)
     case TInt => "Integer"
     case TDouble => "Float"

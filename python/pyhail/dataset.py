@@ -42,8 +42,9 @@ class VariantDataset(object):
         pargs = ['aggregateintervals', '-i', input, '-c', condition, '-o', output]
         return self.hc.run_command(self, pargs)
 
-    def annotate_global_expr(self, condition):
-        """Update the global annotations with expression.
+    def annotate_global_expr_by_variant(self, condition):
+        """Update the global annotations with expression with aggregation over
+        variants.
 
         :param condition: Annotation expression.
         :type condition: str or list of str
@@ -52,7 +53,21 @@ class VariantDataset(object):
 
         if isinstance(condition, list):
             condition = ','.join(condition)
-        pargs = ['annotateglobal', 'expr', '-c', condition]
+        pargs = ['annotateglobal', 'exprbyvariant', '-c', condition]
+        return self.hc.run_command(self, pargs)
+
+    def annotate_global_expr_by_sample(self, condition):
+        """Update the global annotations with expression with aggregation over
+        samples.
+
+        :param str condition: Annotation expression.
+        :type condition: str or list of str
+
+        """
+
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+        pargs = ['annotateglobal', 'exprbysample', '-c', condition]
         return self.hc.run_command(self, pargs)
 
     def annotate_global_list(self, input, root, as_set=False):

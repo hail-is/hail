@@ -425,7 +425,7 @@ The above example is updating the value of the `va.hetSamples` annotation. The v
 ### Call Stats
 
 ```
-<aggregable>.callStats( Variant )
+<aggregable>.callStats( <Variant lambda expression> )
 ```
 
 `callStats` is an aggregator which operates on an `Aggregable[Genotype]` that computes four commonly-used metrics over a set of genotypes in a variant.  The resulting annotation is a struct:
@@ -449,9 +449,9 @@ In the above schema, the types mean the following:
 **Example:** compute population-specific call statistics.  After the below command, `va.eur_stats.AC` will be the AC computed from individuals marked as "EUR".
 
 ```
-annotatevariants expr -c "va.eur_stats = gs.filter(g => sa.pop == "EUR").callStats(v),
-                          va.afr_stats = gs.filter(g => sa.pop == "AFR").callStats(v),
-                          va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(v)"
+annotatevariants expr -c "va.eur_stats = gs.filter(g => sa.pop == "EUR").callStats(g => v),
+                          va.afr_stats = gs.filter(g => sa.pop == "AFR").callStats(g => v),
+                          va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(g => v)"
 ```
 
 ### <a class="jumptarget" name="aggreg_hwe"></a> HardyWeinberg
@@ -531,10 +531,10 @@ hail importgen -s /my/path/example.sample /my/path/example.gen
 ### <a class="jumptarget" name="aggreg_ibc"></a> Inbreeding
 
 ```
-<genotype aggregable>.inbreeding( allele frequency: Double )
+<genotype aggregable>.inbreeding( <Double lambda expression> )
 ```
 
-`inbreeding` is an aggregator that computes [inbreeding metrics](#ibc_doc) on an `Aggregable[Genotype]`.  It takes an expression for alt allele frequency as a required parameter.
+`inbreeding` is an aggregator that computes [inbreeding metrics](#ibc_doc) on an `Aggregable[Genotype]`.  It takes a lambda expression from `Genotype` to `Double` expression for the alt allele frequency as a required parameter.
 
 The result of `inbreeding` is a struct:
 
@@ -559,7 +559,7 @@ Calculate the inbreeding metrics per sample and export the resulting annotations
 ```
 hail read ... 
     variantqc
-    annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(va.qc.AF)' 
+    annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(g => va.qc.AF)' 
     exportsamples -c 'Sample = s, sa.inbreeding.*' -o ib_stats.tsv
 ```
 
@@ -568,7 +568,7 @@ Calculate the inbreeding metrics per variant and export these metrics to a TSV f
 ```
 hail read ...
     variantqc
-    annotatevariants expr -c 'va.inbreeding = gs.inbreeding(va.qc.AF)'
+    annotatevariants expr -c 'va.inbreeding = gs.inbreeding(g => va.qc.AF)'
     exportvariants -c 'Variant = v, va.inbreeding.*' -o ib_stats_variants.tsv
 
 ```
@@ -581,7 +581,7 @@ variantqc
 filtervariants expr --keep -c 'va.qc.AC > 1 && va.qc.AF >= 1e-8 && 
     va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 &&
     v.isAutosomal' 
-annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(va.qc.AF)'
+annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(g => va.qc.AF)'
 ```
 
 
