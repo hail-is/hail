@@ -48,7 +48,7 @@ class AggregateByKeySuite extends SparkSuite {
     s = ImportVCF.run(s, Array(inputVCF))
     s = AnnotateVariantsExpr.run(s, Array("-c", "va.nHet = gs.filter(g => g.isHet).count().toInt"))
     s = AnnotateGlobalExprByVariant.run(s, Array("-c", "global.nHet = variants.map(v => va.nHet).sum()"))
-    val kt = s.vds.aggregateByKey(null, "nHet = g.map(g => g.isHet.toInt).sum()")
+    val kt = s.vds.aggregateByKey("", "nHet = g.map(g => g.isHet.toInt).sum()")
 
     val (_, ktHetQuery) = kt.query("nHet")
     val (_, globalHetResult) = s.vds.queryGlobal("global.nHet")

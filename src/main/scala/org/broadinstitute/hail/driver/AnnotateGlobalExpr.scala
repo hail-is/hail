@@ -40,11 +40,11 @@ object AnnotateGlobalExprByVariant extends Command {
       "global" -> (0, vds.globalSignature),
       "variants" -> (1, TAggregable(TVariant, aggregationST))))
 
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Some(Annotation.GLOBAL_HEAD))
+    val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, Some(Annotation.GLOBAL_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
 
-    val finalType = parseTypes.foldLeft(vds.globalSignature) { case (v, (ids, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(vds.globalSignature) { case (v, (ids, signature)) =>
       val (s, i) = v.insert(signature, ids)
       inserterBuilder += i
       s
@@ -62,9 +62,9 @@ object AnnotateGlobalExprByVariant extends Command {
 
     ec.setAll(localGlobalAnnotation)
     val ga = inserters
-      .zip(fns.map(_ ()))
+      .zip(f())
       .foldLeft(vds.globalAnnotation) { case (a, (ins, res)) =>
-        ins(a, Option(res))
+        ins(a, res)
       }
 
     state.copy(vds = vds.copy(
@@ -106,11 +106,11 @@ object AnnotateGlobalExprBySample extends Command {
       "global" -> (0, vds.globalSignature),
       "samples" -> (1, TAggregable(TVariant, aggregationST))))
 
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Option(Annotation.GLOBAL_HEAD))
+    val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, Option(Annotation.GLOBAL_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
 
-    val finalType = parseTypes.foldLeft(vds.globalSignature) { case (v, (ids, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(vds.globalSignature) { case (v, (ids, signature)) =>
       val (s, i) = v.insert(signature, ids)
       inserterBuilder += i
       s
@@ -128,9 +128,9 @@ object AnnotateGlobalExprBySample extends Command {
 
     ec.setAll(localGlobalAnnotation)
     val ga = inserters
-      .zip(fns.map(_ ()))
+      .zip(f())
       .foldLeft(vds.globalAnnotation) { case (a, (ins, res)) =>
-        ins(a, Option(res))
+        ins(a, res)
       }
 
     state.copy(vds = vds.copy(

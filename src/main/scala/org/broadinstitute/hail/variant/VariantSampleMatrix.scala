@@ -626,23 +626,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       "sa" -> (4, saSignature),
       "g" -> (5, TGenotype)))
 
-    val (keyNameParseTypes, keyF) =
-      if (keyCond != null)
-        Parser.parseAnnotationArgs(keyCond, keyEC, None)
-      else
-        (Array.empty[(List[String], Type)], Array.empty[() => Any])
+    val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyCond, keyEC)
+    val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggCond, ec)
 
-    val (aggNameParseTypes, aggF) =
-      if (aggCond != null)
-        Parser.parseAnnotationArgs(aggCond, ec, None)
-      else
-        (Array.empty[(List[String], Type)], Array.empty[() => Any])
-
-    val keyNames = keyNameParseTypes.map(_._1.head)
-    val aggNames = aggNameParseTypes.map(_._1.head)
-
-    val keySignature = TStruct(keyNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
-    val valueSignature = TStruct(aggNameParseTypes.map { case (n, t) => (n.head, t) }: _*)
+    val keySignature = TStruct((keyNames, keyTypes).zipped.map { case (n, t) => (n, t) }: _*)
+    val valueSignature = TStruct((aggNames, aggTypes).zipped.map { case (n, t) => (n, t) }: _*)
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
       KeyTable.setEvalContext(ec, a, 6)
@@ -653,13 +641,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val ktRDD = mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
         keyEC.setAll(localGlobalAnnotation, v, va, s, sa, g)
-        val key = Annotation.fromSeq(keyF.map(_ ()))
+        val key = Annotation.fromSeq(keyF().map(_.orNull))
         (key, Annotation(localGlobalAnnotation, v, va, s, sa, g))
       }
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
-        (k, Annotation.fromSeq(aggF.map(_ ())))
+        (k, Annotation.fromSeq(aggF().map(_.orNull)))
       }
 
     KeyTable(ktRDD, keySignature, valueSignature)
@@ -904,7 +892,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val ec = EvalContext(st)
     val a = ec.a
 
-    val (t, f) = Parser.parse(code, ec)
+    val (t, f) = Parser.parseExpr(code, ec)
 
     val f2: Annotation => Option[Any] = { annotation =>
       a(0) = annotation
@@ -920,7 +908,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val ec = EvalContext(st)
     val a = ec.a
 
-    val (t, f) = Parser.parse(code, ec)
+    val (t, f) = Parser.parseExpr(code, ec)
 
     val f2: Annotation => Option[Any] = { annotation =>
       a(0) = annotation
@@ -935,7 +923,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val ec = EvalContext(st)
     val a = ec.a
 
-    val (t, f) = Parser.parse(path, ec)
+    val (t, f) = Parser.parseExpr(path, ec)
 
     val f2: Annotation => Option[Any] = { annotation =>
       a(0) = annotation
@@ -1170,7 +1158,7 @@ class RichVDS(vds: VariantDataset) {
     val localGlobalAnnotation = vds.globalAnnotation
     val ec = Aggregators.variantEC(vds)
 
-    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](cond, ec)
 
     val aggregatorOption = Aggregators.buildVariantAggregations(vds, ec)
 

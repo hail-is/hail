@@ -1,6 +1,10 @@
 package org.broadinstitute.hail
 
-package object expr {
+import scala.language.implicitConversions
+
+
+
+package object expr extends HailRepFunctions {
   type SymbolTable = Map[String, (Int, Type)]
   def emptySymTab = Map.empty[String, (Int, Type)]
 
@@ -15,4 +19,6 @@ package object expr {
 
     def copy(): TypedAggregator[S]
   }
+
+  implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)
 }

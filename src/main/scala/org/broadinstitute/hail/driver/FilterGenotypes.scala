@@ -54,7 +54,7 @@ object FilterGenotypes extends Command {
 
     val ec = EvalContext(symTab)
     ec.set(5, vds.globalAnnotation)
-    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](cond, ec)
 
     val sampleIdsBc = vds.sampleIdsBc
     val sampleAnnotationsBc = vds.sampleAnnotationsBc

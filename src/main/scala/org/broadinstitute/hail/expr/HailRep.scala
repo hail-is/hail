@@ -7,7 +7,7 @@ trait HailRep[T] { self =>
   def typ: Type
 }
 
-object HailRep {
+trait HailRepFunctions {
 
   implicit object boolHr extends HailRep[Boolean] {
     def typ = TBoolean

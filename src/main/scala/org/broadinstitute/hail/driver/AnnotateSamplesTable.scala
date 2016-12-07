@@ -57,7 +57,7 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
       } else
         vds.insertSA(struct, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
 
-    val sampleQuery = struct.parseInStructScope[String](options.sampleExpr, TString)
+    val sampleQuery = struct.parseInStructScope[String](options.sampleExpr)
 
     val map = rdd
       .flatMap {

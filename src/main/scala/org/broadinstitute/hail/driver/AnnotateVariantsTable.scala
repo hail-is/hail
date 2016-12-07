@@ -62,7 +62,7 @@ object AnnotateVariantsTable extends Command with JoinAnnotator {
       buildInserter(code, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
     } else vds.insertVA(struct, Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD))
 
-    val variantQuery = struct.parseInStructScope[Variant](options.vExpr, TVariant)
+    val variantQuery = struct.parseInStructScope[Variant](options.vExpr)
 
     val keyedRDD = rdd.flatMap {
       _.map { a =>
