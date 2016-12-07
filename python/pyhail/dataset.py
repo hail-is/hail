@@ -1104,15 +1104,15 @@ class VariantDataset(object):
 
         ``split_multi`` adds the following annotations:
 
-         - ``va.wasSplit: Boolean``: true if this variant was
+         - **va.wasSplit** (*Boolean*) -- true if this variant was
            originally multiallelic, otherwise false.
 
-         - ``va.aIndex: Int``: The original index of this alternate
-           allele in the multiallelic representation (NB: 1 is the
-           first alternate allele or the only alternate allele in a
-           biallelic variant). For example, 1:100:A:T,C splits into
-           two variants: 1:100:A:T with ``aIndex = 1`` and 1:100:A:C
-           with ``aIndex = 2``.
+         - **va.aIndex** (*Int*) -- The original index of this
+           alternate allele in the multiallelic representation (NB: 1
+           is the first alternate allele or the only alternate allele
+           in a biallelic variant). For example, 1:100:A:T,C splits
+           into two variants: 1:100:A:T with ``aIndex = 1`` and
+           1:100:A:C with ``aIndex = 2``.
 
         :param bool propagate_gq: Set the GQ of output (split)
           genotypes to be the GQ of the input (multi-allelic) variants
