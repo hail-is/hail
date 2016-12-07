@@ -61,9 +61,9 @@ object Parser extends JavaTokenParsers {
 
   def parseExprs(code: String, ec: EvalContext): (Array[Type], () => Array[Option[Any]]) = {
     val (types, fs) = args.parse(code).map(eval(_, ec)).unzip
-    (types, () => fs.map(f => Option(f())))
+    (types.toArray, () => fs.map(f => Option(f())).toArray)
   }
-
+  
   def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
     Array[List[String]], Array[Type], () => Array[Option[Any]]) = {
     val (maybeNames, types, f) = parseNamedExprs[List[String]](code, annotationIdentifier, ec,
