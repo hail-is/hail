@@ -123,40 +123,26 @@ object LDPrune {
     def pruneF = (x: Array[Iterator[(Variant, BVector[Double])]]) => {
       val nPartitions = x.length
       val targetIterator = x(0)
-      val prevPartitions = x.drop(1).map(_.toArray)
+      val prevPartitions = x.drop(1).reverse
 
       if (nPartitions == 1)
         targetIterator
       else {
-        val a = new ArrayBuffer[(Variant, BVector[Double])]
+        var targetData = targetIterator.toArray
 
-        targetIterator.foreach { case (v, sgs) =>
-          val keepVariant = prevPartitions.forall { data =>
-            var keep = true
-            var compare = true
-            var i = data.indices.last
-
-            while (compare && i >= 0) {
-              val (v2, sgs2) = data(i)
-
+        prevPartitions.foreach { it =>
+          it.foreach { case (v2, sgs2) =>
+            targetData = targetData.filter { case (v, sgs) =>
               if (v.contig != v2.contig || v.start - v2.start > window)
-                compare = false
+                true
               else {
                 val r = sgs.dot(sgs2)
-                if ((r * r: Double) >= r2Threshold) {
-                  keep = false
-                  compare = false
-                }
+                (r * r: Double) < r2Threshold
               }
-              i -= 1
             }
-            keep
           }
-
-          if (keepVariant)
-            a += ((v, sgs))
         }
-        a.iterator
+        targetData.iterator
       }
     }
 
