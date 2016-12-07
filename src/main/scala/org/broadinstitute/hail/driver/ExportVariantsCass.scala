@@ -106,10 +106,10 @@ object ExportVariantsCass extends Command {
       fatal("unsupported type: $t")
   }
 
-  def toCassValue(a: Any, t: Type): AnyRef = t match {
-    case TArray(elementType) => a.asInstanceOf[Seq[_]].asJava
-    case TSet(elementType) => a.asInstanceOf[Set[_]].asJava
-    case _ => a.asInstanceOf[AnyRef]
+  def toCassValue(a: Option[Any], t: Type): AnyRef = t match {
+    case TArray(elementType) => a.map(_.asInstanceOf[Seq[_]].asJava).orNull
+    case TSet(elementType) => a.map(_.asInstanceOf[Set[_]].asJava).orNull
+    case _ => a.map(_.asInstanceOf[AnyRef]).orNull
   }
 
   def escapeString(name: String): String =
@@ -153,7 +153,7 @@ object ExportVariantsCass extends Command {
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
 
-    val (vHeader, vTypes, vf) = Parser.parseExportArgs(vCond, vEC)
+    val (vNames, vTypes, vf) = Parser.parseNamedExprs(vCond, vEC)
 
     val gSymTab = Map(
       "v" -> (0, TVariant),
@@ -164,14 +164,14 @@ object ExportVariantsCass extends Command {
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
-    val (gHeader, gTypes, gf) = Parser.parseExportArgs(gCond, gEC)
+    val (gHeader, gTypes, gf) = Parser.parseNamedExprs(gCond, gEC)
 
     val symTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, vas))
     val ec = EvalContext(symTab)
 
-    val fields = vHeader.map(escapeString).zip(vTypes) ++ vds.sampleIds.flatMap { s =>
+    val fields = vNames.map(escapeString).zip(vTypes) ++ vds.sampleIds.flatMap { s =>
       gHeader.map(field => s"${ escapeString(s) }__${ escapeString(field) }").zip(gTypes)
     }
 
@@ -242,7 +242,7 @@ object ExportVariantsCass extends Command {
 
             vEC.setAll(v, va)
             vf().zipWithIndex.foreach { case (a, i) =>
-              nb += s""""${ escapeString(vHeader(i)) }""""
+              nb += s""""${ escapeString(vNames(i)) }""""
               vb += toCassValue(a, vTypes(i))
             }
 

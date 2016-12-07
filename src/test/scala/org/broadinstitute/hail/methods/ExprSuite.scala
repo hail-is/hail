@@ -84,12 +84,12 @@ class ExprSuite extends SparkSuite {
     assert(a.length == symTab.size)
 
     def eval[T](s: String): Option[T] = {
-      val f = Parser.parse(s, ec)._2
+      val f = Parser.parseExpr(s, ec)._2
       f().map(_.asInstanceOf[T])
     }
 
     def evalWithType[T](s: String): (Type, Option[T]) = {
-      val (t, f) = Parser.parse(s, ec)
+      val (t, f) = Parser.parseExpr(s, ec)
       (t, f().map(_.asInstanceOf[T]))
     }
 
@@ -597,14 +597,14 @@ class ExprSuite extends SparkSuite {
   @Test def testIfNumericPromotion() {
     val ec = EvalContext(Map("c" -> (0, TBoolean), "l" -> (1, TLong), "f" -> (2, TFloat)))
     def eval[T](s: String): (Type, Option[T]) = {
-      val (t, f) = Parser.parse(s, ec)
+      val (t, f) = Parser.parseExpr(s, ec)
       (t, f().map(_.asInstanceOf[T]))
     }
 
-    assert(Parser.parse("if (c) 0 else 0", ec)._1 == TInt)
-    assert(Parser.parse("if (c) 0 else l", ec)._1 == TLong)
-    assert(Parser.parse("if (c) f else 0", ec)._1 == TFloat)
-    assert(Parser.parse("if (c) 0 else 0.0", ec)._1 == TDouble)
+    assert(Parser.parseExpr("if (c) 0 else 0", ec)._1 == TInt)
+    assert(Parser.parseExpr("if (c) 0 else l", ec)._1 == TLong)
+    assert(Parser.parseExpr("if (c) f else 0", ec)._1 == TFloat)
+    assert(Parser.parseExpr("if (c) 0 else 0.0", ec)._1 == TDouble)
     assert(eval[Int]("(if (true) 0 else 0.toLong).toInt") == (TInt, Some(0)))
     assert(eval[Int]("(if (true) 0 else 0.toFloat).toInt") == (TInt, Some(0)))
   }

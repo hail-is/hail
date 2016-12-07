@@ -38,22 +38,22 @@ object ExportPlink extends Command {
 
     ec.set(2, vds.globalAnnotation)
 
-    type Formatter = (() => Option[Any]) => () => String
+    type Formatter = (Option[Any]) => String
 
-    val formatID: Formatter = f => () => f().map(_.asInstanceOf[String]).getOrElse("0")
-    val formatIsFemale: Formatter = f => () => f().map {
-      _.asInstanceOf[Boolean] match {
-        case true => "2"
-        case false => "1"
-      }
+    val formatID: Formatter = _.map(_.asInstanceOf[String]).getOrElse("0")
+    val formatIsFemale: Formatter = _.map { a =>
+      if (a.asInstanceOf[Boolean])
+        "2"
+      else
+        "1"
     }.getOrElse("0")
-    val formatIsCase: Formatter = f => () => f().map {
-      _.asInstanceOf[Boolean] match {
-        case true => "2"
-        case false => "1"
-      }
+    val formatIsCase: Formatter = _.map { a =>
+      if (a.asInstanceOf[Boolean])
+        "2"
+      else
+        "1"
     }.getOrElse("-9")
-    val formatQPheno: Formatter = f => () => f().map(_.toString).getOrElse("-9")
+    val formatQPheno: Formatter = a => a.map(_.toString).getOrElse("-9")
 
     val famColumns: Map[String, (Type, Int, Formatter)] = Map(
       "famID" -> (TString, 0, formatID),
@@ -64,17 +64,17 @@ object ExportPlink extends Command {
       "qPheno" -> (TDouble, 5, formatQPheno),
       "isCase" -> (TBoolean, 5, formatIsCase))
 
-    val exprs = Parser.parseNamedExprs(options.famExpr, ec)
+    val (names, types, f) = Parser.parseNamedExprs(options.famExpr, ec)
 
-    val famFns: Array[() => String] = Array(
-      () => "0", () => "0", () => "0", () => "0", () => "-9", () => "-9")
+    val famFns: Array[(Array[Option[Any]]) => String] = Array(
+      _ => "0", _ => "0", _ => "0", _ => "0", _ => "-9", _ => "-9")
 
-    exprs.foreach { case (name, t, f) =>
+    (names.zipWithIndex, types).zipped.foreach { case ((name, i), t) =>
       famColumns.get(name) match {
-        case Some((colt, i, formatter)) =>
+        case Some((colt, j, formatter)) =>
           if (colt != t)
             fatal("invalid type for .fam file column $h: expected $colt, got $t")
-          famFns(i) = formatter(f)
+          famFns(j) = (a: Array[Option[Any]]) => formatter(a(i))
 
         case None =>
           fatal(s"no .fam file column $name")
@@ -86,8 +86,8 @@ object ExportPlink extends Command {
     if (badSampleIds.nonEmpty) {
       fatal(
         s"""Found ${ badSampleIds.length } sample IDs with whitespace
-            |  Please run `renamesamples' to fix this problem before exporting to plink format
-            |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
+           |  Please run `renamesamples' to fix this problem before exporting to plink format
+           |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
     }
 
     val bedHeader = Array[Byte](108, 27, 1)
@@ -108,7 +108,8 @@ object ExportPlink extends Command {
       .sampleIdsAndAnnotations
       .map { case (s, sa) =>
         ec.setAll(s, sa)
-        famFns.map(_()).mkString("\t")
+        val a = f()
+        famFns.map(_ (a)).mkString("\t")
       }
 
     state.hadoopConf.writeTextFile(options.output + ".fam")(out =>

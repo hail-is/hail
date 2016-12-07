@@ -62,7 +62,7 @@ object AnnotateVariantsLoci extends Command with JoinAnnotator {
       buildInserter(code, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
     } else vds.insertVA(struct, Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD))
 
-    val locusQuery = struct.parseInStructScope[Locus](options.locusExpr, TLocus)
+    val locusQuery = struct.parseInStructScope[Locus](options.locusExpr)
 
     val lociRDD = rdd.flatMap {
       _.map { a =>

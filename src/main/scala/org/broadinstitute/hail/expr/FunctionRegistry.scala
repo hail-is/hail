@@ -4,7 +4,6 @@ import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Variant}
-import org.broadinstitute.hail.expr.HailRep._
 import org.broadinstitute.hail.methods._
 
 import scala.collection.mutable

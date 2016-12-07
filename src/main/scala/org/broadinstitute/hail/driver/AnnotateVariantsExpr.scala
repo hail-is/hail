@@ -33,10 +33,10 @@ object AnnotateVariantsExpr extends Command {
     val cond = options.condition
 
     val ec = Aggregators.variantEC(vds)
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Some(Annotation.VARIANT_HEAD))
+    val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, Some(Annotation.VARIANT_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finalType = parseTypes.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
       val (s, i) = vas.insert(signature, ids)
       inserterBuilder += i
       s
@@ -49,9 +49,9 @@ object AnnotateVariantsExpr extends Command {
       ec.setAll(localGlobalAnnotation, v, va)
 
       aggregateOption.foreach(f => f(v, va, gs))
-      fns.zip(inserters)
-        .foldLeft(va) { case (va, (fn, inserter)) =>
-          inserter(va, Option(fn()))
+      f().zip(inserters)
+        .foldLeft(va) { case (va, (v, inserter)) =>
+          inserter(va, v)
         }
     }.copy(vaSignature = finalType)
     state.copy(vds = annotated)

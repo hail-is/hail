@@ -22,7 +22,7 @@ abstract class AnnotationImpex[T, A] {
 }
 
 object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
-  val invalidCharacters = " ,;{}()\n\t=".toSet
+  val invalidCharacters: Set[Char] = " ,;{}()\n\t=".toSet
 
   def escapeColumnName(name: String): String = {
     name.map { c =>
@@ -204,24 +204,24 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     val ec = EvalContext(Map(
       "root" -> (0, t)))
 
-    val fs: Array[(Type, () => Option[Any])] = Parser.parseExprs(variantFields, ec)
+    val (types, f) = Parser.parseExprs(variantFields, ec)
 
-    if (fs.length != 4)
-      fatal(s"wrong number of variant field expressions: expected 4, got ${ fs.length }")
+    if (types.length != 4)
+      fatal(s"wrong number of variant field expressions: expected 4, got ${ types.length }")
 
-    if (fs(0)._1 != TString)
-      fatal(s"wrong type for chromosome field: expected String, got ${ fs(0)._1 }")
-    if (fs(1)._1 != TInt)
-      fatal(s"wrong type for pos field: expected Int, got ${ fs(1)._1 }")
-    if (fs(2)._1 != TString)
-      fatal(s"wrong type for ref field: expected String, got ${ fs(2)._1 }")
-    if (fs(3)._1 != TArray(TString))
-      fatal(s"wrong type for alt field: expected Array[String], got ${ fs(3)._1 }")
+    if (types(0) != TString)
+      fatal(s"wrong type for chromosome field: expected String, got ${ types(0) }")
+    if (types(1) != TInt)
+      fatal(s"wrong type for pos field: expected Int, got ${ types(1) }")
+    if (types(2) != TString)
+      fatal(s"wrong type for ref field: expected String, got ${ types(2) }")
+    if (types(3) != TArray(TString))
+      fatal(s"wrong type for alt field: expected Array[String], got ${ types(3) }")
 
     (root: Annotation) => {
       ec.setAll(root)
 
-      val vfs = fs.map(_._2())
+      val vfs = f()
 
       vfs(0).flatMap { chr =>
         vfs(1).flatMap { pos =>
@@ -242,11 +242,11 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     val ec = EvalContext(Map(
       "root" -> (0, t)))
 
-    val f: () => Option[Any] = Parser.parse(sampleExpr, ec, TString)
+    val f: () => Option[String] = Parser.parseTypedExpr[String](sampleExpr, ec)
 
     (root: Annotation) => {
       ec.setAll(root)
-      f().map(_.asInstanceOf[String])
+      f()
     }
   }
 

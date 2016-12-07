@@ -45,7 +45,7 @@ object IBDCommand extends Command {
   def generateComputeMaf(vds: VariantDataset, computeMafExpr: String): (Variant, Annotation) => Double = {
     val mafSymbolTable = Map("v" -> (0, TVariant), "va" -> (1, vds.vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
-    val computeMafThunk = Parser.parse[Double](computeMafExpr, mafEc, TDouble)
+    val computeMafThunk = Parser.parseTypedExpr[Double](computeMafExpr, mafEc)
 
     { (v: Variant, va: Annotation) =>
       mafEc.setAll(v, va)

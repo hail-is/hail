@@ -60,9 +60,9 @@ object AggregateIntervals extends Command {
     val ec = EvalContext(symTab)
     ec.set(1, vds.globalAnnotation)
 
-    val (header, _, f) = Parser.parseExportArgs(cond, ec)
+    val (names, _, f) = Parser.parseExportExprs(cond, ec)
 
-    if (header.isEmpty)
+    if (names.isEmpty)
       fatal("this module requires one or more named expr arguments")
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[(Interval[Locus], Variant, Annotation)](ec, { case (ec, (i, v, va)) =>
@@ -85,7 +85,7 @@ object AggregateIntervals extends Command {
       sb.append("Start")
       sb += '\t'
       sb.append("End")
-      header.foreach { col =>
+      names.foreach { col =>
         sb += '\t'
         sb.append(col)
       }

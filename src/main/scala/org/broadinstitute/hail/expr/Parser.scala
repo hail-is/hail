@@ -1,13 +1,20 @@
 package org.broadinstitute.hail.expr
 
-import org.apache.hadoop
+import org.apache.spark.sql.Row
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.utils.StringEscapeUtils._
 
-import scala.io.Source
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
-import scala.collection.mutable
+
+class RichParser[T](parser: Parser.Parser[T]) {
+  def parse(input: String): T = {
+    Parser.parseAll(parser, input) match {
+      case Parser.Success(result, _) => result
+      case Parser.NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+  }
+}
 
 object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
@@ -34,25 +41,173 @@ object ParserUtils {
 }
 
 object Parser extends JavaTokenParsers {
-  def parse(code: String, ec: EvalContext): (Type, () => Option[Any]) = {
-    // println(s"code = $code")
-    val t: AST = parseAll(expr, code) match {
-      case Success(result, _) => result
-      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
-
+  private def eval(t: AST, ec: EvalContext): (Type, () => Any) = {
     t.typecheck(ec)
-
-    val f: () => Any = t.eval(ec)
-    (t.`type`, () => Option(f()))
+    (t.`type`, t.eval(ec))
   }
 
-  def parse[T](code: String, ec: EvalContext, expected: Type): () => Option[T] = {
-    val (t, f) = parse(code, ec)
-    if (t != expected)
-      fatal(s"expression has wrong type: expected `$expected', got $t")
+  def parseExpr(code: String, ec: EvalContext): (Type, () => Option[Any]) = {
+    val (t, f) = eval(expr.parse(code), ec)
+    (t, () => Option(f()))
+  }
+
+  def parseTypedExpr[T](code: String, ec: EvalContext)(implicit hr: HailRep[T]): () => Option[T] = {
+    val (t, f) = parseExpr(code, ec)
+    if (t != hr.typ)
+      fatal(s"expression has wrong type: expected `${ hr.typ }', got $t")
 
     () => f().map(_.asInstanceOf[T])
+  }
+
+  def parseExprs(code: String, ec: EvalContext): (Array[Type], () => Array[Option[Any]]) = {
+    val (types, fs) = args.parse(code).map(eval(_, ec)).unzip
+    (types, () => fs.map(f => Option(f())))
+  }
+
+  def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
+    Array[List[String]], Array[Type], () => Array[Option[Any]]) = {
+    val (maybeNames, types, f) = parseNamedExprs[List[String]](code, annotationIdentifier, ec,
+      (t, s) => t.map(_ :+ s))
+
+    if (maybeNames.exists(_.isEmpty))
+      fatal("left-hand side required in annotation expression")
+
+    val names = maybeNames.map(_.get)
+
+    expectedHead.foreach { h =>
+      names.foreach { n =>
+        if (n.head != h)
+          fatal(
+            s"""invalid annotation path `${ n.map(prettyIdentifier).mkString(".") }'
+               |  Path should begin with `$h'
+           """.stripMargin)
+      }
+    }
+
+    (names.map { n =>
+      if (expectedHead.isDefined)
+        n.tail
+      else
+        n
+    }, types, () => {
+      f().map(Option(_))
+    })
+  }
+
+  def parseExportExprs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
+    val (names, types, f) = parseNamedExprs[String](code, tsvIdentifier, ec,
+      (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))
+
+    val allNamed = names.forall(_.isDefined)
+    val noneNamed = names.forall(_.isEmpty)
+
+    if (!allNamed && !noneNamed)
+      fatal(
+        """export expressions require either all arguments named or none
+          |  Hint: exploded structs (e.g. va.info.*) count as named arguments""".stripMargin)
+
+    (anyFailAllFail(names), types,
+      () => {
+        (types, f()).zipped.map { case (t, v) =>
+          t.str(v)
+        }
+      })
+  }
+
+  def parseNamedExprs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[Option[Any]]) = {
+    val (maybeNames, types, f) = parseNamedExprs[String](code, identifier, ec,
+      (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))
+
+    if (maybeNames.exists(_.isEmpty))
+      fatal("left-hand side required in named expression")
+
+    val names = maybeNames.map(_.get)
+
+    (names, types, () => f().map(Option(_)))
+  }
+
+  def parseNamedExprs[T](code: String, name: Parser[T], ec: EvalContext, concat: (Option[T], String) => Option[T]): (
+    Array[Option[T]], Array[Type], () => Array[Any]) = {
+
+    val parsed = named_exprs(name).parse(code)
+    val nExprs = parsed.size
+
+    val nValues = parsed.map { case (n, ast, splat) =>
+      ast.typecheck(ec)
+      if (splat) {
+        ast.`type` match {
+          case t: TStruct =>
+            t.size
+
+          case t =>
+            fatal("cannot splat non-struct type: $t")
+        }
+      } else
+        1
+    }.sum
+
+    val a = new Array[Any](nValues)
+
+    val names = new Array[Option[T]](nValues)
+    val types = new Array[Type](nValues)
+    val fs = new Array[() => Unit](nExprs)
+
+    var i = 0
+    var j = 0
+    parsed.foreach { case (n, ast, splat) =>
+      val t = ast.`type`
+      val f = ast.eval(ec)
+      if (splat) {
+        val j0 = j
+        val s = t.asInstanceOf[TStruct] // checked above
+        s.fields.foreach { field =>
+          names(j) = concat(n, field.name)
+          types(j) = field.`type`
+          j += 1
+        }
+
+        val sSize = s.size
+        fs(i) = () => {
+          val v = f()
+          if (v == null) {
+            var k = 0
+            while (k < sSize) {
+              a(j0 + k) = null
+              k += 1
+            }
+          } else {
+            val va = v.asInstanceOf[Row].toSeq.toArray[Any]
+            var k = 0
+            while (k < sSize) {
+              a(k + j0) = va(k)
+              k += 1
+            }
+          }
+        }
+      } else {
+        names(j) = n
+        types(j) = t
+        val localJ = j
+        fs(i) = () => {
+          a(localJ) = f()
+        }
+        j += 1
+      }
+
+      i += 1
+    }
+    assert(i == nExprs)
+    assert(j == nValues)
+
+    types.foreach { t =>
+      if (!t.isRealizable)
+        fatal(s"unrealizable type in export expression: $t")
+    }
+
+    (names, types, () => {
+      fs.foreach(_ ())
+      a
+    })
   }
 
   def parseType(code: String): Type = {
@@ -81,111 +236,11 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
-    positioned[Positioned[T]](p ^^ { x => Positioned(x) })
-
   def parseCommaDelimitedDoubles(code: String): Array[Double] = {
     parseAll(comma_delimited_doubles, code) match {
       case Success(r, _) => r
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
-  }
-
-  def parseNamedArgs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
-    val result = parseAll(export_args, code) match {
-      case Success(r, _) => r
-      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
-
-    var noneNamed = true
-    var allNamed = true
-
-    val nb = mutable.ArrayBuilder.make[String]
-    val tb = mutable.ArrayBuilder.make[Type]
-
-    val computations = result.map { case (name, ast) =>
-      ast.typecheck(ec)
-      ast.`type` match {
-        case s: TSplat =>
-          val eval = ast.eval(ec)
-          noneNamed = false
-          s.struct.fields.map { f =>
-            nb += name.map(x => s"$x.${ f.name }").getOrElse(f.name)
-            tb += f.`type`
-          }
-          val types = s.struct.fields.map(_.`type`)
-          () =>
-            eval().asInstanceOf[IndexedSeq[Any]].iterator
-              .zip(types.iterator).map { case (value, t) => t.str(value) }
-
-        case t =>
-          if (!t.isRealizable)
-            fatal(s"unrealizable type in export expression: $t")
-
-          name match {
-            case Some(n) =>
-              noneNamed = false
-              nb += n
-            case None =>
-              allNamed = false
-          }
-          tb += t
-          val f = ast.eval(ec)
-          () => Iterator(t.str(f()))
-      }
-    }
-
-    if (!(noneNamed || allNamed))
-      fatal(
-        """export expressions require either all arguments named or none
-          |  Hint: exploded structs (e.g. va.info.*) count as named arguments """.stripMargin)
-
-    val names = nb.result()
-
-    (someIf(names.nonEmpty, names), tb.result(), () => computations.flatMap(_ ()))
-  }
-
-  def parseExportArgs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[String]) = {
-    val (headerOption, ts, f) = parseNamedArgs(code, ec)
-    val header = headerOption match {
-      case Some(h) => h
-      case None => fatal(
-        """this module requires named export arguments
-          |  e.g. `gene = va.gene, csq = va.csq' rather than `va.gene, va.csq'""".stripMargin)
-    }
-    (header, ts, f)
-  }
-
-  def parseAnnotationArgs(code: String, ec: EvalContext, expectedHead: Option[String]): (Array[(List[String], Type)], Array[() => Any]) = {
-    val arr = parseAll(annotationExpressions, code) match {
-      case Success(result, _) => result.asInstanceOf[Array[(List[String], AST)]]
-      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
-
-    val all = arr.map {
-      case (path, ast) =>
-        ast.typecheck(ec)
-
-        expectedHead match {
-          case Some(h) =>
-            if (path.head != h)
-              fatal(
-                s"""invalid annotation path `${ path.map(prettyIdentifier).mkString(".") }'
-                   |  Path should begin with `$h'
-            """.stripMargin)
-          case None =>
-        }
-
-        val t = ast.`type`
-        if (!t.isRealizable)
-          fatal(s"unrealizable type in annotation expression: $t")
-
-        val f = ast.eval(ec)
-        val name = if (expectedHead.isDefined) path.tail else path
-        ((name, t), () => f())
-    }
-
-    (all.map(_._1), all.map(_._2))
   }
 
   def parseAnnotationRoot(code: String, root: String): List[String] = {
@@ -202,35 +257,8 @@ object Parser extends JavaTokenParsers {
       path.tail
   }
 
-  def parseNamedExprs(code: String, ec: EvalContext): Array[(String, Type, () => Option[Any])] = {
-    val parsed = parseAll(named_args, code) match {
-      case Success(result, _) => result.asInstanceOf[Array[(String, AST)]]
-      case NoSuccess(msg, _) => fatal(msg)
-    }
-
-    parsed.map { case (name, ast) =>
-      ast.typecheck(ec)
-      val f = ast.eval(ec)
-      (name, ast.`type`, () => Option(f()))
-    }
-  }
-
-  def parseExprs(code: String, ec: EvalContext): (Array[(Type, () => Option[Any])]) = {
-    if (code.matches("""\s*"""))
-      Array.empty[(Type, () => Option[Any])]
-    else {
-      val asts = parseAll(args, code) match {
-        case Success(result, _) => result.asInstanceOf[Array[AST]]
-        case NoSuccess(msg, _) => fatal(msg)
-      }
-
-      asts.map { ast =>
-        ast.typecheck(ec)
-        val f = ast.eval(ec)
-        (ast.`type`, () => Option(f()))
-      }
-    }
-  }
+  def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
+    positioned[Positioned[T]](p ^^ { x => Positioned(x) })
 
   def expr: Parser[AST] = ident ~ withPos("=>") ~ expr ^^ { case param ~ arrow ~ body =>
     Lambda(arrow.pos, param, body)
@@ -342,12 +370,10 @@ object Parser extends JavaTokenParsers {
   def dot_expr: Parser[AST] =
     primary_expr ~ rep((withPos(".") ~ identifier ~ "(" ~ args ~ ")")
       | (withPos(".") ~ identifier)
-      | (withPos(".") ~ "*")
       | withPos("[") ~ expr ~ "]"
       | withPos("[") ~ opt(expr) ~ ":" ~ opt(expr) ~ "]") ^^ { case lhs ~ lst =>
       lst.foldLeft(lhs) { (acc, t) =>
         (t: @unchecked) match {
-          case (dot: Positioned[_]) ~ "*" => Splat(dot.pos, acc)
           case (dot: Positioned[_]) ~ sym => Select(dot.pos, acc, sym)
           case (dot: Positioned[_]) ~ (sym: String) ~ "(" ~ (args: Array[AST]) ~ ")" =>
             ApplyMethod(dot.pos, acc, sym, args)
@@ -425,7 +451,28 @@ object Parser extends JavaTokenParsers {
 
   def backtickLiteral: Parser[String] = quotedLiteral('`', "backtick identifier")
 
-  override def stringLiteral: Parser[String] = quotedLiteral('"', "string literal")
+  override def stringLiteral: Parser[String]
+
+  = quotedLiteral('"', "string literal")
+
+  def tuplify[T, S](p: ~[T, S]): (T, S) = p match {
+    case t ~ s => (t, s)
+  }
+
+  def tuplify[T, S, V](p: ~[~[T, S], V]): (T, S, V) = p match {
+    case t ~ s ~ v => (t, s, v)
+  }
+
+  def splat: Parser[Boolean] =
+    "." ~ "*" ^^ { _ => true } |
+      success(false)
+
+  def named_expr[T](name: Parser[T]): Parser[(Option[T], AST, Boolean)] =
+    (((name <~ "=") ^^ { n => Some(n) }) ~ expr ~ splat |||
+      success(None) ~ expr ~ splat) ^^ tuplify
+
+  def named_exprs[T](name: Parser[T]): Parser[Seq[(Option[T], AST, Boolean)]] =
+    repsep(named_expr(name), ",")
 
   def decorator: Parser[(String, String)] =
     ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>

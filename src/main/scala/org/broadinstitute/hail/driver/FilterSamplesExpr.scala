@@ -45,7 +45,7 @@ object FilterSamplesExpr extends Command {
 
     val ec = Aggregators.sampleEC(vds)
 
-    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
+    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](cond, ec)
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, ec)
 

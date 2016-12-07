@@ -43,9 +43,9 @@ object ExportSamples extends Command with TextExporter {
 
     val ec = Aggregators.sampleEC(vds)
 
-    val (header, types, f) = Parser.parseNamedArgs(cond, ec)
+    val (names, types, f) = Parser.parseExportExprs(cond, ec)
     Option(options.typesFile).foreach { file =>
-      val typeInfo = header
+      val typeInfo = names
         .getOrElse(types.indices.map(i => s"_$i").toArray)
         .zip(types)
       exportTypes(file, state.hadoopConf, typeInfo)
@@ -64,7 +64,7 @@ object ExportSamples extends Command with TextExporter {
       sb.result()
     }
 
-    hConf.writeTable(output, lines, header.map(_.mkString("\t")))
+    hConf.writeTable(output, lines, names.map(_.mkString("\t")))
 
     state
   }

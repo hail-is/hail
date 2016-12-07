@@ -45,10 +45,10 @@ object ExportVariants extends Command with TextExporter {
     val localGlobalAnnotations = vds.globalAnnotation
     val ec = Aggregators.variantEC(vds)
 
-    val (header, types, f) = Parser.parseNamedArgs(cond, ec)
+    val (names, types, f) = Parser.parseExportExprs(cond, ec)
 
     Option(options.typesFile).foreach { file =>
-      val typeInfo = header
+      val typeInfo = names
         .getOrElse(types.indices.map(i => s"_$i").toArray)
         .zip(types)
       exportTypes(file, state.hadoopConf, typeInfo)
@@ -68,7 +68,7 @@ object ExportVariants extends Command with TextExporter {
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }
-      }.writeTable(output, header.map(_.mkString("\t")))
+      }.writeTable(output, names.map(_.mkString("\t")))
 
     state
   }

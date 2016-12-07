@@ -561,16 +561,6 @@ case class Field(name: String, `type`: Type,
   }
 }
 
-case class TSplat(struct: TStruct) extends Type {
-  override def isRealizable = false
-
-  def typeCheck(a: Any) = ???
-
-  override def children = struct.children
-
-  override def toString: String = "Splat"
-}
-
 object TStruct {
   def empty: TStruct = TStruct(Array.empty[Field])
 
@@ -794,9 +784,9 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     filter(fn)
   }
 
-  def parseInStructScope[T](code: String, expected: Type): (Annotation) => Option[T] = {
+  def parseInStructScope[T](code: String)(implicit hr: HailRep[T]): (Annotation) => Option[T] = {
     val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
-    val f = Parser.parse[T](code, ec, expected)
+    val f = Parser.parseTypedExpr[T](code, ec)
 
     (a: Annotation) => {
       Option(a).flatMap { annotation =>

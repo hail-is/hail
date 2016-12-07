@@ -34,11 +34,10 @@ object AnnotateSamplesExpr extends Command {
 
     val ec = Aggregators.sampleEC(vds)
 
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Some(Annotation.SAMPLE_HEAD))
+    val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, Some(Annotation.SAMPLE_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finalType = parseTypes.foldLeft(vds.saSignature) { case (sas, (ids, signature)) =>
-
+    val finalType = (paths, types).zipped.foldLeft(vds.saSignature) { case (sas, (ids, signature)) =>
       val (s, i) = sas.insert(signature, ids)
       inserterBuilder += i
       s
@@ -50,9 +49,9 @@ object AnnotateSamplesExpr extends Command {
     val newAnnotations = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       sampleAggregationOption.foreach(f => f.apply(s))
       ec.setAll(localGlobalAnnotations, s, sa)
-      fns.zip(inserters)
-        .foldLeft(sa) { case (sa, (fn, inserter)) =>
-          inserter(sa, Option(fn()))
+      f().zip(inserters)
+        .foldLeft(sa) { case (sa, (v, inserter)) =>
+          inserter(sa, v)
         }
     }
 

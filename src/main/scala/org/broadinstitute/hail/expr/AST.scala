@@ -641,26 +641,3 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     }
   }
 }
-
-case class Splat(pos: Position, lhs: AST) extends AST(pos, lhs) {
-  override def typecheckThis(): Type = {
-    lhs.`type` match {
-      case t: TStruct => TSplat(t)
-      case t => parseError(
-        s"""splatting ( <identifier>.* ) operations are only supported on `Struct'
-            |  Found `$t'
-         """.stripMargin)
-    }
-  }
-
-  override def eval(ec: EvalContext): () => Any = {
-    val nElem = `type`.asInstanceOf[TSplat].struct.size
-    val f = lhs.eval(ec)
-    () => (f(): @unchecked) match {
-      case null => (0 until nElem).map(_ => null)
-      case r: Row =>
-        assert(r.size == nElem)
-        (0 until nElem).map(r.get)
-    }
-  }
-}
