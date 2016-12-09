@@ -42,6 +42,21 @@ class VariantDataset(object):
         pargs = ['aggregateintervals', '-i', input, '-c', condition, '-o', output]
         return self.hc.run_command(self, pargs)
 
+    def annotate_alleles_expr(self, condition, propagate_gq=False):
+        """Annotate alleles with expression.
+
+        :param condition: Annotation expression.
+        :type condition: str or list of str
+        :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
+
+        """
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+        pargs = ['annotatealleles', 'expr', '-c', condition]
+        if propagate_gq:
+            pargs.append('--propagate-gq')
+        return self.hc.run_command(self, pargs)
+
     def annotate_global_expr_by_variant(self, condition):
         """Update the global annotations with expression with aggregation over
         variants.
@@ -994,16 +1009,19 @@ class VariantDataset(object):
 
         return self.hc.run_command(self, ['sparkinfo'])
 
-    def split_multi(self, propagate_gq=False):
+    def split_multi(self, propagate_gq=False, keep_star_alleles=False):
         """Split multi-allelic variants.
 
         :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
+        :param bool keep_star_alleles: Do not filter * alleles.
 
         """
 
         pargs = ['splitmulti']
         if propagate_gq:
             pargs.append('--propagate-gq')
+        if keep_star_alleles:
+            pargs.append('--keep-star-alleles')
         return self.hc.run_command(self, pargs)
 
     def tdt(self, fam, root='va.tdt'):

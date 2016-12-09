@@ -16,6 +16,7 @@ multiallelics using the command `splitmulti` when importing a VCF.
 
 Command line options:
  - `--propagate-gq` -- Propagate GQ instead of computing from PL.  Intended for use with the Michigan GotCloud calling pipeline which stores PLs but sets the GQ to the quality of the posterior probabilities.  This option is experimental and will be removed when Hail supports posterior probabilities (PP).
+ - `keep-star-alleles` -- Keeps the `*` alleles as variants
 
 Example `splitmulti` command:
 ```
