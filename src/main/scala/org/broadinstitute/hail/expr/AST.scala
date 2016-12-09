@@ -22,7 +22,11 @@ case class EvalContext(st: SymbolTable,
   aggregations: ArrayBuffer[(Int, () => Any, Aggregator)]) {
 
   def setAll(args: Any*) {
-    args.zipWithIndex.foreach { case (arg, i) => a(i) = arg }
+    var i = 0
+    while (i < args.length) {
+      a(i) = args(i)
+      i += 1
+    }
   }
 
   def set(index: Int, arg: Any) {
