@@ -209,4 +209,10 @@ class LDPruneSuite extends SparkSuite {
     s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000, 0.1, 20000))
     assert(uncorrelated(s.vds, "va.ldprune.prune", 0.2, 1000))
   }
+
+//  @Test def test100K() {
+//    var s = State(sc, sqlContext, null)
+//    s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
+//    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000, 0.1, 32 * 1024 * 1024))
+//  }
 }

@@ -70,12 +70,19 @@ object LDPrune {
 
         if (keep) {
           queue.addLast((v, sgs))
-          queueSize.foreach { qs => if (queue.size() > qs) queue.pop() }
+          queueSize.foreach { qs =>
+            if (queue.size() > qs) {
+              queue.pop()
+//              println(s"queueSize=${ queue.size() }")
+            }
+          }
         }
 
         keep
       }
     }, preservesPartitioning = true).asOrderedRDD.persist(StorageLevel.MEMORY_AND_DISK)
+
+
 
     val numVariantsOld = prevResult.numVariants
     val numVariantsNew = prunedRDD.count()
