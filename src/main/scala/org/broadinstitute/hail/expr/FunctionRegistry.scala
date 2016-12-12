@@ -604,7 +604,7 @@ object FunctionRegistry {
   register("qnorm", { (p: Double) => qnorm(p) })
 
   register("pchisq1tail", { (x: Double) => chiSquaredTail(1.0, x) })
-  register("qchisq1tail", { (p: Double) => inverseChiSquaredTailOneDF(p) })
+  register("qchisq1tail", { (p: Double) => inverseChiSquaredTail(1.0, p) })
 
   register("!", (a: Boolean) => !a)
 
