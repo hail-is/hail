@@ -159,14 +159,14 @@ class ExprSuite extends SparkSuite {
     for (i <- 0 until 8)
       assert(eval[Int](s"a[${i - 8}]") == eval[Int](s"a[$i]"))
 
-    assert(eval[Char]("s[0]").contains("1"))
-    assert(eval[Char]("s[1]").contains("2"))
-    assert(eval[Char]("s[2]").contains(","))
-    assert(eval[Char]("s[3]").contains("3"))
-    assert(eval[Char]("s[-1]").contains("8"))
-    assert(eval[Char]("s[-2]").contains("7"))
+    assert(eval[String]("s[0]").contains("1"))
+    assert(eval[String]("s[1]").contains("2"))
+    assert(eval[String]("s[2]").contains(","))
+    assert(eval[String]("s[3]").contains("3"))
+    assert(eval[String]("s[-1]").contains("8"))
+    assert(eval[String]("s[-2]").contains("7"))
     for (i <- 0 until 11)
-      assert(eval[Char](s"s[${i - 11}]") == eval[Char](s"s[$i]"))
+      assert(eval[String](s"s[${i - 11}]") == eval[Char](s"s[$i]"))
 
     assert(eval[Boolean]("1 == 1.0").contains(true))
 
