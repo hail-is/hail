@@ -17,9 +17,85 @@ class VariantDataset(object):
         :return: List of sample IDs.
 
         :rtype: list of str
-        """
 
-        return list(self.jvds.sampleIdsAsArray())
+        """
+        try:
+            return list(self.jvds.sampleIdsAsArray())
+        except:
+            self._raise_py4j_exception(e)
+
+    def npartitions(self):
+        """Number of RDD partitions.
+
+        :rtype: int
+
+        """
+        try:
+            return self.jvds.nPartitions()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def nsamples(self):
+        """Number of samples.
+
+        :rtype: int
+
+        """
+        try:
+            return self.jvds.nSamples()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def nvariants(self):
+        """Number of variants.
+
+        :rtype: long
+
+        """
+        try:
+            return self.jvds.nVariants()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def was_split(self):
+        """Multiallelic variants have been split into multiple biallelic variants.
+
+        Result is True if :py:meth:`~pyhail.VariantDataset.split_multi` has been called on this dataset
+        or the dataset was imported with :py:meth:`~pyhail.HailContext.import_plink`, :py:meth:`~pyhail.HailContext.import_gen`,
+        or :py:meth:`~pyhail.HailContext.import_bgen`.
+
+        :rtype: boolean
+
+        """
+        try:
+            return self.jvds.wasSplit()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def is_dosage(self):
+        """Genotype probabilities are dosages.
+
+        The result of ``is_dosage()`` will be True if the dataset was imported with :py:meth:`~pyhail.HailContext.import_gen` or
+        :py:meth:`~pyhail.HailContext.import_bgen`.
+
+        :rtype: boolean
+
+        """
+        try:
+            return self.jvds.isDosage()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def file_version(self):
+        """File version of dataset.
+
+        :rtype int
+
+        """
+        try:
+            return self.jvds.fileVersion()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def aggregate_by_key(self, key_code, agg_code):
         """Aggregate by user-defined key and aggregation expressions.
@@ -34,8 +110,10 @@ class VariantDataset(object):
         :rtype: :class:`.KeyTable`
 
         """
-
-        return KeyTable(self.hc, self.jvds.aggregateByKey(key_code, agg_code))
+        try:
+            return KeyTable(self.hc, self.jvds.aggregateByKey(key_code, agg_code))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def aggregate_intervals(self, input, condition, output):
         """Aggregate over intervals and export.
