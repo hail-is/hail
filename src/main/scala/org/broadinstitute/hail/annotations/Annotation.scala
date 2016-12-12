@@ -126,7 +126,7 @@ object Annotation {
         }
       }
       Row.fromSeq(fs)
-      
+
     case _ => a
   }
 

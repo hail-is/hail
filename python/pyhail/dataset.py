@@ -1,4 +1,4 @@
-from pyhail.java import scala_package_object
+from pyhail.java import scala_package_object, jarray
 from pyhail.keytable import KeyTable
 
 from py4j.protocol import Py4JJavaError
@@ -1095,3 +1095,33 @@ class VariantDataset(object):
             return KeyTable(self.hc, self.jvds.samplesKT())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
+
+    def make_keytable(self, variant_condition, genotype_condition, key_names):
+        """Make a KeyTable with one row per variant.
+
+        :param variant_condition: Variant annotation expressions.
+        :type variant_condition: str or list of str
+
+        :param genotype_condition: Genotype annotation expressions.
+          Per sample field names in the result are formed by
+          concatening the sample ID with the genotype_condition left
+          hand side with (.).
+
+        :type genotype_condition: str or list of str
+
+        :param key_names: list of key columns
+        :type key_names: list of str
+
+        :rtype: KeyTable
+
+        """
+        
+        if isinstance(variant_condition, list):
+            variant_condition = ','.join(variant_condition)
+        if isinstance(genotype_condition, list):
+            genotype_condition = ','.join(genotype_condition)
+
+        jkt = (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+               .makeKT(self.jvds, variant_condition, genotype_condition,
+                       jarray(self.hc.gateway, self.hc.jvm.java.lang.String, key_names)))
+        return KeyTable(self.hc, jkt)

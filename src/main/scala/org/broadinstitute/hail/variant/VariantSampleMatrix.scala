@@ -23,6 +23,7 @@ import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.methods.{Aggregators, Filter}
 import org.broadinstitute.hail.utils
 
+import scala.collection.mutable
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
