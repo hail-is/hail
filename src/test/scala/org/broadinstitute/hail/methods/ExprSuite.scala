@@ -166,7 +166,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[String]("s[-1]").contains("8"))
     assert(eval[String]("s[-2]").contains("7"))
     for (i <- 0 until 11)
-      assert(eval[String](s"s[${i - 11}]") == eval[Char](s"s[$i]"))
+      assert(eval[String](s"s[${i - 11}]") == eval[String](s"s[$i]"))
 
     assert(eval[Boolean]("1 == 1.0").contains(true))
 
