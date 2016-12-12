@@ -432,12 +432,16 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def expandTypes(): KeyTable = {
     val localKeySignature = keySignature
     val localValueSignature = valueSignature
+
+    val expandedKeySignature = Annotation.expandType(keySignature).asInstanceOf[TStruct]
+    val expandedValueSignature = Annotation.expandType(valueSignature).asInstanceOf[TStruct]
+
     KeyTable(rdd.map { case (k, v) =>
-      (Annotation.expandAnnotation(v, localKeySignature),
-        Annotation.expandAnnotation(k, localValueSignature))
+      (Annotation.expandAnnotation(k, localKeySignature),
+        Annotation.expandAnnotation(v, localValueSignature))
     },
-      Annotation.expandType(keySignature).asInstanceOf[TStruct],
-      Annotation.expandType(valueSignature).asInstanceOf[TStruct])
+      expandedKeySignature,
+      expandedValueSignature)
   }
 
   def flatten(): KeyTable = {

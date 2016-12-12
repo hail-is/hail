@@ -116,7 +116,7 @@ object Annotation {
         else
           a.asInstanceOf[Row].toSeq
 
-      (s, t.fields).zipped.flatMap { case (ai, f) =>
+      val fs = (s, t.fields).zipped.flatMap { case (ai, f) =>
         f.`type` match {
           case t: TStruct =>
             flattenAnnotation(ai, f.`type`).asInstanceOf[Row].toSeq
@@ -125,7 +125,8 @@ object Annotation {
             Seq(ai)
         }
       }
-
+      Row.fromSeq(fs)
+      
     case _ => a
   }
 
