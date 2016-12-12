@@ -1105,7 +1105,11 @@ class VariantDataset(object):
         :param genotype_condition: Genotype annotation expressions.
           Per sample field names in the result are formed by
           concatening the sample ID with the genotype_condition left
-          hand side with (.).
+          hand side with dot (.).  If the left hand side is empty::
+
+            `` = expr
+
+          then the dot (.) is ommited.
 
         :type genotype_condition: str or list of str
 

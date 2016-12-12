@@ -74,7 +74,10 @@ package object driver {
     val sig = TStruct(((vNames, vTypes).zipped ++
       vds.sampleIds.flatMap { s =>
         (gNames, gTypes).zipped.map { case (n, t) =>
-          (s + "." + n, t)
+          (if (n.isEmpty)
+            s
+          else
+            s + "." + n, t)
         }
       }).toSeq: _*)
 
