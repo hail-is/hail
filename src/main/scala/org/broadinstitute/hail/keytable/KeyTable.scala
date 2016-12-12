@@ -12,6 +12,7 @@ import org.broadinstitute.hail.io.TextExporter
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
+import scala.collection.JavaConverters._
 
 
 object KeyTable extends Serializable with TextExporter {
@@ -56,7 +57,7 @@ object KeyTable extends Serializable with TextExporter {
     val valueFields = signature.fields.filterNot(fd => keyNames.contains(fd.name))
     val valueIndices = valueFields.map(_.index)
 
-    assert(keyIndices.toSet.intersect(valueIndices.toSet).isEmpty)
+    assert(keyIndices.intersect(valueIndices).isEmpty)
 
     val nFields = signature.size
 
@@ -214,6 +215,53 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     filter(p)
   }
+
+  def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {
+    val keyNamesNotInSelectedFields = newKeys.diff(fieldsSelect)
+    if (keyNamesNotInSelectedFields.nonEmpty)
+      fatal(s"Key fields `${keyNamesNotInSelectedFields.mkString(", ")}' must be present in selected fields.")
+
+    val fieldsNotExist = fieldsSelect.diff(fieldNames)
+    if (fieldsNotExist.nonEmpty)
+      fatal(s"Selected fields `${fieldsNotExist.mkString(", ")}' do not exist in KeyTable. Choose from `${fieldNames.mkString(", ")}'.")
+
+    val fieldTransform = fieldsSelect.map( cn => fieldNames.indexOf(cn) )
+    val newSignature = TStruct(fieldTransform.map{ i => signature.fields(i)})
+    val nFieldsLocal = nFields
+
+    val selectF: Annotation => Annotation = { a =>
+      val row = KeyTable.annotationToSeq(a, nFieldsLocal)
+      Annotation.fromSeq(fieldTransform.map(i => row(i)))
+    }
+
+    KeyTable(mapAnnotations(selectF), newSignature, newKeys)
+  }
+
+  def select(fieldsSelect: java.util.ArrayList[String], newKeys: java.util.ArrayList[String]): KeyTable =
+    select(fieldsSelect.asScala.toArray, newKeys.asScala.toArray)
+
+  def rename(fieldNameMap: Map[String, String]): KeyTable = {
+    val newKeySignature = TStruct(keySignature.fields.map {fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name))})
+    val newValueSignature = TStruct(valueSignature.fields.map {fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name))})
+
+    val newFieldNames = newKeySignature.fields.map(_.name) ++ newValueSignature.fields.map(_.name)
+    val duplicateFieldNames = newFieldNames.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter{ _._2 > 1}
+
+    if (duplicateFieldNames.nonEmpty)
+      fatal(s"Found duplicate field names after renaming fields: `${duplicateFieldNames.keys.mkString(", ")}'")
+
+    KeyTable(rdd, newKeySignature, newValueSignature)
+  }
+
+  def rename(newFieldNames: Array[String]): KeyTable = {
+    if (newFieldNames.length != nFields)
+      fatal(s"Found ${newFieldNames.length} new field names but need $nFields.")
+
+    rename((fieldNames, newFieldNames).zipped.toMap)
+  }
+
+  def rename(fieldNameMap: java.util.HashMap[String, String]): KeyTable = rename(fieldNameMap.asScala.toMap)
+  def rename(newFieldNames: java.util.ArrayList[String]): KeyTable = rename(newFieldNames.asScala.toArray)
 
   def join(other: KeyTable, joinType: String): KeyTable = {
     if (keySignature != other.keySignature)

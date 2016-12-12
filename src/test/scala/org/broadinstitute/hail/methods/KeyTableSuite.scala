@@ -173,4 +173,49 @@ class KeyTableSuite extends SparkSuite {
     assert(!kt.exists("""Sample == "Sample1" && field1 == 13 && field2 == 2"""))
   }
 
+  @Test def testRename() {
+    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
+    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
+    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val keyNames = Array("Sample")
+
+    val kt = KeyTable(rdd, signature, keyNames)
+
+    val rename1 = kt.rename(Array("ID1", "ID2", "ID3"))
+    assert(rename1.fieldNames sameElements Array("ID1", "ID2", "ID3"))
+
+    val rename2 = kt.rename(Map("field1" -> "ID1"))
+    assert(rename2.fieldNames sameElements Array("Sample", "ID1", "field2"))
+
+    intercept[FatalException](kt.rename(Array("ID1")))
+
+    intercept[FatalException](kt.rename(Map("field1" -> "field2")))
+
+    intercept[FatalException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
+  }
+
+  @Test def testSelect() {
+    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
+    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
+    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val keyNames = Array("Sample")
+
+    val kt = KeyTable(rdd, signature, keyNames)
+
+    val select1 = kt.select(Array("field1"), Array("field1"))
+    assert((select1.keyNames sameElements Array("field1")) && (select1.valueNames sameElements Array.empty[String]))
+
+    val select2 = kt.select(Array("Sample", "field2", "field1"), Array("Sample"))
+    assert((select2.keyNames sameElements Array("Sample")) && (select2.valueNames sameElements Array("field2", "field1")))
+
+    val select3 = kt.select(Array("field2", "field1", "Sample"), Array.empty[String])
+    assert((select3.keyNames sameElements Array.empty[String]) && (select3.valueNames sameElements Array("field2", "field1", "Sample")))
+
+    val select4 = kt.select(Array.empty[String], Array.empty[String])
+    assert((select4.keyNames sameElements Array.empty[String]) && (select4.valueNames sameElements Array.empty[String]))
+
+    intercept[FatalException](kt.select(Array.empty[String], Array("Sample")))
+
+    intercept[FatalException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
+  }
 }

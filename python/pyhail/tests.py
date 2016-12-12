@@ -261,3 +261,10 @@ class ContextTests(unittest.TestCase):
         # Forall, Exists
         self.assertFalse(kt.forall('Status == "CASE"'))
         self.assertTrue(kt.exists('Status == "CASE"'))
+
+        kt.rename({"Sample": "ID"})
+        kt.rename(["Field1", "Field2", "Field3"])
+        kt.rename([name + "_a" for name in kt.field_names()])
+
+        kt.select(["Sample"], [])
+        kt.select(["Sample", "Status"], ["Status"])
