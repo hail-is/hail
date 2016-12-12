@@ -1,7 +1,9 @@
 package org.broadinstitute.hail.variant
 
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.broadinstitute.hail.check.Gen
+import org.broadinstitute.hail.expr.{TInt, TString, TStruct, Type}
 import org.broadinstitute.hail.sparkextras.OrderedKey
 import org.broadinstitute.hail.utils._
 import org.json4s._
@@ -33,6 +35,10 @@ object Locus {
       StructField("contig", StringType, nullable = false),
       StructField("position", IntegerType, nullable = false)))
 
+  val t: Type = TStruct(
+    "contig" -> TString,
+    "position" -> TInt)
+
   def gen(contigs: Seq[String]): Gen[Locus] =
     Gen.zip(Gen.oneOfSeq(contigs), Gen.posInt)
       .map { case (contig, pos) => Locus(contig, pos) }
@@ -51,6 +57,8 @@ case class Locus(contig: String, position: Int) extends Ordered[Locus] {
 
     position.compare(that.position)
   }
+
+  def toRow: Row = Row(contig, position)
 
   def toJSON: JValue = JObject(
     ("contig", JString(contig)),

@@ -2,9 +2,9 @@ package org.broadinstitute.hail.keytable
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.{Aggregators, Filter}
 import org.broadinstitute.hail.utils._
@@ -72,6 +72,14 @@ object KeyTable extends Serializable with TextExporter {
     }
 
     KeyTable(newRDD, newKeySignature, newValueSignature)
+  }
+
+  def fromDF(df: DataFrame, keyNames: Array[String]): KeyTable = {
+    val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
+    KeyTable(df.rdd.map { r =>
+      SparkAnnotationImpex.importAnnotation(r, signature)
+    },
+      signature, keyNames)
   }
 }
 
@@ -419,5 +427,34 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
       }
 
     KeyTable(newRDD, keySignature, valueSignature)
+  }
+
+  def expandTypes(): KeyTable = {
+    val localKeySignature = keySignature
+    val localValueSignature = valueSignature
+    KeyTable(rdd.map { case (k, v) =>
+      (Annotation.expandAnnotation(v, localKeySignature),
+        Annotation.expandAnnotation(k, localValueSignature))
+    },
+      Annotation.expandType(keySignature).asInstanceOf[TStruct],
+      Annotation.expandType(valueSignature).asInstanceOf[TStruct])
+  }
+
+  def flatten(): KeyTable = {
+    val localKeySignature = keySignature
+    val localValueSignature = valueSignature
+    KeyTable(rdd.map { case (k, v) =>
+      (Annotation.flattenAnnotation(k, localKeySignature),
+        Annotation.flattenAnnotation(v, localValueSignature))
+    },
+      Annotation.flattenType(keySignature).asInstanceOf[TStruct],
+      Annotation.flattenType(valueSignature).asInstanceOf[TStruct])
+  }
+
+  def toDF(sqlContext: SQLContext): DataFrame = {
+    val localSignature = signature
+    sqlContext.createDataFrame(KeyTable.toSingleRDD(rdd, nKeys, nValues)
+      .map { a => SparkAnnotationImpex.exportAnnotation(a, localSignature).asInstanceOf[Row] },
+      schema.asInstanceOf[StructType])
   }
 }

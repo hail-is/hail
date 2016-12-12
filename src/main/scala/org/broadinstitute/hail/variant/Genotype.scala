@@ -4,9 +4,11 @@ import java.util
 
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.check.{Arbitrary, Gen}
+import org.broadinstitute.hail.expr.{TArray, TBoolean, TInt, TStruct, Type}
 import org.broadinstitute.hail.utils.ByteIterator
 import org.json4s._
 
@@ -267,6 +269,9 @@ class Genotype(private val _gt: Int,
     arr => divOption(arr(0), arr.sum)
   }
 
+  def toRow: Row =
+    Row(gt.orNull, ad.map(_.toSeq).orNull, dp.orNull, gq.orNull, px.map(_.toSeq).orNull, fakeRef, isDosage)
+
   def toJSON: JValue = JObject(
     ("gt", gt.map(JInt(_)).getOrElse(JNull)),
     ("ad", ad.map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
@@ -301,6 +306,15 @@ object Genotype {
     StructField("px", ArrayType(IntegerType)),
     StructField("fakeRef", BooleanType),
     StructField("isDosage", BooleanType)))
+
+  def t: Type = TStruct(
+    "gt" -> TInt,
+    "ad" -> TArray(TInt),
+    "dp" -> TInt,
+    "gq" -> TInt,
+    "px" -> TArray(TInt),
+    "fakeRef" -> TBoolean,
+    "isDosage" -> TBoolean)
 
   final val flagMultiHasGTBit = 0x1
   final val flagMultiGTRefBit = 0x2

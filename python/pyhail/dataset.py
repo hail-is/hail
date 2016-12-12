@@ -1,7 +1,6 @@
 from pyhail.java import scala_package_object
 from pyhail.keytable import KeyTable
 
-import pyspark
 from py4j.protocol import Py4JJavaError
 
 class VariantDataset(object):
@@ -1082,19 +1081,17 @@ class VariantDataset(object):
             pargs.append('--csq')
         return self.hc.run_command(self, pargs)
 
-    def variants_to_pandas(self):
-        """Convert variants and variant annotations to Pandas dataframe."""
+    def variants_keytable(self):
+        """Convert variants and variant annotations to a KeyTable."""
 
         try:
-            return pyspark.sql.DataFrame(self.jvds.variantsDF(self.hc.jsql_context),
-                                         self.hc.sql_context).toPandas()
+            return KeyTable(self.hc, self.jvds.variantsKT())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def samples_to_pandas(self):
-        """Convert samples and sample annotations to Pandas dataframe."""
+    def samples_keytable(self):
+        """Convert samples and sample annotations to KeyTable."""
         try:
-            return pyspark.sql.DataFrame(self.jvds.samplesDF(self.hc.jsql_context),
-                                         self.hc.sql_context).toPandas()
+            return KeyTable(self.hc, self.jvds.samplesKT())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)

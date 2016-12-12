@@ -1,5 +1,6 @@
-from pyhail.type import Type
 from py4j.protocol import Py4JJavaError
+from pyspark.sql import DataFrame
+from pyhail.type import Type
 
 class KeyTable(object):
     """:class:`.KeyTable` is Hail's version of a SQL table where fields
@@ -223,10 +224,29 @@ class KeyTable(object):
         :return: A KeyTable with renamed fields.
 
         :rtype: KeyTable
-
         """
         try:
             return KeyTable(self.hc, self.jkt.rename(field_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def expand_types(self):
+        """Expand types Locus, Interval, AltAllele, Variant, Genotype, Char,
+        Set and Dict.  Char is converted to String.  Set is converted
+        to Array.  Dict[T] is converted to::
+
+          Array[Struct {
+            key: String
+            value: T
+          }]
+
+        :return: KeyTable with signature containing only types:
+          Boolean, Int, Long, Float, Double, Array and Struct
+
+        :rtype: KeyTable
+        """
+        try:
+            return KeyTable(self.hc, self.jkt.expandTypes())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -253,13 +273,58 @@ class KeyTable(object):
         :type key_names: list of str
 
         :return: A ``KeyTable`` whose key fields are givne by
-        ``key_names``.
+          ``key_names``.
 
         :rtype: KeyTable
 
         """
         try:
             return KeyTable(self.hc, self.jkt.select(self.field_names(), key_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def flatten(self):
+        """Flatten nested Structs.  Field names will be concatenated with dot
+        (.).
+
+        **Example**
+
+        Consider a KeyTable with signature::
+
+          a: Struct {
+            p: Int
+            q: Double
+          }
+          b: Int
+          c: Struct {
+            x: String
+            y: Array[Struct {
+              z: Map[Int]
+            }]
+          }
+
+        and a single key column ``a``.  The result of flatten is be::
+
+          a.p: Int
+          a.q: Double
+          b: Int
+          c.x: String
+          c.y: Array[Struct {
+            z: Map[Int]
+          }]
+
+        with key columns ``a.p, a.q``.
+
+        Note, structures inside non-struct types will not be
+        flattened.
+
+        :return: A KeyTable with no columns of type Struct.
+
+        :rtype: KeyTable
+
+        """
+        try:
+            return KeyTable(self.hc, self.jkt.flatten())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -299,5 +364,28 @@ class KeyTable(object):
         
         try:
             return KeyTable(self.hc, self.jkt.select(field_names, new_key_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def toDF(self, expand=True, flatten=True):
+        """Converts this KeyTable to a Spark DataFrame.
+
+        :param bool expand: If true, expand_types before converting to
+          DataFrame.
+
+        :param bool flatten: If true, flatten before converting to
+          DataFrame.  If both are true, flatten is run after expand so
+          that expanded types are flattened.
+
+        :rtype: DataFrame
+
+        """
+        try:
+            jkt = self.jkt
+            if expand:
+                jkt = jkt.expandTypes()
+            if flatten:
+                jkt = jkt.flatten()
+            return DataFrame(jkt.toDF(self.hc.jsql_context), self.hc.sql_context)
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
