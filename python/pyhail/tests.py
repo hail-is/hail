@@ -226,7 +226,7 @@ class ContextTests(unittest.TestCase):
         
         sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
         
-        vds.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
+        sample2.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
