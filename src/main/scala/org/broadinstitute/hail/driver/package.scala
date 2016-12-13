@@ -101,6 +101,7 @@ package object driver {
 
     conf.set("spark.sql.parquet.compression.codec", parquetCompression)
     conf.set("spark.sql.files.openCostInBytes", tera.toString)
+    conf.set("spark.sql.files.maxPartitionBytes", tera.toString)
 
     conf.set("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", (blockSize * 1024L * 1024L).toString)
 
@@ -111,7 +112,7 @@ package object driver {
      * For reasons we don't understand, the DataFrame code uses `SparkHadoopUtil.get.conf` instead of the Hadoop
      * configuration in the SparkContext.  Set both for consistency.
      */
-    SparkHadoopUtil.get.conf.setLong("spark.hadoop.parquet.block.size", tera)
+    SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
     conf.set("spark.hadoop.parquet.block.size", tera.toString)
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
