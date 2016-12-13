@@ -387,3 +387,53 @@ class KeyTable(object):
     def export_mongodb(self, mode='append'):
         (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
          .exportMongoDB(self.hc.jsql_context, self.jkt, mode))
+
+    def explode(self, column_names):
+        """Explodes columns of this ``KeyTable``
+
+        The explode operation unpacks the elements in a column of type ``Array`` or ``Set`` into its own row.
+        If an empty ``Array`` or ``Set`` is exploded, the entire row is removed from the ``KeyTable``.
+
+        **Examples**
+
+        Assume ``kt`` is a ``KeyTable`` with three columns: c1, c2 and
+        c3. The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
+        c1 cannot be exploded because its type is not an ``Array`` or ``Set``.
+        c2 can only be exploded once because the type of c2 after the first explode operation is ``Int``.
+
+        +----+----------+----------------+
+        | c1 |   c2     |   c3           |
+        +====+==========+================+
+        |  a | [1,2,NA] |[[3,4], []]     |
+        +----+----------+----------------+
+
+        Explode c2 once and c3 twice:
+
+        >>> new_kt = kt.explode(['c2', 'c3', 'c3'])
+
+        +----+-------+-------------+
+        | c1 |   c2  |   c3        |
+        +====+=======+=============+
+        |  a | 1     |3            |
+        +----+-------+-------------+
+        |  a | 2     |3            |
+        +----+-------+-------------+
+        |  a | 1     |4            |
+        +----+-------+-------------+
+        |  a | 2     |4            |
+        +----+-------+-------------+
+
+        :param: column_names: List of columns to be exploded.
+        :type: list of str
+
+        :return: A KeyTable with columns exploded.
+
+        :rtype: KeyTable
+
+        """
+
+        try:
+            return KeyTable(self.hc, self.jkt.explode(column_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+

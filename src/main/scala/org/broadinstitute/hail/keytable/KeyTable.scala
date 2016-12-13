@@ -11,6 +11,7 @@ import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.io.TextExporter
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 
@@ -45,10 +46,7 @@ object KeyTable extends Serializable with TextExporter {
     ec.setAll(annotationToSeq(a, nFields): _*)
 
   def toSingleRDD(rdd: RDD[(Annotation, Annotation)], nKeys: Int, nValues: Int): RDD[Annotation] =
-    rdd.map { case (k, v) =>
-      val x = Annotation.fromSeq(annotationToSeq(k, nKeys) ++ annotationToSeq(v, nValues))
-      x
-    }
+    rdd.map { case (k, v) => Annotation.fromSeq(annotationToSeq(k, nKeys) ++ annotationToSeq(v, nValues)) }
 
   def apply(rdd: RDD[Annotation], signature: TStruct, keyNames: Array[String]): KeyTable = {
     val keyFields = signature.fields.filter(fd => keyNames.contains(fd.name))
@@ -110,20 +108,22 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def nValues = valueSignature.size
 
+  def typeCheck = rdd.forall { case (k, v) => keySignature.typeCheck(k) && valueSignature.typeCheck(v) }
+
   def same(other: KeyTable): Boolean = {
     if (signature != other.signature) {
       println(
         s"""different signatures:
-           | left: ${ signature.toPrettyString() }
-           | right: ${ other.signature.toPrettyString() }
-           |""".stripMargin)
+            | left: ${ signature.toPrettyString() }
+            | right: ${ other.signature.toPrettyString() }
+            |""".stripMargin)
       false
     } else if (keyNames.toSeq != other.keyNames.toSeq) {
       println(
         s"""different key names:
-           | left: ${ keyNames.mkString(", ") }
-           | right: ${ other.keyNames.mkString(", ") }
-           |""".stripMargin)
+            | left: ${ keyNames.mkString(", ") }
+            | right: ${ other.keyNames.mkString(", ") }
+            |""".stripMargin)
       false
     } else {
       val thisFieldNames = valueNames
@@ -284,14 +284,14 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     if (keySignature != other.keySignature)
       fatal(
         s"""Key signatures must be identical.
-           |Left signature: ${ keySignature.toPrettyString(compact = true) }
-           |Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
+            |Left signature: ${ keySignature.toPrettyString(compact = true) }
+            |Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
 
     val overlappingFields = valueNames.toSet.intersect(other.valueNames.toSet)
     if (overlappingFields.nonEmpty)
       fatal(
         s"""Fields that are not keys cannot be present in both key-tables.
-           |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
+            |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
     joinType match {
       case "left" => leftJoin(other)
@@ -453,6 +453,8 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     KeyTable(newRDD, keySignature, valueSignature)
   }
 
+  <<<<<<< de99211b52c45fd1d587bcfca5eebc9c19b77665
+
   def expandTypes(): KeyTable = {
     val localKeySignature = keySignature
     val localValueSignature = valueSignature
@@ -489,4 +491,37 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
       },
       schema.asInstanceOf[StructType])
   }
+
+  def explode(columnName: String): KeyTable = {
+    val explodeField = fields.find(fd => fd.name == columnName) match {
+      case Some(x) => x
+      case None =>
+        fatal(
+          s"""Input field name `${ columnName }' not found in KeyTable.
+              |KeyTable field names are `${ fieldNames.mkString(", ") }'.""".stripMargin)
+    }
+
+    val index = explodeField.index
+    val name = explodeField.name
+
+    val explodeType = explodeField.`type` match {
+      case t: TIterable => t.elementType
+      case _ => fatal(s"Input field `${ name }' is not iterable. Found type `${ explodeField.`type` }' but require Array or Set.")
+    }
+
+    val newSignature = signature.copy(fields = fields.updated(index, Field(name, explodeType, index)))
+
+    val explodedRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).flatMap { a =>
+      val row = KeyTable.annotationToSeq(a, nFields)
+      for (element <- row(index).asInstanceOf[Iterable[_]]) yield row.updated(index, element)
+    }.map(Annotation.fromSeq)
+
+    KeyTable(explodedRDD, newSignature, keyNames)
+  }
+
+  def explode(columnNames: Array[String]): KeyTable = {
+    columnNames.foldLeft(this)((kt, name) => kt.explode(name))
+  }
+
+  def explode(columnNames: java.util.ArrayList[String]): KeyTable = explode(columnNames.asScala.toArray)
 }
