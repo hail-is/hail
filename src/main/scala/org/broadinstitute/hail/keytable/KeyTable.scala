@@ -219,14 +219,14 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {
     val keyNamesNotInSelectedFields = newKeys.diff(fieldsSelect)
     if (keyNamesNotInSelectedFields.nonEmpty)
-      fatal(s"Key fields `${keyNamesNotInSelectedFields.mkString(", ")}' must be present in selected fields.")
+      fatal(s"Key fields `${ keyNamesNotInSelectedFields.mkString(", ") }' must be present in selected fields.")
 
     val fieldsNotExist = fieldsSelect.diff(fieldNames)
     if (fieldsNotExist.nonEmpty)
-      fatal(s"Selected fields `${fieldsNotExist.mkString(", ")}' do not exist in KeyTable. Choose from `${fieldNames.mkString(", ")}'.")
+      fatal(s"Selected fields `${ fieldsNotExist.mkString(", ") }' do not exist in KeyTable. Choose from `${ fieldNames.mkString(", ") }'.")
 
-    val fieldTransform = fieldsSelect.map( cn => fieldNames.indexOf(cn) )
-    val newSignature = TStruct(fieldTransform.map{ i => signature.fields(i)})
+    val fieldTransform = fieldsSelect.map(cn => fieldNames.indexOf(cn))
+    val newSignature = TStruct(fieldTransform.map { i => signature.fields(i) })
     val nFieldsLocal = nFields
 
     val selectF: Annotation => Annotation = { a =>
@@ -241,40 +241,43 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     select(fieldsSelect.asScala.toArray, newKeys.asScala.toArray)
 
   def rename(fieldNameMap: Map[String, String]): KeyTable = {
-    val newKeySignature = TStruct(keySignature.fields.map {fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name))})
-    val newValueSignature = TStruct(valueSignature.fields.map {fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name))})
+    val newKeySignature = TStruct(keySignature.fields.map { fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name)) })
+    val newValueSignature = TStruct(valueSignature.fields.map { fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name)) })
 
     val newFieldNames = newKeySignature.fields.map(_.name) ++ newValueSignature.fields.map(_.name)
-    val duplicateFieldNames = newFieldNames.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter{ _._2 > 1}
+    val duplicateFieldNames = newFieldNames.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
+      _._2 > 1
+    }
 
     if (duplicateFieldNames.nonEmpty)
-      fatal(s"Found duplicate field names after renaming fields: `${duplicateFieldNames.keys.mkString(", ")}'")
+      fatal(s"Found duplicate field names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
 
     KeyTable(rdd, newKeySignature, newValueSignature)
   }
 
   def rename(newFieldNames: Array[String]): KeyTable = {
     if (newFieldNames.length != nFields)
-      fatal(s"Found ${newFieldNames.length} new field names but need $nFields.")
+      fatal(s"Found ${ newFieldNames.length } new field names but need $nFields.")
 
     rename((fieldNames, newFieldNames).zipped.toMap)
   }
 
   def rename(fieldNameMap: java.util.HashMap[String, String]): KeyTable = rename(fieldNameMap.asScala.toMap)
+
   def rename(newFieldNames: java.util.ArrayList[String]): KeyTable = rename(newFieldNames.asScala.toArray)
 
   def join(other: KeyTable, joinType: String): KeyTable = {
     if (keySignature != other.keySignature)
       fatal(
         s"""Key signatures must be identical.
-            |Left signature: ${ keySignature.toPrettyString(compact = true) }
-            |Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
+           |Left signature: ${ keySignature.toPrettyString(compact = true) }
+           |Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
 
     val overlappingFields = valueNames.toSet.intersect(other.valueNames.toSet)
     if (overlappingFields.nonEmpty)
       fatal(
         s"""Fields that are not keys cannot be present in both key-tables.
-            |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
+           |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
     joinType match {
       case "left" => leftJoin(other)
@@ -399,8 +402,8 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val localNFields = nFields
 
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case  (ec, a) =>
-        KeyTable.setEvalContext(ec, a, localNFields)
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
+      KeyTable.setEvalContext(ec, a, localNFields)
     })
 
     val newRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).mapPartitions { it =>

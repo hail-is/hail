@@ -1,4 +1,5 @@
 from pyhail.type import Type
+from py4j.protocol import Py4JJavaError
 
 class KeyTable(object):
     """:class:`.KeyTable` is Hail's version of a SQL table where fields
@@ -50,7 +51,7 @@ class KeyTable(object):
         :rtype: list of str
         """
         try:
-            return self.jkt.keyNames()
+            return list(self.jkt.keyNames())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -60,7 +61,7 @@ class KeyTable(object):
         :rtype: list of str
         """
         try:
-            return self.jkt.fieldNames()
+            return list(self.jkt.fieldNames())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -193,68 +194,105 @@ class KeyTable(object):
             self._raise_py4j_exception(e)
 
     def rename(self, field_names):
-        """Rename fields of KeyTable.
+        """Rename fields of ``KeyTable``.
 
-        Specify update mapping with a list explicitly specifying all field names.
-        This list must be the same length as the number of fields in the KeyTable.
+        ``field_names`` can be either a list of new names or a dict
+        mapping old names to new names.  If ``field_names`` is a list,
+        its length must be the number of fields in this ``KeyTable``.
 
-        >>> kt = hc.import_keytable("data/kt1.tsv")
-        >>> new_field_names = kt.field_names
-        >>> new_field_names[0] = "newName"
-        >>> kt_renamed = kt.rename(new_field_names)
+        **Examples**
 
-        Specify update mapping with a dict corresponding to old_name : new_name.
-        Only field names present in the update mapping will be altered.
+        Rename using a list:
 
-        >>> kt = hc.import_keytable("data/kt1.tsv")
-        >>> kt_renamed = kt.rename({"field1" : "newName"})
+        >>> kt = hc.import_keytable('data/kt1.tsv')
+        >>> kt_renamed = kt.rename(['newField1', 'newField2', 'newField3'])
 
-        :param field_names: Mapping of original field name
-        :type list of str or dict of str:str
+        Rename using a dict:
 
-        :return: A KeyTable with updated field names.
+        >>> kt = hc.import_keytable('data/kt1.tsv')
+        >>> kt_renamed = kt.rename({'field1' : 'newField1'})
+
+        :param field_names: list of new field names or a dict mapping old names to new names.
+        :type list of str or dict of str: str
+
+        :return: A KeyTable with renamed fields.
 
         :rtype: KeyTable
+
         """
         try:
             return KeyTable(self.hc, self.jkt.rename(field_names))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def select(self, field_names, key_names):
-        """Reorder and drop fields of KeyTable.
+    def key_by(self, key_names):
+        """Return a new ``KeyTable`` with keys given by ``key_names``.  The
+        order of the fields will be the original order with the key
+        fields moved to the beginning in the order given by
+        ``key_names``.
 
-        Select which fields to keep and the order they appear in. Also, choose which fields are considered keys.
+        **Examples**
 
-        In the examples below, assume **kt** is a KeyTable with three fields ["field1", "field2", "field3"] where ["field1", "field2"] are the key fields.
+        Assume ``kt`` is a ``KeyTable`` with three fields: f1, f2 and
+        f3 and key f1.
 
-        **Example 1: Change which field is considered the key**
-        >>> new_kt = kt.select(["field1", "field2", "field3"], ["field3"])
+        Change key fields:
 
-        **Example 2: Change the order of the fields. Note, key fields always come before non-key fields.**
-        >>> new_kt = kt.select(["field3", "field1", "field2"], ["field1", "field2"])
+        >>> kt.key_by(['f2', 'f3'])
 
-        **Example 3: Drop fields from the KeyTable**
-        >>> new_kt = kt.select(["field1"], ["field1"])
+        Set to no keys:
 
-        **Example 4: Do not have fields designated as key fields**
-        >>> new_kt = kt.select(["field1", "field2", "field3"], [])
+        >>> kt.key_by([])
 
-        **Example 5: Change the order of the key fields**
-        >>> new_kt = kt.select(["field1", "field2", "field3"], ["field2", "field1"])
+        :param key_names: List of fields to be used as keys.
+        :type key_names: list of str
 
-        :param field_names: Names of fields to be included in new KeyTable. Order of fields is preserved except key fields always come before non-key fields.
-        :type list of str
-
-        :param key_names: Names of fields to be designated as keys. Order of fields is preserved.
-        :type list of str
-
-        :return: A KeyTable with only selected fields in specified order.
+        :return: A ``KeyTable`` whose key fields are givne by
+        ``key_names``.
 
         :rtype: KeyTable
+
         """
         try:
-            return KeyTable(self.hc, self.jkt.select(field_names, key_names))
+            return KeyTable(self.hc, self.jkt.select(self.field_names(), key_names))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
+    def select(self, field_names):
+        """Selects a subset of fields of this ``KeyTable`` and returns a new
+        ``KeyTable``.  The order of the fields will be the order given
+        by ``field_names`` with the key fields moved to the beginning
+        in the order of the key fields in this ``KeyTable``.
+
+        **Examples**
+
+        Assume ``kt`` is a ``KeyTable`` with three fields: f1, f2 and
+        f3.
+
+        Select/drop fields:
+
+        >>> new_kt = kt.select(['f1'])
+
+        Reorder the fields:
+
+        >>> new_kt = kt.select(['f3', 'f1', 'f2'])
+
+        Drop all fields:
+
+        >>> new_kt = kt.select([])
+
+        :param field_names: List of fields to be selected.
+        :type list of str
+
+        :return: A ``KeyTable`` with selected fields in the order
+        given by ``field_names``.
+
+        :rtype: KeyTable
+
+        """
+        new_key_names = [k for k in self.key_names() if k in field_names]
+        
+        try:
+            return KeyTable(self.hc, self.jkt.select(field_names, new_key_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
