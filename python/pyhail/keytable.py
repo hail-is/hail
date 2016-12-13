@@ -129,7 +129,7 @@ class KeyTable(object):
         """
         try:
             if isinstance(key_names, list):
-                key_names = ", ".join([str(l) for l in key_names])
+                key_names = ",".join(key_names)
 
             return KeyTable(self.hc, self.jkt.annotate(code, key_names))
 
@@ -164,10 +164,10 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
         if isinstance(key_code, list):
-            key_code = ", ".join([str(l) for l in key_code])
+            key_code = ",".join(key_code)
 
         if isinstance(agg_code, list):
-            agg_code = ", ".join([str(l) for l in agg_code])
+            agg_code = ", ".join(agg_code)
 
         try:
             return KeyTable(self.hc, self.jkt.aggregate(key_code, agg_code))
