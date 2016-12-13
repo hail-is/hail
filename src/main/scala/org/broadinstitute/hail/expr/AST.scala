@@ -245,7 +245,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
           case Some(f) => f.`type`
           case None => parseError(
             s"""`$t' has no field `$rhs'
-                |  Available fields: [ ${ t.fields.map(x => prettyIdentifier(x.name)).mkString("\n  ") } ]""".stripMargin)
+               |  Available fields: [ ${ t.fields.map(x => prettyIdentifier(x.name)).mkString("\n  ") } ]""".stripMargin)
         }
 
       case (t, name) => FunctionRegistry.lookupMethodReturnType(t, Seq(), name)
@@ -253,8 +253,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
           case FunctionRegistry.NotFound(name, typ) =>
             parseError(
               s"""`$t' has no field `$rhs'
-                  |  Hint: Don't forget empty-parentheses in a method call, e.g.
-                  |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
+                 |  Hint: Don't forget empty-parentheses in a method call, e.g.
+                 |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
           case otherwise => parseError(otherwise.message)
         }
     }
@@ -271,8 +271,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
         case FunctionRegistry.NotFound(name, typ) =>
           fatal(
             s"""`$t' has neither a field nor a method named `$name
-                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
-                |    counts.sum""".stripMargin)
+               |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
+               |    counts.sum""".stripMargin)
         case otherwise => fatal(otherwise.message)
       }
   }
@@ -334,12 +334,26 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
   override def typecheckThis(): Type = {
     (fn, args) match {
+      case ("str", rhs) =>
+        if (rhs.length != 1)
+          parseError("str expects 1 argument")
+        if (!rhs.head.`type`.isRealizable)
+          parseError("Argument to str of unrealizable type")
+        TString
+
+      case ("json", rhs) =>
+        if (rhs.length != 1)
+          parseError("json expects 1 argument")
+        if (!rhs.head.`type`.isRealizable)
+          parseError("Argument to json of unrealizable type")
+        TString
+
       case ("merge", rhs) =>
         val (t1, t2) = args.map(_.`type`) match {
           case Array(t1: TStruct, t2: TStruct) => (t1, t2)
           case other => parseError(
             s"""invalid arguments to `$fn'
-                |  Expected $fn(Struct, Struct), found $fn(${ other.mkString(", ") })""".stripMargin)
+               |  Expected $fn(Struct, Struct), found $fn(${ other.mkString(", ") })""".stripMargin)
         }
 
         val (t, _) = try {
@@ -347,10 +361,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         } catch {
           case f: FatalException => parseError(
             s"""invalid arguments for method `$fn'
-                |  ${ f.getMessage }""".stripMargin)
+               |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
-                |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
+               |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
         }
 
         t
@@ -366,22 +380,22 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         if (args.length != 2)
           parseError(
             s"""invalid arguments for method `$fn'
-                |  Expected 2 arguments: $fn(Array[Struct], identifiers...)
-                |  Found ${ args.length } arguments""".stripMargin)
+               |  Expected 2 arguments: $fn(Array[Struct], identifiers...)
+               |  Found ${ args.length } arguments""".stripMargin)
         args.head.typecheck(ec)
         val t = args.head.`type` match {
           case TArray(t: TStruct) => t
           case error => parseError(
             s"""invalid arguments for method `$fn'
-                |  Expected Array[Struct] as first argument, found `$error'""".stripMargin)
+               |  Expected Array[Struct] as first argument, found `$error'""".stripMargin)
         }
         val key = args(1) match {
           case SymRef(_, id) => id
           case other =>
             parseError(
               s"""invalid arguments for method `$fn'
-                  |  Expected struct field identifier as the second argument, but found a `${ other.getClass.getSimpleName }' expression
-                  |  Usage: $fn(Array[Struct], key identifier)""".stripMargin)
+                 |  Expected struct field identifier as the second argument, but found a `${ other.getClass.getSimpleName }' expression
+                 |  Usage: $fn(Array[Struct], key identifier)""".stripMargin)
         }
 
         t.getOption(key) match {
@@ -390,10 +404,10 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
             `type` = TDict(newS)
           case Some(other) => parseError(
             s"""invalid arguments for method `$fn'
-                |  Expected key to be of type String, but field ${ prettyIdentifier(key) } had type `$other'""".stripMargin)
+               |  Expected key to be of type String, but field ${ prettyIdentifier(key) } had type `$other'""".stripMargin)
           case None => parseError(
             s"""invalid arguments for method `$fn'
-                |  Struct did not contain the designated key `${ prettyIdentifier(key) }'""".stripMargin)
+               |  Struct did not contain the designated key `${ prettyIdentifier(key) }'""".stripMargin)
         }
 
       case "select" | "drop" =>
@@ -401,39 +415,39 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         if (args.length < 2)
           parseError(
             s"""too few arguments for method `$fn'
-                |  Expected 2 or more arguments: $fn(Struct, identifiers...)
-                |  Found ${ args.length } ${ plural(args.length, "argument") }""".stripMargin)
+               |  Expected 2 or more arguments: $fn(Struct, identifiers...)
+               |  Found ${ args.length } ${ plural(args.length, "argument") }""".stripMargin)
         val (head, tail) = (args.head, args.tail)
         head.typecheck(ec)
         val struct = head.`type` match {
           case t: TStruct => t
           case other => parseError(
             s"""method `$fn' expects a Struct argument in the first position
-                |  Expected: $fn(Struct, ...)
-                |  Found: $fn($other, ...)""".stripMargin)
+               |  Expected: $fn(Struct, ...)
+               |  Found: $fn($other, ...)""".stripMargin)
         }
         val identifiers = tail.map {
           case SymRef(_, id) => id
           case other =>
             parseError(
               s"""invalid arguments for method `$fn'
-                  |  Expected struct field identifiers after the first position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
+                 |  Expected struct field identifiers after the first position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
         }
         val duplicates = identifiers.duplicates()
         if (duplicates.nonEmpty)
           parseError(
             s"""invalid arguments for method `$fn'
-                |  Duplicate ${ plural(duplicates.size, "identifier") } found: [ ${ duplicates.map(prettyIdentifier).mkString(", ") } ]""".stripMargin)
+               |  Duplicate ${ plural(duplicates.size, "identifier") } found: [ ${ duplicates.map(prettyIdentifier).mkString(", ") } ]""".stripMargin)
 
         val (tNew, _) = try {
           struct.filter(identifiers.toSet, include = fn == "select")
         } catch {
           case f: FatalException => parseError(
             s"""invalid arguments for method `$fn'
-                |  ${ f.getMessage }""".stripMargin)
+               |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
-                |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
+               |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
         }
 
         `type` = tNew
@@ -443,6 +457,16 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   }
 
   def eval(ec: EvalContext): () => Any = ((fn, args): @unchecked) match {
+    case ("str", Array(a)) =>
+      val t = a.`type`
+      val f = a.eval(ec)
+      () => t.str(f())
+
+    case ("json", Array(a)) =>
+      val t = a.`type`
+      val f = a.eval(ec)
+      () => JsonMethods.compact(t.toJSON(f()))
+
     case ("merge", Array(struct1, struct2)) =>
       val (_, merger) = struct1.`type`.asInstanceOf[TStruct].merge(struct2.`type`.asInstanceOf[TStruct])
       val f1 = struct1.eval(ec)
@@ -506,13 +530,13 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = FunctionRegistry.lookupMethodReturnType(it, funType +: rest.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
-        // no lambda
+      // no lambda
       case (it: TAggregable, _, _) =>
         args.foreach(_.typecheck(ec.copy(st = emptySymTab)))
         `type` = FunctionRegistry.lookupMethodReturnType(it, args.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
-        // not aggregable: TIterable or TDict
+      // not aggregable: TIterable or TDict
       case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
         rest.foreach(_.typecheck(ec))
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))
@@ -604,8 +628,8 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
       case None =>
         parseError(
           s"""symbol `$symbol' not found
-              |  Available symbols:
-              |    ${ ec.st.map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }.mkString("\n    ") } """.stripMargin)
+             |  Available symbols:
+             |    ${ ec.st.map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }.mkString("\n    ") } """.stripMargin)
     }
   }
 }
