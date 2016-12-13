@@ -1016,7 +1016,7 @@ class VariantDataset(object):
 
         >>> (hc.import_vcf('data/sample.vcf')
         >>>  .split_multi()
-        >>>  .write('data/split.vds')
+        >>>  .write('data/split.vds'))
 
         **Implementation Details**
 
@@ -1080,7 +1080,7 @@ class VariantDataset(object):
 
         >>> (hc.import_vcf('data/sample.vcf')
         >>>  .split_multi()
-        >>>  .filter_variants_expr('va.info.AC[va.aIndex - 1] < 10', keep = False)
+        >>>  .filter_variants_expr('va.info.AC[va.aIndex - 1] < 10', keep = False))
 
         VCFs split by Hail and exported to new VCFs may be
         incompatible with other tools, if action is not taken
