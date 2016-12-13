@@ -338,14 +338,14 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         if (rhs.length != 1)
           parseError("str expects 1 argument")
         if (!rhs.head.`type`.isRealizable)
-          parseError("Argument to str of unrealizable type")
+          parseError(s"Argument to str has unrealizable type: ${rhs.head.`type`}")
         TString
 
       case ("json", rhs) =>
         if (rhs.length != 1)
           parseError("json expects 1 argument")
         if (!rhs.head.`type`.isRealizable)
-          parseError("Argument to json of unrealizable type")
+          parseError(s"Argument to json has unrealizable type: ${rhs.head.`type`}")
         TString
 
       case ("merge", rhs) =>
