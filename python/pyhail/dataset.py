@@ -1091,6 +1091,7 @@ class VariantDataset(object):
 
     def samples_keytable(self):
         """Convert samples and sample annotations to KeyTable."""
+
         try:
             return KeyTable(self.hc, self.jvds.samplesKT())
         except Py4JJavaError as e:
