@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.methods
 
+import org.apache.spark.SparkEnv
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
@@ -83,9 +84,11 @@ class ExprSuite extends SparkSuite {
 
     assert(a.length == symTab.size)
 
+    val rdd = sc.parallelize(Array(0), 1) // used to force serialization of values
     def eval[T](s: String): Option[T] = {
       val f = Parser.parseExpr(s, ec)._2
-      f().map(_.asInstanceOf[T])
+      val r = f().map(_.asInstanceOf[T])
+      rdd.map(_ => r).collect().head // force serialization
     }
 
     def evalWithType[T](s: String): (Type, Option[T]) = {
@@ -157,7 +160,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("a[-1]").contains(8))
     assert(eval[Int]("a[-2]").contains(-1))
     for (i <- 0 until 8)
-      assert(eval[Int](s"a[${i - 8}]") == eval[Int](s"a[$i]"))
+      assert(eval[Int](s"a[${ i - 8 }]") == eval[Int](s"a[$i]"))
 
     assert(eval[String]("s[0]").contains("1"))
     assert(eval[String]("s[1]").contains("2"))
@@ -166,7 +169,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[String]("s[-1]").contains("8"))
     assert(eval[String]("s[-2]").contains("7"))
     for (i <- 0 until 11)
-      assert(eval[String](s"s[${i - 11}]") == eval[String](s"s[$i]"))
+      assert(eval[String](s"s[${ i - 11 }]") == eval[String](s"s[$i]"))
 
     assert(eval[Boolean]("1 == 1.0").contains(true))
 
@@ -517,10 +520,10 @@ class ExprSuite extends SparkSuite {
     assert(eval[Long]("10000000000L").contains(10000000000L))
     assert(eval[Long]("100000L * 100000L").contains(100000L * 100000L))
     assert(eval[Long]("-10000000000L").contains(-10000000000L))
-    assert(eval[Long](Long.MaxValue+"L").contains(Long.MaxValue))
-    assert(eval[Long]((Long.MinValue+1)+"L").contains(Long.MinValue+1))
-    assert(eval[Long](Long.MaxValue+"l").contains(Long.MaxValue))
-    assert(eval[Long]((Long.MinValue+1)+"l").contains(Long.MinValue+1))
+    assert(eval[Long](Long.MaxValue + "L").contains(Long.MaxValue))
+    assert(eval[Long]((Long.MinValue + 1) + "L").contains(Long.MinValue + 1))
+    assert(eval[Long](Long.MaxValue + "l").contains(Long.MaxValue))
+    assert(eval[Long]((Long.MinValue + 1) + "l").contains(Long.MinValue + 1))
     // FIXME: parser should accept minimum Long/Int literals
     // assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
     // assert(eval[Long](Long.MinValue.toString+"l").contains(Long.MinValue))

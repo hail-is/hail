@@ -506,13 +506,13 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = FunctionRegistry.lookupMethodReturnType(it, funType +: rest.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
-        // no lambda
+      // no lambda
       case (it: TAggregable, _, _) =>
         args.foreach(_.typecheck(ec.copy(st = emptySymTab)))
         `type` = FunctionRegistry.lookupMethodReturnType(it, args.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
-        // not aggregable: TIterable or TDict
+      // not aggregable: TIterable or TDict
       case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
         rest.foreach(_.typecheck(ec))
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))
