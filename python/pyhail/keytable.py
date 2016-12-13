@@ -1,4 +1,5 @@
 from pyhail.type import Type
+from py4j.protocol import Py4JJavaError
 
 class KeyTable(object):
     """:class:`.KeyTable` is Hail's version of a SQL table where fields
