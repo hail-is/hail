@@ -1029,9 +1029,6 @@ object FunctionRegistry {
   registerSpecial("isMissing", (g: () => Any) => g() == null)(TTHr, boolHr)
   registerSpecial("isDefined", (g: () => Any) => g() != null)(TTHr, boolHr)
 
-  registerSpecial("json", (f: () => Any) => JsonMethods.compact(TT.t.toJSON(f())))(TTHr, stringHr)
-  registerSpecial("str", (f: () => Any) => TT.t.str(f()))(TTHr, stringHr)
-
   registerSpecial("||", { (f1: () => Any, f2: () => Any) =>
     val x1 = f1()
     if (x1 != null) {
