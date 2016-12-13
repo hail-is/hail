@@ -12,7 +12,7 @@ import scala.sys.process._
 class ReadSuite extends SparkSuite {
   // verify loading parquet files >128MB with readParquetSorted aren't split
   @Test def test() {
-    val file = tmpDir.createLocalTempFile(extension = "parquet")
+    val file = tmpDir.createTempFile(extension = "parquet")
 
     // creates two ~256M parquet files
     val rdd = sc.parallelize(Seq(1, 2), 2)
