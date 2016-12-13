@@ -197,3 +197,107 @@ class KeyTable(object):
             return self.jkt.exists(code)
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
+
+    def rename(self, field_names):
+        """Rename fields of ``KeyTable``.
+
+        ``field_names`` can be either a list of new names or a dict
+        mapping old names to new names.  If ``field_names`` is a list,
+        its length must be the number of fields in this ``KeyTable``.
+
+        **Examples**
+
+        Rename using a list:
+
+        >>> kt = hc.import_keytable('data/kt1.tsv')
+        >>> kt_renamed = kt.rename(['newField1', 'newField2', 'newField3'])
+
+        Rename using a dict:
+
+        >>> kt = hc.import_keytable('data/kt1.tsv')
+        >>> kt_renamed = kt.rename({'field1' : 'newField1'})
+
+        :param field_names: list of new field names or a dict mapping old names to new names.
+        :type list of str or dict of str: str
+
+        :return: A KeyTable with renamed fields.
+
+        :rtype: KeyTable
+
+        """
+        try:
+            return KeyTable(self.hc, self.jkt.rename(field_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def key_by(self, key_names):
+        """Return a new ``KeyTable`` with keys given by ``key_names``.  The
+        order of the fields will be the original order with the key
+        fields moved to the beginning in the order given by
+        ``key_names``.
+
+        **Examples**
+
+        Assume ``kt`` is a ``KeyTable`` with three fields: f1, f2 and
+        f3 and key f1.
+
+        Change key fields:
+
+        >>> kt.key_by(['f2', 'f3'])
+
+        Set to no keys:
+
+        >>> kt.key_by([])
+
+        :param key_names: List of fields to be used as keys.
+        :type key_names: list of str
+
+        :return: A ``KeyTable`` whose key fields are givne by
+        ``key_names``.
+
+        :rtype: KeyTable
+
+        """
+        try:
+            return KeyTable(self.hc, self.jkt.select(self.field_names(), key_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def select(self, field_names):
+        """Selects a subset of fields of this ``KeyTable`` and returns a new
+        ``KeyTable``.  The order of the fields will be the order given
+        by ``field_names`` with the key fields moved to the beginning
+        in the order of the key fields in this ``KeyTable``.
+
+        **Examples**
+
+        Assume ``kt`` is a ``KeyTable`` with three fields: f1, f2 and
+        f3.
+
+        Select/drop fields:
+
+        >>> new_kt = kt.select(['f1'])
+
+        Reorder the fields:
+
+        >>> new_kt = kt.select(['f3', 'f1', 'f2'])
+
+        Drop all fields:
+
+        >>> new_kt = kt.select([])
+
+        :param field_names: List of fields to be selected.
+        :type list of str
+
+        :return: A ``KeyTable`` with selected fields in the order
+        given by ``field_names``.
+
+        :rtype: KeyTable
+
+        """
+        new_key_names = [k for k in self.key_names() if k in field_names]
+        
+        try:
+            return KeyTable(self.hc, self.jkt.select(field_names, new_key_names))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
