@@ -1074,9 +1074,9 @@ object FunctionRegistry {
       v
   })(TTHr, TTHr, TTHr)
 
-  registerMethod("[]", (a: IndexedSeq[Any], i: Int) => a(i))(arrayHr(TTHr), intHr, TTHr)
+  registerMethod("[]", (a: IndexedSeq[Any], i: Int) => if (i >= 0) a(i) else a(a.length + i))(arrayHr(TTHr), intHr, TTHr)
   registerMethod("[]", (a: Map[String, Any], i: String) => a(i))(dictHr(TTHr), stringHr, TTHr)
-  registerMethod("[]", (a: String, i: Int) => a(i).toString)(stringHr, intHr, charHr)
+  registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString)(stringHr, intHr, charHr)
 
   registerMethod("[:]", (a: IndexedSeq[Any]) => a)(arrayHr(TTHr), arrayHr(TTHr))
   registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(i, a.length))(arrayHr(TTHr), intHr, arrayHr(TTHr))
