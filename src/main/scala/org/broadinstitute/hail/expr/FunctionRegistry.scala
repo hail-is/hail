@@ -25,7 +25,7 @@ object FunctionRegistry {
   sealed case class Ambiguous(name: String, typ: TypeTag, alternates: Seq[(Int, (TypeTag, Fun))]) extends LookupError {
     def message =
       s"""found ${ alternates.size } ambiguous matches for $typ:
-         |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
+          |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
   }
 
   type Err[T] = Either[LookupError, T]
@@ -534,30 +534,8 @@ object FunctionRegistry {
   registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Float]) => x.max })
   registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Double]) => x.max })
 
-  register("range", { (x: Int) =>
-    val l = math.max(x, 0)
-    new IndexedSeq[Int] {
-      def length = l
-
-      def apply(i: Int): Int = {
-        if (i < 0 || i >= l)
-          throw new ArrayIndexOutOfBoundsException(i)
-        i
-      }
-    }
-  })
-  register("range", { (x: Int, y: Int) =>
-    val l = math.max(y - x, 0)
-    new IndexedSeq[Int] {
-      def length = l
-
-      def apply(i: Int): Int = {
-        if (i < 0 || i >= l)
-          throw new ArrayIndexOutOfBoundsException(i)
-        x + i
-      }
-    }
-  })
+  register("range", { (x: Int) => 0 until x: IndexedSeq[Int] })
+  register("range", { (x: Int, y: Int) => x until y: IndexedSeq[Int] })
   register("range", { (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int] })
   register("Variant", { (x: String) =>
     val Array(chr, pos, ref, alts) = x.split(":")
@@ -743,7 +721,7 @@ object FunctionRegistry {
   )(setHr(TTHr), unaryHr(TTHr, TUHr), setHr(TUHr))
 
   registerLambdaMethod("mapValues", (a: Map[String, Any], f: (Any) => Any) =>
-    a.mapValues(f)
+    a.map { case (k, v) => (k, f(v)) }
   )(dictHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr))
 
   registerLambdaMethod("flatMap", (a: IndexedSeq[Any], f: (Any) => Any) =>
@@ -847,7 +825,7 @@ object FunctionRegistry {
     if (binSize <= 0)
       fatal(
         s"""invalid bin size from given arguments (start = $start, end = $end, bins = $bins)
-           |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
+            |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
                   """.stripMargin)
 
     val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
@@ -929,8 +907,8 @@ object FunctionRegistry {
     register(name, { (x: IndexedSeq[Any], y: IndexedSeq[Any]) =>
       if (x.length != y.length) fatal(
         s"""Cannot apply operation $name to arrays of unequal length:
-           |  Left: ${ x.length } elements
-           |  Right: ${ y.length } elements""".stripMargin)
+            |  Left: ${ x.length } elements
+            |  Right: ${ y.length } elements""".stripMargin)
       (x, y).zipped.map { case (xi, yi) =>
         if (xi == null || yi == null)
           null
