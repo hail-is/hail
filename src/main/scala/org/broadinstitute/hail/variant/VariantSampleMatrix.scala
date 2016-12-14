@@ -332,6 +332,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
 
+  def sampleIdsAsArray: Array[String] = sampleIds.toArray
+
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
   def nSamples: Int = metadata.sampleIds.length

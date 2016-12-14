@@ -111,11 +111,19 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def nValues = valueSignature.size
 
   def same(other: KeyTable): Boolean = {
-    if (fields.toSet != other.fields.toSet) {
-      println(s"signature: this=${ schema } other=${ other.schema }")
+    if (signature != other.signature) {
+      println(
+        s"""different signatures:
+           | left: ${ signature.toPrettyString() }
+           | right: ${ other.signature.toPrettyString() }
+           |""".stripMargin)
       false
-    } else if (keyNames.toSet != other.keyNames.toSet) {
-      println(s"keyNames: this=${ keyNames.mkString(",") } other=${ other.keyNames.mkString(",") }")
+    } else if (keyNames.toSeq != other.keyNames.toSeq) {
+      println(
+        s"""different key names:
+           | left: ${ keyNames.mkString(", ") }
+           | right: ${ other.keyNames.mkString(", ") }
+           |""".stripMargin)
       false
     } else {
       val thisFieldNames = valueNames
@@ -175,7 +183,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     (t, f2)
   }
 
-  def annotate(cond: String, keysStr: String): KeyTable = {
+  def annotate(cond: String): KeyTable = {
     val ec = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
 
     val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
@@ -190,8 +198,6 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val inserters = inserterBuilder.result()
 
-    val keys = Parser.parseIdentifierList(keysStr)
-
     val nFieldsLocal = nFields
 
     val annotF: Annotation => Annotation = { a =>
@@ -203,7 +209,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
         }
     }
 
-    KeyTable(mapAnnotations(annotF), finalSignature, keys)
+    KeyTable(mapAnnotations(annotF), finalSignature, keyNames)
   }
 
   def filter(p: (Annotation, Annotation) => Boolean): KeyTable =

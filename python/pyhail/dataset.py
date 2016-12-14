@@ -11,6 +11,16 @@ class VariantDataset(object):
     def _raise_py4j_exception(self, e):
         self.hc._raise_py4j_exception(e)
 
+    def sample_ids(self):
+        """Return sampleIDs.
+
+        :return: List of sample IDs.
+
+        :rtype: list of str
+        """
+
+        return list(self.jvds.sampleIdsAsArray())
+
     def aggregate_by_key(self, key_code, agg_code):
         """Aggregate by user-defined key and aggregation expressions.
         Equivalent of a group-by operation in SQL.

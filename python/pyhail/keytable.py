@@ -118,22 +118,15 @@ class KeyTable(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def annotate(self, code, key_names=''):
+    def annotate(self, code):
         """Add fields to key-table.
 
         :param str code: Annotation expression.
 
-        :param key_names: field names to be treated as a key
-        :type key_names: str or list of str
-
         :rtype: :class:`.KeyTable`
         """
         try:
-            if isinstance(key_names, list):
-                key_names = ",".join(key_names)
-
-            return KeyTable(self.hc, self.jkt.annotate(code, key_names))
-
+            return KeyTable(self.hc, self.jkt.annotate(code))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
