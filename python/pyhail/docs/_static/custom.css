@@ -34,4 +34,40 @@ table.field-list th {
     margin-top: 35px;
 }
 
+blockquote {
+    font-size: 14px;
+    padding: 10px;
+}
+
+blockquote ul.simple {
+    margin-top: 0px;
+}
+
+blockquote ul.simple li {
+    margin-bottom: 10px;
+}
+
+blockquote ul.simple li:last-child {
+    margin-bottom: 0px;
+}
+
+div.highlight pre {
+    margin-left: 0px;
+    padding-left: 30px;
+}
+
+dl.class dt {
+    background: #d4d7e8;
+    padding: 6px;
+    border-radius: 3px;
+}
+
+dl.method dt {
+    background: #e7f2fa;
+    padding: 6px;
+    border-radius: 3px;
+}
+
+
+
 
