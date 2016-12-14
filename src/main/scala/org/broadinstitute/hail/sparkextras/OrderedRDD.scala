@@ -315,7 +315,11 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
   log.info(s"partitions: ${ rdd.partitions.length }, ${ orderedPartitioner.rangeBounds.length }")
 
-  assert(orderedPartitioner.numPartitions == rdd.partitions.length)
+  assert(orderedPartitioner.numPartitions == rdd.partitions.length,
+    s"""mismatch between partitioner and rdd partition count
+        |  rdd partitions: ${ rdd.partitions.length }
+        |  partitioner n:  ${ orderedPartitioner.numPartitions }""".stripMargin
+  )
 
   override val partitioner: Option[Partitioner] = Some(orderedPartitioner)
 
