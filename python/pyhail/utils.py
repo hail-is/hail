@@ -3,7 +3,7 @@ from py4j.protocol import Py4JJavaError
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
 
-    :param bool noheader: File has no header and columns should be indicated by `_1, _2, ... _N' (0-indexed)
+    :param bool noheader: File has no header and columns the N columns are named ``_1``, ``_2``, ... ``_N`` (0-indexed)
 
     :param bool impute: Impute column types from the file
 

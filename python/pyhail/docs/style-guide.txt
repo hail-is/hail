@@ -1,0 +1,32 @@
+
+ - Code examples should use triple > so we eventually run them as part
+   of the tests:
+
+::
+
+ >>> ...
+
+Code examples should assume input data files are in data/.
+
+ - Put short python expressions or code snippets and Hail expressions
+   in double-``.
+
+ - Use :param:, :rtype: (if not None), :return:, and they should go at end.
+
+ - links: `this is a description <with a url>`_.
+
+ - subsections: use **, we'll look into something better
+
+ - For commands that create annotations, have "Annotations" section
+   that lists the annotations.  Use a bulleted list with the following
+   format:
+
+     - **annotation** (*Type*) -- description
+
+   in analog with the :param: section.
+
+ - rough outline for VariantDataset methods:
+
+short description
+examples
+discussion
