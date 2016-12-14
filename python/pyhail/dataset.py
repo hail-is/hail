@@ -1126,7 +1126,7 @@ class VariantDataset(object):
           1:1:A:T	GT:GQ	0/1:99	./.	0/0:99
           1:2:G:C	GT:GQ	0/1:89	0/1:99	1/1:93
 
-        Then:
+        Then::
 
           vds.make_keytable('v = v', 'gt = g.gt', gq = g.gq', [])
 
