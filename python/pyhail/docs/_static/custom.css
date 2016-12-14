@@ -13,6 +13,14 @@ div.body h1 {
   font-size: 2.5em;
 }
 
+div.body h2 {
+  font-family: Georgia, Palatino, 'Palatino Linotype', Times, 'Times New Roman', serif;
+  color: #111;
+  line-height: 125%;
+  font-weight: normal;
+  font-size: 2em;
+}
+
 table.field-list td {
    padding: 10px;
 }
