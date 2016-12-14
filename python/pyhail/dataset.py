@@ -1140,7 +1140,7 @@ class VariantDataset(object):
           B.gq: Int
           C.gq: Int
 
-        in particular, the values would be:
+        in particular, the values would be::
 
           v	A.gt	B.gt	C.gt	A.gq	B.gq	C.gq
           1:1:A:T	1	NA	0	99	NA	99
