@@ -265,7 +265,7 @@ class KeyTable(object):
         :param key_names: List of fields to be used as keys.
         :type key_names: list of str
 
-        :return: A ``KeyTable`` whose key fields are givne by
+        :return: A ``KeyTable`` whose key fields are given by
           ``key_names``.
 
         :rtype: KeyTable
@@ -360,7 +360,7 @@ class KeyTable(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def toDF(self, expand=True, flatten=True):
+    def to_dataframe(self, expand=True, flatten=True):
         """Converts this KeyTable to a Spark DataFrame.
 
         :param bool expand: If true, expand_types before converting to

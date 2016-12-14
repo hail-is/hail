@@ -1128,7 +1128,8 @@ class VariantDataset(object):
 
         Then::
 
-          vds.make_keytable('v = v', 'gt = g.gt', gq = g.gq', [])
+          >>> vds = hc.import_vcf('data/sample.vcf')
+          >>> vds.make_keytable('v = v', 'gt = g.gt', gq = g.gq', [])
 
         returns a ``KeyTable`` with schema::
 

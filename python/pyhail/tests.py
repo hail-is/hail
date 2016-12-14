@@ -299,4 +299,4 @@ class ContextTests(unittest.TestCase):
         kt.flatten()
         kt.expand_types()
 
-        kt.toDF()
+        kt.to_dataframe()
