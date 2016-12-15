@@ -1,5 +1,6 @@
 from pyhail.java import scala_package_object, jarray
 from pyhail.keytable import KeyTable
+from pyhail.utils import TextTableConfig
 
 from py4j.protocol import Py4JJavaError
 
@@ -111,7 +112,7 @@ class VariantDataset(object):
             pargs.append('--as-set')
         return self.hc.run_command(self, pargs)
 
-    def annotate_global_table(self, input, root, impute=False):
+    def annotate_global_table(self, input, root, config=None):
         """Load delimited text file (text table) into global annotations as
         Array[Struct].
 
@@ -119,13 +120,18 @@ class VariantDataset(object):
 
         :param str root: Global annotation path to store text table.
 
-        :param str impute: Impute column types from the file.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         """
 
         pargs = ['annotateglobal', 'table', '-i', input, '-r', root]
-        if impute:
-            pargs.append('--impute')
+
+        if not config:
+            config = TextTableConfig()
+
+        pargs.extend(config.as_pargs())
+
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_expr(self, condition):
@@ -179,8 +185,7 @@ class VariantDataset(object):
         pargs = ['annotatesamples', 'list', '-i', input, '-r', root]
         return self.hc.run_command(self, pargs)
 
-    def annotate_samples_table(self, input, sample_expr, root=None, code=None,
-                               types=None, missing='NA', impute=False):
+    def annotate_samples_table(self, input, sample_expr, root=None, code=None, config=None):
         """Annotate samples with delimited text file (text table).
 
         :param str input: Path to delimited text file.
@@ -191,7 +196,8 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
-        :param str impute: Impute column types from the file.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         """
 
@@ -202,13 +208,12 @@ class VariantDataset(object):
         if code:
             pargs.append('--code')
             pargs.append(code)
-        if types:
-            pargs.append('--types')
-            pargs.append(types)
-        pargs.append('--missing')
-        pargs.append(missing)
-        if impute:
-            pargs.append('--impute')
+
+        if not config:
+            config = TextTableConfig()
+
+        pargs.extend(config.as_pargs())
+
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_vds(self, right, root=None, code=None):
@@ -271,11 +276,11 @@ class VariantDataset(object):
             pargs.append('--all')
         return self.hc.run_command(self, pargs)
 
-    def annotate_variants_loci(self, path, locus_expr, root=None, code=None, impute=False):
+    def annotate_variants_loci(self, path, locus_expr, root=None, code=None, config=None):
         """Annotate variants from an delimited text file (text table) indexed
         by loci.
 
-        :param str input: Path to delimited text file.
+        :param str path: Path to delimited text file.
 
         :param str locus_expr: Expression for locus (key).
 
@@ -283,7 +288,8 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
-        :param str impute: Impute column types from the file.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         """
 
@@ -297,8 +303,10 @@ class VariantDataset(object):
             pargs.append('--code')
             pargs.append(code)
 
-        if impute:
-            pargs.append('--impute')
+        if not config:
+            config = TextTableConfig()
+
+        pargs.extend(config.as_pargs())
 
         if isinstance(path, str):
             pargs.append(path)
@@ -308,7 +316,7 @@ class VariantDataset(object):
 
         return self.hc.run_command(self, pargs)
 
-    def annotate_variants_table(self, path, variant_expr, root=None, code=None, impute=False):
+    def annotate_variants_table(self, path, variant_expr, root=None, code=None, config=None):
         """Annotate variant with delimited text file (text table).
 
         :param path: Path to delimited text files.
@@ -320,7 +328,8 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
-        :param str impute: Impute column types from the file.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         """
 
@@ -334,8 +343,10 @@ class VariantDataset(object):
             pargs.append('--code')
             pargs.append(code)
 
-        if impute:
-            pargs.append('--impute')
+        if not config:
+            config = TextTableConfig()
+
+        pargs.extend(config.as_pargs())
 
         if isinstance(path, str):
             pargs.append(path)

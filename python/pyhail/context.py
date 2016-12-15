@@ -103,10 +103,7 @@ class HailContext(object):
 
         self.run_command(None, pargs)
 
-    def import_annotations_table(self, path, variant_expr, code=None, npartitions=None,
-                                 # text table options
-                                 types=None, missing="NA", delimiter="\\t", comment=None,
-                                 header=True, impute=False):
+    def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=None):
         """Import variants and variant annotations from a delimited text file
         (text table) as a sites-only VariantDataset.
 
@@ -122,21 +119,8 @@ class HailContext(object):
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
-        :param str types: Type declarations for the fields of the text
-            table.
-
-        :param str missing: The string used to denote missing values.
-
-        :param str delimiter: Field delimiter regex.
-
-        :param comment: Skip lines starting with the given regex.
-        :type comment: str or None
-
-        :param bool header: If True, the first line is treated as the
-            header line.  If False, the columns are named _0, _1, ...,
-            _N (0-indexed).
-
-        :param bool impute: If True, impute column types.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         :rtype: :class:`.VariantDataset`
         """
@@ -159,24 +143,10 @@ class HailContext(object):
             pargs.append('--npartition')
             pargs.append(npartitions)
 
-        if types:
-            pargs.append('--types')
-            pargs.append(types)
+        if not config:
+            config = TextTableConfig()
 
-        pargs.append('--missing')
-        pargs.append(missing)
-
-        pargs.append('--delimiter')
-        pargs.append(delimiter)
-
-        if comment:
-            pargs.append('--comment')
-            pargs.append(comment)
-
-        if not header:
-            pargs.append('--no-header')
-        if impute:
-            pargs.append('--impute')
+        pargs.extend(config.as_pargs())
 
         return self.run_command(None, pargs)
 

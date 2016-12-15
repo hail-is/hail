@@ -185,17 +185,15 @@ class ContextTests(unittest.TestCase):
                   .annotate_samples_table(test_resources + '/regressionLinear.cov',
                                           'Sample',
                                           root = 'sa.cov',
-                                          types = 'Cov1: Double, Cov2: Double')
+                                          config=TextTableConfig(types='Cov1: Double, Cov2: Double'))
                   .annotate_samples_table(test_resources + '/regressionLinear.pheno',
                                           'Sample',
                                           code = 'sa.pheno.Pheno = table.Pheno',
-                                          types = 'Pheno: Double',
-                                          missing = '0')
+                                          config=TextTableConfig(types='Pheno: Double', missing='0'))
                   .annotate_samples_table(test_resources + '/regressionLogisticBoolean.pheno',
                                           'Sample',
                                           code = 'sa.pheno.isCase = table.isCase',
-                                          types = 'isCase: Boolean',
-                                          missing = '0'))
+                                          config=TextTableConfig(types='isCase: Boolean', missing='0')))
 
         (linreg.linreg('sa.pheno.Pheno', covariates = 'sa.cov.Cov1, sa.cov.Cov2 + 1 - 1')
          .count())
