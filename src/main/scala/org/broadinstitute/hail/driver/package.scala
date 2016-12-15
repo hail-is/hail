@@ -5,12 +5,16 @@ import java.util.Properties
 
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
+import org.broadinstitute.hail.annotations.Annotation
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.VariantDataset
+import org.broadinstitute.hail.variant._
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 package object driver {
 
@@ -45,6 +49,67 @@ package object driver {
         (vds.nVariants, None)
 
     CountResult(vds.nSamples, nVariants, nCalled)
+  }
+
+  def makeKT(vds: VariantDataset, variantCondition: String, genotypeCondition: String, keyNames: Array[String]): KeyTable = {
+    val vSymTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature))
+    val vEC = EvalContext(vSymTab)
+    val vA = vEC.a
+
+    val (vNames, vTypes, vf) = Parser.parseNamedExprs(variantCondition, vEC)
+
+    val gSymTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, vds.saSignature),
+      "g" -> (4, TGenotype))
+    val gEC = EvalContext(gSymTab)
+    val gA = gEC.a
+
+    val (gNames, gTypes, gf) = Parser.parseNamedExprs(genotypeCondition, gEC)
+
+    val sig = TStruct(((vNames, vTypes).zipped ++
+      vds.sampleIds.flatMap { s =>
+        (gNames, gTypes).zipped.map { case (n, t) =>
+          (if (n.isEmpty)
+            s
+          else
+            s + "." + n, t)
+        }
+      }).toSeq: _*)
+
+    val localSampleIdsBc = vds.sampleIdsBc
+    val localSampleAnnotationsBc = vds.sampleAnnotationsBc
+
+    KeyTable(
+      vds.rdd.mapPartitions { it =>
+        val ab = mutable.ArrayBuilder.make[Any]
+
+        it.map { case (v, (va, gs)) =>
+          ab.clear()
+
+          vEC.setAll(v, va)
+          vf().foreach { x =>
+            ab += x.orNull
+          }
+
+          gs.iterator.zipWithIndex.foreach { case (g, i) =>
+            val s = localSampleIdsBc.value(i)
+            val sa = localSampleAnnotationsBc.value(i)
+            gEC.setAll(v, va, s, sa, g)
+            gf().foreach { x =>
+              ab += x.orNull
+            }
+          }
+
+          Row.fromSeq(ab.result()): Annotation
+        }
+      },
+      sig,
+      keyNames)
   }
 
   def configureAndCreateSparkContext(appName: String, master: Option[String], local: String = "local[*]",

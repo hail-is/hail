@@ -117,6 +117,8 @@ case class AltAllele(ref: String,
     (ref, alt).zipped.dropWhile { case (a, b) => a == b }.head
   }
 
+  def toRow: Row = Row(ref, alt)
+
   def toJSON: JValue = JObject(
     ("ref", JString(ref)),
     ("alt", JString(alt))

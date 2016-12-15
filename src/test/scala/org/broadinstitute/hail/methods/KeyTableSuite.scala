@@ -42,9 +42,9 @@ class KeyTableSuite extends SparkSuite {
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val kt1 = KeyTable.importTextTable(sc, Array(inputFile), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
-    val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""", kt1.keyNames.mkString(","))
-    val kt3 = kt2.annotate("", kt2.keyNames.mkString(","))
-    val kt4 = kt3.annotate("", "qPhen, NotStatus")
+    val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
+    val kt3 = kt2.annotate("")
+    val kt4 = kt3.select(kt3.fieldNames, Array("qPhen", "NotStatus"))
 
     val kt1ValueNames = kt1.valueNames.toSet
     val kt2ValueNames = kt2.valueNames.toSet

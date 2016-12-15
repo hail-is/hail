@@ -1,7 +1,6 @@
-from pyhail.java import scala_package_object
+from pyhail.java import scala_package_object, jarray
 from pyhail.keytable import KeyTable
 
-import pyspark
 from py4j.protocol import Py4JJavaError
 
 class VariantDataset(object):
@@ -11,6 +10,16 @@ class VariantDataset(object):
 
     def _raise_py4j_exception(self, e):
         self.hc._raise_py4j_exception(e)
+
+    def sample_ids(self):
+        """Return sampleIDs.
+
+        :return: List of sample IDs.
+
+        :rtype: list of str
+        """
+
+        return list(self.jvds.sampleIdsAsArray())
 
     def aggregate_by_key(self, key_code, agg_code):
         """Aggregate by user-defined key and aggregation expressions.
@@ -1195,19 +1204,81 @@ class VariantDataset(object):
             pargs.append('--csq')
         return self.hc.run_command(self, pargs)
 
-    def variants_to_pandas(self):
-        """Convert variants and variant annotations to Pandas dataframe."""
+    def variants_keytable(self):
+        """Convert variants and variant annotations to a KeyTable."""
 
         try:
-            return pyspark.sql.DataFrame(self.jvds.variantsDF(self.hc.jsql_context),
-                                         self.hc.sql_context).toPandas()
+            return KeyTable(self.hc, self.jvds.variantsKT())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def samples_to_pandas(self):
-        """Convert samples and sample annotations to Pandas dataframe."""
+    def samples_keytable(self):
+        """Convert samples and sample annotations to KeyTable."""
+
         try:
-            return pyspark.sql.DataFrame(self.jvds.samplesDF(self.hc.jsql_context),
-                                         self.hc.sql_context).toPandas()
+            return KeyTable(self.hc, self.jvds.samplesKT())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
+
+    def make_keytable(self, variant_condition, genotype_condition, key_names):
+        """Make a KeyTable with one row per variant.
+
+        Per sample field names in the result are formed by concatening
+        the sample ID with the genotype_condition left hand side with
+        dot (.).  If the left hand side is empty::
+
+          `` = expr
+
+        then the dot (.) is ommited.
+
+        **Example**
+
+        Consider a ``VariantDataset`` ``vds`` with 2 variants and 3 samples::
+
+          Variant	FORMAT	A	B	C
+          1:1:A:T	GT:GQ	0/1:99	./.	0/0:99
+          1:2:G:C	GT:GQ	0/1:89	0/1:99	1/1:93
+
+        Then::
+
+          >>> vds = hc.import_vcf('data/sample.vcf')
+          >>> vds.make_keytable('v = v', 'gt = g.gt', gq = g.gq', [])
+
+        returns a ``KeyTable`` with schema::
+
+          v: Variant
+          A.gt: Int
+          B.gt: Int
+          C.gt: Int
+          A.gq: Int
+          B.gq: Int
+          C.gq: Int
+
+        in particular, the values would be::
+
+          v	A.gt	B.gt	C.gt	A.gq	B.gq	C.gq
+          1:1:A:T	1	NA	0	99	NA	99
+          1:2:G:C	1	1	2	89	99	93
+
+        :param variant_condition: Variant annotation expressions.
+        :type variant_condition: str or list of str
+
+        :param genotype_condition: Genotype annotation expressions.
+        :type genotype_condition: str or list of str
+
+        :param key_names: list of key columns
+        :type key_names: list of str
+
+        :rtype: KeyTable
+
+        """
+        
+        if isinstance(variant_condition, list):
+            variant_condition = ','.join(variant_condition)
+        if isinstance(genotype_condition, list):
+            genotype_condition = ','.join(genotype_condition)
+
+        jkt = (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+               .makeKT(self.jvds, variant_condition, genotype_condition,
+                       jarray(self.hc.gateway, self.hc.jvm.java.lang.String, key_names)))
+        return KeyTable(self.hc, jkt)

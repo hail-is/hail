@@ -2,9 +2,9 @@ package org.broadinstitute.hail.keytable
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.methods.{Aggregators, Filter}
 import org.broadinstitute.hail.utils._
@@ -73,6 +73,14 @@ object KeyTable extends Serializable with TextExporter {
 
     KeyTable(newRDD, newKeySignature, newValueSignature)
   }
+
+  def fromDF(df: DataFrame, keyNames: Array[String]): KeyTable = {
+    val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
+    KeyTable(df.rdd.map { r =>
+      SparkAnnotationImpex.importAnnotation(r, signature)
+    },
+      signature, keyNames)
+  }
 }
 
 case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, valueSignature: TStruct) {
@@ -103,11 +111,19 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def nValues = valueSignature.size
 
   def same(other: KeyTable): Boolean = {
-    if (fields.toSet != other.fields.toSet) {
-      println(s"signature: this=${ schema } other=${ other.schema }")
+    if (signature != other.signature) {
+      println(
+        s"""different signatures:
+           | left: ${ signature.toPrettyString() }
+           | right: ${ other.signature.toPrettyString() }
+           |""".stripMargin)
       false
-    } else if (keyNames.toSet != other.keyNames.toSet) {
-      println(s"keyNames: this=${ keyNames.mkString(",") } other=${ other.keyNames.mkString(",") }")
+    } else if (keyNames.toSeq != other.keyNames.toSeq) {
+      println(
+        s"""different key names:
+           | left: ${ keyNames.mkString(", ") }
+           | right: ${ other.keyNames.mkString(", ") }
+           |""".stripMargin)
       false
     } else {
       val thisFieldNames = valueNames
@@ -167,7 +183,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     (t, f2)
   }
 
-  def annotate(cond: String, keysStr: String): KeyTable = {
+  def annotate(cond: String): KeyTable = {
     val ec = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
 
     val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
@@ -182,8 +198,6 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val inserters = inserterBuilder.result()
 
-    val keys = Parser.parseIdentifierList(keysStr)
-
     val nFieldsLocal = nFields
 
     val annotF: Annotation => Annotation = { a =>
@@ -195,7 +209,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
         }
     }
 
-    KeyTable(mapAnnotations(annotF), finalSignature, keys)
+    KeyTable(mapAnnotations(annotF), finalSignature, keyNames)
   }
 
   def filter(p: (Annotation, Annotation) => Boolean): KeyTable =
@@ -355,40 +369,50 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val ec = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
 
-    // FIXME
-    val (names, types, f) = Parser.parseExportExprs(fieldNames.map(n => n + " = " + n).mkString(","), ec)
-
     Option(typesFile).foreach { file =>
-      val typeInfo = names
-        .getOrElse(types.indices.map(i => s"_$i").toArray)
-        .zip(types)
-
-      KeyTable.exportTypes(file, hConf, typeInfo)
+      KeyTable.exportTypes(file, hConf, fields.map(f => (f.name, f.`type`)).toArray)
     }
 
     hConf.delete(output, recursive = true)
 
-    val nKeysLocal = nKeys
-    val nValuesLocal = nValues
+    val localNFields = nFields
+    val localTypes = fields.map(_.`type`)
 
-    rdd
+    KeyTable.toSingleRDD(rdd, nKeys, nValues)
       .mapPartitions { it =>
         val sb = new StringBuilder()
-        it.map { case (k, v) =>
+        val nulls: Seq[Any] = Array.fill[Annotation](localNFields)(null)
+
+        it.map { r =>
           sb.clear()
-          KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
-          f().foreachBetween(x => sb.append(x))(sb += '\t')
+
+          val r2 =
+            if (r == null)
+              nulls
+            else
+              r.asInstanceOf[Row].toSeq
+          assert(r2.length == localTypes.length)
+
+          r2.zip(localTypes)
+            .foreachBetween { case (x, t) =>
+              sb.append(t.str(x))
+            }(sb += '\t')
+
           sb.result()
         }
-      }.writeTable(output, names.map(_.mkString("\t")))
+      }.writeTable(output, Some(fields.map(_.name).mkString("\t")))
   }
 
   def aggregate(keyCond: String, aggCond: String): KeyTable = {
 
-    val aggregationST = fields.zipWithIndex.map { case (fd, i) => (fd.name, (i, fd.`type`)) }.toMap
+    val aggregationST = fields.zipWithIndex.map {
+      case (fd, i) => (fd.name, (i, fd.`type`))
+    }.toMap
 
     val keyEC = EvalContext(aggregationST)
-    val ec = EvalContext(fields.zipWithIndex.map { case (fd, i) => (fd.name, (i, TAggregable(fd.`type`, aggregationST))) }.toMap)
+    val ec = EvalContext(fields.zipWithIndex.map {
+      case (fd, i) => (fd.name, (i, TAggregable(fd.`type`, aggregationST)))
+    }.toMap)
 
     val (keyPaths, keyTypes, keyF) = Parser.parseAnnotationExprs(keyCond, keyEC, None)
 
@@ -397,27 +421,72 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val keyNames = keyPaths.map(_.head)
     val aggNames = aggPaths.map(_.head)
 
-    val keySignature = TStruct((keyNames, keyTypes).zipped.map { case (n, t) => (n, t) }: _*)
-    val valueSignature = TStruct((aggNames, aggTypes).zipped.map { case (n, t) => (n, t) }: _*)
+    val keySignature = TStruct((keyNames, keyTypes).zipped.map {
+      case (n, t) => (n, t)
+    }: _*)
+    val valueSignature = TStruct((aggNames, aggTypes).zipped.map {
+      case (n, t) => (n, t)
+    }: _*)
 
     val localNFields = nFields
 
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
-      KeyTable.setEvalContext(ec, a, localNFields)
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
+      case (ec, a) =>
+        KeyTable.setEvalContext(ec, a, localNFields)
     })
 
-    val newRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).mapPartitions { it =>
-      it.map { a =>
-        KeyTable.setEvalContext(keyEC, a, localNFields)
-        val key = Annotation.fromSeq(keyF().map(_.orNull))
-        (key, a)
-      }
+    val newRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).mapPartitions {
+      it =>
+        it.map {
+          a =>
+            KeyTable.setEvalContext(keyEC, a, localNFields)
+            val key = Annotation.fromSeq(keyF().map(_.orNull))
+            (key, a)
+        }
     }.aggregateByKey(zVals)(seqOp, combOp)
-      .map { case (k, agg) =>
-        resultOp(agg)
-        (k, Annotation.fromSeq(aggF().map(_.orNull)))
+      .map {
+        case (k, agg) =>
+          resultOp(agg)
+          (k, Annotation.fromSeq(aggF().map(_.orNull)))
       }
 
     KeyTable(newRDD, keySignature, valueSignature)
+  }
+
+  def expandTypes(): KeyTable = {
+    val localKeySignature = keySignature
+    val localValueSignature = valueSignature
+
+    val expandedKeySignature = Annotation.expandType(keySignature).asInstanceOf[TStruct]
+    val expandedValueSignature = Annotation.expandType(valueSignature).asInstanceOf[TStruct]
+
+    KeyTable(rdd.map {
+      case (k, v) =>
+        (Annotation.expandAnnotation(k, localKeySignature),
+          Annotation.expandAnnotation(v, localValueSignature))
+    },
+      expandedKeySignature,
+      expandedValueSignature)
+  }
+
+  def flatten(): KeyTable = {
+    val localKeySignature = keySignature
+    val localValueSignature = valueSignature
+    KeyTable(rdd.map {
+      case (k, v) =>
+        (Annotation.flattenAnnotation(k, localKeySignature),
+          Annotation.flattenAnnotation(v, localValueSignature))
+    },
+      Annotation.flattenType(keySignature).asInstanceOf[TStruct],
+      Annotation.flattenType(valueSignature).asInstanceOf[TStruct])
+  }
+
+  def toDF(sqlContext: SQLContext): DataFrame = {
+    val localSignature = signature
+    sqlContext.createDataFrame(KeyTable.toSingleRDD(rdd, nKeys, nValues)
+      .map {
+        a => SparkAnnotationImpex.exportAnnotation(a, localSignature).asInstanceOf[Row]
+      },
+      schema.asInstanceOf[StructType])
   }
 }

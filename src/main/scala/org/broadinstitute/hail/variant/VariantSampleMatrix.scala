@@ -23,6 +23,7 @@ import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.methods.{Aggregators, Filter}
 import org.broadinstitute.hail.utils
 
+import scala.collection.mutable
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -330,6 +331,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) {
 
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
+
+  def sampleIdsAsArray: Array[String] = sampleIds.toArray
 
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
@@ -963,32 +966,26 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
 
-  def variantsDF(sqlContext: SQLContext): DataFrame = {
+  def variantsKT(): KeyTable = {
     val localVASignature = vaSignature
-
-    val rowRDD = rdd.map { case (v, (va, gs)) =>
-      Row(v.toRow,
-        SparkAnnotationImpex.exportAnnotation(va, localVASignature))
-    }
-
-    val schema = StructType(Array(
-      StructField("variant", Variant.schema, nullable = false),
-      StructField("va", vaSignature.schema, nullable = true)))
-
-    sqlContext.createDataFrame(rowRDD, schema)
+    KeyTable(rdd.map { case (v, (va, gs)) =>
+      Annotation(v, va)
+    },
+      TStruct(
+        "v" -> TVariant,
+        "va" -> vaSignature),
+      Array("v"))
   }
 
-  def samplesDF(sqlContext: SQLContext): DataFrame = {
-    val rowRDD = sparkContext.parallelize(
-      sampleIdsAndAnnotations.map { case (s, sa) =>
-        Row(s, SparkAnnotationImpex.exportAnnotation(sa, saSignature))
-      })
-    val schema = StructType(Array(
-      StructField("sample", StringType, nullable = false),
-      StructField("sa", saSignature.schema, nullable = true)
-    ))
-
-    sqlContext.createDataFrame(rowRDD, schema)
+  def samplesKT(): KeyTable = {
+    KeyTable(sparkContext.parallelize(sampleIdsAndAnnotations)
+      .map { case (s, sa) =>
+        Annotation(s, sa)
+      },
+      TStruct(
+        "s" -> TSample,
+        "sa" -> saSignature),
+      Array("s"))
   }
 }
 

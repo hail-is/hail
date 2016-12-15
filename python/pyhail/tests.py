@@ -196,34 +196,56 @@ class ContextTests(unittest.TestCase):
                                           code = 'sa.pheno.isCase = table.isCase',
                                           types = 'isCase: Boolean',
                                           missing = '0'))
-        
+
         (linreg.linreg('sa.pheno.Pheno', covariates = 'sa.cov.Cov1, sa.cov.Cov2 + 1 - 1')
          .count())
-        
+
         (linreg.logreg('wald', 'sa.pheno.isCase', covariates = 'sa.cov.Cov1, sa.cov.Cov2 + 1 - 1')
          .count())
-        
+
         sample_split.mendel_errors('/tmp/sample.mendel', test_resources + '/sample.fam')
-        
+
         sample_split.pca('sa.scores')
-        
+
         self.assertTrue(
             (sample2.repartition(16, shuffle = False)
              .same(sample2)))
 
         sample2.sparkinfo()
-        
+
         sample_split.tdt(test_resources + '/sample.fam')
-        
+
         sample2.typecheck()
 
         sample2_split.variant_qc().print_schema()
-        
-        sample2.variants_to_pandas()
+
+        sample2.export_variants('/tmp/variants.tsv', 'v = v, va = va')
+        self.assertTrue((sample2.variants_keytable()
+                         .annotate('va = json(va)'))
+                        .same(hc.import_keytable('/tmp/variants.tsv', ['v'], config = TextTableConfig(impute = True))))
+
+        sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
+        self.assertTrue((sample2.samples_keytable()
+                         .annotate('s = s.id, sa = json(sa)'))
+                        .same(hc.import_keytable('/tmp/samples.tsv', ['s'], config = TextTableConfig(impute = True))))
+
+        cols = ['v = v, info = va.info']
+        for s in sample2.sample_ids():
+            cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s = s))
+
+        (sample2
+         .annotate_variants_expr('va.G = index(gs.map(g => { s: s.id, gt: g.gt, gq: g.gq }).collect(), s)')
+         .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
+
+        ((sample2
+          .make_keytable('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
+         .same(hc.import_keytable('/tmp/sample_kt.tsv', ['v'])))
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet).count()")
-
-        kt = sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
+        
+        sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
+        
+        sample2.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
@@ -249,7 +271,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(ktcase.same(ktcase2))
 
         # Annotate
-        (kt.annotate('X = Status', 'Sample, Status')
+        (kt.annotate('X = Status')
          .nrows())
 
         # Join
@@ -263,6 +285,7 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(kt.forall('Status == "CASE"'))
         self.assertTrue(kt.exists('Status == "CASE"'))
 
+
         kt.rename({"Sample": "ID"})
         kt.rename(["Field1", "Field2", "Field3"])
         kt.rename([name + "_a" for name in kt.field_names()])
@@ -272,3 +295,8 @@ class ContextTests(unittest.TestCase):
 
         kt.key_by(['Sample', 'Status'])
         kt.key_by([])
+
+        kt.flatten()
+        kt.expand_types()
+
+        kt.to_dataframe()

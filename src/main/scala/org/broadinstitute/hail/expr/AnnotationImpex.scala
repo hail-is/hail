@@ -8,9 +8,6 @@ import org.broadinstitute.hail.utils.Interval
 import org.broadinstitute.hail.variant.{AltAllele, Genotype, Locus, Sample, Variant}
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
-import scala.collection.JavaConverters._
-
-
 
 abstract class AnnotationImpex[T, A] {
   // FIXME for now, schema must be specified on import
