@@ -380,8 +380,8 @@ class VariantDataset(object):
 
         result = self.hc.jvm.org.broadinstitute.hail.driver.Concordance.calculate(
             self.jvds, right.jvds)
-        return (VariantDataset(self.hc, result._1),
-                VariantDataset(self.hc, result._2))
+        return (VariantDataset(self.hc, result._1()),
+                VariantDataset(self.hc, result._2()))
 
     def count(self, genotypes=False):
         """Return number of samples, varaints and genotypes.
