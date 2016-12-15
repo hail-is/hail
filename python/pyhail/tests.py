@@ -131,8 +131,8 @@ class ContextTests(unittest.TestCase):
          .count())
         
         (concordance1, concordance2) = (sample2_split.concordance(sample2_split))
-        concordance1.write('/tmp/foo.vds')
-        concordance2.write('/tmp/foo.vds')
+        concordance1.write('/tmp/foo.vds', overwrite = True)
+        concordance2.write('/tmp/foo.vds', overwrite = True)
 
         downsampled = sample2.downsample_variants(20)
         downsampled.export_variants('/tmp/sample2_loci.tsv', 'chr = v.contig, pos = v.start')
