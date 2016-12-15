@@ -81,6 +81,8 @@ object ExportVariantsCass extends Command {
       usage = "drop and re-create cassandra table before exporting")
     var drop: Boolean = false
 
+    @Args4jOption(name = "--block-size", usage = "Variants per SolrClient.add")
+    var blockSize = 100
   }
 
   def newOptions = new Options
@@ -180,34 +182,34 @@ object ExportVariantsCass extends Command {
     // get keyspace (create it if it doesn't exist)
     var keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
     if (keyspaceMetadata == null) {
-      info(s"creating keyspace ${keyspace}")
+      info(s"creating keyspace ${ keyspace }")
       try {
-        session.execute(s"CREATE KEYSPACE ${keyspace} " +
+        session.execute(s"CREATE KEYSPACE ${ keyspace } " +
           "WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true")
       } catch {
-        case e: Exception => fatal(s"exportvariantscass: unable to create keyspace ${keyspace}: ${e}")
+        case e: Exception => fatal(s"exportvariantscass: unable to create keyspace ${ keyspace }: ${ e }")
       }
       keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
     }
 
     // get table (drop and create it if necessary)
-    if(drop) {
-      info(s"dropping table ${qualifiedTable}")
+    if (drop) {
+      info(s"dropping table ${ qualifiedTable }")
       try {
         session.execute(SchemaBuilder.dropTable(keyspace, table).ifExists());
       } catch {
-        case e: Exception => warn(s"exportvariantscass: unable to drop table ${qualifiedTable}: ${e}")
+        case e: Exception => warn(s"exportvariantscass: unable to drop table ${ qualifiedTable }: ${ e }")
       }
     }
 
     var tableMetadata = keyspaceMetadata.getTable(table)
     if (tableMetadata == null) {
-      info(s"creating table ${qualifiedTable}")
+      info(s"creating table ${ qualifiedTable }")
       try {
         session.execute(s"CREATE TABLE $qualifiedTable (${escapeString("dataset_id")} text, chrom text, start int, ref text, alt text, " +
           s"PRIMARY KEY ((${escapeString("dataset_id")}, chrom, start), ref, alt))") // WITH COMPACT STORAGE")
       } catch {
-        case e: Exception => fatal(s"exportvariantscass: unable to create table ${qualifiedTable}: ${e}")
+        case e: Exception => fatal(s"exportvariantscass: unable to create table ${ qualifiedTable }: ${ e }")
       }
       //info(s"table ${qualifiedTable} created")
       tableMetadata = keyspaceMetadata.getTable(table)
@@ -227,46 +229,50 @@ object ExportVariantsCass extends Command {
 
     val sampleIdsBc = sc.broadcast(vds.sampleIds)
     val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
+    val localBlockSize = options.blockSize
 
     val futures = vds.rdd
       .foreachPartition { it =>
         val session = CassandraStuff.getSession(address)
-
         val nb = mutable.ArrayBuilder.make[String]
         val vb = mutable.ArrayBuilder.make[AnyRef]
 
-        val futures = it
-          .map { case (v, (va, gs)) =>
-            nb.clear()
-            vb.clear()
+        it
+          .grouped(localBlockSize)
+          .foreach { block =>
+            val futures = block
+              .map { case (v, (va, gs)) =>
+                nb.clear()
+                vb.clear()
 
-            vEC.setAll(v, va)
-            vf().zipWithIndex.foreach { case (a, i) =>
-              nb += s""""${ escapeString(vNames(i)) }""""
-              vb += toCassValue(a, vTypes(i))
-            }
-
-            gs.iterator.zipWithIndex.foreach { case (g, i) =>
-              val s = sampleIdsBc.value(i)
-              val sa = sampleAnnotationsBc.value(i)
-              if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
-                gEC.setAll(v, va, s, sa, g)
-                gf().zipWithIndex.foreach { case (a, j) =>
-                  nb += s""""${ escapeString(s) }__${ escapeString(gHeader(j)) }""""
-                  vb += toCassValue(a, gTypes(j))
+                vEC.setAll(v, va)
+                vf().zipWithIndex.foreach { case (a, i) =>
+                  nb += s""""${ escapeString(vNames(i)) }""""
+                  vb += toCassValue(a, vTypes(i))
                 }
+
+                gs.iterator.zipWithIndex.foreach { case (g, i) =>
+                  val s = sampleIdsBc.value(i)
+                  val sa = sampleAnnotationsBc.value(i)
+                  if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
+                    gEC.setAll(v, va, s, sa, g)
+                    gf().zipWithIndex.foreach { case (a, j) =>
+                      nb += s""""${ escapeString(s) }__${ escapeString(gHeader(j)) }""""
+                      vb += toCassValue(a, gTypes(j))
+                    }
+                  }
+                }
+
+                val names = nb.result()
+                val values = vb.result()
+
+                session.executeAsync(QueryBuilder
+                  .insertInto(keyspace, table)
+                  .values(names, values))
               }
-            }
 
-            val names = nb.result()
-            val values = vb.result()
-
-            session.executeAsync(QueryBuilder
-              .insertInto(keyspace, table)
-              .values(names, values))
+            futures.foreach(_.getUninterruptibly())
           }
-
-        futures.foreach(_.getUninterruptibly())
 
         CassandraStuff.disconnect()
       }
