@@ -30,7 +30,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - str: `str(i)` -- returns `i` as a string
 
  - Numerical operations:
-     - +, -, /, *, %: `a + b - c / d * e % f`
+     - +, -, /, *, %: `a + b - c / d * e % f`.  `/` converts its arguments to Double, so `1 / 2` equals `0.5`
      - abs: `i.abs` -- returns the absolute value of `i`
      - signum: `i.signum` -- returns the sign of `i` (1, 0, or -1)
      - min: `i.min(j)` -- returns the minimum of `i` and `j`
