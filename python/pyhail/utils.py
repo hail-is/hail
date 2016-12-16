@@ -16,9 +16,10 @@ class TextTableConfig(object):
 
     :param types: Define types of fields in annotations files   
     :type types: str or None
+
     """
     def __init__(self, noheader=False, impute=False,
-                 comment=None, delimiter="\t", missing="NA", types=None):
+                 comment=None, delimiter="\\t", missing="NA", types=None):
         self.noheader = noheader
         self.impute = impute
         self.comment = comment
@@ -26,17 +27,30 @@ class TextTableConfig(object):
         self.missing = missing
         self.types = types
 
-    def __str__(self):
-        res = ["--comment", self.comment, "--delimiter", self.delimiter,
+    def as_pargs(self):
+        """Configuration parameters as a list"""
+
+        pargs = ["--delimiter", self.delimiter,
                "--missing", self.missing]
 
         if self.noheader:
-            res.append("--no-header")
+            pargs.append("--no-header")
 
         if self.impute:
-            res.append("--impute")
+            pargs.append("--impute")
 
-        return " ".join(res)
+        if self.types:
+            pargs.append("--types")
+            pargs.append(self.types)
+
+        if self.comment:
+            pargs.append("--comment")
+            pargs.append(self.comment)
+
+        return pargs
+
+    def __str__(self):
+        return " ".join(self.as_pargs())
 
     def to_java(self, hc):
         """Convert to Java TextTableConfiguration object.
