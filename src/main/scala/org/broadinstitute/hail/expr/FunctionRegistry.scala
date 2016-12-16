@@ -996,10 +996,16 @@ object FunctionRegistry {
   registerOrderedType[Double]()
   registerOrderedType[String]()
 
-  register("%", (x: Int, y: Int) => x % y)
-  register("%", (x: Long, y: Long) => x % y)
-  register("%", (x: Float, y: Float) => x % y)
-  register("%", (x: Double, y: Double) => x % y)
+  registerMethod("div", (x: Int, y: Int) => if ((x >= 0 && y > 0) || (x <= 0 && y < 0) || x % y == 0) x / y else x / y - 1)
+  registerMethod("div", (x: Long, y: Long) => if ((x >= 0 && y > 0) || (x <= 0 && y < 0) || x % y == 0) x / y else x / y - 1)
+  registerMethod("div", (x: Float, y: Float) => math.floor(x / y))
+  registerMethod("div", (x: Double, y: Double) => math.floor(x / y))
+
+  register("%", (x: Int, y: Int) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
+  register("%", (x: Long, y: Long) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
+  register("%", (x: Float, y: Float) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
+  register("%", (x: Double, y: Double) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
+
   register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
 
   register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined)
