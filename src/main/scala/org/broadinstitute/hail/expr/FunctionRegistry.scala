@@ -996,13 +996,13 @@ object FunctionRegistry {
   registerOrderedType[Double]()
   registerOrderedType[String]()
 
-  registerMethod("div", (x: Int, y: Int) => if ((x >= 0 && y > 0) || (x <= 0 && y < 0) || x % y == 0) x / y else x / y - 1)
-  registerMethod("div", (x: Long, y: Long) => if ((x >= 0 && y > 0) || (x <= 0 && y < 0) || x % y == 0) x / y else x / y - 1)
+  registerMethod("div", (x: Int, y: Int) => java.lang.Math.floorDiv(x, y))
+  registerMethod("div", (x: Long, y: Long) => java.lang.Math.floorDiv(x, y))
   registerMethod("div", (x: Float, y: Float) => math.floor(x / y))
   registerMethod("div", (x: Double, y: Double) => math.floor(x / y))
 
-  register("%", (x: Int, y: Int) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
-  register("%", (x: Long, y: Long) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
+  register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y))
+  register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x,y))
   register("%", (x: Float, y: Float) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
   register("%", (x: Double, y: Double) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
 
