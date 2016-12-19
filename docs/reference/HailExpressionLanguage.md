@@ -31,7 +31,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
 
  - Numerical operations:
      - +, -, /, *, %: `a + b - c / d * e % f`
-     - x // y: floor division, same as in Python, so `7 // 2` equals `3`, `-7 // 2` equals `-4`, and `1.0 // 2.0` equals `0.0`
+     - //: floor division `floor(x / y)` as in Python, so `7 // 2` is `3`, `-7 // 2` is `-4`, and `1.0 // 2.0` is `0.0`
      - abs: `i.abs` -- returns the absolute value of `i`
      - signum: `i.signum` -- returns the sign of `i` (1, 0, or -1)
      - min: `i.min(j)` -- returns the minimum of `i` and `j`
