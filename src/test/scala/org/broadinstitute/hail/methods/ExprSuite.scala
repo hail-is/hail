@@ -1,6 +1,5 @@
 package org.broadinstitute.hail.methods
 
-import org.apache.spark.SparkEnv
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.check.Prop._
@@ -100,10 +99,44 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("!gs.het.isHomRef").contains(true))
 
-    assert(eval[Boolean]("(1 / 2) == 0.5").contains(true))
-    assert(eval[Boolean]("(1.0 / 2.0) == 0.5").contains(true))
-    assert(eval[Boolean]("(1 / 2.0) == 0.5").contains(true))
-    assert(eval[Boolean]("(1.0 / 2) == 0.5").contains(true))
+    assert(eval[Boolean]("1 / 2 == 0.5").contains(true))
+    assert(eval[Boolean]("1.0 / 2.0 == 0.5").contains(true))
+    assert(eval[Boolean]("1 / 2.0 == 0.5").contains(true))
+    assert(eval[Boolean]("1.0 / 2 == 0.5").contains(true))
+
+    assert(eval[Boolean]("0 % 1 == 0").contains(true))
+    assert(eval[Boolean]("0 % -1 == 0").contains(true))
+    assert(eval[Boolean]("7 % 3 == 1").contains(true))
+    assert(eval[Boolean]("-7 % 3 == 2").contains(true))
+    assert(eval[Boolean]("7 % -3 == -2").contains(true))
+    assert(eval[Boolean]("-7 % -3 == -1").contains(true))
+    assert(eval[Boolean]("-6 % 3 == 0").contains(true))
+    assert(eval[Boolean]("6 % -3 == 0").contains(true))
+    assert(eval[Boolean]("-6 % -3 == 0").contains(true))
+
+    assert(eval[Boolean]("1.0 % 2.0 == 1.0").contains(true))
+    assert(eval[Boolean]("-1.0 % 2.0 == 1.0").contains(true))
+    assert(eval[Boolean]("1.0 % -2.0 == -1.0").contains(true))
+    assert(eval[Boolean]("-1.0 % -2.0 == -1.0").contains(true))
+
+    assert(eval[Boolean]("2.0 % 1.0 == 0.0").contains(true))
+    assert(eval[Boolean]("-2.0 % 1.0 == 0.0").contains(true))
+    assert(eval[Boolean]("2.0 % -1.0 == 0.0").contains(true))
+    assert(eval[Boolean]("-2.0 % -1.0 == 0.0").contains(true))
+
+    assert(eval[Boolean]("0 // 1 == 0").contains(true))
+    assert(eval[Boolean]("0 // -1 == 0").contains(true))
+    assert(eval[Boolean]("7 // 2 == 3").contains(true))
+    assert(eval[Boolean]("-7 // -2 == 3").contains(true))
+    assert(eval[Boolean]("-7 // 2 == -4").contains(true))
+    assert(eval[Boolean]("7 // -2 == -4").contains(true))
+    assert(eval[Boolean]("-6 // 2 == -3").contains(true))
+    assert(eval[Boolean]("6 // -2 == -3").contains(true))
+
+    assert(eval[Boolean]("1.0 // 2.0 == 0.0").contains(true))
+    assert(eval[Boolean]("-1.0 // 2.0 == -1.0").contains(true))
+    assert(eval[Boolean]("1.0 // -2.0 == -1.0").contains(true))
+    assert(eval[Boolean]("-1.0 // -2.0 == 0.0").contains(true))
 
     assert(eval[Boolean]("isMissing(gs.noCall.gt)").contains(true))
     assert(eval[Boolean]("gs.noCall.gt").isEmpty)

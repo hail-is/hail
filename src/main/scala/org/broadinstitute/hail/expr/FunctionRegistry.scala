@@ -996,10 +996,16 @@ object FunctionRegistry {
   registerOrderedType[Double]()
   registerOrderedType[String]()
 
-  register("%", (x: Int, y: Int) => x % y)
-  register("%", (x: Long, y: Long) => x % y)
-  register("%", (x: Float, y: Float) => x % y)
-  register("%", (x: Double, y: Double) => x % y)
+  registerMethod("//", (x: Int, y: Int) => java.lang.Math.floorDiv(x, y))
+  registerMethod("//", (x: Long, y: Long) => java.lang.Math.floorDiv(x, y))
+  registerMethod("//", (x: Float, y: Float) => math.floor(x / y).toFloat)
+  registerMethod("//", (x: Double, y: Double) => math.floor(x / y))
+
+  register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y))
+  register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x,y))
+  register("%", (x: Float, y: Float) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
+  register("%", (x: Double, y: Double) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
+
   register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
 
   register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined)
