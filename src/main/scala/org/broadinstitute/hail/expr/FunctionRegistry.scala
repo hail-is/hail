@@ -998,7 +998,7 @@ object FunctionRegistry {
 
   registerMethod("//", (x: Int, y: Int) => java.lang.Math.floorDiv(x, y))
   registerMethod("//", (x: Long, y: Long) => java.lang.Math.floorDiv(x, y))
-  registerMethod("//", (x: Float, y: Float) => math.floor(x / y))
+  registerMethod("//", (x: Float, y: Float) => math.floor(x / y).toFloat)
   registerMethod("//", (x: Double, y: Double) => math.floor(x / y))
 
   register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y))
