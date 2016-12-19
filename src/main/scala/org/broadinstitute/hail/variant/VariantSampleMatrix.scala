@@ -16,7 +16,7 @@ import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.vcf.BufferedLineIterator
 import org.broadinstitute.hail.sparkextras._
 import org.json4s._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.apache.kudu.spark.kudu.{KuduContext, _}
 import Variant.orderedKey
 import org.broadinstitute.hail.keytable.KeyTable
@@ -1048,7 +1048,7 @@ class RichVDS(vds: VariantDataset) {
       ("global_annotation", JSONAnnotationImpex.exportAnnotation(vds.globalAnnotation, vds.globalSignature))
     )
 
-    hConf.writeTextFile(dirname + "/metadata.json.gz")(_.write(JsonMethods.pretty(json)))
+    hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))
   }
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
@@ -1060,7 +1060,7 @@ class RichVDS(vds: VariantDataset) {
     val ordered = vds.rdd.asOrderedRDD
 
     sqlContext.sparkContext.hadoopConfiguration.writeTextFile(dirname + "/partitioner.json.gz") { out =>
-      out.write(JsonMethods.compact(ordered.orderedPartitioner.toJSON))
+      Serialization.write(ordered.orderedPartitioner.toJSON, out)
     }
 
     val isDosage = vds.isDosage
