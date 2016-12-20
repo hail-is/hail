@@ -594,7 +594,7 @@ class VariantDataset(object):
             pargs.append('--overwrite')
         return self.hc.run_command(self, pargs)
 
-    def filter_alleles(self, condition, annotation=None, subset=True, keep=True, filter_altered_genotypes=False):
+    def filter_alleles(self, condition, annotation=None, subset=True, annotate_all_variants=False, keep=True, filter_altered_genotypes=False):
         """
         Filter a user-defined set of alternate alleles for each variant.
         If all of a variant's alternate alleles are filtered, the variant itself is filtered.
@@ -619,6 +619,8 @@ class VariantDataset(object):
             pargs.extend(['-a', annotation])
         if filter_altered_genotypes:
             pargs.append('--filterAlteredGenotypes')
+        if annotate_all_variants:
+            pargs.append('--annotate-all-variants')
         return self.hc.run_command(self, pargs)
 
     def filter_genotypes(self, condition, keep=True):
