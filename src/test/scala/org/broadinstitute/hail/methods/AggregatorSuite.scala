@@ -253,4 +253,17 @@ class AggregatorSuite extends SparkSuite {
     assert(qTake(va).contains(IndexedSeq[Any](11, null, 20)))
     assert(qTakeBy(va).contains(IndexedSeq[Any](55, null, 11)))
   }
+
+  @Test def bug1205() {
+    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
+    val s = AnnotateVariants.run(State(sc, sqlContext, vds), Array("expr", "-c",
+      """va.bar = gs.filter(g => g == 99).count(),
+        |va.baz = gs.filter(g => g == 99).map(g => 2).count()""".stripMargin))
+
+    val (_, qbar) = s.vds.queryVA("va.bar")
+    val (_, qbaz) = s.vds.queryVA("va.baz")
+
+    val va = s.vds.variantsAndAnnotations.map(_._2).collect().head
+    assert(qbar(va) == qbaz(va))
+  }
 }
