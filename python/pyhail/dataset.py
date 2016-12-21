@@ -679,6 +679,8 @@ class VariantDataset(object):
         The condition expression is evaluated for each alternate allele.
 
         :param condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+        :type condition: str or list of str
+
         :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
             and aIndices (maps from new to old indices) (default: "va = va")
         :param bool subset: If true, subsets the PL and AD, otherwise downcodes the PL and AD.
@@ -689,23 +691,32 @@ class VariantDataset(object):
 
         """
 
+        if isinstance(condition, list):
+            condition = ' && '.join([ "( " + c + " )" for c in condition])
+
         pargs = ['filteralleles',
                  '--keep' if keep else '--remove',
                  '--subset' if subset else '--downcode',
                  '-c', condition]
+
         if annotation:
             pargs.extend(['-a', annotation])
+
         if filter_altered_genotypes:
             pargs.append('--filterAlteredGenotypes')
+
         return self.hc.run_command(self, pargs)
 
     def filter_genotypes(self, condition, keep=True):
-        """Filter variants based on expression.
+        """Filter genotypes based on expression.
 
-        :param str condition: Expression for filter condition.
+        :param condition: Expression for filter condition.
+        :type condition: str or list of str
 
         """
 
+        if isinstance(condition, list):
+            condition = ' && '.join([ "( " + c + " )" for c in condition])
         pargs = ['filtergenotypes',
                  '--keep' if keep else '--remove',
                  '-c', condition]
@@ -736,7 +747,7 @@ class VariantDataset(object):
         """
 
         if isinstance(condition, list):
-            condition = ','.join(condition)
+            condition = ' && '.join([ "( " + c + " )" for c in condition])
         pargs = ['filtersamples', 'expr',
                  '--keep' if keep else '--remove',
                  '-c', condition]
@@ -769,7 +780,7 @@ class VariantDataset(object):
         """
 
         if isinstance(condition, list):
-            condition = ','.join(condition)
+            condition = ' && '.join([ "( " + c + " )" for c in condition])
         pargs = ['filtervariants', 'expr',
                  '--keep' if keep else '--remove',
                  '-c', condition]

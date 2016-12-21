@@ -143,7 +143,7 @@ class ContextTests(unittest.TestCase):
         
         sample2_split.export_gen('/tmp/sample2.gen')
 
-        (sample2.filter_genotypes('g.isHet && g.gq > 20')
+        (sample2.filter_genotypes(['g.isHet', 'g.gq > 20'])
          .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, g.nNonRefAlleles'))
         
         sample2_split.export_plink('/tmp/sample2')
@@ -161,8 +161,11 @@ class ContextTests(unittest.TestCase):
                          .deduplicate())
         self.assertEqual(sample2_dedup.count()['nVariants'], 735)
         
-        (sample2.filter_samples_expr('pcoin(0.5)')
+        (sample2.filter_samples_expr(['pcoin(0.5)', 'pcoin(0.5)'])
          .export_samples('/tmp/sample2.sample_list', 's'))
+
+        (sample2.filter_variants_expr(['pcoin(0.5)', 'pcoin(0.5)'])
+         .export_variants('/tmp/sample2.variant_list', 'v'))
 
         (sample2.filter_variants_intervals(test_resources + '/annotinterall.interval_list')
          .count())
@@ -258,6 +261,8 @@ class ContextTests(unittest.TestCase):
 
         self.assertEqual(sample.num_samples(), 100)
         self.assertEqual(sample.num_variants(), 346)
+
+        sample2.filter_alleles(['pcoin(0.5)', 'pcoin(0.5)'])
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
