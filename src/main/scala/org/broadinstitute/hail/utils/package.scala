@@ -52,7 +52,7 @@ package object utils extends Logging
     }"
   }
 
-  def getMinimalMessage(e: Exception): String = {
+  def getMinimalMessage(e: Throwable): String = {
     val fatalOption = digForFatal(e)
     val prefix = if (fatalOption.isDefined) "fatal" else "caught exception"
     val msg = fatalOption.getOrElse(deepestMessage(e))
