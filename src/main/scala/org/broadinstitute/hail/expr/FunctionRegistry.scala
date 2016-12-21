@@ -884,7 +884,7 @@ object FunctionRegistry {
       def typ: Type = hrt.typ
     }
     val hrboxeds = new HailRep[Any] {
-      def typ: Type = hrt.typ
+      def typ: Type = hrs.typ
     }
 
     register(name, f)
