@@ -39,7 +39,7 @@ package object utils extends Logging
     while (iterE.getCause != null)
       iterE = iterE.getCause
 
-    s"${ e.getClass.getSimpleName }: ${ e.getLocalizedMessage }"
+    s"${ iterE.getClass.getSimpleName }: ${ iterE.getLocalizedMessage }"
   }
 
   def expandException(e: Throwable): String = {
