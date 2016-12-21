@@ -21,10 +21,10 @@ class VariantDataset(object):
         """
         try:
             return list(self.jvds.sampleIdsAsArray())
-        except:
+        except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def npartitions(self):
+    def num_partitions(self):
         """Number of RDD partitions.
 
         :rtype: int
@@ -35,7 +35,7 @@ class VariantDataset(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def nsamples(self):
+    def num_samples(self):
         """Number of samples.
 
         :rtype: int
@@ -46,7 +46,7 @@ class VariantDataset(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def nvariants(self):
+    def num_variants(self):
         """Number of variants.
 
         :rtype: long
@@ -64,7 +64,7 @@ class VariantDataset(object):
         or the dataset was imported with :py:meth:`~pyhail.HailContext.import_plink`, :py:meth:`~pyhail.HailContext.import_gen`,
         or :py:meth:`~pyhail.HailContext.import_bgen`.
 
-        :rtype: boolean
+        :rtype: bool
 
         """
         try:
@@ -78,7 +78,7 @@ class VariantDataset(object):
         The result of ``is_dosage()`` will be True if the dataset was imported with :py:meth:`~pyhail.HailContext.import_gen` or
         :py:meth:`~pyhail.HailContext.import_bgen`.
 
-        :rtype: boolean
+        :rtype: bool
 
         """
         try:
