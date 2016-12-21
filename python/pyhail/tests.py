@@ -247,6 +247,18 @@ class ContextTests(unittest.TestCase):
         
         sample2.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
 
+        sample.num_partitions()
+        sample.file_version()
+        sample.sample_ids()[:5]
+
+        self.assertFalse(sample.was_split())
+        self.assertTrue(sample_split.was_split())
+
+        self.assertFalse(sample.is_dosage())
+
+        self.assertEqual(sample.num_samples(), 100)
+        self.assertEqual(sample.num_variants(), 346)
+
     def test_keytable(self):
         test_resources = 'src/test/resources'
         
