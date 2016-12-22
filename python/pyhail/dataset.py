@@ -251,8 +251,31 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_list(self, input, root):
-        """Annotate samples with a Boolean indicating presence/absence in a
-        list of samples in a text file.
+        """Annotate samples with a Boolean indicating presence/absence in a list of samples in a text file.
+
+        **Examples**
+
+        We have a file with a list of samples::
+
+          $ cat ~/batch1.txt
+          PT-1234
+          PT-1235
+          PT-1236
+          PT-1237
+          PT-1238
+          PT-1239
+
+        The command
+
+        >>> vds1 = (hc.read('example.vds')
+        >>>  .annotate_samples_list('batch1.txt','sa.batch1')
+
+        will read the file `samples.txt` and annotate samples with `true` if in the list and `false` otherwise, resulting in the following schema::
+
+          Sample annotations:
+          sa: Struct {
+              batch1: Boolean
+          }
 
         :param str input: Sample list file.
 
