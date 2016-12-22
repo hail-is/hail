@@ -32,7 +32,7 @@
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
-#    'sphinx.ext.mathjax',
+    'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
 ]
 

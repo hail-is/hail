@@ -257,7 +257,7 @@ class VariantDataset(object):
 
         We have a file with a list of samples::
 
-          $ cat ~/batch.txt
+          $ cat ~/batch1.txt
           PT-1234
           PT-1235
           PT-1236
@@ -268,13 +268,13 @@ class VariantDataset(object):
         The command
 
         >>> vds1 = (hc.read('example.vds')
-        >>>  .annotate_samples_list('batch.txt','sa.batch1')
+        >>>  .annotate_samples_list('batch1.txt','sa.inBatch1')
 
-        will read the file `batch.txt` and annotate samples with `true` if in the list and `false` otherwise, resulting in the following schema::
+        will read the file `batch1.txt` and annotate samples with true if in the list and false otherwise, resulting in the following schema::
 
           Sample annotations:
           sa: Struct {
-              batch1: Boolean
+              inBatch1: Boolean
           }
 
         :param str input: Sample list file.

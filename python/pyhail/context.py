@@ -207,6 +207,8 @@ class HailContext(object):
     def import_gen(self, path, tolerance=0.2, sample_file=None, npartitions=None, chromosome=None):
         """Import .bgen files as VariantDataset
 
+
+
         :param path: .gen files to import.
         :type path: str or list of str
 
