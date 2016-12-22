@@ -221,47 +221,47 @@ class HailContext(object):
 
         **Notes**
 
-         - Hail supports importing dosage data from a GEN file and a corresponding sample file. For more information on the GEN file format, see `here <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300>`_.
+        For more information on the .gen file format, see `here <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300>`_.
 
-         - Ensure that the GEN file(s) and Sample file are correctly prepared for import:
+        To ensure that the .gen file(s) and .sample file are correctly prepared for import:
 
-            - Files should reside in the hadoop file system
+          - Files should reside in the Hadoop file system
 
-            - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
+          - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
 
-            - No duplicate sample IDs are allowed
+          - No duplicate sample IDs are allowed
 
-         - The first column in the .sample file is used as the sample id ``s.id``
+        The first column in the .sample file is used as the sample ID ``s.id``
 
         .. _dosagefilters:
 
         **Dosage representation**
 
-         - Hail automatically filters out any genotypes where the absolute value of the sum of the dosages is greater than a certain tolerance (specified by the ``tolerance`` parameter) from 1.0. The default value is 0.02.
+        Hail automatically filters out genotypes such that the absolute value of the sum of the dosages exceeds a certain distance from 1.0, as specified by the ``tolerance`` parameter. The default tolerance is 0.02.
 
-         - Hail normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+        Hail normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
 
-         - Hail will give slightly different results than the original data (maximum difference observed is 3E-4).
+        Hail will give slightly different results than the original data (maximum difference observed is 3E-4).
 
         **Annotations**
 
-        +--------------+------------+----------------------------------------------------------------------------------------------------------------+
-        | Name         | Type       | Description                                                                                                    |
-        +==============+============+================================================================================================================+
-        | ``va.varid`` | ``String`` | if a chromosome field is present, the 2nd column of the .gen file (otherwise, the 1st column of the .gen file) |
-        +--------------|------------|----------------------------------------------------------------------------------------------------------------+
-        | ``va.rsid``  | ``String`` | if a chromosome field is present, the 3rd column of the .gen file (otherwise, the 2nd column of the .gen file) |
-        +--------------|------------|----------------------------------------------------------------------------------------------------------------+
+        +--------------+------------+------------------------------------------------------------------+
+        | Name         | Type       | Description                                                      |
+        +==============+============+==================================================================+
+        | ``va.varid`` | ``String`` | 2nd col of .gen file if chromosome present, otherwise 1st column |
+        +--------------|------------|------------------------------------------------------------------+
+        | ``va.rsid``  | ``String`` | 3rd col of .gen file if chromosome present, otherwise 2nd column |
+        +--------------+------------+------------------------------------------------------------------+
 
         :param path: .gen files to import.
         :type path: str or list of str
 
+        :param sample_file: The sample file.
+        :type sample_file: str or None
+
         :param float tolerance: If the sum of the dosages for a
             genotype differ from 1.0 by more than the tolerance, set
             the genotype to missing.
-
-        :param sample_file: The sample file.
-        :type sample_file: str or None
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None
