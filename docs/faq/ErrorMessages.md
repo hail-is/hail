@@ -10,7 +10,7 @@ The full error message should look similar to this:
 Exception in thread "main" java.net.BindException: Can't assign requested address: Service 'sparkDriver' failed after 16 retries! Consider explicitly setting the appropriate port for the service 'sparkDriver' (for example spark.ui.port for SparkUI) to an available port or increasing spark.port.maxRetries.
 ```
 
-This error is often caused by running spark on a machine connected to a VPN or a personal wi-fi hotspot (i.e. tethering to a phone). Try running `hail` while disconnected from any VPN or personal wi-fi hotspot.
+This error is often caused by running spark on a machine connected to a VPN or a personal wi-fi hotspot (i.e. tethering to a phone). First, try fixing it by editing your hosts file as suggested in [this StackOverflow post](http://stackoverflow.com/a/35852781/6823256). If that fails, try running `hail` while disconnected from any VPN or personal wi-fi hotspot.
 
 #### When running Hail locally, how do I set the Spark local directory (scratch space) to something other than the default `/tmp`?
 
