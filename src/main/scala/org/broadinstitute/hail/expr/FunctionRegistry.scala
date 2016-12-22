@@ -874,7 +874,8 @@ object FunctionRegistry {
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 
   registerLambdaSpecial("map", { (a: () => Any, f: (Any) => Any) =>
-    f(a())
+    val x = a()
+    if (x == null) null else f(x)
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
 
   type Id[T] = T
