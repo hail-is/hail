@@ -1,5 +1,6 @@
 from py4j.protocol import Py4JJavaError
 from pyspark.sql import DataFrame
+from pyhail.java import scala_package_object
 from pyhail.type import Type
 
 class KeyTable(object):
@@ -382,3 +383,7 @@ class KeyTable(object):
             return DataFrame(jkt.toDF(self.hc.jsql_context), self.hc.sql_context)
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
+
+    def export_mongodb(self, mode='append'):
+        (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+         .exportMongoDB(self.hc.jsql_context, self.jkt, mode))

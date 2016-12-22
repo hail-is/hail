@@ -13,10 +13,19 @@ import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant._
 
+import com.mongodb.spark._
+import com.mongodb.spark.sql._
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 package object driver {
+
+  def exportMongoDB(sqlContext: SQLContext, kt: KeyTable, mode: String = "append"): Unit = {
+    MongoSpark.save(kt.toDF(sqlContext)
+      .write
+      .mode(mode))
+  }
 
   case class CountResult(nSamples: Int,
     nVariants: Long,
