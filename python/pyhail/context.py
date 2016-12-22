@@ -204,10 +204,54 @@ class HailContext(object):
 
         return self.run_command(None, pargs)
 
-    def import_gen(self, path, tolerance=0.2, sample_file=None, npartitions=None, chromosome=None):
-        """Import .bgen files as VariantDataset
+    def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None):
+        """Import .gen files as VariantDataset
 
+        **Examples**
 
+        To read a .gen and a .sample file and write to a .vds file::
+
+        >>> (hc.import_gen('example.gen', sample_file='example.sample')
+        >>>  .write('example.vds'))
+
+        To load multiple files at the same time, use `Hadoop glob patterns <../reference.html#hadoopglob>`_::
+
+        >>> (hc.import_gen('example.chr*.gen', sample_file='example.sample')
+        >>>  .write('example.vds'))
+
+        **Notes**
+
+         - Hail supports importing dosage data from a GEN file and a corresponding sample file. For more information on the GEN file format, see `here <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300>`_.
+
+         - Ensure that the GEN file(s) and Sample file are correctly prepared for import:
+
+            - Files should reside in the hadoop file system
+
+            - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
+
+            - No duplicate sample IDs are allowed
+
+         - The first column in the .sample file is used as the sample id ``s.id``
+
+        .. _dosagefilters:
+
+        **Dosage representation**
+
+         - Hail automatically filters out any genotypes where the absolute value of the sum of the dosages is greater than a certain tolerance (specified by the ``tolerance`` parameter) from 1.0. The default value is 0.02.
+
+         - Hail normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+
+         - Hail will give slightly different results than the original data (maximum difference observed is 3E-4).
+
+        **Annotations**
+
+        +--------------+------------+----------------------------------------------------------------------------------------------------------------+
+        | Name         | Type       | Description                                                                                                    |
+        +==============+============+================================================================================================================+
+        | ``va.varid`` | ``String`` | if a chromosome field is present, the 2nd column of the .gen file (otherwise, the 1st column of the .gen file) |
+        +--------------|------------|----------------------------------------------------------------------------------------------------------------+
+        | ``va.rsid``  | ``String`` | if a chromosome field is present, the 3rd column of the .gen file (otherwise, the 2nd column of the .gen file) |
+        +--------------|------------|----------------------------------------------------------------------------------------------------------------+
 
         :param path: .gen files to import.
         :type path: str or list of str
