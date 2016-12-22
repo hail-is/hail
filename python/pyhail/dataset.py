@@ -1036,8 +1036,20 @@ class VariantDataset(object):
         :type k: int or None
 
         :param bool arrays: Store annotations as type Array rather than Struct
+        :type k: bool or None
 
         """
+
+        pargs = ['pca', '--scores', scores, '-k', str(k)]
+        if loadings:
+            pargs.append('--loadings')
+            pargs.append(loadings)
+        if eigenvalues:
+            pargs.append('--eigenvalues')
+            pargs.append(eigenvalues)
+        if arrays:
+            pargs.append('--arrays')
+        return self.hc.run_command(self, pargs)
 
     def persist(self, storage_level="MEMORY_AND_DISK"):
         """Persist the current dataset.
@@ -1360,7 +1372,7 @@ class VariantDataset(object):
     def make_keytable(self, variant_condition, genotype_condition, key_names):
         """Make a KeyTable with one row per variant.
 
-        Per sample field names in the result are formed by concatening
+        Per sample field names in the result are formed by concatenating
         the sample ID with the genotype_condition left hand side with
         dot (.).  If the left hand side is empty::
 
