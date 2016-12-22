@@ -315,7 +315,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Importing data from a standard BED file::
+        First consider a standard BED file::
 
           $ cat file1.bed
           track name="BedTest"
@@ -324,7 +324,8 @@ class VariantDataset(object):
 
         In order to annotate with this file, the command should appear as::
 
-        >>> vds1 = hc.read('example.vds').annotate_variants_bed('file1.bed', 'va.cnvRegion')
+        >>> vds1 = (hc.read('example.vds')
+        >>>  .annotate_variants_bed('file1.bed', 'va.cnvRegion'))
 
         This file format produces a Boolean annotation::
 
@@ -333,7 +334,7 @@ class VariantDataset(object):
               <lots of other stuff here>
               cnvRegion: Boolean
 
-        Importing data from a bed file with extra header information::
+        Next consider a bed file with extra header information::
 
           $ cat file2.bed
           browser position 20:1-18000000
@@ -345,7 +346,8 @@ class VariantDataset(object):
 
         This file has a more complicated header, but that does not affect Hail's parsing because the header is always skipped (Hail is not a genome browser).  However, it also has a fourth column, so this column will be parsed as a string.  The command line should follow the same format::
 
-        >>> vds1 = hc.read('example.vds').annotate_variants_bed('file2.bed', 'va.cnvRegion')
+        >>> vds2 = (hc.read('example.vds')
+        >>>  .annotate_variants_bed('file2.bed', 'va.cnvRegion'))
 
         The schema will reflect that this annotation is read as a string::
 
@@ -356,11 +358,11 @@ class VariantDataset(object):
 
         **Implementation Details**
 
-        `Link: UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>` can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (``chrom``, ``chromStart``, and ``chromEnd``).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a Boolean annotation based on whether that variant was a member of any interval.
+        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (``chrom``, ``chromStart``, and ``chromEnd``).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a Boolean annotation based on whether that variant was a member of any interval.
 
         If the ``all`` parameter is set to ``True`` and a fourth column is present, the annotation will be the set (possibly empty) of fourth column strings as a ``Set[String]`` for all intervals that overlap the given variant.
 
-        *NOTE:* UCSC BED files are 0-indexed, which means that the line "5  100  105" will include the loci `5:99, 5:100, 5:101, 5:102, 5:103`.  The last locus included in this interval is two smaller than the listed end!
+        **Note:** UCSC BED files are 0-indexed, which means that the line "5  100  105" will include the loci `5:99, 5:100, 5:101, 5:102, 5:103`.  The last locus included in this interval is two smaller than the listed end!
 
         :param str input: Path to .bed file.
 

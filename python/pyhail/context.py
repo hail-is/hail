@@ -81,6 +81,8 @@ class HailContext(object):
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.
 
+        This command is provided as a convenience to those in the statistical genetics community who often work with enormous text files like VCFs.  `grep` mimics the basic functionality of Unix grep using the parallel environment of Spark to speed up queries by orders of magnitude.
+
         :param str regex: The regular expression to match.
 
         :param path: The files to search.
