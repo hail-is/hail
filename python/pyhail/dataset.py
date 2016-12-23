@@ -1024,13 +1024,43 @@ class VariantDataset(object):
     def ibd(self, output, maf=None, unbounded=False, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
+        **Examples**
+
+        Suppose we have a variant annotation ``va.panel_maf`` of allele
+        frequencies computed from a reference panel. Then
+
+        >>> (hc.read('example.vds')
+        >>>  .ibd('ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9)
+
+        outputs to ``ibd.tsv`` only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive, using the the provided expression for the minor allele frequency.
+
+        To writes the full IBD matrix to `ibd.tsv` with the minor allele frequency computed from the dataset:
+
+        >>> (hc.read('example.vds')
+        >>>  .ibd('ibd.tsv'
+
+        **Notes**
+
+        The implementation is based on the IBD algorithm described in the `PLINK paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`_.
+
+        ``ibd`` requires the dataset to be bi-allelic (otherwise run ``split_multi``). ``ibd`` does not perform LD
+        pruning though linkage disequilibrium may adversely impact the result.
+
+        Conceptually, the output is a symmetric, sample-by-sample matrix. The output .tsv has the following form::
+
+          SAMPLE_ID_1	SAMPLE_ID_2	Z0	Z1	Z2	PI_HAT
+          sample1	sample2	1.0000	0.0000	0.0000	0.0000
+          sample1	sample3	1.0000	0.0000	0.0000	0.0000
+          sample1	sample4	0.6807	0.0000	0.3193	0.3193
+          sample1	sample5	0.1966	0.0000	0.8034	0.8034
+
         :param str output: Output .tsv file for IBD matrix.
 
         :param maf: Expression for the minor allele frequency.
         :type maf: str or None
 
         :param bool unbounded: Allows the estimations for Z0, Z1, Z2,
-            and PI_HAT to take on biologically-nonsense values
+            and PI_HAT to take on biologically nonsensical values
             (e.g. outside of [0,1]).
 
         :param min: "Sample pairs with a PI_HAT below this value will
@@ -1475,7 +1505,39 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def variant_qc(self):
-        """Compute per-variant QC metrics."""
+        """Compute per-variant QC metrics.
+
+        **Example**
+
+        >>> vds = (hc.read('example.vds')
+        >>>  .variantqc())
+
+        .. _variantqc_annotations:
+
+        **Annotations**
+
+        ``variantqc`` computes 16 variant statistics from the genotype data and stores the results as variant annotations. Missing values (``NA``) are handled properly in filtering and written as "NA" in export modules.
+
+        These annotations can be accessed with ``va.qc.<identifier>``:
+
+         - ``callRate:              Double`` -- Fraction of samples with called genotypes
+         - ``AF:                    Double`` -- Calculated minor allele frequency (q)
+         - ``AC:                       Int`` -- Count of alternate alleles
+         - ``rHeterozygosity:       Double`` -- Proportion of heterozygotes
+         - ``rHetHomVar:            Double`` -- Ratio of heterozygotes to homozygous alternates
+         - ``rExpectedHetFrequency: Double`` -- Expected rHeterozygosity based on HWE
+         - ``pHWE:                  Double`` -- p-value computed from Hardy Weinberg Equilibrium null model
+         - ``nHomRef:                  Int`` -- Number of homozygous reference samples
+         - ``nHet:                     Int`` -- Number of heterozygous samples
+         - ``nHomVar:                  Int`` -- Number of homozygous alternate samples
+         - ``nCalled:                  Int`` -- Sum of `nHomRef` + `nHet` + `nHomVar`
+         - ``nNotCalled:               Int`` -- Number of uncalled samples
+         - ``nNonRef:                  Int`` -- Number of het + homvar samples
+         - ``rHetHomVar:            Double`` -- Het/HomVar ratio across all samples
+         - ``dpMean:                Double`` -- Depth mean across all samples
+         - ``dpStDev:               Double`` -- Depth standard deviation across all samples
+
+        """
 
         pargs = ['variantqc']
         return self.hc.run_command(self, pargs)
