@@ -225,13 +225,13 @@ class HailContext(object):
 
         To ensure that the .gen file(s) and .sample file are correctly prepared for import:
 
-          - Files should reside in the Hadoop file system
+         - Files should reside in the Hadoop file system
 
-          - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
+         - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
 
-          - No duplicate sample IDs are allowed
+         - No duplicate sample IDs are allowed
 
-        The first column in the .sample file is used as the sample ID ``s.id``
+        The first column in the .sample file is used as the sample ID ``s.id``.
 
         .. _dosagefilters:
 
@@ -270,6 +270,7 @@ class HailContext(object):
         :type chromosome: str or None
 
         :rtype: :class:`.VariantDataset`
+
         """
 
         pargs = ["importgen"]

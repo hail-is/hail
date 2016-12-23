@@ -291,7 +291,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Let's import annotations from a .tsv file with phenotypes and age:
+        Let's import annotations from a .tsv file with phenotypes and age::
 
           $ cat samples1.tsv
           Sample  Phenotype1   Phenotype2  Age
@@ -307,7 +307,7 @@ class VariantDataset(object):
         >>> vds1 = (hc.read('example1.vds')
         >>>  .annotate_samples_table('samples1.tsv', 'Sample', root='sa.phenotypes'))
 
-        This will read the file and produce annotations of the following schema:
+        This will read the file and produce annotations of the following schema::
 
           Sample annotations:
           sa: sa.<identifier>
@@ -322,7 +322,7 @@ class VariantDataset(object):
         >>> vds1 = (hc.read('example1.vds')
         >>>  .annotate_samples_table('samples1.tsv', 'Sample', root='sa.phenotypes', config=conf))
 
-        This will read the file and produce annotations of the following schema:
+        This will read the file and produce annotations of the following schema::
 
           Sample annotations:
           sa: sa.<identifier>
@@ -331,7 +331,7 @@ class VariantDataset(object):
                   Phenotype2: String
                   Age: Int
 
-        Let's import annotations from a .csv file with missing data and special characters:
+        Let's import annotations from a .csv file with missing data and special characters::
 
           $ cat samples2.tsv
           Batch,PT-ID
@@ -358,7 +358,7 @@ class VariantDataset(object):
         >>> vds2 = (hc.read('example2.vds')
         >>>  .annotate_samples_table('samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf))
 
-        Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information:
+        Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information::
 
           $ cat samples3.tsv
           1kg_NA12345     female
@@ -376,19 +376,19 @@ class VariantDataset(object):
 
         **Common uses for the `code` argument**
 
-        Don't generate a full struct in a table with only one annotation column:
+        Don't generate a full struct in a table with only one annotation column::
 
           code='sa.annot = table._1'
 
-        Put annotations on the top level under `sa`:
+        Put annotations on the top level under `sa`::
 
           code='sa = merge(sa, table)'
 
-        Load only specific annotations from the table:
+        Load only specific annotations from the table::
 
           code='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
 
-        The above is equivalent to:
+        The above is equivalent to::
 
           code='sa.annotations.toKeep1 = table.toKeep1,
                 sa.annotations.toKeep2 = table.toKeep2,
