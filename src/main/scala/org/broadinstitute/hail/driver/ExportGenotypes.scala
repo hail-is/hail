@@ -16,7 +16,7 @@ object ExportGenotypes extends Command with TextExporter {
     var output: String = _
 
     @Args4jOption(required = true, name = "-c", aliases = Array("--condition"),
-      usage = ".columns file, or comma-separated list of fields/computations to be printed to tsv")
+      usage = "a comma-separated list of fields/expressions to be printed to tsv")
     var condition: String = _
 
     @Args4jOption(required = false, name = "-t", aliases = Array("--types"),

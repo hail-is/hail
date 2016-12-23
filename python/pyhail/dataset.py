@@ -751,8 +751,25 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def export_genotypes(self, output, condition, types=None, export_ref=False, export_missing=False):
-        """Export genotype information (variant- and sample-index) information
-        to delimited text file.
+        """Export genotype-level information to delimited text file.
+
+        **Examples**
+
+        To export genotype information with identifiers that form the header:
+
+        >>> (hc.read('example.vds')
+        >>>  .export_genotypes('genotypes.tsv', 'SAMPLE=s, VARIANT=v, GQ=g.gq, DP=g.dp, ANNO1=va.anno1, ANNO2=va.anno2'))
+
+        To export the same information without identifiers, resulting in a file with no header:
+
+        >>> (hc.read('example.vds')
+        >>>  .export_genotypes('genotypes.tsv', 's, v, s.id, g.dp, va.anno1, va.anno2')
+
+        **Notes**
+
+        ``export_genotypes`` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
+
+        The ``condition`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
 
         :param str output: Output path.
 
