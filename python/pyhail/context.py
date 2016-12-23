@@ -259,9 +259,7 @@ class HailContext(object):
         :param sample_file: The sample file.
         :type sample_file: str or None
 
-        :param float tolerance: If the sum of the dosages for a
-            genotype differ from 1.0 by more than the tolerance, set
-            the genotype to missing.
+        :param float tolerance: If the sum of the dosages for a genotype differ from 1.0 by more than the tolerance, set the genotype to missing.
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None

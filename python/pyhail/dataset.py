@@ -1234,6 +1234,29 @@ class VariantDataset(object):
     def rename_samples(self, input):
         """Rename samples.
 
+        **Example**
+
+        >>> vds = (hc.read('example.vds')
+        >>>  .rename_samples('sample.map'))
+
+        **Notes**
+
+        The input file is a two column, tab-separated file.  The first column is the current sample
+        name, the second column is the new sample name.  Samples which do not
+        appear in the first column will not be renamed.  Lines in the input that
+        do not correspond to any sample in the current dataset will be ignored.
+
+        ``exportsamples`` can be used to generate a template for renaming
+        samples.  For example, suppose you want to rename samples to remove
+        spaces.  First, run:
+
+        >>> (hc.read('example.vds')
+        >>>  .export_samples('sample.map', 's.id, s.id')
+
+        Then edit ``sample.map`` to remove spaces from the sample names in the
+        second column and run the example above. Renaming samples is fast so there is no need to resave the dataset
+        before performing analyses.
+
         :param str input: Input file.
 
         """

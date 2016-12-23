@@ -353,6 +353,7 @@ class KeyTable(object):
         :rtype: KeyTable
 
         """
+
         new_key_names = [k for k in self.key_names() if k in field_names]
         
         try:
