@@ -68,7 +68,7 @@ $ hail [read / import / previous commands] \
     annotatesamples table \
         -e Sample
         -i file:///user/me/samples.tsv \
-        -t "Phenotype1: Double, Age: Int" \
+        -t "Phenotype1: Double, Phenotype2: Double, Age: Int" \
         -r sa.phenotypes
 ```
 

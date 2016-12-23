@@ -289,6 +289,127 @@ class VariantDataset(object):
     def annotate_samples_table(self, input, sample_expr, root=None, code=None, config=None):
         """Annotate samples with delimited text file (text table).
 
+        **Examples**
+
+        Let's import annotations from a .tsv file with phenotypes and age:
+
+          $ cat samples1.tsv
+          Sample  Phenotype1   Phenotype2  Age
+          PT-1234 24.15        ADHD        24
+          PT-1235 31.01        ADHD        25
+          PT-1236 25.95        Control     19
+          PT-1237 26.80        Control     42
+          PT-1238 NA           ADHD        89
+          PT-1239 27.53        Control     55
+
+        To load this file into Hail with type imputation:
+
+        >>> vds1 = (hc.read('example1.vds')
+        >>>  .annotate_samples_table('samples1.tsv', 'Sample', root='sa.phenotypes'))
+
+        This will read the file and produce annotations of the following schema:
+
+          Sample annotations:
+          sa: sa.<identifier>
+              phenotypes: sa.phenotypes.<identifier>
+                  Phenotype1: String
+                  Phenotype2: String
+                  Age: String
+
+        To load this file into Hail with type imputation:
+
+        >>> conf = pyhail.TextTableConfig(impute=True)
+        >>> vds1 = (hc.read('example1.vds')
+        >>>  .annotate_samples_table('samples1.tsv', 'Sample', root='sa.phenotypes', config=conf))
+
+        This will read the file and produce annotations of the following schema:
+
+          Sample annotations:
+          sa: sa.<identifier>
+              phenotypes: sa.phenotypes.<identifier>
+                  Phenotype1: Double
+                  Phenotype2: String
+                  Age: Int
+
+        Let's import annotations from a .csv file with missing data and special characters:
+
+          $ cat samples2.tsv
+          Batch,PT-ID
+          1kg,PT-0001
+          1kg,PT-0002
+          study1,PT-0003
+          study3,PT-0003
+          .,PT-0004
+          1kg,PT-0005
+          .,PT-0006
+          1kg,PT-0007
+
+        In this case, we should do a few things differently:
+
+         - Escape the ``PT-ID`` column with backticks in the ``sample-expr`` argument because it contains a dash
+
+         - Pass the non-default delimiter ``,``
+
+         - Pass the non-default missing value ``.``
+
+         - Since this table only has one useful column, we can simply add that using ``code`` rather than ``root`` parameter.
+
+        >>> conf = pyhail.TextTableConfig(delimiter=',', missing='.')
+        >>> vds2 = (hc.read('example2.vds')
+        >>>  .annotate_samples_table('samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf))
+
+        Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information:
+
+          $ cat samples3.tsv
+          1kg_NA12345     female
+          1kg_NA12346     male
+          1kg_NA12348     female
+          pgc_NA23456     female
+          pgc_NA23415     male
+          pgc_NA23418     male
+
+        Let's import it:
+
+        >>> conf = pyhail.TextTableConfig(noheader=True)
+        >>> vds3 = (hc.read('example3.vds')
+        >>>  .annotate_samples_table('samples3.tsv', '_0.split("_")[1]', code='sa.sex = table._1, sa.batch = table._0.split("_")[0]', config=conf))
+
+        **Common uses for the `code` argument**
+
+        Don't generate a full struct in a table with only one annotation column:
+
+          code='sa.annot = table._1'
+
+        Put annotations on the top level under `sa`:
+
+          code='sa = merge(sa, table)'
+
+        Load only specific annotations from the table:
+
+          code='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
+
+        The above is equivalent to:
+
+          code='sa.annotations.toKeep1 = table.toKeep1,
+                sa.annotations.toKeep2 = table.toKeep2,
+                sa.annotations.toKeep3 = table.toKeep3'
+
+        **Notes**
+
+        The generality of this module allows it to load delimited text files, json, or a mixture of the two.
+
+        **Using the ``sample-expr`` argument**
+
+        This argument tells Hail how to get a sample ID out of your table. Each column in the table is exposed to the Hail expr language. Possibilities include ``Sample`` (if your sample id is in a column called 'Sample'), ``_2`` (if your sample ID is the 3rd column of a table with no header), or something more complicated like ``'if ("PGC" ~ ID1) ID1 else ID2'``.  All that matters is that this expr results in a string.  If the expr evaluates to missing, it will not be mapped to any VDS samples.
+
+        **Using the ``root`` and ``code`` arguments**
+
+        This module requires exactly one of these two arguments to tell Hail how to insert the table into the sample annotation schema.
+
+        The ``root`` argument is the simpler of these two, and simply packages up all table annotations as a ``Struct`` and drops it at the given ``root`` location.  If your table has columns ``Sample``, ``Sex``, and ``Batch``, then ``root='sa.metadata'`` creates the struct ``{Sample, Sex, Batch}`` at ``sa.metadata``, which gives you access to the paths ``sa.metadata.Sample``, ``sa.metadata.Sex``, and ``sa.metadata.Batch``.
+
+        The ``code`` argument expects an annotation expression with access to ``sa`` (the sample annotations in the VDS) and ``table`` (a struct with all the columns in the table).  ``root='sa.anno'`` is equivalent to ``code='sa.anno = table'``.
+
         :param str input: Path to delimited text file.
 
         :param str sample_expr: Expression for sample id (key).
