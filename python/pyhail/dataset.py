@@ -177,6 +177,49 @@ class VariantDataset(object):
         """Load text file into global annotations as Array[String] or
         Set[String].
 
+        **Examples**
+
+        Let's add a gene list into global annotations::
+
+          $ cat genes.txt
+          SCN2A
+          SONIC-HEDGEHOG
+          PRNP
+          ALDH4A1
+          LEP
+          OSM
+          TSC1
+          TSC2
+
+        To annotate with this list as type ``Array[String]``:
+
+        >>> vds = (hc.read('example.vds')
+        >>>  .annotate_global_list('genes.txt', 'global.genes'))
+
+        To see the resulting global annotation schema and values:
+
+        >>> vds.print_schema(print_global=True)
+        >>>  .show_globals()
+
+        This prints::
+
+          Global annotation schema:
+          global: Struct {
+              genes: Array[String]
+          }
+
+          hail: info: Global annotations: `global' =
+          {
+            "genes" : [ "SCN2A", "SONIC-HEDGEHOG", "PRNP", "ALDH4A1", "LEP", "OSM", "TSC1", "TSC2" ]
+          }
+
+        Now suppose we already have a variant annotation ``va.gene`` which specifies the gene in which the variant resides.
+        To filter to those variants in genes listed in ``genes.txt``, let's annotate as type ``Set[String]`` instead:
+
+        >>> vds2 = (hc.read('example.vds')
+        >>>  .annotate_global_list('genes.txt', 'global.genes', as_set=True))
+        >>>  .filter_variants_expr('global.genes.contains(va.gene)')
+
         :param str input: Input text file.
 
         :param str root: Global annotation path to store text file.
