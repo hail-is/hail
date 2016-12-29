@@ -1,0 +1,13 @@
+.wy-grid-for-nav {
+    top: 51px;
+}
+
+.wy-nav-side {
+    position: absolute;
+    top: -1px;
+}
+
+.wy-body-for-nav {
+    background-color: #ffffff;
+    background-image: none;
+}
