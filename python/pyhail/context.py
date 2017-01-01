@@ -85,15 +85,15 @@ class HailContext(object):
 
         Print all lines containing the string ``hi`` in ``file.txt``:
 
-        >>> hc.grep('hi','file.txt')
+        >>> hc.grep('hi','data/file.txt')
 
         Print all lines containing digits in ``file1.txt`` and ``file2.txt``:
 
-        >>> hc.grep('\d', ['file1.txt','file2.txt')
+        >>> hc.grep('\d', ['data/file1.txt','data/file2.txt')
 
         **Background**
 
-        ``grep`` mimics the basic functionality of Unix grep using the parallel environment of Spark to speed up queries by orders of magnitude.  Results are printed to the screen. This command is provided as a convenience to those in the statistical genetics community who often work with enormous text files like VCFs. Find background on regex at `RegExr <http://regexr.com/>`_.
+        :py:meth:`~pyhail.VariantDataset.grep` mimics the basic functionality of Unix grep using the parallel environment of Spark to speed up queries by orders of magnitude.  Results are printed to the screen. This command is provided as a convenience to those in the statistical genetics community who often work with enormous text files like VCFs. Find background on regex at `RegExr <http://regexr.com/>`_.
 
         :param str regex: The regular expression to match.
 
@@ -209,15 +209,15 @@ class HailContext(object):
 
         **Examples**
 
-        To read a .gen and a .sample file and write to a .vds file::
+        To read a .gen file and a .sample file and write to a .vds file::
 
-        >>> (hc.import_gen('example.gen', sample_file='example.sample')
-        >>>  .write('example.vds'))
+        >>> (hc.import_gen('data/example.gen', sample_file='data/example.sample')
+        >>>  .write('data/example.vds'))
 
         To load multiple files at the same time, use `Hadoop glob patterns <../reference.html#hadoopglob>`_::
 
-        >>> (hc.import_gen('example.chr*.gen', sample_file='example.sample')
-        >>>  .write('example.vds'))
+        >>> (hc.import_gen('data/example.chr*.gen', sample_file='data/example.sample')
+        >>>  .write('data/example.vds'))
 
         **Notes**
 
@@ -225,11 +225,11 @@ class HailContext(object):
 
         To ensure that the .gen file(s) and .sample file are correctly prepared for import:
 
-         - Files should reside in the Hadoop file system
+        - Files should reside in the Hadoop file system
 
-         - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
+        - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
 
-         - No duplicate sample IDs are allowed
+        - No duplicate sample IDs are allowed
 
         The first column in the .sample file is used as the sample ID ``s.id``.
 
@@ -245,13 +245,11 @@ class HailContext(object):
 
         **Annotations**
 
-        +--------------+--------+---------------------------------------------------------------------+
-        | Name         | Type   | Description                                                         |
-        +==============+========+=====================================================================+
-        | ``va.varid`` | String | 2nd column of .gen file if chromosome present, otherwise 1st column |
-        +--------------+--------+---------------------------------------------------------------------+
-        | ``va.rsid``  | String | 3rd column of .gen file if chromosome present, otherwise 2nd column |
-        +--------------+--------+---------------------------------------------------------------------+
+        :py:meth:`~pyhail.HailContext.import_gen` adds the following variant annotations:
+
+         - **va.varid** (*String*) -- 2nd column of .gen file if chromosome present, otherwise 1st column.
+
+         - **va.rsid** (*String*) -- 3rd column of .gen file if chromosome present, otherwise 2nd column.
 
         :param path: .gen files to import.
         :type path: str or list of str
@@ -268,6 +266,7 @@ class HailContext(object):
         :type chromosome: str or None
 
         :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset imported from a .gen and .sample file.
 
         """
 

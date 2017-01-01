@@ -181,7 +181,7 @@ class VariantDataset(object):
 
         Let's add a gene list into global annotations::
 
-          $ cat genes.txt
+          $ cat data/genes.txt
           SCN2A
           SONIC-HEDGEHOG
           PRNP
@@ -193,8 +193,8 @@ class VariantDataset(object):
 
         To annotate with this list as type ``Array[String]``:
 
-        >>> vds = (hc.read('example.vds')
-        >>>  .annotate_global_list('genes.txt', 'global.genes'))
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .annotate_global_list('data/genes.txt', 'global.genes'))
 
         To see the resulting global annotation schema and values:
 
@@ -214,10 +214,10 @@ class VariantDataset(object):
           }
 
         Now suppose we already have a variant annotation ``va.gene`` which specifies the gene in which the variant resides.
-        To filter to those variants in genes listed in ``genes.txt``, let's annotate as type ``Set[String]`` instead:
+        To filter to those variants in genes listed in `genes.txt`, let's annotate as type ``Set[String]`` instead:
 
-        >>> vds2 = (hc.read('example.vds')
-        >>>  .annotate_global_list('genes.txt', 'global.genes', as_set=True))
+        >>> vds2 = (hc.read('data/example.vds')
+        >>>  .annotate_global_list('data/genes.txt', 'global.genes', as_set=True))
         >>>  .filter_variants_expr('global.genes.contains(va.gene)')
 
         :param str input: Input text file.
@@ -226,6 +226,9 @@ class VariantDataset(object):
 
         :param bool as_set: If True, load text file as Set[String],
             otherwise, load as Array[String].
+
+        :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset with a new global annotation given by the list.
         """
 
         pargs = ['annotateglobal', 'list', '-i', input, '-r', root]
@@ -296,11 +299,11 @@ class VariantDataset(object):
     def annotate_samples_list(self, input, root):
         """Annotate samples with a Boolean indicating presence/absence in a list of samples in a text file.
 
-        **Examples**
+        **Example**
 
-        We have a file with a list of samples::
+        We have a file `batch1.txt` with a list of samples::
 
-          $ cat ~/batch1.txt
+          $ cat data/batch1.txt
           PT-1234
           PT-1235
           PT-1236
@@ -310,10 +313,10 @@ class VariantDataset(object):
 
         The command
 
-        >>> vds1 = (hc.read('example.vds')
-        >>>  .annotate_samples_list('batch1.txt','sa.inBatch1')
+        >>> vds1 = (hc.read('data/example.vds')
+        >>>  .annotate_samples_list('data/batch1.txt','sa.inBatch1')
 
-        will read the file `batch1.txt` and annotate samples with true if in the list and false otherwise, resulting in the following schema::
+        will read the file and annotate samples with true if in the list and false otherwise, resulting in the following schema::
 
           Sample annotations:
           sa: Struct {
@@ -324,6 +327,8 @@ class VariantDataset(object):
 
         :param str root: Sample annotation path to store Boolean.
 
+        :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset with a new Boolean sample annotation.
         """
 
         pargs = ['annotatesamples', 'list', '-i', input, '-r', root]
@@ -334,49 +339,51 @@ class VariantDataset(object):
 
         **Examples**
 
-        Let's import annotations from a .tsv file with phenotypes and age::
-
-          $ cat samples1.tsv
-          Sample  Phenotype1   Phenotype2  Age
-          PT-1234 24.15        ADHD        24
-          PT-1235 31.01        ADHD        25
-          PT-1236 25.95        Control     19
-          PT-1237 26.80        Control     42
-          PT-1238 NA           ADHD        89
-          PT-1239 27.53        Control     55
-
-        To load this file into Hail with type imputation:
-
-        >>> vds1 = (hc.read('example1.vds')
-        >>>  .annotate_samples_table('samples1.tsv', 'Sample', root='sa.phenotypes'))
-
-        This will read the file and produce annotations of the following schema::
-
-          Sample annotations:
-          sa: sa.<identifier>
-              phenotypes: sa.phenotypes.<identifier>
-                  Phenotype1: String
-                  Phenotype2: String
-                  Age: String
-
-        To load this file into Hail with type imputation:
-
         >>> conf = pyhail.TextTableConfig(impute=True)
-        >>> vds1 = (hc.read('example1.vds')
-        >>>  .annotate_samples_table('samples1.tsv', 'Sample', root='sa.phenotypes', config=conf))
+        >>> vds1 = (hc.read('data/example1.vds')
+        >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes', config=conf)
+        >>>  .print_schema())
 
-        This will read the file and produce annotations of the following schema::
+        annotates samples with type imputation using `samples1.tsv`::
 
-          Sample annotations:
-          sa: sa.<identifier>
-              phenotypes: sa.phenotypes.<identifier>
-                  Phenotype1: Double
-                  Phenotype2: String
+          $ cat data/samples1.tsv
+          Sample	Pheno1	Pheno2  Age
+          PT-1234	24.15	ADHD	24
+          PT-1236	25.95	Control	19
+          PT-1238	NA	ADHD	89
+          PT-1239	27.53	Control	55
+
+        and prints the following sample annotation schema::
+
+          sa: Struct {
+              phenotypes: Struct {
+                  Pheno1: Double,
+                  Pheno2: String,
                   Age: Int
+              }
+          }
+
+        To annotate without type imputation:
+
+        >>> vds1 = (hc.read('data/example1.vds')
+        >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes')
+        >>>  .print_schema())
+
+        Now the samples annotation schema shows String types::
+
+          sa: Struct {
+              phenotypes: Struct {
+                  Pheno1: String,
+                  Pheno2: String,
+                  Age: String
+              }
+          }
+
+        **Detailed examples**
 
         Let's import annotations from a .csv file with missing data and special characters::
 
-          $ cat samples2.tsv
+          $ cat data/samples2.tsv
           Batch,PT-ID
           1kg,PT-0001
           1kg,PT-0002
@@ -389,32 +396,46 @@ class VariantDataset(object):
 
         In this case, we should:
 
-         - Escape the ``PT-ID`` column with backticks in the ``sample-expr`` argument because it contains a dash
-         - Pass the non-default delimiter ``,``
-         - Pass the non-default missing value ``.``
-         - Add the only useful column using ``code`` rather than ``root`` parameter.
+        - Escape the ``PT-ID`` column with backticks in the ``sample-expr`` argument because it contains a dash
+
+        - Pass the non-default delimiter ``,``
+
+        - Pass the non-default missing value ``.``
+
+        - Add the only useful column using ``code`` rather than ``root`` parameter.
 
         >>> conf = pyhail.TextTableConfig(delimiter=',', missing='.')
-        >>> vds2 = (hc.read('example2.vds')
-        >>>  .annotate_samples_table('samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf))
+        >>> vds2 = (hc.read('data/example2.vds')
+        >>>  .annotate_samples_table('data/samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf))
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information::
 
-          $ cat samples3.tsv
-          1kg_NA12345     female
-          1kg_NA12346     male
-          1kg_NA12348     female
-          pgc_NA23456     female
-          pgc_NA23415     male
-          pgc_NA23418     male
+          $ cat data/samples3.tsv
+          1kg_NA12345   female
+          1kg_NA12346   male
+          1kg_NA12348   female
+          pgc_NA23415   male
+          pgc_NA23418   male
 
-        Let's import it:
+        To import it:
 
         >>> conf = pyhail.TextTableConfig(noheader=True)
-        >>> vds3 = (hc.read('example3.vds')
-        >>>  .annotate_samples_table('samples3.tsv', '_0.split("_")[1]', code='sa.sex = table._1, sa.batch = table._0.split("_")[0]', config=conf))
+        >>> vds3 = (hc.read('data/example3.vds')
+        >>>  .annotate_samples_table('data/samples3.tsv', '_0.split("_")[1]', code='sa.sex = table._1, sa.batch = table._0.split("_")[0]', config=conf))
 
-        **Common uses for the `code` argument**
+        **Using the** ``sample-expr`` **argument**
+
+        This argument tells Hail how to get a sample ID out of your table. Each column in the table is exposed to the Hail expr language. Possibilities include ``Sample`` (if your sample id is in a column called 'Sample'), ``_2`` (if your sample ID is the 3rd column of a table with no header), or something more complicated like ``'if ("PGC" ~ ID1) ID1 else ID2'``.  All that matters is that this expr results in a string.  If the expr evaluates to missing, it will not be mapped to any VDS samples.
+
+        **Using the** ``root`` **and** ``code`` **arguments**
+
+        This module requires exactly one of these two arguments to tell Hail how to insert the table into the sample annotation schema.
+
+        The ``root`` argument is the simpler of these two, and simply packages up all table annotations as a ``Struct`` and drops it at the given ``root`` location.  If your table has columns ``Sample``, ``Sex``, and ``Batch``, then ``root='sa.metadata'`` creates the struct ``{Sample, Sex, Batch}`` at ``sa.metadata``, which gives you access to the paths ``sa.metadata.Sample``, ``sa.metadata.Sex``, and ``sa.metadata.Batch``.
+
+        The ``code`` argument expects an annotation expression and has access to ``sa`` (the sample annotations in the VDS) and ``table`` (a struct with all the columns in the table).  ``root='sa.anno'`` is equivalent to ``code='sa.anno = table'``.
+
+        **Common uses for the** ``code`` **argument**
 
         Don't generate a full struct in a table with only one annotation column::
 
@@ -434,21 +455,6 @@ class VariantDataset(object):
                 sa.annotations.toKeep2 = table.toKeep2,
                 sa.annotations.toKeep3 = table.toKeep3'
 
-        **Notes**
-
-        The generality of this module allows it to load delimited text files, json, or a mixture of the two.
-
-        **Using the ``sample-expr`` argument**
-
-        This argument tells Hail how to get a sample ID out of your table. Each column in the table is exposed to the Hail expr language. Possibilities include ``Sample`` (if your sample id is in a column called 'Sample'), ``_2`` (if your sample ID is the 3rd column of a table with no header), or something more complicated like ``'if ("PGC" ~ ID1) ID1 else ID2'``.  All that matters is that this expr results in a string.  If the expr evaluates to missing, it will not be mapped to any VDS samples.
-
-        **Using the ``root`` and ``code`` arguments**
-
-        This module requires exactly one of these two arguments to tell Hail how to insert the table into the sample annotation schema.
-
-        The ``root`` argument is the simpler of these two, and simply packages up all table annotations as a ``Struct`` and drops it at the given ``root`` location.  If your table has columns ``Sample``, ``Sex``, and ``Batch``, then ``root='sa.metadata'`` creates the struct ``{Sample, Sex, Batch}`` at ``sa.metadata``, which gives you access to the paths ``sa.metadata.Sample``, ``sa.metadata.Sex``, and ``sa.metadata.Batch``.
-
-        The ``code`` argument expects an annotation expression with access to ``sa`` (the sample annotations in the VDS) and ``table`` (a struct with all the columns in the table).  ``root='sa.anno'`` is equivalent to ``code='sa.anno = table'``.
 
         :param str input: Path to delimited text file.
 
@@ -460,6 +466,9 @@ class VariantDataset(object):
 
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig` or None
+
+        :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset with new samples annotations imported from a text file
 
         """
 
@@ -495,54 +504,49 @@ class VariantDataset(object):
                 self.jvds, right.jvds, code, root))
 
     def annotate_variants_bed(self, input, root, all=False):
-        """Annotate variants with a .bed file.
+        """Annotate variants based on the intervals in a .bed file.
 
         **Examples**
 
-        First consider a standard BED file::
+        >>> vds1 = (hc.read('data/example.vds')
+        >>>  .annotate_variants_bed('data/file1.bed', 'va.cnvRegion'))
+        >>>  .print_schema())
 
-          $ cat file1.bed
+        adds the Boolean variant annotation ``va.cnvRegion`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`::
+
+          $ cat data/file1.bed
           track name="BedTest"
           20    1          14000000
           20    17000000   18000000
 
-        In order to annotate with this file, the command should appear as::
+        and prints the resulting schema including::
 
-        >>> vds1 = (hc.read('example.vds')
-        >>>  .annotate_variants_bed('file1.bed', 'va.cnvRegion'))
-
-        This file format produces a Boolean annotation::
-
-          Variant annotations:
-          va: va.<identifier>
-              <lots of other stuff here>
+          va: Struct {
               cnvRegion: Boolean
+          }
 
-        Next consider a bed file with extra header information::
+        Essentially the same code
+
+        >>> vds2 = (hc.read('data/example.vds')
+        >>>  .annotate_variants_bed('data/file2.bed', 'va.cnvRegion'))
+        >>>  .print_schema()
+
+        on the four-column `file2.bed`::
 
           $ cat file2.bed
-          browser position 20:1-18000000
-          browser hide all
           track name="BedTest"
-          itemRgb="On"
           20    1          14000000  cnv1
           20    17000000   18000000  cnv2
 
-        This file has a more complicated header, but that does not affect Hail's parsing because the header is always skipped (Hail is not a genome browser).  However, it also has a fourth column, so this column will be parsed as a string.  The command line should follow the same format::
+        results instead in a variant annotation given by the fourth column of type String::
 
-        >>> vds2 = (hc.read('example.vds')
-        >>>  .annotate_variants_bed('file2.bed', 'va.cnvRegion'))
-
-        The schema will reflect that this annotation is read as a string::
-
-          Variant annotations:
-          va: va.<identifier>
-              <lots of other stuff here>
+          va: Struct {
               cnvRegion: String
+          }
 
-        **Implementation Details**
+        **Details**
 
-        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (``chrom``, ``chromStart``, and ``chromEnd``).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a Boolean annotation based on whether that variant was a member of any interval.
+        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (``chrom``, ``chromStart``, and ``chromEnd``).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a Boolean annotation, true if and only if the variant lies in the union of the intervals. Hail ignores header lines in BED files.
 
         If the ``all`` parameter is set to ``True`` and a fourth column is present, the annotation will be the set (possibly empty) of fourth column strings as a ``Set[String]`` for all intervals that overlap the given variant.
 
@@ -553,6 +557,9 @@ class VariantDataset(object):
         :param str root: Variant annotation path to store annotation.
 
         :param bool all: Store values from all overlapping intervals as a set.
+
+        :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset with new variant annotations imported from a .bed file.
 
         """
 
@@ -754,17 +761,17 @@ class VariantDataset(object):
 
         To export genotype information with identifiers that form the header:
 
-        >>> (hc.read('example.vds')
-        >>>  .export_genotypes('genotypes.tsv', 'SAMPLE=s, VARIANT=v, GQ=g.gq, DP=g.dp, ANNO1=va.anno1, ANNO2=va.anno2'))
+        >>> (hc.read('data/example.vds')
+        >>>  .export_genotypes('data/genotypes.tsv', 'SAMPLE=s, VARIANT=v, GQ=g.gq, DP=g.dp, ANNO1=va.anno1, ANNO2=va.anno2'))
 
         To export the same information without identifiers, resulting in a file with no header:
 
-        >>> (hc.read('example.vds')
-        >>>  .export_genotypes('genotypes.tsv', 's, v, s.id, g.dp, va.anno1, va.anno2')
+        >>> (hc.read('data/example.vds')
+        >>>  .export_genotypes('data/genotypes.tsv', 's, v, s.id, g.dp, va.anno1, va.anno2'))
 
-        **Notes**
+        **Details**
 
-        ``export_genotypes`` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
+        :py:meth:`~pyhail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
 
         The ``condition`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
 
@@ -778,6 +785,8 @@ class VariantDataset(object):
         :param bool export_ref: If True, export reference genotypes.
 
         :param bool export_missing: If True, export missing genotypes.
+
+        :return: Nothing.
 
         """
 
@@ -1083,25 +1092,21 @@ class VariantDataset(object):
 
         **Examples**
 
-        Suppose we have a variant annotation ``va.panel_maf`` of allele
-        frequencies computed from a reference panel. Then
+        >>> (hc.read('data/example.vds')
+        >>>  .ibd('data/ibd.tsv'))
 
-        >>> (hc.read('example.vds')
-        >>>  .ibd('ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9)
+        writes the full IBD matrix to `ibd.tsv`, estimated using minor allele frequencies computed from the dataset itself.
 
-        outputs to ``ibd.tsv`` only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive, using the the provided expression for the minor allele frequency.
+        >>> (hc.read('data/example.vds')
+        >>>  .ibd('data/ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9))
 
-        To writes the full IBD matrix to `ibd.tsv` with the minor allele frequency computed from the dataset:
+        estimates IBD using minor allele frequencies stored in ``va.panel_maf`` and outputs to `ibd.tsv` only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive.
 
-        >>> (hc.read('example.vds')
-        >>>  .ibd('ibd.tsv'
-
-        **Notes**
+        **Details**
 
         The implementation is based on the IBD algorithm described in the `PLINK paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`_.
 
-        ``ibd`` requires the dataset to be bi-allelic (otherwise run ``split_multi``). ``ibd`` does not perform LD
-        pruning though linkage disequilibrium may adversely impact the result.
+        :py:meth:`~pyhail.VariantDataset.ibd` requires the dataset to be bi-allelic (otherwise run :py:meth:`~pyhail.VariantDataset.split_multi`) and does not perform LD pruning. Linkage disequilibrium may bias the result so consider filtering variants first.
 
         Conceptually, the output is a symmetric, sample-by-sample matrix. The output .tsv has the following form::
 
@@ -1127,6 +1132,9 @@ class VariantDataset(object):
         :param max: Sample pairs with a PI_HAT above this value will
             not be included in the output. Must be in [0,1].
         :type max: float or None
+
+        :return: Nothing.
+
 
         """
 
@@ -1248,40 +1256,47 @@ class VariantDataset(object):
         pargs = ['mendelerrors', '-o', output, '-f', fam]
         return self.hc.run_command(self, pargs)
 
-    def pca(self, scores, loadings=None, eigenvalues=None, k=10, arrays=False):
+    def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
         **Examples**
 
-        ``pca`` expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
+        >>> vds1 = (hc.read('data/example.vds').pca('sa.pca')
+        >>>  .print_schema())
 
-        To compute the first 10 principal component scores and store as annotations of type Struct:
+        computes the first 10 principal component scores, stored as sample annotations of type Struct of Doubles::
 
-        >>> vds1 = hc.read('example.vds').pca('sa.pca')
+          sa: Struct {
+              scores: Struct {
+                  PC1: Double
+                  PC2: Double
+                  ...
+                  PC10: Double
+              }
+          }
 
-        The annotation ``sa.pca`` on ``vds1`` is a Stuct with fields ``PC1`` to ``PC10`` of type Double, so for example ``sa.pca.PC1`` is the score from the top PC.
+        >>> vds2 = hc.read('data/example.vds').pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
+        >>>  .print_schema())
 
-        To compute the first 5 principal component scores, loadings, and eigenvalues, and store as annotations of type Array[Double]:
+        computes the first 5 principal component scores, loadings, and eigenvalues, stored as annotations of type Array[Double]::
 
-        >>> vds2 = hc.read('example.vds').pca('sa.scores', 'va.loadings', 'global.evals', 5, True)
+          global: Struct {
+              evals: Array[Double]
+          }
 
-        The three new annotations on ``vds2`` are:
+          sa: Struct {
+              scores: Array[Double]
+          }
 
-        +------------------+---------------+----------------------------------------------+
-        | Name             | Type          | Description                                  |
-        +==================+===============+==============================================+
-        | ``sa.scores``    | Array[Double] | Array of sample scores from the top five PCs |
-        +------------------+---------------+----------------------------------------------+
-        | ``va.loadings``  | Array[Double] | Array of variant loadings in the top five PCs|
-        +------------------+---------------+----------------------------------------------+
-        | ``global.evals`` | Array[Double] | Array of the top five eigenvalues            |
-        +------------------+---------------+----------------------------------------------+
+          va: Struct {
+              loadings: Array[Double]
+          }
 
-        **Implementation Details**
+        **Details**
 
-        Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`_. PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix :math:`M`, computed as follows.
+        Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`_. This method expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
 
-        An :math:`n \\times m` matrix :math:`C` records raw genotypes, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+        PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix :math:`M`, computed as follows. An :math:`n \\times m` matrix :math:`C` records raw genotypes, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
 
         .. math::
 
@@ -1297,7 +1312,7 @@ class VariantDataset(object):
 
         where columns of :math:`U` are left singular vectors (orthonormal in :math:`\mathbb{R}^n`), columns of :math:`V` are right singular vectors (orthonormal in :math:`\mathbb{R}^m`), and :math:`S=\mathrm{diag}(s_1, s_2, \ldots)` with ordered singular values :math:`s_1 \ge s_2 \ge \cdots \ge 0`. Typically one computes only the first :math:`k` singular vectors and values, yielding the best rank :math:`k` approximation :math:`U_k S_k V_k^T` of :math:`M`; the truncations :math:`U_k`, :math:`S_k` and :math:`V_k` are :math:`n \\times k`, :math:`k \\times k` and :math:`m \\times k` respectively.
 
-        From the perspective of the samples or rows of :math:`M` as data, :math:`V_k` contains the variant loadings for the first :math:`k` PCs while :math:`MV_k = U_k S_k` contains the first :math:`k` PC scores of each sample. The loadings represent a new basis of features while the scores represent the projected data on those features. The eigenvalues of the GRM :math:`MM^T` are the squares of the singular values :math:`s_1^2, s_2^2, \ldots`, which represent the variances carried by the respective PCs. By default, Hail only computes the loadings if the ``-l`` option is specified.
+        From the perspective of the samples or rows of :math:`M` as data, :math:`V_k` contains the variant loadings for the first :math:`k` PCs while :math:`MV_k = U_k S_k` contains the first :math:`k` PC scores of each sample. The loadings represent a new basis of features while the scores represent the projected data on those features. The eigenvalues of the GRM :math:`MM^T` are the squares of the singular values :math:`s_1^2, s_2^2, \ldots`, which represent the variances carried by the respective PCs. By default, Hail only computes the loadings if the ``loadings`` parameter is specified.
 
         *Note:* In PLINK/GCTA the GRM is taken as the starting point and it is computed slightly differently with regard to missing data. Here the :math:`ij` entry of :math:`MM^T` is simply the dot product of rows :math:`i` and :math:`j` of :math:`M`; in terms of :math:`C` it is
 
@@ -1308,6 +1323,30 @@ class VariantDataset(object):
         where :math:`\mathcal{C}_i = \{l \mid C_{il} \\text{ is non-missing}\}`. In PLINK/GCTA the denominator :math:`m` is replaced with the number of terms in the sum :math:`\\lvert\mathcal{C}_i\cap\\mathcal{C}_j\\rvert`, i.e. the number of variants where both samples have non-missing genotypes. While this is arguably a better estimator of the true GRM (trading shrinkage for noise), it has the drawback that one loses the clean interpretation of the loadings and scores as features and projections.
 
         Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even ignoring the above discrepancy that means the left singular vectors :math:`U_k` instead of the component scores :math:`U_k S_k`. While this is just a matter of the scale on each PC, the scores have the advantage of representing true projections of the data onto features with the variance of a score reflecting the variance explained by the corresponding feature. (In PC bi-plots this amounts to a change in aspect ratio; for use of PCs as covariates in regression it is immaterial.)
+
+        **Annotations**
+
+        Given root ``scores='sa.scores'`` and ``as_array=False``, :py:meth:`~pyhail.VariantDataset.pca` adds a Struct to sample annotations:
+
+         - **sa.scores** (*Struct*) -- Struct of sample scores
+
+        With ``k=3``, the Struct has three field:
+
+         - **sa.scores.PC1** (*Double*) -- Score from first PC
+
+         - **sa.scores.PC2** (*Double*) -- Score from second PC
+
+         - **sa.scores.PC3** (*Double*) -- Score from third PC
+
+        Analogous variant and global annotations of type Struct are added by specifying the ``loadings`` and ``eigenvalues`` arguments, respectively.
+
+        Given roots ``scores='sa.scores'``, ``loadings='va.loadings'``, and ``eigenvalues='global.evals'``, and ``as_array=True``, :py:meth:`~pyhail.VariantDataset.pca` adds the following annotations:
+
+         - **sa.scores** (*Array[Double]*) -- Array of sample scores from the top k PCs
+
+         - **va.loadings** (*Array[Double]*) -- Array of variant loadings in the top k PCs
+
+         - **global.evals** (*Array[Double]*) -- Array of the top k eigenvalues
 
         :param str scores: Sample annotation path to store scores.
 
@@ -1322,6 +1361,9 @@ class VariantDataset(object):
 
         :param bool arrays: Store annotations as type Array rather than Struct
         :type k: bool or None
+
+        :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset with new PCA annotations
 
         """
 
@@ -1387,28 +1429,31 @@ class VariantDataset(object):
 
         **Example**
 
-        >>> vds = (hc.read('example.vds')
-        >>>  .rename_samples('sample.map'))
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .rename_samples('data/sample.map'))
 
-        **Notes**
+        **Details**
 
-        The input file is a two column, tab-separated file.  The first column is the current sample
+        The input file is a two-column, tab-separated file.  The first column is the current sample
         name, the second column is the new sample name.  Samples which do not
         appear in the first column will not be renamed.  Lines in the input that
         do not correspond to any sample in the current dataset will be ignored.
 
-        ``exportsamples`` can be used to generate a template for renaming
-        samples.  For example, suppose you want to rename samples to remove
+        :py:meth:`~pyhail.VariantDataset.export_samples` can be used to generate a template for renaming
+        samples. For example, suppose you want to rename samples to remove
         spaces.  First, run:
 
-        >>> (hc.read('example.vds')
-        >>>  .export_samples('sample.map', 's.id, s.id')
+        >>> (hc.read('data/example.vds')
+        >>>  .export_samples('data/sample.map', 's.id, s.id')
 
-        Then edit ``sample.map`` to remove spaces from the sample names in the
-        second column and run the example above. Renaming samples is fast so there is no need to resave the dataset
+        Then edit `sample.map` to remove spaces from the sample names in the
+        second column and run the example above. Renaming samples is fast so there is no need to save out the resulting dataset
         before performing analyses.
 
         :param str input: Input file.
+
+        :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset with renamed samples.
 
         """
 
@@ -1568,7 +1613,7 @@ class VariantDataset(object):
 
         **Annotations**
 
-        ``split_multi`` adds the following annotations:
+        :py:meth:`~pyhail.VariantDataset.split_multi` adds the following annotations:
 
          - **va.wasSplit** (*Boolean*) -- true if this variant was
            originally multiallelic, otherwise false.
@@ -1626,18 +1671,18 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def variant_qc(self):
-        """Compute per-variant QC metrics.
+        """Compute common variant statistics (quality control metrics).
 
         **Example**
 
-        >>> vds = (hc.read('example.vds')
-        >>>  .variantqc())
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .variant_qc())
 
         .. _variantqc_annotations:
 
         **Annotations**
 
-        ``variantqc`` computes 16 variant statistics from the genotype data and stores the results as variant annotations that can be accessed with ``va.qc.<identifier>``:
+        :py:meth:`~pyhail.VariantDataset.variant_qc` computes 16 variant statistics from the genotype data and stores the results as variant annotations that can be accessed with ``va.qc.<identifier>``:
 
         +---------------------------+--------+----------------------------------------------------+
         | Name                      | Type   | Description                                        |
@@ -1676,6 +1721,9 @@ class VariantDataset(object):
         +---------------------------+--------+----------------------------------------------------+
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
+
+        :rtype: VariantDataset
+        :return: A VariantDataset with new variant QC annotations.
 
         """
 
