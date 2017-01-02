@@ -1360,7 +1360,7 @@ class VariantDataset(object):
         :param k: Number of principal components.
         :type k: int or None
 
-        :param bool arrays: Store annotations as type Array rather than Struct
+        :param bool as_array: Store annotations as type Array rather than Struct
         :type k: bool or None
 
         :rtype: :class:`.VariantDataset`
@@ -1375,7 +1375,7 @@ class VariantDataset(object):
         if eigenvalues:
             pargs.append('--eigenvalues')
             pargs.append(eigenvalues)
-        if arrays:
+        if as_array:
             pargs.append('--arrays')
         return self.hc.run_command(self, pargs)
 
