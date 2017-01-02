@@ -786,7 +786,8 @@ class VariantDataset(object):
 
         :param bool export_missing: If True, export missing genotypes.
 
-        :return: Nothing.
+        :return: The input VariantDataset.
+        :rtype: VariantDataset
 
         """
 
@@ -1133,8 +1134,8 @@ class VariantDataset(object):
             not be included in the output. Must be in [0,1].
         :type max: float or None
 
-        :return: Nothing.
-
+        :return: The input VariantDataset.
+        :rtype: VariantDataset
 
         """
 
