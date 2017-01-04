@@ -16,7 +16,7 @@ Family ID | `sa.fam.famID` | String | `0`
 Sample ID | `s` | String | |
 Paternal ID | `sa.fam.patID` | String | `0`
 Maternal ID | `sa.fam.matID` | String | `0`
-Sex | `sa.fam.isFemale` | Boolean | `0`
+Sex | `sa.fam.isFemale` | Boolean | `NA`, `-9`, `0`
 Case-control phenotype | `sa.fam.isCase` | Boolean | `0`, `-9`, non-numeric, and `-m` arg if given
 Quantitative phenotype | `sa.fam.qPheno` |Double |  either `NA` or -m arg if given
 
