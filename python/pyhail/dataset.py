@@ -179,46 +179,24 @@ class VariantDataset(object):
 
         **Examples**
 
-        Let's add a gene list into global annotations::
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .annotate_global_list('data/genes.txt', 'global.genes'))
+
+        reads the gene list::
 
           $ cat data/genes.txt
           SCN2A
           SONIC-HEDGEHOG
           PRNP
-          ALDH4A1
-          LEP
-          OSM
-          TSC1
-          TSC2
 
-        To annotate with this list as type ``Array[String]``:
+        and adds a global annotation ``global.genes: Array[String]`` with value ``["SCN2A", "SONIC-HEDGEHOG", "PRNP"]``.
+
+        Instead, suppose there is already a variant annotation ``va.gene: String`` which specifies the gene in which the variant resides.
+        To filter to those variants in genes listed in `genes.txt`, annotate as type ``Set[String]`` instead:
 
         >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_global_list('data/genes.txt', 'global.genes'))
-
-        To see the resulting global annotation schema and values:
-
-        >>> vds.print_schema(print_global=True)
-        >>>  .show_globals()
-
-        This prints::
-
-          Global annotation schema:
-          global: Struct {
-              genes: Array[String]
-          }
-
-          hail: info: Global annotations: `global' =
-          {
-            "genes" : [ "SCN2A", "SONIC-HEDGEHOG", "PRNP", "ALDH4A1", "LEP", "OSM", "TSC1", "TSC2" ]
-          }
-
-        Now suppose we already have a variant annotation ``va.gene`` which specifies the gene in which the variant resides.
-        To filter to those variants in genes listed in `genes.txt`, let's annotate as type ``Set[String]`` instead:
-
-        >>> vds2 = (hc.read('data/example.vds')
-        >>>  .annotate_global_list('data/genes.txt', 'global.genes', as_set=True))
-        >>>  .filter_variants_expr('global.genes.contains(va.gene)')
+        >>>  .annotate_global_list('data/genes.txt', 'global.genes', as_set=True)
+        >>>  .filter_variants_expr('global.genes.contains(va.gene)'))
 
         :param str input: Input text file.
 
@@ -297,31 +275,19 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_list(self, input, root):
-        """Annotate samples with a Boolean indicating presence/absence in a list of samples in a text file.
+        """Annotate samples with a Boolean indicating presence in a list of samples in a text file.
 
         **Example**
 
-        We have a file `batch1.txt` with a list of samples::
+        >>> vds1 = (hc.read('data/example.vds')
+        >>>  .annotate_samples_list('data/batch1.txt','sa.inBatch1'))
+
+        adds the sample annotation ``sa.inBatch1: Boolean`` with value true if the sample is in `batch1.txt` and false otherwise. The file must have no header and one sample per line::
 
           $ cat data/batch1.txt
-          PT-1234
-          PT-1235
-          PT-1236
-          PT-1237
-          PT-1238
-          PT-1239
-
-        The command
-
-        >>> vds1 = (hc.read('data/example.vds')
-        >>>  .annotate_samples_list('data/batch1.txt','sa.inBatch1')
-
-        will read the file and annotate samples with true if in the list and false otherwise, resulting in the following schema::
-
-          Sample annotations:
-          sa: Struct {
-              inBatch1: Boolean
-          }
+          SampleA
+          SampleB
+          ...
 
         :param str input: Sample list file.
 
@@ -340,48 +306,28 @@ class VariantDataset(object):
         **Examples**
 
         >>> conf = pyhail.TextTableConfig(impute=True)
-        >>> vds1 = (hc.read('data/example1.vds')
-        >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes', config=conf)
-        >>>  .print_schema())
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.pheno', config=conf))
 
-        annotates samples with type imputation using `samples1.tsv`::
+        annotates samples using `samples1.tsv` with type imputation::
 
           $ cat data/samples1.tsv
-          Sample	Pheno1	Pheno2  Age
-          PT-1234	24.15	ADHD	24
-          PT-1236	25.95	Control	19
+          Sample	Height	Status  Age
+          PT-1234	154.1	ADHD	24
+          PT-1236	160.9	Control	19
           PT-1238	NA	ADHD	89
-          PT-1239	27.53	Control	55
+          PT-1239	170.3	Control	55
 
-        and prints the following sample annotation schema::
+        The three new sample annotations are ``sa.pheno.Height: Double``, ``sa.pheno.Status: String``, and ``sa.pheno.Age: Int``.
 
-          sa: Struct {
-              phenotypes: Struct {
-                  Pheno1: Double,
-                  Pheno2: String,
-                  Age: Int
-              }
-          }
+        To annotate without type imputation, resulting in all String types:
 
-        To annotate without type imputation:
-
-        >>> vds1 = (hc.read('data/example1.vds')
-        >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes')
-        >>>  .print_schema())
-
-        Now the samples annotation schema shows String types::
-
-          sa: Struct {
-              phenotypes: Struct {
-                  Pheno1: String,
-                  Pheno2: String,
-                  Age: String
-              }
-          }
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes'))
 
         **Detailed examples**
 
-        Let's import annotations from a .csv file with missing data and special characters::
+        Let's import annotations from a CSV file with missing data and special characters::
 
           $ cat data/samples2.tsv
           Batch,PT-ID
@@ -396,16 +342,16 @@ class VariantDataset(object):
 
         In this case, we should:
 
-        - Escape the ``PT-ID`` column with backticks in the ``sample-expr`` argument because it contains a dash
+        - Escape the ``PT-ID`` column with backticks in the ``sample_expr`` argument because it contains a dash
 
         - Pass the non-default delimiter ``,``
 
         - Pass the non-default missing value ``.``
 
-        - Add the only useful column using ``code`` rather than ``root`` parameter.
+        - Add the only useful column using ``code`` rather than the ``root`` parameter.
 
         >>> conf = pyhail.TextTableConfig(delimiter=',', missing='.')
-        >>> vds2 = (hc.read('data/example2.vds')
+        >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_samples_table('data/samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf))
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information::
@@ -420,10 +366,10 @@ class VariantDataset(object):
         To import it:
 
         >>> conf = pyhail.TextTableConfig(noheader=True)
-        >>> vds3 = (hc.read('data/example3.vds')
+        >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_samples_table('data/samples3.tsv', '_0.split("_")[1]', code='sa.sex = table._1, sa.batch = table._0.split("_")[0]', config=conf))
 
-        **Using the** ``sample-expr`` **argument**
+        **Using the** ``sample_expr`` **argument**
 
         This argument tells Hail how to get a sample ID out of your table. Each column in the table is exposed to the Hail expr language. Possibilities include ``Sample`` (if your sample id is in a column called 'Sample'), ``_2`` (if your sample ID is the 3rd column of a table with no header), or something more complicated like ``'if ("PGC" ~ ID1) ID1 else ID2'``.  All that matters is that this expr results in a string.  If the expr evaluates to missing, it will not be mapped to any VDS samples.
 
@@ -508,28 +454,20 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> vds1 = (hc.read('data/example.vds')
+        >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_variants_bed('data/file1.bed', 'va.cnvRegion'))
-        >>>  .print_schema())
 
-        adds the Boolean variant annotation ``va.cnvRegion`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`::
+        adds the Boolean variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`::
 
           $ cat data/file1.bed
           track name="BedTest"
           20    1          14000000
           20    17000000   18000000
 
-        and prints the resulting schema including::
-
-          va: Struct {
-              cnvRegion: Boolean
-          }
-
         Essentially the same code
 
-        >>> vds2 = (hc.read('data/example.vds')
+        >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_variants_bed('data/file2.bed', 'va.cnvRegion'))
-        >>>  .print_schema()
 
         on the four-column `file2.bed`::
 
@@ -538,11 +476,7 @@ class VariantDataset(object):
           20    1          14000000  cnv1
           20    17000000   18000000  cnv2
 
-        results instead in a variant annotation given by the fourth column of type String::
-
-          va: Struct {
-              cnvRegion: String
-          }
+        instead adds a variant annotation ``va.cnvRegion: String`` with value given by the fourth column.
 
         **Details**
 
@@ -1262,36 +1196,15 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> vds1 = (hc.read('data/example.vds').pca('sa.pca')
-        >>>  .print_schema())
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .pca('sa.scores'))
 
-        computes the first 10 principal component scores, stored as sample annotations of type Struct of Doubles::
+        computes the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double.
 
-          sa: Struct {
-              scores: Struct {
-                  PC1: Double
-                  PC2: Double
-                  ...
-                  PC10: Double
-              }
-          }
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True))
 
-        >>> vds2 = hc.read('data/example.vds').pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
-        >>>  .print_schema())
-
-        computes the first 5 principal component scores, loadings, and eigenvalues, stored as annotations of type Array[Double]::
-
-          global: Struct {
-              evals: Array[Double]
-          }
-
-          sa: Struct {
-              scores: Array[Double]
-          }
-
-          va: Struct {
-              loadings: Array[Double]
-          }
+        computes the first 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double].
 
         **Details**
 

@@ -93,7 +93,7 @@ class HailContext(object):
 
         **Background**
 
-        :py:meth:`~pyhail.VariantDataset.grep` mimics the basic functionality of Unix grep using the parallel environment of Spark to speed up queries by orders of magnitude.  Results are printed to the screen. This command is provided as a convenience to those in the statistical genetics community who often work with enormous text files like VCFs. Find background on regex at `RegExr <http://regexr.com/>`_.
+        :py:meth:`~pyhail.VariantDataset.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`_.
 
         :param str regex: The regular expression to match.
 
@@ -205,7 +205,7 @@ class HailContext(object):
         return self.run_command(None, pargs)
 
     def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None):
-        """Import .gen files as VariantDataset
+        """Import .gen files as VariantDataset.
 
         **Examples**
 
@@ -225,8 +225,6 @@ class HailContext(object):
 
         To ensure that the .gen file(s) and .sample file are correctly prepared for import:
 
-        - Files should reside in the Hadoop file system
-
         - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
 
         - No duplicate sample IDs are allowed
@@ -237,11 +235,11 @@ class HailContext(object):
 
         **Dosage representation**
 
-        Hail automatically filters out genotypes such that the absolute value of the sum of the dosages exceeds a certain distance from 1.0, as specified by the ``tolerance`` parameter. The default tolerance is 0.02.
+        Since dosages are understood as genotype probabilities, :py:meth:`~pyhail.HailContext.import_gen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` paramater from 1.0.  The default tolerance is 0.02, so a genotypes with sum .97 or 1.03 is filtered out, whereas a genotype with sum .98 or 1.02 remains.
 
-        Hail normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+        :py:meth:`~pyhail.HailContext.import_gen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
 
-        Hail will give slightly different results than the original data (maximum difference observed is 3E-4).
+        Even when the dosages sum to 1.0, Hail may store slightly different values than the original GEN file (maximum observed difference is 3E-4).
 
         **Annotations**
 
