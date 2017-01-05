@@ -258,7 +258,7 @@ class AggregatorSuite extends SparkSuite {
   @Test def testMap() {
     val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
     var s = State(sc, sqlContext, vds)
-    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.map(id => if (id == \"b\") null else s).map(x => 1).sum()"))
+    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.map(id => if (id == \"b\") (NA : Sample) else id).map(x => 1).sum()"))
 
     val (_, result) = s.vds.queryGlobal("global.result")
 
