@@ -156,6 +156,10 @@ object Parser extends JavaTokenParsers {
     var j = 0
     parsed.foreach { case (n, ast, splat) =>
       val t = ast.`type`
+
+      if (!t.isRealizable)
+        fatal(s"unrealizable type in export expression: $t")
+
       val f = ast.eval(ec)
       if (splat) {
         val j0 = j
@@ -198,11 +202,6 @@ object Parser extends JavaTokenParsers {
     }
     assert(i == nExprs)
     assert(j == nValues)
-
-    types.foreach { t =>
-      if (!t.isRealizable)
-        fatal(s"unrealizable type in export expression: $t")
-    }
 
     (names, types, () => {
       fs.foreach(_ ())

@@ -109,7 +109,7 @@ object FunctionRegistry {
         val localA = ec.a
         val idx = localA.length
         localA += null
-        ec.aggregations += ((idx, lhs.eval(ec), aggregator.ctor()))
+        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor()))
         () => localA(idx)
 
       case aggregator: Arity1Aggregator[_, u, _] =>
@@ -122,7 +122,7 @@ object FunctionRegistry {
         if (u == null)
           fatal("Argument evaluated to missing in call to aggregator $name")
 
-        ec.aggregations += ((idx, lhs.eval(ec), aggregator.ctor(
+        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
           u.asInstanceOf[u])))
         () => localA(idx)
 
@@ -142,7 +142,7 @@ object FunctionRegistry {
         if (w == null)
           fatal("Argument 3 evaluated to missing in call to aggregator $name")
 
-        ec.aggregations += ((idx, lhs.eval(ec), aggregator.ctor(
+        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
           u.asInstanceOf[u],
           v.asInstanceOf[v],
           w.asInstanceOf[w])))
@@ -167,7 +167,7 @@ object FunctionRegistry {
           bodyFn()
         }
 
-        ec.aggregations += ((idx, lhs.eval(ec), aggregator.ctor(g)))
+        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(g)))
         () => localA(idx)
 
       case aggregator: BinaryLambdaAggregator[t, u, v, w] =>
@@ -193,7 +193,7 @@ object FunctionRegistry {
         if (v == null)
           fatal("Argument evaluated to missing in call to aggregator $name")
 
-        ec.aggregations += ((idx, lhs.eval(ec), aggregator.ctor(g, v.asInstanceOf[v])))
+        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(g, v.asInstanceOf[v])))
         () => localA(idx)
 
       case f: UnaryFun[_, _] =>
@@ -249,7 +249,22 @@ object FunctionRegistry {
         }
 
         AST.evalCompose[t, v](ec, lhs, args(1)) { (x1, x2) => f(x1, g, x2) }
-      case f: BinaryLambdaSpecial[t, _, _] =>
+      case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
+        throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : $typ, $typs) in non-aggregator position")
+      case f: Arity3Fun[_, _, _, _] =>
+        AST.evalCompose(ec, lhs, args(0), args(1))(f)
+      case f: Arity4Fun[_, _, _, _, _] =>
+        AST.evalCompose(ec, lhs, args(0), args(1), args(2))(f)
+      case fn =>
+        throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
+    }
+  }
+
+  def lookupAggregatorTransformation(ec: EvalContext)(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[CPS[Any]] = {
+    require(typs.length == args.length)
+
+    lookup(name, MethodType(typ +: typs: _*)).map {
+      case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
         val Lambda(_, param, body) = args(0)
 
         val idx = ec.a.length
@@ -268,14 +283,10 @@ object FunctionRegistry {
           bodyFn()
         }
 
-        val t = lhs.eval(ec)
-        () => f(t, g)
-      case f: Arity3Fun[_, _, _, _] =>
-        AST.evalCompose(ec, lhs, args(0), args(1))(f)
-      case f: Arity4Fun[_, _, _, _, _] =>
-        AST.evalCompose(ec, lhs, args(0), args(1), args(2))(f)
-      case fn =>
-        throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
+        val t = lhs.evalAggregator(ec)
+        f(t, g)
+      case _ =>
+        throw new RuntimeException(s"Internal hail error, non-aggregator transformation, `$name' with argument types $typ, $typs, found in aggregator position")
     }
   }
 
@@ -335,9 +346,9 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m)
   }
 
-  def registerLambdaSpecial[T, U, V](name: String, impl: (() => Any, (Any) => Any) => V)
+  def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V])
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    val m = BinaryLambdaSpecial[T, U, V](hrv.typ, impl)
+    val m = BinaryLambdaAggregatorTransformer[T, U, V](hrv.typ, impl)
     bind(name, MethodType(hrt.typ, hru.typ), m)
   }
 
@@ -864,17 +875,16 @@ object FunctionRegistry {
 
   val aggST = Box[SymbolTable]()
 
-  registerLambdaSpecial("filter", { (a: () => Any, f: (Any) => Any) =>
-    val x = a()
-    val r = f(x)
-    if (r != null && r.asInstanceOf[Boolean])
-      x
-    else
-      null
+  registerLambdaAggregatorTransformer("filter", { (a: CPS[Any], f: (Any) => Any) =>
+    { (k: Any => Any) => a { x =>
+      val r = f(x)
+      if (r != null && r.asInstanceOf[Boolean])
+        k(x)
+    } }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 
-  registerLambdaSpecial("map", { (a: () => Any, f: (Any) => Any) =>
-    f(a())
+  registerLambdaAggregatorTransformer("map", { (a: CPS[Any], f: (Any) => Any) =>
+    { (k: Any => Any) => a { x => k(f(x)) } }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
 
   type Id[T] = T
