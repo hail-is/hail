@@ -256,38 +256,32 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testMap() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", null))))) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.map(g => 1).sum()"))
+    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
+    var s = State(sc, sqlContext, vds)
+    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.map(id => if (id == \"b\") null else s).map(x => 1).sum()"))
 
-      val (_, result) = s.vds.queryGlobal("global.result")
+    val (_, result) = s.vds.queryGlobal("global.result")
 
-      result.contains(2)
-    }
-    p.check()
+    assert(result.contains(2))
   }
 
   @Test def testFilter1() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", null))))) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(g => true).map(g => 1).sum()"))
+    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
+    var s = State(sc, sqlContext, vds)
+    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(id => true).map(id => 1).sum()"))
 
-      val (_, result) = s.vds.queryGlobal("global.result")
+    val (_, result) = s.vds.queryGlobal("global.result")
 
-      result.contains(2)
-    }
-    p.check()
+    assert(result.contains(2))
   }
 
   @Test def testFilter2() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", null))))) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(g => false).map(g => 1).sum()"))
+    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
+    var s = State(sc, sqlContext, vds)
+    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(id => false).map(id => 1).sum()"))
 
-      val (_, result) = s.vds.queryGlobal("global.result")
+    val (_, result) = s.vds.queryGlobal("global.result")
 
-      result.contains(0)
-    }
-    p.check()
+    assert(result.contains(0))
   }
 }
