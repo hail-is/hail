@@ -4,6 +4,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.check.Prop
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.vcf.LoadVCF
@@ -252,5 +253,41 @@ class AggregatorSuite extends SparkSuite {
     val va = s.vds.variantsAndAnnotations.map(_._2).collect().head
     assert(qTake(va).contains(IndexedSeq[Any](11, null, 20)))
     assert(qTakeBy(va).contains(IndexedSeq[Any](55, null, 11)))
+  }
+
+  @Test def testMap() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", null))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.map(g => 1).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(2)
+    }
+    p.check()
+  }
+
+  @Test def testFilter1() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", null))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(g => true).map(g => 1).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(2)
+    }
+    p.check()
+  }
+
+  @Test def testFilter2() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", null))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(g => false).map(g => 1).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(0)
+    }
+    p.check()
   }
 }

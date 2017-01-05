@@ -146,11 +146,11 @@ case class Arity3LambdaFun[T, U, V, W](retType: Type, f: (T, (Any) => Any, V) =>
   def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = ???
 }
 
-case class BinaryLambdaSpecial[T, U, V](retType: Type, f: (() => Any, (Any) => Any) => V)
-  extends Fun with Serializable with ((() => Any, (Any) => Any) => V) {
-  def apply(t: () => Any, u: (Any) => Any): V = f(t, u)
+case class BinaryLambdaAggregatorTransformer[T, U, V](retType: Type, f: (CPS[Any], (Any) => Any) => CPS[V])
+  extends Fun with Serializable with ((CPS[Any], (Any) => Any) => CPS[V]) {
+  def apply(t: CPS[Any], u: (Any) => Any): CPS[V] = f(t, u)
 
-  def subst() = BinaryLambdaSpecial(retType.subst(), f)
+  def subst() = BinaryLambdaAggregatorTransformer(retType.subst(), f)
 
   // conversion can't apply to function type
   def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = ???

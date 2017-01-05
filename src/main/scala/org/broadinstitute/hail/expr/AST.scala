@@ -19,7 +19,7 @@ import org.broadinstitute.hail.utils.EitherIsAMonad._
 
 case class EvalContext(st: SymbolTable,
   a: ArrayBuffer[Any],
-  aggregations: ArrayBuffer[(Int, () => Any, Aggregator)]) {
+  aggregations: ArrayBuffer[(Int, CPS[Any], Aggregator)]) {
 
   def setAll(args: Any*) {
     var i = 0
@@ -50,7 +50,7 @@ object EvalContext {
 
     val m = maxEntry(symTab) + 1
     val a = ArrayBuffer.fill[Any](m)(null)
-    val af = new ArrayBuffer[(Int, () => Any, Aggregator)]()
+    val af = new ArrayBuffer[(Int, CPS[Any], Aggregator)]()
     EvalContext(symTab, a, af)
   }
 
@@ -209,6 +209,8 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
 
   def eval(ec: EvalContext): () => Any
 
+  def evalAggregator(ec: EvalContext): CPS[Any]
+
   def typecheckThis(ec: EvalContext): Type = typecheckThis()
 
   def typecheckThis(): Type = throw new UnsupportedOperationException
@@ -232,6 +234,8 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
     val v = value
     () => v
   }
+
+  def evalAggregator(ec: EvalContext): CPS[Any] = throw new UnsupportedOperationException
 
   override def typecheckThis(): Type = t
 }
@@ -270,12 +274,16 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       .valueOr {
         case FunctionRegistry.NotFound(name, typ) =>
           fatal(
-            s"""`$t' has neither a field nor a method named `$name
+            s"""`$t' has neither a field nor a method named `$name'
                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
                |    counts.sum""".stripMargin)
         case otherwise => fatal(otherwise.message)
       }
   }
+
+  def evalAggregator(ec: EvalContext): CPS[Any] =
+    FunctionRegistry.lookupAggregatorTransformation(ec)(lhs.`type`, Seq(), rhs)(lhs, Seq())
+      .valueOr { x => fatal(x.message) }
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -306,6 +314,8 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
       case _ => () => f.map(_ ()): IndexedSeq[Any]
     }
   }
+
+  def evalAggregator(ec: EvalContext): CPS[Any] = throw new UnsupportedOperationException
 }
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
@@ -323,12 +333,16 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
     val f = elements.map(_.eval(ec))
     () => Annotation.fromSeq(f.map(_ ()))
   }
+
+  def evalAggregator(ec: EvalContext): CPS[Any] = throw new UnsupportedOperationException
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
   def typecheck(): Type = parseError("non-function context")
 
   def eval(ec: EvalContext): () => Any = throw new UnsupportedOperationException
+
+  def evalAggregator(ec: EvalContext): CPS[Any] = throw new UnsupportedOperationException
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
@@ -509,6 +523,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
       .valueOr(x => fatal(x.message))
   }
+
+  def evalAggregator(ec: EvalContext): CPS[Any] = throw new UnsupportedOperationException
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
@@ -570,6 +586,16 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       .valueOr(x => fatal(x.message))
   }
 
+  def evalAggregator(ec: EvalContext): CPS[Any] = ((lhs.`type`, method, args): @unchecked) match {
+    case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
+      val funType = TFunction(Array(it.elementType), body.`type`)
+
+      FunctionRegistry.lookupAggregatorTransformation(ec)(it, funType +: rest.map(_.`type`), method)(lhs, args)
+        .valueOr(x => fatal(x.message))
+
+    case (t, _, _) => FunctionRegistry.lookupAggregatorTransformation(ec)(t, args.map(_.`type`).toSeq, method)(lhs, args)
+        .valueOr(x => fatal(x.message))
+  }
 }
 
 case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extends AST(posn, bindings.map(_._2) :+ body) {
@@ -609,6 +635,8 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
     `type` = body.`type`
   }
+
+  def evalAggregator(ec: EvalContext): CPS[Any] = throw new UnsupportedOperationException
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
@@ -631,6 +659,16 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
              |  Available symbols:
              |    ${ ec.st.map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }.mkString("\n    ") } """.stripMargin)
     }
+  }
+
+  def evalAggregator(ec: EvalContext): CPS[Any] = {
+    val localI = ec.st(symbol)._1
+    val localA = ec.a
+
+    if (localI < 0)
+      (k: Any => Any) => k(0) // FIXME placeholder
+    else
+      (k: Any => Any) => k(localA(localI))
   }
 }
 
@@ -668,4 +706,6 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
         null
     }
   }
+
+  def evalAggregator(ec: EvalContext): CPS[Any] = throw new UnsupportedOperationException
 }

@@ -53,7 +53,7 @@ object Aggregators {
           localA(4) = s
           localA(5) = sa
           (aggs, aggregations).zipped.foreach { case (agg, (_, f, _)) =>
-            agg.seqOp(f())
+            f(agg.seqOp)
           }
         }
 
@@ -111,7 +111,7 @@ object Aggregators {
 
         var j = 0
         while (j < nAggregations) {
-          arr(i, j).seqOp(aggregations(j)._2())
+          aggregations(j)._2(arr(i, j).seqOp)
           j += 1
         }
         i += 1
@@ -148,7 +148,7 @@ object Aggregators {
     val seqOp = (array: Array[Aggregator], t: T) => {
       setEC(ec, t)
       for (i <- array.indices) {
-        array(i).seqOp(aggregations(i)._2())
+        aggregations(i)._2(array(i).seqOp)
       }
       array
     }
