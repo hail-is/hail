@@ -22,5 +22,5 @@ package object expr extends HailRepFunctions {
 
   implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)
 
-  type CPS[T] = (T => Any) => Any
+  type CPS[T] = (T => Unit) => Unit
 }

@@ -880,8 +880,6 @@ object FunctionRegistry {
       val r = f(x)
       if (r != null && r.asInstanceOf[Boolean])
         k(x)
-      else
-        null
     } }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 

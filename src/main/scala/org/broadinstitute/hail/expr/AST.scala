@@ -586,15 +586,18 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       .valueOr(x => fatal(x.message))
   }
 
-  def evalAggregator(ec: EvalContext): CPS[Any] = ((lhs.`type`, method, args): @unchecked) match {
-    case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
-      val funType = TFunction(Array(it.elementType), body.`type`)
+  def evalAggregator(ec: EvalContext): CPS[Any] = {
+    val t = lhs.`type`.asInstanceOf[TAggregable]
+    args match {
+      case (Array(Lambda(_, param, body), rest@_*)) =>
+        val funType = TFunction(Array(t.elementType), body.`type`)
 
-      FunctionRegistry.lookupAggregatorTransformation(ec)(it, funType +: rest.map(_.`type`), method)(lhs, args)
-        .valueOr(x => fatal(x.message))
+        FunctionRegistry.lookupAggregatorTransformation(ec)(t, funType +: rest.map(_.`type`), method)(lhs, args)
+          .valueOr(x => fatal(x.message))
 
-    case (t, _, _) => FunctionRegistry.lookupAggregatorTransformation(ec)(t, args.map(_.`type`).toSeq, method)(lhs, args)
-        .valueOr(x => fatal(x.message))
+      case _ => FunctionRegistry.lookupAggregatorTransformation(ec)(t, args.map(_.`type`).toSeq, method)(lhs, args)
+          .valueOr(x => fatal(x.message))
+    }
   }
 }
 
