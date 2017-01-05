@@ -284,4 +284,64 @@ class AggregatorSuite extends SparkSuite {
 
     assert(result.contains(0))
   }
+
+  @Test def testFlatMap1() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1]).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(2)
+    }
+    p.check()
+  }
+
+  @Test def testFlatMap2() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [0][:0]).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(0)
+    }
+    p.check()
+  }
+
+  @Test def testFlatMap3() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2]).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(6)
+    }
+    p.check()
+  }
+
+  @Test def testFlatMap4() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(4)
+    }
+    p.check()
+  }
+
+  @Test def testFlatMap5() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2,2].toSet).filter(x => x % 2 == 0).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(4)
+    }
+    p.check()
+  }
 }

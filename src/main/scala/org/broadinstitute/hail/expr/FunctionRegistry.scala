@@ -875,6 +875,21 @@ object FunctionRegistry {
 
   val aggST = Box[SymbolTable]()
 
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
+    { (k: Any => Any) => a { x =>
+      val r = f(x).asInstanceOf[IndexedSeq[Any]]
+      var i = 0
+      while (i < r.size) {
+        k(r(i))
+        i += 1
+      }
+    } }
+  })(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
+
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
+    { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
+  })(aggregableHr(TTHr, aggST), unaryHr(TTHr, setHr(TUHr)), aggregableHr(TUHr, aggST))
+
   registerLambdaAggregatorTransformer("filter", { (a: CPS[Any], f: (Any) => Any) =>
     { (k: Any => Any) => a { x =>
       val r = f(x)
