@@ -104,7 +104,7 @@ object AnnotateGlobalExprBySample extends Command {
       "sa" -> (2, vds.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vds.globalSignature),
-      "samples" -> (1, TAggregable(TVariant, aggregationST))))
+      "samples" -> (1, TAggregable(TSample, aggregationST))))
 
     val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, Option(Annotation.GLOBAL_HEAD))
 
