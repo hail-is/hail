@@ -9,6 +9,8 @@ import org.apache.spark.SparkContext
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.expr.{TArray, TDouble, TInt, TStruct}
 
+import scala.util.Random
+
 object BaldingNicholsModel {
   // K populations, N samples, M variants
   // popDist is K-vector proportional to population distribution
@@ -28,9 +30,7 @@ object BaldingNicholsModel {
 
     info(s"baldingnichols: generating genotypes for $K populations, $N samples, and $M variants...")
 
-    val gen = new JDKRandomGenerator()
-    gen.setSeed(seed)
-    implicit val rand: RandBasis = new RandBasis(gen)
+    Rand.generator.setSeed(seed)
 
     val popDist_k = popDistOpt.getOrElse(DenseVector.fill[Double](K)(1d))
     popDist_k :/= sum(popDist_k)
@@ -48,7 +48,7 @@ object BaldingNicholsModel {
       (0 until M).foreach(m =>
         popAF_km(k,m) = new Beta((1 - ancestralAF_m(m)) * Fst1_k(k), ancestralAF_m(m) * Fst1_k(k)).draw()))
 
-    val unif = rand.uniform
+    val unif = Rand.uniform
 
     val genotype_nm = DenseMatrix.zeros[Int](N,M)
     (0 until N).foreach(n =>

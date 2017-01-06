@@ -18,6 +18,9 @@ object SplitMulti extends Command {
     @Args4jOption(required = false, name = "--no-compress", usage = "Don't compress genotype streams")
     var noCompress: Boolean = false
 
+    @Args4jOption(required = false, name = "--keep-star-alleles", usage = "Do not filter * alleles")
+    var keepStar: Boolean = false
+
   }
 
   def newOptions = new Options
@@ -65,13 +68,14 @@ object SplitMulti extends Command {
     propagateGQ: Boolean,
     compress: Boolean,
     isDosage: Boolean,
+    keepStar: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
 
     if (v.isBiallelic)
-      return Iterator((v, (insertSplitAnnots(va, 0, false), it)))
+      return Iterator((v, (insertSplitAnnots(va, 1, false), it)))
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
-      .filter(_._1.alt != "*")
+      .filter(keepStar || _._1.alt != "*")
       .map { case (aa, aai) =>
         val (newStart, newRef, newAlt) = minRep(v.start, v.ref, aa.alt)
 
@@ -173,6 +177,7 @@ object SplitMulti extends Command {
     val propagateGQ = options.propagateGQ
     val noCompress = options.noCompress
     val isDosage = vds.isDosage
+    val keepStar = options.keepStar
 
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
@@ -195,7 +200,9 @@ object SplitMulti extends Command {
         split(v, va, gs,
           propagateGQ = propagateGQ,
           compress = !noCompress,
-          isDosage = isDosage, { (va, index, wasSplit) =>
+          keepStar = keepStar,
+          isDosage = isDosage,
+          insertSplitAnnots = { (va, index, wasSplit) =>
             insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
           })
       }

@@ -1,11 +1,120 @@
-from pyhail.java import scala_package_object
+from pyhail.java import scala_package_object, jarray
+from pyhail.keytable import KeyTable
+from pyhail.utils import TextTableConfig
 
-import pyspark
+from py4j.protocol import Py4JJavaError
 
 class VariantDataset(object):
     def __init__(self, hc, jvds):
         self.hc = hc
         self.jvds = jvds
+
+    def _raise_py4j_exception(self, e):
+        self.hc._raise_py4j_exception(e)
+
+    def sample_ids(self):
+        """Return sampleIDs.
+
+        :return: List of sample IDs.
+
+        :rtype: list of str
+
+        """
+        try:
+            return list(self.jvds.sampleIdsAsArray())
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def num_partitions(self):
+        """Number of RDD partitions.
+
+        :rtype: int
+
+        """
+        try:
+            return self.jvds.nPartitions()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def num_samples(self):
+        """Number of samples.
+
+        :rtype: int
+
+        """
+        try:
+            return self.jvds.nSamples()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def num_variants(self):
+        """Number of variants.
+
+        :rtype: long
+
+        """
+        try:
+            return self.jvds.nVariants()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def was_split(self):
+        """Multiallelic variants have been split into multiple biallelic variants.
+
+        Result is True if :py:meth:`~pyhail.VariantDataset.split_multi` has been called on this dataset
+        or the dataset was imported with :py:meth:`~pyhail.HailContext.import_plink`, :py:meth:`~pyhail.HailContext.import_gen`,
+        or :py:meth:`~pyhail.HailContext.import_bgen`.
+
+        :rtype: bool
+
+        """
+        try:
+            return self.jvds.wasSplit()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def is_dosage(self):
+        """Genotype probabilities are dosages.
+
+        The result of ``is_dosage()`` will be True if the dataset was imported with :py:meth:`~pyhail.HailContext.import_gen` or
+        :py:meth:`~pyhail.HailContext.import_bgen`.
+
+        :rtype: bool
+
+        """
+        try:
+            return self.jvds.isDosage()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def file_version(self):
+        """File version of dataset.
+
+        :rtype int
+
+        """
+        try:
+            return self.jvds.fileVersion()
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def aggregate_by_key(self, key_code, agg_code):
+        """Aggregate by user-defined key and aggregation expressions.
+        Equivalent of a group-by operation in SQL.
+
+        :param key_code: Named expression(s) for which fields are keys.
+        :type key_code: str or list of str
+
+        :param agg_code: Named aggregation expression(s).
+        :type agg_code: str or list of str
+
+        :rtype: :class:`.KeyTable`
+
+        """
+        try:
+            return KeyTable(self.hc, self.jvds.aggregateByKey(key_code, agg_code))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def aggregate_intervals(self, input, condition, output):
         """Aggregate over intervals and export.
@@ -21,14 +130,47 @@ class VariantDataset(object):
         pargs = ['aggregateintervals', '-i', input, '-c', condition, '-o', output]
         return self.hc.run_command(self, pargs)
 
-    def annotate_global_expr(self, condition):
-        """Update the global annotations with expression.
+    def annotate_alleles_expr(self, condition, propagate_gq=False):
+        """Annotate alleles with expression.
 
-        :param str condition: Annotation expression.
+        :param condition: Annotation expression.
+        :type condition: str or list of str
+        :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
+
+        """
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+        pargs = ['annotatealleles', 'expr', '-c', condition]
+        if propagate_gq:
+            pargs.append('--propagate-gq')
+        return self.hc.run_command(self, pargs)
+
+    def annotate_global_expr_by_variant(self, condition):
+        """Update the global annotations with expression with aggregation over
+        variants.
+
+        :param condition: Annotation expression.
+        :type condition: str or list of str
 
         """
 
-        pargs = ['annotateglobal', 'expr', '-c', condition]
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+        pargs = ['annotateglobal', 'exprbyvariant', '-c', condition]
+        return self.hc.run_command(self, pargs)
+
+    def annotate_global_expr_by_sample(self, condition):
+        """Update the global annotations with expression with aggregation over
+        samples.
+
+        :param str condition: Annotation expression.
+        :type condition: str or list of str
+
+        """
+
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+        pargs = ['annotateglobal', 'exprbysample', '-c', condition]
         return self.hc.run_command(self, pargs)
 
     def annotate_global_list(self, input, root, as_set=False):
@@ -41,7 +183,6 @@ class VariantDataset(object):
 
         :param bool as_set: If True, load text file as Set[String],
             otherwise, load as Array[String].
-
         """
 
         pargs = ['annotateglobal', 'list', '-i', input, '-r', root]
@@ -49,7 +190,7 @@ class VariantDataset(object):
             pargs.append('--as-set')
         return self.hc.run_command(self, pargs)
 
-    def annotate_global_table(self, input, root, impute=False):
+    def annotate_global_table(self, input, root, config=None):
         """Load delimited text file (text table) into global annotations as
         Array[Struct].
 
@@ -57,22 +198,30 @@ class VariantDataset(object):
 
         :param str root: Global annotation path to store text table.
 
-        :param str impute: Impute column types from the file.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         """
 
         pargs = ['annotateglobal', 'table', '-i', input, '-r', root]
-        if impute:
-            pargs.append('--impute')
+
+        if not config:
+            config = TextTableConfig()
+
+        pargs.extend(config.as_pargs())
+
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_expr(self, condition):
         """Annotate samples with expression.
 
-        :param str condition: Annotation expression.
+        :param condition: Annotation expression.
+        :type condition: str or list of str
 
         """
 
+        if isinstance(condition, list):
+            condition = ','.join(condition)
         pargs = ['annotatesamples', 'expr', '-c', condition]
         return self.hc.run_command(self, pargs)
 
@@ -111,10 +260,10 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['annotatesamples', 'table', '-i', input, '-r', root]
+        pargs = ['annotatesamples', 'list', '-i', input, '-r', root]
         return self.hc.run_command(self, pargs)
 
-    def annotate_samples_table(self, input, sample_expr, root=None, code=None, impute=False):
+    def annotate_samples_table(self, input, sample_expr, root=None, code=None, config=None):
         """Annotate samples with delimited text file (text table).
 
         :param str input: Path to delimited text file.
@@ -125,7 +274,8 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
-        :param str impute: Impute column types from the file.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         """
 
@@ -136,8 +286,12 @@ class VariantDataset(object):
         if code:
             pargs.append('--code')
             pargs.append(code)
-        if impute:
-            pargs.append('--impute')
+
+        if not config:
+            config = TextTableConfig()
+
+        pargs.extend(config.as_pargs())
+
         return self.hc.run_command(self, pargs)
 
     def annotate_samples_vds(self, right, root=None, code=None):
@@ -179,6 +333,8 @@ class VariantDataset(object):
         :param str condition: Annotation expression.
 
         """
+        if isinstance(condition, list):
+            condition = ','.join(condition)
         pargs = ['annotatevariants', 'expr', '-c', condition]
         return self.hc.run_command(self, pargs)
 
@@ -198,11 +354,11 @@ class VariantDataset(object):
             pargs.append('--all')
         return self.hc.run_command(self, pargs)
 
-    def annotate_variants_loci(self, path, locus_expr, root=None, code=None, impute=False):
+    def annotate_variants_loci(self, path, locus_expr, root=None, code=None, config=None):
         """Annotate variants from an delimited text file (text table) indexed
         by loci.
 
-        :param str input: Path to delimited text file.
+        :param str path: Path to delimited text file.
 
         :param str locus_expr: Expression for locus (key).
 
@@ -210,7 +366,8 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
-        :param str impute: Impute column types from the file.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         """
 
@@ -224,8 +381,10 @@ class VariantDataset(object):
             pargs.append('--code')
             pargs.append(code)
 
-        if impute:
-            pargs.append('--impute')
+        if not config:
+            config = TextTableConfig()
+
+        pargs.extend(config.as_pargs())
 
         if isinstance(path, str):
             pargs.append(path)
@@ -235,7 +394,7 @@ class VariantDataset(object):
 
         return self.hc.run_command(self, pargs)
 
-    def annotate_variants_table(self, path, variant_expr, root=None, code=None, impute=False):
+    def annotate_variants_table(self, path, variant_expr, root=None, code=None, config=None):
         """Annotate variant with delimited text file (text table).
 
         :param path: Path to delimited text files.
@@ -247,7 +406,8 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
-        :param str impute: Impute column types from the file.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         """
 
@@ -261,8 +421,10 @@ class VariantDataset(object):
             pargs.append('--code')
             pargs.append(code)
 
-        if impute:
-            pargs.append('--impute')
+        if not config:
+            config = TextTableConfig()
+
+        pargs.extend(config.as_pargs())
 
         if isinstance(path, str):
             pargs.append(path)
@@ -307,8 +469,8 @@ class VariantDataset(object):
 
         result = self.hc.jvm.org.broadinstitute.hail.driver.Concordance.calculate(
             self.jvds, right.jvds)
-        return (VariantDataset(self.hc, result._1),
-                VariantDataset(self.hc, result._2))
+        return (VariantDataset(self.hc, result._1()),
+                VariantDataset(self.hc, result._2()))
 
     def count(self, genotypes=False):
         """Return number of samples, varaints and genotypes.
@@ -318,9 +480,12 @@ class VariantDataset(object):
 
         """
 
-        return (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
-                .count(self.jvds, genotypes)
-                .toJavaMap())
+        try:
+            return (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+                    .count(self.jvds, genotypes)
+                    .toJavaMap())
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def deduplicate(self):
         """Remove duplicate variants."""
@@ -375,14 +540,14 @@ class VariantDataset(object):
             pargs.append('--print-missing')
         return self.hc.run_command(self, pargs)
 
-    def export_plink(self, output):
+    def export_plink(self, output, fam_expr = 'id = s.id'):
         """Export as PLINK .bed/.bim/.fam
 
         :param str output: Output file base.  Will write .bed, .bim and .fam files.
 
         """
 
-        pargs = ['exportplink', '--output', output]
+        pargs = ['exportplink', '--output', output, '--fam-expr', fam_expr]
         return self.hc.run_command(self, pargs)
 
     def export_samples(self, output, condition, types=None):
@@ -499,12 +664,51 @@ class VariantDataset(object):
         :param str output: Path of .vds file to write.
 
         :param bool overwrite: If True, overwrite any existing .vds file.
-        
+
         """
 
         pargs = ['write', '-o', output]
         if overwrite:
             pargs.append('--overwrite')
+        return self.hc.run_command(self, pargs)
+
+    def filter_alleles(self, condition, annotation=None, subset=True, keep=True, filter_altered_genotypes=False):
+        """
+        Filter a user-defined set of alternate alleles for each variant.
+        If all of a variant's alternate alleles are filtered, the variant itself is filtered.
+        The condition expression is evaluated for each alternate allele.
+
+        :param condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+        :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
+            and aIndices (maps from new to old indices) (default: "va = va")
+        :param bool subset: If true, subsets the PL and AD, otherwise downcodes the PL and AD.
+            Genotype and GQ are set based on the resulting PLs.
+        :param bool keep: Keep variants matching condition
+        :param bool filter_altered_genotypes: If set, any genotype call that would change due to filtering an allele
+            would be set to missing instead.
+
+        """
+
+        pargs = ['filteralleles',
+                 '--keep' if keep else '--remove',
+                 '--subset' if subset else '--downcode',
+                 '-c', condition]
+        if annotation:
+            pargs.extend(['-a', annotation])
+        if filter_altered_genotypes:
+            pargs.append('--filterAlteredGenotypes')
+        return self.hc.run_command(self, pargs)
+
+    def filter_genotypes(self, condition, keep=True):
+        """Filter variants based on expression.
+
+        :param str condition: Expression for filter condition.
+
+        """
+
+        pargs = ['filtergenotypes',
+                 '--keep' if keep else '--remove',
+                 '-c', condition]
         return self.hc.run_command(self, pargs)
 
     def filter_multi(self):
@@ -523,24 +727,31 @@ class VariantDataset(object):
         pargs = ['filtersamples', 'all']
         return self.hc.run_command(self, pargs)
 
-    def filter_samples_expr(self, condition):
+    def filter_samples_expr(self, condition, keep=True):
         """Filter samples based on expression.
 
-        :param str condition: Expression for filter condition.
+        :param condition: Expression for filter condition.
+        :type condition: str or list of str
 
         """
 
-        pargs = ['filtersamples', 'expr', '--keep', '-c', condition]
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+        pargs = ['filtersamples', 'expr',
+                 '--keep' if keep else '--remove',
+                 '-c', condition]
         return self.hc.run_command(self, pargs)
 
-    def filter_samples_list(self, input):
+    def filter_samples_list(self, input, keep=True):
         """Filter samples with a sample list file.
 
         :param str input: Path to sample list file.
 
         """
 
-        pargs = ['filtersamples', 'list', '--keep', '-i', input]
+        pargs = ['filtersamples', 'list',
+                 '--keep' if keep else '--remove',
+                 '-i', input]
         return self.hc.run_command(self, pargs)
 
     def filter_variants_all(self):
@@ -549,34 +760,43 @@ class VariantDataset(object):
         pargs = ['filtervariants', 'all']
         return self.hc.run_command(self, pargs)
 
-    def filter_variants_expr(self, condition):
-        """Filter samples based on expression.
+    def filter_variants_expr(self, condition, keep=True):
+        """Filter variants based on expression.
 
-        :param str condition: Expression for filter condition.
+        :param condition: Expression for filter condition.
+        :type condition: str or list of str
 
         """
 
-        pargs = ['filtervariants', 'expr', '--keep', '-c', condition]
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+        pargs = ['filtervariants', 'expr',
+                 '--keep' if keep else '--remove',
+                 '-c', condition]
         return self.hc.run_command(self, pargs)
 
-    def filter_variants_intervals(self, input):
+    def filter_variants_intervals(self, input, keep=True):
         """Filter variants with an .interval_list file.
 
         :param str input: Path to .interval_list file.
 
         """
 
-        pargs = ['filtervariants', 'intervals', '--keep', '-i', input]
+        pargs = ['filtervariants', 'intervals',
+                 '--keep' if keep else '--remove',
+                 '-i', input]
         return self.hc.run_command(self, pargs)
 
-    def filter_variants_list(self, input):
+    def filter_variants_list(self, input, keep=True):
         """Filter variants with a list of variants.
 
         :param str input: Path to variant list file.
 
         """
 
-        pargs = ['filtervariants', 'list', '-i', input]
+        pargs = ['filtervariants', 'list',
+                 '--keep' if keep else '--remove',
+                 '-i', input]
         return self.hc.run_command(self, pargs)
 
     def grm(self, format, output, id_file=None, n_file=None):
@@ -643,7 +863,7 @@ class VariantDataset(object):
             pargs.append(max)
         return self.hc.run_command(self, pargs)
 
-    def imputesex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
+    def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
@@ -655,23 +875,23 @@ class VariantDataset(object):
 
         :param float male_threshold: Samples are called males if F > maleThreshold
 
-        :param Variant annotation for estimate of MAF.  If None, MAF
-            will be computed.
+        :param str pop_freq: Variant annotation for estimate of MAF.
+            If None, MAF will be computed.
 
         """
 
         pargs = ['imputesex']
         if maf_threshold:
             pargs.append('--maf-threshold')
-            pargs.append(maf_threshold)
+            pargs.append(str(maf_threshold))
         if include_par:
             pargs.append('--include_par')
         if female_threshold:
             pargs.append('--female-threshold')
-            pargs.append(female_threshold)
+            pargs.append(str(female_threshold))
         if male_threshold:
             pargs.append('--male-threshold')
-            pargs.append(male_threshold)
+            pargs.append(str(male_threshold))
         if pop_freq:
             pargs.append('--pop-freq')
             pargs.append(pop_freq)
@@ -682,13 +902,12 @@ class VariantDataset(object):
         and global annotations from self.
 
         """
+        try:
+            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jvds, right.jvds))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
-        return VariantDataset(
-            self.hc,
-            self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jvds,
-                                                                 right.jvds))
-
-    def linreg(self, y, covariates="", root="va.linreg", minac=1, minaf=0.0):
+    def linreg(self, y, covariates='', root='va.linreg', minac=1, minaf=None):
         """Test each variant for association using the linear regression
         model.
 
@@ -700,11 +919,15 @@ class VariantDataset(object):
 
         :param float minac: Minimum alternate allele count.
 
-        :param float minaf: Minimum alternate allele frequency.
+        :param minaf: Minimum alternate allele frequency.
+        :type minaf: float or None
 
         """
 
-        pargs = ['linreg', '-y', y, '-c', covariates, '-r', root, '--mac', str(minac), '--maf', str(minaf)]
+        pargs = ['linreg', '-y', y, '-c', covariates, '-r', root, '--mac', str(minac)]
+        if minaf:
+            pargs.append('--maf')
+            pargs.append(str(minaf))
         return self.hc.run_command(self, pargs)
 
     def logreg(self, test, y, covariates=None, root=None):
@@ -744,7 +967,7 @@ class VariantDataset(object):
         pargs = ['mendelerrors', '-o', output, '-f', fam]
         return self.hc.run_command(self, pargs)
 
-    def pca(self, output, scores, loadings=None, eigenvalues=None, k=10, arrays=False):
+    def pca(self, scores, loadings=None, eigenvalues=None, k=10, arrays=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
         :param str scores: Sample annotation path to store scores.
@@ -757,7 +980,7 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['pca', '-o', output, '--scores', scores, '-k', k]
+        pargs = ['pca', '--scores', scores, '-k', str(k)]
         if loadings:
             pargs.append('--loadings')
             pargs.append(loadings)
@@ -784,7 +1007,7 @@ class VariantDataset(object):
             pargs.append(storage_level)
         return self.hc.run_command(self, pargs)
 
-    def printschema(self, output=None, attributes=False, va=False, sa=False, print_global=False):
+    def print_schema(self, output=None, attributes=False, va=False, sa=False, print_global=False):
         """Shows the schema for global, sample and variant annotations.
 
         :param output: Output file.
@@ -814,7 +1037,7 @@ class VariantDataset(object):
             pargs.append('--global')
         return self.hc.run_command(self, pargs)
 
-    def renamesamples(self, input):
+    def rename_samples(self, input):
         """Rename samples.
 
         :param str input: Input file.
@@ -845,8 +1068,10 @@ class VariantDataset(object):
         :rtype: bool
 
         """
-
-        return self.jvds.same(other.jvds)
+        try:
+            return self.jvds.same(other.jvds, 1e-6)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def sample_qc(self, branching_factor=None):
         """Compute per-sample QC metrics.
@@ -882,19 +1107,135 @@ class VariantDataset(object):
 
         return self.hc.run_command(self, ['sparkinfo'])
 
-    def split_multi(self, propagate_gq=False):
-        """Split multi-allelic variants.
+    def split_multi(self, propagate_gq=False, keep_star_alleles=False):
+        """Split multiallelic variants.
 
-        :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
+        **Examples**
+
+        >>> (hc.import_vcf('data/sample.vcf')
+        >>>  .split_multi()
+        >>>  .write('data/split.vds'))
+
+        **Implementation Details**
+
+        We will explain by example. Consider a hypothetical 3-allelic
+        variant::
+
+          A   C,T 0/2:7,2,6:15:45:99,50,99,0,45,99
+
+        split_multi will create two biallelic variants (one for each
+        alternate allele) at the same position::
+
+          A   C   0/0:13,2:15:45:0,45,99
+          A   T   0/1:9,6:15:50:50,0,99
+
+        Each multiallelic GT field is downcoded once for each
+        alternate allele. A call for an alternate allele maps to 1 in
+        the biallelic variant corresponding to itself and 0
+        otherwise. For example, in the example above, 0/2 maps to 0/0
+        and 0/1. The genotype 1/2 maps to 0/1 and 0/1.
+
+        The biallelic alt AD entry is just the multiallelic AD entry
+        corresponding to the alternate allele. The ref AD entry is the
+        sum of the other multiallelic entries.
+
+        The biallelic DP is the same as the multiallelic DP.
+
+        The biallelic PL entry for for a genotype g is the minimum
+        over PL entries for multiallelic genotypes that downcode to
+        g. For example, the PL for (A, T) at 0/1 is the minimum of the
+        PLs for 0/1 (50) and 1/2 (45), and thus 45.
+
+        Fixing an alternate allele and biallelic variant, downcoding
+        gives a map from multiallelic to biallelic alleles and
+        genotypes. The biallelic AD entry for an allele is just the
+        sum of the multiallelic AD entries for alleles that map to
+        that allele. Similarly, the biallelic PL entry for a genotype
+        is the minimum over multiallelic PL entries for genotypes that
+        map to that genotype.
+
+        By default, GQ is recomputed from PL. If ``propagate_gq=True``
+        is passed, the biallelic GQ field is simply the multiallelic
+        GQ field, that is, genotype qualities are unchanged.
+
+        Here is a second example for a het non-ref::
+
+          A   C,T 1/2:2,8,6:16:45:99,50,99,45,0,99
+
+        splits as::
+
+          A   C   0/1:8,8:16:45:45,0,99
+          A   T   0/1:10,6:16:50:50,0,99
+
+        **VCF Info Fields**
+
+        Hail does not split annotations in the info field. This means
+        that if a multiallelic site with ``info.AC`` value ``[10, 2]`` is
+        split, each split site will contain the same array ``[10,
+        2]``. The provided allele index annotation ``va.aIndex`` can be used
+        to select the value corresponding to the split allele's
+        position:
+
+        >>> (hc.import_vcf('data/sample.vcf')
+        >>>  .split_multi()
+        >>>  .filter_variants_expr('va.info.AC[va.aIndex - 1] < 10', keep = False))
+
+        VCFs split by Hail and exported to new VCFs may be
+        incompatible with other tools, if action is not taken
+        first. Since the "Number" of the arrays in split multiallelic
+        sites no longer matches the structure on import ("A" for 1 per
+        allele, for example), Hail will export these fields with
+        number ".".
+
+        If the desired output is one value per site, then it is
+        possible to use annotatevariants expr to remap these
+        values. Here is an example:
+
+        >>> (hc.import_vcf('data/sample.vcf')
+        >>>  .split_multi()
+        >>>  .annotate_variants_expr('va.info.AC = va.info.AC[va.aIndex - 1]')
+        >>>  .export_vcf('data/export.vcf'))
+
+        The info field AC in ``data/export.vcf`` will have ``Number=1``.
+
+        **Annotations**
+
+        ``split_multi`` adds the following annotations:
+
+         - **va.wasSplit** (*Boolean*) -- true if this variant was
+           originally multiallelic, otherwise false.
+
+         - **va.aIndex** (*Int*) -- The original index of this
+           alternate allele in the multiallelic representation (NB: 1
+           is the first alternate allele or the only alternate allele
+           in a biallelic variant). For example, 1:100:A:T,C splits
+           into two variants: 1:100:A:T with ``aIndex = 1`` and
+           1:100:A:C with ``aIndex = 2``.
+
+        :param bool propagate_gq: Set the GQ of output (split)
+          genotypes to be the GQ of the input (multi-allelic) variants
+          instead of recompute GQ as the difference between the two
+          smallest PL values.  Intended to be used in conjunction with
+          ``import_vcf(store_gq=True)``.  This option will be obviated
+          in the future by generic genotype schemas.  Experimental.
+
+        :param bool keep_star_alleles: Do not filter out * alleles.
+
+        :return: A VariantDataset of biallelic variants with split set
+          to true.
+
+        :rtype: VariantDataset
 
         """
 
         pargs = ['splitmulti']
         if propagate_gq:
             pargs.append('--propagate-gq')
+        if keep_star_alleles:
+            pargs.append('--keep-star-alleles')
         return self.hc.run_command(self, pargs)
 
-    def tdt(self, fam, root):
+    def tdt(self, fam, root='va.tdt'):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
@@ -952,8 +1293,81 @@ class VariantDataset(object):
             pargs.append('--csq')
         return self.hc.run_command(self, pargs)
 
-    def variants_to_pandas(self):
-        """Convert variants and variant annotations to Pandas dataframe."""
+    def variants_keytable(self):
+        """Convert variants and variant annotations to a KeyTable."""
 
-        return pyspark.sql.DataFrame(self.jvds.variantsDF(self.hc.jsql_context),
-                                     self.hc.sql_context).toPandas()
+        try:
+            return KeyTable(self.hc, self.jvds.variantsKT())
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def samples_keytable(self):
+        """Convert samples and sample annotations to KeyTable."""
+
+        try:
+            return KeyTable(self.hc, self.jvds.samplesKT())
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def make_keytable(self, variant_condition, genotype_condition, key_names):
+        """Make a KeyTable with one row per variant.
+
+        Per sample field names in the result are formed by concatening
+        the sample ID with the genotype_condition left hand side with
+        dot (.).  If the left hand side is empty::
+
+          `` = expr
+
+        then the dot (.) is ommited.
+
+        **Example**
+
+        Consider a ``VariantDataset`` ``vds`` with 2 variants and 3 samples::
+
+          Variant	FORMAT	A	B	C
+          1:1:A:T	GT:GQ	0/1:99	./.	0/0:99
+          1:2:G:C	GT:GQ	0/1:89	0/1:99	1/1:93
+
+        Then::
+
+          >>> vds = hc.import_vcf('data/sample.vcf')
+          >>> vds.make_keytable('v = v', 'gt = g.gt', gq = g.gq', [])
+
+        returns a ``KeyTable`` with schema::
+
+          v: Variant
+          A.gt: Int
+          B.gt: Int
+          C.gt: Int
+          A.gq: Int
+          B.gq: Int
+          C.gq: Int
+
+        in particular, the values would be::
+
+          v	A.gt	B.gt	C.gt	A.gq	B.gq	C.gq
+          1:1:A:T	1	NA	0	99	NA	99
+          1:2:G:C	1	1	2	89	99	93
+
+        :param variant_condition: Variant annotation expressions.
+        :type variant_condition: str or list of str
+
+        :param genotype_condition: Genotype annotation expressions.
+        :type genotype_condition: str or list of str
+
+        :param key_names: list of key columns
+        :type key_names: list of str
+
+        :rtype: KeyTable
+
+        """
+        
+        if isinstance(variant_condition, list):
+            variant_condition = ','.join(variant_condition)
+        if isinstance(genotype_condition, list):
+            genotype_condition = ','.join(genotype_condition)
+
+        jkt = (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+               .makeKT(self.jvds, variant_condition, genotype_condition,
+                       jarray(self.hc.gateway, self.hc.jvm.java.lang.String, key_names)))
+        return KeyTable(self.hc, jkt)

@@ -45,37 +45,37 @@ object AggregateIntervals extends Command {
     val output = options.output
     val vas = vds.vaSignature
     val sas = vds.saSignature
+    val localGlobalAnnotation = vds.globalAnnotation
 
-    val aggregationEC = EvalContext(Map(
-      "va" -> (0, vds.vaSignature),
-      "global" -> (1, vds.globalSignature)))
+    val aggregationST = Map(
+      "global" -> (0, vds.globalSignature),
+      "interval" -> (1, TInterval),
+      "v" -> (2, TVariant),
+      "va" -> (3, vds.vaSignature))
     val symTab = Map(
-      "interval" -> (0, TInterval),
-      "global" -> (1, vds.globalSignature),
-      "variants" -> (-1, BaseAggregable(aggregationEC, TVariant)))
+      "global" -> (0, vds.globalSignature),
+      "interval" -> (1, TInterval),
+      "variants" -> (2, TAggregable(TVariant, aggregationST)))
 
     val ec = EvalContext(symTab)
     ec.set(1, vds.globalAnnotation)
-    aggregationEC.set(1, vds.globalAnnotation)
 
-    val (header, _, f) = Parser.parseNamedArgs(cond, ec)
+    val (names, _, f) = Parser.parseExportExprs(cond, ec)
 
-    if (header.isEmpty)
+    if (names.isEmpty)
       fatal("this module requires one or more named expr arguments")
 
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions(aggregationEC)
-
-    val zvf = () => zVals.indices.map(zVals).toArray
-
-    val variantAggregations = Aggregators.buildVariantAggregations(vds, aggregationEC)
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[(Interval[Locus], Variant, Annotation)](ec, { case (ec, (i, v, va)) =>
+        ec.setAll(localGlobalAnnotation, i, v, va)
+    })
 
     val iList = IntervalListAnnotator.read(options.input, sc.hadoopConfiguration)
     val iListBc = sc.broadcast(iList)
 
     val results = vds.variantsAndAnnotations.flatMap { case (v, va) =>
-      iListBc.value.query(v.locus).map { i => (i, (v, va)) }
+      iListBc.value.query(v.locus).map { i => (i, (i, v, va)) }
     }
-      .aggregateByKey(zvf())(seqOp, combOp)
+      .aggregateByKey(zVals)(seqOp, combOp)
       .collectAsMap()
 
     sc.hadoopConfiguration.writeTextFile(options.output) { out =>
@@ -85,7 +85,7 @@ object AggregateIntervals extends Command {
       sb.append("Start")
       sb += '\t'
       sb.append("End")
-      header.foreach { col =>
+      names.foreach { col =>
         sb += '\t'
         sb.append(col)
       }
@@ -99,10 +99,10 @@ object AggregateIntervals extends Command {
           sb.append(interval.start.position)
           sb += '\t'
           sb.append(interval.end.position)
-          val res = results.getOrElse(interval, zvf())
+          val res = results.getOrElse(interval, zVals)
           resultOp(res)
 
-          ec.set(0, interval)
+          ec.setAll(localGlobalAnnotation, interval)
           f().foreach { field =>
             sb += '\t'
             sb.append(field)

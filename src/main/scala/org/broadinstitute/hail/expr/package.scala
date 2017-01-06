@@ -1,7 +1,13 @@
 package org.broadinstitute.hail
 
-package object expr {
-  type SymbolTable = Map[String, (Int, BaseType)]
+import scala.language.implicitConversions
+
+
+
+package object expr extends HailRepFunctions {
+  type SymbolTable = Map[String, (Int, Type)]
+  def emptySymTab = Map.empty[String, (Int, Type)]
+
   type Aggregator = TypedAggregator[Any]
 
   abstract class TypedAggregator[+S] extends Serializable {
@@ -12,12 +18,9 @@ package object expr {
     def result: S
 
     def copy(): TypedAggregator[S]
-
-    def idx: Int
   }
 
-  implicit val toInt = IntNumericConversion
-  implicit val toLong = LongNumericConversion
-  implicit val toFloat = FloatNumericConversion
-  implicit val toDouble = DoubleNumericConversion
+  implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)
+
+  type CPS[T] = (T => Unit) => Unit
 }

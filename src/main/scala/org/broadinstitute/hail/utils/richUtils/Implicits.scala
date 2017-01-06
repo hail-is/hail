@@ -7,7 +7,8 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.utils.{MultiArray2, Truncatable}
+import org.broadinstitute.hail.utils.{JSONWriter, MultiArray2, Truncatable}
+import org.json4s.JValue
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
@@ -88,4 +89,8 @@ trait Implicits {
   implicit def toTruncatable[T](it: Iterable[T]): Truncatable = it.truncatable()
 
   implicit def toTruncatable(arr: Array[_]): Truncatable = toTruncatable(arr: Iterable[_])
+
+  implicit def toJSONWritable[T](x: T)(implicit jw: JSONWriter[T]): JSONWritable[T] = new JSONWritable(x, jw)
+
+  implicit def toRichJValue(jv: JValue): RichJValue = new RichJValue(jv)
 }

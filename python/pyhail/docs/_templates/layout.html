@@ -1,0 +1,27 @@
+{% extends "!layout.html" %}
+
+{% block extrahead %}
+<title>Hail</title>
+<link rel='shortcut icon' href='../hail_logo_sq.png' type='image/x-icon'>
+<link rel="stylesheet" href="../bootstrap.min.css">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../navbar.css">
+<script src="../bootstrap.min.js"></script>
+
+<script>
+    $(document).ready(function () {
+
+      $("#hail-navbar").load("navbar_pyhail.html", function () {
+        $(".nav li").removeClass("active");
+        $('#docs').addClass('active');
+        $('#pyhail').addClass('active');
+      });
+    });
+ </script>
+{{ super() }}
+{% endblock %}
+
+{% block relbar1 %}
+<nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
+{{ super() }}
+{% endblock %}

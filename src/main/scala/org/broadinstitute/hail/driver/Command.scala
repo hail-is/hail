@@ -46,6 +46,7 @@ object ToplevelCommands {
   }
 
   register(AggregateIntervals)
+  register(AnnotateAlleles)
   register(AnnotateSamples)
   register(AnnotateVariants)
   register(AnnotateGlobal)
@@ -71,7 +72,6 @@ object ToplevelCommands {
   register(FilterAlleles)
   register(FilterGenotypes)
   register(Filtermulti)
-  register(FamSummary)
   register(FilterSamples)
   register(FilterVariants)
   register(GenDataset)
@@ -105,6 +105,7 @@ object ToplevelCommands {
   register(SampleQC)
   register(SeqrServerCommand)
   register(TDTCommand)
+  register(Typecheck)
   register(PrintSchema)
   register(ShowGlobalAnnotations)
   register(VariantQC)
@@ -254,7 +255,7 @@ abstract class Command {
       fatal("this module does not support multiallelic variants.\n  Please run `splitmulti' first.")
     else {
       if (requiresVDS)
-        log.info(s"sparkinfo: $name, ${state.vds.nPartitions} partitions, ${state.vds.rdd.getStorageLevel.toReadableString()}")
+        log.info(s"sparkinfo: $name, ${ state.vds.nPartitions } partitions, ${ state.vds.rdd.getStorageLevel.toReadableString() }")
       run(state, options)
     }
   }

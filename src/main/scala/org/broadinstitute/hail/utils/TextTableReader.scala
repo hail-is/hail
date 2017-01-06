@@ -46,6 +46,11 @@ trait TextTableOptions {
   )
 }
 
+object TextTableConfiguration {
+  def apply(types: String, commentChar: String, separator: String, missing: String, noHeader: Boolean, impute: Boolean): TextTableConfiguration =
+    TextTableConfiguration(Parser.parseAnnotationTypes(Option(types).getOrElse("")), Option(commentChar), separator, missing, noHeader, impute)
+}
+
 case class TextTableConfiguration(
   types: Map[String, Type] = Map.empty[String, Type],
   commentChar: Option[String] = None,
@@ -205,32 +210,31 @@ object TextTableReader {
 
     val schema = TStruct(namesAndTypes: _*)
 
-    val ab = mutable.ArrayBuilder.make[Annotation]
     val parsed = rdd
       .map {
         _.map { line =>
+          val a = new Array[Annotation](nField)
+
           val split = line.split(separator, -1)
           if (split.length != nField)
             fatal(s"expected $nField fields, but found ${ split.length } fields")
 
-          ab.clear()
           var i = 0
           while (i < nField) {
             val (name, t) = namesAndTypes(i)
             val field = split(i)
             try {
               if (field == missing)
-                ab += null
+                a(i) = null
               else
-                ab += TableAnnotationImpex.importAnnotation(field, t)
+                a(i) = TableAnnotationImpex.importAnnotation(field, t)
             } catch {
               case e: Exception =>
                 fatal(s"""${ e.getClass.getName }: could not convert "$field" to $t in column "$name" """)
             }
             i += 1
           }
-          val a = Annotation.fromSeq(ab.result())
-          a
+          Annotation.fromSeq(a)
         }
       }
 

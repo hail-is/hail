@@ -19,6 +19,11 @@ plugins {
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 repositories {
+    // Get kudu-spark2_2.11 with custom pom from our repo since we can't
+    // figure out how to enable spark2_2.11 profile in standard pom.
+    maven {
+        url 'https://storage.googleapis.com/hail-common/maven-repo'
+    }
     mavenCentral()
     jcenter()
     maven {
@@ -33,11 +38,37 @@ buildScan {
 
 mainClassName = "org.broadinstitute.hail.driver.Main"
 
-String scalaVersion = '2.10.4'
-String scalaMajorVersion = '2.10'
-String sparkVersion = System.getProperty("spark.version","1.6.2")
-// String scalaVersion = '2.11.7'
-// String scalaMajorVersion = '2.11'
+String sparkVersion = System.getProperty("spark.version","2.0.2")
+
+Boolean spark2 = sparkVersion ==~ /^2.*/
+
+String mongoVersion
+String kuduSpark
+String scalaVersion
+String scalaMajorVersion
+String py4jVersion
+String breezeVersion = '0.11.2'
+
+if (spark2) {
+    kuduSpark = 'spark2'
+    scalaVersion = '2.11.8'
+    scalaMajorVersion = '2.11'
+    py4jVersion = '0.10.3'
+    mongoVersion = '2.0.0'
+} else {
+    scalaVersion = '2.10.4'
+    scalaMajorVersion = '2.10'
+    kuduSpark = 'spark'
+    if (sparkVersion ==~ /^1\.5.*/) {
+        py4jVersion = '0.8.2.1'
+        mongoVersion = '1.0.0'
+    } else {
+        py4jVersion = '0.9' // 1.6
+        mongoVersion = '1.1.0'
+    }
+}
+
+String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
@@ -79,16 +110,21 @@ compileJava {
 }
 
 compileScala {
-    // scalaCompileOptions.compilerArgs << "-Xfatal-warnings"
-    scalaCompileOptions.additionalParameters = ["-feature", "-Xfatal-warnings"]
-    // scalaCompileOptions.forkOptions.jvmArgs = ['-XX:MaxPermSize=512m']
+    if (spark2)
+        // until we drop Spark 1 support, we need to rely on deprecated features
+        scalaCompileOptions.additionalParameters = ["-feature"]
+    else
+        scalaCompileOptions.additionalParameters = ["-feature", "-Xfatal-warnings"]
 }
 
-configurations.all {
-    resolutionStrategy {
-        // override new version pulled in by solrj
-        // http://stackoverflow.com/questions/31039367/spark-parallelize-could-not-find-creator-property-with-name-id
-        force 'com.fasterxml.jackson.core:jackson-databind:2.4.4'
+if (!spark2) {
+    configurations.all {
+        resolutionStrategy {
+            // override new version pulled in by solrj
+            // http://stackoverflow.com/questions/31039367/spark-parallelize-could-not-find-creator-property-with-name-id
+
+            force 'com.fasterxml.jackson.core:jackson-databind:2.4.4'
+        }
     }
 }
 
@@ -104,15 +140,11 @@ dependencies {
     compile 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     compile 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
     compile 'net.jpountz.lz4:lz4:1.3.0'
-    compile 'org.apache.commons:commons-math3:3.5'
-    compile 'org.apache.commons:commons-lang3:3.4'
-    compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.11.2'
-    // compile 'org.scalanlp:breeze_' + scalaMajorVersion + ':0.12'
-    compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':0.11.2'
+    compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
     compile 'args4j:args4j:2.32'
     compile 'com.github.samtools:htsjdk:2.5.0'
-    compile 'org.kududb:kudu-client:0.9.0'
-    compile 'org.kududb:kudu-spark_' + scalaMajorVersion + ':0.9.0'
+    compile 'org.apache.kudu:kudu-client:1.1.0'
+    compile 'org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':1.1.0'
 
     compile 'org.http4s:http4s-core_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-server_' + scalaMajorVersion + ':0.12.3'
@@ -132,6 +164,8 @@ dependencies {
     //compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
     //compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
 
+    compile 'org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':' + mongoVersion
+
     compile 'org.apache.solr:solr-solrj:6.2.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
 
@@ -142,6 +176,7 @@ dependencies {
     compile group: 'org.ow2.asm', name: 'asm-analysis', version: '5.1'
 
     compile 'net.java.dev.jna:jna:4.2.2'
+    compile 'net.sourceforge.jdistlib:jdistlib:0.4.5'
 
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
@@ -179,6 +214,16 @@ test {
 
 test.dependsOn(checkSettings)
 
+task testPyHail(type: Exec, dependsOn: shadowJar) {
+     commandLine 'python', '-m', 'unittest', 'pyhail.tests'
+
+     environment SPARK_HOME: sparkHome
+     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+}
+
+test.dependsOn(testPyHail)
+
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
@@ -189,7 +234,6 @@ tasks.withType(ShadowJar) {
     mergeServiceFiles()
     zip64 true
     // conflict with version in default Hadoop/Spark install
-    relocate 'org.apache.commons.math3', 'org.broadinstitute.hail.relocated.org.apache.commons.math3'
     relocate 'org.apache.http', 'org.broadinstitute.hail.relocated.org.apache.http'
     relocate 'com.google.common', 'org.broadinstitute.hail.relocated.com.google.common'
     relocate 'org.objectweb', 'org.broadinstitute.hail.relocated.org.objectweb'
@@ -201,7 +245,6 @@ shadowJar {
     configurations = [project.configurations.runtime]
     dependencies {
         include(dependency('net.jpountz.lz4:lz4:.*'))
-        include(dependency('org.apache.commons:commons-math3:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
@@ -212,6 +255,12 @@ shadowJar {
         include(dependency('org.json4s:json4s-ast_' + scalaMajorVersion + ':.*'))
 
         include(dependency('org.http4s:http4s-core_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.apache.kudu:kudu-client:.*'))
+        include(dependency('org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.mongodb:mongo-java-driver:.*'))
 
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
@@ -225,8 +274,8 @@ shadowJar {
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('com.google.guava:guava:.*'))
-        include(dependency('org.kududb:kudu-client:.*'))
-        include(dependency('org.kududb:kudu-spark_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.apache.spark:kudu-client:.*'))
+        include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
 
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
@@ -234,6 +283,7 @@ shadowJar {
         include(dependency('org.ow2.asm:asm-analysis:.*'))
 
         include(dependency('net.java.dev.jna:jna:.*'))
+        include(dependency('net.sourceforge.jdistlib:jdistlib:.*'))
     }
 }
 
@@ -243,7 +293,6 @@ task shadowTestJar(type: ShadowJar) {
     configurations = [project.configurations.testRuntime]
     dependencies {
         include(dependency('net.jpountz.lz4:lz4:.*'))
-        include(dependency('org.apache.commons:commons-math3:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('args4j:args4j:.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
@@ -257,7 +306,13 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.scalaz:scalaz-core_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-concurrent_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-stream_' + scalaMajorVersion + ':.*'))
-	
+
+        include(dependency('org.apache.kudu:kudu-client:.*'))
+        include(dependency('org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.mongodb:mongo-java-driver:.*'))
+
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
         include(dependency('org.apache.httpcomponents:httpclient:.*'))
@@ -270,9 +325,9 @@ task shadowTestJar(type: ShadowJar) {
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('com.google.guava:guava:.*'))
-        include(dependency('org.kududb:kudu-client:.*'))
-        include(dependency('org.kududb:kudu-spark_' + scalaMajorVersion + ':.*'))
-	
+        include(dependency('org.apache.spark:kudu-client:.*'))
+        include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
+
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
         include(dependency('org.ow2.asm:asm-tree:.*'))
@@ -283,6 +338,7 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.scalatest:scalatest_' + scalaMajorVersion + ':.*'))
 
         include(dependency('net.java.dev.jna:jna:.*'))
+        include(dependency('net.sourceforge.jdistlib:jdistlib:.*'))
     }
 }
 
@@ -359,19 +415,33 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
     classpath sourceSets.main.runtimeClasspath
 }
 
-task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'copyJavascript', 'copyHtml']) {
+task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
+    workingDir 'build/tmp/docs'
+    commandLine 'npm', 'install'
+
+
+    standardOutput = new ByteArrayOutputStream()
+    errorOutput = standardOutput
+    ignoreExitValue = true
+    doLast {
+        if (execResult.exitValue != 0) {
+            println(standardOutput.toString())
+            throw new GradleException("exec failed; see output above")
+        }
+    }
+}
+
+task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepareJavascript', 'copyHtml']) {
     args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'template.html', './commandOptions.json', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
 task makePyHailDocs(type: Exec) {
-     String sparkHome = System.getProperty("spark.home")
-
      workingDir 'python/pyhail/docs'
 
      commandLine 'make', 'html'
 
-     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-0.9-src.zip'
+     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
 task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs']) {

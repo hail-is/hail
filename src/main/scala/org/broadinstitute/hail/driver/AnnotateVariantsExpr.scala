@@ -28,46 +28,30 @@ object AnnotateVariantsExpr extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
+    val localGlobalAnnotation = vds.globalAnnotation
 
     val cond = options.condition
 
-
-    val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "global" -> (4, vds.globalSignature)))
-    val symTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
-
-
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(4, vds.globalAnnotation)
-
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(cond, ec, Annotation.VARIANT_HEAD)
+    val ec = Aggregators.variantEC(vds)
+    val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, Some(Annotation.VARIANT_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finalType = parseTypes.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
       val (s, i) = vas.insert(signature, ids)
       inserterBuilder += i
       s
     }
     val inserters = inserterBuilder.result()
 
-    val aggregateOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
+    val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
 
     val annotated = vds.mapAnnotations { case (v, va, gs) =>
-      ec.setAll(v, va)
+      ec.setAll(localGlobalAnnotation, v, va)
 
       aggregateOption.foreach(f => f(v, va, gs))
-      fns.zip(inserters)
-        .foldLeft(va) { case (va, (fn, inserter)) =>
-          inserter(va, fn())
+      f().zip(inserters)
+        .foldLeft(va) { case (va, (v, inserter)) =>
+          inserter(va, v)
         }
     }.copy(vaSignature = finalType)
     state.copy(vds = annotated)

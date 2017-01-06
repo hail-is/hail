@@ -38,8 +38,5 @@ class SplatSuite extends SparkSuite {
 
     assert(hadoopConf.readLines(out3)(_.map(_.value).toIndexedSeq) ==
       hadoopConf.readLines(out4)(_.map(_.value).toIndexedSeq))
-
-    TestUtils.interceptFatal("Got invalid type `Splat' from the result of `va'")(
-      AnnotateVariants.run(s, "expr", "-c", "va = va.info.*"))
   }
 }

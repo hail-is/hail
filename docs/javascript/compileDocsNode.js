@@ -29,16 +29,16 @@ buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
 
 buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
 
-buildSinglePage(template, "#Body", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html",
+buildSinglePage(template, "#body", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html",
     '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#tutorial").addClass("active");});});</script>');
 
-buildSinglePage(template, "#Body", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html",
+buildSinglePage(template, "#body", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html",
     '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#overview").addClass("active");});});</script>');
 
-buildSinglePage(template, "#Body", pandocOutputDir + "reference/GettingStarted.html", __dirname + "/getting_started.html",
+buildSinglePage(template, "#body", pandocOutputDir + "reference/GettingStarted.html", __dirname + "/getting_started.html",
     '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#getting_started").addClass("active");});});</script>');
 
-buildIndex(template, "#Body", "README.html", __dirname + "/index.html");
+buildIndex(template, "#body", "README.html", __dirname + "/index.html");
 
 
 function error(message) {
@@ -122,7 +122,7 @@ function buildCommands(htmlTemplate, outputFileName) {
             .map(command => buildDocs.buildCommand(command, pandocOutputDir + "commands/", $));
 
         Promise.all(buildCommandPromises.concat([loadReq("#GlobalOptions", pandocOutputDir + "commands/" + "GlobalOptions.html", $)]))
-            .then(function() {$("div#GlobalOptions div.options").append(buildDocs.buildGlobalOptions(jsonData.global.options, $))}, error)
+            .then(function() {$("div#GlobalOptions div.options").append(buildDocs.buildGlobalOptions(jsonData.global.options))}, error)
             .then(function() {
                  var document = jsdom.jsdom($('html').html());
                  runMathJax(document, function(html) {

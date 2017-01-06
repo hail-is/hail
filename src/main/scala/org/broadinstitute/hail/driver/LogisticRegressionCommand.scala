@@ -52,7 +52,7 @@ object LogisticRegressionCommand extends Command {
 
     val a = ec.a
 
-    def toDouble(t: BaseType, code: String): Any => Double = t match {
+    def toDouble(t: Type, code: String): Any => Double = t match {
       case TInt => _.asInstanceOf[Int].toDouble
       case TLong => _.asInstanceOf[Long].toDouble
       case TFloat => _.asInstanceOf[Float].toDouble
@@ -61,7 +61,7 @@ object LogisticRegressionCommand extends Command {
       case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
     }
 
-    val (yT, yQ) = Parser.parse(options.ySA, ec)
+    val (yT, yQ) = Parser.parseExpr(options.ySA, ec)
     val yToDouble = toDouble(yT, options.ySA)
     val ySA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
@@ -69,12 +69,12 @@ object LogisticRegressionCommand extends Command {
       yQ().map(yToDouble)
     }
 
-    val (covT, covQ) = Parser.parseExprs(options.covSA, ec).unzip
+    val (covT, covQ) = Parser.parseExprs(options.covSA, ec)
     val covToDouble = (covT, options.covSA.split(",").map(_.trim)).zipped.map(toDouble)
     val covSA = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       a(0) = s
       a(1) = sa
-      (covQ.map(_()), covToDouble).zipped.map(_.map(_))
+      (covQ(), covToDouble).zipped.map(_.map(_))
     }
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =

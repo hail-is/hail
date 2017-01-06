@@ -1,10 +1,16 @@
 package org.broadinstitute.hail
 
+import java.lang.reflect.Method
 import java.net.URI
 
 import org.apache.hadoop.fs.PathIOException
-import org.apache.spark.AccumulableParam
+import org.apache.hadoop.mapred.FileSplit
+import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
+import org.apache.spark.{AccumulableParam, Partition}
 import org.broadinstitute.hail.check.Gen
+import org.json4s.{Formats, JValue, NoTypeHints}
+import org.json4s.Extraction.decompose
+import org.json4s.jackson.Serialization
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
@@ -15,7 +21,44 @@ package object utils extends Logging
   with richUtils.Implicits
   with utils.NumericImplicits {
 
-  class FatalException(msg: String, logMsg: Option[String] = None) extends RuntimeException(msg)
+  class FatalException(val msg: String, val logMsg: Option[String] = None) extends RuntimeException(msg)
+
+  def digForFatal(e: Throwable): Option[String] = {
+    val r = e match {
+      case f: FatalException =>
+        println(s"found fatal $f")
+        Some(s"${ e.getMessage }")
+      case _ =>
+        Option(e.getCause).flatMap(c => digForFatal(c))
+    }
+    r
+  }
+
+  def deepestMessage(e: Throwable): String = {
+    var iterE = e
+    while (iterE.getCause != null)
+      iterE = iterE.getCause
+
+    s"${ iterE.getClass.getSimpleName }: ${ iterE.getLocalizedMessage }"
+  }
+
+  def expandException(e: Throwable): String = {
+    val msg = e match {
+      case f: FatalException => f.logMsg.getOrElse(f.msg)
+      case _ => e.getLocalizedMessage
+    }
+    s"${ e.getClass.getName }: $msg\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
+      Option(e.getCause).map(exception => expandException(exception)).getOrElse("")
+    }"
+  }
+
+  def getMinimalMessage(e: Throwable): String = {
+    val fatalOption = digForFatal(e)
+    val prefix = if (fatalOption.isDefined) "fatal" else "caught exception"
+    val msg = fatalOption.getOrElse(deepestMessage(e))
+    log.error(s"hail: $prefix: $msg\nFrom ${ expandException(e) }")
+    msg
+  }
 
   trait Truncatable {
     def truncate: String
@@ -351,5 +394,49 @@ package object utils extends Logging
       iterator.next()
     }
     count
+  }
+
+  def lookupMethod(c: Class[_], method: String): Method = {
+    try {
+      c.getDeclaredMethod(method)
+    } catch {
+      case _: Exception =>
+        assert(c != classOf[java.lang.Object])
+        lookupMethod(c.getSuperclass, method)
+    }
+  }
+
+  def invokeMethod(obj: AnyRef, method: String, args: AnyRef*): AnyRef = {
+    val m = lookupMethod(obj.getClass, method)
+    m.invoke(obj, args: _*)
+  }
+
+  /*
+   * Use reflection to get the path of a partition coming from a Parquet read.  This requires accessing Spark
+   * internal interfaces.  It works with Spark 1 and 2 and doesn't depend on the location of the Parquet
+   * package (parquet vs org.apache.parquet) which can vary between distributions.
+   */
+  def partitionPath(p: Partition): String = {
+    p.getClass.getCanonicalName match {
+      case "org.apache.spark.rdd.SqlNewHadoopPartition" =>
+        val split = invokeMethod(invokeMethod(p, "serializableHadoopSplit"), "value").asInstanceOf[NewFileSplit]
+        split.getPath.getName
+
+      case "org.apache.spark.sql.execution.datasources.FilePartition" =>
+        val files = invokeMethod(p, "files").asInstanceOf[Seq[_ <: AnyRef]]
+        assert(files.length == 1)
+        invokeMethod(files(0), "filePath").asInstanceOf[String]
+
+      case "org.apache.spark.rdd.HadoopPartition" =>
+        val split = invokeMethod(invokeMethod(p, "inputSplit"), "value").asInstanceOf[FileSplit]
+        split.getPath.getName
+    }
+  }
+
+  implicit val jsonFormatsNoTypeHints: Formats = Serialization.formats(NoTypeHints)
+
+  def caseClassJSONReaderWriter[T](implicit mf: scala.reflect.Manifest[T]): JSONReaderWriter[T] = new JSONReaderWriter[T] {
+    def toJSON(x: T): JValue = decompose(x)
+    def fromJSON(jv: JValue): T = jv.extract[T]
   }
 }

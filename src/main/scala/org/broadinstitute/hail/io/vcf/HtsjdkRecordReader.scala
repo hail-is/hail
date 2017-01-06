@@ -214,7 +214,7 @@ object HtsjdkRecordReader {
     new HtsjdkRecordReader(codec)
   }
 
-  def cast(value: Any, t: BaseType): Any = {
+  def cast(value: Any, t: Type): Any = {
     ((value, t): @unchecked) match {
       case (null, _) => null
       case (s: String, TArray(TInt)) =>

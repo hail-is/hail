@@ -30,7 +30,8 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - str: `str(i)` -- returns `i` as a string
 
  - Numerical operations:
-     - +, -, /, *, %: `a + b - c / d * e % f`
+     - +, -, /, *, %: `a + b - c / d * e % f`. `/` converts its arguments to Double, so `7 / 2` equals `3.5`
+     - //: floor division `floor(x / y)` as in Python, so `7 // 2` is `3`, `-7 // 2` is `-4`, and `1.0 // 2.0` is `0.0`
      - abs: `i.abs` -- returns the absolute value of `i`
      - signum: `i.signum` -- returns the sign of `i` (1, 0, or -1)
      - min: `i.min(j)` -- returns the minimum of `i` and `j`
@@ -58,6 +59,12 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - pcoin(p) -- returns `true` with probability `p`. `p` should be between 0.0 and 1.0
      - runif(min, max) -- returns a random draw from a uniform distribution on \[`min`, `max`). `min` should be less than or equal to `max`
      - rnorm(mean, sd) -- returns a random draw from a normal distribution with mean `mean` and standard deviation `sd`. `sd` should be non-negative
+     
+ - Statistics
+    - pnorm(x) -- Returns left-tail probability p for which p = Prob($Z$ < x) with $Z$ a standard normal random variable
+    - qnorm(p) -- Returns left-quantile x for which p = Prob($Z$ < x) with $Z$ a standard normal random variable. `p` must satisfy `0 < p < 1`. Inverse of `pnorm`
+    - pchisq1tail(x) -- Returns right-tail probability p for which p = Prob($Z^2$ > x) with $Z^2$ a chi-squared random variable with one degree of freedom. `x` must be positive
+    - qchisq1tail(p) -- Returns right-quantile x for which p = Prob($Z^2$ > x) with $Z^2$ a chi-squared RV with one degree of freedom. `p` must satisfy `0 < p <= 1`. Inverse of `pchisq1tail`
 
  - Array Operations:
      - constructor: `[element1, element2, ...]` -- Create a new array from elements of the same type.
@@ -139,6 +146,10 @@ Several Hail commands provide the ability to perform a broad array of computatio
     
     - range: `range(end)` or `range(start, end)`.  This function will produce an `Array[Int]`.  `range(3)` produces `[0, 1, 2]`.  `range(-2, 2)` produces `[-2, -1, 0, 1]`.
 
+    - `gtj(i)` and `gtk(i)`.  Convert from genotype index (triangular numbers) to `j/k` pairs.
+
+    - `gtIndex(j, k)`.  Convert from `j/k` pair to genotype index (triangular numbers).
+
 **Note:**
 
  - All variables and values are case sensitive
@@ -172,18 +183,22 @@ Identifier | Description
 `va` | Variant annotations
 `global` | Global annotations
 
-### Map and Filter
+### Map, Filter, and FlatMap
 
 ```
 <aggregable>.map( <Any lambda expression> )
 <aggregable>.filter( <Boolean lambda expression> )
+<aggregable>.flatMap( <Array or Set lambda expression> )
 ```
 
-These two generic helper functions allow the proceeding calculations to be totally general and modular.
+These three generic helper functions allow the proceeding calculations to be totally general and modular.
 
 `map` changes the type of an aggregable: `gs.map(g => g.gq)` takes the `Aggregable[Genotype]` "gs" and returns an `Aggregable[Int]`.
 
 `filter` subsets an aggregable by excluding/including elements based on a lambda expression.  Note: does not change the type of an aggregable.  `gs.filter(g => g.isHet)` produces an aggregable where only heterozygous genotypes are considered.
+
+`flatMap` expands a single element into many elements. For example, `gs.map(g =>
+g.pl).hist()` creates a histogram of the pls for this variant over all samples.
 
 ### <a class="jumptarget" name="#aggregables_count"></a> Count
 
@@ -320,13 +335,42 @@ Compute statistics on number of singletons stratified by case/control:
      global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()'
 ```
 
+### Counter
+
+```
+<aggregable>.counter()
+```
+
+This aggregator counts the number of occurrences of each element of an aggregable.  It produces an array of structs with the following schema:
+
+```
+Array [ 
+  Struct {
+    key: T, // element type of aggregator
+    count: Long
+  }
+]
+```
+
+The resulting array is sorted by count in descending order (the most common element is first).
+
+**Example:** compute the number of indels in each chromosome:
+
+```
+    annotateglobal expr -c 
+      'global.chr_indels = variants
+        .filter(v => v.altAllele.isIndel)
+        .map(v => v.contig)
+        .counter()'
+```
+
 ### Hist
 
 ```
 <numeric aggregable>.hist( start, end, bins )
 ```
 
-This aggregable is used to compute density distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
+This aggregator is used to compute frequency distributions of numeric parameters.  The start, end, and bins params are no-scope parameters, which means that while computations like `100 / 4` are acceptable, variable references like `global.nBins` are not.
 
 The result of a `hist` invocation is a struct:
 
@@ -334,7 +378,7 @@ The result of a `hist` invocation is a struct:
 Struct {
     binEdges: Array[Double],
     binFrequencies: Array[Long],
-    nSmaller: Long,
+    nLess: Long,
     nGreater: Long
 }
 ```
@@ -345,7 +389,7 @@ Important properties:
  - (bins + 1) breakpoints are generated from the range `(start to end by binsize)`
  - `binEdges` stores an array of bin cutoffs.  Each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value.  This means that if there are N total bins, there will be N + 1 elements in binEdges.  For the invocation `hist(0, 3, 3)`, `binEdges` would be `[0, 1, 2, 3]` where the bins are `[0, 1)`, `[1, 2)`, `[2, 3]`.
  - `binFrequencies` stores the number of elements in the aggregable that fall in each bin.  It contains one element for each bin.
- - Elements greater than the max bin or smaller than the min bin will be tracked separately by `nSmaller` and `nGreater`
+ - Elements greater than the max bin or less than the min bin will be tracked separately by `nLess` and `nGreater`
 
 **Examples:**
 
@@ -359,7 +403,7 @@ Or, extend the above to compute a global gq histogram:
 
 ```
 annotatevariants expr -c 'va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)'
-annotateglobal expr -c 'global.gqDensity = variants.map(v => va.gqHist.densities).sum()'
+annotateglobal expr -c 'global.gqHist = variants.map(v => va.gqHist.binFrequencies).sum()'
 ```
 
 ### Collect
@@ -386,7 +430,7 @@ The above example is updating the value of the `va.hetSamples` annotation. The v
 ### Call Stats
 
 ```
-<aggregable>.callStats( Variant )
+<aggregable>.callStats( <Variant lambda expression> )
 ```
 
 `callStats` is an aggregator which operates on an `Aggregable[Genotype]` that computes four commonly-used metrics over a set of genotypes in a variant.  The resulting annotation is a struct:
@@ -410,9 +454,9 @@ In the above schema, the types mean the following:
 **Example:** compute population-specific call statistics.  After the below command, `va.eur_stats.AC` will be the AC computed from individuals marked as "EUR".
 
 ```
-annotatevariants expr -c "va.eur_stats = gs.filter(g => sa.pop == "EUR").callStats(v),
-                          va.afr_stats = gs.filter(g => sa.pop == "AFR").callStats(v),
-                          va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(v)"
+annotatevariants expr -c "va.eur_stats = gs.filter(g => sa.pop == "EUR").callStats(g => v),
+                          va.afr_stats = gs.filter(g => sa.pop == "AFR").callStats(g => v),
+                          va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(g => v)"
 ```
 
 ### <a class="jumptarget" name="aggreg_hwe"></a> HardyWeinberg
@@ -492,10 +536,10 @@ hail importgen -s /my/path/example.sample /my/path/example.gen
 ### <a class="jumptarget" name="aggreg_ibc"></a> Inbreeding
 
 ```
-<genotype aggregable>.inbreeding( allele frequency: Double )
+<genotype aggregable>.inbreeding( <Double lambda expression> )
 ```
 
-`inbreeding` is an aggregator that computes [inbreeding metrics](#ibc_doc) on an `Aggregable[Genotype]`.  It takes an expression for alt allele frequency as a required parameter.
+`inbreeding` is an aggregator that computes [inbreeding metrics](#ibc_doc) on an `Aggregable[Genotype]`.  It takes a lambda expression from `Genotype` to `Double` expression for the alt allele frequency as a required parameter.
 
 The result of `inbreeding` is a struct:
 
@@ -520,7 +564,7 @@ Calculate the inbreeding metrics per sample and export the resulting annotations
 ```
 hail read ... 
     variantqc
-    annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(va.qc.AF)' 
+    annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(g => va.qc.AF)' 
     exportsamples -c 'Sample = s, sa.inbreeding.*' -o ib_stats.tsv
 ```
 
@@ -529,7 +573,7 @@ Calculate the inbreeding metrics per variant and export these metrics to a TSV f
 ```
 hail read ...
     variantqc
-    annotatevariants expr -c 'va.inbreeding = gs.inbreeding(va.qc.AF)'
+    annotatevariants expr -c 'va.inbreeding = gs.inbreeding(g => va.qc.AF)'
     exportvariants -c 'Variant = v, va.inbreeding.*' -o ib_stats_variants.tsv
 
 ```
@@ -542,7 +586,7 @@ variantqc
 filtervariants expr --keep -c 'va.qc.AC > 1 && va.qc.AF >= 1e-8 && 
     va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 &&
     v.isAutosomal' 
-annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(va.qc.AF)'
+annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(g => va.qc.AF)'
 ```
 
 

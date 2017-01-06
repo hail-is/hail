@@ -17,19 +17,18 @@ class AnnotateGlobalSuite extends SparkSuite {
     s = VariantQC.run(s, Array.empty[String])
     s = SampleQC.run(s, Array.empty[String])
 
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.afDist = variants.map(v => va.qc.AF).stats(), global.singStats = samples.filter(s => sa.qc.nSingleton > 2).count()"))
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.anotherAnnotation.sumOver2 = global.afDist.sum / 2"))
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.acDist = variants.map(v => va.qc.AC).stats()"))
-    s = AnnotateGlobal.run(s, Array("expr", "-c", "global.CRStats = samples.map(s => sa.qc.callRate).stats()"))
-
+    s = AnnotateGlobal.run(s, Array("exprbyvariant", "-c", "global.afDist = variants.map(v => va.qc.AF).stats()"))
+    s = AnnotateGlobal.run(s, Array("exprbysample", "-c", "global.singStats = samples.filter(s => sa.qc.nSingleton > 2).count()"))
+    s = AnnotateGlobal.run(s, Array("exprbyvariant", "-c", "global.anotherAnnotation.sumOver2 = global.afDist.sum / 2"))
+    s = AnnotateGlobal.run(s, Array("exprbyvariant", "-c", "global.acDist = variants.map(v => va.qc.AC).stats()"))
+    s = AnnotateGlobal.run(s, Array("exprbysample", "-c", "global.CRStats = samples.map(s => sa.qc.callRate).stats()"))
 
     val vds = s.vds
     val qSingleton = vds.querySA("sa.qc.nSingleton")._2
     val qSingletonGlobal = vds.queryGlobal("global.singStats")._2
 
-    val sCount = vds.sampleAnnotations.count(sa => {
-      qSingleton(sa).exists(_.asInstanceOf[Int] > 2)
-    })
+    val sCount = vds.sampleAnnotations.count(sa =>
+      qSingleton(sa).exists(_.asInstanceOf[Int] > 2))
 
     assert(qSingletonGlobal.contains(sCount))
 

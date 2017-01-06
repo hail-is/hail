@@ -59,10 +59,10 @@ object ExportGenotypes extends Command with TextExporter {
 
     val ec = EvalContext(symTab)
     ec.set(5, vds.globalAnnotation)
-    val (header, ts, f) = Parser.parseExportArgs(cond, ec)
+    val (names, ts, f) = Parser.parseExportExprs(cond, ec)
 
     Option(options.typesFile).foreach { file =>
-      val typeInfo = header
+      val typeInfo = names
         .getOrElse(ts.indices.map(i => s"_$i").toArray)
         .zip(ts)
       exportTypes(file, state.hadoopConf, typeInfo)
@@ -90,7 +90,7 @@ object ExportGenotypes extends Command with TextExporter {
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }
-    }.writeTable(output, header.map(_.mkString("\t")))
+    }.writeTable(output, names.map(_.mkString("\t")))
 
     state
   }

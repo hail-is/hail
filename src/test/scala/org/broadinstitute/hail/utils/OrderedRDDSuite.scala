@@ -9,7 +9,10 @@ import org.broadinstitute.hail.check.Arbitrary._
 import org.broadinstitute.hail.check.{Gen, Prop, Properties}
 import org.broadinstitute.hail.sparkextras.{OrderedPartitioner, _}
 import org.broadinstitute.hail.variant._
+import org.json4s.jackson.JsonMethods
 import org.testng.annotations.Test
+
+import scala.math.Ordering.Implicits._
 
 case class PartitionSummary(partitionIndex: Int,
   sorted: Boolean,
@@ -157,8 +160,7 @@ class OrderedRDDSuite extends SparkSuite {
       checkJoin(1, is1, nPar2, is2)
     }
 
-
-    val tmpPartitioner = tmpDir.createTempFile("partitioner")
+    val tmpPartitioner = tmpDir.createTempFile("partitioner.json.gz")
     val tmpRdd = tmpDir.createTempFile("rdd", ".parquet")
 
     property("writeRead") = Prop.forAll(g) { case (nPar, is) =>
@@ -170,8 +172,8 @@ class OrderedRDDSuite extends SparkSuite {
       val df = sqlContext.createDataFrame(rdd.map { case (v, s) => Row.fromSeq(Seq(v.toRow, s)) }, schema)
         .write.parquet(tmpRdd)
 
-      hadoopConf.writeObjectFile(tmpPartitioner) { out =>
-        rdd.partitioner.get.asInstanceOf[OrderedPartitioner[Variant, String]].write(out)
+      hadoopConf.writeTextFile(tmpPartitioner) { out =>
+        out.write(JsonMethods.compact(rdd.partitioner.get.asInstanceOf[OrderedPartitioner[Locus, Variant]].toJSON))
       }
 
       val status = hadoopConf.fileStatus(tmpPartitioner)
@@ -179,8 +181,8 @@ class OrderedRDDSuite extends SparkSuite {
       val rddReadBack = sqlContext.readParquetSorted(tmpRdd)
         .map(r => (Variant.fromRow(r.getAs[Row](0)), r.getAs[String](1)))
 
-      val readBackPartitioner = hadoopConf.readObjectFile(tmpPartitioner) { in =>
-        OrderedPartitioner.read[Locus, Variant](in, rddReadBack.partitions.length)
+      val readBackPartitioner = hadoopConf.readFile(tmpPartitioner) { in =>
+        JsonMethods.parse(in).fromJSON[OrderedPartitioner[Locus, Variant]]
       }
 
       val orderedRddRB = OrderedRDD[Locus, Variant, String](rddReadBack, readBackPartitioner)

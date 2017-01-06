@@ -66,15 +66,15 @@ object FilterAlleles extends Command {
       "v" -> (0, TVariant),
       "va" -> (1, state.vds.vaSignature),
       "aIndex" -> (2, TInt)))
-    val conditionE = Parser.parse[Boolean](options.condition, conditionEC, TBoolean)
+    val conditionE = Parser.parseTypedExpr[Boolean](options.condition, conditionEC)
 
     val annotationEC = EvalContext(Map(
       "v" -> (0, TVariant),
       "va" -> (1, state.vds.vaSignature),
       "aIndices" -> (2, TArray(TInt))))
-    val (types, generators) = Parser.parseAnnotationArgs(options.annotation, annotationEC, Annotation.VARIANT_HEAD)
+    val (paths, types, f) = Parser.parseAnnotationExprs(options.annotation, annotationEC, Some(Annotation.VARIANT_HEAD))
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finalType = types.foldLeft(state.vds.vaSignature) { case (vas, (path, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(state.vds.vaSignature) { case (vas, (path, signature)) =>
       val (newVas, i) = vas.insert(signature, path)
       inserterBuilder += i
       newVas
@@ -120,7 +120,7 @@ object FilterAlleles extends Command {
 
     def updateAnnotation(v: Variant, va: Annotation, newToOld: IndexedSeq[Int]): Annotation = {
       annotationEC.setAll(v, va, newToOld)
-      generators.zip(inserters).foldLeft(va) { case (va, (fn, inserter)) => inserter(va, fn()) }
+      f().zip(inserters).foldLeft(va) { case (va, (v, inserter)) => inserter(va, v) }
     }
 
     def updateGenotypes(gs: Iterable[Genotype], oldToNew: Array[Int], newCount: Int): Iterable[Genotype] = {

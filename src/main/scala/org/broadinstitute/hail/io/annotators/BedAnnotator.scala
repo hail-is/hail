@@ -44,7 +44,7 @@ object BedAnnotator {
               val Array(chrom, strStart, strEnd, value) = line.split("""\s+""")
               // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
               val interval = Interval(Locus(chrom, strStart.toInt + 1), Locus(chrom, strEnd.toInt + 1))
-              m.updateValue(interval, List(value), prev => value :: prev)
+              m.updateValue(interval, Nil, prev => value :: prev)
             }
           }
         val t = IntervalTree(m.keys.toArray)

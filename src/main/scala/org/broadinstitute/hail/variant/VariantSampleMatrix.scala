@@ -2,14 +2,11 @@ package org.broadinstitute.hail.variant
 
 import java.io.{FileNotFoundException, InvalidClassException}
 import java.nio.ByteBuffer
-import java.util
 
 import org.apache.hadoop
-import org.apache.hadoop.fs.PathIOException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.driver.Main
@@ -18,14 +15,15 @@ import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.expr.{EvalContext, _}
 import org.broadinstitute.hail.io.vcf.BufferedLineIterator
 import org.broadinstitute.hail.sparkextras._
-import org.broadinstitute.hail.utils.{Interval, IntervalTree}
 import org.json4s._
-import org.json4s.jackson.JsonMethods
-import org.kududb.spark.kudu.{KuduContext, _}
+import org.json4s.jackson.{JsonMethods, Serialization}
+import org.apache.kudu.spark.kudu.{KuduContext, _}
 import Variant.orderedKey
+import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.methods.{Aggregators, Filter}
 import org.broadinstitute.hail.utils
 
+import scala.collection.mutable
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -172,14 +170,26 @@ object VariantSampleMatrix {
                 row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
           }
 
-      val p = try {
-        Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
-          OrderedPartitioner.read[Locus, Variant](in, rdd.partitions.length)
-        })
+      var p: Option[OrderedPartitioner[Locus, Variant]] = None
+
+      try {
+        val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
+        p = Some(jv.fromJSON[OrderedPartitioner[Locus, Variant]])
       } catch {
-        case _: InvalidClassException => None
         case _: FileNotFoundException => None
       }
+
+      if (p.isEmpty) {
+        try {
+          p = Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
+            OrderedPartitioner.read[Locus, Variant](in, rdd.partitions.length)
+          })
+        } catch {
+          case _: InvalidClassException => None
+          case _: FileNotFoundException => None
+        }
+      }
+
       p match {
         case Some(partitioner) =>
           OrderedRDD(rdd, partitioner)
@@ -224,7 +234,7 @@ object VariantSampleMatrix {
       df.schema.fieldIndex(field.name)
     }
 
-    val rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))] = df.map { row =>
+    val rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))] = df.rdd.map { row =>
       val importedRow = KuduAnnotationImpex.importAnnotation(
         KuduAnnotationImpex.reorder(row, indices), rowType).asInstanceOf[Row]
       val v = importedRow.getVariant(0)
@@ -321,6 +331,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) {
 
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
+
+  def sampleIdsAsArray: Array[String] = sampleIds.toArray
 
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
@@ -598,6 +610,52 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     */
   }
 
+  def aggregateByKey(keyCond: String, aggCond: String): KeyTable = {
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature),
+      "s" -> (3, TSample),
+      "sa" -> (4, saSignature),
+      "g" -> (5, TGenotype))
+
+    val ec = EvalContext(aggregationST.map { case (name, (i, t)) => name -> (i, TAggregable(t, aggregationST)) })
+
+    val keyEC = EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature),
+      "s" -> (3, TSample),
+      "sa" -> (4, saSignature),
+      "g" -> (5, TGenotype)))
+
+    val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyCond, keyEC)
+    val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggCond, ec)
+
+    val keySignature = TStruct((keyNames, keyTypes).zipped.map { case (n, t) => (n, t) }: _*)
+    val valueSignature = TStruct((aggNames, aggTypes).zipped.map { case (n, t) => (n, t) }: _*)
+
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
+      KeyTable.setEvalContext(ec, a, 6)
+    })
+
+    val localGlobalAnnotation = globalAnnotation
+
+    val ktRDD = mapPartitionsWithAll { it =>
+      it.map { case (v, va, s, sa, g) =>
+        keyEC.setAll(localGlobalAnnotation, v, va, s, sa, g)
+        val key = Annotation.fromSeq(keyF().map(_.orNull))
+        (key, Annotation(localGlobalAnnotation, v, va, s, sa, g))
+      }
+    }.aggregateByKey(zVals)(seqOp, combOp)
+      .map { case (k, agg) =>
+        resultOp(agg)
+        (k, Annotation.fromSeq(aggF().map(_.orNull)))
+      }
+
+    KeyTable(ktRDD, keySignature, valueSignature)
+  }
+
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
 
     val localtct = tct
@@ -831,13 +889,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(globalSignature = newT, globalAnnotation = i(globalAnnotation, Option(a)))
   }
 
-  def queryVA(code: String): (BaseType, Querier) = {
+  def queryVA(code: String): (Type, Querier) = {
 
     val st = Map(Annotation.VARIANT_HEAD -> (0, vaSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
-    val (t, f) = Parser.parse(code, ec)
+    val (t, f) = Parser.parseExpr(code, ec)
 
     val f2: Annotation => Option[Any] = { annotation =>
       a(0) = annotation
@@ -847,13 +905,13 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (t, f2)
   }
 
-  def querySA(code: String): (BaseType, Querier) = {
+  def querySA(code: String): (Type, Querier) = {
 
     val st = Map(Annotation.SAMPLE_HEAD -> (0, saSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
-    val (t, f) = Parser.parse(code, ec)
+    val (t, f) = Parser.parseExpr(code, ec)
 
     val f2: Annotation => Option[Any] = { annotation =>
       a(0) = annotation
@@ -863,12 +921,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     (t, f2)
   }
 
-  def queryGlobal(path: String): (BaseType, Option[Annotation]) = {
+  def queryGlobal(path: String): (Type, Option[Annotation]) = {
     val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
-    val (t, f) = Parser.parse(path, ec)
+    val (t, f) = Parser.parseExpr(path, ec)
 
     val f2: Annotation => Option[Any] = { annotation =>
       a(0) = annotation
@@ -908,21 +966,27 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
 
-  def variantsDF(sqlContext: SQLContext): DataFrame = {
+  def variantsKT(): KeyTable = {
     val localVASignature = vaSignature
-
-    val rowRDD = rdd.map { case (v, (va, gs)) =>
-      Row(v.toRow,
-        SparkAnnotationImpex.exportAnnotation(va, localVASignature))
-    }
-
-    val schema = StructType(Array(
-      StructField("variant", Variant.schema, nullable = false),
-      StructField("va", vaSignature.schema, nullable = true)))
-
-    sqlContext.createDataFrame(rowRDD, schema)
+    KeyTable(rdd.map { case (v, (va, gs)) =>
+      Annotation(v, va)
+    },
+      TStruct(
+        "v" -> TVariant,
+        "va" -> vaSignature),
+      Array("v"))
   }
 
+  def samplesKT(): KeyTable = {
+    KeyTable(sparkContext.parallelize(sampleIdsAndAnnotations)
+      .map { case (s, sa) =>
+        Annotation(s, sa)
+      },
+      TStruct(
+        "s" -> TSample,
+        "sa" -> saSignature),
+      Array("s"))
+  }
 }
 
 // FIXME AnyVal Scala 2.11
@@ -984,7 +1048,7 @@ class RichVDS(vds: VariantDataset) {
       ("global_annotation", JSONAnnotationImpex.exportAnnotation(vds.globalAnnotation, vds.globalSignature))
     )
 
-    hConf.writeTextFile(dirname + "/metadata.json.gz")(_.write(JsonMethods.pretty(json)))
+    hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))
   }
 
   def write(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
@@ -995,8 +1059,8 @@ class RichVDS(vds: VariantDataset) {
 
     val ordered = vds.rdd.asOrderedRDD
 
-    sqlContext.sparkContext.hadoopConfiguration.writeObjectFile(dirname + "/partitioner") { out =>
-      ordered.orderedPartitioner.write(out)
+    sqlContext.sparkContext.hadoopConfiguration.writeTextFile(dirname + "/partitioner.json.gz") { out =>
+      Serialization.write(ordered.orderedPartitioner.toJSON, out)
     }
 
     val isDosage = vds.isDosage
@@ -1059,7 +1123,9 @@ class RichVDS(vds: VariantDataset) {
     }
     df.write
       .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
-      .mode("append").kudu
+      .mode("append")
+      // FIXME inlined since .kudu wouldn't work for some reason
+      .format("org.apache.kudu.spark.kudu").save
 
     println("Written to Kudu")
   }
@@ -1086,31 +1152,17 @@ class RichVDS(vds: VariantDataset) {
   }
 
   def filterVariantsExpr(cond: String, keep: Boolean): VariantDataset = {
-    val aggregationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature)))
-    val symTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "global" -> (2, vds.globalSignature),
-      "gs" -> (-1, BaseAggregable(aggregationEC, TGenotype)))
+    val localGlobalAnnotation = vds.globalAnnotation
+    val ec = Aggregators.variantEC(vds)
 
+    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](cond, ec)
 
-    val ec = EvalContext(symTab)
-    ec.set(2, vds.globalAnnotation)
-    aggregationEC.set(5, vds.globalAnnotation)
-
-    val f: () => Option[Boolean] = Parser.parse[Boolean](cond, ec, TBoolean)
-
-    val aggregatorOption = Aggregators.buildVariantAggregations(vds, aggregationEC)
+    val aggregatorOption = Aggregators.buildVariantAggregations(vds, ec)
 
     val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
-      ec.setAll(v, va)
       aggregatorOption.foreach(f => f(v, va, gs))
+
+      ec.setAll(localGlobalAnnotation, v, va)
       Filter.keepThis(f(), keep)
     }
 

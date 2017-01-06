@@ -1,7 +1,7 @@
 package org.broadinstitute.hail.stats
 
 import breeze.linalg.DenseMatrix
-import org.apache.commons.math3.distribution.ChiSquaredDistribution
+import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.Variant
 import org.broadinstitute.hail.SparkSuite
@@ -9,7 +9,7 @@ import org.testng.annotations.Test
 
 class StatsSuite extends SparkSuite {
 
-  @Test def chiSquaredTailTest() = {
+  @Test def chiSquaredTailTest() {
     val chiSq1 = new ChiSquaredDistribution(1)
     assert(D_==(chiSquaredTail(1,1d), 1 - chiSq1.cumulativeProbability(1d)))
     assert(D_==(chiSquaredTail(1,5.52341d), 1 - chiSq1.cumulativeProbability(5.52341d)))
@@ -21,6 +21,31 @@ class StatsSuite extends SparkSuite {
     val chiSq5 = new ChiSquaredDistribution(5.2)
     assert(D_==(chiSquaredTail(5.2, 1), 1 - chiSq5.cumulativeProbability(1)))
     assert(D_==(chiSquaredTail(5.2, 5.52341), 1 - chiSq5.cumulativeProbability(5.52341)))
+
+    assert(D_==(inverseChiSquaredTail(1.0, .1), chiSq1.inverseCumulativeProbability(1 - .1)))
+    assert(D_==(inverseChiSquaredTail(1.0, .0001), chiSq1.inverseCumulativeProbability(1 - .0001)))
+
+    val a = List(.0000000001, .5, .9999999999, 1.0)
+    a.foreach(p => assert(D_==(chiSquaredTail(1.0, inverseChiSquaredTail(1.0, p)), p)))
+
+    // compare with R
+    assert(math.abs(chiSquaredTail(1, 400) - 5.507248e-89) < 1e-93)
+    assert(D_==(inverseChiSquaredTail(1, 5.507248e-89), 400))
+  }
+
+  @Test def normalTest() {
+    val normalDist = new NormalDistribution()
+    assert(D_==(pnorm(1), normalDist.cumulativeProbability(1)))
+    assert(math.abs(pnorm(-10) - normalDist.cumulativeProbability(-10)) < 1e-10)
+    assert(D_==(qnorm(.6), normalDist.inverseCumulativeProbability(.6)))
+    assert(D_==(qnorm(.0001), normalDist.inverseCumulativeProbability(.0001)))
+
+    val a = List(0.0, .0000000001, .5, .9999999999, 1.0)
+    assert(a.forall(p => D_==(qnorm(pnorm(qnorm(p))), qnorm(p))))
+
+    // compare with R
+    assert(math.abs(pnorm(-20) - 2.753624e-89) < 1e-93)
+    assert(D_==(qnorm(2.753624e-89), -20))
   }
 
   @Test def vdsFromMatrixTest() {

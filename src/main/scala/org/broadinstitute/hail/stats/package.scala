@@ -2,10 +2,9 @@ package org.broadinstitute.hail
 
 import breeze.linalg.Matrix
 import org.apache.commons.math3.distribution.HypergeometricDistribution
-import org.apache.commons.math3.special.Gamma
+import net.sourceforge.jdistlib.{ChiSquare, Normal}
 import org.apache.spark.SparkContext
 import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr.{TDouble, TInt, TStruct}
 import org.broadinstitute.hail.utils._
 import org.broadinstitute.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
 
@@ -271,10 +270,17 @@ package object stats {
     Array(Option(pvalue), oddsRatioEstimate, confInterval._1, confInterval._2)
   }
 
-  // This implementation avoids the round-off error truncation issue in
-  // org.apache.commons.math3.distribution.ChiSquaredDistribution,
-  // which computes the CDF with regularizedGammaP and p = 1 - CDF.
-  def chiSquaredTail(df: Double, x: Double) = Gamma.regularizedGammaQ(df / 2, x / 2)
+  // Returns the p for which p = Prob(Z < x) with Z a standard normal RV
+  def pnorm(x: Double): Double = Normal.cumulative(x, 0, 1)
+
+  // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
+  def qnorm(p: Double): Double = Normal.quantile(p, 0, 1, true, false)
+
+  // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
+  def chiSquaredTail(df: Double, x: Double): Double = ChiSquare.cumulative(x, df, false, false)
+
+  // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
+  def inverseChiSquaredTail(df: Double, p: Double): Double = ChiSquare.quantile(p, df, false, false)
 
   def uninitialized[T]: T = {
     class A {

@@ -27,10 +27,10 @@ trait JoinAnnotator {
   }
 
   def buildInserter(code: String, t: Type, ec: EvalContext, expectedHead: String): (Type, Inserter) = {
-    val (parseTypes, fns) = Parser.parseAnnotationArgs(code, ec, expectedHead)
+    val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, Some(expectedHead))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finaltype = parseTypes.foldLeft(t) { case (t, (ids, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(t) { case (t, (ids, signature)) =>
       val (s, i) = t.insert(signature, ids)
       inserterBuilder += i
       s
@@ -38,18 +38,17 @@ trait JoinAnnotator {
 
     val inserters = inserterBuilder.result()
 
-    val f = (left: Annotation, right: Option[Annotation]) => {
-
+    val insF = (left: Annotation, right: Option[Annotation]) => {
       ec.setAll(left, right.orNull)
 
-      val queries = fns.map(_ ())
       var newAnnotation = left
+      val queries = f()
       queries.indices.foreach { i =>
         newAnnotation = inserters(i)(newAnnotation, queries(i))
       }
       newAnnotation
     }
-    (finaltype, f)
 
+    (finalType, insF)
   }
 }

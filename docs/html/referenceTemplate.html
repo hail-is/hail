@@ -10,6 +10,7 @@
   <script src="bootstrap.min.js"></script>
   <link rel="stylesheet" href="bootstrap.min.css" type="text/css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="navbar.css">
   <script>
     $(document).ready(function () {
       $("#hail-navbar").load("navbar.html", function () {
@@ -22,8 +23,9 @@
 </head>
 
 <body>
-  <nav class="navbar navbar-default navbar-fixed-top" id="hail-navbar"></nav>
-  <div class="jumptarget" id="TOC">
+  <nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
+  <div id="body">
+  <div id="TOC">
     <h1>General Reference</h1>
     <h2>Table of Contents</h2>
     <ul>
@@ -47,14 +49,15 @@
     </ul>
   </div>
 
-<div class="jumptarget" id="Representation"></div>
-<div class="jumptarget" id="Importing"></div>
-<div class="jumptarget" id="HailObjectProperties"></div>
-<div class="jumptarget" id="Annotations"></div>
-<div class="jumptarget" id="HailExpressionLanguage"></div>
-<div class="jumptarget" id="Filtering"></div>
-<div class="jumptarget" id="ExportingData"></div>
-<div class="jumptarget" id="ExportingTSV"></div>
-<div class="jumptarget" id="SQL"></div>
+<div id="Representation"></div>
+<div id="Importing"></div>
+<div id="HailObjectProperties"></div>
+<div id="Annotations"></div>
+<div id="HailExpressionLanguage"></div>
+<div id="Filtering"></div>
+<div id="ExportingData"></div>
+<div id="ExportingTSV"></div>
+<div id="SQL"></div>
+  </div>
 </body>
 </html>

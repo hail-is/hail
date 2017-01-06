@@ -1,61 +1,82 @@
-import pyspark
+from pyspark.java_gateway import launch_gateway
+from pyspark import SparkConf, SparkContext
+from pyspark.sql import SQLContext
 
 from pyhail.dataset import VariantDataset
-from pyhail.java import jarray, scala_object
+from pyhail.java import jarray, scala_object, scala_package_object, joption
+from pyhail.keytable import KeyTable
+from pyhail.utils import TextTableConfig
+from py4j.protocol import Py4JJavaError
+
+class FatalError(Exception):
+    """:class:`.FatalError` is an error thrown by Hail method failures"""
+
+    def __init__(self, message, java_exception):
+        self.msg = message
+        self.java_exception = java_exception
+        super(FatalError)
+
+    def __str__(self):
+        return self.msg
 
 class HailContext(object):
     """:class:`.HailContext` is the main entrypoint for PyHail
     functionality.
 
-    :param SparkContext sc: The pyspark context.
+    :param str log: Log file.
+
+    :param bool quiet: Don't write log file.
+
+    :param bool append: Append to existing log file.
+
+    :param long block_size: Minimum size of file splits in MB.
+
+    :param str parquet_compression: Parquet compression codec.
+
+    :param int branching_factor: Branching factor to use in tree aggregate.
+
+    :param str tmp_dir: Temporary directory for file merging.
     """
 
-    def __init__(self, sc):
-        self.sc = sc
+    def __init__(self, appName="PyHail", master=None, local='local[*]',
+                 log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
+                 block_size=1, branching_factor=50, tmp_dir='/tmp'):
+        from pyspark import SparkContext
+        SparkContext._ensure_initialized()
 
-        self.gateway = sc._gateway
-        self.jvm = sc._jvm
+        self.gateway = SparkContext._gateway
+        self.jvm = SparkContext._jvm
 
-        # sc._jsc is JavaObject JavaSparkContext
-        self.jsc = sc._jsc.sc()
+        self.jsc = scala_package_object(self.jvm.org.broadinstitute.hail.driver).configureAndCreateSparkContext(
+            appName, joption(self.jvm, master), local,
+            log, quiet, append, parquet_compression,
+            block_size, branching_factor, tmp_dir)
+        self.sc = SparkContext(gateway=self.gateway, jsc=self.jvm.JavaSparkContext(self.jsc))
 
-        self.jsql_context = sc._jvm.SQLContext(self.jsc)
-
-        self.sql_context = pyspark.sql.SQLContext(sc, self.jsql_context)
-
-        self.jsc.hadoopConfiguration().set(
-            'io.compression.codecs',
-            'org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec')
-
-        logger = sc._jvm.org.apache.log4j
-        logger.LogManager.getLogger("org"). setLevel(logger.Level.ERROR)
-        logger.LogManager.getLogger("akka").setLevel(logger.Level.ERROR)
+        self.jsql_context = scala_package_object(self.jvm.org.broadinstitute.hail.driver).createSQLContext(self.jsc)
+        self.sql_context = SQLContext(self.sc, self.jsql_context)
 
     def _jstate(self, jvds):
         return self.jvm.org.broadinstitute.hail.driver.State(
             self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
+
+    def _raise_py4j_exception(self, e):
+        msg = scala_package_object(self.jvm.org.broadinstitute.hail.utils).getMinimalMessage(e.java_exception)
+        raise FatalError(msg, e.java_exception)
 
     def run_command(self, vds, pargs):
         jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
         t = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
         cmd_args = t._2()
-        result = cmd.run(self._jstate(vds.jvds if vds != None else None),
-                         cmd_args)
+        jstate = self._jstate(vds.jvds if vds != None else None)
+
+        try:
+            result = cmd.run(jstate, cmd_args)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
         return VariantDataset(self, result.vds())
-
-    def fam_summary(self, input, output):
-        """Outputs summary of a .fam file.
-
-        :param str input: Input .fam file.
-
-        :param str output: Output summary file.
-
-        :return: Nothing.
-
-        """
-        pargs = ["famsummary", "-f", input, "-o", output]
-        self.run_command(self, pargs)
 
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.
@@ -80,13 +101,10 @@ class HailContext(object):
         pargs.append('--max-count')
         pargs.append(str(max_count))
 
-        self.run_command(self, pargs)
+        self.run_command(None, pargs)
 
-    def import_annotations_table(self, path, variant_expr, code=None, npartitions=None,
-                                 # text table options
-                                 types=None, missing="NA", delimiter="\\t", comment=None,
-                                 header=True, impute=False):
-        """Import variants and variant annotaitons from a delimited text file
+    def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=None):
+        """Import variants and variant annotations from a delimited text file
         (text table) as a sites-only VariantDataset.
 
         :param path: The files to import.
@@ -101,26 +119,13 @@ class HailContext(object):
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
-        :param str types: Type declarations for the fields of the text
-            table.
-
-        :param str missing: The string used to denote missing values.
-
-        :param str delimiter: Field delimiter regex.
-
-        :param comment: Skip lines starting with the given regex.
-        :type comment: str or None
-
-        :param bool header: If True, the first line is treated as the
-            header line.  If False, the columns are named _0, _1, ...,
-            _N (0-indexed).
-
-        :param bool impute: If True, impute column types.
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
 
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ["importannotationstable"]
+        pargs = ['importannotations', 'table']
         if isinstance(path, str):
             pargs.append(path)
         else:
@@ -138,24 +143,10 @@ class HailContext(object):
             pargs.append('--npartition')
             pargs.append(npartitions)
 
-        if types:
-            pargs.append('--types')
-            pargs.append(types)
+        if not config:
+            config = TextTableConfig()
 
-        pargs.append('--missing')
-        pargs.append(missing)
-
-        pargs.append('--delimiter')
-        pargs.append(delimiter)
-
-        if comment:
-            pargs.append('--comment')
-            pargs.append(comment)
-
-        if header:
-            pargs.append('--header')
-        if impute:
-            pargs.append('--impute')
+        pargs.extend(config.as_pargs())
 
         return self.run_command(None, pargs)
 
@@ -247,7 +238,43 @@ class HailContext(object):
 
         return self.run_command(None, pargs)
 
-    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing="NA", quantpheno=False):
+    def import_keytable(self, path, key_names, npartitions=None, config=None):
+        """Import delimited text file (text table) as KeyTable.
+
+        :param path: files to import.
+        :type path: str or list of str
+
+        :param key_names: The name(s) of fields to be considered keys
+        :type key_names: str or list of str
+
+        :param npartitions: Number of partitions.
+        :type npartitions: int or None
+
+        :param config: Configuration options for importing text files
+        :type config: :class:`.TextTableConfig` or None
+
+        :rtype: :class:`.KeyTable`
+        """
+        path_args = []
+        if isinstance(path, str):
+            path_args.append(path)
+        else:
+            for p in path:
+                path_args.append(p)
+
+        if not isinstance(key_names, str):
+            key_names = ','.join(key_names)
+
+        if not npartitions:
+            npartitions = self.sc.defaultMinPartitions
+
+        if not config:
+            config = TextTableConfig()
+
+        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(
+            self.jsc, jarray(self.gateway, self.jvm.java.lang.String, path_args), key_names, npartitions, config.to_java(self)))
+
+    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """
         Import PLINK binary file (.bed, .bim, .fam) as VariantDataset
 
@@ -439,7 +466,8 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ['baldingnichols', '-k', populations, '-n', samples, '-m', variants, '--npartitions', npartitions,
+        pargs = ['baldingnichols', '-k', str(populations), '-n', str(samples), '-m', str(variants), '--npartitions',
+                 str(npartitions),
                  '--root', root]
         if population_dist:
             pargs.append('-d')
@@ -452,3 +480,7 @@ class HailContext(object):
             pargs.append(seed)
 
         return self.run_command(None, pargs)
+
+    def stop(self):
+        self.sc.stop()
+        self.sc = None

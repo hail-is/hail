@@ -1,11 +1,6 @@
 package org.broadinstitute.hail.driver
 
-import java.io.File
-import java.util.Properties
-
-import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
-import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.driver.Deduplicate.DuplicateReport
 import org.broadinstitute.hail.utils._
@@ -18,45 +13,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-object SparkManager {
-  var _sc: SparkContext = _
-  var _sqlContext: SQLContext = _
-
-  def createSparkContext(appName: String, master: Option[String], local: String): SparkContext = {
-    if (_sc == null) {
-      val conf = new SparkConf().setAppName(appName)
-
-      master match {
-        case Some(m) =>
-          conf.setMaster(m)
-        case None =>
-          if (!conf.contains("spark.master"))
-            conf.setMaster(local)
-      }
-
-      conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-      _sc = new SparkContext(conf)
-      _sc.hadoopConfiguration.set("io.compression.codecs",
-        "org.apache.hadoop.io.compress.DefaultCodec,org.broadinstitute.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec")
-    }
-
-    _sc
-  }
-
-  def createSQLContext(): SQLContext = {
-    assert(_sc != null)
-    if (_sqlContext == null)
-      _sqlContext = new org.apache.spark.sql.SQLContext(_sc)
-
-    _sqlContext
-  }
-}
-
 object HailConfiguration {
-  var stacktrace: Boolean = _
-
-  var installDir: String = _
-
   var tmpDir: String = "/tmp"
 
   var branchingFactor: Int = _
@@ -103,14 +60,17 @@ object Main {
     sys.exit(1)
   }
 
-  def handleFatal(e: Exception): Nothing = {
-    val msg = s"hail: fatal: ${ e.getMessage }"
-    fail(msg)
+  def handleFatal(e: FatalException): Nothing = {
+    log.error(s"hail: fatal: ${ e.logMsg }")
+    System.err.println(s"hail: fatal: ${ e.msg }")
+    sys.exit(1)
   }
 
-  def handleFatal(cmd: Command, e: Exception): Nothing = {
-    val msg = s"hail: fatal: ${ cmd.name }: ${ e.getMessage }"
-    fail(msg)
+  def handleFatal(cmd: Command, e: FatalException): Nothing = {
+    log.error(s"hail: fatal: ${ cmd.name }: ${ e.logMsg }")
+    System.err.println(s"hail: fatal: ${ cmd.name }: ${ e.msg }")
+
+    sys.exit(1)
   }
 
   def expandException(e: Throwable): String = {
@@ -241,29 +201,6 @@ object Main {
         sys.exit(1)
     }
 
-    val logProps = new Properties()
-    if (options.logQuiet) {
-      logProps.put("log4j.rootLogger", "OFF, stderr")
-
-      logProps.put("log4j.appender.stderr", "org.apache.log4j.ConsoleAppender")
-      logProps.put("log4j.appender.stderr.Target", "System.err")
-      logProps.put("log4j.appender.stderr.threshold", "OFF")
-      logProps.put("log4j.appender.stderr.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.stderr.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
-    } else {
-      logProps.put("log4j.rootLogger", "INFO, logfile")
-
-      logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-      logProps.put("log4j.appender.logfile.append", options.logAppend.toString)
-      logProps.put("log4j.appender.logfile.file", options.logFile)
-      logProps.put("log4j.appender.logfile.threshold", "INFO")
-      logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.logfile.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
-    }
-
-    LogManager.resetConfiguration()
-    PropertyConfigurator.configure(logProps)
-
     if (splitArgs.length == 1)
       fail(s"hail: fatal: no commands given")
 
@@ -286,39 +223,15 @@ object Main {
           }
       }
 
-    val sc = SparkManager.createSparkContext("Hail", Option(options.master), "local[*]")
+    val sc = configureAndCreateSparkContext("Hail", Option(options.master), local = "local[*]",
+      logFile = options.logFile, quiet = options.logQuiet, append = options.logAppend,
+      parquetCompression = options.parquetCompression, blockSize = options.blockSize,
+      branchingFactor = options.branchingFactor, tmpDir = options.tmpDir)
 
-    val conf = sc.getConf
-    conf.set("spark.ui.showConsoleProgress", "false")
-    val progressBar = ProgressBarBuilder.build(sc)
-
-    conf.set("spark.sql.parquet.compression.codec", options.parquetCompression)
-
-    sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", options.blockSize * 1024L * 1024L)
-
-    /* `DataFrame.write` writes one file per partition.  Without this, read will split files larger than the default
-     * parquet block size into multiple partitions.  This causes `OrderedRDD` to fail since the per-partition range
-     * no longer line up with the RDD partitions.
-     *
-     * For reasons we don't understand, the DataFrame code uses `SparkHadoopUtil.get.conf` instead of the Hadoop
-     * configuration in the SparkContext.  Set both for consistency.
-     */
-    SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1099511627776L)
-    sc.hadoopConfiguration.setLong("parquet.block.size", 1099511627776L)
-
-    val sqlContext = SparkManager.createSQLContext()
-
-    // FIXME separate entrypoints
-    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
-    sc.addJar(jar)
-
-    HailConfiguration.installDir = new File(jar).getParent + "/.."
-    HailConfiguration.tmpDir = options.tmpDir
-    HailConfiguration.branchingFactor = options.branchingFactor
+    val sqlContext = createSQLContext(sc)
 
     runCommands(sc, sqlContext, invocations)
 
     sc.stop()
-    progressBar.stop()
   }
 }
