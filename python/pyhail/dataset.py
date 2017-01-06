@@ -123,7 +123,7 @@ class VariantDataset(object):
 
         The folowing expression calculates the total number of SNPs, indels, and
         variants contained in the intervals specified by
-        ``data/capture_intervals.txt``:
+        *data/capture_intervals.txt*:
 
         >>> vds.aggregate_intervals('data/capture_intervals.txt',
         >>>   """n_SNP = variants.filter(v => v.altAllele.isSNP).count(),
@@ -131,7 +131,7 @@ class VariantDataset(object):
         >>>      n_total = variants.count()"""
         >>>   'out.txt')
 
-        If ``data/capture_intervals.txt`` contains::
+        If *data/capture_intervals.txt* contains::
 
             4:1500-123123
             5:1-1000000
@@ -159,7 +159,7 @@ class VariantDataset(object):
         >>>           SYN_CALLS = variants.filter(v => va.consequence == "synonymous").map(v => va.n_calls).sum()"""
         >>>        'out.txt'))
 
-        If ``data/intervals.txt`` contains::
+        If *data/intervals.txt* contains::
 
             4:1500-123123
             5:1-1000000
@@ -564,7 +564,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Consider the file, ``data/exons.interval_list``, in
+        Consider the file, *data/exons.interval_list*, in
         ``chromosome:start-end`` format::
 
             $ cat data/exons.interval_list
@@ -579,7 +579,7 @@ class VariantDataset(object):
 
         >>> vds.annotate_variants_intervals('data/exons.interval_list', 'va.inExon')
 
-        Consider the tab-separated, five-column file ``data/exons2.interval_list``::
+        Consider the tab-separated, five-column file *data/exons2.interval_list*::
 
             $ cat data/exons2.interval_list
             1   5122980 5123054 + gene1
@@ -1441,12 +1441,12 @@ class VariantDataset(object):
 
         **Examples**
 
-        Keep all variants that occur in ``data/variants.txt`` (removing all other
+        Keep all variants that occur in *data/variants.txt* (removing all other
         variants):
 
         >>> vds.filter_variants_list('data/variants.txt')
 
-        Remove all variants that occur in ``data/variants.txt``:
+        Remove all variants that occur in *data/variants.txt*:
 
         >>> vds.filter_variants_list('data/variants.txt', keep=False)
 
