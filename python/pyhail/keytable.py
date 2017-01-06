@@ -346,10 +346,10 @@ class KeyTable(object):
         >>> new_kt = kt.select([])
 
         :param field_names: List of fields to be selected.
-        :type list of str
+        :type: list of str
 
         :return: A ``KeyTable`` with selected fields in the order
-        given by ``field_names``.
+          given by ``field_names``.
 
         :rtype: KeyTable
 

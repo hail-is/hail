@@ -11,3 +11,7 @@
     background-color: #ffffff;
     background-image: none;
 }
+
+table.docutils col {
+    width: auto;
+}
