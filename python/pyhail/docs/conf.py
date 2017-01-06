@@ -141,8 +141,7 @@ html_theme = 'sphinx_rtd_theme'
 #}
 html_theme_options = {
     'collapse_navigation': True,
-    'display_version': True,
-    'navigation_depth': 4,
+    'display_version': True
 }
 
 html_context = {
