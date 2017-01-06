@@ -196,7 +196,9 @@ class VariantDataset(object):
 
         **Examples**
 
-        Load a file as a global annotation.  Consider ``data/genes.txt`` with the form::
+        Load a file as a global annotation.  Consider the file *data/genes.txt* with contents:
+
+        .. code-block:: text
 
           GENE    PLI     EXAC_LOF_COUNT
           Gene1   0.12312 2
@@ -258,10 +260,10 @@ class VariantDataset(object):
 
         ``condition`` is in sample context so the following symbols are in scope:
 
-          - ``s: Sample``
-          - ``sa``: sample annotations
-          - ``global``: global annotations
-          - ``gs: Aggregable[Genotype]``: the aggregable of genotypes for ``s``
+        - ``s: Sample``
+        - ``sa``: sample annotations
+        - ``global``: global annotations
+        - ``gs: Aggregable[Genotype]``: the aggregable of genotypes for ``s``
 
         :param condition: Annotation expression.
         :type condition: str or list of str
@@ -499,8 +501,7 @@ class VariantDataset(object):
                 self.jvds, other.jvds, code, root))
 
     def cache(self):
-        """Mark this dataset to be cached in memory.  ``cache()`` is the same
-          as ``persist("MEMORY_ONLY")``.
+        """Mark this dataset to be cached in memory. :py:meth:`~pyhail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <pyhail.VariantDataset.persist>`.
 
         :return:  This dataset, marked to be cached in memory.
 
@@ -614,12 +615,12 @@ class VariantDataset(object):
         ``fam_expr`` can be used to set the fields in the FAM file.
         The following fields can be assigned:
 
-          - ``famID: String``
-          - ``id: String``
-          - ``matID: String``
-          - ``patID: String``
-          - ``isFemale: Boolean``
-          - ``isCase: Boolean`` or ``qPheno: Double``
+        - ``famID: String``
+        - ``id: String``
+        - ``matID: String``
+        - ``patID: String``
+        - ``isFemale: Boolean``
+        - ``isCase: Boolean`` or ``qPheno: Double``
 
         If no assignment is given, the value is missing and the
         missing value is used: ``0`` for IDs and sex and ``-9`` for
@@ -629,24 +630,27 @@ class VariantDataset(object):
         ``fam_expr`` is in sample context only and the following
         symbols are in scope:
 
-          - ``s: Sample``
-          - ``sa``: sample annotations
-          - ``global``: global annotations
+        - ``s: Sample``
+        - ``sa``: sample annotations
+        - ``global``: global annotations
 
         The BIM file ID field is set to ``CHR:POS:REF:ALT``.
 
-        The ``export_vcf``, ``split_multi`` and ``export_plink``
-        example should behave similar to the PLINK VCF conversion
-        command::
+        This code::
+
+        >>> (hc.import_vcf('data/example.vcf')
+        >>>   .split_multi()
+        >>>   .export_plink('data/plink'))
+
+        will behave similarly to the PLINK VCF conversion command::
 
           plink --vcf /path/to/file.vcf --make-bed --out sample --const-fid --keep-allele-order
 
         except:
 
-          - The order among split mutli-allelic alternatives in the BED
-            file may disagree.
-
-          - PLINK uses the RSID for the BIM file ID.
+        - The order among split mutli-allelic alternatives in the BED
+          file may disagree.
+        - PLINK uses the RSID for the BIM file ID.
 
         :param str output: Output file base.  Will write BED, BIM and FAM files.
 
@@ -678,13 +682,12 @@ class VariantDataset(object):
 
         **Notes**
 
-        One line per sample will be exported.  As ``export_samples``
-        runs in sample context, the following symbols are in scope:
+        One line per sample will be exported.  As :py:meth:`pyhail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
 
-          - ``s: Sample``
-          - ``sa``: sample annotations
-          - ``global``: global annotations
-          - ``gs: Aggregable[Genotype]``: the aggregable of genotypes for ``s``
+        - ``s: Sample``
+        - ``sa``: sample annotations
+        - ``global``: global annotations
+        - ``gs: Aggregable[Genotype]``: the aggregable of genotypes for ``s``
 
         :param str output: Output file.
 
@@ -839,7 +842,7 @@ class VariantDataset(object):
         allele 1 in the following example genotype at a site with 3
         alleles (reference and 2 non-reference alleles).
 
-        ::
+        .. code-block:: text
 
           GT: 1/2
           GQ: 10
@@ -862,7 +865,9 @@ class VariantDataset(object):
         that the alternate is not-real and we want to discard any
         probability mass associated with the alternate.
 
-        The subsetting algorithm would produce the following::
+        The subsetting algorithm would produce the following:
+
+        .. code-block:: text
 
           GT: 1/1
           GQ: 980
@@ -875,11 +880,11 @@ class VariantDataset(object):
 
         In summary:
 
-          - GT: Set to most likely genotype based on the PLs ignoring the filtered allele(s).
-          - AD: The filtered alleles' columns are eliminated, e.g. filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``25,20``.
-          - DP: No change.
-          - PL: Subsets the PLs to those associated with remaining alleles (and normalize).
-          - GQ: Increasing-sort PL and take ``PL[1] - PL[0]``.
+        - GT: Set to most likely genotype based on the PLs ignoring the filtered allele(s).
+        - AD: The filtered alleles' columns are eliminated, e.g. filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``25,20``.
+        - DP: No change.
+        - PL: Subsets the PLs to those associated with remaining alleles (and normalize).
+        - GQ: Increasing-sort PL and take ``PL[1] - PL[0]``.
 
         **Downcoding algorithm**
 
@@ -890,9 +895,11 @@ class VariantDataset(object):
         Similarly, the depth for the filtered allele in the AD field
         is added to that of the reference.  If an allele is filtered,
         this algorithm acts similarly to
-        :py:meth:`~pyhail.VariantDataset.splitmulti`.
+        :py:meth:`~pyhail.VariantDataset.split_multi`.
 
-        The downcoding algorithm would produce the following::
+        The downcoding algorithm would produce the following:
+
+        .. code-block:: text
 
           GT: 0/1
           GQ: 10
@@ -905,25 +912,25 @@ class VariantDataset(object):
 
         In summary:
 
-          - GT: Downcode the filtered alleles to reference.
-          - AD: The filtered alleles' columns are eliminated and the value is added to the reference, e.g. filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
-          - DP: No change.
-          - PL: Downcode the filtered alleles and take the minimum of the likelihoods for each genotype.
-          - GQ: Increasing-sort PL and take ``PL[1] - PL[0]``.
+        - GT: Downcode the filtered alleles to reference.
+        - AD: The filtered alleles' columns are eliminated and the value is added to the reference, e.g. filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
+        - DP: No change.
+        - PL: Downcode the filtered alleles and take the minimum of the likelihoods for each genotype.
+        - GQ: Increasing-sort PL and take ``PL[1] - PL[0]``.
 
         **Expression Variables**
 
         The following symbols are in scope in ``condition``:
 
-          - ``v: Variant``
-          - ``va``: variant annotations
-          - ``aIndex: Int``: the index of the allele being tested
+        - ``v: Variant``
+        - ``va``: variant annotations
+        - ``aIndex: Int``: the index of the allele being tested
 
         The following symbols are in scope in ``annotation``:
 
-          - ``v: Variant``
-          - ``va``: variant annotations
-          - ``aIndices: Array[Int]``: the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
+        - ``v: Variant``
+        - ``va``: variant annotations
+        - ``aIndices: Array[Int]``: the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
 
         :param condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
         :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
@@ -1010,10 +1017,7 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def filter_variants_all(self):
-        """Discard all variants, variant annotations and genotypes.  Samples,
-          sample annotations and global annotations are retained.
-          This is the same as ``filter_variants_expr('false')``,
-          except faster.
+        """Discard all variants, variant annotations and genotypes.  Samples, sample annotations and global annotations are retained. This is the same as :func:`filter_variants_expr('false') <pyhail.VariantDataset.filter_variants_expr>`, except faster.
 
         **Example**
 
@@ -1195,32 +1199,41 @@ class VariantDataset(object):
             pargs.append(str(minaf))
         return self.hc.run_command(self, pargs)
 
-    def logreg(self, test, y, covariates=None, root=None):
+    def logreg(self, test, y, covariates=None, root='va.logreg'):
         """Test each variant for association using the logistic regression
         model.
 
+        **Example**
+
+        Run logistic regression with Wald test with two covariates:
+
+        >>> (hc.read('data/example.vds')
+        >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno',
+        >>>     config=TextTableConfig(impute=True))
+        >>>   .logreg('wald', 'sa.pheno.isCase', covariates='sa.pheno.age, sa.pheno.isFemale'))
+
         **Notes**
 
-        The ``logreg`` command performs, for each variant, a
-        significance test of the genotype in predicting a binary
-        (case-control) phenotype based on the logistic regression
-        model. Hail supports the Wald test, likelihood ratio test
-        (LRT), and Rao score test. Hail only includes samples for
-        which phenotype and all covariates are defined. For each
-        variant, Hail imputes missing genotypes as the mean of called
-        genotypes.
+        The :py:meth:`~pyhail.VariantDataset.logreg` command performs,
+        for each variant, a significance test of the genotype in
+        predicting a binary (case-control) phenotype based on the
+        logistic regression model. Hail supports the Wald test,
+        likelihood ratio test (LRT), and Rao score test. Hail only
+        includes samples for which phenotype and all covariates are
+        defined. For each variant, Hail imputes missing genotypes as
+        the mean of called genotypes.
 
         Assuming there are sample annotations ``sa.pheno.isCase``,
         ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the
-        command::
+        command:
 
-          logreg -y sa.pheno.isCase -c sa.cov.age,sa.cov.isFemale,sa.cov.PC1
+        >>> vds.logreg('sa.pheno.isCase', covariates='sa.cov.age,sa.cov.isFemale,sa.cov.PC1')
 
         considers a model of the form
 
         .. math::
         
-          \mathrm{Prob}(\mathrm{isCase}) = \mathrm{sigmoid}(\\beta_0 + \\beta_1 \, \mathrm{gt} + \\beta_2 \, \mathrm{age} + \\beta_3 \, \mathrm{isMale} + \\beta_4 \, \mathrm{PC1} + \\varepsilon), \quad \\varepsilon \sim \mathrm{N}(0, \sigma^2)
+          \mathrm{Prob}(\mathrm{isCase}) = \mathrm{sigmoid}(\\beta_0 + \\beta_1 \, \mathrm{gt} + \\beta_2 \, \mathrm{age} + \\beta_3 \, \mathrm{isFemale} + \\beta_4 \, \mathrm{PC1} + \\varepsilon), \quad \\varepsilon \sim \mathrm{N}(0, \sigma^2)
 
         where :math:`\mathrm{sigmoid}` is the `sigmoid
         function <https://en.wikipedia.org/wiki/Sigmoid_function>`_, the
@@ -1271,7 +1284,9 @@ class VariantDataset(object):
         Control 1000   0   0
         ======= ====== === ======
 
-        The following R code fits the (standard) logistic, Firth logistic, and linear regression models to this data, where ``x`` is genotype, ``y`` is phenotype, and ``logistf`` is from the logistf package::
+        The following R code fits the (standard) logistic, Firth logistic, and linear regression models to this data, where ``x`` is genotype, ``y`` is phenotype, and ``logistf`` is from the logistf package:
+
+        .. code-block:: R
 
           x <- c(rep(0,1000), rep(1,1000), rep(1,10)
           y <- c(rep(0,1000), rep(0,1000), rep(1,10))
@@ -1281,7 +1296,9 @@ class VariantDataset(object):
 
         The resulting p-values for the genotype coefficient are 0.991, 0.00085, and 0.0016, respectively. The erroneous value 0.991 is due to quasi-complete separation. Moving one of the 10 hets from case to control eliminates this quasi-complete separation; the p-values from R are then 0.0373, 0.0111, and 0.0116, respectively, as expected for a less significant association.
 
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <reference.html#HailExpressionLanguage>`_ without identifiers, such as::
+        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <../reference.html#HailExpressionLanguage>`_ without identifiers, such as:
+
+        .. code-block:: text
 
           if (sa.isFemale) sa.cov.age else (2 * sa.cov.age + 10)
 
@@ -1302,13 +1319,10 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['logreg', '-t', test, '-y', y]
+        pargs = ['logreg', '-t', test, '-y', y, '-r', root]
         if covariates:
             pargs.append('-c')
             pargs.append(covariates)
-        if root:
-            pargs.append('-r')
-            pargs.append(root)
         return self.hc.run_command(self, pargs)
 
     def mendel_errors(self, output, fam):
@@ -1559,15 +1573,15 @@ class VariantDataset(object):
 
         ``split_multi`` adds the following annotations:
 
-         - **va.wasSplit** (*Boolean*) -- true if this variant was
-           originally multiallelic, otherwise false.
+        - **va.wasSplit** (*Boolean*) -- true if this variant was
+          originally multiallelic, otherwise false.
 
-         - **va.aIndex** (*Int*) -- The original index of this
-           alternate allele in the multiallelic representation (NB: 1
-           is the first alternate allele or the only alternate allele
-           in a biallelic variant). For example, 1:100:A:T,C splits
-           into two variants: 1:100:A:T with ``aIndex = 1`` and
-           1:100:A:C with ``aIndex = 2``.
+        - **va.aIndex** (*Int*) -- The original index of this
+          alternate allele in the multiallelic representation (NB: 1
+          is the first alternate allele or the only alternate allele
+          in a biallelic variant). For example, 1:100:A:T,C splits
+          into two variants: 1:100:A:T with ``aIndex = 1`` and
+          1:100:A:C with ``aIndex = 2``.
 
         :param bool propagate_gq: Set the GQ of output (split)
           genotypes to be the GQ of the input (multi-allelic) variants
