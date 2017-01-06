@@ -13,7 +13,7 @@ class PipelineSuite extends SparkSuite {
     val pcaFile = tmpDir.createTempFile("pca", extension = ".tsv")
 
     var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf"))
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
     s = SplitMulti.run(s, Array.empty[String])
     s = Write.run(s, Array("-o", vdsFile))
     s = Read.run(s, Array("-i", vdsFile))

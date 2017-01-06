@@ -3,17 +3,21 @@ package org.broadinstitute.hail.driver
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.broadinstitute.hail.utils._
-import org.broadinstitute.hail.variant.VariantDataset
+
 import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option => Args4jOption}
 
+import org.broadinstitute.hail.variant.{HardCallSet, VariantDataset}
+
 import scala.collection.JavaConverters._
+
 import scala.collection.mutable
 
 case class State(sc: SparkContext,
   sqlContext: SQLContext,
   // FIXME make option
   vds: VariantDataset = null,
-  env: Map[String, VariantDataset] = Map.empty) {
+  env: Map[String, VariantDataset] = Map.empty,
+  hcs: HardCallSet = null) {
   def hadoopConf = sc.hadoopConfiguration
 }
 
@@ -112,6 +116,14 @@ object ToplevelCommands {
   register(VEP)
   register(Write)
   register(WriteKudu)
+
+  register(AddHcs)
+  register(CacheHcs)
+  register(CapVariantsPerBlockHcs)
+  register(ReadHcs)
+  register(RepartitionHcs)
+  register(SortHcs)
+  register(WriteHcs)
 
   // example commands
   register(example.CaseControlCount)
