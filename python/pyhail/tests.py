@@ -161,10 +161,10 @@ class ContextTests(unittest.TestCase):
                          .deduplicate())
         self.assertEqual(sample2_dedup.count()['nVariants'], 735)
         
-        (sample2.filter_samples_expr(['pcoin(0.5)', 'pcoin(0.5)'])
+        (sample2.filter_samples_expr('pcoin(0.5)')
          .export_samples('/tmp/sample2.sample_list', 's'))
 
-        (sample2.filter_variants_expr(['pcoin(0.5)', 'pcoin(0.5)'])
+        (sample2.filter_variants_expr('pcoin(0.5)')
          .export_variants('/tmp/sample2.variant_list', 'v'))
 
         (sample2.filter_variants_intervals(test_resources + '/annotinterall.interval_list')

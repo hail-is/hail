@@ -742,12 +742,10 @@ class VariantDataset(object):
         """Filter samples based on expression.
 
         :param condition: Expression for filter condition.
-        :type condition: str or list of str
+        :type condition: str
 
         """
 
-        if isinstance(condition, list):
-            condition = ' && '.join([ "( " + c + " )" for c in condition])
         pargs = ['filtersamples', 'expr',
                  '--keep' if keep else '--remove',
                  '-c', condition]
@@ -775,12 +773,10 @@ class VariantDataset(object):
         """Filter variants based on expression.
 
         :param condition: Expression for filter condition.
-        :type condition: str or list of str
+        :type condition: str
 
         """
 
-        if isinstance(condition, list):
-            condition = ' && '.join([ "( " + c + " )" for c in condition])
         pargs = ['filtervariants', 'expr',
                  '--keep' if keep else '--remove',
                  '-c', condition]
