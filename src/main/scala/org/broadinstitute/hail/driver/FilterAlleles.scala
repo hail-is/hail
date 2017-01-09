@@ -27,6 +27,10 @@ object FilterAlleles extends Command {
       "Genotype and GQ are set based on the resulting PLs.")
     var subset: Boolean = false
 
+    @Args4jOption(required = false, name = "--annotate-all-variants", usage = "If set, annotates all variants" +
+      "with the -a condition, otherwise only variants where an allele was filtered get annotated.")
+    var annotateAll: Boolean = false
+
     @Args4jOption(required = false, name = "--filterAlteredGenotypes", usage = "If set, any genotype call that would change due" +
       " to filtering an allele would be set to missig instead.")
     var filterAlteredGenotypes: Boolean = false
@@ -84,6 +88,7 @@ object FilterAlleles extends Command {
     val keep = options.keep
     val downcode = options.downcode
     val filterAlteredGenotypes = options.filterAlteredGenotypes
+    val annotateAll = options.annotateAll
 
     def filterAllelesInVariant(v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], Array[Int])] = {
       var alive = 0
@@ -188,12 +193,12 @@ object FilterAlleles extends Command {
 
     def updateOrFilterRow(v: Variant, va: Annotation, gs: Iterable[Genotype]): Option[(Variant, (Annotation, Iterable[Genotype]))] =
       filterAllelesInVariant(v, va).map { case (newV, newToOld, oldToNew) =>
-        val newVa = updateAnnotation(v, va, newToOld)
         if(newV == v)
-          (v,(newVa,gs))
+          if(annotateAll) (v,(updateAnnotation(v, va, newToOld),gs))
+          else (v, (va, gs))
         else {
           val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
-          (newV, (newVa, newGs))
+          (newV, (updateAnnotation(v, va, newToOld), newGs))
         }
       }
 
