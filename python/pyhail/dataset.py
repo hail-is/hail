@@ -208,7 +208,9 @@ class VariantDataset(object):
         >>>   .annotate_global_table('data/genes.txt', 'global.genes',
         >>>                          TextTableConfig(types='PLI: Double, EXAC_LOF_COUNT: Int')))
 
-        creates a new global annotation ``global.genes`` with type::
+        creates a new global annotation ``global.genes`` with type:
+
+        .. code-block:: text
 
           global.genes: Array[Struct {
               GENE: String,
@@ -260,10 +262,10 @@ class VariantDataset(object):
 
         ``condition`` is in sample context so the following symbols are in scope:
 
-        - ``s: Sample``
+        - ``s`` (*Sample*): :ref:`sample`
         - ``sa``: sample annotations
         - ``global``: global annotations
-        - ``gs: Aggregable[Genotype]``: the aggregable of genotypes for ``s``
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
         :param condition: Annotation expression.
         :type condition: str or list of str
@@ -630,7 +632,7 @@ class VariantDataset(object):
         ``fam_expr`` is in sample context only and the following
         symbols are in scope:
 
-        - ``s: Sample``
+        - ``s`` (*Sample*): :ref:`sample`
         - ``sa``: sample annotations
         - ``global``: global annotations
 
@@ -650,7 +652,7 @@ class VariantDataset(object):
 
         - The order among split mutli-allelic alternatives in the BED
           file may disagree.
-        - PLINK uses the RSID for the BIM file ID.
+        - PLINK uses the rsID for the BIM file ID.
 
         :param str output: Output file base.  Will write BED, BIM and FAM files.
 
@@ -682,12 +684,12 @@ class VariantDataset(object):
 
         **Notes**
 
-        One line per sample will be exported.  As :py:meth:`pyhail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
+        One line per sample will be exported.  As :py:meth:`~pyhail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
 
-        - ``s: Sample``
+        - ``s`` (*Sample*): :ref:`sample`
         - ``sa``: sample annotations
         - ``global``: global annotations
-        - ``gs: Aggregable[Genotype]``: the aggregable of genotypes for ``s``
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
         :param str output: Output file.
 
@@ -922,15 +924,15 @@ class VariantDataset(object):
 
         The following symbols are in scope in ``condition``:
 
-        - ``v: Variant``
+        - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
-        - ``aIndex: Int``: the index of the allele being tested
+        - ``aIndex`` (*Int*): the index of the allele being tested
 
         The following symbols are in scope in ``annotation``:
 
-        - ``v: Variant``
+        - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
-        - ``aIndices: Array[Int]``: the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
+        - ``aIndices`` (*Array[Int]*): the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
 
         :param condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
         :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
@@ -1573,15 +1575,14 @@ class VariantDataset(object):
 
         ``split_multi`` adds the following annotations:
 
-        - **va.wasSplit** (*Boolean*) -- true if this variant was
-          originally multiallelic, otherwise false.
-
-        - **va.aIndex** (*Int*) -- The original index of this
-          alternate allele in the multiallelic representation (NB: 1
-          is the first alternate allele or the only alternate allele
-          in a biallelic variant). For example, 1:100:A:T,C splits
-          into two variants: 1:100:A:T with ``aIndex = 1`` and
-          1:100:A:C with ``aIndex = 2``.
+         - **va.wasSplit** (*Boolean*) -- true if this variant was
+           originally multiallelic, otherwise false.
+         - **va.aIndex** (*Int*) -- The original index of this
+           alternate allele in the multiallelic representation (NB: 1
+           is the first alternate allele or the only alternate allele
+           in a biallelic variant). For example, 1:100:A:T,C splits
+           into two variants: 1:100:A:T with ``aIndex = 1`` and
+           1:100:A:C with ``aIndex = 2``.
 
         :param bool propagate_gq: Set the GQ of output (split)
           genotypes to be the GQ of the input (multi-allelic) variants
