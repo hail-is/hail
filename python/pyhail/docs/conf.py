@@ -144,11 +144,6 @@ html_theme_options = {
     'display_version': True
 }
 
-html_context = {
-    'css_files': ['navbar.css', '_static/rtd_modifications.css'],
-    'script_files': ['../jquery-3.1.1.min.js', '../bootstrap.min.js']
-}
-
 # Add any paths that contain custom themes here, relative to this directory.
 #html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 html_theme_path = ["_themes",]
