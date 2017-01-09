@@ -970,13 +970,73 @@ class VariantDataset(object):
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, arrays=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
+        **Examples**
+
+        To compute the first 10 principal component scores and store as annotations as type Struct:
+
+        >>> vds1 = hc.read('example.vds').pca('sa.pca')
+
+        To compute the first 5 principal component scores, loadings, and eigenvalues, and store as annotations of type Array[Double]:
+
+        >>> vds2 = hc.read('example.vds').pca('sa.scores', 'va.loadings', 'global.evals', 5, True)
+
+        **Implementation Details**
+
+        Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Link: Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`_.
+
+        ``pca`` expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
+
+        PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix :math:`M`, computed as follows.
+
+        An :math:`n\times m` matrix :math:`C` records raw genotypes, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+
+        .. math:: M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
+
+        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes genotype variances to a common value :math:`1/m` for variants in Hardy-Weinberg equilibrium and is further motivated in the paper cited above. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)  The factor :math:`1/m` gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the sample correlation or genetic relationship matrix (GRM) as simply :math:`MM^T`.
+
+        PCA then computes the SVD
+
+        .. math:: M = USV^T
+
+        where columns of :math:`U` are left singular vectors (orthonormal in :math:`\mathbb{R}^n`), columns of :math:`V` are right singular vectors (orthonormal in :math:`\mathbb{R}^m`), and :math:`S=\mathrm{diag}(s_1, s_2, \ldots)` with ordered singular values :math:`s_1 \ge s_2 \ge \cdots \ge 0`. Typically one computes only the first :math:`k` singular vectors and values, yielding the best rank :math:`k` approximation :math:`U_k S_k V_k^T` of :math:`M`; the truncations :math:`U_k`, :math:`S_k` and :math:`V_k` are :math:`n\times k`, :math:`k\times k` and :math:`m \times k` respectively.
+
+        From the perspective of the samples or rows of :math:`M` as data, :math:`V_k` contains the variant loadings for the first :math:`k` PCs while :math:`MV_k = U_k S_k` contains the first :math:`k` PC scores of each sample. The loadings represent a new basis of features while the scores represent the projected data on those features. The eigenvalues of the GRM :math:`MM^T` are the squares of the singular values :math:`s_1^2, s_2^2, \ldots`, which represent the variances carried by the respective PCs. By default, Hail only computes the loadings if the ``-l`` option is specified.
+
+        *Note:* In PLINK/GCTA the GRM is taken as the starting point and it is computed slightly differently with regard to missing data. Here the :math:`ij` entry of :math:`MM^T` is simply the dot product of rows :math:`i` and :math:`j` of :math:`M`; in terms of :math:`C` it is
+
+        .. math:: \frac{1}{m}\sum_{l\in\mathcal{C}_i\cap\mathcal{C}_j}\frac{(C_{il}-2p_l)(C_{jl} - 2p_l)}{2p_l(1-p_l)}
+
+        where :math:`\mathcal{C}_i = \{l\mid C_{il}\text{ is non-missing}\}`. In PLINK/GCTA the denominator :math:`m` is replaced with the number of terms in the sum :math:`\lvert\mathcal{C}_i\cap\mathcal{C}_j\rvert`, i.e. the number of variants where both samples have non-missing genotypes. While this is arguably a better estimator of the true GRM (trading shrinkage for noise), it has the drawback that one loses the clean interpretation of the loadings and scores as features and projections.
+
+        Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even ignoring the above discrepancy that means the left singular vectors :math:`U_k` instead of the component scores :math:`U_k S_k`. While this is just a matter of the scale on each PC, the scores have the advantage of representing true projections of the data onto features with the variance of a score reflecting the variance explained by the corresponding feature. (In PC bi-plots this amounts to a change in aspect ratio; for use of PCs as covariates in regression it is immaterial.)
+
+        **Annotations**
+
+        In the first code example, ``vds1`` has annotation:
+
+         - **sa.pca** (*Struct { PC1: Double, ..., PC10: Double }*) -- Struct of sample scores from the top ten PCs. So ``sa.pca.PC1`` is the score from the top PC.
+
+        In the second code example, ``vds2`` has annotations:
+
+         - **sa.scores** (*Array[Double]*) -- Array of sample scores from the top five PCs
+
+         - **va.loadings** (*Array[Double]*) -- Array of variant loadings in the top five PCs
+
+         - **global.evals** (*Array[Double]*) -- Array of the top five eigenvalues
+
         :param str scores: Sample annotation path to store scores.
 
-        :param loadings: Variant annotation path to store site loadings
+        :param loadings: Variant annotation path to store site loadings.
         :type loadings: str or None
 
         :param eigenvalues: Global annotation path to store eigenvalues.
         :type eigenvalues: str or None
+
+        :param k: Number of principal components.
+        :type k: int or None
+
+        :param bool arrays: Store annotations as type Array rather than Struct
+        :type k: bool or None
 
         """
 
@@ -1312,7 +1372,7 @@ class VariantDataset(object):
     def make_keytable(self, variant_condition, genotype_condition, key_names):
         """Make a KeyTable with one row per variant.
 
-        Per sample field names in the result are formed by concatening
+        Per sample field names in the result are formed by concatenating
         the sample ID with the genotype_condition left hand side with
         dot (.).  If the left hand side is empty::
 
