@@ -259,6 +259,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(sample.num_samples(), 100)
         self.assertEqual(sample.num_variants(), 346)
 
+        sample_split.ld_prune()
+
     def test_keytable(self):
         test_resources = 'src/test/resources'
         

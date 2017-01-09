@@ -123,7 +123,8 @@ package object driver {
 
   def configureAndCreateSparkContext(appName: String, master: Option[String], local: String = "local[*]",
     logFile: String = "hail.log", quiet: Boolean = false, append: Boolean = false, parquetCompression: String = "uncompressed",
-    blockSize: Long = 1L, branchingFactor: Int = 50, tmpDir: String = "/tmp"): SparkContext = {
+    blockSize: Long = 0L, branchingFactor: Int = 50, tmpDir: String = "/tmp"): SparkContext = {
+
     require(blockSize >= 0)
     require(branchingFactor > 0)
 

@@ -907,6 +907,33 @@ class VariantDataset(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
+    def ld_prune(self, root='va.ldprune', r2=0.2, window=1000000, local_prune_threshold=0.1, memory_per_core=512):
+        """Prune variants in dataset
+
+        Variants are pruned in each contig from smallest start position to largest.
+        A variant is included in the pruned set if the pair-wise correlation with
+        all variants within a given ``window`` size in the pruned set is less than ``r2``.
+
+        The set of pruned variants will have a boolean annotation of true in ``<root>.prune``.
+
+        :param str root: Variant annotation path to store whether variant is in the pruned set.
+
+        :param float r2: Maximum R^2 threshold between two variants in the pruned set within a given window.
+
+        :param int window: Number of base pair window to compute pair-wise R^2 values.
+
+        :param float local_prune_threshold: Fraction of variants that have been pruned since the last local prune step before triggering a global scan.
+
+        :param float memory_per_core: Total amount of memory available for each core in MB
+        """
+        try:
+            memory_per_core = int(memory_per_core * 1024 * 1024)
+            return VariantDataset(self.hc,
+                                  self.hc.jvm.org.broadinstitute.hail.methods.LDPrune.ldPrune(self.jvds, root, r2, window,
+                                                                                              local_prune_threshold, memory_per_core))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
     def linreg(self, y, covariates='', root='va.linreg', minac=1, minaf=None):
         """Test each variant for association using the linear regression
         model.
