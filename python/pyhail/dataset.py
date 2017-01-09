@@ -679,7 +679,7 @@ class VariantDataset(object):
         The condition expression is evaluated for each alternate allele.
 
         :param condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
-        :type condition: str or list of str
+        :type condition: str
 
         :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
             and aIndices (maps from new to old indices) (default: "va = va")
@@ -690,9 +690,6 @@ class VariantDataset(object):
             would be set to missing instead.
 
         """
-
-        if isinstance(condition, list):
-            condition = ' && '.join([ "( " + c + " )" for c in condition])
 
         pargs = ['filteralleles',
                  '--keep' if keep else '--remove',
@@ -711,12 +708,10 @@ class VariantDataset(object):
         """Filter genotypes based on expression.
 
         :param condition: Expression for filter condition.
-        :type condition: str or list of str
+        :type condition: str
 
         """
 
-        if isinstance(condition, list):
-            condition = ' && '.join([ "( " + c + " )" for c in condition])
         pargs = ['filtergenotypes',
                  '--keep' if keep else '--remove',
                  '-c', condition]

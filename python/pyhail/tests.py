@@ -262,7 +262,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(sample.num_samples(), 100)
         self.assertEqual(sample.num_variants(), 346)
 
-        sample2.filter_alleles(['pcoin(0.5)', 'pcoin(0.5)'])
+        sample2.filter_alleles('pcoin(0.5)')
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
