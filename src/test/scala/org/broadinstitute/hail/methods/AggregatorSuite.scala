@@ -344,4 +344,18 @@ class AggregatorSuite extends SparkSuite {
     }
     p.check()
   }
+
+  @Test def filterMap() {
+    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
+    var s = State(sc, sqlContext, vds)
+    s = FilterSamplesExpr.run(s, Array("-c", "s == \"a\"", "--keep"))
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va.result = gs.map(id => 1).sum()"))
+
+    val (_, result) = s.vds.queryVA("va.result")
+
+    val va = s.vds.variantsAndAnnotations.map(_._2).collect().head
+    result(va).foreach { result =>
+      assert(result == 1)
+    }
+  }
 }
