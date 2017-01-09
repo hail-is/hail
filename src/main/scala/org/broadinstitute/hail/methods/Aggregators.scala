@@ -50,8 +50,9 @@ object Aggregators {
 
       val gsIt = gs.iterator
       var i = 0
-      while (i < localSamplesBc.value.size) {
-        localA(3) = gsIt.next()
+      // gsIt assume hasNext is always called before next
+      while (gsIt.hasNext) {
+        localA(3) = gsIt.next
         localA(4) = localSamplesBc.value(i)
         localA(5) = localAnnotationsBc.value(i)
 
@@ -115,7 +116,8 @@ object Aggregators {
 
       val gsIt = gs.iterator
       var i = 0
-      while (i < localSamplesBc.value.size) {
+      // gsIt assume hasNext is always called before next
+      while (gsIt.hasNext) {
         localA(1) = localSamplesBc.value(i)
         localA(2) = localSampleAnnotationsBc.value(i)
         localA(3) = gsIt.next
