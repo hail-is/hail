@@ -1492,12 +1492,16 @@ class VariantDataset(object):
         **Implementation Details**
 
         We will explain by example. Consider a hypothetical 3-allelic
-        variant::
+        variant:
+
+        .. code-block:: text
 
           A   C,T 0/2:7,2,6:15:45:99,50,99,0,45,99
 
         split_multi will create two biallelic variants (one for each
         alternate allele) at the same position::
+
+        .. code-block:: text
 
           A   C   0/0:13,2:15:45:0,45,99
           A   T   0/1:9,6:15:50:50,0,99
@@ -1533,9 +1537,13 @@ class VariantDataset(object):
 
         Here is a second example for a het non-ref::
 
+        .. code-block:: text
+
           A   C,T 1/2:2,8,6:16:45:99,50,99,45,0,99
 
         splits as::
+
+        .. code-block:: text
 
           A   C   0/1:8,8:16:45:45,0,99
           A   T   0/1:10,6:16:50:50,0,99
@@ -1569,11 +1577,12 @@ class VariantDataset(object):
         >>>  .annotate_variants_expr('va.info.AC = va.info.AC[va.aIndex - 1]')
         >>>  .export_vcf('data/export.vcf'))
 
-        The info field AC in ``data/export.vcf`` will have ``Number=1``.
+        The info field AC in *data/export.vcf* will have ``Number=1``.
 
         **Annotations**
 
-        ``split_multi`` adds the following annotations:
+        :py:meth:`~pyhail.VariantDataset.split_multi` adds the
+        following annotations:
 
          - **va.wasSplit** (*Boolean*) -- true if this variant was
            originally multiallelic, otherwise false.
