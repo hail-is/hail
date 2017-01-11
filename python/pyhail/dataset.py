@@ -372,8 +372,9 @@ class VariantDataset(object):
 
         **Examples**
 
-        Import case-control phenotype data from a tab-separated PLINK .fam file
-        into sample annotations:
+        Import case-control phenotype data from a tab-separated `PLINK .fam
+        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
+        annotations:
 
         >>> vds.annotate_samples_fam("data/myStudy.fam")
 
