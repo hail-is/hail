@@ -1153,6 +1153,8 @@ class VariantDataset(object):
         - ``aIndices`` (*Array[Int]*): the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
 
         :param condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+        :type condition: str
+
         :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
             and aIndices (maps from new to old indices) (default: "va = va")
         :param bool subset: If true, subsets the PL and AD, otherwise downcodes the PL and AD.
@@ -1167,16 +1169,20 @@ class VariantDataset(object):
                  '--keep' if keep else '--remove',
                  '--subset' if subset else '--downcode',
                  '-c', condition]
+
         if annotation:
             pargs.extend(['-a', annotation])
+
         if filter_altered_genotypes:
             pargs.append('--filterAlteredGenotypes')
+
         return self.hc.run_command(self, pargs)
 
     def filter_genotypes(self, condition, keep=True):
-        """Filter variants based on expression.
+        """Filter genotypes based on expression.
 
-        :param str condition: Expression for filter condition.
+        :param condition: Expression for filter condition.
+        :type condition: str
 
         """
 
@@ -1205,12 +1211,10 @@ class VariantDataset(object):
         """Filter samples based on expression.
 
         :param condition: Expression for filter condition.
-        :type condition: str or list of str
+        :type condition: str
 
         """
 
-        if isinstance(condition, list):
-            condition = ','.join(condition)
         pargs = ['filtersamples', 'expr',
                  '--keep' if keep else '--remove',
                  '-c', condition]
@@ -1253,12 +1257,10 @@ class VariantDataset(object):
         """Filter variants based on expression.
 
         :param condition: Expression for filter condition.
-        :type condition: str or list of str
+        :type condition: str
 
         """
 
-        if isinstance(condition, list):
-            condition = ','.join(condition)
         pargs = ['filtervariants', 'expr',
                  '--keep' if keep else '--remove',
                  '-c', condition]
