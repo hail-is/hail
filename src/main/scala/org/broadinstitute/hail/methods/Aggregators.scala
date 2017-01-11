@@ -258,8 +258,7 @@ class CounterAggregator extends TypedAggregator[IndexedSeq[Annotation]] {
   }.toArray[Annotation]: IndexedSeq[Annotation]
 
   def seqOp(x: Any) {
-    if (x != null)
-      m.updateValue(x, 0L, _ + 1)
+    m.updateValue(x, 0L, _ + 1)
   }
 
   def combOp(agg2: this.type) {
@@ -297,8 +296,7 @@ class CollectAggregator extends TypedAggregator[ArrayBuffer[Any]] {
   def result = _state
 
   def seqOp(x: Any) {
-    if (x != null)
-      _state += x
+    _state += x
   }
 
   def combOp(agg2: this.type) = _state ++= agg2._state
@@ -393,12 +391,17 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
 
   def combOp(agg2: this.type) = {
     val agg2state = agg2._state
-    if (_state.length != agg2state.length)
-      fatal(
-        s"""cannot aggregate arrays of unequal length with `sum'
-            |  Found conflicting arrays of size (${ _state.length }) and (${ agg2state.length })""".stripMargin)
-    for (i <- _state.indices)
-      _state(i) += agg2state(i)
+    if (_state == null)
+      _state = agg2._state
+    else if (agg2._state != null) {
+      if (_state.length != agg2state.length)
+        fatal(
+          s"""cannot aggregate arrays of unequal length with `sum'
+              |  Found conflicting arrays of size (${ _state.length }) and (${ agg2state.length })""".
+            stripMargin)
+      for (i <- _state.indices)
+        _state(i) += agg2state(i)
+    }
   }
 
   def copy() = new SumArrayAggregator()
