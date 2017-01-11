@@ -188,8 +188,7 @@ class CountAggregator() extends TypedAggregator[Long] {
   def result = _state
 
   def seqOp(x: Any) {
-    if (x != null)
-      _state += 1
+    _state += 1
   }
 
   def combOp(agg2: this.type) {
@@ -213,10 +212,9 @@ class FractionAggregator(f: (Any) => Any)
 
   def seqOp(x: Any) {
     val r = f(x)
-    if (r != null) {
-      _denom += 1
-      if (r.asInstanceOf[Boolean])
-        _num += 1
+    _denom += 1
+    if (r.asInstanceOf[Boolean])
+      _num += 1
     }
   }
 
