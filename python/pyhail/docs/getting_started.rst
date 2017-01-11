@@ -49,16 +49,16 @@ Here are a few simple things to try in order. To import the ``pyhail`` module an
 
 To :func:`import <pyhail.HailContext.import_vcf>` the included *sample.vcf* into Hail's **.vds** format, run::
 
-    >>> hc.import_vcf('src/test/resources/sample.vcf').write('~/sample.vds')
+    >>> hc.import_vcf('src/test/resources/sample.vcf').write('sample.vds')
 
 To :func:`split <pyhail.VariantDataset.split_multi>` multi-allelic variants, compute a panel of :func:`sample <pyhail.VariantDataset.sample_qc>` and :func:`variant <pyhail.VariantDataset.sample_qc>` quality control statistics, write these statistics to files, and save an annotated version of the vds, run::
 
-    >>> vds = (hc.read('~/sample.vds`)
+    >>> vds = (hc.read('sample.vds`)
     >>>     .split_multi()
     >>>     .sample_qc()
     >>>     .variant_qc()
-    >>>     .export_variants('~/variantqc.tsv', 'Variant = v, va.qc.*')
-    >>>     .write('~/sample.qc.vds'))
+    >>>     .export_variants('variantqc.tsv', 'Variant = v, va.qc.*')
+    >>>     .write('sample.qc.vds'))
 
 
 To :func:`count <pyhail.VariantDataset.count>` the number of samples, variants, and genotypes, run::
@@ -67,14 +67,14 @@ To :func:`count <pyhail.VariantDataset.count>` the number of samples, variants, 
 
 Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <../reference.html#Annotations>`_, and `expression language <../reference.html#HailExpressionLanguage>`_. To :func:`print <pyhail.VariantDataset.print_schema>` the current annotation schema and use these annotations to filter variants, samples, and genotypes, run::
 
-    >>> (vds.print_schema('~/schema.txt')
+    >>> (vds.print_schema('schema.txt')
     >>>     .filter_variants_expr('v.altAllele.isSNP && va.qc.gqMean >= 20')
     >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15')
     >>>     .filter_genotypes('let ab = g.ad[1] / g.ad.sum in '
     >>>                       '((g.isHomRef && ab <= 0.1) || '
     >>>                       ' (g.isHet && ab >= 0.25 && ab <= 0.75) || '
     >>>                       ' (g.isHomVar && ab >= 0.9))')
-    >>>     .write('~/sample.filtered.vds')
+    >>>     .write('sample.filtered.vds')
 
 Try running :py:meth:`~pyhail.VariantDataset.count` on *sample.filtered.vds* to see how the numbers have changed. For further background and examples, continue to the :ref:`sec-overview` and :ref:`API reference <sec-api>`.
 
