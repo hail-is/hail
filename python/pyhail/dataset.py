@@ -191,12 +191,10 @@ class VariantDataset(object):
         what these columns are named.  These expressions should take the form
         ``COL_NAME_1 = <expression>, COL_NAME_2 = <expression>, ...``.
 
-        The ``condition`` parameter has the following namespace:
-
-        ``condition`` is in sample context so the following symbols are in scope:
+        ``condition`` has the following symbols in scope:
 
         - ``interval`` (*Interval*): genomic interval
-        - ``global`` :global annotations
+        - ``global``: global annotations
         - ``variants`` (*Aggregable[Variant]*): aggregable of :ref:`variant`s Aggregator namespace below.
 
         The ``variants`` aggregator has the following namespace:
@@ -397,46 +395,13 @@ class VariantDataset(object):
         The annotation names, types, and missing values are shown below,
         assuming the default root ``sa.fam``.
 
-        +------------+-------------------+--------+------------+
-        |**Field**   |**Annotation**     |**Type**|**Missing** |
-        |            |                   |        |            |
-        +------------+-------------------+--------+------------+
-        |Family ID   |``sa.fam.famID``   |String  |``0``       |
-        |            |                   |        |            |
-        |            |                   |        |            |
-        +------------+-------------------+--------+------------+
-        |Sample ID   |``s``              |String  |            |
-        |            |                   |        |            |
-        |            |                   |        |            |
-        +------------+-------------------+--------+------------+
-        |Paternal ID |``sa.fam.patID``   |String  |``0``       |
-        |            |                   |        |            |
-        |            |                   |        |            |
-        +------------+-------------------+--------+------------+
-        |Maternal ID |``sa.fam.matID``   |String  |``0``       |
-        |            |                   |        |            |
-        |            |                   |        |            |
-        +------------+-------------------+--------+------------+
-        |Sex         |``sa.fam.isFemale``|Boolean |``N/A``,    |
-        |            |                   |        |``-9``,     |
-        |            |                   |        |or ``0``    |
-        |            |                   |        |            |
-        +------------+-------------------+--------+------------+
-        |Case-control|``sa.fam.isCase``  |Boolean |``0``,      |
-        |phenotype   |                   |        |``-9``,     |
-        |            |                   |        |non-numeric,|
-        |            |                   |        |or the      |
-        |            |                   |        |``missing`` |
-        |            |                   |        |argument, if|
-        |            |                   |        |given       |
-        +------------+-------------------+--------+------------+
-        |Quantitive  |``sa.fam.qPheno``  |Double  |``NA`` or   |
-        |phenotype   |                   |        |the         |
-        |            |                   |        |``missing`` |
-        |            |                   |        |argument, if|
-        |            |                   |        |given       |
-        +------------+-------------------+--------+------------+
-
+        - **sa.fam.famID** (*String*) -- Family ID (missing = "0")
+        - **s** (*String*) -- Sample ID
+        - **sa.fam.patID** (*String*) -- Paternal ID (missing = "0")
+        - **sa.fam.matID** (*String*) -- Maternal ID (missing = "0")
+        - **sa.fam.isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
+        - **sa.fam.isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9", non-numeric or the ``missing`` argument, if given.
+        - **sa.fam.qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the ``missing`` argument, if given.
 
         :param str input: Path to .fam file.
 
@@ -915,9 +880,11 @@ class VariantDataset(object):
         >>>   .split_multi()
         >>>   .export_plink('data/plink'))
 
-        will behave similarly to the PLINK VCF conversion command::
+        will behave similarly to the PLINK VCF conversion command
 
-          plink --vcf /path/to/file.vcf --make-bed --out sample --const-fid --keep-allele-order
+        .. code-block:: text
+
+            plink --vcf /path/to/file.vcf --make-bed --out sample --const-fid --keep-allele-order
 
         except:
 
@@ -995,7 +962,8 @@ class VariantDataset(object):
         >>> vds.export_variants('data/file.tsv', 'v, va.pass, va.qc.AF')
 
         .. note::
-        Either all fields must be named, or no field must be named.
+
+            Either all fields must be named, or no field must be named.
 
         In the common case that a group of annotations needs to be exported (for
         example, the annotations produced by ``variantqc``), one can use the
@@ -1038,7 +1006,7 @@ class VariantDataset(object):
         - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
         - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): :ref:`genotype`
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
 
         **Designating output with an expression**
 
@@ -1419,7 +1387,8 @@ class VariantDataset(object):
         ``keep=True`` and excluded if ``keep=False``.
 
         .. note::
-        ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``
+
+            ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``
 
         :param str input: Path to .interval_list file.
 
@@ -1603,7 +1572,7 @@ class VariantDataset(object):
         is coded as :math:`1` for true (female) and :math:`0` for false (male). The null
         model sets :math:`\beta_1 = 0`.
 
-        ``linreg`` skips variants that don't vary across the included samples,
+        :py:meth:`.linreg` skips variants that don't vary across the included samples,
         such as when all genotypes are homozygous reference. One can further
         restrict computation to those variants with at least :math:`k` observed
         alternate alleles (AC) or alternate allele frequency (AF) at least
@@ -1648,22 +1617,10 @@ class VariantDataset(object):
         in the table. These annotations can then be accessed by other methods,
         including exporting to TSV with other variant annotations.
 
-        +-------------------+--------+-----------------------------+
-        |**Annotation**     |**Type**|**Value**                    |
-        +-------------------+--------+-----------------------------+
-        |``va.linreg.beta`` |Double  |fit genotype                 |
-        |                   |        |coefficient,                 |
-        |                   |        |:math:`\hat\beta_1`          |
-        +-------------------+--------+-----------------------------+
-        |``va.linreg.se``   |Double  |estimated standard error,    |
-        |                   |        |:math:`\widehat{\mathrm{se}}`|
-        +-------------------+--------+-----------------------------+
-        |``va.linreg.tstat``|Double  |:math:`t`-statistic, equal to|
-        |                   |        |:math:`\hat\beta_1 /         |
-        |                   |        |\widehat{\mathrm{se}}`       |
-        +-------------------+--------+-----------------------------+
-        |``va.linreg.pval`` |Double  |:math:`p`-value              |
-        +-------------------+--------+-----------------------------+
+        - **va.linreg.beta** (*Double*) -- fit genotype coefficient, :math:`\hat\beta_1`
+        - **va.linreg.se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
+        - **va.linreg.tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+        - **va.linreg.pval** (*Double*) -- :math:`p`-value
 
         :param str y: Response sample annotation.
 
@@ -1860,34 +1817,33 @@ class VariantDataset(object):
 
         Any refers to :math:`\{ HomRef, Het, HomVar, NoCall \}` and ! denotes complement in this set.
 
-        +--------+------------+------------+----------+------------+
-        |**Code**|**Dad**     | **Mom**    | **Kid**  |   **Copy   |
-        |        |            |            |          |  State**   |
-        +========+============+============+==========+============+
-        |    1   | HomVar     | HomVar     | Het      | Auto       |
-        +--------+------------+------------+----------+------------+
-        |    2   | HomRef     | HomRef     | Het      | Auto       |
-        +--------+------------+------------+----------+------------+
-        |    3   | HomRef     |  ! HomRef  |  HomVar  | Auto       |
-        +--------+------------+------------+----------+------------+
-        |    4   |  ! HomRef  | HomRef     |  HomVar  | Auto       |
-        +--------+------------+------------+----------+------------+
-        |    5   | HomRef     | HomRef     |  HomVar  | Auto       |
-        +--------+------------+------------+----------+------------+
-        |    6   | HomVar     |  ! HomVar  |  HomRef  | Auto       |
-        +--------+------------+------------+----------+------------+
-        |    7   |  ! HomVar  | HomVar     |  HomRef  | Auto       |
-        +--------+------------+------------+----------+------------+
-        |    8   | HomVar     | HomVar     |  HomRef  | Auto       |
-        +--------+------------+------------+----------+------------+
-        |    9   | Any        | HomVar     |  HomRef  | HemiX      |
-        +--------+------------+------------+----------+------------+
-        |   10   | Any        | HomRef     |  HomVar  | HemiX      |
-        +--------+------------+------------+----------+------------+
-        |   11   | HomVar     | Any        |  HomRef  | HemiY      |
-        +--------+------------+------------+----------+------------+
-        |   12   | HomRef     | Any        |  HomVar  | HemiY      |
-        +--------+------------+------------+----------+------------+
+        +--------+------------+------------+----------+------------------+
+        |Code    | Dad        | Mom        |     Kid  |   Copy State     |
+        +========+============+============+==========+==================+
+        |    1   | HomVar     | HomVar     | Het      | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    2   | HomRef     | HomRef     | Het      | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    3   | HomRef     |  ! HomRef  |  HomVar  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    4   |  ! HomRef  | HomRef     |  HomVar  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    5   | HomRef     | HomRef     |  HomVar  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    6   | HomVar     |  ! HomVar  |  HomRef  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    7   |  ! HomVar  | HomVar     |  HomRef  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    8   | HomVar     | HomVar     |  HomRef  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    9   | Any        | HomVar     |  HomRef  | HemiX            |
+        +--------+------------+------------+----------+------------------+
+        |   10   | Any        | HomRef     |  HomVar  | HemiX            |
+        +--------+------------+------------+----------+------------------+
+        |   11   | HomVar     | Any        |  HomRef  | HemiY            |
+        +--------+------------+------------+----------+------------------+
+        |   12   | HomRef     | Any        |  HomVar  | HemiY            |
+        +--------+------------+------------+----------+------------------+
 
         **Notes**
 
