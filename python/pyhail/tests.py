@@ -143,7 +143,7 @@ class ContextTests(unittest.TestCase):
         
         sample2_split.export_gen('/tmp/sample2.gen')
 
-        (sample2.filter_genotypes(['g.isHet && g.gq > 20'])
+        (sample2.filter_genotypes('g.isHet && g.gq > 20')
          .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, g.nNonRefAlleles'))
         
         sample2_split.export_plink('/tmp/sample2')
