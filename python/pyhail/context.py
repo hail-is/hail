@@ -81,6 +81,20 @@ class HailContext(object):
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.
 
+        **Examples**
+
+        Print all lines containing the string ``hello`` in *file.txt*:
+
+        >>> hc.grep('hello','data/file.txt')
+
+        Print all lines containing digits in *file1.txt* and *file2.txt*:
+
+        >>> hc.grep('\d', ['data/file1.txt','data/file2.txt'])
+
+        **Background**
+
+        :py:meth:`~pyhail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`_.
+
         :param str regex: The regular expression to match.
 
         :param path: The files to search.
@@ -190,18 +204,58 @@ class HailContext(object):
 
         return self.run_command(None, pargs)
 
-    def import_gen(self, path, tolerance=0.2, sample_file=None, npartitions=None, chromosome=None):
-        """Import .bgen files as VariantDataset
+    def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None):
+        """Import .gen files as VariantDataset.
+
+        **Examples**
+
+        Read a .gen file and a .sample file and write to a .vds file::
+
+        >>> (hc.import_gen('data/example.gen', sample_file='data/example.sample')
+        >>>  .write('data/example.vds'))
+
+        Load multiple files at the same time with `Hadoop glob patterns <../reference.html#hadoopglob>`_::
+
+        >>> (hc.import_gen('data/example.chr*.gen', sample_file='data/example.sample')
+        >>>  .write('data/example.vds'))
+
+        **Notes**
+
+        For more information on the .gen file format, see `here <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300>`_.
+
+        To ensure that the .gen file(s) and .sample file are correctly prepared for import:
+
+        - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
+
+        - No duplicate sample IDs are allowed
+
+        The first column in the .sample file is used as the sample ID ``s.id``.
+
+        .. _dosagefilters:
+
+        **Dosage representation**
+
+        Since dosages are understood as genotype probabilities, :py:meth:`~pyhail.HailContext.import_gen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` paramater from 1.0.  The default tolerance is 0.02, so a genotypes with sum .97 or 1.03 is filtered out, whereas a genotype with sum .98 or 1.02 remains.
+
+        :py:meth:`~pyhail.HailContext.import_gen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+
+        Even when the dosages sum to 1.0, Hail may store slightly different values than the original GEN file (maximum observed difference is 3E-4).
+
+        **Annotations**
+
+        :py:meth:`~pyhail.HailContext.import_gen` adds the following variant annotations:
+
+         - **va.varid** (*String*) -- 2nd column of .gen file if chromosome present, otherwise 1st column.
+
+         - **va.rsid** (*String*) -- 3rd column of .gen file if chromosome present, otherwise 2nd column.
 
         :param path: .gen files to import.
         :type path: str or list of str
 
-        :param float tolerance: If the sum of the dosages for a
-            genotype differ from 1.0 by more than the tolerance, set
-            the genotype to missing.
-
         :param sample_file: The sample file.
         :type sample_file: str or None
+
+        :param float tolerance: If the sum of the dosages for a genotype differ from 1.0 by more than the tolerance, set the genotype to missing.
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None
@@ -210,6 +264,8 @@ class HailContext(object):
         :type chromosome: str or None
 
         :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset imported from a .gen and .sample file.
+
         """
 
         pargs = ["importgen"]
