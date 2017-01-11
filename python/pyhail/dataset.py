@@ -194,6 +194,34 @@ class VariantDataset(object):
         """Load delimited text file (text table) into global annotations as
         Array[Struct].
 
+        **Examples**
+
+        Load a file as a global annotation.  Consider the file *data/genes.txt* with contents:
+
+        .. code-block:: text
+
+          GENE    PLI     EXAC_LOF_COUNT
+          Gene1   0.12312 2
+          ...
+
+        >>> (hc.read('data/example.vds')
+        >>>   .annotate_global_table('data/genes.txt', 'global.genes',
+        >>>                          TextTableConfig(types='PLI: Double, EXAC_LOF_COUNT: Int')))
+
+        creates a new global annotation ``global.genes`` with type:
+
+        .. code-block:: text
+
+          global.genes: Array[Struct {
+              GENE: String,
+              PLI: Double,
+              EXAC_LOF_COUNT: Int
+          }]
+
+        where each line is stored as an element of the array.
+
+        **Notes**
+
         :param str input: Input text file.
 
         :param str root: Global annotation path to store text table.
@@ -214,6 +242,30 @@ class VariantDataset(object):
 
     def annotate_samples_expr(self, condition):
         """Annotate samples with expression.
+
+        **Example**
+
+        Compute per-sample GQ statistics for hets:
+
+        >>> (hc.read('data/example.vds')
+        >>>   .annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()')
+        >>>   .export_samples('data/samples.txt', 'sample = s, het_gq_mean = sa.gqHetStats.mean'))
+
+        Compute the list of genes with a singleton LOF:
+
+        >>> (hc.read('data/example.vds')
+        >>>   .annotate_variants_table('data/consequence.tsv', 'Variant', code='va.consequence = table.Consequence')
+        >>>   .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles).sum() == 1')
+        >>>   .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet && va.consequence == "LOF").map(g => va.gene).collect()'))
+
+        **Notes**
+
+        ``condition`` is in sample context so the following symbols are in scope:
+
+        - ``s`` (*Sample*): :ref:`sample`
+        - ``sa``: sample annotations
+        - ``global``: global annotations
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
         :param condition: Annotation expression.
         :type condition: str or list of str
@@ -451,7 +503,13 @@ class VariantDataset(object):
                 self.jvds, other.jvds, code, root))
 
     def cache(self):
-        """Cache in memory.  cache is the same as persist("MEMORY_ONLY")."""
+        """Mark this dataset to be cached in memory. :py:meth:`~pyhail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <pyhail.VariantDataset.persist>`.
+
+        :return:  This dataset, marked to be cached in memory.
+
+        :rtype: VariantDataset
+
+        """
 
         pargs = ['cache']
         return self.hc.run_command(self, pargs)
@@ -541,9 +599,64 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def export_plink(self, output, fam_expr = 'id = s.id'):
-        """Export as PLINK .bed/.bim/.fam
+        """Export dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`_ BED, BIM and FAM.
 
-        :param str output: Output file base.  Will write .bed, .bim and .fam files.
+        **Examples**
+
+        >>> (hc.import_vcf('data/example.vcf')
+        >>>   .split_multi()
+        >>>   .export_plink('data/plink'))
+
+        >>> (hc.import_vcf('data/example.vcf')
+        >>>   .annotate_samples_fam('data/example.fam', root='sa')
+        >>>   .split_multi()
+        >>>   .export_plink('data/plink', 'famID = sa.famID, id = s.id, matID = sa.matID, patID = sa.patID, isFemale = sa.isFemale, isCase = sa.isCase'))
+
+        **Notes**
+
+        ``fam_expr`` can be used to set the fields in the FAM file.
+        The following fields can be assigned:
+
+        - ``famID: String``
+        - ``id: String``
+        - ``matID: String``
+        - ``patID: String``
+        - ``isFemale: Boolean``
+        - ``isCase: Boolean`` or ``qPheno: Double``
+
+        If no assignment is given, the value is missing and the
+        missing value is used: ``0`` for IDs and sex and ``-9`` for
+        phenotype.  Only one of ``isCase`` or ``qPheno`` can be
+        assigned.
+
+        ``fam_expr`` is in sample context only and the following
+        symbols are in scope:
+
+        - ``s`` (*Sample*): :ref:`sample`
+        - ``sa``: sample annotations
+        - ``global``: global annotations
+
+        The BIM file ID field is set to ``CHR:POS:REF:ALT``.
+
+        This code::
+
+        >>> (hc.import_vcf('data/example.vcf')
+        >>>   .split_multi()
+        >>>   .export_plink('data/plink'))
+
+        will behave similarly to the PLINK VCF conversion command::
+
+          plink --vcf /path/to/file.vcf --make-bed --out sample --const-fid --keep-allele-order
+
+        except:
+
+        - The order among split mutli-allelic alternatives in the BED
+          file may disagree.
+        - PLINK uses the rsID for the BIM file ID.
+
+        :param str output: Output file base.  Will write BED, BIM and FAM files.
+
+        :param str fam_expr: Expression for FAM file fields.
 
         """
 
@@ -552,6 +665,31 @@ class VariantDataset(object):
 
     def export_samples(self, output, condition, types=None):
         """Export sample information to delimited text file.
+
+        **Examples**
+
+        Export some sample QC metrics:
+
+        >>> (hc.read('data/example.vds')
+        >>>   .sample_qc()
+        >>>   .export_samples('data/samples.tsv', 'SAMPLE = s, CALL_RATE = sq.qc.callRate, NHET = sa.qc.nHet'))
+
+        This will produce a file with a header and three columns.  To
+        produce a file with no header, just leave off the assignment
+        to the column identifier:
+
+        >>> (hc.read('data/example.vds')
+        >>>   .sample_qc()
+        >>>   .export_samples('data/samples.tsv', 's, CALL_RATE = sq.qc.rTiTv'))
+
+        **Notes**
+
+        One line per sample will be exported.  As :py:meth:`~pyhail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
+
+        - ``s`` (*Sample*): :ref:`sample`
+        - ``sa``: sample annotations
+        - ``global``: global annotations
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
         :param str output: Output file.
 
@@ -673,10 +811,128 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def filter_alleles(self, condition, annotation=None, subset=True, keep=True, filter_altered_genotypes=False):
-        """
-        Filter a user-defined set of alternate alleles for each variant.
-        If all of a variant's alternate alleles are filtered, the variant itself is filtered.
-        The condition expression is evaluated for each alternate allele.
+        """Filter a user-defined set of alternate alleles for each variant.
+        If all of a variant's alternate alleles are filtered, the
+        variant itself is filtered.  The condition expression is
+        evaluated for each alternate allele.  It is not evaluated for
+        the reference (i.e. ``aIndex`` will never be zero).
+
+        **Example**
+
+        Remove alternate alleles whose allele count is zero and
+        updates the alternate allele count annotation with the new
+        indices:
+
+        >>> (hc.read('example.vds')
+        >>>   .filter_alleles('va.info.AC[aIndex - 1] == 0',
+        >>>     'va.info.AC = va.info.AC = aIndices[1:].map(i => va.info.AC[i - 1])',
+        >>>     keep=False))
+
+        Note we must skip the first element of ``aIndices`` because
+        it is mapping between the old and new *allele* indices, not
+        the *alternate allele* indices.
+
+        **Notes**
+
+        There are two algorithms implemented to remove an allele from
+        the genotypes: subset, if ``subset`` is true, and downcode, if
+        ``subset`` is false.  In addition to these two modes, if
+        ``filter_altered_genotypes`` is true, any genotype (and thus
+        would change when removing the allele) that contained the
+        filtered allele is set to missing.  The example below
+        illustrate the behavior of these two algorithms when filtering
+        allele 1 in the following example genotype at a site with 3
+        alleles (reference and 2 non-reference alleles).
+
+        .. code-block:: text
+
+          GT: 1/2
+          GQ: 10
+          AD: 0,50,35
+
+          0 | 1000
+          1 | 1000   10
+          2 | 1000   0     20
+            +-----------------
+               0     1     2
+
+        **Subsetting algorithm**
+
+        The subset method (the default, ``subset=True``) subsets the
+        AD and PL arrays (i.e. remove entries with filtered allele)
+        and sets GT to the genotype with the minimum likelihood.  Note
+        that if the genotype changes (like in the example), the PLs
+        are re-normalized so that the most likely genotype has a PL of
+        0.  The qualitative interpretation of subsetting is a belief
+        that the alternate is not-real and we want to discard any
+        probability mass associated with the alternate.
+
+        The subsetting algorithm would produce the following:
+
+        .. code-block:: text
+
+          GT: 1/1
+          GQ: 980
+          AD: 0,50
+
+          0 | 980
+          1 | 980    0
+            +-----------
+               0      1
+
+        In summary:
+
+        - GT: Set to most likely genotype based on the PLs ignoring the filtered allele(s).
+        - AD: The filtered alleles' columns are eliminated, e.g. filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``25,20``.
+        - DP: No change.
+        - PL: Subsets the PLs to those associated with remaining alleles (and normalize).
+        - GQ: Increasing-sort PL and take ``PL[1] - PL[0]``.
+
+        **Downcoding algorithm**
+
+        The downcode method converts occurences of the filtered allele
+        to the reference (e.g. 1 -> 0 in our example).  It takes
+        minimums in the PL array where there are multiple likelihoods
+        for a single genotypef. The genotype is then set accordingly.
+        Similarly, the depth for the filtered allele in the AD field
+        is added to that of the reference.  If an allele is filtered,
+        this algorithm acts similarly to
+        :py:meth:`~pyhail.VariantDataset.split_multi`.
+
+        The downcoding algorithm would produce the following:
+
+        .. code-block:: text
+
+          GT: 0/1
+          GQ: 10
+          AD: 35,50
+
+          0 | 20
+          1 | 0    10
+            +-----------
+              0    1
+
+        In summary:
+
+        - GT: Downcode the filtered alleles to reference.
+        - AD: The filtered alleles' columns are eliminated and the value is added to the reference, e.g. filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
+        - DP: No change.
+        - PL: Downcode the filtered alleles and take the minimum of the likelihoods for each genotype.
+        - GQ: Increasing-sort PL and take ``PL[1] - PL[0]``.
+
+        **Expression Variables**
+
+        The following symbols are in scope in ``condition``:
+
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``va``: variant annotations
+        - ``aIndex`` (*Int*): the index of the allele being tested
+
+        The following symbols are in scope in ``annotation``:
+
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``va``: variant annotations
+        - ``aIndices`` (*Array[Int]*): the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
 
         :param condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
         :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
@@ -745,6 +1001,14 @@ class VariantDataset(object):
     def filter_samples_list(self, input, keep=True):
         """Filter samples with a sample list file.
 
+        **Example**
+
+        >>> vds = (hc.read('data/example.vds')
+        >>>   .filter_samples_list('exclude_samples.txt', keep=False))
+
+        The file at the path ``input`` should contain on sample per
+        line with no header or other fields.
+
         :param str input: Path to sample list file.
 
         """
@@ -755,7 +1019,14 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def filter_variants_all(self):
-        """Discard all variants, variant annotations and genotypes."""
+        """Discard all variants, variant annotations and genotypes.  Samples, sample annotations and global annotations are retained. This is the same as :func:`filter_variants_expr('false') <pyhail.VariantDataset.filter_variants_expr>`, except faster.
+
+        **Example**
+
+        >>> (hc.read('data/example.vds')
+        >>>  .filter_variants_all())
+
+        """
 
         pargs = ['filtervariants', 'all']
         return self.hc.run_command(self, pargs)
@@ -930,9 +1201,114 @@ class VariantDataset(object):
             pargs.append(str(minaf))
         return self.hc.run_command(self, pargs)
 
-    def logreg(self, test, y, covariates=None, root=None):
+    def logreg(self, test, y, covariates=None, root='va.logreg'):
         """Test each variant for association using the logistic regression
         model.
+
+        **Example**
+
+        Run logistic regression with Wald test with two covariates:
+
+        >>> (hc.read('data/example.vds')
+        >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno',
+        >>>     config=TextTableConfig(impute=True))
+        >>>   .logreg('wald', 'sa.pheno.isCase', covariates='sa.pheno.age, sa.pheno.isFemale'))
+
+        **Notes**
+
+        The :py:meth:`~pyhail.VariantDataset.logreg` command performs,
+        for each variant, a significance test of the genotype in
+        predicting a binary (case-control) phenotype based on the
+        logistic regression model. Hail supports the Wald test,
+        likelihood ratio test (LRT), and Rao score test. Hail only
+        includes samples for which phenotype and all covariates are
+        defined. For each variant, Hail imputes missing genotypes as
+        the mean of called genotypes.
+
+        Assuming there are sample annotations ``sa.pheno.isCase``,
+        ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the
+        command:
+
+        >>> vds.logreg('sa.pheno.isCase', covariates='sa.cov.age,sa.cov.isFemale,sa.cov.PC1')
+
+        considers a model of the form
+
+        .. math::
+        
+          \mathrm{Prob}(\mathrm{isCase}) = \mathrm{sigmoid}(\\beta_0 + \\beta_1 \, \mathrm{gt} + \\beta_2 \, \mathrm{age} + \\beta_3 \, \mathrm{isFemale} + \\beta_4 \, \mathrm{PC1} + \\varepsilon), \quad \\varepsilon \sim \mathrm{N}(0, \sigma^2)
+
+        where :math:`\mathrm{sigmoid}` is the `sigmoid
+        function <https://en.wikipedia.org/wiki/Sigmoid_function>`_, the
+        genotype :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for
+        Het, and 2 for HomVar, and the Boolean covariate
+        :math:`\mathrm{isFemale}` is coded as 1 for true (female) and
+        0 for false (male). The null model sets :math:`\\beta_1 = 0`.
+
+        The resulting variant annotations depend on the test statistic
+        as shown in the tables below. These annotations can then be
+        accessed by other methods, including exporting to TSV with
+        other variant annotations.
+
+        ===== ======================== ====== =====
+        Test  Annotation               Type   Value
+        ===== ======================== ====== =====
+        Wald  ``va.logreg.wald.beta``  Double fit genotype coefficient, :math:`\hat\\beta_1`
+        Wald  ``va.logreg.wald.se``    Double estimated standard error, :math:`\widehat{\mathrm{se}}` 
+        Wald  ``va.logreg.wald.zstat`` Double Wald :math:`z`-statistic, equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}`
+        Wald  ``va.logreg.wald.pval``  Double Wald test p-value testing :math:`\\beta_1 = 0`
+        LRT   ``va.logreg.lrt.beta``   Double fit genotype coefficient, :math:`\hat\\beta_1`
+        LRT   ``va.logreg.lrt.chi2``   Double likelihood ratio test statistic (deviance) testing :math:`\\beta_1 = 0`
+        LRT   ``va.logreg.lrt.pval``   Double likelihood ratio test p-value
+        Score ``va.logreg.score.chi2`` Double score statistic testing :math:`\\beta_1 = 0`
+        Score ``va.logreg.score.pval`` Double score test p-value
+        ===== ======================== ====== =====
+
+        For the Wald and likelihood ratio tests, Hail fits the logistic model for each variant using Newton iteration and only emits the above annotations when the maximum likelihood estimate of the coefficients converges. To help diagnose convergence issues, Hail also emits three variant annotations which summarize the iterative fitting process:
+
+        ========= =========================== ======= =====
+        Test      Annotation                  Type    Value
+        ========= =========================== ======= =====
+        Wald, LRT ``va.logreg.fit.nIter``     Int     number of iterations until convergence, explosion, or reaching the max (25)
+        Wald, LRT ``va.logreg.fit.converged`` Boolean true if iteration converged
+        Wald, LRT ``va.logreg.fit.exploded``  Boolean true if iteration exploded
+        ========= =========================== ======= =====
+
+        We consider iteration to have converged when every coordinate of :math:`\\beta` changes by less than :math:`10^{-6}`. Up to 25 iterations are attempted; in testing we find 4 or 5 iterations nearly always suffice. Convergence may also fail due to explosion, which refers to low-level numerical linear algebra exceptions caused by manipulating ill-conditioned matrices. Explosion may result from (nearly) linearly dependent covariates or complete `separation <https://en.wikipedia.org/wiki/Separation_(statistics)>`_.
+
+        A more common situation in genetics is quasi-complete seperation, e.g. variants that are observed only in cases (or controls). Such variants inevitably arise when testing millions of variants with very low minor allele count. The maximum likelihood estimate of :math:`\\beta` under logistic regression is then undefined but convergence may still occur after a large number of iterations due to a very flat likelihood surface. In testing, we find that such variants produce a secondary bump from 10 to 15 iterations in the histogram of number of iterations per variant. We also find that this faux convergence produces large standard errors and large (insignificant) p-values. To not miss such variants, consider using Firth logistic regression, linear regression, or group-based tests. 
+
+        Here's a concrete illustration of quasi-complete seperation in R. Suppose we have 2010 samples distributed as follows for a particular variant:
+
+        ======= ====== === ======
+        Status  HomRef Het HomVar
+        ======= ====== === ======
+        Case    1000   10  0
+        Control 1000   0   0
+        ======= ====== === ======
+
+        The following R code fits the (standard) logistic, Firth logistic, and linear regression models to this data, where ``x`` is genotype, ``y`` is phenotype, and ``logistf`` is from the logistf package:
+
+        .. code-block:: R
+
+          x <- c(rep(0,1000), rep(1,1000), rep(1,10)
+          y <- c(rep(0,1000), rep(0,1000), rep(1,10))
+          logfit <- glm(y ~ x, family=binomial())
+          firthfit <- logistf(y ~ x)
+          linfit <- lm(y ~ x)
+
+        The resulting p-values for the genotype coefficient are 0.991, 0.00085, and 0.0016, respectively. The erroneous value 0.991 is due to quasi-complete separation. Moving one of the 10 hets from case to control eliminates this quasi-complete separation; the p-values from R are then 0.0373, 0.0111, and 0.0116, respectively, as expected for a less significant association.
+
+        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <../reference.html#HailExpressionLanguage>`_ without identifiers, such as:
+
+        .. code-block:: text
+
+          if (sa.isFemale) sa.cov.age else (2 * sa.cov.age + 10)
+
+        For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
+
+        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`_. For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
+
+        See `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`_ for an empirical comparison of the logistic Wald, LRT, score, and Firth tests. The theoretical foundations of the Wald, likelihood ratio, and score tests may be found in Chapter 3 of Gesine Reinert's notes `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`_.
 
         :param str test: Statistical test, one of: wald, lrt, or score.
 
@@ -945,13 +1321,10 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['logreg', '-t', test, '-y', y]
+        pargs = ['logreg', '-t', test, '-y', y, '-r', root]
         if covariates:
             pargs.append('-c')
             pargs.append(covariates)
-        if root:
-            pargs.append('-r')
-            pargs.append(root)
         return self.hc.run_command(self, pargs)
 
     def mendel_errors(self, output, fam):
@@ -1119,12 +1492,16 @@ class VariantDataset(object):
         **Implementation Details**
 
         We will explain by example. Consider a hypothetical 3-allelic
-        variant::
+        variant:
+
+        .. code-block:: text
 
           A   C,T 0/2:7,2,6:15:45:99,50,99,0,45,99
 
         split_multi will create two biallelic variants (one for each
-        alternate allele) at the same position::
+        alternate allele) at the same position
+
+        .. code-block:: text
 
           A   C   0/0:13,2:15:45:0,45,99
           A   T   0/1:9,6:15:50:50,0,99
@@ -1158,11 +1535,15 @@ class VariantDataset(object):
         is passed, the biallelic GQ field is simply the multiallelic
         GQ field, that is, genotype qualities are unchanged.
 
-        Here is a second example for a het non-ref::
+        Here is a second example for a het non-ref
+
+        .. code-block:: text
 
           A   C,T 1/2:2,8,6:16:45:99,50,99,45,0,99
 
         splits as::
+
+        .. code-block:: text
 
           A   C   0/1:8,8:16:45:45,0,99
           A   T   0/1:10,6:16:50:50,0,99
@@ -1196,15 +1577,15 @@ class VariantDataset(object):
         >>>  .annotate_variants_expr('va.info.AC = va.info.AC[va.aIndex - 1]')
         >>>  .export_vcf('data/export.vcf'))
 
-        The info field AC in ``data/export.vcf`` will have ``Number=1``.
+        The info field AC in *data/export.vcf* will have ``Number=1``.
 
         **Annotations**
 
-        ``split_multi`` adds the following annotations:
+        :py:meth:`~pyhail.VariantDataset.split_multi` adds the
+        following annotations:
 
          - **va.wasSplit** (*Boolean*) -- true if this variant was
            originally multiallelic, otherwise false.
-
          - **va.aIndex** (*Int*) -- The original index of this
            alternate allele in the multiallelic representation (NB: 1
            is the first alternate allele or the only alternate allele
