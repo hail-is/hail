@@ -83,17 +83,17 @@ class HailContext(object):
 
         **Examples**
 
-        Print all lines containing the string ``hello`` in ``file.txt``:
+        Print all lines containing the string ``hello`` in *file.txt*:
 
         >>> hc.grep('hello','data/file.txt')
 
-        Print all lines containing digits in ``file1.txt`` and ``file2.txt``:
+        Print all lines containing digits in *file1.txt* and *file2.txt*:
 
-        >>> hc.grep('\d', ['data/file1.txt','data/file2.txt')
+        >>> hc.grep('\d', ['data/file1.txt','data/file2.txt'])
 
         **Background**
 
-        :py:meth:`~pyhail.VariantDataset.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`_.
+        :py:meth:`~pyhail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`_.
 
         :param str regex: The regular expression to match.
 
@@ -209,12 +209,12 @@ class HailContext(object):
 
         **Examples**
 
-        To read a .gen file and a .sample file and write to a .vds file::
+        Read a .gen file and a .sample file and write to a .vds file::
 
         >>> (hc.import_gen('data/example.gen', sample_file='data/example.sample')
         >>>  .write('data/example.vds'))
 
-        To load multiple files at the same time, use `Hadoop glob patterns <../reference.html#hadoopglob>`_::
+        Load multiple files at the same time with `Hadoop glob patterns <../reference.html#hadoopglob>`_::
 
         >>> (hc.import_gen('data/example.chr*.gen', sample_file='data/example.sample')
         >>>  .write('data/example.vds'))

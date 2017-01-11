@@ -179,21 +179,23 @@ class VariantDataset(object):
 
         **Examples**
 
-        To add a list of genes in a file to global annotations:
+        Add a list of genes in a file to global annotations:
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_global_list('data/genes.txt', 'global.genes'))
 
-        For the gene list::
+        For the gene list
 
-          $ cat data/genes.txt
-          SCN2A
-          SONIC-HEDGEHOG
-          PRNP
+        .. code-block: text
+
+            $ cat data/genes.txt
+            SCN2A
+            SONIC-HEDGEHOG
+            PRNP
 
         this adds ``global.genes: Array[String]`` with value ``["SCN2A", "SONIC-HEDGEHOG", "PRNP"]``.
 
-        To filter to those variants in genes listed in `genes.txt` given a variant annotation ``va.gene: String``, annotate as type ``Set[String]`` instead:
+        To filter to those variants in genes listed in *genes.txt* given a variant annotation ``va.gene: String``, annotate as type ``Set[String]`` instead:
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_global_list('data/genes.txt', 'global.genes', as_set=True)
@@ -280,17 +282,19 @@ class VariantDataset(object):
 
         **Example**
 
-        To add the sample annotation ``sa.inBatch1: Boolean`` with value true if the sample is in `batch1.txt`:
+        Add the sample annotation ``sa.inBatch1: Boolean`` with value true if the sample is in *batch1.txt*:
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_samples_list('data/batch1.txt','sa.inBatch1'))
 
-        The file must have no header and one sample per line::
+        The file must have no header and one sample per line
 
-          $ cat data/batch1.txt
-          SampleA
-          SampleB
-          ...
+        .. code-block: text
+
+            $ cat data/batch1.txt
+            SampleA
+            SampleB
+            ...
 
         :param str input: Sample list file.
 
@@ -316,12 +320,14 @@ class VariantDataset(object):
 
         Given this file
 
-          $ cat data/samples1.tsv
-          Sample	Height	Status  Age
-          PT-1234	154.1	ADHD	24
-          PT-1236	160.9	Control	19
-          PT-1238	NA	ADHD	89
-          PT-1239	170.3	Control	55
+        .. code-block: text
+
+            $ cat data/samples1.tsv
+            Sample	Height	Status  Age
+            PT-1234	154.1	ADHD	24
+            PT-1236	160.9	Control	19
+            PT-1238	NA	ADHD	89
+            PT-1239	170.3	Control	55
 
         the three new sample annotations are ``sa.pheno.Height: Double``, ``sa.pheno.Status: String``, and ``sa.pheno.Age: Int``.
 
@@ -332,18 +338,20 @@ class VariantDataset(object):
 
         **Detailed examples**
 
-        Let's import annotations from a CSV file with missing data and special characters::
+        Let's import annotations from a CSV file with missing data and special characters
 
-          $ cat data/samples2.tsv
-          Batch,PT-ID
-          1kg,PT-0001
-          1kg,PT-0002
-          study1,PT-0003
-          study3,PT-0003
-          .,PT-0004
-          1kg,PT-0005
-          .,PT-0006
-          1kg,PT-0007
+        .. code-block: text
+
+            $ cat data/samples2.tsv
+            Batch,PT-ID
+            1kg,PT-0001
+            1kg,PT-0002
+            study1,PT-0003
+            study3,PT-0003
+            .,PT-0004
+            1kg,PT-0005
+            .,PT-0006
+            1kg,PT-0007
 
         In this case, we should:
 
@@ -355,22 +363,24 @@ class VariantDataset(object):
 
         - Add the only useful column using ``code`` rather than the ``root`` parameter.
 
-        >>> conf = pyhail.TextTableConfig(delimiter=',', missing='.')
+        >>> conf = TextTableConfig(delimiter=',', missing='.')
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_samples_table('data/samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf))
 
-        Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information::
+        Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information
 
-          $ cat data/samples3.tsv
-          1kg_NA12345   female
-          1kg_NA12346   male
-          1kg_NA12348   female
-          pgc_NA23415   male
-          pgc_NA23418   male
+        .. code-block: text
+
+            $ cat data/samples3.tsv
+            1kg_NA12345   female
+            1kg_NA12346   male
+            1kg_NA12348   female
+            pgc_NA23415   male
+            pgc_NA23418   male
 
         To import it:
 
-        >>> conf = pyhail.TextTableConfig(noheader=True)
+        >>> conf = TextTableConfig(noheader=True)
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_samples_table('data/samples3.tsv', '_0.split("_")[1]', code='sa.sex = table._1, sa.batch = table._0.split("_")[0]', config=conf))
 
@@ -388,21 +398,29 @@ class VariantDataset(object):
 
         **Common uses for the** ``code`` **argument**
 
-        Don't generate a full struct in a table with only one annotation column::
+        Don't generate a full struct in a table with only one annotation column
 
-          code='sa.annot = table._1'
+        .. code-block: text
 
-        Put annotations on the top level under `sa`::
+            code='sa.annot = table._1'
 
-          code='sa = merge(sa, table)'
+        Put annotations on the top level under `sa`
 
-        Load only specific annotations from the table::
+        .. code-block: text
 
-          code='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
+            code='sa = merge(sa, table)'
 
-        The above is equivalent to::
+        Load only specific annotations from the table
 
-          code='sa.annotations.toKeep1 = table.toKeep1,
+        .. code-block: text
+
+            code='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
+
+        The above is equivalent to
+
+        .. code-block: text
+
+            code='sa.annotations.toKeep1 = table.toKeep1,
                 sa.annotations.toKeep2 = table.toKeep2,
                 sa.annotations.toKeep3 = table.toKeep3'
 
@@ -459,29 +477,31 @@ class VariantDataset(object):
 
         **Examples**
 
-        To add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`:
+        Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`:
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_variants_bed('data/file1.bed', 'va.cnvRegion'))
 
-        To adda a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`::
+        Add a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`::
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_variants_bed('data/file2.bed', 'va.cnvRegion'))
 
-        The file formats are::
+        The file formats are
 
-          $ cat data/file1.bed
-          track name="BedTest"
-          20    1          14000000
-          20    17000000   18000000
-          ...
+        .. code-block: text
 
-          $ cat file2.bed
-          track name="BedTest"
-          20    1          14000000  cnv1
-          20    17000000   18000000  cnv2
-          ...
+            $ cat data/file1.bed
+            track name="BedTest"
+            20    1          14000000
+            20    17000000   18000000
+            ...
+
+            $ cat file2.bed
+            track name="BedTest"
+            20    1          14000000  cnv1
+            20    17000000   18000000  cnv2
+            ...
 
 
         **Details**
@@ -699,12 +719,12 @@ class VariantDataset(object):
 
         **Examples**
 
-        To export genotype information with identifiers that form the header:
+        Export genotype information with identifiers that form the header:
 
         >>> (hc.read('data/example.vds')
         >>>  .export_genotypes('data/genotypes.tsv', 'SAMPLE=s, VARIANT=v, GQ=g.gq, DP=g.dp, ANNO1=va.anno1, ANNO2=va.anno2'))
 
-        To export the same information without identifiers, resulting in a file with no header:
+        Export the same information without identifiers, resulting in a file with no header:
 
         >>> (hc.read('data/example.vds')
         >>>  .export_genotypes('data/genotypes.tsv', 's, v, s.id, g.dp, va.anno1, va.anno2'))
@@ -1030,12 +1050,12 @@ class VariantDataset(object):
 
         **Examples**
 
-        To estimate and write the full IBD matrix to `ibd.tsv`, estimated using minor allele frequencies computed from the dataset itself:
+        To estimate and write the full IBD matrix to *ibd.tsv*, estimated using minor allele frequencies computed from the dataset itself:
 
         >>> (hc.read('data/example.vds')
         >>>  .ibd('data/ibd.tsv'))
 
-        To estimate IBD using minor allele frequencies stored in ``va.panel_maf`` and write to `ibd.tsv` only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive:
+        To estimate IBD using minor allele frequencies stored in ``va.panel_maf`` and write to *ibd.tsv* only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive:
 
         >>> (hc.read('data/example.vds')
         >>>  .ibd('data/ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9))
@@ -1046,13 +1066,15 @@ class VariantDataset(object):
 
         :py:meth:`~pyhail.VariantDataset.ibd` requires the dataset to be bi-allelic (otherwise run :py:meth:`~pyhail.VariantDataset.split_multi`) and does not perform LD pruning. Linkage disequilibrium may bias the result so consider filtering variants first.
 
-        Conceptually, the output is a symmetric, sample-by-sample matrix. The output .tsv has the following form::
+        Conceptually, the output is a symmetric, sample-by-sample matrix. The output .tsv has the following form
 
-          SAMPLE_ID_1	SAMPLE_ID_2	Z0	Z1	Z2	PI_HAT
-          sample1	sample2	1.0000	0.0000	0.0000	0.0000
-          sample1	sample3	1.0000	0.0000	0.0000	0.0000
-          sample1	sample4	0.6807	0.0000	0.3193	0.3193
-          sample1	sample5	0.1966	0.0000	0.8034	0.8034
+        .. code-block: text
+
+            SAMPLE_ID_1	SAMPLE_ID_2	Z0	Z1	Z2	PI_HAT
+            sample1	sample2	1.0000	0.0000	0.0000	0.0000
+            sample1	sample3	1.0000	0.0000	0.0000	0.0000
+            sample1	sample4	0.6807	0.0000	0.3193	0.3193
+            sample1	sample5	0.1966	0.0000	0.8034	0.8034
 
         :param str output: Output .tsv file for IBD matrix.
 
@@ -1070,9 +1092,6 @@ class VariantDataset(object):
         :param max: Sample pairs with a PI_HAT above this value will
             not be included in the output. Must be in [0,1].
         :type max: float or None
-
-        :return: The input VariantDataset.
-        :rtype: VariantDataset
 
         """
 
@@ -1199,12 +1218,12 @@ class VariantDataset(object):
 
         **Examples**
 
-        To compute the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double:
+        Compute the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double:
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .pca('sa.scores'))
 
-        To compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
+        Compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True))
@@ -1362,9 +1381,9 @@ class VariantDataset(object):
         spaces.  First, run:
 
         >>> (hc.read('data/example.vds')
-        >>>  .export_samples('data/sample.map', 's.id, s.id')
+        >>>  .export_samples('data/sample.map', 's.id, s.id'))
 
-        Then edit `sample.map` to remove spaces from the sample names in the
+        Then edit *sample.map* to remove spaces from the sample names in the
         second column and run the example above. Renaming samples is fast so there is no need to save out the resulting dataset
         before performing analyses.
 
