@@ -564,8 +564,10 @@ class VariantDataset(object):
         **Examples**
 
         Consider the file, *data/exons.interval_list*, in
-        ``chromosome:start-end`` format::
+        ``chromosome:start-end`` format:
 
+        .. code-block: text
+        
             $ cat data/exons.interval_list
             1:5122980-5123054
             1:5531412-5531715
@@ -578,8 +580,10 @@ class VariantDataset(object):
 
         >>> vds.annotate_variants_intervals('data/exons.interval_list', 'va.inExon')
 
-        Consider the tab-separated, five-column file *data/exons2.interval_list*::
+        Consider the tab-separated, five-column file *data/exons2.interval_list*:
 
+        .. code-block: text
+        
             $ cat data/exons2.interval_list
             1   5122980 5123054 + gene1
             1   5531412 5531715 + gene1
@@ -1402,7 +1406,7 @@ class VariantDataset(object):
 
         >>> vds.filter_variants_intervals('data/intervals.txt')
 
-        **The interval_list Format**
+        **The File Format**
 
         Hail expects an interval file to contain either three or five fields per
         line in the following formats:
@@ -1414,8 +1418,10 @@ class VariantDataset(object):
         In either case, Hail only uses the ``contig``, ``start``, and ``end``
         fields.  Each variant is evaluated against each line in the interval
         file, and any match will mark the variant to be included if
-        ``keep=True`` and excluded if ``keep=False``. *Note:* ``start`` and
-        ``end`` match positions inclusively, e.g. ``start <= position <= end``
+        ``keep=True`` and excluded if ``keep=False``.
+
+        .. note::
+        ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``
 
         :param str input: Path to .interval_list file.
 
@@ -1446,7 +1452,7 @@ class VariantDataset(object):
 
         **File Format**
 
-        Hail expects the given file to contain a variant per in line following
+        Hail expects the given file to contain a variant per line following
         format: ``contig:pos:ref:alt1,alt2,...,altN``.
 
         :param str input: Path to variant list file.
@@ -1576,12 +1582,12 @@ class VariantDataset(object):
 
         **Implementation Details**
 
-        The ``linreg`` command computes, for each variant, statistics of the
-        :math:`t`-test for the genotype coefficient of the linear function of best fit
-        from sample genotype and covariates to quantitative phenotype or
-        case-control status. Hail only includes samples for which phenotype and
-        all covariates are defined. For each variant, Hail imputes missing
-        genotypes as the mean of called genotypes.
+        The :py:meth:`.linreg` command computes, for each variant, statistics of
+        the :math:`t`-test for the genotype coefficient of the linear function
+        of best fit from sample genotype and covariates to quantitative
+        phenotype or case-control status. Hail only includes samples for which
+        phenotype and all covariates are defined. For each variant, Hail imputes
+        missing genotypes as the mean of called genotypes.
 
         Assuming there are sample annotations ``sa.pheno.height``,
         ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the command:
@@ -1633,8 +1639,10 @@ class VariantDataset(object):
 
         Phenotype and covariate sample annotations may also be specified using
         `programmatic expressions <../reference.html#HailExpressionLanguage>`_
-        without identifiers, such as::
+        without identifiers, such as:
 
+        .. code-block: text
+        
             if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)
 
         For Boolean types, true is coded as :math:`1` and false as :math:`0`. In
@@ -1827,8 +1835,9 @@ class VariantDataset(object):
         - ``genomes.imendel`` -- error count per individual: FID IID N NSNP
         - ``genomes.lmendel`` -- error count per variant: CHR SNP N
 
-        FID, KID, PAT, MAT, and IID refer to family, kid, dad, mom, and
-        individual ID, respectively, with missing values set to ``0``.
+        **FID**, **KID**, **PAT**, **MAT**, and **IID** refer to family, kid,
+        dad, mom, and individual ID, respectively, with missing values set to
+        ``0``.
 
         SNP denotes the variant identifier ``chr:pos:ref:alt``.
 
