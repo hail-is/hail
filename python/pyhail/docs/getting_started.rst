@@ -117,11 +117,11 @@ Running the tests
 
 Several Hail tests have additional dependencies:
 
- - `PLINK 1.9 <http://www.cog-genomics.org/plink2](http://www.cog-genomics.org/plink2>`_
+ - `PLINK 1.9 <http://www.cog-genomics.org/plink2>`_
 
- - `QCTOOL 1.4 <http://www.well.ox.ac.uk/~gav/qctool](http://www.well.ox.ac.uk/~gav/qctool>`_
+ - `QCTOOL 1.4 <http://www.well.ox.ac.uk/~gav/qctool>`_
 
- - `R 3.3.1 <http://www.r-project.org/](http://www.r-project.org/>`_ with packages ``jsonlite`` and ``logistf``, which depends on ``mice`` and ``Rcpp``.
+ - `R 3.3.1 <http://www.r-project.org/>`_ with packages ``jsonlite`` and ``logistf``, which depends on ``mice`` and ``Rcpp``.
 
 Other recent versions of QCTOOL and R should suffice, but PLINK 1.7 will not.
 
