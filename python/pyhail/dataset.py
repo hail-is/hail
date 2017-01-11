@@ -566,7 +566,7 @@ class VariantDataset(object):
         Consider the file, *data/exons.interval_list*, in
         ``chromosome:start-end`` format:
 
-        .. code-block: text
+        .. code-block:: text
         
             $ cat data/exons.interval_list
             1:5122980-5123054
@@ -582,7 +582,7 @@ class VariantDataset(object):
 
         Consider the tab-separated, five-column file *data/exons2.interval_list*:
 
-        .. code-block: text
+        .. code-block:: text
         
             $ cat data/exons2.interval_list
             1   5122980 5123054 + gene1
@@ -1641,7 +1641,7 @@ class VariantDataset(object):
         `programmatic expressions <../reference.html#HailExpressionLanguage>`_
         without identifiers, such as:
 
-        .. code-block: text
+        .. code-block:: text
         
             if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)
 
