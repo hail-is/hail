@@ -42,6 +42,7 @@ String sparkVersion = System.getProperty("spark.version","2.0.2")
 
 Boolean spark2 = sparkVersion ==~ /^2.*/
 
+String mongoVersion
 String kuduSpark
 String scalaVersion
 String scalaMajorVersion
@@ -53,14 +54,17 @@ if (spark2) {
     scalaVersion = '2.11.8'
     scalaMajorVersion = '2.11'
     py4jVersion = '0.10.3'
+    mongoVersion = '2.0.0'
 } else {
     scalaVersion = '2.10.4'
     scalaMajorVersion = '2.10'
     kuduSpark = 'spark'
     if (sparkVersion ==~ /^1\.5.*/) {
         py4jVersion = '0.8.2.1'
+        mongoVersion = '1.0.0'
     } else {
         py4jVersion = '0.9' // 1.6
+        mongoVersion = '1.1.0'
     }
 }
 
@@ -127,6 +131,8 @@ dependencies {
     //compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.3.0'
     //compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
     //compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
+
+    compile 'org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':' + mongoVersion
 
     compile 'org.apache.solr:solr-solrj:6.2.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
@@ -220,6 +226,9 @@ shadowJar {
         include(dependency('org.apache.kudu:kudu-client:.*'))
         include(dependency('org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':.*'))
 
+        include(dependency('org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.mongodb:mongo-java-driver:.*'))
+
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
         include(dependency('org.apache.httpcomponents:httpclient:.*'))
@@ -266,6 +275,9 @@ task shadowTestJar(type: ShadowJar) {
 
         include(dependency('org.apache.kudu:kudu-client:.*'))
         include(dependency('org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':.*'))
+
+        include(dependency('org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':.*'))
+        include(dependency('org.mongodb:mongo-java-driver:.*'))
 
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))

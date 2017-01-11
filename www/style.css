@@ -375,7 +375,3 @@ pre:not(.synopsis) > code  {
 #HailExpressionLanguage li {
     margin-bottom: 10px;
 }
-
-h4.faq {
-    z-index: -999;
-}

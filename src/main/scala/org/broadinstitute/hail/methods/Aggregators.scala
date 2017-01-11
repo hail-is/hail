@@ -47,18 +47,28 @@ object Aggregators {
       localA(0) = localGlobalAnnotations
       localA(1) = v
       localA(2) = va
-      (gs, localSamplesBc.value, localAnnotationsBc.value).zipped
-        .foreach { case (g, s, sa) =>
-          localA(3) = g
-          localA(4) = s
-          localA(5) = sa
-          (aggs, aggregations).zipped.foreach { case (agg, (_, f, _)) =>
-            agg.seqOp(f())
-          }
+
+      val gsIt = gs.iterator
+      var i = 0
+      // gsIt assume hasNext is always called before next
+      while (gsIt.hasNext) {
+        localA(3) = gsIt.next
+        localA(4) = localSamplesBc.value(i)
+        localA(5) = localAnnotationsBc.value(i)
+
+        var j = 0
+        while (j < aggs.size) {
+          aggregations(j)._2(aggs(j).seqOp)
+          j += 1
         }
 
-      (aggs, aggregations).zipped.foreach { case (agg, (idx, _, _)) =>
-        localA(idx) = agg.result
+        i += 1
+      }
+
+      i = 0
+      while (i < aggs.size) {
+        localA(aggregations(i)._1) = aggs(i).result
+        i += 1
       }
     })
   }
@@ -103,15 +113,18 @@ object Aggregators {
       localA(0) = localGlobalAnnotation
       localA(4) = v
       localA(5) = va
+
+      val gsIt = gs.iterator
       var i = 0
-      gs.foreach { g =>
+      // gsIt assume hasNext is always called before next
+      while (gsIt.hasNext) {
         localA(1) = localSamplesBc.value(i)
         localA(2) = localSampleAnnotationsBc.value(i)
-        localA(3) = g
+        localA(3) = gsIt.next
 
         var j = 0
         while (j < nAggregations) {
-          arr(i, j).seqOp(aggregations(j)._2())
+          aggregations(j)._2(arr(i, j).seqOp)
           j += 1
         }
         i += 1
@@ -148,7 +161,7 @@ object Aggregators {
     val seqOp = (array: Array[Aggregator], t: T) => {
       setEC(ec, t)
       for (i <- array.indices) {
-        array(i).seqOp(aggregations(i)._2())
+        aggregations(i)._2(array(i).seqOp)
       }
       array
     }

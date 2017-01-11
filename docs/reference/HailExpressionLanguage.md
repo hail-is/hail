@@ -183,18 +183,22 @@ Identifier | Description
 `va` | Variant annotations
 `global` | Global annotations
 
-### Map and Filter
+### Map, Filter, and FlatMap
 
 ```
 <aggregable>.map( <Any lambda expression> )
 <aggregable>.filter( <Boolean lambda expression> )
+<aggregable>.flatMap( <Array or Set lambda expression> )
 ```
 
-These two generic helper functions allow the proceeding calculations to be totally general and modular.
+These three generic helper functions allow the proceeding calculations to be totally general and modular.
 
 `map` changes the type of an aggregable: `gs.map(g => g.gq)` takes the `Aggregable[Genotype]` "gs" and returns an `Aggregable[Int]`.
 
 `filter` subsets an aggregable by excluding/including elements based on a lambda expression.  Note: does not change the type of an aggregable.  `gs.filter(g => g.isHet)` produces an aggregable where only heterozygous genotypes are considered.
+
+`flatMap` expands a single element into many elements. For example, `gs.map(g =>
+g.pl).hist()` creates a histogram of the pls for this variant over all samples.
 
 ### <a class="jumptarget" name="#aggregables_count"></a> Count
 

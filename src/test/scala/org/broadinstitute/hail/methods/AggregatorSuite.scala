@@ -4,6 +4,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.broadinstitute.hail.{SparkSuite, TestUtils}
 import org.broadinstitute.hail.utils._
+import org.broadinstitute.hail.check.Gen
 import org.broadinstitute.hail.check.Prop
 import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.io.vcf.LoadVCF
@@ -252,5 +253,109 @@ class AggregatorSuite extends SparkSuite {
     val va = s.vds.variantsAndAnnotations.map(_._2).collect().head
     assert(qTake(va).contains(IndexedSeq[Any](11, null, 20)))
     assert(qTakeBy(va).contains(IndexedSeq[Any](55, null, 11)))
+  }
+
+  @Test def testMap() {
+    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
+    var s = State(sc, sqlContext, vds)
+    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.map(id => if (id == \"b\") (NA : Sample) else id).map(x => 1).sum()"))
+
+    val (_, result) = s.vds.queryGlobal("global.result")
+
+    assert(result.contains(2))
+  }
+
+  @Test def testFilter1() {
+    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
+    var s = State(sc, sqlContext, vds)
+    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(id => true).map(id => 1).sum()"))
+
+    val (_, result) = s.vds.queryGlobal("global.result")
+
+    assert(result.contains(2))
+  }
+
+  @Test def testFilter2() {
+    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
+    var s = State(sc, sqlContext, vds)
+    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(id => false).map(id => 1).sum()"))
+
+    val (_, result) = s.vds.queryGlobal("global.result")
+
+    assert(result.contains(0))
+  }
+
+  @Test def testFlatMap1() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1]).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(2)
+    }
+    p.check()
+  }
+
+  @Test def testFlatMap2() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [0][:0]).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(0)
+    }
+    p.check()
+  }
+
+  @Test def testFlatMap3() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2]).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(6)
+    }
+    p.check()
+  }
+
+  @Test def testFlatMap4() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(4)
+    }
+    p.check()
+  }
+
+  @Test def testFlatMap5() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2,2].toSet).filter(x => x % 2 == 0).sum()"))
+
+      val (_, result) = s.vds.queryGlobal("global.result")
+
+      result.contains(4)
+    }
+    p.check()
+  }
+
+  @Test def filterMap() {
+    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
+    var s = State(sc, sqlContext, vds)
+    s = FilterSamplesExpr.run(s, Array("-c", "s == \"a\"", "--keep"))
+    s = AnnotateVariantsExpr.run(s, Array("-c", "va.result = gs.map(id => 1).sum()"))
+
+    val (_, result) = s.vds.queryVA("va.result")
+
+    val va = s.vds.variantsAndAnnotations.map(_._2).collect().head
+    result(va).foreach { result =>
+      assert(result == 1)
+    }
   }
 }
