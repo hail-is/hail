@@ -179,20 +179,21 @@ class VariantDataset(object):
 
         **Examples**
 
+        To add a list of genes in a file to global annotations:
+
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_global_list('data/genes.txt', 'global.genes'))
 
-        reads the gene list::
+        For the gene list::
 
           $ cat data/genes.txt
           SCN2A
           SONIC-HEDGEHOG
           PRNP
 
-        and adds a global annotation ``global.genes: Array[String]`` with value ``["SCN2A", "SONIC-HEDGEHOG", "PRNP"]``.
+        this adds ``global.genes: Array[String]`` with value ``["SCN2A", "SONIC-HEDGEHOG", "PRNP"]``.
 
-        Instead, suppose there is already a variant annotation ``va.gene: String`` which specifies the gene in which the variant resides.
-        To filter to those variants in genes listed in `genes.txt`, annotate as type ``Set[String]`` instead:
+        To filter to those variants in genes listed in `genes.txt` given a variant annotation ``va.gene: String``, annotate as type ``Set[String]`` instead:
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_global_list('data/genes.txt', 'global.genes', as_set=True)
@@ -279,10 +280,12 @@ class VariantDataset(object):
 
         **Example**
 
-        >>> vds1 = (hc.read('data/example.vds')
+        To add the sample annotation ``sa.inBatch1: Boolean`` with value true if the sample is in `batch1.txt`:
+
+        >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_samples_list('data/batch1.txt','sa.inBatch1'))
 
-        adds the sample annotation ``sa.inBatch1: Boolean`` with value true if the sample is in `batch1.txt` and false otherwise. The file must have no header and one sample per line::
+        The file must have no header and one sample per line::
 
           $ cat data/batch1.txt
           SampleA
@@ -305,11 +308,13 @@ class VariantDataset(object):
 
         **Examples**
 
+        To annotates samples using `samples1.tsv` with type imputation::
+
         >>> conf = pyhail.TextTableConfig(impute=True)
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.pheno', config=conf))
 
-        annotates samples using `samples1.tsv` with type imputation::
+        Given this file
 
           $ cat data/samples1.tsv
           Sample	Height	Status  Age
@@ -318,7 +323,7 @@ class VariantDataset(object):
           PT-1238	NA	ADHD	89
           PT-1239	170.3	Control	55
 
-        The three new sample annotations are ``sa.pheno.Height: Double``, ``sa.pheno.Status: String``, and ``sa.pheno.Age: Int``.
+        the three new sample annotations are ``sa.pheno.Height: Double``, ``sa.pheno.Status: String``, and ``sa.pheno.Age: Int``.
 
         To annotate without type imputation, resulting in all String types:
 
@@ -454,29 +459,30 @@ class VariantDataset(object):
 
         **Examples**
 
+        To add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`:
+
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_variants_bed('data/file1.bed', 'va.cnvRegion'))
 
-        adds the Boolean variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`::
+        To adda a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`::
+
+        >>> vds = (hc.read('data/example.vds')
+        >>>  .annotate_variants_bed('data/file2.bed', 'va.cnvRegion'))
+
+        The file formats are::
 
           $ cat data/file1.bed
           track name="BedTest"
           20    1          14000000
           20    17000000   18000000
-
-        Essentially the same code
-
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_variants_bed('data/file2.bed', 'va.cnvRegion'))
-
-        on the four-column `file2.bed`::
+          ...
 
           $ cat file2.bed
           track name="BedTest"
           20    1          14000000  cnv1
           20    17000000   18000000  cnv2
+          ...
 
-        instead adds a variant annotation ``va.cnvRegion: String`` with value given by the fourth column.
 
         **Details**
 
@@ -484,7 +490,7 @@ class VariantDataset(object):
 
         If the ``all`` parameter is set to ``True`` and a fourth column is present, the annotation will be the set (possibly empty) of fourth column strings as a ``Set[String]`` for all intervals that overlap the given variant.
 
-        **Note:** UCSC BED files are 0-indexed, which means that the line "5  100  105" will include the loci `5:99, 5:100, 5:101, 5:102, 5:103`.  The last locus included in this interval is two smaller than the listed end!
+        .. caution:: UCSC BED files are end-exclusive but 0-indexed, so the line "5  100  105" is interpreted in Hail as loci `5:101, 5:102, 5:103, 5:104. 5:105`. Details `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`_.
 
         :param str input: Path to .bed file.
 
@@ -719,9 +725,6 @@ class VariantDataset(object):
         :param bool export_ref: If True, export reference genotypes.
 
         :param bool export_missing: If True, export missing genotypes.
-
-        :return: The input VariantDataset.
-        :rtype: VariantDataset
 
         """
 
@@ -1027,15 +1030,15 @@ class VariantDataset(object):
 
         **Examples**
 
+        To estimate and write the full IBD matrix to `ibd.tsv`, estimated using minor allele frequencies computed from the dataset itself:
+
         >>> (hc.read('data/example.vds')
         >>>  .ibd('data/ibd.tsv'))
 
-        writes the full IBD matrix to `ibd.tsv`, estimated using minor allele frequencies computed from the dataset itself.
+        To estimate IBD using minor allele frequencies stored in ``va.panel_maf`` and write to `ibd.tsv` only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive:
 
         >>> (hc.read('data/example.vds')
         >>>  .ibd('data/ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9))
-
-        estimates IBD using minor allele frequencies stored in ``va.panel_maf`` and outputs to `ibd.tsv` only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive.
 
         **Details**
 
@@ -1196,15 +1199,15 @@ class VariantDataset(object):
 
         **Examples**
 
+        To compute the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double:
+
         >>> vds = (hc.read('data/example.vds')
         >>>  .pca('sa.scores'))
 
-        computes the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double.
+        To compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
 
         >>> vds = (hc.read('data/example.vds')
         >>>  .pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True))
-
-        computes the first 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double].
 
         **Details**
 
@@ -1343,12 +1346,13 @@ class VariantDataset(object):
 
         **Example**
 
+
         >>> vds = (hc.read('data/example.vds')
         >>>  .rename_samples('data/sample.map'))
 
         **Details**
 
-        The input file is a two-column, tab-separated file.  The first column is the current sample
+        The input file is a two-column, tab-separated file with no header. The first column is the current sample
         name, the second column is the new sample name.  Samples which do not
         appear in the first column will not be renamed.  Lines in the input that
         do not correspond to any sample in the current dataset will be ignored.

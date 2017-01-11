@@ -83,9 +83,9 @@ class HailContext(object):
 
         **Examples**
 
-        Print all lines containing the string ``hi`` in ``file.txt``:
+        Print all lines containing the string ``hello`` in ``file.txt``:
 
-        >>> hc.grep('hi','data/file.txt')
+        >>> hc.grep('hello','data/file.txt')
 
         Print all lines containing digits in ``file1.txt`` and ``file2.txt``:
 
