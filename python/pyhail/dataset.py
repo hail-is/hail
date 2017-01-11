@@ -139,7 +139,9 @@ class VariantDataset(object):
             16:29500000-30200000
 
         then the previous expression writes something like the following to
-        *out.txt*::
+        *out.txt*:
+
+        .. code-block:: text
 
             Contig    Start       End         n_SNP   n_indel     n_total
             4         1500        123123      502     51          553
