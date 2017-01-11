@@ -215,7 +215,6 @@ class FractionAggregator(f: (Any) => Any)
     _denom += 1
     if (r.asInstanceOf[Boolean])
       _num += 1
-    }
   }
 
   def combOp(agg2: this.type) {
@@ -503,9 +502,9 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
   // https://issues.scala-lang.org/browse/SI-7568
   // fixed in Scala 2.11.0-M7
   var _state = if (ord != null)
-      new mutable.PriorityQueue[(Any, Any)]()(ord)
-    else
-      null
+    new mutable.PriorityQueue[(Any, Any)]()(ord)
+  else
+    null
 
   def result = _state.toArray[(Any, Any)].map(_._1).reverse: IndexedSeq[Any]
 
