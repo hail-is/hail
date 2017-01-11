@@ -1499,7 +1499,7 @@ class VariantDataset(object):
           A   C,T 0/2:7,2,6:15:45:99,50,99,0,45,99
 
         split_multi will create two biallelic variants (one for each
-        alternate allele) at the same position::
+        alternate allele) at the same position
 
         .. code-block:: text
 
@@ -1535,7 +1535,7 @@ class VariantDataset(object):
         is passed, the biallelic GQ field is simply the multiallelic
         GQ field, that is, genotype qualities are unchanged.
 
-        Here is a second example for a het non-ref::
+        Here is a second example for a het non-ref
 
         .. code-block:: text
 
