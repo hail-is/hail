@@ -127,10 +127,12 @@ class VariantDataset(object):
         >>> vds.aggregate_intervals('data/capture_intervals.txt',
         >>>   """n_SNP = variants.filter(v => v.altAllele.isSNP).count(),
         >>>      n_indel = variants.filter(v => v.altAllele.isIndel).count(),
-        >>>      n_total = variants.count()"""
+        >>>      n_total = variants.count()""",
         >>>   'out.txt')
 
-        If *data/capture_intervals.txt* contains::
+        If *data/capture_intervals.txt* contains:
+
+        .. code-block:: text
 
             4:1500-123123
             5:1-1000000
@@ -155,17 +157,21 @@ class VariantDataset(object):
         >>>     .aggregate_intervals('data/intervals.txt'
         >>>        """LOF_CALLS = variants.filter(v => va.consequence == "LOF").map(v => va.n_calls).sum(),
         >>>           MISSENSE_CALLS = variants.filter(v => va.consequence == "missense").map(v => va.n_calls).sum(),
-        >>>           SYN_CALLS = variants.filter(v => va.consequence == "synonymous").map(v => va.n_calls).sum()"""
+        >>>           SYN_CALLS = variants.filter(v => va.consequence == "synonymous").map(v => va.n_calls).sum()""",
         >>>        'out.txt'))
 
-        If *data/intervals.txt* contains::
+        If *data/intervals.txt* contains:
+
+        .. code-block:: text
 
             4:1500-123123
             5:1-1000000
             16:29500000-30200000
 
         then the previous expression writes something like the following to
-        *out.txt*::
+        *out.txt*:
+
+        .. code-block:: text
 
             Contig    Start       End         LOF_CALLS   MISSENSE_CALLS   SYN_CALLS
             4         1500        123123      42          122              553
@@ -185,34 +191,17 @@ class VariantDataset(object):
 
         The ``condition`` parameter has the following namespace:
 
-        +--------------+------------------------------------------+
-        |**Identifier**|**Description**                           |
-        +--------------+------------------------------------------+
-        |``interval``  |genomic interval, see the                 |
-        |              |`representation                           |
-        |              |docs <../reference.html#Representation>`_ |
-        |              |for details                               |
-        +--------------+------------------------------------------+
-        |``global``    |global annotation                         |
-        +--------------+------------------------------------------+
-        |``variants``  |Variant `aggregable                       |
-        |              |<../reference.html#aggregables>`_.        |
-        |              | Aggregator namespace below.              |
-        +--------------+------------------------------------------+
+        ``condition`` is in sample context so the following symbols are in scope:
+
+        - ``interval`` (*Interval*): genomic interval
+        - ``global`` :global annotations
+        - ``variants`` (*Aggregable[Variant]*): aggregable of :ref:`variant`s Aggregator namespace below.
 
         The ``variants`` aggregator has the following namespace:
 
-        +--------------+---------------+
-        |**Identifier**|**Description**|
-        +--------------+---------------+
-        |``v``         |Variant        |
-        +--------------+---------------+
-        |``va``        |Variant        |
-        |              |annotations    |
-        +--------------+---------------+
-        |``global``    |Global         |
-        |              |annotations    |
-        +--------------+---------------+
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``va``: Variant annotations
+        - ``global``: Global annotations
 
         :param str input: Input interval list file.
 
@@ -388,17 +377,19 @@ class VariantDataset(object):
 
         In Hail, unlike Plink, the user must *explicitly* distinguish between
         case-control and quantitative phenotypes. Importing a quantitative
-        phenotype without the `-q` flag will return an error (unless all values
-        happen to be ``0``, ``1``, ``2``, and ``-9``):
+        phenotype without ``quantPheno=True`` will return an error
+        (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
 
         >>> vds.annotate_samples_fam("data/myStudy.fam", quantPheno=True)
 
         Import case-control phenotype data from an
-        arbitrary-whitespace-delimited PLINK .fam file into sample annotations:
+        arbitrary-whitespace-delimited `PLINK .fam
+        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
+        annotations:
 
         >>> vds.annotate_samples_fam("data/myStudy.fam", delimiter="\\s+")
 
-        **Annotation Schema**
+        **Annotations**
 
         The annotation names, types, and missing values are shown below,
         assuming the default root ``sa.fam``.
@@ -567,7 +558,7 @@ class VariantDataset(object):
         ``chromosome:start-end`` format:
 
         .. code-block:: text
-        
+
             $ cat data/exons.interval_list
             1:5122980-5123054
             1:5531412-5531715
@@ -583,7 +574,7 @@ class VariantDataset(object):
         Consider the tab-separated, five-column file *data/exons2.interval_list*:
 
         .. code-block:: text
-        
+
             $ cat data/exons2.interval_list
             1   5122980 5123054 + gene1
             1   5531412 5531715 + gene1
@@ -1013,7 +1004,9 @@ class VariantDataset(object):
 
         >>> vds.export_variants('data/file.tsv', 'variant = v, va.qc.*')
 
-        will produce the following set of columns::
+        will produce the following set of columns:
+
+        .. code-block:: text
 
             variant  callRate  AC  AF  nCalled  ...
 
@@ -1024,7 +1017,9 @@ class VariantDataset(object):
 
         >>> vds.export_variants('data/file.tsv', 'variant = v, QC = va.qc.*')
 
-        which produces these columns::
+        which produces these columns:
+
+        .. code-block:: text
 
             variant  QC.callRate  QC.AC  QC.AF  QC.nCalled  ...
 
@@ -1037,10 +1032,10 @@ class VariantDataset(object):
 
         One line per variant in the VDS will be printed.  The accessible namespace includes:
 
-        - ``v`` (variant)
-        - ``va`` (variant annotations)
-        - ``global`` (global annotations)
-        - ``gs`` (genotype row `aggregable <../reference.html#aggregables>`_)
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``va``: variant annotations
+        - ``global``: global annotations
+        - ``gs`` (*Aggregable[Genotype]*): :ref:`genotype`
 
         **Designating output with an expression**
 
@@ -1605,27 +1600,6 @@ class VariantDataset(object):
         is coded as :math:`1` for true (female) and :math:`0` for false (male). The null
         model sets :math:`\beta_1 = 0`.
 
-        Four variant annotations are then added with root ``va.linreg`` as shown
-        in the table. These annotations can then be accessed by other methods,
-        including exporting to TSV with other variant annotations.
-
-        +-------------------+--------+-----------------------------+
-        |**Annotation**     |**Type**|**Value**                    |
-        +-------------------+--------+-----------------------------+
-        |``va.linreg.beta`` |Double  |fit genotype                 |
-        |                   |        |coefficient,                 |
-        |                   |        |:math:`\hat\beta_1`          |
-        +-------------------+--------+-----------------------------+
-        |``va.linreg.se``   |Double  |estimated standard error,    |
-        |                   |        |:math:`\widehat{\mathrm{se}}`|
-        +-------------------+--------+-----------------------------+
-        |``va.linreg.tstat``|Double  |:math:`t`-statistic, equal to|
-        |                   |        |:math:`\hat\beta_1 /         |
-        |                   |        |\widehat{\mathrm{se}}`       |
-        +-------------------+--------+-----------------------------+
-        |``va.linreg.pval`` |Double  |:math:`p`-value              |
-        +-------------------+--------+-----------------------------+
-
         ``linreg`` skips variants that don't vary across the included samples,
         such as when all genotypes are homozygous reference. One can further
         restrict computation to those variants with at least :math:`k` observed
@@ -1642,7 +1616,7 @@ class VariantDataset(object):
         without identifiers, such as:
 
         .. code-block:: text
-        
+
             if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)
 
         For Boolean types, true is coded as :math:`1` and false as :math:`0`. In
@@ -1664,6 +1638,29 @@ class VariantDataset(object):
         :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
         effect, with :math:`n` samples and :math:`k` covariates in addition to
         genotype and intercept.
+
+        **Annotations**
+
+        Four variant annotations are then added with root ``va.linreg`` as shown
+        in the table. These annotations can then be accessed by other methods,
+        including exporting to TSV with other variant annotations.
+
+        +-------------------+--------+-----------------------------+
+        |**Annotation**     |**Type**|**Value**                    |
+        +-------------------+--------+-----------------------------+
+        |``va.linreg.beta`` |Double  |fit genotype                 |
+        |                   |        |coefficient,                 |
+        |                   |        |:math:`\hat\beta_1`          |
+        +-------------------+--------+-----------------------------+
+        |``va.linreg.se``   |Double  |estimated standard error,    |
+        |                   |        |:math:`\widehat{\mathrm{se}}`|
+        +-------------------+--------+-----------------------------+
+        |``va.linreg.tstat``|Double  |:math:`t`-statistic, equal to|
+        |                   |        |:math:`\hat\beta_1 /         |
+        |                   |        |\widehat{\mathrm{se}}`       |
+        +-------------------+--------+-----------------------------+
+        |``va.linreg.pval`` |Double  |:math:`p`-value              |
+        +-------------------+--------+-----------------------------+
 
         :param str y: Response sample annotation.
 
@@ -1721,7 +1718,7 @@ class VariantDataset(object):
         considers a model of the form
 
         .. math::
-        
+
           \mathrm{Prob}(\mathrm{isCase}) = \mathrm{sigmoid}(\\beta_0 + \\beta_1 \, \mathrm{gt} + \\beta_2 \, \mathrm{age} + \\beta_3 \, \mathrm{isFemale} + \\beta_4 \, \mathrm{PC1} + \\varepsilon), \quad \\varepsilon \sim \mathrm{N}(0, \sigma^2)
 
         where :math:`\mathrm{sigmoid}` is the `sigmoid
@@ -1740,7 +1737,7 @@ class VariantDataset(object):
         Test  Annotation               Type   Value
         ===== ======================== ====== =====
         Wald  ``va.logreg.wald.beta``  Double fit genotype coefficient, :math:`\hat\\beta_1`
-        Wald  ``va.logreg.wald.se``    Double estimated standard error, :math:`\widehat{\mathrm{se}}` 
+        Wald  ``va.logreg.wald.se``    Double estimated standard error, :math:`\widehat{\mathrm{se}}`
         Wald  ``va.logreg.wald.zstat`` Double Wald :math:`z`-statistic, equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}`
         Wald  ``va.logreg.wald.pval``  Double Wald test p-value testing :math:`\\beta_1 = 0`
         LRT   ``va.logreg.lrt.beta``   Double fit genotype coefficient, :math:`\hat\\beta_1`
@@ -1762,7 +1759,7 @@ class VariantDataset(object):
 
         We consider iteration to have converged when every coordinate of :math:`\\beta` changes by less than :math:`10^{-6}`. Up to 25 iterations are attempted; in testing we find 4 or 5 iterations nearly always suffice. Convergence may also fail due to explosion, which refers to low-level numerical linear algebra exceptions caused by manipulating ill-conditioned matrices. Explosion may result from (nearly) linearly dependent covariates or complete `separation <https://en.wikipedia.org/wiki/Separation_(statistics)>`_.
 
-        A more common situation in genetics is quasi-complete seperation, e.g. variants that are observed only in cases (or controls). Such variants inevitably arise when testing millions of variants with very low minor allele count. The maximum likelihood estimate of :math:`\\beta` under logistic regression is then undefined but convergence may still occur after a large number of iterations due to a very flat likelihood surface. In testing, we find that such variants produce a secondary bump from 10 to 15 iterations in the histogram of number of iterations per variant. We also find that this faux convergence produces large standard errors and large (insignificant) p-values. To not miss such variants, consider using Firth logistic regression, linear regression, or group-based tests. 
+        A more common situation in genetics is quasi-complete seperation, e.g. variants that are observed only in cases (or controls). Such variants inevitably arise when testing millions of variants with very low minor allele count. The maximum likelihood estimate of :math:`\\beta` under logistic regression is then undefined but convergence may still occur after a large number of iterations due to a very flat likelihood surface. In testing, we find that such variants produce a secondary bump from 10 to 15 iterations in the histogram of number of iterations per variant. We also find that this faux convergence produces large standard errors and large (insignificant) p-values. To not miss such variants, consider using Firth logistic regression, linear regression, or group-based tests.
 
         Here's a concrete illustration of quasi-complete seperation in R. Suppose we have 2010 samples distributed as follows for a particular variant:
 
