@@ -121,9 +121,8 @@ class VariantDataset(object):
 
         **Examples**
 
-        The folowing expression calculates the total number of SNPs, indels, and
-        variants contained in the intervals specified by
-        *data/capture_intervals.txt*:
+        Calculate the total number of SNPs, indels, and variants contained in
+        the intervals specified by *data/capture_intervals.txt*:
 
         >>> vds.aggregate_intervals('data/capture_intervals.txt',
         >>>   """n_SNP = variants.filter(v => v.altAllele.isSNP).count(),
@@ -138,7 +137,7 @@ class VariantDataset(object):
             16:29500000-30200000
 
         then the previous expression writes something like the following to
-        ``out.txt``::
+        *out.txt*::
 
             Contig    Start       End         n_SNP   n_indel     n_total
             4         1500        123123      502     51          553
@@ -149,8 +148,8 @@ class VariantDataset(object):
         the previous case: ``n_SNP``, ``n_indel``, ``n_total``) and how to
         calculate the value of that column for each interval.
 
-        The following expression counts the number of LOF, missense, and
-        synonymous non-reference calls per interval
+        Count the number of LOF, missense, and synonymous non-reference calls
+        per interval:
 
         >>> (vds.annotate_variants_expr('va.n_calls = gs.filter(g.isCalledNonRef).count()')
         >>>     .aggregate_intervals('data/intervals.txt'
@@ -166,7 +165,7 @@ class VariantDataset(object):
             16:29500000-30200000
 
         then the previous expression writes something like the following to
-        ``out.txt``::
+        *out.txt*::
 
             Contig    Start       End         LOF_CALLS   MISSENSE_CALLS   SYN_CALLS
             4         1500        123123      42          122              553
@@ -186,34 +185,34 @@ class VariantDataset(object):
 
         The ``condition`` parameter has the following namespace:
 
-        +-------------+------------------------------------------+
-        |Identifier   |Description                               |
-        +-------------+------------------------------------------+
-        |``interval`` |genomic interval, see the                 |
-        |             |`representation                           |
-        |             |docs <reference.html#Representation>`_    |
-        |             |for details                               |
-        +-------------+------------------------------------------+
-        |``global``   |global annotation                         |
-        +-------------+------------------------------------------+
-        |``variants`` |Variant `aggregable                       |
-        |             |<reference.html#aggregables>`_. Aggregator|
-        |             |namespace below.                          |
-        +-------------+------------------------------------------+
+        +--------------+------------------------------------------+
+        |**Identifier**|**Description**                           |
+        +--------------+------------------------------------------+
+        |``interval``  |genomic interval, see the                 |
+        |              |`representation                           |
+        |              |docs <../reference.html#Representation>`_ |
+        |              |for details                               |
+        +--------------+------------------------------------------+
+        |``global``    |global annotation                         |
+        +--------------+------------------------------------------+
+        |``variants``  |Variant `aggregable                       |
+        |              |<../reference.html#aggregables>`_.        |
+        |              | Aggregator namespace below.              |
+        +--------------+------------------------------------------+
 
         The ``variants`` aggregator has the following namespace:
 
-        +----------+-----------+
-        |Identifier|Description|
-        +----------+-----------+
-        |``v``     |Variant    |
-        +----------+-----------+
-        |``va``    |Variant    |
-        |          |annotations|
-        +----------+-----------+
-        |``global``|Global     |
-        |          |annotations|
-        +----------+-----------+
+        +--------------+---------------+
+        |**Identifier**|**Description**|
+        +--------------+---------------+
+        |``v``         |Variant        |
+        +--------------+---------------+
+        |``va``        |Variant        |
+        |              |annotations    |
+        +--------------+---------------+
+        |``global``    |Global         |
+        |              |annotations    |
+        +--------------+---------------+
 
         :param str input: Input interval list file.
 
@@ -382,8 +381,8 @@ class VariantDataset(object):
 
         **Examples**
 
-        The following expression imports case-control phenotype data from a
-        tab-separated PLINK .fam file into sample annotations:
+        Import case-control phenotype data from a tab-separated PLINK .fam file
+        into sample annotations:
 
         >>> vds.annotate_samples_fam("data/myStudy.fam")
 
@@ -394,7 +393,7 @@ class VariantDataset(object):
 
         >>> vds.annotate_samples_fam("data/myStudy.fam", quantPheno=True)
 
-        The following epxression imports case-control phenotype data from an
+        Import case-control phenotype data from an
         arbitrary-whitespace-delimited PLINK .fam file into sample annotations:
 
         >>> vds.annotate_samples_fam("data/myStudy.fam", delimiter="\\s+")
@@ -404,45 +403,45 @@ class VariantDataset(object):
         The annotation names, types, and missing values are shown below,
         assuming the default root ``sa.fam``.
 
-        +------------+-------------------+-------+------------+
-        |Field       |Annotation         |Type   |Missing     |
-        |            |                   |       |            |
-        +------------+-------------------+-------+------------+
-        |Family ID   |``sa.fam.famID``   |String |``0``       |
-        |            |                   |       |            |
-        |            |                   |       |            |
-        +------------+-------------------+-------+------------+
-        |Sample ID   |``s``              |String |            |
-        |            |                   |       |            |
-        |            |                   |       |            |
-        +------------+-------------------+-------+------------+
-        |Paternal ID |``sa.fam.patID``   |String |``0``       |
-        |            |                   |       |            |
-        |            |                   |       |            |
-        +------------+-------------------+-------+------------+
-        |Maternal ID |``sa.fam.matID``   |String |``0``       |
-        |            |                   |       |            |
-        |            |                   |       |            |
-        +------------+-------------------+-------+------------+
-        |Sex         |``sa.fam.isFemale``|Boolean|``N/A``,    |
-        |            |                   |       |``-9``,     |
-        |            |                   |       |or ``0``    |
-        |            |                   |       |            |
-        +------------+-------------------+-------+------------+
-        |Case-control|``sa.fam.isCase``  |Boolean|``0``,      |
-        |phenotype   |                   |       |``-9``,     |
-        |            |                   |       |non-numeric,|
-        |            |                   |       |or the      |
-        |            |                   |       |``missing`` |
-        |            |                   |       |argument, if|
-        |            |                   |       |given       |
-        +------------+-------------------+-------+------------+
-        |Quantitive  |``sa.fam.qPheno``  |Double |``NA`` or   |
-        |phenotype   |                   |       |the         |
-        |            |                   |       |``missing`` |
-        |            |                   |       |argument, if|
-        |            |                   |       |given       |
-        +------------+-------------------+-------+------------+
+        +------------+-------------------+--------+------------+
+        |**Field**   |**Annotation**     |**Type**|**Missing** |
+        |            |                   |        |            |
+        +------------+-------------------+--------+------------+
+        |Family ID   |``sa.fam.famID``   |String  |``0``       |
+        |            |                   |        |            |
+        |            |                   |        |            |
+        +------------+-------------------+--------+------------+
+        |Sample ID   |``s``              |String  |            |
+        |            |                   |        |            |
+        |            |                   |        |            |
+        +------------+-------------------+--------+------------+
+        |Paternal ID |``sa.fam.patID``   |String  |``0``       |
+        |            |                   |        |            |
+        |            |                   |        |            |
+        +------------+-------------------+--------+------------+
+        |Maternal ID |``sa.fam.matID``   |String  |``0``       |
+        |            |                   |        |            |
+        |            |                   |        |            |
+        +------------+-------------------+--------+------------+
+        |Sex         |``sa.fam.isFemale``|Boolean |``N/A``,    |
+        |            |                   |        |``-9``,     |
+        |            |                   |        |or ``0``    |
+        |            |                   |        |            |
+        +------------+-------------------+--------+------------+
+        |Case-control|``sa.fam.isCase``  |Boolean |``0``,      |
+        |phenotype   |                   |        |``-9``,     |
+        |            |                   |        |non-numeric,|
+        |            |                   |        |or the      |
+        |            |                   |        |``missing`` |
+        |            |                   |        |argument, if|
+        |            |                   |        |given       |
+        +------------+-------------------+--------+------------+
+        |Quantitive  |``sa.fam.qPheno``  |Double  |``NA`` or   |
+        |phenotype   |                   |        |the         |
+        |            |                   |        |``missing`` |
+        |            |                   |        |argument, if|
+        |            |                   |        |given       |
+        +------------+-------------------+--------+------------+
 
 
         :param str input: Path to .fam file.
@@ -602,7 +601,7 @@ class VariantDataset(object):
         found in any interval specified in the file and `false` otherwise.
 
         The second interval list format is a TSV with fields chromosome, start,
-        end, strand, target.  *There should not be a header.* This file will
+        end, strand, target.  **There should not be a header.** This file will
         annotate variants with the *String* in the fifth column (target). If
         ``all=True``, the annotation will be the, possibly empty,
         ``Set[String]`` of fifth column strings (targets) for all intervals that
@@ -712,22 +711,20 @@ class VariantDataset(object):
 
         **Examples**
 
-        The following expression copies the ``anno1`` annotation from ``other``
-        to ``va.annot``:
+        Copy the ``anno1`` annotation from ``other`` to ``va.annot``:
 
         >>> vds.annotate_variants_vds(code='va.annot = vds.anno1')
 
-        The following expression merges the variant annotations from the two vds
-        together and places them at ``va``:
+        Merge the variant annotations from the two vds together and places them
+        at ``va``:
 
         >>> vds.annotate_variants_vds(code='va = merge(va, vds)')
 
-        The following expression selects a subset of the annotations from
-        ``other``:
+        Select a subset of the annotations from ``other``:
 
         >>> vds.annotate_variants_vds(code='va.annotations = select(vds, toKeep1, toKeep2, toKeep3)')
 
-        the previous expression is equivalent to:
+        The previous expression is equivalent to:
 
         >>> vds.annotate_variants_vds(code="""va.annotations.toKeep1 = vds.toKeep1,
         >>>                                   va.annotations.toKeep2 = vds.toKeep2,
@@ -999,7 +996,8 @@ class VariantDataset(object):
 
         >>> vds.export_variants('data/file.tsv', 'v, va.pass, va.qc.AF')
 
-        *Note:* Either all fields must be named, or no field must be named.
+        .. note::
+        Either all fields must be named, or no field must be named.
 
         In the common case that a group of annotations needs to be exported (for
         example, the annotations produced by ``variantqc``), one can use the
@@ -1038,7 +1036,7 @@ class VariantDataset(object):
         - ``v`` (variant)
         - ``va`` (variant annotations)
         - ``global`` (global annotations)
-        - ``gs`` (genotype row `aggregable <reference.html#aggregables>`_)
+        - ``gs`` (genotype row `aggregable <../reference.html#aggregables>`_)
 
         **Designating output with an expression**
 
@@ -1055,10 +1053,6 @@ class VariantDataset(object):
 
         :param types: Path to write types of exported values.
         :type types: str or None
-
-        :return: The input VariantDataset.
-
-        :rtype: :py:class:`.VariantDataset`
 
         """
 
@@ -1402,7 +1396,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        If ``intervals.txt`` contains intervals in the interval_list format, the
+        If *intervals.txt* contains intervals in the interval_list format, the
         following expression will produce a :py:class:`.VariantDataset` containg
         only variants included by the given intervals:
 
@@ -1609,22 +1603,22 @@ class VariantDataset(object):
         in the table. These annotations can then be accessed by other methods,
         including exporting to TSV with other variant annotations.
 
-        +-------------------+------+-----------------------------+
-        |Annotation         |Type  |Value                        |
-        +-------------------+------+-----------------------------+
-        |``va.linreg.beta`` |Double|fit genotype                 |
-        |                   |      |coefficient,                 |
-        |                   |      |:math:`\hat\beta_1`          |
-        +-------------------+------+-----------------------------+
-        |``va.linreg.se``   |Double|estimated standard error,    |
-        |                   |      |:math:`\widehat{\mathrm{se}}`|
-        +-------------------+------+-----------------------------+
-        |``va.linreg.tstat``|Double|:math:`t`-statistic, equal to|
-        |                   |      |:math:`\hat\beta_1 /         |
-        |                   |      |\widehat{\mathrm{se}}`       |
-        +-------------------+------+-----------------------------+
-        |``va.linreg.pval`` |Double|:math:`p`-value              |
-        +-------------------+------+-----------------------------+
+        +-------------------+--------+-----------------------------+
+        |**Annotation**     |**Type**|**Value**                    |
+        +-------------------+--------+-----------------------------+
+        |``va.linreg.beta`` |Double  |fit genotype                 |
+        |                   |        |coefficient,                 |
+        |                   |        |:math:`\hat\beta_1`          |
+        +-------------------+--------+-----------------------------+
+        |``va.linreg.se``   |Double  |estimated standard error,    |
+        |                   |        |:math:`\widehat{\mathrm{se}}`|
+        +-------------------+--------+-----------------------------+
+        |``va.linreg.tstat``|Double  |:math:`t`-statistic, equal to|
+        |                   |        |:math:`\hat\beta_1 /         |
+        |                   |        |\widehat{\mathrm{se}}`       |
+        +-------------------+--------+-----------------------------+
+        |``va.linreg.pval`` |Double  |:math:`p`-value              |
+        +-------------------+--------+-----------------------------+
 
         ``linreg`` skips variants that don't vary across the included samples,
         such as when all genotypes are homozygous reference. One can further
@@ -1857,33 +1851,34 @@ class VariantDataset(object):
 
         Any refers to :math:`\{ HomRef, Het, HomVar, NoCall \}` and ! denotes complement in this set.
 
-        +------+------------+------------+----------+------------+
-        | Code | Dad        | Mom        | Kid      | Copy State |
-        +======+============+============+==========+============+
-        |    1 | *HomVar*   | *HomVar*   | *Het*    | Auto       |
-        +------+------------+------------+----------+------------+
-        |    2 | *HomRef*   | *HomRef*   | *Het*    | Auto       |
-        +------+------------+------------+----------+------------+
-        |    3 | *HomRef*   | ! *HomRef* | *HomVar* | Auto       |
-        +------+------------+------------+----------+------------+
-        |    4 | ! *HomRef* | *HomRef*   | *HomVar* | Auto       |
-        +------+------------+------------+----------+------------+
-        |    5 | *HomRef*   | *HomRef*   | *HomVar* | Auto       |
-        +------+------------+------------+----------+------------+
-        |    6 | *HomVar*   | ! *HomVar* | *HomRef* | Auto       |
-        +------+------------+------------+----------+------------+
-        |    7 | ! *HomVar* | *HomVar*   | *HomRef* | Auto       |
-        +------+------------+------------+----------+------------+
-        |    8 | *HomVar*   | *HomVar*   | *HomRef* | Auto       |
-        +------+------------+------------+----------+------------+
-        |    9 | Any        | *HomVar*   | *HomRef* | HemiX      |
-        +------+------------+------------+----------+------------+
-        |   10 | Any        | *HomRef*   | *HomVar* | HemiX      |
-        +------+------------+------------+----------+------------+
-        |   11 | *HomVar*   | Any        | *HomRef* | HemiY      |
-        +------+------------+------------+----------+------------+
-        |   12 | *HomRef*   | Any        | *HomVar* | HemiY      |
-        +------+------------+------------+----------+------------+
+        +--------+------------+------------+----------+------------+
+        |**Code**|**Dad**     | **Mom**    | **Kid**  |   **Copy   |
+        |        |            |            |          |  State**   |
+        +========+============+============+==========+============+
+        |    1   | HomVar     | HomVar     | Het      | Auto       |
+        +--------+------------+------------+----------+------------+
+        |    2   | HomRef     | HomRef     | Het      | Auto       |
+        +--------+------------+------------+----------+------------+
+        |    3   | HomRef     |  ! HomRef  |  HomVar  | Auto       |
+        +--------+------------+------------+----------+------------+
+        |    4   |  ! HomRef  | HomRef     |  HomVar  | Auto       |
+        +--------+------------+------------+----------+------------+
+        |    5   | HomRef     | HomRef     |  HomVar  | Auto       |
+        +--------+------------+------------+----------+------------+
+        |    6   | HomVar     |  ! HomVar  |  HomRef  | Auto       |
+        +--------+------------+------------+----------+------------+
+        |    7   |  ! HomVar  | HomVar     |  HomRef  | Auto       |
+        +--------+------------+------------+----------+------------+
+        |    8   | HomVar     | HomVar     |  HomRef  | Auto       |
+        +--------+------------+------------+----------+------------+
+        |    9   | Any        | HomVar     |  HomRef  | HemiX      |
+        +--------+------------+------------+----------+------------+
+        |   10   | Any        | HomRef     |  HomVar  | HemiX      |
+        +--------+------------+------------+----------+------------+
+        |   11   | HomVar     | Any        |  HomRef  | HemiY      |
+        +--------+------------+------------+----------+------------+
+        |   12   | HomRef     | Any        |  HomVar  | HemiY      |
+        +--------+------------+------------+----------+------------+
 
         **Notes**
 
@@ -1903,10 +1898,6 @@ class VariantDataset(object):
         :param str output: Output root filename.
 
         :param str fam: Path to .fam file.
-
-        :return: The input VariantDataset.
-
-        :rtype: :py:class:`.VariantDataset`
 
         """
 
