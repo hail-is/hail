@@ -452,9 +452,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     KeyTable(newRDD, keySignature, valueSignature)
   }
-
-  <<<<<<< de99211b52c45fd1d587bcfca5eebc9c19b77665
-
+  
   def expandTypes(): KeyTable = {
     val localKeySignature = keySignature
     val localValueSignature = valueSignature
