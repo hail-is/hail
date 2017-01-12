@@ -15,6 +15,8 @@ You can also download the source code directly from [here](https://github.com/br
 
 Hail may be built to run locally or on a Spark cluster. Running locally is useful for getting started, analyzing or experimenting with small datasets, and Hail development.
 
+You will need an installation of CMake. On Mac OS X, this can be installed `brew install cmake`.
+
 ### Running locally
 The single command
 ```
