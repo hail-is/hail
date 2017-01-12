@@ -122,13 +122,8 @@ package object driver {
   }
 
   def configureAndCreateSparkContext(appName: String, master: Option[String], local: String = "local[*]",
-    logFile: String = "hail.log", quiet: Boolean = false, append: Boolean = false, parquetCompression: String = "uncompressed",
-    blockSize: Long = 1L, branchingFactor: Int = 50, tmpDir: String = "/tmp"): SparkContext = {
+    parquetCompression: String = "uncompressed", blockSize: Long = 1L): SparkContext = {
     require(blockSize >= 0)
-    require(branchingFactor > 0)
-
-    HailConfiguration.tmpDir = tmpDir
-    HailConfiguration.branchingFactor = branchingFactor
 
     val conf = new SparkConf().setAppName(appName)
 
@@ -139,27 +134,6 @@ package object driver {
         if (!conf.contains("spark.master"))
           conf.setMaster(local)
     }
-
-    val logProps = new Properties()
-    if (quiet) {
-      logProps.put("log4j.rootLogger", "OFF, stderr")
-      logProps.put("log4j.appender.stderr", "org.apache.log4j.ConsoleAppender")
-      logProps.put("log4j.appender.stderr.Target", "System.err")
-      logProps.put("log4j.appender.stderr.threshold", "OFF")
-      logProps.put("log4j.appender.stderr.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.stderr.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
-    } else {
-      logProps.put("log4j.rootLogger", "INFO, logfile")
-      logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-      logProps.put("log4j.appender.logfile.append", append.toString)
-      logProps.put("log4j.appender.logfile.file", logFile)
-      logProps.put("log4j.appender.logfile.threshold", "INFO")
-      logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.logfile.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
-    }
-
-    LogManager.resetConfiguration()
-    PropertyConfigurator.configure(logProps)
 
     conf.set("spark.ui.showConsoleProgress", "false")
 
@@ -214,6 +188,36 @@ package object driver {
     val sc = new SparkContext(conf)
     ProgressBarBuilder.build(sc)
     sc
+  }
+
+  def configureLogging(logFile: String = "hail.log", quiet: Boolean = false, append: Boolean = false) {
+    val logProps = new Properties()
+    if (quiet) {
+      logProps.put("log4j.rootLogger", "OFF, stderr")
+      logProps.put("log4j.appender.stderr", "org.apache.log4j.ConsoleAppender")
+      logProps.put("log4j.appender.stderr.Target", "System.err")
+      logProps.put("log4j.appender.stderr.threshold", "OFF")
+      logProps.put("log4j.appender.stderr.layout", "org.apache.log4j.PatternLayout")
+      logProps.put("log4j.appender.stderr.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
+    } else {
+      logProps.put("log4j.rootLogger", "INFO, logfile")
+      logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
+      logProps.put("log4j.appender.logfile.append", append.toString)
+      logProps.put("log4j.appender.logfile.file", logFile)
+      logProps.put("log4j.appender.logfile.threshold", "INFO")
+      logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
+      logProps.put("log4j.appender.logfile.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
+    }
+
+    LogManager.resetConfiguration()
+    PropertyConfigurator.configure(logProps)
+  }
+
+  def configureHail(branchingFactor: Int = 50, tmpDir: String = "/tmp") {
+    require(branchingFactor > 0)
+
+    HailConfiguration.tmpDir = tmpDir
+    HailConfiguration.branchingFactor = branchingFactor
   }
 
   def createSQLContext(sc: SparkContext): SQLContext = {

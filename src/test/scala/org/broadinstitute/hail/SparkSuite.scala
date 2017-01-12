@@ -5,11 +5,15 @@ import org.apache.spark.SparkContext
 import org.scalatest.testng.TestNGSuite
 import org.apache.hadoop
 import org.broadinstitute.hail.utils.TempDir
-import org.broadinstitute.hail.driver.{configureAndCreateSparkContext, createSQLContext}
+import org.broadinstitute.hail.driver._
 
 object SparkSuite {
-  lazy val sc: SparkContext = configureAndCreateSparkContext("Hail.TestNG",
-    Option(System.getProperty("hail.master")), local = "local[2]", quiet = true)
+  lazy val sc: SparkContext = {
+    configureHail()
+    configureLogging(quiet = true)
+    configureAndCreateSparkContext("Hail.TestNG",
+      Option(System.getProperty("hail.master")), local = "local[2]")
+  }
 
   lazy val sqlContext: SQLContext = createSQLContext(sc)
 }
