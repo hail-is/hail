@@ -710,7 +710,37 @@ class VariantDataset(object):
     def annotate_variants_expr(self, condition):
         """Annotate variants with expression.
 
-        :param str condition: Annotation expression.
+        **Examples**
+
+        Compute GQ statistics about heterozygotes per variant:
+
+        >>> (hc.read('data/example.vds')
+        >>>    .annotate_variants_expr('va.gqHetStats = '
+        >>>                                'gs.filter(g => g.isHet).map(g => g.gq).stats()'))
+
+        Collect a list of sample IDs with non-ref calls in LOF variants:
+
+        >>> (hc.read('data/example.vds')
+        >>>    .annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'))
+
+        **Notes**
+
+        ``condition`` is in variant context so the following symbols are in scope:
+
+          - ``v`` (*Variant*): :ref:`variant`
+          - ``va``: variant annotations
+          - ``global``: global annotations
+          - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
+
+        For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
+        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
+
+        :param condition: Annotation expression or list of annotation expressions.
+        :type condition: str or list of str
+
+        :return: A Variant Dataset with new variant annotations specified by ``condition``
+
+        :rtype: VariantDataset
 
         """
         if isinstance(condition, list):
@@ -999,9 +1029,43 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def export_gen(self, output):
-        """Export dataset as .gen file.
+        """Export dataset as GEN and SAMPLE file.
 
-        :param str output: Output file base.  Will write .gen and .sample files.
+        **Examples**
+
+        Import dosage data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
+
+        >>> vds = (hc.index_bgen("data/example.bgen")
+        >>>         .import_bgen("data/example.bgen", sample_file="data/example.sample"))
+        >>> (vds.filter_variants_expr("gs.infoScore() >= 0.9")
+        >>>     .export_gen("data/example_filtered"))
+
+        **Notes**
+
+        Writes out the internal VDS to a GEN and SAMPLE fileset in the `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`_.
+
+        The first 6 columns of the resulting GEN file are the following:
+
+        - Chromosome (``v.contig``)
+        - Variant ID (``va.varid`` if defined, else Chromosome:Position:Ref:Alt)
+        - rsID (``va.rsid`` if defined, else ".")
+        - position (``v.start``)
+        - reference allele (``v.ref``)
+        - alternate allele (``v.alt``)
+
+        Probability dosages:
+
+        - 3 probabilities per sample ``(pHomRef, pHet, pHomVar)``.
+        - Any filtered genotypes will be output as ``(0.0, 0.0, 0.0)``.
+        - If the input data contained Phred-scaled likelihoods, the probabilities in the GEN file will be the normalized genotype probabilities assuming a uniform prior.
+        - If the input data did not have genotype probabilities such as data imported using :py:meth:`~pyhail.HailContext.import_plink`, all genotype probabilities will be ``(0.0, 0.0, 0.0)``.
+
+        The sample file has 3 columns:
+
+        - ID_1 and ID_2 are identical and set to the sample ID (``s.id``).
+        - The third column ("missing") is set to 0 for all samples.
+
+        :param str output: Output file base.  Will write GEN and SAMPLE files.
 
         """
 
@@ -1057,14 +1121,11 @@ class VariantDataset(object):
 
         **Examples**
 
+        Import data from a VCF file, split multi-allelic variants, and export to a PLINK binary file:
+
         >>> (hc.import_vcf('data/example.vcf')
         >>>   .split_multi()
         >>>   .export_plink('data/plink'))
-
-        >>> (hc.import_vcf('data/example.vcf')
-        >>>   .annotate_samples_fam('data/example.fam', root='sa')
-        >>>   .split_multi()
-        >>>   .export_plink('data/plink', 'famID = sa.famID, id = s.id, matID = sa.matID, patID = sa.patID, isFemale = sa.isFemale, isCase = sa.isCase'))
 
         **Notes**
 
@@ -1106,11 +1167,11 @@ class VariantDataset(object):
 
         except:
 
-        - The order among split mutli-allelic alternatives in the BED
+        - The order among split multi-allelic alternatives in the BED
           file may disagree.
         - PLINK uses the rsID for the BIM file ID.
 
-        :param str output: Output file base.  Will write BED, BIM and FAM files.
+        :param str output: Output file base.  Will write BED, BIM, and FAM files.
 
         :param str fam_expr: Expression for FAM file fields.
 
@@ -1323,11 +1384,18 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def write(self, output, overwrite=False):
-        """Write as .vds file.
+        """Write as VDS file.
+
+        **Examples**
+
+        Import data from a VCF file and then write the data to a VDS file:
+
+        >>> (hc.import_vcf("data/sample.vcf.bgz")
+        >>>    .write("data/sample.vds"))
 
         :param str output: Path of .vds file to write.
 
-        :param bool overwrite: If True, overwrite any existing .vds file.
+        :param bool overwrite: If True, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
 
         """
 
@@ -1489,8 +1557,38 @@ class VariantDataset(object):
     def filter_genotypes(self, condition, keep=True):
         """Filter genotypes based on expression.
 
+        **Examples**
+
+        Filter genotypes by allele balance dependent on genotype call:
+
+        >>> (vds.filter_genotypes('let ab = g.ad[1] / g.ad.sum in'
+        >>>                      '((g.isHomRef && ab <= 0.1) ||'
+        >>>                      '(g.isHet && ab >= 0.25 && ab <= 0.75) ||'
+        >>>                      '(g.isHomVar && ab >= 0.9))'))
+
+        **Notes**
+
+
+        ``condition`` is in genotype context so the following symbols are in scope:
+
+        - ``s`` (*Sample*): :ref:`sample`
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``sa``: sample annotations
+        - ``va``: variant annotations
+        - ``global``: global annotations
+
+        For more information, see the documentation on `data representation, annotations <../overview.html#>`_, and
+        the `expression language <../reference.html#HailExpressionLanguage>`_.
+
+        .. caution::
+            When ``condition`` evaluates to missing, the genotype will be removed regardless of whether ``keep=True`` or ``keep=False``.
+
         :param condition: Expression for filter condition.
         :type condition: str
+
+        :return: A Variant Dataset with genotypes set to missing from evaluating the boolean expression given by ``condition``.
+
+        :rtype: VariantDataset
 
         """
 
@@ -1525,8 +1623,44 @@ class VariantDataset(object):
     def filter_samples_expr(self, condition, keep=True):
         """Filter samples based on expression.
 
+        **Examples**
+
+        Filter samples by phenotype (assumes sample annotation *sa.isCase* exists and is a Boolean variable):
+
+        >>> vds.filter_samples_expr("sa.isCase")
+
+        Remove samples with an ID that matches a regular expression:
+
+        >>> vds.filter_samples_expr('"^NA" ~ s' , keep=False)
+
+        Filter samples from sample QC metrics and write output to a new dataset:
+
+        >>> (vds.sample_qc()
+        >>>     .filter_samples_expr('sa.qc.callRate >= 0.99 && sa.qc.dpMean >= 10')
+        >>>     .write("data/filter_samples.vds"))
+
+        **Notes**
+
+        ``condition`` is in sample context so the following symbols are in scope:
+
+        - ``s`` (*Sample*): :ref:`sample`
+        - ``sa``: sample annotations
+        - ``global``: global annotations
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
+
+        For more information, see the documentation on `data representation, annotations <../overview.html#>`_, and
+        the `expression language <../reference.html#HailExpressionLanguage>`_.
+
+        .. caution::
+            When ``condition`` evaluates to missing, the sample will be removed regardless of whether ``keep=True`` or ``keep=False``.
+
+
         :param condition: Expression for filter condition.
         :type condition: str
+
+        :return: A Variant Dataset with samples filtered from the expression given by ``condition``
+
+        :rtype: VariantDataset
 
         """
 
@@ -1571,9 +1705,42 @@ class VariantDataset(object):
     def filter_variants_expr(self, condition, keep=True):
         """Filter variants based on expression.
 
+        **Examples**
+
+        Keep variants in the gene CHD8 (assumes the variant annotation ``va.gene`` exists):
+
+        >>> vds_filtered = (hc.read('data/example.vds')
+        >>>                   .filter_variants_expr('va.gene == "CHD8"'))
+
+
+        Remove variants on chromosome 1:
+
+        >>> vds_filtered = (hc.read('data/example.vds')
+        >>>                   .filter_variants_expr('v.contig == "1"',
+        >>>                                          keep=False))
+
+
+        **Notes**
+
+        ``condition`` is in variant context so the following symbols are in scope:
+
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``va``: variant annotations
+        - ``global``: global annotations
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
+
+        For more information, see the documentation on `data representation, annotations <../overview.html#>`_, and
+        the `expression language <../reference.html#HailExpressionLanguage>`_.
+
+        .. caution::
+           When ``condition`` evaluates to missing, the variant will be removed regardless of whether ``keep=True`` or ``keep=False``.
+
         :param condition: Expression for filter condition.
         :type condition: str
 
+        :return: A Variant Dataset with variants filtered from the expression given by ``condition``
+
+        :rtype: VariantDataset
         """
 
         pargs = ['filtervariants', 'expr',
@@ -2221,10 +2388,28 @@ class VariantDataset(object):
     def persist(self, storage_level="MEMORY_AND_DISK"):
         """Persist the current dataset.
 
+        **Examples**
+
+        Persist the dataset to both memory and disk:
+
+        >>> vds.persist()
+
+        **Notes**
+
+        The :py:meth:`~pyhail.VariantDataset.persist` and :py:meth:`~pyhail.VariantDataset.cache` commands allow you to store the current dataset on disk
+        or in memory to avoid redundant computation and improve the performance of Hail pipelines.
+
+        :py:meth:`~pyhail.VariantDataset.cache` is an alias for :func:`persist("MEMORY_ONLY") <pyhail.VariantDataset.persist>`.  Most users will want "MEMORY_AND_DISK".
+        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ for a more in-depth discussion of persisting data.
+
         :param storage_level: Storage level.  One of: NONE, DISK_ONLY,
             DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER,
             MEMORY_ONLY_SER_2, MEMORY_AND_DISK, MEMORY_AND_DISK_2,
             MEMORY_AND_DISK_SER, MEMORY_AND_DISK_SER_2, OFF_HEAP
+
+        :return: A VariantDataset that has been persisted.
+
+        :rtype: VariantDataset
 
         """
 
@@ -2301,17 +2486,27 @@ class VariantDataset(object):
         pargs = ['renamesamples', '-i', input]
         return self.hc.run_command(self, pargs)
 
-    def repartition(self, npartition, shuffle=True):
+    def repartition(self, num_partitions, shuffle=True):
         """Increase or decrease the dataset sharding.  Can improve performance
         after large filters.
 
-        :param int npartition: Number of partitions.
+        **Examples**
+
+        Force the number of partitions to be 5:
+
+        >>> vds_repartitioned = vds.repartition(5)
+
+        :param int num_partitions: Number of partitions.
 
         :param bool shuffle: If True, shuffle to repartition.
 
+        :return: A Variant Dataset with the number of partitions equal to ``num_partitions``
+
+        :rtype: VariantDataset
+
         """
 
-        pargs = ['repartition', '--partitions', str(npartition)]
+        pargs = ['repartition', '--partitions', str(num_partitions)]
         if not shuffle:
             pargs.append('--no-shuffle')
         return self.hc.run_command(self, pargs)
@@ -2422,7 +2617,7 @@ class VariantDataset(object):
 
           A   C,T 1/2:2,8,6:16:45:99,50,99,45,0,99
 
-        splits as::
+        splits as
 
         .. code-block:: text
 
@@ -2501,9 +2696,97 @@ class VariantDataset(object):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
-        :param str fam: Path to .fam file.
+        **Examples**
+
+        Compute TDT association results:
+
+        >>> (hc.read("data/example.vds")
+        >>>     .tdt("data/sample.fam")
+        >>>     .export_variants("Variant = v, va.tdt.*"))
+
+        **Implementation Details**
+
+        The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t) or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of such transmissions is 0.5.  For variants where transmission is guaranteed (i.e., the Y chromosome, mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
+
+        The TDT statistic is given by
+
+        .. math::
+
+            (t-u)^2 \over (t+u)
+
+        and follows a 1 degree of freedom chi-squared distribution under the null hypothesis.
+
+
+        The number of transmissions and untransmissions for each possible set of genotypes is determined from the table below.  The copy state of a locus with respect to a trio is defined as follows, where PAR is the pseudo-autosomal region (PAR).
+
+        - HemiX -- in non-PAR of X and child is male
+        - Auto -- otherwise (in autosome or PAR, or child is female)
+
+        +--------+--------+--------+------------+---+---+
+        |  Kid   | Dad    | Mom    | Copy State | T | U |
+        +========+========+========+============+===+===+
+        | HomRef | Het    | Het    | Auto       | 0 | 2 |
+        +--------+--------+--------+------------+---+---+
+        | HomRef | HomRef | Het    | Auto       | 0 | 1 |
+        +--------+--------+--------+------------+---+---+
+        | HomRef | Het    | HomRef | Auto       | 0 | 1 |
+        +--------+--------+--------+------------+---+---+
+        | Het    | Het    | Het    | Auto       | 1 | 1 |
+        +--------+--------+--------+------------+---+---+
+        | Het    | HomRef | Het    | Auto       | 1 | 0 |
+        +--------+--------+--------+------------+---+---+
+        | Het    | Het    | HomRef | Auto       | 1 | 0 |
+        +--------+--------+--------+------------+---+---+
+        | Het    | HomVar | Het    | Auto       | 0 | 1 |
+        +--------+--------+--------+------------+---+---+
+        | Het    | Het    | HomVar | Auto       | 0 | 1 |
+        +--------+--------+--------+------------+---+---+
+        | HomVar | Het    | Het    | Auto       | 2 | 0 |
+        +--------+--------+--------+------------+---+---+
+        | HomVar | Het    | HomVar | Auto       | 1 | 0 |
+        +--------+--------+--------+------------+---+---+
+        | HomVar | HomVar | Het    | Auto       | 1 | 0 |
+        +--------+--------+--------+------------+---+---+
+        | HomRef | HomRef | Het    | HemiX      | 0 | 1 |
+        +--------+--------+--------+------------+---+---+
+        | HomRef | HomVar | Het    | HemiX      | 0 | 1 |
+        +--------+--------+--------+------------+---+---+
+        | HomVar | HomRef | Het    | HemiX      | 1 | 0 |
+        +--------+--------+--------+------------+---+---+
+        | HomVar | HomVar | Het    | HemiX      | 1 | 0 |
+        +--------+--------+--------+------------+---+---+
+
+
+        :py:meth:`~pyhail.VariantDataset.tdt` only considers complete trios (two parents and a proband) with defined sex.
+
+        PAR is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
+
+        - X: 60001-2699520
+        - X: 154931044-155260560
+        - Y: 10001-2649520
+        - Y: 59034050-59363566
+
+        :py:meth:`~pyhail.VariantDataset.tdt` assumes all contigs apart from X and Y are fully autosomal; decoys, etc. are not given special treatment.
+
+        **Annotations**
+
+        :py:meth:`~pyhail.VariantDataset.tdt` adds the following annotations:
+
+         - **tdt.nTransmitted** (*Int*) -- Number of transmitted alternate alleles.
+
+         - **va.tdt.nUntransmitted** (*Int*) -- Number of untransmitted alternate alleles.
+
+         - **va.tdt.chi2** (*Double*) -- TDT statistic.
+
+         - **va.tdt.pval** (*Double*) -- p-value.
+
+        :param str fam: Path to FAM file.
 
         :param root: Variant annotation root to store TDT result.
+
+        :return: A Variant Dataset with TDT association results added to variant annotations.
+
+        :rtype: VariantDataset
 
         """
 
@@ -2579,20 +2862,222 @@ class VariantDataset(object):
         pargs = ['variantqc']
         return self.hc.run_command(self, pargs)
 
-    def vep(self, config, block_size=None, root=None, force=False, csq=False):
+    def vep(self, config, block_size=1000, root='va.vep', force=False, csq=False):
         """Annotate variants with VEP.
+
+        :py:meth:`~pyhail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`_ with
+        the `LOFTEE plugin <https://github.com/konradjk/loftee>`_
+        on the current dataset and adds the result as a variant annotation.
+
+        If the variant annotation path defined by ``root`` already exists and its schema matches the VEP schema, then
+        Hail only runs VEP for variants for which the annotation is missing.
+
+        **Examples**
+
+        Add VEP annotations to the dataset:
+
+        >>> vds_annotated = vds.vep("data/vep.properties")
+
+        **Configuration**
+
+        :py:meth:`~pyhail.VariantDataset.vep` needs a configuration file to tell it how to run
+        VEP. The format is a `.properties file <https://en.wikipedia.org/wiki/.properties>`_.
+        Roughly, each line defines a property as a key-value pair of the form `key = value`. `vep` supports the following properties:
+
+        - **hail.vep.perl** -- Location of Perl. Optional, default: perl.
+        - **hail.vep.perl5lib** -- Value for the PERL5LIB environment variable when invoking VEP. Optional, by default PERL5LIB is not set.
+        - **hail.vep.path** -- Value of the PATH environment variable when invoking VEP.  Optional, by default PATH is not set.
+        - **hail.vep.location** -- Location of the VEP Perl script.  Required.
+        - **hail.vep.cache_dir** -- Location of the VEP cache dir, passed to VEP with the `--dir` option.  Required.
+        - **hail.vep.lof.human_ancestor** -- Location of the human ancestor file for the LOFTEE plugin.  Required.
+        - **hail.vep.lof.conservation_file** -- Location of the conservation file for the LOFTEE plugin.  Required.
+
+        Here is an example `vep.properties` configuration file
+
+        .. code-block:: text
+
+            hail.vep.perl = /usr/bin/perl
+            hail.vep.path = /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+            hail.vep.location = /path/to/vep/ensembl-tools-release-81/scripts/variant_effect_predictor/variant_effect_predictor.pl
+            hail.vep.cache_dir = /path/to/vep
+            hail.vep.lof.human_ancestor = /path/to/loftee_data/human_ancestor.fa.gz
+            hail.vep.lof.conservation_file = /path/to/loftee_data//phylocsf.sql
+
+        **VEP Invocation**
+
+        .. code-block:: text
+
+            <hail.vep.perl>
+            <hail.vep.location>
+            --format vcf
+            --json
+            --everything
+            --allele_number
+            --no_stats
+            --cache --offline
+            --dir <hail.vep.cache_dir>
+            --fasta <hail.vep.cache_dir>/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa
+            --minimal
+            --assembly GRCh37
+            --plugin LoF,human_ancestor_fa:$<hail.vep.lof.human_ancestor>,filter_position:0.05,min_intron_size:15,conservation_file:<hail.vep.lof.conservation_file>
+            -o STDOUT
+
+        **Annotations**
+
+        Annotations with the following schema are placed in the location specified by ``root``.
+        The schema can be confirmed with :py:meth:`~pyhail.VariantDataset.print_schema`.
+
+        .. code-block:: text
+
+            Struct{
+              assembly_name: String,
+              allele_string: String,
+              colocated_variants: Array[Struct{
+                aa_allele: String,
+                aa_maf: Double,
+                afr_allele: String,
+                afr_maf: Double,
+                allele_string: String,
+                amr_allele: String,
+                amr_maf: Double,
+                clin_sig: Array[String],
+                end: Int,
+                eas_allele: String,
+                eas_maf: Double,
+                ea_allele: String,,
+                ea_maf: Double,
+                eur_allele: String,
+                eur_maf: Double,
+                exac_adj_allele: String,
+                exac_adj_maf: Double,
+                exac_allele: String,
+                exac_afr_allele: String,
+                exac_afr_maf: Double,
+                exac_amr_allele: String,
+                exac_amr_maf: Double,
+                exac_eas_allele: String,
+                exac_eas_maf: Double,
+                exac_fin_allele: String,
+                exac_fin_maf: Double,
+                exac_maf: Double,
+                exac_nfe_allele: String,
+                exac_nfe_maf: Double,
+                exac_oth_allele: String,
+                exac_oth_maf: Double,
+                exac_sas_allele: String,
+                exac_sas_maf: Double,
+                id: String,
+                minor_allele: String,
+                minor_allele_freq: Double,
+                phenotype_or_disease: Int,
+                pubmed: Array[Int],
+                sas_allele: String,
+                sas_maf: Double,
+                somatic: Int,
+                start: Int,
+                strand: Int
+              }],
+              end: Int,
+              id: String,
+              input: String,
+              intergenic_consequences: Array[Struct{
+                allele_num: Int,
+                consequence_terms: Array[String],
+                impact: String,
+                minimised: Int,
+                variant_allele: String
+              }],
+              most_severe_consequence: String,
+              motif_feature_consequences: Array[Struct{
+                allele_num: Int,
+                consequence_terms: Array[String],
+                high_inf_pos: String,
+                impact: String,
+                minimised: Int,
+                motif_feature_id: String,
+                motif_name: String,
+                motif_pos: Int,
+                motif_score_change: Double,
+                strand: Int,
+                variant_allele: String
+              }],
+              regulatory_feature_consequences: Array[Struct{
+                allele_num: Int,
+                biotype: String,
+                consequence_terms: Array[String],
+                impact: String,
+                minimised: Int,
+                regulatory_feature_id: String,
+                variant_allele: String
+              }],
+              seq_region_name: String,
+              start: Int,
+              strand: Int,
+              transcript_consequences: Array[Struct{
+                allele_num: Int,
+                amino_acids: String,
+                biotype: String,
+                canonical: Int,
+                ccds: String,
+                cdna_start: Int,
+                cdna_end: Int,
+                cds_end: Int,
+                cds_start: Int,
+                codons: String,
+                consequence_terms: Array[String],
+                distance: Int,
+                domains: Array[Struct{
+                  db: String
+                  name: String
+                }],
+                exon: String,
+                gene_id: String,
+                gene_pheno: Int,
+                gene_symbol: String,
+                gene_symbol_source: String,
+                hgnc_id: Int,
+                hgvsc: String,
+                hgvsp: String,
+                hgvs_offset: Int,
+                impact: String,
+                intron: String,
+                lof: String,
+                lof_flags: String,
+                lof_filter: String,
+                lof_info: String,
+                minimised: Int,
+                polyphen_prediction: String,
+                polyphen_score: Double,
+                protein_end: Int,
+                protein_start: Int,
+                protein_id: String,
+                sift_prediction: String,
+                sift_score: Double,
+                strand: Int,
+                swissprot: String,
+                transcript_id: String,
+                trembl: String,
+                uniparc: String,
+                variant_allele: String
+              }],
+              variant_class: String
+            }
 
         :param str config: Path to VEP configuration file.
 
         :param block_size: Number of variants to annotate per VEP invocation.
-        :type block_size: int or None
+        :type block_size: int
 
         :param str root: Variant annotation path to store VEP output.
 
-        :param bool force: If true, force VEP annotation from scratch.
+        :param bool force: If True, force VEP annotation from scratch.
 
         :param bool csq: If True, annotates VCF CSQ field as a String.
             If False, annotates with the full nested struct schema
+
+        :return: A VariantDataset with variant annotations from VEP.
+
+        :rtype: VariantDataset
 
         """
 
@@ -2638,7 +3123,9 @@ class VariantDataset(object):
 
         **Example**
 
-        Consider a ``VariantDataset`` ``vds`` with 2 variants and 3 samples::
+        Consider a ``VariantDataset`` ``vds`` with 2 variants and 3 samples:
+
+        .. code-block:: text
 
           Variant	FORMAT	A	B	C
           1:1:A:T	GT:GQ	0/1:99	./.	0/0:99
@@ -2647,23 +3134,27 @@ class VariantDataset(object):
         Then::
 
           >>> vds = hc.import_vcf('data/sample.vcf')
-          >>> vds.make_keytable('v = v', 'gt = g.gt', gq = g.gq', [])
+          >>> vds.make_keytable('v = v', 'gt = g.gt', 'gq = g.gq', [])
 
-        returns a ``KeyTable`` with schema::
+        returns a ``KeyTable`` with schema
 
-          v: Variant
-          A.gt: Int
-          B.gt: Int
-          C.gt: Int
-          A.gq: Int
-          B.gq: Int
-          C.gq: Int
+        .. code-block:: text
 
-        in particular, the values would be::
+            v: Variant
+            A.gt: Int
+            B.gt: Int
+            C.gt: Int
+            A.gq: Int
+            B.gq: Int
+            C.gq: Int
 
-          v	A.gt	B.gt	C.gt	A.gq	B.gq	C.gq
-          1:1:A:T	1	NA	0	99	NA	99
-          1:2:G:C	1	1	2	89	99	93
+        in particular, the values would be
+
+        .. code-block:: text
+
+            v	A.gt	B.gt	C.gt	A.gq	B.gq	C.gq
+            1:1:A:T	1	NA	0	99	NA	99
+            1:2:G:C	1	1	2	89	99	93
 
         :param variant_condition: Variant annotation expressions.
         :type variant_condition: str or list of str
