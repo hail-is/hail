@@ -222,10 +222,6 @@ package object driver {
 
   def createSQLContext(sc: SparkContext): SQLContext = {
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
-    sc.getConf.getAll.foreach { case (k, v) =>
-      if (k.startsWith("spark.sql."))
-        sqlContext.setConf(k, v)
-    }
     sqlContext
   }
 }
