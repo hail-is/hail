@@ -348,8 +348,7 @@ class KeyTable(object):
         :param field_names: List of fields to be selected.
         :type: list of str
 
-        :return: A ``KeyTable`` with selected fields in the order
-          given by ``field_names``.
+        :return: A ``KeyTable`` with selected fields in the order given by ``field_names``.
 
         :rtype: KeyTable
 

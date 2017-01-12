@@ -409,7 +409,11 @@ task makePyHailDocs(type: Exec) {
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs']) {
+task cleanPyHailDocs(type: Exec) {
+    commandLine 'rm', '-rf', 'build/www/pyhail'
+}
+
+task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs', 'cleanPyHailDocs']) {
     commandLine 'mv', 'python/pyhail/docs/_build/html', 'build/www/pyhail'
 }
 

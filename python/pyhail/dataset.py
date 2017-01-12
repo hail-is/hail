@@ -90,7 +90,7 @@ class VariantDataset(object):
     def file_version(self):
         """File version of dataset.
 
-        :rtype int
+        :rtype: int
 
         """
         try:
@@ -117,7 +117,91 @@ class VariantDataset(object):
             self._raise_py4j_exception(e)
 
     def aggregate_intervals(self, input, condition, output):
-        """Aggregate over intervals and export.
+        '''Aggregate over intervals and export.
+
+        **Examples**
+
+        Calculate the total number of SNPs, indels, and variants contained in
+        the intervals specified by *data/capture_intervals.txt*:
+
+        >>> vds.aggregate_intervals('data/capture_intervals.txt',
+        >>>   """n_SNP = variants.filter(v => v.altAllele.isSNP).count(),
+        >>>      n_indel = variants.filter(v => v.altAllele.isIndel).count(),
+        >>>      n_total = variants.count()""",
+        >>>   'out.txt')
+
+        If *data/capture_intervals.txt* contains:
+
+        .. code-block:: text
+
+            4:1500-123123
+            5:1-1000000
+            16:29500000-30200000
+
+        then the previous expression writes something like the following to
+        *out.txt*:
+
+        .. code-block:: text
+
+            Contig    Start       End         n_SNP   n_indel     n_total
+            4         1500        123123      502     51          553
+            5         1           1000000     25024   4500        29524
+            16        29500000    30200000    17222   2021        19043
+
+        The parameter ``condition`` defines the names of the column headers (in
+        the previous case: ``n_SNP``, ``n_indel``, ``n_total``) and how to
+        calculate the value of that column for each interval.
+
+        Count the number of LOF, missense, and synonymous non-reference calls
+        per interval:
+
+        >>> (vds.annotate_variants_expr('va.n_calls = gs.filter(g.isCalledNonRef).count()')
+        >>>     .aggregate_intervals('data/intervals.txt'
+        >>>        """LOF_CALLS = variants.filter(v => va.consequence == "LOF").map(v => va.n_calls).sum(),
+        >>>           MISSENSE_CALLS = variants.filter(v => va.consequence == "missense").map(v => va.n_calls).sum(),
+        >>>           SYN_CALLS = variants.filter(v => va.consequence == "synonymous").map(v => va.n_calls).sum()""",
+        >>>        'out.txt'))
+
+        If *data/intervals.txt* contains:
+
+        .. code-block:: text
+
+            4:1500-123123
+            5:1-1000000
+            16:29500000-30200000
+
+        then the previous expression writes something like the following to
+        *out.txt*:
+
+        .. code-block:: text
+
+            Contig    Start       End         LOF_CALLS   MISSENSE_CALLS   SYN_CALLS
+            4         1500        123123      42          122              553
+            5         1           1000000     3           12               66
+            16        29500000    30200000    17          22               202
+
+        **Notes**
+
+        Intervals are **left inclusive, right exclusive**.  This means that
+        [chr1:1, chr1:3) contains chr1:1 and chr1:2.
+
+        **Designating output with an expression**
+
+        An export expression designates a list of computations to perform, and
+        what these columns are named.  These expressions should take the form
+        ``COL_NAME_1 = <expression>, COL_NAME_2 = <expression>, ...``.
+
+        ``condition`` has the following symbols in scope:
+
+        - ``interval`` (*Interval*): genomic interval
+        - ``global``: global annotations
+        - ``variants`` (*Aggregable[Variant]*): aggregable of :ref:`variant`s Aggregator namespace below.
+
+        The ``variants`` aggregator has the following namespace:
+
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``va``: Variant annotations
+        - ``global``: Global annotations
 
         :param str input: Input interval list file.
 
@@ -125,7 +209,11 @@ class VariantDataset(object):
 
         :param str output: Output file.
 
-        """
+        :return: The original Variant Dataset
+
+        :rtype: :py:class:`.VariantDataset`
+
+        '''
 
         pargs = ['aggregateintervals', '-i', input, '-c', condition, '-o', output]
         return self.hc.run_command(self, pargs)
@@ -307,6 +395,41 @@ class VariantDataset(object):
     def annotate_samples_fam(self, input, quantpheno=False, delimiter='\\\\s+', root='sa.fam', missing='NA'):
         """Import PLINK .fam file into sample annotations.
 
+        **Examples**
+
+        Import case-control phenotype data from a tab-separated `PLINK .fam
+        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
+        annotations:
+
+        >>> vds.annotate_samples_fam("data/myStudy.fam")
+
+        In Hail, unlike Plink, the user must *explicitly* distinguish between
+        case-control and quantitative phenotypes. Importing a quantitative
+        phenotype without ``quantPheno=True`` will return an error
+        (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
+
+        >>> vds.annotate_samples_fam("data/myStudy.fam", quantPheno=True)
+
+        Import case-control phenotype data from an
+        arbitrary-whitespace-delimited `PLINK .fam
+        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
+        annotations:
+
+        >>> vds.annotate_samples_fam("data/myStudy.fam", delimiter="\\s+")
+
+        **Annotations**
+
+        The annotation names, types, and missing values are shown below,
+        assuming the default root ``sa.fam``.
+
+        - **sa.fam.famID** (*String*) -- Family ID (missing = "0")
+        - **s** (*String*) -- Sample ID
+        - **sa.fam.patID** (*String*) -- Paternal ID (missing = "0")
+        - **sa.fam.matID** (*String*) -- Maternal ID (missing = "0")
+        - **sa.fam.isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
+        - **sa.fam.isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9", non-numeric or the ``missing`` argument, if given.
+        - **sa.fam.qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the ``missing`` argument, if given.
+
         :param str input: Path to .fam file.
 
         :param str root: Sample annotation path to store .fam file.
@@ -318,6 +441,10 @@ class VariantDataset(object):
         :param str missing: The string used to denote missing values.
             For case-control, 0, -9, and non-numeric are also treated
             as missing.
+
+        :return: A Variant Dataset with new sample annotations from the fam file
+
+        :rtype: :py:class:`.VariantDataset`
 
         """
 
@@ -594,6 +721,56 @@ class VariantDataset(object):
     def annotate_variants_intervals(self, input, root, all=False):
         """Annotate variants from an interval list file.
 
+        **Examples**
+
+        Consider the file, *data/exons.interval_list*, in
+        ``chromosome:start-end`` format:
+
+        .. code-block:: text
+
+            $ cat data/exons.interval_list
+            1:5122980-5123054
+            1:5531412-5531715
+            1:5600022-5601025
+            1:5610246-5610349
+
+        The following invocation produces a vds with a new variant annotation,
+        ``va.inExon``. The annotation ``va.inExon`` is ``true`` for every
+        variant included by ``exons.interval_list`` and false otherwise.
+
+        >>> vds.annotate_variants_intervals('data/exons.interval_list', 'va.inExon')
+
+        Consider the tab-separated, five-column file *data/exons2.interval_list*:
+
+        .. code-block:: text
+
+            $ cat data/exons2.interval_list
+            1   5122980 5123054 + gene1
+            1   5531412 5531715 + gene1
+            1   5600022 5601025 - gene2
+            1   5610246 5610349 - gene2
+
+        This file maps from variant intervals to gene names. The following
+        invocation produces a vds with a new variant annotation ``va.gene``. The
+        annotation ``va.gene`` is set to the gene name occurring in the fifth
+        column and ``NA`` otherwise.
+
+        >>> vds.annotate_variants_intervals('data/exons2.interval_list', 'va.gene')
+
+        **Notes**
+
+        There are two formats for interval list files.  The first appears as
+        ``chromosome:start-end`` as in the first example.  This format will
+        annotate variants with a *Boolean*, which is ``true`` if that variant is
+        found in any interval specified in the file and `false` otherwise.
+
+        The second interval list format is a TSV with fields chromosome, start,
+        end, strand, target.  **There should not be a header.** This file will
+        annotate variants with the *String* in the fifth column (target). If
+        ``all=True``, the annotation will be the, possibly empty,
+        ``Set[String]`` of fifth column strings (targets) for all intervals that
+        overlap the given variant.
+
         :param str input: Path to .interval_list.
 
         :param str root: Variant annotation path to store annotation.
@@ -601,7 +778,13 @@ class VariantDataset(object):
         :param bool all: If true, store values from all overlapping
             intervals as a set.
 
+
+        :return: A Variant Dataset with new variant annotations as described above
+
+        :rtype: :py:class:`.VariantDataset`
+
         """
+
         pargs = ['annotatevariants', 'intervals', '-i', input, '--root', root]
         if all:
             pargs.append('--all')
@@ -688,7 +871,56 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def annotate_variants_vds(self, other, code=None, root=None):
-        """Annotate variants with variant annotations from .vds file.
+        '''Annotate variants with variant annotations from .vds file.
+
+        **Examples**
+
+        Copy the ``anno1`` annotation from ``other`` to ``va.annot``:
+
+        >>> vds.annotate_variants_vds(code='va.annot = vds.anno1')
+
+        Merge the variant annotations from the two vds together and places them
+        at ``va``:
+
+        >>> vds.annotate_variants_vds(code='va = merge(va, vds)')
+
+        Select a subset of the annotations from ``other``:
+
+        >>> vds.annotate_variants_vds(code='va.annotations = select(vds, toKeep1, toKeep2, toKeep3)')
+
+        The previous expression is equivalent to:
+
+        >>> vds.annotate_variants_vds(code="""va.annotations.toKeep1 = vds.toKeep1,
+        >>>                                   va.annotations.toKeep2 = vds.toKeep2,
+        >>>                                   va.annotations.toKeep3 = vds.toKeep3""")
+
+        **Notes**
+
+        Using this method requires one of the two optional arguments: ``code``
+        and ``root``. They specify how to insert the annotations from ``other``
+        into the this vds's variant annotations.
+
+        The ``root`` argument copies all the variant annotations from ``other``
+        to the specified annotation path.
+
+        The ``code`` argument expects an annotation expression whose scope
+        includes, ``va``, the variant annotations in the current VDS, and ``vds``,
+        the variant annotations in ``other``.
+
+        VDSes with multi-allelic variants may produce surprising results because
+        all alternate alleles are considered part of the variant key. For
+        example:
+
+        - The variant ``22:140012:A:T,TTT`` will not be annotated by
+          ``22:140012:A:T`` or ``22:140012:A:TTT``
+
+        - The variant ``22:140012:A:T`` will not be annotated by
+          ``22:140012:A:T,TTT``
+
+        It is possible that an unsplit dataset contains no multiallelic
+        variants, so ignore any warnings Hail prints if you know that to be the
+        case.  Otherwise, run :py:meth:`.split_multi` before
+        :py:meth:`.annotate_variants_vds`.
 
         :param VariantDataset other: VariantDataset to annotate with.
 
@@ -696,7 +928,11 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
-        """
+        :return: A Variant Dataset with new variant annotations as described above
+
+        :rtype: :py:class:`.VariantDataset`
+
+        '''
 
         return VariantDataset(
             self.hc,
@@ -862,9 +1098,11 @@ class VariantDataset(object):
         >>>   .split_multi()
         >>>   .export_plink('data/plink'))
 
-        will behave similarly to the PLINK VCF conversion command::
+        will behave similarly to the PLINK VCF conversion command
 
-          plink --vcf /path/to/file.vcf --make-bed --out sample --const-fid --keep-allele-order
+        .. code-block:: text
+
+            plink --vcf /path/to/file.vcf --make-bed --out sample --const-fid --keep-allele-order
 
         except:
 
@@ -926,6 +1164,76 @@ class VariantDataset(object):
 
     def export_variants(self, output, condition, types=None):
         """Export variant information to delimited text file.
+
+        **Examples**
+
+        Export a four column TSV with ``v``, ``va.pass``, ``va.filters``, and
+        one computed field: ``1 - va.qc.callRate``.
+
+        >>> vds.export_variants('data/file.tsv',
+        >>>   'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
+
+        It is also possible to export without identifiers, which will result in
+        a file with no header. In this case, the expressions should look like
+        the examples below:
+
+        >>> vds.export_variants('data/file.tsv', 'v, va.pass, va.qc.AF')
+
+        .. note::
+
+            Either all fields must be named, or no field must be named.
+
+        In the common case that a group of annotations needs to be exported (for
+        example, the annotations produced by ``variantqc``), one can use the
+        ``struct.*`` syntax.  This syntax produces one column per field in the
+        struct, and names them according to the struct field name.
+
+        For example, the following invocation (assuming ``va.qc`` was generated
+        by :py:meth:`.variant_qc`):
+
+        >>> vds.export_variants('data/file.tsv', 'variant = v, va.qc.*')
+
+        will produce the following set of columns:
+
+        .. code-block:: text
+
+            variant  callRate  AC  AF  nCalled  ...
+
+        Note that using the ``.*`` syntax always results in named arguments, so it
+        is not possible to export header-less files in this manner.  However,
+        naming the "splatted" struct will apply the name in front of each column
+        like so:
+
+        >>> vds.export_variants('data/file.tsv', 'variant = v, QC = va.qc.*')
+
+        which produces these columns:
+
+        .. code-block:: text
+
+            variant  QC.callRate  QC.AC  QC.AF  QC.nCalled  ...
+
+
+        **Notes**
+
+        This module takes a comma-delimited list of fields or expressions to
+        print. These fields will be printed in the order they appear in the
+        expression in the header and on each line.
+
+        One line per variant in the VDS will be printed.  The accessible namespace includes:
+
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``va``: variant annotations
+        - ``global``: global annotations
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
+
+        **Designating output with an expression**
+
+        Much like the filtering methods, exporting allows flexible expressions
+        to be written on the command line. While the filtering methods expect an
+        expression that evaluates to true or false, this method expects a
+        comma-separated list of fields to print. These fields *must* take the
+        form ``IDENTIFIER = <expression>``.
+
 
         :param str output: Output file.
 
@@ -1202,7 +1510,14 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def filter_samples_all(self):
-        """Discard all samples (and genotypes)."""
+        """Removes all samples from VDS.  The variants and variant annotations will
+        remain, making it a sites-only VDS.
+
+        :return: A sites-only Variant Dataset
+
+        :rtype: :py:class:`.VariantDataset`
+
+        """
 
         pargs = ['filtersamples', 'all']
         return self.hc.run_command(self, pargs)
@@ -1269,7 +1584,37 @@ class VariantDataset(object):
     def filter_variants_intervals(self, input, keep=True):
         """Filter variants with an .interval_list file.
 
+        **Examples**
+
+        If *intervals.txt* contains intervals in the interval_list format, the
+        following expression will produce a :py:class:`.VariantDataset` containg
+        only variants included by the given intervals:
+
+        >>> vds.filter_variants_intervals('data/intervals.txt')
+
+        **The File Format**
+
+        Hail expects an interval file to contain either three or five fields per
+        line in the following formats:
+
+        - ``contig:start-end``
+        - ``contig  start  end`` (tab-separated)
+        - ``contig  start  end  direction  target`` (tab-separated)
+
+        In either case, Hail only uses the ``contig``, ``start``, and ``end``
+        fields.  Each variant is evaluated against each line in the interval
+        file, and any match will mark the variant to be included if
+        ``keep=True`` and excluded if ``keep=False``.
+
+        .. note::
+
+            ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``
+
         :param str input: Path to .interval_list file.
+
+        :return: A Variant Dataset filtered as specified above
+
+        :rtype: :py:class:`.VariantDataset`
 
         """
 
@@ -1281,7 +1626,27 @@ class VariantDataset(object):
     def filter_variants_list(self, input, keep=True):
         """Filter variants with a list of variants.
 
+        **Examples**
+
+        Keep all variants that occur in *data/variants.txt* (removing all other
+        variants):
+
+        >>> vds.filter_variants_list('data/variants.txt')
+
+        Remove all variants that occur in *data/variants.txt*:
+
+        >>> vds.filter_variants_list('data/variants.txt', keep=False)
+
+        **File Format**
+
+        Hail expects the given file to contain a variant per line following
+        format: ``contig:pos:ref:alt1,alt2,...,altN``.
+
         :param str input: Path to variant list file.
+
+        :return: A Variant Dataset including or excluding variants as specified
+
+        :rtype: :py:class:`.VariantDataset`
 
         """
 
@@ -1427,8 +1792,83 @@ class VariantDataset(object):
             self._raise_py4j_exception(e)
 
     def linreg(self, y, covariates='', root='va.linreg', minac=1, minaf=None):
-        """Test each variant for association using the linear regression
+        r"""Test each variant for association using the linear regression
         model.
+
+        **Implementation Details**
+
+        The :py:meth:`.linreg` command computes, for each variant, statistics of
+        the :math:`t`-test for the genotype coefficient of the linear function
+        of best fit from sample genotype and covariates to quantitative
+        phenotype or case-control status. Hail only includes samples for which
+        phenotype and all covariates are defined. For each variant, Hail imputes
+        missing genotypes as the mean of called genotypes.
+
+        Assuming there are sample annotations ``sa.pheno.height``,
+        ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the command:
+
+        >>> vds.linreg('sa.pheno.height', covariates='sa.cov.age, sa.cov.isFemale, sa.cov.PC1')
+
+        considers a model of the form
+
+        .. math::
+
+            \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{gt} + \beta_2 \, \mathrm{age} + \beta_3 \, \mathrm{isFemale} + \beta_4 \, \mathrm{PC1} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)
+
+        where the genotype :math:`\mathrm{gt}` is coded as :math:`0` for HomRef, :math:`1` for
+        Het, and :math:`2` for HomVar, and the Boolean covariate :math:`\mathrm{isFemale}`
+        is coded as :math:`1` for true (female) and :math:`0` for false (male). The null
+        model sets :math:`\beta_1 = 0`.
+
+        :py:meth:`.linreg` skips variants that don't vary across the included samples,
+        such as when all genotypes are homozygous reference. One can further
+        restrict computation to those variants with at least :math:`k` observed
+        alternate alleles (AC) or alternate allele frequency (AF) at least
+        :math:`p` in the included samples using the options ``minac=k`` or
+        ``minaf=p``, respectively. Unlike the :py:meth:`.filter_variants_expr`
+        command, these filters do not remove variants from the underlying
+        variant dataset. Adding both filters is equivalent to applying the more
+        stringent of the two, as AF equals AC over twice the number of included
+        samples.
+
+        Phenotype and covariate sample annotations may also be specified using
+        `programmatic expressions <../reference.html#HailExpressionLanguage>`_
+        without identifiers, such as:
+
+        .. code-block:: text
+
+            if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)
+
+        For Boolean types, true is coded as :math:`1` and false as :math:`0`. In
+        particular, for the sample annotation ``sa.fam.isCase`` added by
+        importing a `.fam` file with case-control phenotype, case is :math:`1`
+        and control is :math:`0`.
+
+        Hail's linear regression test corresponds to the ``q.lm`` test in
+        `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`_. For
+        each variant, Hail imputes missing genotypes as the mean of called
+        genotypes, whereas EPACTS subsets to those samples with called
+        genotypes. Hence, Hail and EPACTS results will currently only agree for
+        variants with no missing genotypes.
+
+        The standard least-squares linear regression model is derived in Section
+        3.2 of `The Elements of Statistical Learning, 2nd Edition
+        <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`_. See
+        equation 3.12 for the t-statistic which follows the t-distribution with
+        :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+        effect, with :math:`n` samples and :math:`k` covariates in addition to
+        genotype and intercept.
+
+        **Annotations**
+
+        Four variant annotations are then added with root ``va.linreg`` as shown
+        in the table. These annotations can then be accessed by other methods,
+        including exporting to TSV with other variant annotations.
+
+        - **va.linreg.beta** (*Double*) -- fit genotype coefficient, :math:`\hat\beta_1`
+        - **va.linreg.se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
+        - **va.linreg.tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+        - **va.linreg.pval** (*Double*) -- :math:`p`-value
 
         :param str y: Response sample annotation.
 
@@ -1440,6 +1880,10 @@ class VariantDataset(object):
 
         :param minaf: Minimum alternate allele frequency.
         :type minaf: float or None
+
+        :return: A Variant Dataset with the aforementioned linear regression annotations
+
+        :rtype: :py:class:`.VariantDataset`
 
         """
 
@@ -1482,7 +1926,7 @@ class VariantDataset(object):
         considers a model of the form
 
         .. math::
-        
+
           \mathrm{Prob}(\mathrm{isCase}) = \mathrm{sigmoid}(\\beta_0 + \\beta_1 \, \mathrm{gt} + \\beta_2 \, \mathrm{age} + \\beta_3 \, \mathrm{isFemale} + \\beta_4 \, \mathrm{PC1} + \\varepsilon), \quad \\varepsilon \sim \mathrm{N}(0, \sigma^2)
 
         where :math:`\mathrm{sigmoid}` is the `sigmoid
@@ -1501,7 +1945,7 @@ class VariantDataset(object):
         Test  Annotation               Type   Value
         ===== ======================== ====== =====
         Wald  ``va.logreg.wald.beta``  Double fit genotype coefficient, :math:`\hat\\beta_1`
-        Wald  ``va.logreg.wald.se``    Double estimated standard error, :math:`\widehat{\mathrm{se}}` 
+        Wald  ``va.logreg.wald.se``    Double estimated standard error, :math:`\widehat{\mathrm{se}}`
         Wald  ``va.logreg.wald.zstat`` Double Wald :math:`z`-statistic, equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}`
         Wald  ``va.logreg.wald.pval``  Double Wald test p-value testing :math:`\\beta_1 = 0`
         LRT   ``va.logreg.lrt.beta``   Double fit genotype coefficient, :math:`\hat\\beta_1`
@@ -1523,7 +1967,7 @@ class VariantDataset(object):
 
         We consider iteration to have converged when every coordinate of :math:`\\beta` changes by less than :math:`10^{-6}`. Up to 25 iterations are attempted; in testing we find 4 or 5 iterations nearly always suffice. Convergence may also fail due to explosion, which refers to low-level numerical linear algebra exceptions caused by manipulating ill-conditioned matrices. Explosion may result from (nearly) linearly dependent covariates or complete `separation <https://en.wikipedia.org/wiki/Separation_(statistics)>`_.
 
-        A more common situation in genetics is quasi-complete seperation, e.g. variants that are observed only in cases (or controls). Such variants inevitably arise when testing millions of variants with very low minor allele count. The maximum likelihood estimate of :math:`\\beta` under logistic regression is then undefined but convergence may still occur after a large number of iterations due to a very flat likelihood surface. In testing, we find that such variants produce a secondary bump from 10 to 15 iterations in the histogram of number of iterations per variant. We also find that this faux convergence produces large standard errors and large (insignificant) p-values. To not miss such variants, consider using Firth logistic regression, linear regression, or group-based tests. 
+        A more common situation in genetics is quasi-complete seperation, e.g. variants that are observed only in cases (or controls). Such variants inevitably arise when testing millions of variants with very low minor allele count. The maximum likelihood estimate of :math:`\\beta` under logistic regression is then undefined but convergence may still occur after a large number of iterations due to a very flat likelihood surface. In testing, we find that such variants produce a secondary bump from 10 to 15 iterations in the histogram of number of iterations per variant. We also find that this faux convergence produces large standard errors and large (insignificant) p-values. To not miss such variants, consider using Firth logistic regression, linear regression, or group-based tests.
 
         Here's a concrete illustration of quasi-complete seperation in R. Suppose we have 2010 samples distributed as follows for a particular variant:
 
@@ -1578,6 +2022,91 @@ class VariantDataset(object):
     def mendel_errors(self, output, fam):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
+
+        **Implementation Details**
+
+        This method finds all violations of Mendelian inheritance in each (dad,
+        mom, kid) trio of samples.
+
+        The following expression,
+
+        >>> vds.mendel_errors('genomes', 'trios.fam')
+
+        outputs four TSV files according to the `Plink mendel
+        formats <https://www.cog-genomics.org/plink2/formats#mendel>`_:
+
+        - ``genomes.mendel`` -- all mendel errors: FID KID CHR SNP CODE ERROR
+        - ``genomes.fmendel`` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
+        - ``genomes.imendel`` -- error count per individual: FID IID N NSNP
+        - ``genomes.lmendel`` -- error count per variant: CHR SNP N
+
+        **FID**, **KID**, **PAT**, **MAT**, and **IID** refer to family, kid,
+        dad, mom, and individual ID, respectively, with missing values set to
+        ``0``.
+
+        SNP denotes the variant identifier ``chr:pos:ref:alt``.
+
+        N counts all errors, while NSNP only counts SNP errors (NSNP is not in Plink).
+
+        CHLD is the number of children in a nuclear family.
+
+        The CODE of each Mendel error is determined by the table below,
+        extending the `Plink
+        classification <https://www.cog-genomics.org/plink2/basic_stats#mendel>`_.
+
+        Those individuals implicated by each code are in bold.
+
+        The copy state of a locus with respect to a trio is defined as follows,
+        where PAR is the pseudo-autosomal region (PAR).
+
+        - HemiX -- in non-PAR of X, male child
+        - HemiY -- in non-PAR of Y, male child
+        - Auto -- otherwise (in autosome or PAR, or female child)
+
+        Any refers to :math:`\{ HomRef, Het, HomVar, NoCall \}` and ! denotes complement in this set.
+
+        +--------+------------+------------+----------+------------------+
+        |Code    | Dad        | Mom        |     Kid  |   Copy State     |
+        +========+============+============+==========+==================+
+        |    1   | HomVar     | HomVar     | Het      | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    2   | HomRef     | HomRef     | Het      | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    3   | HomRef     |  ! HomRef  |  HomVar  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    4   |  ! HomRef  | HomRef     |  HomVar  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    5   | HomRef     | HomRef     |  HomVar  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    6   | HomVar     |  ! HomVar  |  HomRef  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    7   |  ! HomVar  | HomVar     |  HomRef  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    8   | HomVar     | HomVar     |  HomRef  | Auto             |
+        +--------+------------+------------+----------+------------------+
+        |    9   | Any        | HomVar     |  HomRef  | HemiX            |
+        +--------+------------+------------+----------+------------------+
+        |   10   | Any        | HomRef     |  HomVar  | HemiX            |
+        +--------+------------+------------+----------+------------------+
+        |   11   | HomVar     | Any        |  HomRef  | HemiY            |
+        +--------+------------+------------+----------+------------------+
+        |   12   | HomRef     | Any        |  HomVar  | HemiY            |
+        +--------+------------+------------+----------+------------------+
+
+        **Notes**
+
+        This method only considers children with two parents and a defined sex.
+
+        PAR is currently defined with respect to reference
+        `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
+
+        - X: 60001-2699520
+        - X: 154931044-155260560
+        - Y: 10001-2649520
+        - Y: 59034050-59363566
+
+        This method assumes all contigs apart from X and Y are fully autosomal;
+        mitochondria, decoys, etc. are not given special treatment.
 
         :param str output: Output root filename.
 
@@ -1957,7 +2486,7 @@ class VariantDataset(object):
         :return: A VariantDataset of biallelic variants with split set
           to true.
 
-        :rtype: VariantDataset
+        :rtype: :py:class:`.VariantDataset`
 
         """
 
@@ -2099,9 +2628,9 @@ class VariantDataset(object):
     def make_keytable(self, variant_condition, genotype_condition, key_names):
         """Make a KeyTable with one row per variant.
 
-        Per sample field names in the result are formed by concatening
-        the sample ID with the genotype_condition left hand side with
-        dot (.).  If the left hand side is empty::
+        Per sample field names in the result are formed by concatening the
+        sample ID with the ``genotype_condition`` left hand side with dot (.).
+        If the left hand side is empty::
 
           `` = expr
 
@@ -2148,7 +2677,7 @@ class VariantDataset(object):
         :rtype: KeyTable
 
         """
-        
+
         if isinstance(variant_condition, list):
             variant_condition = ','.join(variant_condition)
         if isinstance(genotype_condition, list):
