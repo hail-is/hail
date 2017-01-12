@@ -1,96 +1,69 @@
 package org.broadinstitute.hail.driver
 
 import breeze.linalg.DenseVector
+import org.apache.spark.SparkContext
 import org.broadinstitute.hail.utils.{fatal, plural}
-import org.broadinstitute.hail.expr.Parser
-import org.broadinstitute.hail.stats.BaldingNicholsModel
-import org.kohsuke.args4j.{Option => Args4jOption}
+import org.broadinstitute.hail.stats.{BaldingNicholsModel, BaldingNicholsModelDist}
+import org.broadinstitute.hail.variant.VariantDataset
 
-object BaldingNicholsModelCommand extends Command {
+object BaldingNicholsModelCommand {
 
-  class Options extends BaseOptions {
-    @Args4jOption(required = true, name = "-k", aliases = Array("--populations"), usage = "Number of populations")
-    var nPops: Int = 0
-
-    @Args4jOption(required = true, name = "-n", aliases = Array("--samples"), usage = "Number of samples")
-    var nSamples: Int = 0
-
-    @Args4jOption(required = true, name = "-m", aliases = Array("--variants"), usage = "Number of variants")
-    var nVariants: Int = 0
-
-    @Args4jOption(required = false, name = "-d", aliases = Array("--popdist"), usage = "(Unnormalized) population distribution, comma-separated")
-    var popDist: String = _
-
-    @Args4jOption(required = false, name = "-f", aliases = Array("--fst"), usage = "F_st values, comma-separated")
-    var FstOfPop: String = _
-
-    @Args4jOption(required = false, name = "-r", aliases = Array("--root"), usage = "Period-delimited path to follow `global', `sa', and `va'")
-    var root: String = "bn"
-
-    @Args4jOption(required = false, name = "-s", aliases = Array("--seed"), usage = "Random seed")
-    var seed: java.lang.Integer = _
-
-    @Args4jOption(required = false, name = "-p", aliases = Array("--npartitions"), usage = "Number of partitions")
-    var nPartitions: java.lang.Integer = _
-  }
-
-  def newOptions = new Options
-
-  def name = "baldingnichols"
-
+  /*def name = "balding_nichols"
   def description = "Generate a variant dataset using the Balding-Nichols model"
-
+  class Options extends BaseOptions
+  def newOptions = new Options
   def supportsMultiallelic = true
-
   def requiresVDS = false
+  def run(state: State, options: Options): State = fatal("balding_nichols is only supported via Python")
+  */
 
-  override def hidden = true
+//  def balding_nichols(): Unit = {
+//    print("yay")
+//  }
+  def balding_nichols(sc: SparkContext,
+    nPops: Int,
+    nSamples: Int,
+    nVariants: Int,
+    popDist: Array[Double],
+    FstOfPop: Array[Double],
+    seed: Int,
+    nPartitions: Int): VariantDataset = {
+    if (nPops <= 0)
+      fatal(s"Number of populations must be positive, got ${ nPops }")
 
-  def run(state: State, options: Options): State = {
-    if (options.nPops <= 0)
-      fatal(s"Number of populations must be positive, got ${options.nPops}")
+    if (nSamples <= 0)
+      fatal(s"Number of samples must be positive, got ${ nSamples }")
 
-    if (options.nSamples <= 0)
-      fatal(s"Number of samples must be positive, got ${options.nSamples}")
+    if (nVariants <= 0)
+      fatal(s"Number of variants must be positive, got ${ nVariants }")
 
-    if (options.nVariants <= 0)
-      fatal(s"Number of variants must be positive, got ${options.nVariants}")
 
-    val popDist = Option(options.popDist).map(Parser.parseCommaDelimitedDoubles)
-    popDist.foreach { probs =>
-      if (probs.size != options.nPops)
-        fatal(s"Got ${options.nPops} populations but ${probs.size} ${plural(probs.size, "probability", "probabilities")}")
-      probs.foreach(p =>
-        if (p < 0d)
-          fatal(s"Population probabilities must be non-negative, got $p"))
-    }
+    if (popDist.size != nPops)
+      fatal(s"Got ${ nPops } populations but ${ popDist.size } ${ plural(popDist.size, "probability", "probabilities") }")
+    popDist.foreach(p =>
+      if (p < 0d)
+        fatal(s"Population probabilities must be non-negative, got $p"))
 
-    val FstOfPop = Option(options.FstOfPop).map(Parser.parseCommaDelimitedDoubles)
-    FstOfPop.foreach { fs =>
-      if (fs.length != options.nPops)
-        fatal(s"Got ${options.nPops} populations but ${fs.size} ${plural(fs.size, "value")}")
-      fs.foreach(f =>
-        if (f <= 0d || f >= 1d)
-          fatal(s"F_st values must satisfy 0.0 < F_st < 1.0, got $f"))
-    }
 
-    val seed = Option(options.seed).map(_.intValue()).getOrElse(scala.util.Random.nextInt())
+    if (FstOfPop.size != nPops)
+      fatal(s"Got ${ nPops } populations but ${ FstOfPop.size } ${ plural(FstOfPop.size, "value") }")
 
-    val nPartitions = Option(options.nPartitions).map(_.intValue())
-    nPartitions.foreach {n =>
-      if (n <= 0)
-        fatal(s"Number of partitions must be positive, got $n")
-    }
+    FstOfPop.foreach(f =>
+      if (f <= 0d || f >= 1d)
+        fatal(s"F_st values must satisfy 0.0 < F_st < 1.0, got $f"))
 
-    state.copy(vds =
-      BaldingNicholsModel(
-        options.nPops,
-        options.nSamples,
-        options.nVariants,
-        popDist.map(DenseVector(_)),
-        FstOfPop.map(DenseVector(_)),
-        seed
-      )
-        .toVDS(state.sc, options.root, nPartitions))
+
+
+    if (nPartitions <= 0)
+      fatal(s"Number of partitions must be positive, got $nPartitions")
+
+
+    BaldingNicholsModelDist(sc,
+        nPops,
+        nSamples,
+        nVariants,
+        DenseVector(popDist),
+        DenseVector(FstOfPop),
+        seed)
   }
 }
