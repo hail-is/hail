@@ -4,7 +4,9 @@
 Getting Started
 ===============
 
-All you'll need is the `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_, `the latest version of Spark 2 <http://spark.apache.org/downloads.html>`_ and the Hail source code.
+All you'll need is the `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_, `the latest version of Spark 2 <http://spark.apache.org/downloads.html>`_, `CMake <https://cmake.org/download/>`_, and the Hail source code.
+
+On Mac OS X, CMake can be installed with `brew install cmake`.
 
 To clone the `Hail repository <https://github.com/broadinstitute/hail>`_ using `Git <https://git-scm.com/>`_, run
 
