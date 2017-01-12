@@ -17,30 +17,30 @@ object BaldingNicholsModelDist {
   // popDist is K-vector proportional to population distribution
   // FstOfPop is K-vector of F_st values
   def apply(sc: SparkContext, K: Int, N: Int, M: Int,
-    popDistOpt: Option[DenseVector[Double]] = None,
-    FstOfPopOpt: Option[DenseVector[Double]] = None,
+    popDist: DenseVector[Double],
+    FstOfPop: DenseVector[Double],
     seed: Int): VariantDataset = {
 
     require(K > 0)
     require(N > 0)
     require(M > 0)
-    require(popDistOpt.forall(_.length == K))
-    require(popDistOpt.forall(_.forall(_ >= 0d)))
-    require(FstOfPopOpt.forall(_.length == K))
-    require(FstOfPopOpt.forall(_.forall(f => f > 0d && f < 1d)))
+    require(popDist.length == K)
+    require(popDist.forall(_ >= 0d))
+    require(FstOfPop.length == K)
+    require(FstOfPop.forall(f => f > 0d && f < 1d))
 
     info(s"baldingnichols: generating genotypes for $K populations, $N samples, and $M variants...")
 
     Rand.generator.setSeed(seed)
 
-    val popDist_k = popDistOpt.getOrElse(DenseVector.fill[Double](K)(1d))
+    val popDist_k = popDist
     popDist_k :/= sum(popDist_k)
 
     val popDistRV = Multinomial(popDist_k)
-    val popOfSample_n = DenseVector.fill[Int](N)(popDistRV.draw())
+    val popOfSample_n: DenseVector[Int] = DenseVector.fill[Int](N)(popDistRV.draw())
     val popOfSample_nBc = sc.broadcast(popOfSample_n)
 
-    val Fst_k = FstOfPopOpt.getOrElse(DenseVector.fill[Double](K)(0.1))
+    val Fst_k = FstOfPop
     val Fst1_k = (1d - Fst_k) :/ Fst_k
     val Fst1_kBc = sc.broadcast(Fst1_k)
 
@@ -50,11 +50,11 @@ object BaldingNicholsModelDist {
     val numPartitions = Math.max(N * M / 1000000, 8)
 
     val rdd = sc.parallelize(
-      (0 to M).map { m =>
+      (0 until M).map { m =>
         val perVariantRandomGenerator = new JDKRandomGenerator
         perVariantRandomGenerator.setSeed(variantSeedBc.value + m)
         val perVariantRandomBasis = new RandBasis(perVariantRandomGenerator)
-        //TODO ************What should range be here***************
+
         val unif = new Uniform(0, 1)(perVariantRandomBasis)
 
         val ancestralAF = Uniform(.1, .9).draw()
@@ -84,16 +84,15 @@ object BaldingNicholsModelDist {
       numPartitions
     ).toOrderedRDD
 
-    val sampleIds = (1 until N).map(_.toString).toArray
-    val sampleAnnotations = popOfSample_n.toArray
-    val globalAnnotation = Annotation(K, N, M, popDist_k.toArray, Fst_k, seed)
-    val saSignature = TArray(TDouble)
+    val sampleIds = (1 to N).map(_.toString).toArray
+    val sampleAnnotations = popOfSample_n.toArray: IndexedSeq[Int]
+    val globalAnnotation = Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], seed)
+    val saSignature = TInt
     val vaSignature = TStruct("ancestralAF" -> TDouble, "AF" -> TArray(TDouble))
     val globalSignature = TStruct("nPops" -> TInt, "nSamples" -> TInt, "nVariants" -> TInt,
       "popDist" -> TArray(TDouble), "Fst" -> TArray(TDouble), "seed" -> TInt)
     val wasSplit = true
     val isDosage = false
-
 
     new VariantDataset(new VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation, saSignature,
       vaSignature, globalSignature, wasSplit, isDosage), rdd)
