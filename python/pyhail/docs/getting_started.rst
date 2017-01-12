@@ -4,17 +4,26 @@
 Getting Started
 ===============
 
-All you'll need is the `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_, `the latest version of Spark 2 <http://spark.apache.org/downloads.html>`_ and the Hail source code.
+You'll need:
 
-To clone the `Hail repository <https://github.com/broadinstitute/hail>`_ using `Git <https://git-scm.com/>`_, run
+- The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
+- The latest version of `Spark 2 <http://spark.apache.org/downloads.html>`_.
+- `CMake <http://cmake.org>`_ and a C++ compiler.
 
-    ::
+  On a Debian-based Linux like Ubuntu, run::
 
-    $ git clone https://github.com/broadinstitute/hail.git
-    $ cd hail
+    $ sudo apt-get install g++ cmake
 
+  On OSX, install Xcode, available through the App Store, for the C++ compiler.  `CMake <http://cmake.org>`_ can be downloaded from the CMake website or through `Homebrew <http://brew.sh>`_.  To install with Homebrew, run::
 
-You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
+    $ brew install cmake
+
+- The Hail source code.  To clone the `Hail repository <https://github.com/broadinstitute/hail>`_ using `Git <https://git-scm.com/>`_, run::
+
+      $ git clone https://github.com/broadinstitute/hail.git
+      $ cd hail
+
+  You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
 
 The following commands are relative to the ``hail`` directory.
 
