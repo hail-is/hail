@@ -153,19 +153,4 @@ class IBDSuite extends SparkSuite {
       (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y)))
   }
 
-  @Test def ibdLookupTable() {
-    def referenceImplementation(i: Int, j: Int): Int = {
-      if (i == 3 || j == 3)
-        0
-      else
-        2 - Math.abs(i - j)
-    }
-
-    for (i <- 0 to 3; j <- 0 to 3) {
-      val index = (i << 2) | j
-
-      assert((IBD.ibsLookupTable(index) & 3.toByte) == referenceImplementation(i, j))
-    }
-  }
-
 }

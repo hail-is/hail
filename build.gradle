@@ -72,6 +72,38 @@ String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
+sourceSets.test.runtimeClasspath += files("src/main/c/lib")
+
+task nativeLib(type: Exec) {
+    workingDir 'src/main/c'
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
+task nativeLibTest(type: Exec) {
+    workingDir 'src/main/c'
+    args('test')
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
+task nativeLibClean(type: Exec) {
+    workingDir 'src/main/c'
+    args('clean')
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDirs "src/main/c/lib"
+        }
+    }
+}
+compileScala.dependsOn(nativeLib)
+test.dependsOn(nativeLibTest)
+clean.dependsOn(nativeLibClean)
 
 compileJava {
     options.compilerArgs << "-Xlint:all" << "-Werror"
@@ -143,6 +175,7 @@ dependencies {
     compile group: 'org.ow2.asm', name: 'asm-util', version: '5.1'
     compile group: 'org.ow2.asm', name: 'asm-analysis', version: '5.1'
 
+    compile 'net.java.dev.jna:jna:4.2.2'
     compile 'net.sourceforge.jdistlib:jdistlib:0.4.5'
 
     testCompile 'org.testng:testng:6.8.21'
@@ -249,6 +282,7 @@ shadowJar {
         include(dependency('org.ow2.asm:asm-tree:.*'))
         include(dependency('org.ow2.asm:asm-analysis:.*'))
 
+        include(dependency('net.java.dev.jna:jna:.*'))
         include(dependency('net.sourceforge.jdistlib:jdistlib:.*'))
     }
 }
@@ -303,6 +337,7 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('com.beust:jcommander:.*'))
         include(dependency('org.scalatest:scalatest_' + scalaMajorVersion + ':.*'))
 
+        include(dependency('net.java.dev.jna:jna:.*'))
         include(dependency('net.sourceforge.jdistlib:jdistlib:.*'))
     }
 }

@@ -22,7 +22,7 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
   def hasNaNs: Boolean = Array(Z0, Z1, Z2, PI_HAT).exists(_.isNaN)
 }
 
-case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Int, ibs1: Int, ibs2: Int) {
+case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
   def pointwiseMinus(that: ExtendedIBDInfo): ExtendedIBDInfo =
     ExtendedIBDInfo(ibd.pointwiseMinus(that.ibd), ibs0 - that.ibs0, ibs1 - that.ibs1, ibs2 - that.ibs2)
 
@@ -37,7 +37,7 @@ case class IBSExpectations(
   def normalized: IBSExpectations =
     IBSExpectations(E00 / nonNaNCount, E10 / nonNaNCount, E20 / nonNaNCount, E11 / nonNaNCount, E21 / nonNaNCount, E22, this.nonNaNCount)
 
-  def scaled(N: Int): IBSExpectations =
+  def scaled(N: Long): IBSExpectations =
     IBSExpectations(E00 * N, E10 * N, E20 * N, E11 * N, E21 * N, E22 * N, this.nonNaNCount)
 
   def join(that: IBSExpectations): IBSExpectations =
@@ -100,7 +100,7 @@ object IBD {
     IBSExpectations(a00, a10, a20, a11, a21)
   }
 
-  def calculateIBDInfo(N0: Int, N1: Int, N2: Int, ibse: IBSExpectations, bounded: Boolean): ExtendedIBDInfo = {
+  def calculateIBDInfo(N0: Long, N1: Long, N2: Long, ibse: IBSExpectations, bounded: Boolean): ExtendedIBDInfo = {
     val ibseN = ibse.scaled(N0 + N1 + N2)
     val Z0 = N0 / ibseN.E00
     val Z1 = (N1 - Z0 * ibseN.E10) / ibseN.E11
@@ -131,26 +131,6 @@ object IBD {
     ExtendedIBDInfo(ibd, N0, N1, N2)
   }
 
-  val ibsLookupTable =
-    Array[Byte](
-      2, // 00 00  0  0
-      1, // 00 01  0  1
-      0, // 00 10  0  2
-      0, // 00 11  0  NA
-      1, // 01 00  1  0
-      2, // 01 01  1  1
-      1, // 01 10  1  2
-      0, // 01 11  1  NA
-      0, // 10 00  2  0
-      1, // 10 01  2  1
-      2, // 10 10  2  2
-      0, // 10 11  2  NA
-      0, // 11 00  NA 0
-      0, // 11 01  NA 1
-      0, // 11 10  NA 2
-      0 // 11 11  NA NA
-    )
-
   final val chunkSize = 1024
 
   def computeIBDMatrix(vds: VariantDataset, computeMaf: Option[(Variant, Annotation) => Double], bounded: Boolean): RDD[((Int, Int), ExtendedIBDInfo)] = {
@@ -161,10 +141,8 @@ object IBD {
 
     val nSamples = vds.nSamples
 
-    val missingGT: Byte = 3.toByte
-
     val chunkedGenotypeMatrix = vds.rdd
-      .map { case (v, (va, gs)) => gs.map(_.gt.map(_.toByte).getOrElse(missingGT)).toArray[Byte] }
+      .map { case (v, (va, gs)) => gs.map(_.gt.map(IBSFFI.gtToCRep).getOrElse(IBSFFI.missingGTCRep)).toArray[Byte] }
       .zipWithIndex()
       .flatMap { case (gts, variantId) =>
         val vid = (variantId % chunkSize).toInt
@@ -172,45 +150,22 @@ object IBD {
           .zipWithIndex
           .map { case (gtGroup, i) => ((i, variantId / chunkSize), (vid, gtGroup)) }
       }
-      .aggregateByKey(Array.tabulate(chunkSize * chunkSize)((i) => missingGT))({ case (x, (vid, gs)) =>
+      .aggregateByKey(Array.tabulate(chunkSize * chunkSize)((i) => IBSFFI.missingGTCRep))({ case (x, (vid, gs)) =>
         for (i <- gs.indices) x(vid * chunkSize + i) = gs(i)
         x
       }, { case (x, y) =>
         for (i <- y.indices)
-          if (x(i) == missingGT)
+          if (x(i) == IBSFFI.missingGTCRep)
             x(i) = y(i)
         x
       })
-      .map { case ((s, v), gs) => (v, (s, gs)) }
+      .map { case ((s, v), gs) => (v, (s, IBSFFI.pack(chunkSize, chunkSize, gs))) }
 
     chunkedGenotypeMatrix.join(chunkedGenotypeMatrix)
       // optimization: Ignore chunks below the diagonal
       .filter { case (_, ((i, _), (j, _))) => j >= i }
       .map { case (_, ((s1, gs1), (s2, gs2))) =>
-        val arr = new Array[Int](chunkSize * chunkSize * 3)
-        var vi = 0
-        var si = 0
-        var sj = 0
-        while (vi != chunkSize * chunkSize) {
-          var arri = 0
-          while (si != chunkSize) {
-            val left = gs1(vi + si)
-            while (sj != chunkSize) {
-              val right = gs2(vi + sj)
-              if (left != 3 && right != 3) {
-                val l = ibsLookupTable(left << 2 | right)
-                arr(arri + l) += 1
-              }
-              sj += 1
-              arri += 3
-            }
-            sj = 0
-            si += 1
-          }
-          si = 0
-          vi += chunkSize
-        }
-        ((s1, s2), arr)
+        ((s1, s2), IBSFFI.ibs(chunkSize, chunkSize, gs1, gs2))
       }
       .reduceByKey { (a, b) =>
         var i = 0
