@@ -273,10 +273,10 @@ class ContextTests(unittest.TestCase):
         kt2 = hc.import_keytable(test_resources + '/sampleAnnotations2.tsv', 'Sample', config = TextTableConfig(impute = True))
 
         # Variables
-        self.assertEqual(kt.nfields(), 3)
+        self.assertEqual(kt.num_columns(), 3)
         self.assertEqual(kt.key_names()[0], "Sample")
-        self.assertEqual(kt.field_names()[2], "qPhen")
-        self.assertEqual(kt.nrows(), 100)
+        self.assertEqual(kt.column_names()[2], "qPhen")
+        self.assertEqual(kt.num_rows(), 100)
         kt.schema()
 
         # Export
@@ -289,14 +289,14 @@ class ContextTests(unittest.TestCase):
 
         # Annotate
         (kt.annotate('X = Status')
-         .nrows())
+         .num_rows())
 
         # Join
-        kt.join(kt2, 'left').nrows()
+        kt.join(kt2, 'left').num_rows()
 
         # AggregateByKey
         (kt.aggregate_by_key("Status = Status", "Sum = qPhen.sum()")
-         .nrows())
+         .num_rows())
 
         # Forall, Exists
         self.assertFalse(kt.forall('Status == "CASE"'))
@@ -305,7 +305,7 @@ class ContextTests(unittest.TestCase):
 
         kt.rename({"Sample": "ID"})
         kt.rename(["Field1", "Field2", "Field3"])
-        kt.rename([name + "_a" for name in kt.field_names()])
+        kt.rename([name + "_a" for name in kt.column_names()])
 
         kt.select(["Sample"])
         kt.select(["Sample", "Status"])
