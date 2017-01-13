@@ -7,12 +7,10 @@ process.on('uncaughtException', function (err) {
   process.exit(1);
 });
 
-const referenceHtmlTemplate = __dirname + "/" + process.argv[2];
-const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
-const faqHtmlTemplate = __dirname + "/" + process.argv[4];
-const template = __dirname + "/" + process.argv[5];
-const jsonCommandsFile = process.argv[6];
-const pandocOutputDir = __dirname + "/" + process.argv[7];
+const faqHtmlTemplate = __dirname + "/" + process.argv[2];
+const template = __dirname + "/" + process.argv[3];
+const jsonCommandsFile = process.argv[4];
+const pandocOutputDir = __dirname + "/" + process.argv[5];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
@@ -25,18 +23,11 @@ mjAPI.start();
 
 buildFAQ(faqHtmlTemplate, __dirname + "/faq.html");
 
-buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
-
-buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
-
 buildSinglePage(template, "#body", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html",
     '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#tutorial").addClass("active");});});</script>');
 
-buildSinglePage(template, "#body", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html",
-    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#overview").addClass("active");});});</script>');
-
-buildSinglePage(template, "#body", pandocOutputDir + "reference/GettingStarted.html", __dirname + "/getting_started.html",
-    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#getting_started").addClass("active");});});</script>');
+buildSinglePage(template, "#body", pandocOutputDir + "reference/HailExpressionLanguage.html",  __dirname + "/expr_lang.html",
+    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#exprlang").addClass("active");});});</script>');
 
 buildIndex(template, "#body", "README.html", __dirname + "/index.html");
 

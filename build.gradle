@@ -431,8 +431,8 @@ task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
     }
 }
 
-task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepareJavascript', 'copyHtml']) {
-    args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'template.html', './commandOptions.json', 'docs/')
+task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copyHtml']) {
+    args('faqTemplate.html', 'template.html', './commandOptions.json', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
@@ -456,6 +456,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/faq.html'
     from 'build/tmp/docs/commands.html'
     from 'build/tmp/docs/reference.html'
+    from 'build/tmp/docs/expr_lang.html'
     from 'build/tmp/docs/tutorial.html'
     from 'build/tmp/docs/overview.html'
     from 'build/tmp/docs/getting_started.html'
