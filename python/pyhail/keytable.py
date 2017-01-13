@@ -83,9 +83,10 @@ class KeyTable(object):
 
         **Examples**
 
-        >>> kt1 = hc.import_keytable("data/kt1.tsv")
-        >>> kt2 = hc.import_keytable("data/kt2.tsv")
-        >>> kt1.same(kt2)
+        >>> kt1 = hc.import_keytable("data/example1.tsv")
+        >>> kt2 = hc.import_keytable("data/example2.tsv")
+        >>> if kt1.same(kt2):
+        >>>     print "KeyTables are the same!"
 
         :param other: KeyTable to compare to
         :type other: :class:`.KeyTable` 
@@ -104,9 +105,9 @@ class KeyTable(object):
 
         Rename column names of KeyTable and export to file:
 
-        >>> kt = (hc.import_keytable("data/kt1.tsv")
-        >>>         .rename({'column1' : 'newColumn1'}))
-        >>> kt.export("data/kt1_renamed.tsv")
+        >>> kt = (hc.import_keytable("data/example.tsv")
+        >>>         .rename({'column1' : 'newColumn1'})
+        >>>         .export("data/kt1_renamed.tsv"))
 
         :param str output: Output file path.
 
@@ -124,12 +125,12 @@ class KeyTable(object):
 
         Keep rows where ``C1`` equals 5:
 
-        >>> kt = (hc.import_keytable("data/kt1.tsv")
+        >>> kt = (hc.import_keytable("data/example.tsv")
         >>>         .filter("C1 == 5"))
 
         Remove rows where ``C1`` equals 10:
 
-        >>> kt = (hc.import_keytable("data/kt1.tsv")
+        >>> kt = (hc.import_keytable("data/example.tsv")
         >>>         .filter("C1 == 10", keep=False))
 
         **Notes**
@@ -138,6 +139,9 @@ class KeyTable(object):
 
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
         and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
+
+        .. caution::
+           When ``condition`` evaluates to missing, the row will be removed regardless of whether ``keep=True`` or ``keep=False``.
 
         :param str condition: Annotation expression.
 
@@ -159,7 +163,7 @@ class KeyTable(object):
 
         Add new column ``Y`` which is equal to 5 times ``X``:
 
-        >>> kt = (hc.import_keytable("data/kt1.tsv")
+        >>> kt = (hc.import_keytable("data/example.tsv")
         >>>         .annotate("Y = 5 * X"))
 
         **Notes**
@@ -176,9 +180,10 @@ class KeyTable(object):
 
         :rtype: :class:`.KeyTable`
         """
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+
         try:
-            if isinstance(condition, list):
-                condition = ','.join(condition)
             return KeyTable(self.hc, self.jkt.annotate(condition))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
@@ -190,8 +195,8 @@ class KeyTable(object):
 
         Join ``kt1`` to ``kt2`` to produce ``kt3``:
 
-        >>> kt1 = hc.import_keytable("data/kt1.tsv")
-        >>> kt2 = hc.import_keytable("data/kt2.tsv")
+        >>> kt1 = hc.import_keytable("data/example1.tsv")
+        >>> kt2 = hc.import_keytable("data/example2.tsv")
         >>> kt3 = kt1.join(kt2)
 
         **Notes:**
@@ -205,14 +210,14 @@ class KeyTable(object):
          - **right** -- Key present in ``kt2``. For keys only in ``kt2``, the value of non-key columns from ``kt1`` is set to missing.
 
         .. note::
-            Both key-tables must have identical key schemas and non-overlapping column names.
+            Both KeyTables must have identical key schemas and non-overlapping column names.
 
-        :param  right: Key-table to join
+        :param  right: KeyTable to join
         :type right: :class:`.KeyTable`
 
         :param str how: Method for joining two tables together. One of "inner", "outer", "left", "right".
 
-        :return: A KeyTable that is the result of joining two KeyTables as described above.
+        :return: A KeyTable that is the result of joining two KeyTables.
 
         :rtype: :class:`.KeyTable`
         """
@@ -228,7 +233,7 @@ class KeyTable(object):
 
         Compute mean height by sex:
 
-        >>> kt = hc.import_keytable("data/kt3.tsv")
+        >>> kt = hc.import_keytable("data/example.tsv")
         >>> kt_ht_by_sex = kt.aggregate_by_key("SEX = SEX", "MEAN_HT = HT.stats().mean")
 
         The KeyTable ``kt`` has the following data:
@@ -262,13 +267,13 @@ class KeyTable(object):
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
         and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
 
-        :param key_condition: Named expression(s) for which columns are keys.
+        :param key_condition: Named expression(s) for how to compute the keys of the new KeyTable.
         :type key_condition: str or list of str
 
         :param agg_condition: Named aggregation expression(s).
         :type agg_condition: str or list of str
 
-        :return: A new KeyTable with the keys specified by ``key_condition`` and the remaining columns specified by ``agg_condition``.
+        :return: A new KeyTable with the keys computed from the ``key_condition`` and the remaining columns computed from the ``agg_condition``.
 
         :rtype: :class:`.KeyTable`
         """
@@ -290,8 +295,9 @@ class KeyTable(object):
 
         Test whether all rows in the KeyTable have the value of ``C1`` equal to 5:
 
-        >>> kt = hc.import_keytable('data/kt1.tsv')
-        >>> kt.exists("C1 == 5")
+        >>> kt = hc.import_keytable('data/example.tsv')
+        >>> if kt.forall("C1 == 5"):
+        >>>     print "All rows have C1 equal 5."
 
         :param str code: Boolean expression.
 
@@ -309,8 +315,9 @@ class KeyTable(object):
 
         Test whether any row in the KeyTable has the value of ``C1`` equal to 5:
 
-        >>> kt = hc.import_keytable('data/kt1.tsv')
-        >>> kt.exists("C1 == 5")
+        >>> kt = hc.import_keytable('data/example.tsv')
+        >>> if kt.exists("C1 == 5"):
+        >>>     print "At least one row has C1 equal 5."
 
         :param str code: Boolean expression.
 
@@ -332,12 +339,12 @@ class KeyTable(object):
 
         Rename using a list:
 
-        >>> kt = hc.import_keytable('data/kt1.tsv')
+        >>> kt = hc.import_keytable('data/example.tsv')
         >>> kt_renamed = kt.rename(['newColumn1', 'newColumn2', 'newColumn3'])
 
         Rename using a dict:
 
-        >>> kt = hc.import_keytable('data/kt1.tsv')
+        >>> kt = hc.import_keytable('data/example.tsv')
         >>> kt_renamed = kt.rename({'column1' : 'newColumn1'})
 
         :param column_names: list of new column names or a dict mapping old names to new names.
@@ -414,7 +421,12 @@ class KeyTable(object):
 
         **Example**
 
-        Consider a KeyTable with signature
+        Flatten Structs in KeyTable:
+
+        >>> (hc.import_keytable("data/example.tsv")
+        >>>    .flatten())
+
+        Consider a KeyTable ``kt`` with signature
 
         .. code-block:: text
 
@@ -430,7 +442,7 @@ class KeyTable(object):
                 }]
             }
 
-        and a single key column ``a``.  The result of flatten is be
+        and a single key column ``a``.  The result of flatten is
 
         .. code-block:: text
 
