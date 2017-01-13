@@ -2,32 +2,9 @@
 
 In this tutorial, we will analyze data from the final phase of the [1000 Genomes Project](http://www.internationalgenome.org/about), as described in [A global reference for human genetic variation (Nature 2015)](http://www.nature.com/nature/journal/v526/n7571/full/nature15393.html). We have downsampled the dataset to approximately 10,000 variants consisting of both rare and common variants. We obtained sample information (population, super-population, sex) from the [1000 Genomes website](http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/working/20130606_sample_info/20130606_sample_info.xlsx).
 
-Before getting started, read the [Overview](overview.html) section of the docs.
+If you haven't already installed Hail, go to [Getting Started](pyhail/getting_started.html) for instructions.
 
-### Install dependencies
-
-In the tutorial, we will run Hail in local mode (using all cores on your laptop, VM, ...) rather than on a Spark cluster. Ensure the following dependencies are installed:
-
-  - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git). We recommend the latest version.
-  - [Java 1.8](https://www.google.com/search?q=download+java+8+jdk). Use `java -version` to see which version you currently have.
-  - Python 2.7 and IPython. We recommend the free [Anaconda distribution](https://www.continuum.io/downloads) and will assume this is what's installed below.
-  - [Spark 2](https://spark.apache.org/downloads.html). We recommend the latest version.
-
-If you are setting up a fresh Linux VM with Ubuntu installed (e.g., on GCP or AWS), [this wiki](https://github.com/hail-is/hail/wiki/Install-Hail-dependencies-on-a-fresh-Ubuntu-VM) may help.
-
-### Install Hail
-
-We recommend installation in your home directory. On the command line, download and build Hail by running:
-
-```
-git clone https://github.com/hail-is/hail.git hail
-cd hail
-./gradlew clean shadowJar
-```
-
-This will take a few minutes as additional dependencies are downloaded and Hail is compiled.
-
-### Download tutorial data files
+## Download tutorial data files
 
 Download the zip file *Hail_Tutorial_Data-v1.tgz* using [`wget`](https://www.google.com/search?q=install+wget) or [`curl`](https://www.google.com/search?q=install+curl):
  
@@ -47,21 +24,7 @@ The contents are as follows:
   - Sample Annotations -- *1000Genomes.ALL.coreExome10K-v1.sample_annotations*
   - LD-pruned SNP List -- *purcell5k.interval_list*
 
-### Setting up the Spark / Hail ecosystem
-
-Enter these commands, modified to reflect where you cloned Hail and unzipped Spark:
-```
-export HAIL_HOME=~/hail
-export SPARK_HOME=~/spark-2.0.2-bin-hadoop2.7
-```
-
-These commands should require no modification.
-```
-export PYTHONPATH=$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip
-export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
-```
-
-### Start an IPython interactive shell
+## Start an IPython interactive shell
 
 Start an IPython shell by running the command `ipython` from the directory containing the tutorial files. You should see a window similar to the one shown below. Otherwise, Anaconda is not installed properly.
 
@@ -535,3 +498,7 @@ We'll start with `sex_check_filtered_vds` here (our `analysis_ready_vds` isn't a
     >>>     .export_variants('fisherExactTest.tsv', 'Variant = v, va.fet.*'))
 
 <img src="test.fet.qq.png">
+
+## Eplilogue
+
+Congrats! If you've made it this far, you're perfectly primed to read the [Overview](pyhail/overview.html), look through the [Hail objects](pyhail/hail_objects.html) representing many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/pyhail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter Chat](https://gitter.im/hail-is/hail) or the [Discussion Forum](http://discuss.hail.is).
