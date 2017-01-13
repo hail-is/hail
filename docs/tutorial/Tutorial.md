@@ -2,9 +2,9 @@
 
 In this tutorial, we will analyze data from the final phase of the [1000 Genomes Project](http://www.internationalgenome.org/about), as described in [A global reference for human genetic variation (Nature 2015)](http://www.nature.com/nature/journal/v526/n7571/full/nature15393.html). We have downsampled the dataset to approximately 10,000 variants consisting of both rare and common variants. We obtained sample information (population, super-population, sex) from the [1000 Genomes website](http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/working/20130606_sample_info/20130606_sample_info.xlsx).
 
-Before proceeding, read the [Overview](pyhail/overview.html) and [Getting_Started](pyhail/getting_started.html) to install and run Hail.
+If you haven't already installed Hail, go to [Getting Started](pyhail/getting_started.html) for instructions.
 
-### Download tutorial data files
+## Download tutorial data files
 
 Download the zip file *Hail_Tutorial_Data-v1.tgz* using [`wget`](https://www.google.com/search?q=install+wget) or [`curl`](https://www.google.com/search?q=install+curl):
  
@@ -24,7 +24,7 @@ The contents are as follows:
   - Sample Annotations -- *1000Genomes.ALL.coreExome10K-v1.sample_annotations*
   - LD-pruned SNP List -- *purcell5k.interval_list*
 
-### Start an IPython interactive shell
+## Start an IPython interactive shell
 
 Start an IPython shell by running the command `ipython` from the directory containing the tutorial files. You should see a window similar to the one shown below. Otherwise, Anaconda is not installed properly.
 
@@ -498,3 +498,7 @@ We'll start with `sex_check_filtered_vds` here (our `analysis_ready_vds` isn't a
     >>>     .export_variants('fisherExactTest.tsv', 'Variant = v, va.fet.*'))
 
 <img src="test.fet.qq.png">
+
+## Eplilogue
+
+Congrats! If you've made it this far, you're perfectly primed to read the [Overview](pyhail/overview.html), look through the [Hail objects](pyhail/hail_objects.html) represent many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/pyhail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter Chat](https://gitter.im/hail-is/hail) or the [Discussion Forum](http://discuss.hail.is).
