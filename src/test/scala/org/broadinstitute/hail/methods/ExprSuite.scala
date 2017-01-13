@@ -320,6 +320,8 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Int]("""a.min""").contains(-1))
     assert(eval[Int]("""a.max""").contains(8))
+    assert(eval[Int]("""a.median""").contains(3))
+    assert(eval[Double]("""a.mean""").contains(22/7.0))
     assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
     assert(eval[String](""" "" + 5 + "5" """) == eval[String](""" "5" + 5 """))
