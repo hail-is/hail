@@ -33,8 +33,8 @@ clean:
 # if your build machine cannot access this URL, download this tar.gz and place
 # it in the same directory as this Makefile. If you do so, the build will
 # succeed without attempting to access the Internet.
-WGET ?= wget
-# WGET ?= curl -L -O
+# WGET ?= wget
+WGET ?= curl -L -O
 libsimdpp-2.0-rc2.tar.gz:
 	${WGET} https://github.com/p12tic/libsimdpp/archive/v2.0-rc2.tar.gz
 	mv v2.0-rc2.tar.gz libsimdpp-2.0-rc2.tar.gz
