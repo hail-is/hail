@@ -10,6 +10,7 @@ import org.kohsuke.args4j.{Option => Args4jOption}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.util.Random
 
 object CassandraStuff {
   private var cluster: Cluster = null
@@ -148,6 +149,7 @@ object ExportVariantsCass extends Command {
     val keyspace = options.keyspace
     val table = options.table
     val qualifiedTable = keyspace + "." + table
+    val maxRetryInterval = 3 * 60 * 1000 // 3m
 
     val vSymTab = Map(
       "v" -> (0, TVariant),
@@ -271,7 +273,27 @@ object ExportVariantsCass extends Command {
                   .values(names, values))
               }
 
-            futures.foreach(_.getUninterruptibly())
+            futures.foreach( f => {
+              var retry = true
+              var retryInterval = 3 * 1000 // 3s
+
+              while (retry) {
+                try {
+                  f.getUninterruptibly()
+                  retry = false
+                } catch {
+                  case t: Throwable =>
+                    warn(s"caught exception while inserting records: ${
+                      Main.expandException(t)
+                    }\n\tretrying")
+
+
+                    Thread.sleep(Random.nextInt(retryInterval))
+                    retryInterval = (retryInterval * 2).max(maxRetryInterval)
+                }
+              }
+
+            })
           }
 
         CassandraStuff.disconnect()
