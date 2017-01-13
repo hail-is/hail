@@ -36,8 +36,7 @@ clean:
 # WGET ?= wget
 WGET ?= curl -L -O
 libsimdpp-2.0-rc2.tar.gz:
-	${WGET} https://github.com/p12tic/libsimdpp/archive/v2.0-rc2.tar.gz
-	mv v2.0-rc2.tar.gz libsimdpp-2.0-rc2.tar.gz
+	${WGET} https://storage.googleapis.com/hail-common/libsimdpp-2.0-rc2.tar.gz
 
 libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 	tar -xzf libsimdpp-2.0-rc2.tar.gz
