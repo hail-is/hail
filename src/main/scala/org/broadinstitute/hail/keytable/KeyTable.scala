@@ -491,7 +491,8 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   }
 
   def explode(columnName: String): KeyTable = {
-    val explodeField = fields.find(fd => fd.name == columnName) match {
+
+    val explodeField = signature.fieldOption(columnName) match {
       case Some(x) => x
       case None =>
         fatal(
@@ -500,14 +501,13 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     }
 
     val index = explodeField.index
-    val name = explodeField.name
 
     val explodeType = explodeField.`type` match {
       case t: TIterable => t.elementType
-      case _ => fatal(s"Input field `${ name }' is not iterable. Found type `${ explodeField.`type` }' but require Array or Set.")
+      case _ => fatal(s"Require Array or Set. Column `$columnName' has type `${ explodeField.`type` }'.")
     }
 
-    val newSignature = signature.copy(fields = fields.updated(index, Field(name, explodeType, index)))
+    val newSignature = signature.copy(fields = fields.updated(index, Field(columnName, explodeType, index)))
 
     val explodedRDD = KeyTable.toSingleRDD(rdd, nKeys, nValues).flatMap { a =>
       val row = KeyTable.annotationToSeq(a, nFields)
