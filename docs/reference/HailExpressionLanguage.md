@@ -88,8 +88,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - min: `arr.min` -- valid only for numeric arrays, returns the minimum value
      - max: `arr.max` -- valid only for numeric arrays, returns the minimum value
      - median: `arr.median` -- valid only for numeric arrays, returns the median value (`NA`'s are ignored).
-     This returns the same type as the elements stored in the array, so for `Array[Int]` or `Array[Long]` of even length,
-     it rounds the result to the nearest integer. If this isn't desired, just map to `Double` prior to calling `median`
+     Element type is preserved so the median of `[0, 3]` is 1. To get 1.5 instead, use `arr.map(_.toDouble).median`
      - mean: `arr.mean` -- valid only for numeric arrays, returns the mean as a `Double` (`NA`'s are ignored)
      - arithmetic: `+ - * /`
         - Array with scalar will apply the operation to each element of the array.  `[1, 2, 3] * 2` = `[2, 4, 6]`.
